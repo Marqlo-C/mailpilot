@@ -6,6 +6,7 @@ import type { Subscription } from "@prisma/client";
 import { Loader2 } from "lucide-react";
 
 import { unsubscribeSender } from "@/app/actions/subscriptions";
+import { SenderAvatar } from "@/components/sender-avatar";
 import type { CleanupAction } from "@/lib/unsubscribe";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -91,8 +92,16 @@ export function SubscriptionsView({
               const method = methodBadge(sub);
               return (
                 <TableRow key={sub.id}>
-                  <TableCell className="font-medium">
-                    {sub.senderName ?? "—"}
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <SenderAvatar
+                        email={sub.senderEmail}
+                        name={sub.senderName}
+                      />
+                      <span className="font-medium">
+                        {sub.senderName ?? "—"}
+                      </span>
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {sub.senderEmail}
@@ -141,13 +150,19 @@ export function SubscriptionsView({
               className="rounded-lg border border-border bg-card p-4 shadow-sm"
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">
-                    {sub.senderName ?? sub.senderEmail}
-                  </p>
-                  <p className="truncate text-sm text-muted-foreground">
-                    {sub.senderEmail}
-                  </p>
+                <div className="flex min-w-0 items-center gap-3">
+                  <SenderAvatar
+                    email={sub.senderEmail}
+                    name={sub.senderName}
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">
+                      {sub.senderName ?? sub.senderEmail}
+                    </p>
+                    <p className="truncate text-sm text-muted-foreground">
+                      {sub.senderEmail}
+                    </p>
+                  </div>
                 </div>
                 <Badge variant={method.variant}>{method.label}</Badge>
               </div>

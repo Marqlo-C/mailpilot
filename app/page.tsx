@@ -7,6 +7,11 @@ import {
   Mail,
 } from "lucide-react";
 
+import { ScanInboxDialog } from "@/components/scan-inbox-dialog";
+import {
+  SenderAvatar,
+  domainFromActionUrl,
+} from "@/components/sender-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -74,11 +79,14 @@ export default async function DashboardPage() {
             {active?.email ?? "your Gmail inboxes"}.
           </p>
         </div>
-        {!active && (
-          <Button asChild>
-            <a href="/api/auth/google">Connect Gmail</a>
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <ScanInboxDialog accountId={active?.id ?? null} />
+          {!active && (
+            <Button asChild>
+              <a href="/api/auth/google">Connect Gmail</a>
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -107,7 +115,9 @@ export default async function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-base">Action queue</CardTitle>
-              <CardDescription>Interviews and assessments waiting on you</CardDescription>
+              <CardDescription>
+                Interviews and assessments waiting on you
+              </CardDescription>
             </div>
             <Button asChild variant="ghost" size="sm">
               <Link href="/jobs">
@@ -126,13 +136,19 @@ export default async function DashboardPage() {
                   key={job.id}
                   className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {job.companyName ?? "Company"}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {job.roleTitle ?? "Role"}
-                    </p>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <SenderAvatar
+                      name={job.companyName}
+                      domain={domainFromActionUrl(job.actionUrl)}
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {job.companyName ?? "Company"}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {job.roleTitle ?? "Role"}
+                      </p>
+                    </div>
                   </div>
                   <Badge variant="secondary">{job.status}</Badge>
                 </div>
@@ -145,7 +161,9 @@ export default async function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-base">Recent subscriptions</CardTitle>
-              <CardDescription>Latest senders with unsubscribe targets</CardDescription>
+              <CardDescription>
+                Latest senders with unsubscribe targets
+              </CardDescription>
             </div>
             <Button asChild variant="ghost" size="sm">
               <Link href="/subscriptions">
@@ -164,13 +182,20 @@ export default async function DashboardPage() {
                   key={sub.id}
                   className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {sub.senderName ?? sub.senderEmail}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {sub.emailCount} email{sub.emailCount === 1 ? "" : "s"}
-                    </p>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <SenderAvatar
+                      email={sub.senderEmail}
+                      name={sub.senderName}
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {sub.senderName ?? sub.senderEmail}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {sub.emailCount} email
+                        {sub.emailCount === 1 ? "" : "s"}
+                      </p>
+                    </div>
                   </div>
                   <Badge variant="outline">
                     {sub.unsubPostUrl

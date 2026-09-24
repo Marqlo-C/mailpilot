@@ -1,3 +1,4 @@
+import { ScanInboxDialog } from "@/components/scan-inbox-dialog";
 import { SubscriptionsView } from "@/components/subscriptions/subscriptions-view";
 import {
   getActiveAccount,
@@ -12,13 +13,16 @@ export default async function SubscriptionsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-          Subscriptions
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Detected newsletter senders with one-click, email, or link unsubscribe.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+            Subscriptions
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Detected newsletter senders with one-click, email, or link unsubscribe.
+          </p>
+        </div>
+        <ScanInboxDialog accountId={active?.id ?? null} />
       </div>
 
       {!active ? (

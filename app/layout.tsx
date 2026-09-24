@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { getActiveAccount, listAccounts } from "@/lib/data";
+import { Toaster } from "sonner";
 
 import "./globals.css";
 
@@ -45,6 +46,7 @@ export default async function RootLayout({
         >
           {children}
         </AppShell>
+        <Toaster richColors position="top-center" />
       </body>
     </html>
   );

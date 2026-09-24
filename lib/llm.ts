@@ -138,6 +138,9 @@ export async function classifyJobEmail(
   return classifyWithOpenRouter(userPrompt);
 }
 
+/** Spec alias used by historical scan. */
+export const classifyEmail = classifyJobEmail;
+
 async function classifyWithOllama(
   baseUrl: string,
   userPrompt: string

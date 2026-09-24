@@ -1,4 +1,5 @@
 import { JobsRadar } from "@/components/jobs/jobs-radar";
+import { ScanInboxDialog } from "@/components/scan-inbox-dialog";
 import { getActiveAccount, getJobsForAccount } from "@/lib/data";
 
 export default async function JobsPage() {
@@ -7,13 +8,16 @@ export default async function JobsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-          Job Radar
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Interviews, assessments, applications, and rejections in one triage board.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+            Job Radar
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Interviews, assessments, applications, and rejections in one triage board.
+          </p>
+        </div>
+        <ScanInboxDialog accountId={active?.id ?? null} />
       </div>
 
       {!active ? (

@@ -6,6 +6,10 @@ import type { JobApplication } from "@prisma/client";
 import { ExternalLink, Loader2, Trash2 } from "lucide-react";
 
 import { emptyRejections } from "@/app/actions/jobs";
+import {
+  SenderAvatar,
+  domainFromActionUrl,
+} from "@/components/sender-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -91,13 +95,19 @@ export function JobsRadar({ accountId, jobs }: JobsRadarProps) {
               <Card key={job.id}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <CardTitle className="text-base">
-                        {job.companyName ?? "Unknown company"}
-                      </CardTitle>
-                      <CardDescription>
-                        {job.roleTitle ?? "Role not specified"}
-                      </CardDescription>
+                    <div className="flex min-w-0 items-start gap-3">
+                      <SenderAvatar
+                        name={job.companyName}
+                        domain={domainFromActionUrl(job.actionUrl)}
+                      />
+                      <div className="min-w-0">
+                        <CardTitle className="text-base">
+                          {job.companyName ?? "Unknown company"}
+                        </CardTitle>
+                        <CardDescription>
+                          {job.roleTitle ?? "Role not specified"}
+                        </CardDescription>
+                      </div>
                     </div>
                     <Badge
                       variant={job.status === "OA" ? "default" : "secondary"}
@@ -159,8 +169,16 @@ export function JobsRadar({ accountId, jobs }: JobsRadarProps) {
                 <TableBody>
                   {applications.map((job) => (
                     <TableRow key={job.id}>
-                      <TableCell className="font-medium">
-                        {job.companyName ?? "—"}
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <SenderAvatar
+                            name={job.companyName}
+                            domain={domainFromActionUrl(job.actionUrl)}
+                          />
+                          <span className="font-medium">
+                            {job.companyName ?? "—"}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell>{job.roleTitle ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground">
@@ -175,13 +193,19 @@ export function JobsRadar({ accountId, jobs }: JobsRadarProps) {
               {applications.map((job) => (
                 <li
                   key={job.id}
-                  className="rounded-lg border border-border bg-card p-4"
+                  className="flex items-center gap-3 rounded-lg border border-border bg-card p-4"
                 >
-                  <p className="font-medium">{job.companyName ?? "—"}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {job.roleTitle ?? "Role unknown"} ·{" "}
-                    {new Date(job.emailDate).toLocaleDateString()}
-                  </p>
+                  <SenderAvatar
+                    name={job.companyName}
+                    domain={domainFromActionUrl(job.actionUrl)}
+                  />
+                  <div className="min-w-0">
+                    <p className="font-medium">{job.companyName ?? "—"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {job.roleTitle ?? "Role unknown"} ·{" "}
+                      {new Date(job.emailDate).toLocaleDateString()}
+                    </p>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -230,14 +254,20 @@ export function JobsRadar({ accountId, jobs }: JobsRadarProps) {
                 key={job.id}
                 className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"
               >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">
-                    {job.companyName ?? "Unknown company"}
-                  </p>
-                  <p className="truncate text-sm text-muted-foreground">
-                    {job.roleTitle ?? "Role unknown"} ·{" "}
-                    {new Date(job.emailDate).toLocaleDateString()}
-                  </p>
+                <div className="flex min-w-0 items-center gap-3">
+                  <SenderAvatar
+                    name={job.companyName}
+                    domain={domainFromActionUrl(job.actionUrl)}
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">
+                      {job.companyName ?? "Unknown company"}
+                    </p>
+                    <p className="truncate text-sm text-muted-foreground">
+                      {job.roleTitle ?? "Role unknown"} ·{" "}
+                      {new Date(job.emailDate).toLocaleDateString()}
+                    </p>
+                  </div>
                 </div>
                 <Badge variant={job.isTrashed ? "outline" : "secondary"}>
                   {job.isTrashed ? "Trashed" : "Logged"}

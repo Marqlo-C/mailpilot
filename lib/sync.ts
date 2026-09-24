@@ -279,7 +279,7 @@ async function maybeUpsertSubscription(input: {
   });
 }
 
-async function applyRejectionAction(
+export async function applyRejectionAction(
   gmail: gmail_v1.Gmail,
   messageId: string,
   rules: ReturnType<typeof parseAccountRules>
