@@ -1,0 +1,95 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Account {
+  id               String           @id @default(cuid())
+  email            String           @unique
+  encryptedAccess  String           // AES-256-GCM encrypted
+  encryptedRefresh String           // AES-256-GCM encrypted
+  tokenExpiry      DateTime
+  historyId        String?
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  settings        AccountSettings?
+  subscriptions   Subscription[]
+  jobApplications JobApplication[]
+
+  @@index([email])
+}
+
+model AccountSettings {
+  id             String   @id @default(cuid())
+  accountId      String   @unique
+  account        Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  llmProvider    String   @default("OPENROUTER") // "OPENROUTER" | "LOCAL_OLLAMA"
+  localOllamaUrl String?  @default("http://localhost:11434")
+
+  // Dynamic rules validated via Zod schema (accountRulesSchema)
+  // Default values:
+  // {
+  //   "rejectionMode": "LABEL_ONLY", // "LABEL_ONLY" | "AUTO_TRASH"
+  //   "rejectionLabelName": "Job Search/Rejections",
+  //   "rejectionLabelId": null,
+  //   "autoCleanAfterUnsub": "NONE"   // "NONE" | "TRASH" | "ARCHIVE"
+  // }
+  rules          Json     @default("{}")
+
+  updatedAt      DateTime @updatedAt
+}
+
+model Subscription {
+  id             String    @id @default(cuid())
+  accountId      String
+  account        Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  senderName     String?
+  senderEmail    String
+  unsubHttpUrl   String?
+  unsubPostUrl   String?
+  unsubPostBody  String?
+  unsubMailto    String?
+  status         String    @default("ACTIVE") // "ACTIVE" | "UNSUBSCRIBED" | "FAILED"
+  emailCount     Int       @default(1)
+  lastReceivedAt DateTime?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([accountId, senderEmail])
+  @@index([accountId, status])
+}
+
+model JobApplication {
+  id             String    @id @default(cuid())
+  accountId      String
+  account        Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  messageId      String
+  threadId       String
+  companyName    String?
+  roleTitle      String?
+  status         String    // "REJECTION" | "INTERVIEW" | "OA" | "RECEIVED" | "OTHER"
+  actionRequired Boolean   @default(false)
+  actionSummary  String?
+  actionUrl      String?
+  deadlineAt     DateTime?
+  emailDate      DateTime
+  isTrashed      Boolean   @default(false)
+  isArchived     Boolean   @default(false)
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([accountId, messageId])
+  @@index([accountId, status])
+  @@index([actionRequired])
+}

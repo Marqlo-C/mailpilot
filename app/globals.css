@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 20% 98%;
+    --foreground: 210 24% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 24% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 24% 12%;
+    --primary: 174 62% 28%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 16% 93%;
+    --secondary-foreground: 210 24% 16%;
+    --muted: 40 14% 94%;
+    --muted-foreground: 210 10% 42%;
+    --accent: 174 30% 92%;
+    --accent-foreground: 174 62% 22%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 14% 88%;
+    --input: 210 14% 88%;
+    --ring: 174 62% 28%;
+    --radius: 0.5rem;
+    --chart-1: 174 62% 36%;
+    --chart-2: 28 80% 52%;
+    --chart-3: 210 40% 36%;
+    --chart-4: 150 40% 40%;
+    --chart-5: 0 70% 55%;
+    --sidebar: 210 24% 12%;
+    --sidebar-foreground: 40 20% 96%;
+    --sidebar-muted: 210 14% 28%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 0% -20%, hsl(174 50% 85% / 0.45), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 0%, hsl(28 60% 90% / 0.35), transparent);
+    background-attachment: fixed;
+  }
+}

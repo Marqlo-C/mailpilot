@@ -1,0 +1,59 @@
+import { AccountsCard } from "@/components/settings/accounts-card";
+import { AiModelsCard } from "@/components/settings/ai-models-card";
+import { AutomationRulesCard } from "@/components/settings/automation-rules-card";
+import { getActiveAccount, listAccounts } from "@/lib/data";
+import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
+
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ connected?: string; error?: string }>;
+}) {
+  const params = await searchParams;
+  const [accounts, active] = await Promise.all([
+    listAccounts(),
+    getActiveAccount(),
+  ]);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+          Settings
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Accounts, automation preferences, and model routing in one place.
+        </p>
+      </div>
+
+      {params.connected && (
+        <div className="rounded-md border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+          Connected {params.connected}
+        </div>
+      )}
+      {params.error && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          OAuth error: {params.error}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <AccountsCard
+          accounts={accounts}
+          activeAccountId={active?.id ?? null}
+        />
+        <AutomationRulesCard
+          accountId={active?.id ?? null}
+          rules={active?.rules ?? DEFAULT_ACCOUNT_RULES}
+        />
+        <AiModelsCard
+          accountId={active?.id ?? null}
+          llmProvider={active?.settings?.llmProvider ?? "OPENROUTER"}
+          localOllamaUrl={
+            active?.settings?.localOllamaUrl ?? "http://localhost:11434"
+          }
+        />
+      </div>
+    </div>
+  );
+}
