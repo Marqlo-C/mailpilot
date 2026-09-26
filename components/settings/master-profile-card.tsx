@@ -15,10 +15,6 @@ import type { MasterProfileInput } from "@/lib/validations/profile";
 export type ProfileSnapshotData = MasterProfileInput & {
   updatedAt?: string;
   matchThreshold?: number;
-  mfaPhoneNumber?: string | null;
-  mfaReserveEmail?: string | null;
-  mfaEnabled?: boolean;
-  mfaPreferredChannel?: "SMS" | "EMAIL" | "BOTH";
   linkedIndeed?: string | null;
   linkedGlassdoor?: string | null;
   linkedGithub?: string | null;
@@ -66,9 +62,6 @@ export function MasterProfileCard({
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={profile.mfaEnabled ? "default" : "outline"}>
-                  MFA {profile.mfaEnabled ? "Enabled" : "Disabled"}
-                </Badge>
                 {profile.updatedAt ? (
                   <CardDescription>
                     Updated {new Date(profile.updatedAt).toLocaleString()}
@@ -121,18 +114,18 @@ export function MasterProfileCard({
                 <dl className="grid gap-3 sm:grid-cols-3">
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                      MFA Phone
+                      Phone
                     </dt>
                     <dd className="mt-1 font-medium">
-                      {profile.mfaPhoneNumber || "—"}
+                      {profile.phone || "—"}
                     </dd>
                   </div>
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Reserve Email
+                      Email
                     </dt>
                     <dd className="mt-1 break-all font-medium">
-                      {profile.mfaReserveEmail || "—"}
+                      {profile.email || "—"}
                     </dd>
                   </div>
                   <div>

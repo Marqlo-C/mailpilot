@@ -2,9 +2,14 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
-import { ACTIVE_ACCOUNT_COOKIE, LOGGED_OUT_COOKIE } from "@/lib/constants";
+import { logoutSession } from "@/app/actions/auth";
+import { getSessionToken } from "@/lib/auth";
+import {
+  ACTIVE_ACCOUNT_COOKIE,
+  AUTH_COOKIE_MAX_AGE,
+  SESSION_COOKIE,
+} from "@/lib/constants";
 import { getGmailClientForAccount } from "@/lib/google";
 import { prisma } from "@/lib/prisma";
 import { processInboxDelta } from "@/lib/sync";
@@ -16,6 +21,11 @@ export type ActionResult<T = undefined> =
 export async function setActiveAccount(
   accountId: string
 ): Promise<ActionResult> {
+  const session = await getSessionToken();
+  if (!session) {
+    return { ok: false, error: "Not authenticated" };
+  }
+
   const account = await prisma.account.findFirst({
     where: { id: accountId, isActive: true },
   });
@@ -29,9 +39,9 @@ export async function setActiveAccount(
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 365,
+    maxAge: AUTH_COOKIE_MAX_AGE,
+    secure: process.env.NODE_ENV === "production",
   });
-  cookieStore.delete(LOGGED_OUT_COOKIE);
 
   revalidatePath("/", "layout");
   return { ok: true };
@@ -64,6 +74,11 @@ export async function unlinkAccountCredentials(
   if (cookieStore.get(ACTIVE_ACCOUNT_COOKIE)?.value === accountId) {
     cookieStore.delete(ACTIVE_ACCOUNT_COOKIE);
   }
+  if (cookieStore.get(SESSION_COOKIE)?.value === accountId) {
+    // Session pointed at this inbox — clear selection but keep session if another
+    // account exists; full logout is explicit via logoutSession.
+    cookieStore.delete(ACTIVE_ACCOUNT_COOKIE);
+  }
 
   revalidatePath("/", "layout");
   revalidatePath("/settings");
@@ -79,19 +94,10 @@ export async function removeAccount(accountId: string): Promise<ActionResult> {
 
 /**
  * Ends the MailPilot browser session (cookies only). Does not unlink Gmail.
+ * @deprecated Prefer `logoutSession` from `@/app/actions/auth`.
  */
-export async function logoutMailPilotSession(): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.delete(ACTIVE_ACCOUNT_COOKIE);
-  cookieStore.set(LOGGED_OUT_COOKIE, "1", {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 365,
-  });
-
-  revalidatePath("/", "layout");
-  redirect("/");
+export async function logoutMailPilotSession(): Promise<never> {
+  return logoutSession();
 }
 
 export async function triggerManualSync(

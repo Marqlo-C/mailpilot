@@ -9,12 +9,9 @@ import { parseLinkedInArchive } from "@/lib/linkedin-archive-parser";
 import { prisma } from "@/lib/prisma";
 import { parseResumeToStructuredProfile } from "@/lib/resume-parser";
 import {
-  contactInfoSchema,
   linkedAccountsSchema,
   masterProfileSchema,
   matchThresholdSchema,
-  resolveMfaPreferredChannel,
-  type ContactInfoInput,
   type LinkedAccountsInput,
   type MasterProfileInput,
   type MasterProfileUpdateInput,
@@ -87,7 +84,7 @@ export async function extractResumeDraft(
 
 /**
  * Transactionally upserts the master profile and related entities.
- * Resume import path — does not overwrite MFA / linked account URLs.
+ * Resume import path — does not overwrite linked account URLs.
  */
 export async function saveMasterProfile(
   accountId: string,
@@ -99,12 +96,6 @@ export async function saveMasterProfile(
 
   return updateMasterProfile(accountId, {
     ...data,
-    mfaPhoneNumber: existing?.mfaPhoneNumber ?? null,
-    mfaReserveEmail: existing?.mfaReserveEmail ?? null,
-    mfaEnabled: existing?.mfaEnabled ?? false,
-    mfaPreferredChannel:
-      (existing?.mfaPreferredChannel as "SMS" | "EMAIL" | "BOTH" | undefined) ??
-      "EMAIL",
     linkedIndeed: existing?.linkedIndeed ?? null,
     linkedGlassdoor: existing?.linkedGlassdoor ?? null,
     linkedGithub: existing?.linkedGithub ?? null,
@@ -114,7 +105,7 @@ export async function saveMasterProfile(
 }
 
 /**
- * Full master profile write (core resume fields + MFA + linked URLs).
+ * Full master profile write (core resume fields + linked URLs).
  * Validates with `masterProfileSchema` and replaces child relations in a transaction.
  */
 export async function updateMasterProfile(
@@ -135,11 +126,6 @@ export async function updateMasterProfile(
   }
 
   const payload = parsed.data;
-  const mfaPreferredChannel = resolveMfaPreferredChannel({
-    mfaPhoneNumber: payload.mfaPhoneNumber,
-    mfaReserveEmail: payload.mfaReserveEmail,
-    mfaPreferredChannel: payload.mfaPreferredChannel,
-  });
 
   try {
     const profileId = await prisma.$transaction(async (tx) => {
@@ -155,10 +141,6 @@ export async function updateMasterProfile(
         summary: payload.summary ?? null,
         links: payload.links as Prisma.InputJsonValue,
         skills: payload.skills as Prisma.InputJsonValue,
-        mfaPhoneNumber: (payload.mfaPhoneNumber ?? "").trim() || null,
-        mfaReserveEmail: (payload.mfaReserveEmail ?? "").trim() || null,
-        mfaEnabled: payload.mfaEnabled ?? false,
-        mfaPreferredChannel,
         linkedIndeed: payload.linkedIndeed ?? null,
         linkedGlassdoor: payload.linkedGlassdoor ?? null,
         linkedGithub: payload.linkedGithub ?? null,
@@ -247,10 +229,6 @@ export async function getMasterProfile(
     MasterProfileInput & {
       updatedAt?: string;
       matchThreshold: number;
-      mfaPhoneNumber: string | null;
-      mfaReserveEmail: string | null;
-      mfaEnabled: boolean;
-      mfaPreferredChannel: "SMS" | "EMAIL" | "BOTH";
       linkedIndeed: string | null;
       linkedGlassdoor: string | null;
       linkedGithub: string | null;
@@ -317,14 +295,6 @@ export async function getMasterProfile(
         })),
         updatedAt: profile.updatedAt.toISOString(),
         matchThreshold: profile.matchThreshold,
-        mfaPhoneNumber: profile.mfaPhoneNumber,
-        mfaReserveEmail: profile.mfaReserveEmail,
-        mfaEnabled: profile.mfaEnabled,
-        mfaPreferredChannel:
-          profile.mfaPreferredChannel === "SMS" ||
-          profile.mfaPreferredChannel === "BOTH"
-            ? profile.mfaPreferredChannel
-            : "EMAIL",
         linkedIndeed: profile.linkedIndeed,
         linkedGlassdoor: profile.linkedGlassdoor,
         linkedGithub: profile.linkedGithub,
@@ -410,66 +380,6 @@ export async function updateMatchThreshold(
       ok: false,
       error:
         error instanceof Error ? error.message : "Failed to update threshold",
-    };
-  }
-}
-
-/**
- * Updates Contact & MFA fields on UserProfile after Zod safeParse validation.
- */
-export async function updateContactInfo(
-  accountId: string,
-  input: ContactInfoInput
-): Promise<ActionResult> {
-  const parsed = contactInfoSchema.safeParse(input);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      error: parsed.error.issues.map((i) => i.message).join("; "),
-    };
-  }
-
-  const account = await prisma.account.findUnique({
-    where: { id: accountId },
-    include: { profile: true },
-  });
-  if (!account) {
-    return { ok: false, error: "Account not found" };
-  }
-  if (!account.profile) {
-    return {
-      ok: false,
-      error: "Upload a master resume before saving contact info",
-    };
-  }
-
-  try {
-    const phone = (parsed.data.mfaPhoneNumber ?? "").trim() || null;
-    const email = (parsed.data.mfaReserveEmail ?? "").trim() || null;
-    const mfaPreferredChannel = resolveMfaPreferredChannel({
-      mfaPhoneNumber: phone,
-      mfaReserveEmail: email,
-      mfaPreferredChannel: parsed.data.mfaPreferredChannel,
-    });
-
-    await prisma.userProfile.update({
-      where: { accountId },
-      data: {
-        mfaPhoneNumber: phone,
-        mfaReserveEmail: email,
-        mfaEnabled: parsed.data.mfaEnabled,
-        mfaPreferredChannel,
-      },
-    });
-
-    revalidatePath("/settings");
-    return { ok: true };
-  } catch (error) {
-    console.error("updateContactInfo failed", error);
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "Failed to update contact info",
     };
   }
 }

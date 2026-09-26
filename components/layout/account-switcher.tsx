@@ -4,10 +4,8 @@ import { useTransition } from "react";
 import { Check, ChevronsUpDown, LogOut, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import {
-  logoutMailPilotSession,
-  setActiveAccount,
-} from "@/app/actions/accounts";
+import { setActiveAccount } from "@/app/actions/accounts";
+import { logoutSession } from "@/app/actions/auth";
 import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -94,7 +92,7 @@ export function AccountSwitcher({
           className="text-destructive focus:text-destructive"
           onSelect={() => {
             startTransition(async () => {
-              await logoutMailPilotSession();
+              await logoutSession();
             });
           }}
         >

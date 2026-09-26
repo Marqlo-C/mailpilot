@@ -80,7 +80,8 @@ export const REJECTION_LABEL_NAME = "Job Search/Rejections";
 
 export type GoogleTokens = {
   accessToken: string;
-  refreshToken: string;
+  /** Present on first consent or when `prompt=consent`; may be null on silent re-login. */
+  refreshToken: string | null;
   expiryDate: Date;
   scope?: string | null;
   /** Google OpenID subject from id_token when available. */
@@ -112,18 +113,21 @@ export function createOAuth2Client(): OAuth2Client {
 }
 
 /**
- * Generates the Google consent-screen URL for Gmail OAuth.
- * Always forces consent so newly added scopes are granted (not reused grants).
+ * Generates the Google OAuth URL for Gmail access.
+ * Use `forceConsent` only when scopes changed or a refresh token must be re-issued.
  */
-export function getAuthorizationUrl(state?: string): string {
+export function getAuthorizationUrl(
+  state?: string,
+  options?: { forceConsent?: boolean }
+): string {
   const oauth2Client = createOAuth2Client();
-  const params = {
-    access_type: "offline" as const,
-    prompt: "consent" as const,
+  const promptValue = options?.forceConsent ? "consent" : "select_account";
+  return oauth2Client.generateAuthUrl({
+    access_type: "offline",
+    prompt: promptValue,
     scope: [...GMAIL_SCOPES],
     state,
-  };
-  return oauth2Client.generateAuthUrl(params);
+  });
 }
 
 /**
@@ -139,11 +143,6 @@ export async function exchangeCodeForTokens(
 
   if (!tokens.access_token) {
     throw new Error("Google OAuth response missing access_token");
-  }
-  if (!tokens.refresh_token) {
-    throw new Error(
-      "Google OAuth response missing refresh_token. Revoke prior consent and retry with prompt=consent."
-    );
   }
 
   let googleSub: string | null = null;
@@ -161,7 +160,7 @@ export async function exchangeCodeForTokens(
 
   return {
     accessToken: tokens.access_token,
-    refreshToken: tokens.refresh_token,
+    refreshToken: tokens.refresh_token ?? null,
     expiryDate: tokens.expiry_date
       ? new Date(tokens.expiry_date)
       : new Date(Date.now() + 3600 * 1000),
@@ -177,7 +176,7 @@ export function getGmailClient(tokens: GoogleTokens): gmail_v1.Gmail {
   const oauth2Client = createOAuth2Client();
   oauth2Client.setCredentials({
     access_token: tokens.accessToken,
-    refresh_token: tokens.refreshToken,
+    refresh_token: tokens.refreshToken ?? undefined,
     expiry_date: tokens.expiryDate.getTime(),
   });
 

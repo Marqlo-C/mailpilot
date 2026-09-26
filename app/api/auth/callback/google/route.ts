@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 
-import { ACTIVE_ACCOUNT_COOKIE, LOGGED_OUT_COOKIE } from "@/lib/constants";
+import {
+  ACTIVE_ACCOUNT_COOKIE,
+  AUTH_COOKIE_MAX_AGE,
+  LEGACY_ACTIVE_ACCOUNT_COOKIE,
+  LEGACY_LOGGED_OUT_COOKIE,
+  SESSION_COOKIE,
+} from "@/lib/constants";
 import { encryptToken } from "@/lib/crypto";
 import {
   REJECTION_LABEL_NAME,
@@ -18,12 +24,8 @@ import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
 export const runtime = "nodejs";
 
 /**
- * Handles the Google OAuth callback:
- * 1. Validates CSRF state
- * 2. Exchanges code for tokens and encrypts them
- * 3. Find-or-creates the Job Search/Rejections label
- * 4. Registers the initial Gmail watch
- * 5. Upserts Account + AccountSettings + PersistentProfile
+ * Google OAuth callback — exchange code, upsert Account + PersistentProfile,
+ * issue session cookie, redirect. No MFA / OTP intermediate steps.
  */
 export async function GET(req: NextRequest) {
   const url = req.nextUrl;
@@ -32,8 +34,16 @@ export async function GET(req: NextRequest) {
   const oauthError = url.searchParams.get("error");
   const storedState = req.cookies.get("oauth_state")?.value;
 
-  const clearStateCookie = (response: NextResponse) => {
+  const clearAuthCookies = (response: NextResponse) => {
     response.cookies.set("oauth_state", "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+    // Clear any leftover MFA challenge cookies from prior auth experiments.
+    response.cookies.set("mfa_pending", "", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -44,17 +54,17 @@ export async function GET(req: NextRequest) {
   };
 
   if (oauthError) {
-    return clearStateCookie(
+    return clearAuthCookies(
       NextResponse.redirect(
-        new URL(`/settings?error=${encodeURIComponent(oauthError)}`, url.origin)
+        new URL(`/login?error=${encodeURIComponent(oauthError)}`, url.origin)
       )
     );
   }
 
   if (!code || !state || !storedState || state !== storedState) {
-    return clearStateCookie(
+    return clearAuthCookies(
       NextResponse.redirect(
-        new URL("/settings?error=invalid_oauth_state", url.origin)
+        new URL("/login?error=invalid_oauth_state", url.origin)
       )
     );
   }
@@ -67,7 +77,28 @@ export async function GET(req: NextRequest) {
     const watch = await registerInboxWatch(gmail);
 
     const encryptedAccess = encryptToken(tokens.accessToken);
-    const encryptedRefresh = encryptToken(tokens.refreshToken);
+
+    const existingAccount = await prisma.account.findUnique({
+      where: { email },
+      select: { id: true, encryptedRefresh: true },
+    });
+    const isReturningUser = Boolean(
+      existingAccount && existingAccount.encryptedRefresh
+    );
+
+    // `select_account` logins often omit refresh_token — keep the stored one.
+    const encryptedRefresh = tokens.refreshToken
+      ? encryptToken(tokens.refreshToken)
+      : existingAccount?.encryptedRefresh ?? null;
+
+    if (!encryptedRefresh) {
+      // First-time (or unlinked) accounts need consent to mint a refresh token.
+      return clearAuthCookies(
+        NextResponse.redirect(
+          new URL("/api/auth/google?forceConsent=true", url.origin)
+        )
+      );
+    }
 
     const rules = {
       ...DEFAULT_ACCOUNT_RULES,
@@ -120,34 +151,40 @@ export async function GET(req: NextRequest) {
       seedRules: rules,
     });
 
-    const response = clearStateCookie(
-      NextResponse.redirect(
-        new URL(
-          `/settings?connected=${encodeURIComponent(email)}`,
-          url.origin
-        )
-      )
+    const redirectPath = isReturningUser
+      ? "/"
+      : `/settings?connected=${encodeURIComponent(email)}`;
+
+    const response = clearAuthCookies(
+      NextResponse.redirect(new URL(redirectPath, url.origin))
     );
 
-    response.cookies.set(ACTIVE_ACCOUNT_COOKIE, account.id, {
+    const cookieOpts = {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: "lax" as const,
       path: "/",
-      maxAge: 60 * 60 * 24 * 365,
+      maxAge: AUTH_COOKIE_MAX_AGE,
+      secure: process.env.NODE_ENV === "production",
+    };
+
+    response.cookies.set(SESSION_COOKIE, account.id, cookieOpts);
+    response.cookies.set(ACTIVE_ACCOUNT_COOKIE, account.id, cookieOpts);
+    // Clear legacy cookies from prior auth builds.
+    response.cookies.set(LEGACY_ACTIVE_ACCOUNT_COOKIE, "", {
+      ...cookieOpts,
+      maxAge: 0,
     });
-    response.cookies.set(LOGGED_OUT_COOKIE, "", {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
+    response.cookies.set(LEGACY_LOGGED_OUT_COOKIE, "", {
+      ...cookieOpts,
       maxAge: 0,
     });
 
     return response;
   } catch (error) {
     console.error("Google OAuth callback failed", error);
-    return clearStateCookie(
+    return clearAuthCookies(
       NextResponse.redirect(
-        new URL("/settings?error=oauth_callback_failed", url.origin)
+        new URL("/login?error=oauth_callback_failed", url.origin)
       )
     );
   }

@@ -19,14 +19,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ProfileSnapshotData } from "@/components/settings/master-profile-card";
 import {
   masterProfileSchema,
   type ExperienceBullet,
   type MasterProfileUpdateInput,
-  type MfaPreferredChannel,
   type WorkExperienceInput,
 } from "@/lib/validations/profile";
 
@@ -54,10 +52,6 @@ function emptyForm(emailFallback = ""): MasterProfileUpdateInput {
     experiences: [],
     projects: [],
     education: [],
-    mfaPhoneNumber: null,
-    mfaReserveEmail: null,
-    mfaEnabled: false,
-    mfaPreferredChannel: "EMAIL",
     linkedIndeed: null,
     linkedGlassdoor: null,
     linkedGithub: null,
@@ -96,10 +90,6 @@ function profileToForm(profile: ProfileSnapshotData | null): MasterProfileUpdate
       ...ed,
       id: ed.id ?? newId(),
     })),
-    mfaPhoneNumber: profile.mfaPhoneNumber ?? null,
-    mfaReserveEmail: profile.mfaReserveEmail ?? null,
-    mfaEnabled: profile.mfaEnabled ?? false,
-    mfaPreferredChannel: profile.mfaPreferredChannel ?? "EMAIL",
     linkedIndeed: profile.linkedIndeed ?? null,
     linkedGlassdoor: profile.linkedGlassdoor ?? null,
     linkedGithub: profile.linkedGithub ?? null,
@@ -207,55 +197,7 @@ export function ManualProfileEditor({
                   value={form.phone ?? ""}
                   onChange={(v) => setForm((f) => ({ ...f, phone: v || null }))}
                 />
-                <Field
-                  label="Cell Phone Number"
-                  value={form.mfaPhoneNumber ?? ""}
-                  onChange={(v) =>
-                    setForm((f) => {
-                      const nextPhone = v || null;
-                      const stillHasContact = Boolean(
-                        nextPhone?.trim() || f.mfaReserveEmail?.trim()
-                      );
-                      return {
-                        ...f,
-                        mfaPhoneNumber: nextPhone,
-                        mfaEnabled: stillHasContact ? f.mfaEnabled : false,
-                      };
-                    })
-                  }
-                />
-                <Field
-                  label="Reserve Email"
-                  type="email"
-                  value={form.mfaReserveEmail ?? ""}
-                  onChange={(v) =>
-                    setForm((f) => {
-                      const nextEmail = v || null;
-                      const stillHasContact = Boolean(
-                        f.mfaPhoneNumber?.trim() || nextEmail?.trim()
-                      );
-                      return {
-                        ...f,
-                        mfaReserveEmail: nextEmail,
-                        mfaEnabled: stillHasContact ? f.mfaEnabled : false,
-                      };
-                    })
-                  }
-                />
               </div>
-
-              <MfaControls
-                phone={form.mfaPhoneNumber}
-                email={form.mfaReserveEmail}
-                enabled={Boolean(form.mfaEnabled)}
-                preferredChannel={form.mfaPreferredChannel ?? "EMAIL"}
-                onEnabledChange={(checked) =>
-                  setForm((f) => ({ ...f, mfaEnabled: checked }))
-                }
-                onChannelChange={(channel) =>
-                  setForm((f) => ({ ...f, mfaPreferredChannel: channel }))
-                }
-              />
 
               <div className="space-y-2">
                 <Label htmlFor="summary">Professional Summary</Label>
@@ -841,78 +783,6 @@ function ExperienceEditor({
           }}
         />
       </div>
-    </div>
-  );
-}
-
-function MfaControls({
-  phone,
-  email,
-  enabled,
-  preferredChannel,
-  onEnabledChange,
-  onChannelChange,
-}: {
-  phone: string | null | undefined;
-  email: string | null | undefined;
-  enabled: boolean;
-  preferredChannel: MfaPreferredChannel;
-  onEnabledChange: (enabled: boolean) => void;
-  onChannelChange: (channel: MfaPreferredChannel) => void;
-}) {
-  const hasPhone = Boolean(phone?.trim());
-  const hasEmail = Boolean(email?.trim());
-  const canEnable = hasPhone || hasEmail;
-  const showChannelPicker = hasPhone && hasEmail;
-
-  return (
-    <div className="space-y-3 rounded-md border border-border p-3">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium">Enable MFA</p>
-          <p className="text-xs text-muted-foreground">
-            {canEnable
-              ? "Uses your cell phone and/or reserve email for recovery codes."
-              : "Add a cell phone or reserve email to activate MFA."}
-          </p>
-        </div>
-        <Switch
-          checked={enabled && canEnable}
-          disabled={!canEnable}
-          onCheckedChange={(checked) => {
-            if (!canEnable) return;
-            onEnabledChange(checked);
-          }}
-        />
-      </div>
-
-      {showChannelPicker ? (
-        <div className="space-y-2">
-          <Label>Preferred MFA Channel</Label>
-          <div className="grid grid-cols-3 gap-1 rounded-md border border-border p-1">
-            {(
-              [
-                { value: "SMS", label: "SMS" },
-                { value: "EMAIL", label: "Email" },
-                { value: "BOTH", label: "Both" },
-              ] as const
-            ).map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                className={`rounded-sm px-2 py-1.5 text-xs font-medium transition-colors ${
-                  preferredChannel === option.value
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted"
-                }`}
-                onClick={() => onChannelChange(option.value)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

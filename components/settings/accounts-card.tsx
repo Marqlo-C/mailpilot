@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { Loader2, LogOut, RefreshCw, Unlink } from "lucide-react";
 
 import {
-  logoutMailPilotSession,
   triggerManualSync,
   unlinkAccountCredentials,
 } from "@/app/actions/accounts";
+import { logoutSession } from "@/app/actions/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +41,10 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <Badge variant="secondary">
+          Authentication: Secured via Google OAuth
+        </Badge>
+
         {accounts.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No accounts linked yet. Connect Gmail to start watching your inbox.
@@ -126,17 +130,24 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
           </ul>
         )}
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <Button asChild>
-            <a href="/api/auth/google">Link Gmail account</a>
-          </Button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-2">
+            <Button asChild>
+              <a href="/api/auth/google">Link Gmail account</a>
+            </Button>
+            <Button asChild variant="outline">
+              <a href="/api/auth/google?forceConsent=true">
+                Re-authorize Scopes
+              </a>
+            </Button>
+          </div>
           <Button
             type="button"
             variant="secondary"
             disabled={pending}
             onClick={() => {
               startTransition(async () => {
-                await logoutMailPilotSession();
+                await logoutSession();
               });
             }}
           >
@@ -148,6 +159,8 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
         <p className="text-xs text-muted-foreground">
           <strong className="font-medium text-foreground">Unlink</strong> clears
           OAuth tokens but keeps subscriptions, jobs, and profile history.{" "}
+          <strong className="font-medium text-foreground">Re-authorize Scopes</strong>{" "}
+          forces Google&apos;s consent screen when permissions change.{" "}
           <strong className="font-medium text-foreground">Log Out</strong> only
           ends this browser session.
         </p>

@@ -7,7 +7,8 @@ import type {
   SubscriptionHistory,
 } from "@prisma/client";
 
-import { ACTIVE_ACCOUNT_COOKIE, LOGGED_OUT_COOKIE } from "@/lib/constants";
+import { getAuthenticatedAccountId, getSessionToken } from "@/lib/auth";
+import { ACTIVE_ACCOUNT_COOKIE } from "@/lib/constants";
 import {
   ensurePersistentProfileForAccount,
   mergeRulesWithPermanentSettings,
@@ -35,6 +36,11 @@ export type AccountWithSettings = AccountSummary & {
 
 export async function listAccounts(): Promise<AccountSummary[]> {
   try {
+    const sessionAccountId = await getAuthenticatedAccountId();
+    if (!sessionAccountId) {
+      return [];
+    }
+
     return await prisma.account.findMany({
       where: { isActive: true },
       orderBy: { createdAt: "asc" },
@@ -57,11 +63,17 @@ export async function listAccounts(): Promise<AccountSummary[]> {
 
 export async function getActiveAccount(): Promise<AccountWithSettings | null> {
   try {
-    const cookieStore = await cookies();
-    if (cookieStore.get(LOGGED_OUT_COOKIE)?.value === "1") {
+    const sessionToken = await getSessionToken();
+    if (!sessionToken) {
       return null;
     }
 
+    const sessionAccountId = await getAuthenticatedAccountId();
+    if (!sessionAccountId) {
+      return null;
+    }
+
+    const cookieStore = await cookies();
     const accounts = await prisma.account.findMany({
       where: { isActive: true },
       include: {
@@ -77,7 +89,9 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
 
     const preferredId = cookieStore.get(ACTIVE_ACCOUNT_COOKIE)?.value;
     const selected =
-      accounts.find((a) => a.id === preferredId) ?? accounts[0];
+      accounts.find((a) => a.id === preferredId) ??
+      accounts.find((a) => a.id === sessionAccountId) ??
+      accounts[0];
 
     const durable = selected.persistentProfile
       ? selected.persistentProfile

@@ -175,11 +175,6 @@ model UserProfile {
   // { languages: string[], frameworks: string[], tools: string[], concepts: string[] }
   skills   Json    @default("{}")
 
-  mfaPhoneNumber  String?
-  mfaReserveEmail String?
-  mfaEnabled      Boolean @default(false)
-  // "SMS" | "EMAIL" | "BOTH"
-  mfaPreferredChannel String @default("EMAIL")
   matchThreshold  Int     @default(75)
 
   linkedIndeed    String?

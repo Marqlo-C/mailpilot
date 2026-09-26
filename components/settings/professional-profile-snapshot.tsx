@@ -16,10 +16,6 @@ import type { MasterProfileInput } from "@/lib/validations/profile";
 export type ProfileSnapshotData = MasterProfileInput & {
   updatedAt?: string;
   matchThreshold?: number;
-  mfaPhoneNumber?: string | null;
-  mfaReserveEmail?: string | null;
-  mfaEnabled?: boolean;
-  mfaPreferredChannel?: "SMS" | "EMAIL" | "BOTH";
   linkedIndeed?: string | null;
   linkedGlassdoor?: string | null;
   linkedGithub?: string | null;
@@ -152,34 +148,22 @@ export function ProfessionalProfileSnapshot({
         </SnapshotSection>
 
         <SnapshotSection
-          title="Contact & MFA"
-          hint="Recovery contacts stored on the profile"
+          title="Contact"
+          hint="Candidate contact details for resumes"
         >
-          <dl className="grid gap-3 text-sm sm:grid-cols-3">
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">
                 Phone
               </dt>
-              <dd className="mt-1 font-medium">
-                {profile.mfaPhoneNumber || "—"}
-              </dd>
+              <dd className="mt-1 font-medium">{profile.phone || "—"}</dd>
             </div>
             <div>
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                Reserve email
+                Email
               </dt>
               <dd className="mt-1 break-all font-medium">
-                {profile.mfaReserveEmail || "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                MFA
-              </dt>
-              <dd className="mt-1">
-                <Badge variant={profile.mfaEnabled ? "default" : "outline"}>
-                  {profile.mfaEnabled ? "Enabled" : "Disabled"}
-                </Badge>
+                {profile.email || "—"}
               </dd>
             </div>
           </dl>
