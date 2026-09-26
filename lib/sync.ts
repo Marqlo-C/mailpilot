@@ -13,6 +13,7 @@ import {
   matchesJobSubjectKeywords,
   type LlmProvider,
 } from "@/lib/llm";
+import { ensurePersistentProfileForAccount } from "@/lib/persistent-profile";
 import { prisma } from "@/lib/prisma";
 import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
 import { parseAccountRules } from "@/lib/validations/rules";
@@ -40,7 +41,7 @@ export async function processInboxDelta(
     include: { settings: true },
   });
 
-  if (!account || !account.isActive) {
+  if (!account || !account.isActive || !account.encryptedAccess) {
     console.warn(`Ignoring delta for unknown/inactive account: ${emailAddress}`);
     return;
   }
@@ -194,17 +195,26 @@ async function processMessage(
 
   const deadlineAt = parseDeadline(classification.deadline_iso);
   const companyName = classification.company_name;
+  const durable = await ensurePersistentProfileForAccount(account);
 
   // Lifecycle reconciliation: update existing thread/company application when possible
   if (lifecycleStatuses.has(mappedStatus)) {
     const existing =
       (await prisma.jobApplication.findFirst({
-        where: { accountId: account.id, threadId },
+        where: {
+          OR: [
+            { accountId: account.id, threadId },
+            { persistentProfileId: durable.id, threadId },
+          ],
+        },
       })) ??
       (companyName
         ? await prisma.jobApplication.findFirst({
             where: {
-              accountId: account.id,
+              OR: [
+                { accountId: account.id },
+                { persistentProfileId: durable.id },
+              ],
               companyName: {
                 contains: companyName,
                 mode: "insensitive",
@@ -223,6 +233,8 @@ async function processMessage(
         data: {
           messageId,
           threadId,
+          accountId: account.id,
+          persistentProfileId: durable.id,
           status: mappedStatus,
           companyName: companyName ?? existing.companyName,
           roleTitle: classification.role_title ?? existing.roleTitle,
@@ -248,6 +260,7 @@ async function processMessage(
     },
     create: {
       accountId: account.id,
+      persistentProfileId: durable.id,
       messageId,
       threadId,
       companyName,
@@ -264,6 +277,7 @@ async function processMessage(
       isArchived,
     },
     update: {
+      persistentProfileId: durable.id,
       companyName,
       roleTitle: classification.role_title,
       status: mappedStatus,

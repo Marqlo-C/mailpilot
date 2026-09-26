@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { Loader2, LogOut, RefreshCw, Unlink } from "lucide-react";
 
 import {
-  removeAccount,
+  logoutMailPilotSession,
   triggerManualSync,
+  unlinkAccountCredentials,
 } from "@/app/actions/accounts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,8 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
       <CardHeader>
         <CardTitle>Connected Accounts</CardTitle>
         <CardDescription>
-          Link Gmail inboxes, run a manual sync, or remove an account.
+          Link Gmail inboxes, sync, unlink credentials (keeps history), or log
+          out of the MailPilot session.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -56,6 +58,9 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
                     {account.id === activeAccountId && (
                       <Badge variant="secondary">Active</Badge>
                     )}
+                    {!account.encryptedAccess && (
+                      <Badge variant="outline">Credentials unlinked</Badge>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {account.historyId
@@ -68,7 +73,7 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
                     type="button"
                     size="sm"
                     variant="outline"
-                    disabled={pending}
+                    disabled={pending || !account.encryptedAccess}
                     onClick={() => {
                       setPendingId(account.id);
                       setMessage(null);
@@ -94,26 +99,26 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
                   <Button
                     type="button"
                     size="sm"
-                    variant="destructive"
+                    variant="outline"
                     disabled={pending}
                     onClick={() => {
                       if (
                         !window.confirm(
-                          `Remove ${account.email} and all related data?`
+                          `Unlink Gmail credentials for ${account.email}? Historical MailPilot data is kept.`
                         )
                       ) {
                         return;
                       }
                       setPendingId(account.id);
                       startTransition(async () => {
-                        await removeAccount(account.id);
+                        await unlinkAccountCredentials(account.id);
                         setPendingId(null);
                         router.refresh();
                       });
                     }}
                   >
-                    <Trash2 className="h-4 w-4" />
-                    Remove
+                    <Unlink className="h-4 w-4" />
+                    Unlink Gmail Credentials
                   </Button>
                 </div>
               </li>
@@ -121,9 +126,31 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
           </ul>
         )}
 
-        <Button asChild>
-          <a href="/api/auth/google">Link Gmail account</a>
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <Button asChild>
+            <a href="/api/auth/google">Link Gmail account</a>
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={pending}
+            onClick={() => {
+              startTransition(async () => {
+                await logoutMailPilotSession();
+              });
+            }}
+          >
+            <LogOut className="h-4 w-4" />
+            Log Out MailPilot Session
+          </Button>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          <strong className="font-medium text-foreground">Unlink</strong> clears
+          OAuth tokens but keeps subscriptions, jobs, and profile history.{" "}
+          <strong className="font-medium text-foreground">Log Out</strong> only
+          ends this browser session.
+        </p>
 
         {message && (
           <p className="text-sm text-muted-foreground">{message}</p>

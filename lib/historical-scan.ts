@@ -12,6 +12,7 @@ import {
   sanitizeEmailBody,
   type LlmProvider,
 } from "@/lib/llm";
+import { ensurePersistentProfileForAccount } from "@/lib/persistent-profile";
 import { prisma } from "@/lib/prisma";
 import { applyRejectionAction, mapClassificationStatus, parseFromHeader } from "@/lib/sync";
 import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
@@ -197,8 +198,9 @@ async function scanSubscriptions(
   const query = `newer_than:${days}d unsubscribe`;
   // Cap volume to keep Hobby serverless under timeout
   const messageIds = await listMessageIds(gmail, query, 150);
+  const uniqueSenders = new Set<string>();
 
-  const results = await mapPool(messageIds, METADATA_CONCURRENCY, async (messageId) => {
+  await mapPool(messageIds, METADATA_CONCURRENCY, async (messageId) => {
     try {
       const message = await withRateLimitRetry(() =>
         gmail.users.messages.get({
@@ -213,11 +215,11 @@ async function scanSubscriptions(
       const from = getHeader(headers, "From");
       const listUnsubscribe = getHeader(headers, "List-Unsubscribe");
       if (!from || !listUnsubscribe) {
-        return 0;
+        return;
       }
 
       const sender = parseFromHeader(from);
-      if (!sender) return 0;
+      if (!sender) return;
 
       const targets = parseListUnsubscribeHeaders(
         listUnsubscribe,
@@ -229,7 +231,7 @@ async function scanSubscriptions(
         !targets.unsubPostUrl &&
         !targets.unsubMailto
       ) {
-        return 0;
+        return;
       }
 
       const receivedAt = message.data.internalDate
@@ -266,20 +268,21 @@ async function scanSubscriptions(
         },
       });
 
-      return 1;
+      uniqueSenders.add(sender.email.toLowerCase());
     } catch (error) {
       console.error(`Historical subscription scan failed for ${messageId}`, error);
-      return 0;
     }
   });
 
-  return results.reduce<number>((sum, n) => sum + n, 0);
+  return uniqueSenders.size;
 }
 
 async function scanJobCandidates(
   gmail: gmail_v1.Gmail,
   account: {
     id: string;
+    email: string;
+    persistentProfileId: string | null;
     settings: {
       llmProvider: string;
       localOllamaUrl: string | null;
@@ -303,6 +306,7 @@ async function scanJobCandidates(
 
   const rules = parseAccountRules(account.settings?.rules);
   const llmProvider = normalizeProvider(account.settings?.llmProvider);
+  const durable = await ensurePersistentProfileForAccount(account);
   let jobsFound = 0;
 
   // Sequential LLM calls to respect free-tier limits
@@ -362,6 +366,7 @@ async function scanJobCandidates(
       await prisma.jobApplication.create({
         data: {
           accountId: account.id,
+          persistentProfileId: durable.id,
           messageId,
           threadId,
           companyName: classification.company_name,

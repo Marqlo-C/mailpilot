@@ -1,9 +1,11 @@
 import React from "react";
+import path from "path";
 import {
   Document,
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
   renderToBuffer,
 } from "@react-pdf/renderer";
@@ -21,6 +23,16 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: "Helvetica",
     color: "#111827",
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  brandMark: {
+    width: 28,
+    height: 28,
   },
   name: {
     fontSize: 18,
@@ -73,6 +85,11 @@ type PdfInput = {
   experiences: WorkExperienceInput[];
 };
 
+const INVERTED_LOGO_PATH = path.join(
+  process.cwd(),
+  "public/logos/transparent-logo.png"
+);
+
 function ResumeDocument({ profile, experiences }: PdfInput) {
   const links = profile.links.map((l) => l.url).filter(Boolean).join(" · ");
   const contact = [profile.email, profile.phone, profile.location, links]
@@ -89,7 +106,11 @@ function ResumeDocument({ profile, experiences }: PdfInput) {
   return (
     <Document>
       <Page size="LETTER" style={styles.page}>
-        <Text style={styles.name}>{profile.fullName}</Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.name}>{profile.fullName}</Text>
+          {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image */}
+          <Image src={INVERTED_LOGO_PATH} style={styles.brandMark} />
+        </View>
         <Text style={styles.contact}>{contact}</Text>
 
         {profile.summary ? (

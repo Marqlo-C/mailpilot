@@ -1,18 +1,36 @@
 import { cookies } from "next/headers";
-import type { Account, AccountSettings, JobApplication, Subscription } from "@prisma/client";
+import type {
+  Account,
+  AccountSettings,
+  JobApplication,
+  Subscription,
+  SubscriptionHistory,
+} from "@prisma/client";
 
-import { ACTIVE_ACCOUNT_COOKIE } from "@/lib/constants";
+import { ACTIVE_ACCOUNT_COOKIE, LOGGED_OUT_COOKIE } from "@/lib/constants";
+import {
+  ensurePersistentProfileForAccount,
+  mergeRulesWithPermanentSettings,
+} from "@/lib/persistent-profile";
 import { prisma } from "@/lib/prisma";
 import { parseAccountRules, type AccountRules } from "@/lib/validations/rules";
 
 export type AccountSummary = Pick<
   Account,
-  "id" | "email" | "isActive" | "historyId" | "updatedAt" | "createdAt"
+  | "id"
+  | "email"
+  | "isActive"
+  | "historyId"
+  | "updatedAt"
+  | "createdAt"
+  | "persistentProfileId"
+  | "encryptedAccess"
 >;
 
 export type AccountWithSettings = AccountSummary & {
   settings: AccountSettings | null;
   rules: AccountRules;
+  hasCredentials: boolean;
 };
 
 export async function listAccounts(): Promise<AccountSummary[]> {
@@ -27,6 +45,8 @@ export async function listAccounts(): Promise<AccountSummary[]> {
         historyId: true,
         updatedAt: true,
         createdAt: true,
+        persistentProfileId: true,
+        encryptedAccess: true,
       },
     });
   } catch (error) {
@@ -37,9 +57,17 @@ export async function listAccounts(): Promise<AccountSummary[]> {
 
 export async function getActiveAccount(): Promise<AccountWithSettings | null> {
   try {
+    const cookieStore = await cookies();
+    if (cookieStore.get(LOGGED_OUT_COOKIE)?.value === "1") {
+      return null;
+    }
+
     const accounts = await prisma.account.findMany({
       where: { isActive: true },
-      include: { settings: true },
+      include: {
+        settings: true,
+        persistentProfile: { include: { permanentSettings: true } },
+      },
       orderBy: { createdAt: "asc" },
     });
 
@@ -47,10 +75,19 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
       return null;
     }
 
-    const cookieStore = await cookies();
     const preferredId = cookieStore.get(ACTIVE_ACCOUNT_COOKIE)?.value;
     const selected =
       accounts.find((a) => a.id === preferredId) ?? accounts[0];
+
+    const durable = selected.persistentProfile
+      ? selected.persistentProfile
+      : await ensurePersistentProfileForAccount(selected);
+
+    const accountRules = parseAccountRules(selected.settings?.rules);
+    const rules = mergeRulesWithPermanentSettings(
+      accountRules,
+      durable.permanentSettings
+    );
 
     return {
       id: selected.id,
@@ -59,8 +96,13 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
       historyId: selected.historyId,
       updatedAt: selected.updatedAt,
       createdAt: selected.createdAt,
+      persistentProfileId: durable.id,
+      encryptedAccess: selected.encryptedAccess,
       settings: selected.settings,
-      rules: parseAccountRules(selected.settings?.rules),
+      rules,
+      hasCredentials: Boolean(
+        selected.encryptedAccess && selected.encryptedRefresh
+      ),
     };
   } catch (error) {
     console.error("getActiveAccount failed", error);
@@ -82,12 +124,40 @@ export async function getSubscriptionsForAccount(
   }
 }
 
+export async function getSubscriptionHistoryForProfile(
+  userProfileId: string
+): Promise<SubscriptionHistory[]> {
+  try {
+    return await prisma.subscriptionHistory.findMany({
+      where: { userProfileId },
+      orderBy: { updatedAt: "desc" },
+    });
+  } catch (error) {
+    console.error("getSubscriptionHistoryForProfile failed", error);
+    return [];
+  }
+}
+
 export async function getJobsForAccount(
   accountId: string
 ): Promise<JobApplication[]> {
   try {
+    const account = await prisma.account.findUnique({
+      where: { id: accountId },
+      select: { id: true, persistentProfileId: true },
+    });
+
+    if (!account) return [];
+
     return await prisma.jobApplication.findMany({
-      where: { accountId },
+      where: {
+        OR: [
+          { accountId },
+          ...(account.persistentProfileId
+            ? [{ persistentProfileId: account.persistentProfileId }]
+            : []),
+        ],
+      },
       orderBy: { emailDate: "desc" },
     });
   } catch (error) {
@@ -109,47 +179,53 @@ export async function getDashboardMetrics(
   accountId: string
 ): Promise<DashboardMetrics> {
   try {
-    const [activeInterviews, pendingAssessments, subscriptionsDetected, cleanedRejections, actionRequired, recentSubscriptions] =
-      await Promise.all([
-        prisma.jobApplication.count({
-          where: {
-            accountId,
-            status: "INTERVIEW",
-            isTrashed: false,
-          },
-        }),
-        prisma.jobApplication.count({
-          where: {
-            accountId,
-            status: "OA",
-            isTrashed: false,
-          },
-        }),
-        prisma.subscription.count({
-          where: { accountId, status: "ACTIVE" },
-        }),
-        prisma.jobApplication.count({
-          where: {
-            accountId,
-            status: "REJECTION",
-            isTrashed: true,
-          },
-        }),
-        prisma.jobApplication.findMany({
-          where: {
-            accountId,
-            status: { in: ["OA", "INTERVIEW"] },
-            isTrashed: false,
-          },
-          orderBy: { deadlineAt: "asc" },
-          take: 5,
-        }),
-        prisma.subscription.findMany({
-          where: { accountId, status: "ACTIVE" },
-          orderBy: { lastReceivedAt: "desc" },
-          take: 5,
-        }),
-      ]);
+    const [
+      activeInterviews,
+      pendingAssessments,
+      subscriptionsDetected,
+      cleanedRejections,
+      actionRequired,
+      recentSubscriptions,
+    ] = await Promise.all([
+      prisma.jobApplication.count({
+        where: {
+          accountId,
+          status: "INTERVIEW",
+          isTrashed: false,
+        },
+      }),
+      prisma.jobApplication.count({
+        where: {
+          accountId,
+          status: "OA",
+          isTrashed: false,
+        },
+      }),
+      prisma.subscription.count({
+        where: { accountId, status: "ACTIVE" },
+      }),
+      prisma.jobApplication.count({
+        where: {
+          accountId,
+          status: "REJECTION",
+          isTrashed: true,
+        },
+      }),
+      prisma.jobApplication.findMany({
+        where: {
+          accountId,
+          status: { in: ["OA", "INTERVIEW"] },
+          isTrashed: false,
+        },
+        orderBy: { deadlineAt: "asc" },
+        take: 5,
+      }),
+      prisma.subscription.findMany({
+        where: { accountId, status: "ACTIVE" },
+        orderBy: { lastReceivedAt: "desc" },
+        take: 5,
+      }),
+    ]);
 
     return {
       activeInterviews,

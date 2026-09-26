@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 
+import { ensurePersistentProfileForAccount } from "@/lib/persistent-profile";
 import { prisma } from "@/lib/prisma";
 import {
   accountRulesSchema,
@@ -29,6 +30,7 @@ const llmProviderSchema = z.enum(["OPENROUTER", "LOCAL_OLLAMA"]);
 
 /**
  * Patches a single key inside AccountSettings.rules (Zod-validated).
+ * Job Radar knobs are also mirrored to PermanentSettings on the durable profile.
  */
 export async function updateRule(
   accountId: string,
@@ -42,6 +44,7 @@ export async function updateRule(
 
   const settings = await prisma.accountSettings.findUnique({
     where: { accountId },
+    include: { account: true },
   });
 
   if (!settings) {
@@ -63,6 +66,28 @@ export async function updateRule(
     where: { accountId },
     data: { rules: validated.data as Prisma.InputJsonValue },
   });
+
+  if (
+    parsedKey.data === "applicationMode" ||
+    parsedKey.data === "matchScoreThreshold" ||
+    parsedKey.data === "maxAutoSendsPerDay"
+  ) {
+    const profile = await ensurePersistentProfileForAccount(settings.account);
+    await prisma.permanentSettings.upsert({
+      where: { persistentProfileId: profile.id },
+      create: {
+        persistentProfileId: profile.id,
+        applicationMode: validated.data.applicationMode,
+        matchScoreThreshold: validated.data.matchScoreThreshold,
+        maxAutoSendsPerDay: validated.data.maxAutoSendsPerDay,
+      },
+      update: {
+        applicationMode: validated.data.applicationMode,
+        matchScoreThreshold: validated.data.matchScoreThreshold,
+        maxAutoSendsPerDay: validated.data.maxAutoSendsPerDay,
+      },
+    });
+  }
 
   revalidatePath("/settings");
   return { ok: true, data: validated.data };

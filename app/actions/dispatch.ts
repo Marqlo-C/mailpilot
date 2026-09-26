@@ -35,11 +35,18 @@ export async function sendSingleApplication(
   if (!application) {
     return { ok: false, error: "Application not found" };
   }
+  if (!application.accountId) {
+    return {
+      ok: false,
+      error: "Gmail account is unlinked. Reconnect to continue.",
+    };
+  }
+  const accountId = application.accountId;
 
   try {
     if (!asDraft) {
-      const sentToday = await countSendsToday(application.accountId);
-      const limit = await getDailySendLimit(application.accountId);
+      const sentToday = await countSendsToday(accountId);
+      const limit = await getDailySendLimit(accountId);
       if (sentToday >= limit) {
         return {
           ok: false,
@@ -48,11 +55,9 @@ export async function sendSingleApplication(
       }
     }
 
-    const result = await dispatchApplicationEmail(
-      application.accountId,
-      applicationId,
-      { createDraftOnly: asDraft }
-    );
+    const result = await dispatchApplicationEmail(accountId, applicationId, {
+      createDraftOnly: asDraft,
+    });
     revalidatePath("/jobs");
     revalidatePath("/");
     return { ok: true, data: result };
@@ -84,9 +89,16 @@ export async function batchSendApplications(
   if (!first) {
     return { ok: false, error: "Application not found" };
   }
+  if (!first.accountId) {
+    return {
+      ok: false,
+      error: "Gmail account is unlinked. Reconnect to continue.",
+    };
+  }
+  const accountId = first.accountId;
 
-  const limit = await getDailySendLimit(first.accountId);
-  let sentToday = await countSendsToday(first.accountId);
+  const limit = await getDailySendLimit(accountId);
+  let sentToday = await countSendsToday(accountId);
   let sent = 0;
   let skipped = 0;
   const errors: string[] = [];
@@ -97,7 +109,7 @@ export async function batchSendApplications(
       continue;
     }
     try {
-      await dispatchApplicationEmail(first.accountId, id, {
+      await dispatchApplicationEmail(accountId, id, {
         createDraftOnly: false,
       });
       sent += 1;
@@ -184,6 +196,13 @@ export async function downloadTailoredPdfAction(
   });
   if (!application) {
     return { ok: false, error: "Application not found" };
+  }
+
+  if (!application.accountId) {
+    return {
+      ok: false,
+      error: "Gmail account is unlinked. Reconnect to download tailored PDFs.",
+    };
   }
 
   const profileResult = await getMasterProfile(application.accountId);

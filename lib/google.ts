@@ -70,10 +70,6 @@ export function isInsufficientScopeError(error: unknown): boolean {
  * Re-throws InsufficientScopeError for 403 scope failures; otherwise rethrows original.
  */
 export function rethrowIfInsufficientScope(error: unknown): never {
-  // #region agent log
-  const errObj = error as { message?: string; code?: number|string; response?: { status?: number; data?: unknown } };
-  fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'pre-fix',hypothesisId:'E',location:'lib/google.ts:rethrowIfInsufficientScope',message:'Evaluating insufficient-scope classifier',data:{classified:isInsufficientScopeError(error),errMessage:errObj?.message??String(error),errCode:errObj?.code??null,httpStatus:errObj?.response?.status??null},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   if (isInsufficientScopeError(error)) {
     throw new InsufficientScopeError();
   }
@@ -87,6 +83,8 @@ export type GoogleTokens = {
   refreshToken: string;
   expiryDate: Date;
   scope?: string | null;
+  /** Google OpenID subject from id_token when available. */
+  googleSub?: string | null;
 };
 
 export type WatchResult = {
@@ -125,11 +123,7 @@ export function getAuthorizationUrl(state?: string): string {
     scope: [...GMAIL_SCOPES],
     state,
   };
-  const authUrl = oauth2Client.generateAuthUrl(params);
-  // #region agent log
-  fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'pre-fix',hypothesisId:'A',location:'lib/google.ts:getAuthorizationUrl',message:'OAuth auth URL generated',data:{scopes:params.scope,accessType:params.access_type,prompt:params.prompt,hasOffline:authUrl.includes('access_type=offline'),hasConsent:authUrl.includes('prompt=consent'),hasModify:authUrl.includes('gmail.modify'),hasCompose:authUrl.includes('gmail.compose')},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-  return authUrl;
+  return oauth2Client.generateAuthUrl(params);
 }
 
 /**
@@ -141,9 +135,6 @@ export async function exchangeCodeForTokens(
   const oauth2Client = createOAuth2Client();
   const { tokens } = await oauth2Client.getToken(code);
 
-  // #region agent log
-  fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'pre-fix',hypothesisId:'B',location:'lib/google.ts:exchangeCodeForTokens',message:'Token exchange response scopes',data:{scope:tokens.scope??null,hasAccess:Boolean(tokens.access_token),hasRefresh:Boolean(tokens.refresh_token),expiryDate:tokens.expiry_date??null,tokenKeys:Object.keys(tokens)},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   console.log("[Auth Scopes Granted]:", tokens.scope);
 
   if (!tokens.access_token) {
@@ -155,6 +146,19 @@ export async function exchangeCodeForTokens(
     );
   }
 
+  let googleSub: string | null = null;
+  if (tokens.id_token) {
+    try {
+      const ticket = await oauth2Client.verifyIdToken({
+        idToken: tokens.id_token,
+        audience: requireEnv("GOOGLE_CLIENT_ID"),
+      });
+      googleSub = ticket.getPayload()?.sub ?? null;
+    } catch (error) {
+      console.warn("Failed to verify Google id_token for sub", error);
+    }
+  }
+
   return {
     accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token,
@@ -162,6 +166,7 @@ export async function exchangeCodeForTokens(
       ? new Date(tokens.expiry_date)
       : new Date(Date.now() + 3600 * 1000),
     scope: tokens.scope ?? null,
+    googleSub,
   };
 }
 
@@ -186,6 +191,16 @@ export function getGmailClient(tokens: GoogleTokens): gmail_v1.Gmail {
 export async function getGmailClientForAccount(
   account: Account
 ): Promise<gmail_v1.Gmail> {
+  if (
+    !account.encryptedAccess ||
+    !account.encryptedRefresh ||
+    !account.tokenExpiry
+  ) {
+    throw new Error(
+      "Gmail credentials are not linked for this account. Reconnect Google to continue."
+    );
+  }
+
   const oauth2Client = createOAuth2Client();
   oauth2Client.setCredentials({
     access_token: decryptToken(account.encryptedAccess),

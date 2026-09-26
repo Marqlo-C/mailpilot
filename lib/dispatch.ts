@@ -242,8 +242,17 @@ export async function countSendsToday(accountId: string): Promise<number> {
 }
 
 export async function getDailySendLimit(accountId: string): Promise<number> {
-  const settings = await prisma.accountSettings.findUnique({
-    where: { accountId },
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: {
+      settings: true,
+      persistentProfile: { include: { permanentSettings: true } },
+    },
   });
-  return parseAccountRules(settings?.rules).maxAutoSendsPerDay;
+
+  if (account?.persistentProfile?.permanentSettings) {
+    return account.persistentProfile.permanentSettings.maxAutoSendsPerDay;
+  }
+
+  return parseAccountRules(account?.settings?.rules).maxAutoSendsPerDay;
 }

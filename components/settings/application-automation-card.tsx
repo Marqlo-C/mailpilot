@@ -1,8 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { updateMatchThreshold } from "@/app/actions/profile";
 import { updateRule } from "@/app/actions/settings";
 import {
   Card,
@@ -20,16 +21,25 @@ import type { AccountRules } from "@/lib/validations/rules";
 type ApplicationAutomationCardProps = {
   accountId: string | null;
   rules: AccountRules;
+  /** Preferred source: UserProfile.matchThreshold */
+  matchThreshold?: number | null;
 };
 
 export function ApplicationAutomationCard({
   accountId,
   rules,
+  matchThreshold,
 }: ApplicationAutomationCardProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const initialThreshold = matchThreshold ?? rules.matchScoreThreshold;
+  const [threshold, setThreshold] = useState(initialThreshold);
   const disabled = !accountId || pending;
   const autoSend = rules.applicationMode === "AUTO_SEND";
+
+  useEffect(() => {
+    setThreshold(matchThreshold ?? rules.matchScoreThreshold);
+  }, [matchThreshold, rules.matchScoreThreshold]);
 
   function patch(key: keyof AccountRules, value: string | number) {
     if (!accountId) return;
@@ -39,10 +49,20 @@ export function ApplicationAutomationCard({
     });
   }
 
+  function commitThreshold(value: number) {
+    if (!accountId) return;
+    const next = Math.min(100, Math.max(50, value));
+    setThreshold(next);
+    startTransition(async () => {
+      await updateMatchThreshold(accountId, next);
+      router.refresh();
+    });
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Application Automation</CardTitle>
+        <CardTitle>Job Radar Rules</CardTitle>
         <CardDescription>
           Control auto-send behavior, match thresholds, and daily caps.
         </CardDescription>
@@ -77,21 +97,23 @@ export function ApplicationAutomationCard({
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label>Match score threshold</Label>
+            <Label>Match Threshold</Label>
             <span className="text-sm tabular-nums text-muted-foreground">
-              {rules.matchScoreThreshold}%
+              {threshold}%
             </span>
           </div>
           <Slider
             min={50}
             max={100}
-            step={1}
+            step={5}
             disabled={disabled}
-            value={[rules.matchScoreThreshold]}
-            onValueCommit={(value) =>
-              patch("matchScoreThreshold", value[0] ?? 75)
-            }
+            value={[threshold]}
+            onValueChange={(value) => setThreshold(value[0] ?? threshold)}
+            onValueCommit={(value) => commitThreshold(value[0] ?? threshold)}
           />
+          <p className="text-xs text-muted-foreground">
+            Leads scoring below this threshold stay in manual review.
+          </p>
         </div>
 
         <div className="space-y-2">

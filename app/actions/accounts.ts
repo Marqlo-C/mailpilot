@@ -2,8 +2,9 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
-import { ACTIVE_ACCOUNT_COOKIE } from "@/lib/constants";
+import { ACTIVE_ACCOUNT_COOKIE, LOGGED_OUT_COOKIE } from "@/lib/constants";
 import { getGmailClientForAccount } from "@/lib/google";
 import { prisma } from "@/lib/prisma";
 import { processInboxDelta } from "@/lib/sync";
@@ -30,18 +31,34 @@ export async function setActiveAccount(
     path: "/",
     maxAge: 60 * 60 * 24 * 365,
   });
+  cookieStore.delete(LOGGED_OUT_COOKIE);
 
   revalidatePath("/", "layout");
   return { ok: true };
 }
 
-export async function removeAccount(accountId: string): Promise<ActionResult> {
+/**
+ * Clears Gmail OAuth tokens but keeps Account + historical data rows.
+ */
+export async function unlinkAccountCredentials(
+  accountId: string
+): Promise<ActionResult> {
   const account = await prisma.account.findUnique({ where: { id: accountId } });
   if (!account) {
     return { ok: false, error: "Account not found" };
   }
 
-  await prisma.account.delete({ where: { id: accountId } });
+  await prisma.account.update({
+    where: { id: accountId },
+    data: {
+      encryptedAccess: null,
+      encryptedRefresh: null,
+      tokenExpiry: null,
+      historyId: null,
+      // Keep row active in UI so history remains visible; tokens alone are cleared.
+      isActive: true,
+    },
+  });
 
   const cookieStore = await cookies();
   if (cookieStore.get(ACTIVE_ACCOUNT_COOKIE)?.value === accountId) {
@@ -53,12 +70,36 @@ export async function removeAccount(accountId: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+/**
+ * @deprecated Prefer unlinkAccountCredentials — kept as alias for older callers.
+ */
+export async function removeAccount(accountId: string): Promise<ActionResult> {
+  return unlinkAccountCredentials(accountId);
+}
+
+/**
+ * Ends the MailPilot browser session (cookies only). Does not unlink Gmail.
+ */
+export async function logoutMailPilotSession(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete(ACTIVE_ACCOUNT_COOKIE);
+  cookieStore.set(LOGGED_OUT_COOKIE, "1", {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+
+  revalidatePath("/", "layout");
+  redirect("/");
+}
+
 export async function triggerManualSync(
   accountId: string
 ): Promise<ActionResult> {
   const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account || !account.isActive) {
-    return { ok: false, error: "Account not found or inactive" };
+  if (!account || !account.isActive || !account.encryptedAccess) {
+    return { ok: false, error: "Account not found or credentials unlinked" };
   }
 
   try {
@@ -89,7 +130,6 @@ export async function pingOllama(
     url?.trim() || settings?.localOllamaUrl || "http://localhost:11434";
 
   try {
-    // Allow localhost for Ollama ping (user's machine) — not used for unsubscribe
     const endpoint = new URL("/api/tags", base).toString();
     const response = await fetch(endpoint, {
       method: "GET",
@@ -118,8 +158,8 @@ export async function probeGmailConnection(
   accountId: string
 ): Promise<ActionResult> {
   const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account) {
-    return { ok: false, error: "Account not found" };
+  if (!account || !account.encryptedAccess) {
+    return { ok: false, error: "Account not found or credentials unlinked" };
   }
 
   try {

@@ -7,16 +7,68 @@ generator client {
   provider = "prisma-client-js"
 }
 
+/// Durable identity that survives Gmail credential unlink / re-link.
+model PersistentProfile {
+  id        String   @id @default(cuid())
+  /// Google OpenID `sub`, or sha256(email) fallback when sub is unavailable.
+  googleSub String   @unique
+  email     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts            Account[]
+  permanentSettings   PermanentSettings?
+  jobApplications     JobApplication[]
+  subscriptionHistory SubscriptionHistory[]
+
+  @@index([email])
+}
+
+/// Job Radar automation knobs that persist with the profile (not credentials).
+model PermanentSettings {
+  id                  String            @id @default(cuid())
+  persistentProfileId String            @unique
+  persistentProfile   PersistentProfile @relation(fields: [persistentProfileId], references: [id], onDelete: Cascade)
+
+  // "MANUAL_REVIEW" | "AUTO_SEND"
+  applicationMode     String @default("MANUAL_REVIEW")
+  matchScoreThreshold Int    @default(75)
+  maxAutoSendsPerDay  Int    @default(5)
+
+  updatedAt DateTime @updatedAt
+}
+
+/// Archive of past unsubscribe / ignore decisions keyed to the durable profile.
+model SubscriptionHistory {
+  id            String            @id @default(cuid())
+  userProfileId String
+  userProfile   PersistentProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+
+  senderEmail String
+  senderName  String?
+  // "UNSUBSCRIBED" | "IGNORED"
+  status      String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userProfileId, senderEmail])
+  @@index([userProfileId, status])
+}
+
 model Account {
-  id               String           @id @default(cuid())
-  email            String           @unique
-  encryptedAccess  String           // AES-256-GCM encrypted
-  encryptedRefresh String           // AES-256-GCM encrypted
-  tokenExpiry      DateTime
-  historyId        String?
-  isActive         Boolean          @default(true)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  id                  String             @id @default(cuid())
+  email               String             @unique
+  /// Nullable so "Unlink Gmail" can clear credentials without deleting history.
+  encryptedAccess     String?
+  encryptedRefresh    String?
+  tokenExpiry         DateTime?
+  historyId           String?
+  isActive            Boolean            @default(true)
+  persistentProfileId String?
+  persistentProfile   PersistentProfile? @relation(fields: [persistentProfileId], references: [id], onDelete: SetNull)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
 
   settings        AccountSettings?
   subscriptions   Subscription[]
@@ -24,20 +76,21 @@ model Account {
   profile         UserProfile?
 
   @@index([email])
+  @@index([persistentProfileId])
 }
 
 model AccountSettings {
-  id             String   @id @default(cuid())
-  accountId      String   @unique
-  account        Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id             String  @id @default(cuid())
+  accountId      String  @unique
+  account        Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  llmProvider    String   @default("OPENROUTER") // "OPENROUTER" | "LOCAL_OLLAMA"
-  localOllamaUrl String?  @default("http://localhost:11434")
+  llmProvider    String  @default("OPENROUTER") // "OPENROUTER" | "LOCAL_OLLAMA"
+  localOllamaUrl String? @default("http://localhost:11434")
 
   // Dynamic rules validated via Zod schema (accountRulesSchema)
-  rules          Json     @default("{}")
+  rules          Json    @default("{}")
 
-  updatedAt      DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 }
 
 model Subscription {
@@ -55,22 +108,26 @@ model Subscription {
   emailCount     Int       @default(1)
   lastReceivedAt DateTime?
 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([accountId, senderEmail])
   @@index([accountId, status])
 }
 
 model JobApplication {
-  id             String    @id @default(cuid())
-  accountId      String
-  account        Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id                  String             @id @default(cuid())
+  /// Optional link to live Gmail credentials; cleared if account row is removed.
+  accountId           String?
+  account             Account?           @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  /// Durable owner — survives credential unlink.
+  persistentProfileId String?
+  persistentProfile   PersistentProfile? @relation(fields: [persistentProfileId], references: [id], onDelete: SetNull)
 
-  messageId      String
-  threadId       String
-  companyName    String?
-  roleTitle      String?
+  messageId String
+  threadId  String
+  companyName String?
+  roleTitle   String?
   // "LEAD" | "APPLIED" | "OA" | "INTERVIEW" | "OFFER" | "REJECTION" | "ARCHIVED"
   status         String    @default("LEAD")
   // "EMAIL" | "PORTAL"
@@ -92,29 +149,44 @@ model JobApplication {
   isTrashed      Boolean   @default(false)
   isArchived     Boolean   @default(false)
 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([accountId, messageId])
+  @@index([persistentProfileId, messageId])
   @@index([accountId, status])
+  @@index([persistentProfileId, status])
   @@index([accountId, companyName])
   @@index([actionRequired])
 }
 
 model UserProfile {
-  id        String   @id @default(cuid())
-  accountId String   @unique
-  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  accountId String  @unique
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  fullName  String
-  email     String
-  phone     String?
-  location  String?
-  summary   String?
+  fullName String
+  email    String
+  phone    String?
+  location String?
+  summary  String?
   // [{ label: string, url: string }]
-  links     Json     @default("[]")
+  links    Json    @default("[]")
   // { languages: string[], frameworks: string[], tools: string[], concepts: string[] }
-  skills    Json     @default("{}")
+  skills   Json    @default("{}")
+
+  mfaPhoneNumber  String?
+  mfaReserveEmail String?
+  mfaEnabled      Boolean @default(false)
+  // "SMS" | "EMAIL" | "BOTH"
+  mfaPreferredChannel String @default("EMAIL")
+  matchThreshold  Int     @default(75)
+
+  linkedIndeed    String?
+  linkedGlassdoor String?
+  linkedGithub    String?
+  linkedLinkedin  String?
+  linkedHandshake String?
 
   experiences WorkExperience[]
   projects    Project[]
@@ -129,13 +201,13 @@ model WorkExperience {
   profileId String
   profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
-  company   String
-  role      String
-  location  String?
-  startDate String
-  endDate   String?
+  company      String
+  role         String
+  location     String?
+  startDate    String
+  endDate      String?
   // [{ id: string, rawText: string, technologies: string[], hasMetric: boolean }]
-  bullets   Json
+  bullets      Json
   displayOrder Int      @default(0)
 }
 

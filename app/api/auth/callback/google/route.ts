@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 
+import { ACTIVE_ACCOUNT_COOKIE, LOGGED_OUT_COOKIE } from "@/lib/constants";
 import { encryptToken } from "@/lib/crypto";
 import {
   REJECTION_LABEL_NAME,
@@ -10,6 +11,7 @@ import {
   getGmailProfileEmail,
   registerInboxWatch,
 } from "@/lib/google";
+import { ensurePersistentProfile } from "@/lib/persistent-profile";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
 
@@ -21,7 +23,7 @@ export const runtime = "nodejs";
  * 2. Exchanges code for tokens and encrypts them
  * 3. Find-or-creates the Job Search/Rejections label
  * 4. Registers the initial Gmail watch
- * 5. Upserts Account + AccountSettings
+ * 5. Upserts Account + AccountSettings + PersistentProfile
  */
 export async function GET(req: NextRequest) {
   const url = req.nextUrl;
@@ -59,9 +61,6 @@ export async function GET(req: NextRequest) {
 
   try {
     const tokens = await exchangeCodeForTokens(code);
-    // #region agent log
-    fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'pre-fix',hypothesisId:'C',location:'callback/google/route.ts:pre-upsert',message:'About to upsert account tokens',data:{scope:tokens.scope??null,hasAccess:Boolean(tokens.accessToken),hasRefresh:Boolean(tokens.refreshToken),expiry:tokens.expiryDate.toISOString(),callbackQueryScope:url.searchParams.get('scope')},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const gmail = getGmailClient(tokens);
     const email = await getGmailProfileEmail(gmail);
     const label = await findOrCreateLabel(gmail, REJECTION_LABEL_NAME);
@@ -76,7 +75,7 @@ export async function GET(req: NextRequest) {
       rejectionLabelId: label.id,
     };
 
-    const saved = await prisma.account.upsert({
+    const account = await prisma.account.upsert({
       where: { email },
       create: {
         email,
@@ -114,11 +113,14 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // #region agent log
-    fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'pre-fix',hypothesisId:'C',location:'callback/google/route.ts:post-upsert',message:'Account tokens upserted',data:{accountId:saved.id,email:saved.email,tokenExpiry:saved.tokenExpiry.toISOString(),accessLen:saved.encryptedAccess.length,refreshLen:saved.encryptedRefresh.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+    await ensurePersistentProfile({
+      email,
+      googleSub: tokens.googleSub,
+      accountId: account.id,
+      seedRules: rules,
+    });
 
-    return clearStateCookie(
+    const response = clearStateCookie(
       NextResponse.redirect(
         new URL(
           `/settings?connected=${encodeURIComponent(email)}`,
@@ -126,6 +128,21 @@ export async function GET(req: NextRequest) {
         )
       )
     );
+
+    response.cookies.set(ACTIVE_ACCOUNT_COOKIE, account.id, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+    });
+    response.cookies.set(LOGGED_OUT_COOKIE, "", {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+
+    return response;
   } catch (error) {
     console.error("Google OAuth callback failed", error);
     return clearStateCookie(

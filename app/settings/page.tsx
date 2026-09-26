@@ -3,7 +3,7 @@ import { AccountsCard } from "@/components/settings/accounts-card";
 import { AiModelsCard } from "@/components/settings/ai-models-card";
 import { ApplicationAutomationCard } from "@/components/settings/application-automation-card";
 import { AutomationRulesCard } from "@/components/settings/automation-rules-card";
-import { MasterResumeCard } from "@/components/settings/master-resume-card";
+import { MasterProfileCard } from "@/components/settings/master-profile-card";
 import { getActiveAccount, listAccounts } from "@/lib/data";
 import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
 
@@ -21,6 +21,8 @@ export default async function SettingsPage({
   const profileResult = active
     ? await getMasterProfile(active.id)
     : { ok: false as const, error: "no account" };
+  const profile =
+    profileResult.ok && profileResult.data ? profileResult.data : null;
 
   return (
     <div className="space-y-6">
@@ -49,15 +51,13 @@ export default async function SettingsPage({
           accounts={accounts}
           activeAccountId={active?.id ?? null}
         />
-        <MasterResumeCard
-          accountId={active?.id ?? null}
-          profile={
-            profileResult.ok && profileResult.data ? profileResult.data : null
-          }
-        />
+        <MasterProfileCard accountId={active?.id ?? null} profile={profile} />
         <ApplicationAutomationCard
           accountId={active?.id ?? null}
           rules={active?.rules ?? DEFAULT_ACCOUNT_RULES}
+          matchThreshold={
+            profile?.matchThreshold ?? active?.rules.matchScoreThreshold
+          }
         />
         <AutomationRulesCard
           accountId={active?.id ?? null}

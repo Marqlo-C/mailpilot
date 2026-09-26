@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { Logo, NavLogo } from "@/components/brand/logo";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { SyncBadge } from "@/components/layout/sync-badge";
 import { Button } from "@/components/ui/button";
@@ -58,17 +59,7 @@ export function AppShell({
             collapsed && "justify-center px-2"
           )}
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-            MP
-          </div>
-          {!collapsed && (
-            <div className="min-w-0">
-              <p className="truncate text-lg font-semibold tracking-tight">
-                MailPilot
-              </p>
-              <p className="truncate text-xs text-white/50">Inbox automation</p>
-            </div>
-          )}
+          <NavLogo collapsed={collapsed} />
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 p-3">
@@ -125,11 +116,18 @@ export function AppShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
-        {/* Top bar */}
+        {/* Top bar — account dropdown always available */}
         <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border/80 bg-background/80 px-4 py-3 backdrop-blur-md md:px-6">
           <div className="min-w-0 md:hidden">
-            <p className="text-lg font-semibold tracking-tight">MailPilot</p>
-            <p className="truncate text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-2 text-foreground">
+              <span className="lg:hidden">
+                <Logo variant="icon" size="sm" showWordmark={false} priority />
+              </span>
+              <span className="hidden font-semibold tracking-tight sm:inline">
+                MailPilot
+              </span>
+            </span>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
               {activeEmail ?? "No account connected"}
             </p>
           </div>
@@ -151,6 +149,7 @@ export function AppShell({
             <AccountSwitcher
               accounts={accounts}
               activeAccountId={activeAccountId}
+              activeEmail={activeEmail}
             />
           </div>
         </header>

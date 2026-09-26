@@ -242,9 +242,6 @@ export async function cleanupSenderMessages(
 
   for (const chunk of chunks) {
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'post-fix',hypothesisId:'D',location:'lib/unsubscribe.ts:cleanupSenderMessages',message:'About to mutate Gmail messages',data:{action,chunkSize:chunk.length,method:action==='TRASH'?'batchModify+TRASH':'batchModify-INBOX'},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       if (action === "TRASH") {
         // gmail.modify allows trash via label, but NOT permanent batchDelete
         await gmail.users.messages.batchModify({
@@ -264,14 +261,7 @@ export async function cleanupSenderMessages(
           },
         });
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'post-fix',hypothesisId:'D',location:'lib/unsubscribe.ts:cleanupSenderMessages:success',message:'Gmail mutate succeeded',data:{action,chunkSize:chunk.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
     } catch (error) {
-      // #region agent log
-      const errObj = error as { message?: string; code?: number|string; response?: { status?: number; data?: unknown } };
-      fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'post-fix',hypothesisId:'D,E',location:'lib/unsubscribe.ts:cleanupSenderMessages:catch',message:'Gmail mutate error raw',data:{action,errMessage:errObj?.message??String(error),errCode:errObj?.code??null,httpStatus:errObj?.response?.status??null,responseData:errObj?.response?.data??null},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       rethrowIfInsufficientScope(error);
     }
   }

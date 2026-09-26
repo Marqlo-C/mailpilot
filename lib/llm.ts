@@ -45,11 +45,23 @@ const SUBJECT_KEYWORDS = [
   "next steps",
 ] as const;
 
-const OPENROUTER_MODELS = [
-  "meta-llama/llama-3.3-70b-instruct:free",
-  "mistralai/mistral-small-3.1-24b-instruct:free",
-  "google/gemini-2.0-flash-exp:free",
-] as const;
+const DEFAULT_OPENROUTER_MODELS = [
+  // User override via env
+  process.env.OPENROUTER_MODEL,
+
+  // Currently listed OpenRouter free models (verified via /api/v1/models)
+  "qwen/qwen3.8-27b:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "google/gemma-4-31b-it:free",
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+  "liquid/lfm-2.5-2.6b:free",
+
+  // Low-cost paid fallbacks (require OpenRouter credit / key quota)
+  "meta-llama/llama-3.1-8b-instruct",
+  "meta-llama/llama-3.2-3b-instruct",
+  "google/gemini-2.5-flash",
+  "openai/gpt-4o-mini",
+].filter(Boolean) as string[];
 
 const SYSTEM_PROMPT = `You are a job-application email classifier for MailPilot.
 Return ONLY valid JSON matching this schema (no markdown, no commentary):
@@ -225,7 +237,7 @@ async function callOpenRouterJson(
     return null;
   }
 
-  for (const model of OPENROUTER_MODELS) {
+  for (const model of DEFAULT_OPENROUTER_MODELS) {
     try {
       const result = await callOpenRouterModel(
         apiKey,

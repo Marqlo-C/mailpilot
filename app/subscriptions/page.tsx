@@ -2,6 +2,7 @@ import { ScanInboxDialog } from "@/components/scan-inbox-dialog";
 import { SubscriptionsView } from "@/components/subscriptions/subscriptions-view";
 import {
   getActiveAccount,
+  getSubscriptionHistoryForProfile,
   getSubscriptionsForAccount,
 } from "@/lib/data";
 
@@ -10,6 +11,10 @@ export default async function SubscriptionsPage() {
   const subscriptions = active
     ? await getSubscriptionsForAccount(active.id)
     : [];
+  const history =
+    active?.persistentProfileId
+      ? await getSubscriptionHistoryForProfile(active.persistentProfileId)
+      : [];
 
   return (
     <div className="space-y-6">
@@ -19,7 +24,7 @@ export default async function SubscriptionsPage() {
             Subscriptions
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Detected newsletter senders with one-click, email, or link unsubscribe.
+            Active lists and an archive box for second-chance inbox cleanup.
           </p>
         </div>
         <ScanInboxDialog accountId={active?.id ?? null} />
@@ -29,7 +34,9 @@ export default async function SubscriptionsPage() {
         <EmptyAccount />
       ) : (
         <SubscriptionsView
+          accountId={active.id}
           subscriptions={subscriptions}
+          history={history}
           defaultCleanup={active.rules.autoCleanAfterUnsub}
         />
       )}
