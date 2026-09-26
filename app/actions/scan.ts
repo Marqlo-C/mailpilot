@@ -8,6 +8,11 @@ import {
   type ScanDays,
 } from "@/lib/scan-types";
 import {
+  InsufficientScopeError,
+  REAUTH_REQUIRED_MESSAGE,
+  isInsufficientScopeError,
+} from "@/lib/google";
+import {
   scanHistoricalEmails,
   type HistoricalScanSummary,
 } from "@/lib/historical-scan";
@@ -54,6 +59,12 @@ export async function triggerHistoricalScan(
     return { ok: true, data: summary };
   } catch (error) {
     console.error("triggerHistoricalScan failed", error);
+    if (
+      error instanceof InsufficientScopeError ||
+      isInsufficientScopeError(error)
+    ) {
+      return { ok: false, error: REAUTH_REQUIRED_MESSAGE };
+    }
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Historical scan failed",

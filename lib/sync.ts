@@ -2,7 +2,11 @@ import type { gmail_v1 } from "googleapis";
 import type { Account, AccountSettings } from "@prisma/client";
 import { GaxiosError } from "gaxios";
 
-import { getGmailClientForAccount, registerInboxWatch } from "@/lib/google";
+import {
+  getGmailClientForAccount,
+  registerInboxWatch,
+  rethrowIfInsufficientScope,
+} from "@/lib/google";
 import {
   classifyJobEmail,
   extractMessageBody,
@@ -166,21 +170,74 @@ async function processMessage(
     ? new Date(Number(message.data.internalDate))
     : new Date();
 
+  const mappedStatus = mapClassificationStatus(classification.status);
+  const lifecycleStatuses = new Set([
+    "OA",
+    "INTERVIEW",
+    "OFFER",
+    "REJECTION",
+  ]);
+
   let isTrashed = false;
   let isArchived = false;
 
-  if (classification.status === "REJECTION") {
+  if (mappedStatus === "REJECTION") {
     const action = await applyRejectionAction(gmail, messageId, rules);
     isTrashed = action.isTrashed;
     isArchived = action.isArchived;
   }
 
   const actionRequired =
-    classification.status === "INTERVIEW" || classification.status === "OA"
+    mappedStatus === "INTERVIEW" || mappedStatus === "OA"
       ? true
       : classification.action_required;
 
   const deadlineAt = parseDeadline(classification.deadline_iso);
+  const companyName = classification.company_name;
+
+  // Lifecycle reconciliation: update existing thread/company application when possible
+  if (lifecycleStatuses.has(mappedStatus)) {
+    const existing =
+      (await prisma.jobApplication.findFirst({
+        where: { accountId: account.id, threadId },
+      })) ??
+      (companyName
+        ? await prisma.jobApplication.findFirst({
+            where: {
+              accountId: account.id,
+              companyName: {
+                contains: companyName,
+                mode: "insensitive",
+              },
+              status: {
+                in: ["LEAD", "APPLIED", "OA", "INTERVIEW", "OFFER"],
+              },
+            },
+            orderBy: { updatedAt: "desc" },
+          })
+        : null);
+
+    if (existing) {
+      await prisma.jobApplication.update({
+        where: { id: existing.id },
+        data: {
+          messageId,
+          threadId,
+          status: mappedStatus,
+          companyName: companyName ?? existing.companyName,
+          roleTitle: classification.role_title ?? existing.roleTitle,
+          actionRequired,
+          actionSummary: classification.action_summary,
+          actionUrl: classification.action_url,
+          deadlineAt,
+          emailDate,
+          isTrashed,
+          isArchived,
+        },
+      });
+      return;
+    }
+  }
 
   await prisma.jobApplication.upsert({
     where: {
@@ -193,9 +250,11 @@ async function processMessage(
       accountId: account.id,
       messageId,
       threadId,
-      companyName: classification.company_name,
+      companyName,
       roleTitle: classification.role_title,
-      status: classification.status,
+      status: mappedStatus,
+      dispatchType: classification.action_url ? "PORTAL" : "EMAIL",
+      dispatchStatus: "PENDING_REVIEW",
       actionRequired,
       actionSummary: classification.action_summary,
       actionUrl: classification.action_url,
@@ -205,9 +264,9 @@ async function processMessage(
       isArchived,
     },
     update: {
-      companyName: classification.company_name,
+      companyName,
       roleTitle: classification.role_title,
-      status: classification.status,
+      status: mappedStatus,
       actionRequired,
       actionSummary: classification.action_summary,
       actionUrl: classification.action_url,
@@ -217,6 +276,26 @@ async function processMessage(
       isArchived,
     },
   });
+}
+
+export function mapClassificationStatus(
+  status: string
+): "LEAD" | "APPLIED" | "OA" | "INTERVIEW" | "OFFER" | "REJECTION" | "ARCHIVED" {
+  switch (status) {
+    case "OA":
+    case "INTERVIEW":
+    case "OFFER":
+    case "REJECTION":
+    case "LEAD":
+    case "APPLIED":
+    case "ARCHIVED":
+      return status;
+    case "RECEIVED":
+      return "APPLIED";
+    case "OTHER":
+    default:
+      return "LEAD";
+  }
 }
 
 async function maybeUpsertSubscription(input: {
@@ -284,27 +363,31 @@ export async function applyRejectionAction(
   messageId: string,
   rules: ReturnType<typeof parseAccountRules>
 ): Promise<{ isTrashed: boolean; isArchived: boolean }> {
-  if (rules.rejectionMode === "AUTO_TRASH") {
-    await gmail.users.messages.trash({ userId: "me", id: messageId });
-    return { isTrashed: true, isArchived: false };
+  try {
+    if (rules.rejectionMode === "AUTO_TRASH") {
+      await gmail.users.messages.trash({ userId: "me", id: messageId });
+      return { isTrashed: true, isArchived: false };
+    }
+
+    // LABEL_ONLY — apply rejection label and archive out of Inbox
+    const labelIds: string[] = [];
+    if (rules.rejectionLabelId) {
+      labelIds.push(rules.rejectionLabelId);
+    }
+
+    await gmail.users.messages.modify({
+      userId: "me",
+      id: messageId,
+      requestBody: {
+        addLabelIds: labelIds.length > 0 ? labelIds : undefined,
+        removeLabelIds: ["INBOX"],
+      },
+    });
+
+    return { isTrashed: false, isArchived: true };
+  } catch (error) {
+    rethrowIfInsufficientScope(error);
   }
-
-  // LABEL_ONLY — apply rejection label and archive out of Inbox
-  const labelIds: string[] = [];
-  if (rules.rejectionLabelId) {
-    labelIds.push(rules.rejectionLabelId);
-  }
-
-  await gmail.users.messages.modify({
-    userId: "me",
-    id: messageId,
-    requestBody: {
-      addLabelIds: labelIds.length > 0 ? labelIds : undefined,
-      removeLabelIds: ["INBOX"],
-    },
-  });
-
-  return { isTrashed: false, isArchived: true };
 }
 
 function normalizeProvider(value: string | null | undefined): LlmProvider {

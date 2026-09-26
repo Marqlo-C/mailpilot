@@ -10,6 +10,6 @@
 ## Critical Patterns & Constraints
 - Extensible Settings: Never add static columns to `AccountSettings` for minor toggles. Store all automation toggles in the `rules Json` field validated with Zod (`accountRulesSchema`).
 - Serverless Execution: When handling Pub/Sub webhooks (`/api/webhooks/gmail`), return `200 OK` immediately and process background work using Next.js 15 `after()`.
-- API Scopes: Google OAuth must only request `gmail.modify` and `gmail.readonly` in GCP "Testing" mode.
+- API Scopes: Google OAuth must request `openid`, `userinfo.email`, `userinfo.profile`, `gmail.modify`, and `gmail.compose`, always with `access_type: "offline"` and `prompt: "consent"`.
 - TypeScript: Strict typing everywhere. No `any` types. Validate incoming payloads with Zod.
 - UI: Design mobile-first with desktop density. Ensure all data tables collapse cleanly to card feeds on screens < 768px.

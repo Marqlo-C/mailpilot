@@ -5,11 +5,80 @@ import type { Account } from "@prisma/client";
 import { decryptToken, encryptToken } from "@/lib/crypto";
 import { prisma } from "@/lib/prisma";
 
-/** Scopes required by MailPilot — keep to Testing-mode-safe set. */
+/** Scopes required by MailPilot (openid + profile + Gmail modify/compose). */
 export const GMAIL_SCOPES = [
+  "openid",
+  "https://www.googleapis.com/auth/userinfo.email",
+  "https://www.googleapis.com/auth/userinfo.profile",
   "https://www.googleapis.com/auth/gmail.modify",
-  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.compose",
 ] as const;
+
+export const REAUTH_REQUIRED_MESSAGE =
+  "Account needs re-authentication with updated permissions to trash or modify messages.";
+
+export class InsufficientScopeError extends Error {
+  constructor(message: string = REAUTH_REQUIRED_MESSAGE) {
+    super(message);
+    this.name = "InsufficientScopeError";
+  }
+}
+
+/**
+ * Returns true when a Google API error indicates missing OAuth scopes.
+ */
+export function isInsufficientScopeError(error: unknown): boolean {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" &&
+          error !== null &&
+          "message" in error &&
+          typeof (error as { message?: unknown }).message === "string"
+        ? (error as { message: string }).message
+        : String(error ?? "");
+
+  const lower = message.toLowerCase();
+  if (lower.includes("insufficient authentication scopes")) {
+    return true;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "response" in error &&
+    typeof (error as { response?: { status?: number; data?: unknown } })
+      .response === "object"
+  ) {
+    const response = (
+      error as {
+        response?: { status?: number; data?: { error?: { message?: string } } };
+      }
+    ).response;
+    if (response?.status === 403) {
+      const apiMessage = response.data?.error?.message?.toLowerCase() ?? "";
+      if (apiMessage.includes("insufficient authentication scopes")) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Re-throws InsufficientScopeError for 403 scope failures; otherwise rethrows original.
+ */
+export function rethrowIfInsufficientScope(error: unknown): never {
+  // #region agent log
+  const errObj = error as { message?: string; code?: number|string; response?: { status?: number; data?: unknown } };
+  fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'pre-fix',hypothesisId:'E',location:'lib/google.ts:rethrowIfInsufficientScope',message:'Evaluating insufficient-scope classifier',data:{classified:isInsufficientScopeError(error),errMessage:errObj?.message??String(error),errCode:errObj?.code??null,httpStatus:errObj?.response?.status??null},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  if (isInsufficientScopeError(error)) {
+    throw new InsufficientScopeError();
+  }
+  throw error;
+}
 
 export const REJECTION_LABEL_NAME = "Job Search/Rejections";
 
@@ -17,6 +86,7 @@ export type GoogleTokens = {
   accessToken: string;
   refreshToken: string;
   expiryDate: Date;
+  scope?: string | null;
 };
 
 export type WatchResult = {
@@ -45,15 +115,21 @@ export function createOAuth2Client(): OAuth2Client {
 
 /**
  * Generates the Google consent-screen URL for Gmail OAuth.
+ * Always forces consent so newly added scopes are granted (not reused grants).
  */
 export function getAuthorizationUrl(state?: string): string {
   const oauth2Client = createOAuth2Client();
-  return oauth2Client.generateAuthUrl({
-    access_type: "offline",
-    prompt: "consent",
+  const params = {
+    access_type: "offline" as const,
+    prompt: "consent" as const,
     scope: [...GMAIL_SCOPES],
     state,
-  });
+  };
+  const authUrl = oauth2Client.generateAuthUrl(params);
+  // #region agent log
+  fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'pre-fix',hypothesisId:'A',location:'lib/google.ts:getAuthorizationUrl',message:'OAuth auth URL generated',data:{scopes:params.scope,accessType:params.access_type,prompt:params.prompt,hasOffline:authUrl.includes('access_type=offline'),hasConsent:authUrl.includes('prompt=consent'),hasModify:authUrl.includes('gmail.modify'),hasCompose:authUrl.includes('gmail.compose')},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  return authUrl;
 }
 
 /**
@@ -64,6 +140,11 @@ export async function exchangeCodeForTokens(
 ): Promise<GoogleTokens> {
   const oauth2Client = createOAuth2Client();
   const { tokens } = await oauth2Client.getToken(code);
+
+  // #region agent log
+  fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'pre-fix',hypothesisId:'B',location:'lib/google.ts:exchangeCodeForTokens',message:'Token exchange response scopes',data:{scope:tokens.scope??null,hasAccess:Boolean(tokens.access_token),hasRefresh:Boolean(tokens.refresh_token),expiryDate:tokens.expiry_date??null,tokenKeys:Object.keys(tokens)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  console.log("[Auth Scopes Granted]:", tokens.scope);
 
   if (!tokens.access_token) {
     throw new Error("Google OAuth response missing access_token");
@@ -80,6 +161,7 @@ export async function exchangeCodeForTokens(
     expiryDate: tokens.expiry_date
       ? new Date(tokens.expiry_date)
       : new Date(Date.now() + 3600 * 1000),
+    scope: tokens.scope ?? null,
   };
 }
 

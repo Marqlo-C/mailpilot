@@ -5,6 +5,11 @@ export const accountRulesSchema = z.object({
   rejectionLabelName: z.string().default("Job Search/Rejections"),
   rejectionLabelId: z.string().nullable().default(null),
   autoCleanAfterUnsub: z.enum(["NONE", "TRASH", "ARCHIVE"]).default("NONE"),
+  applicationMode: z
+    .enum(["MANUAL_REVIEW", "AUTO_SEND"])
+    .default("MANUAL_REVIEW"),
+  matchScoreThreshold: z.number().min(50).max(100).default(75),
+  maxAutoSendsPerDay: z.number().min(1).max(20).default(5),
 });
 
 export type AccountRules = z.infer<typeof accountRulesSchema>;

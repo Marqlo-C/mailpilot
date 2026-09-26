@@ -4,7 +4,16 @@ export const jobClassificationSchema = z.object({
   is_job_related: z.boolean(),
   company_name: z.string().nullable(),
   role_title: z.string().nullable(),
-  status: z.enum(["REJECTION", "INTERVIEW", "OA", "RECEIVED", "OTHER"]),
+  status: z.enum([
+    "REJECTION",
+    "INTERVIEW",
+    "OA",
+    "RECEIVED",
+    "OTHER",
+    "OFFER",
+    "LEAD",
+    "APPLIED",
+  ]),
   action_required: z.boolean(),
   action_summary: z.string().nullable(),
   action_url: z.string().nullable(),
@@ -121,30 +130,67 @@ export async function classifyJobEmail(
   const sanitizedBody = sanitizeEmailBody(options.body);
   const userPrompt = `Subject: ${options.subject}\n\nBody:\n${sanitizedBody}`;
 
-  if (options.llmProvider === "LOCAL_OLLAMA") {
-    try {
-      const result = await classifyWithOllama(
-        options.localOllamaUrl ?? "http://localhost:11434",
-        userPrompt
-      );
-      if (result) {
-        return result;
-      }
-    } catch (error) {
-      console.warn("Local Ollama classification failed; falling back", error);
-    }
+  const result = await callLLMWithFallback({
+    systemPrompt: SYSTEM_PROMPT,
+    userPrompt,
+    llmProvider: options.llmProvider,
+    localOllamaUrl: options.localOllamaUrl,
+  });
+
+  if (!result) {
+    return null;
   }
 
-  return classifyWithOpenRouter(userPrompt);
+  try {
+    return jobClassificationSchema.parse(result);
+  } catch (error) {
+    console.warn("Failed to parse job classification JSON", error);
+    return null;
+  }
 }
 
 /** Spec alias used by historical scan. */
 export const classifyEmail = classifyJobEmail;
 
-async function classifyWithOllama(
+export type CallLLMOptions = {
+  systemPrompt: string;
+  userPrompt: string;
+  llmProvider?: LlmProvider;
+  localOllamaUrl?: string | null;
+};
+
+/**
+ * Shared LLM dispatcher with local Ollama preference and OpenRouter fallback chain.
+ * Returns parsed JSON object or null.
+ */
+export async function callLLMWithFallback(
+  options: CallLLMOptions
+): Promise<Record<string, unknown> | null> {
+  const provider = options.llmProvider ?? "OPENROUTER";
+
+  if (provider === "LOCAL_OLLAMA") {
+    try {
+      const result = await callOllamaJson(
+        options.localOllamaUrl ?? "http://localhost:11434",
+        options.systemPrompt,
+        options.userPrompt
+      );
+      if (result) {
+        return result;
+      }
+    } catch (error) {
+      console.warn("Local Ollama failed; falling back to OpenRouter", error);
+    }
+  }
+
+  return callOpenRouterJson(options.systemPrompt, options.userPrompt);
+}
+
+async function callOllamaJson(
   baseUrl: string,
+  systemPrompt: string,
   userPrompt: string
-): Promise<JobClassification | null> {
+): Promise<Record<string, unknown> | null> {
   const endpoint = new URL("/api/generate", baseUrl).toString();
   const response = await fetch(endpoint, {
     method: "POST",
@@ -153,7 +199,7 @@ async function classifyWithOllama(
       model: process.env.OLLAMA_MODEL ?? "llama3.2",
       stream: false,
       format: "json",
-      prompt: `${SYSTEM_PROMPT}\n\n${userPrompt}`,
+      prompt: `${systemPrompt}\n\n${userPrompt}`,
     }),
   });
 
@@ -166,12 +212,13 @@ async function classifyWithOllama(
     return null;
   }
 
-  return parseClassificationJson(json.response);
+  return parseJsonObject(json.response);
 }
 
-async function classifyWithOpenRouter(
+async function callOpenRouterJson(
+  systemPrompt: string,
   userPrompt: string
-): Promise<JobClassification | null> {
+): Promise<Record<string, unknown> | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     console.error("OPENROUTER_API_KEY is not set");
@@ -180,7 +227,12 @@ async function classifyWithOpenRouter(
 
   for (const model of OPENROUTER_MODELS) {
     try {
-      const result = await callOpenRouterModel(apiKey, model, userPrompt);
+      const result = await callOpenRouterModel(
+        apiKey,
+        model,
+        systemPrompt,
+        userPrompt
+      );
       if (result) {
         return result;
       }
@@ -206,8 +258,9 @@ class RateLimitError extends Error {
 async function callOpenRouterModel(
   apiKey: string,
   model: string,
+  systemPrompt: string,
   userPrompt: string
-): Promise<JobClassification | null> {
+): Promise<Record<string, unknown> | null> {
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -221,7 +274,7 @@ async function callOpenRouterModel(
       temperature: 0,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
     }),
@@ -244,21 +297,23 @@ async function callOpenRouterModel(
     return null;
   }
 
-  return parseClassificationJson(content);
+  return parseJsonObject(content);
 }
 
-function parseClassificationJson(raw: string): JobClassification | null {
+function parseJsonObject(raw: string): Record<string, unknown> | null {
   const trimmed = raw.trim();
-  // Tolerate accidental markdown fences from some models
   const unfenced = trimmed
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/i, "");
 
   try {
     const parsed: unknown = JSON.parse(unfenced);
-    return jobClassificationSchema.parse(parsed);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    return null;
   } catch (error) {
-    console.warn("Failed to parse job classification JSON", error);
+    console.warn("Failed to parse LLM JSON", error);
     return null;
   }
 }

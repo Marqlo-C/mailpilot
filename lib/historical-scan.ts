@@ -3,12 +3,17 @@ import type { gmail_v1 } from "googleapis";
 
 import { getGmailClientForAccount } from "@/lib/google";
 import {
+  InsufficientScopeError,
+  REAUTH_REQUIRED_MESSAGE,
+  isInsufficientScopeError,
+} from "@/lib/google";
+import {
   classifyEmail,
   sanitizeEmailBody,
   type LlmProvider,
 } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
-import { applyRejectionAction, parseFromHeader } from "@/lib/sync";
+import { applyRejectionAction, mapClassificationStatus, parseFromHeader } from "@/lib/sync";
 import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
 import { parseAccountRules } from "@/lib/validations/rules";
 import type { ScanDays } from "@/lib/scan-types";
@@ -120,21 +125,31 @@ export async function scanHistoricalEmails(
   accountId: string,
   days: ScanDays
 ): Promise<HistoricalScanSummary> {
-  const account = await prisma.account.findUnique({
-    where: { id: accountId },
-    include: { settings: true },
-  });
+  try {
+    const account = await prisma.account.findUnique({
+      where: { id: accountId },
+      include: { settings: true },
+    });
 
-  if (!account || !account.isActive) {
-    throw new Error("Account not found or inactive");
+    if (!account || !account.isActive) {
+      throw new Error("Account not found or inactive");
+    }
+
+    const gmail = await getGmailClientForAccount(account);
+
+    const subscriptionsFound = await scanSubscriptions(gmail, accountId, days);
+    const jobsFound = await scanJobCandidates(gmail, account, days);
+
+    return { subscriptionsFound, jobsFound };
+  } catch (error) {
+    if (
+      error instanceof InsufficientScopeError ||
+      isInsufficientScopeError(error)
+    ) {
+      throw new InsufficientScopeError(REAUTH_REQUIRED_MESSAGE);
+    }
+    throw error;
   }
-
-  const gmail = await getGmailClientForAccount(account);
-
-  const subscriptionsFound = await scanSubscriptions(gmail, accountId, days);
-  const jobsFound = await scanJobCandidates(gmail, account, days);
-
-  return { subscriptionsFound, jobsFound };
 }
 
 async function listMessageIds(
@@ -329,17 +344,18 @@ async function scanJobCandidates(
         ? new Date(Number(message.data.internalDate))
         : new Date();
 
+      const mappedStatus = mapClassificationStatus(classification.status);
       let isTrashed = false;
       let isArchived = false;
 
-      if (classification.status === "REJECTION") {
+      if (mappedStatus === "REJECTION") {
         const action = await applyRejectionAction(gmail, messageId, rules);
         isTrashed = action.isTrashed;
         isArchived = action.isArchived;
       }
 
       const actionRequired =
-        classification.status === "INTERVIEW" || classification.status === "OA"
+        mappedStatus === "INTERVIEW" || mappedStatus === "OA"
           ? true
           : classification.action_required;
 
@@ -350,7 +366,9 @@ async function scanJobCandidates(
           threadId,
           companyName: classification.company_name,
           roleTitle: classification.role_title,
-          status: classification.status,
+          status: mappedStatus,
+          dispatchType: classification.action_url ? "PORTAL" : "EMAIL",
+          dispatchStatus: "PENDING_REVIEW",
           actionRequired,
           actionSummary: classification.action_summary,
           actionUrl: classification.action_url,

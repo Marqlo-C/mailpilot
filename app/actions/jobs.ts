@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 
 import { getGmailClientForAccount } from "@/lib/google";
+import {
+  REAUTH_REQUIRED_MESSAGE,
+  isInsufficientScopeError,
+} from "@/lib/google";
 import { prisma } from "@/lib/prisma";
 import { parseAccountRules } from "@/lib/validations/rules";
 
@@ -107,6 +111,9 @@ export async function emptyRejections(
     return { ok: true, data: { trashed: messageIds.length } };
   } catch (error) {
     console.error("emptyRejections failed", error);
+    if (isInsufficientScopeError(error)) {
+      return { ok: false, error: REAUTH_REQUIRED_MESSAGE };
+    }
     return {
       ok: false,
       error:

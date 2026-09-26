@@ -20,6 +20,9 @@ const ruleKeySchema = z.enum([
   "rejectionLabelName",
   "rejectionLabelId",
   "autoCleanAfterUnsub",
+  "applicationMode",
+  "matchScoreThreshold",
+  "maxAutoSendsPerDay",
 ]);
 
 const llmProviderSchema = z.enum(["OPENROUTER", "LOCAL_OLLAMA"]);

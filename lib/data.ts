@@ -138,7 +138,7 @@ export async function getDashboardMetrics(
         prisma.jobApplication.findMany({
           where: {
             accountId,
-            actionRequired: true,
+            status: { in: ["OA", "INTERVIEW"] },
             isTrashed: false,
           },
           orderBy: { deadlineAt: "asc" },

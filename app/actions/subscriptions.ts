@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getGmailClientForAccount } from "@/lib/google";
+import {
+  InsufficientScopeError,
+  REAUTH_REQUIRED_MESSAGE,
+  isInsufficientScopeError,
+} from "@/lib/google";
 import { prisma } from "@/lib/prisma";
 import {
   executeUnsubscribe,
@@ -77,6 +82,13 @@ export async function unsubscribeSender(
       where: { id: subscriptionId },
       data: { status: "FAILED" },
     });
+
+    if (
+      error instanceof InsufficientScopeError ||
+      isInsufficientScopeError(error)
+    ) {
+      return { ok: false, error: REAUTH_REQUIRED_MESSAGE };
+    }
 
     return {
       ok: false,

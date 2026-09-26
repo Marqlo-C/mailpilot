@@ -21,6 +21,7 @@ model Account {
   settings        AccountSettings?
   subscriptions   Subscription[]
   jobApplications JobApplication[]
+  profile         UserProfile?
 
   @@index([email])
 }
@@ -34,13 +35,6 @@ model AccountSettings {
   localOllamaUrl String?  @default("http://localhost:11434")
 
   // Dynamic rules validated via Zod schema (accountRulesSchema)
-  // Default values:
-  // {
-  //   "rejectionMode": "LABEL_ONLY", // "LABEL_ONLY" | "AUTO_TRASH"
-  //   "rejectionLabelName": "Job Search/Rejections",
-  //   "rejectionLabelId": null,
-  //   "autoCleanAfterUnsub": "NONE"   // "NONE" | "TRASH" | "ARCHIVE"
-  // }
   rules          Json     @default("{}")
 
   updatedAt      DateTime @updatedAt
@@ -77,7 +71,19 @@ model JobApplication {
   threadId       String
   companyName    String?
   roleTitle      String?
-  status         String    // "REJECTION" | "INTERVIEW" | "OA" | "RECEIVED" | "OTHER"
+  // "LEAD" | "APPLIED" | "OA" | "INTERVIEW" | "OFFER" | "REJECTION" | "ARCHIVED"
+  status         String    @default("LEAD")
+  // "EMAIL" | "PORTAL"
+  dispatchType   String    @default("EMAIL")
+  // "PENDING_REVIEW" | "SENT" | "MANUAL_APPLIED"
+  dispatchStatus String    @default("PENDING_REVIEW")
+  appliedAt      DateTime?
+  sentAt         DateTime?
+  matchScore     Int?
+  matchRationale String?
+  // { selectedBullets: string[], coverLetter: string, jobRequirements: string[] }
+  tailoredData   Json?
+
   actionRequired Boolean   @default(false)
   actionSummary  String?
   actionUrl      String?
@@ -91,5 +97,67 @@ model JobApplication {
 
   @@unique([accountId, messageId])
   @@index([accountId, status])
+  @@index([accountId, companyName])
   @@index([actionRequired])
+}
+
+model UserProfile {
+  id        String   @id @default(cuid())
+  accountId String   @unique
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  fullName  String
+  email     String
+  phone     String?
+  location  String?
+  summary   String?
+  // [{ label: string, url: string }]
+  links     Json     @default("[]")
+  // { languages: string[], frameworks: string[], tools: string[], concepts: string[] }
+  skills    Json     @default("{}")
+
+  experiences WorkExperience[]
+  projects    Project[]
+  education   Education[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WorkExperience {
+  id        String      @id @default(cuid())
+  profileId String
+  profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  company   String
+  role      String
+  location  String?
+  startDate String
+  endDate   String?
+  // [{ id: string, rawText: string, technologies: string[], hasMetric: boolean }]
+  bullets   Json
+  displayOrder Int      @default(0)
+}
+
+model Project {
+  id           String      @id @default(cuid())
+  profileId    String
+  profile      UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  name         String
+  description  String
+  technologies String[]
+  link         String?
+  bullets      String[]
+}
+
+model Education {
+  id             String      @id @default(cuid())
+  profileId      String
+  profile        UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  institution    String
+  degree         String
+  fieldOfStudy   String?
+  graduationDate String?
 }
