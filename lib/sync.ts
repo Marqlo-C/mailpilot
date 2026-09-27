@@ -13,7 +13,13 @@ import {
   matchesJobSubjectKeywords,
   type LlmProvider,
 } from "@/lib/llm";
-import { ensurePersistentProfileForAccount } from "@/lib/persistent-profile";
+import {
+  ensurePersistentProfileForAccount,
+} from "@/lib/persistent-profile";
+import {
+  dispatchTypeFromMethod,
+  resolveApplicationMethod,
+} from "@/lib/application-method";
 import { prisma } from "@/lib/prisma";
 import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
 import { parseAccountRules } from "@/lib/validations/rules";
@@ -266,7 +272,19 @@ async function processMessage(
       companyName,
       roleTitle: classification.role_title,
       status: mappedStatus,
-      dispatchType: classification.action_url ? "PORTAL" : "EMAIL",
+      dispatchType: (() => {
+        const method = resolveApplicationMethod({
+          actionUrl: classification.action_url,
+          actionSummary: classification.action_summary,
+        });
+        return dispatchTypeFromMethod(method);
+      })(),
+      applicationMethod: resolveApplicationMethod({
+        actionUrl: classification.action_url,
+        actionSummary: classification.action_summary,
+      }),
+      applyUrl: classification.action_url,
+      opportunityStatus: "DETECTED",
       dispatchStatus: "PENDING_REVIEW",
       actionRequired,
       actionSummary: classification.action_summary,
@@ -281,6 +299,11 @@ async function processMessage(
       companyName,
       roleTitle: classification.role_title,
       status: mappedStatus,
+      applicationMethod: resolveApplicationMethod({
+        actionUrl: classification.action_url,
+        actionSummary: classification.action_summary,
+      }),
+      applyUrl: classification.action_url ?? undefined,
       actionRequired,
       actionSummary: classification.action_summary,
       actionUrl: classification.action_url,

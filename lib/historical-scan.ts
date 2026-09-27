@@ -13,6 +13,10 @@ import {
   type LlmProvider,
 } from "@/lib/llm";
 import { ensurePersistentProfileForAccount } from "@/lib/persistent-profile";
+import {
+  dispatchTypeFromMethod,
+  resolveApplicationMethod,
+} from "@/lib/application-method";
 import { prisma } from "@/lib/prisma";
 import { applyRejectionAction, mapClassificationStatus, parseFromHeader } from "@/lib/sync";
 import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
@@ -372,7 +376,18 @@ async function scanJobCandidates(
           companyName: classification.company_name,
           roleTitle: classification.role_title,
           status: mappedStatus,
-          dispatchType: classification.action_url ? "PORTAL" : "EMAIL",
+          applicationMethod: resolveApplicationMethod({
+            actionUrl: classification.action_url,
+            actionSummary: classification.action_summary,
+          }),
+          dispatchType: dispatchTypeFromMethod(
+            resolveApplicationMethod({
+              actionUrl: classification.action_url,
+              actionSummary: classification.action_summary,
+            })
+          ),
+          applyUrl: classification.action_url,
+          opportunityStatus: "DETECTED",
           dispatchStatus: "PENDING_REVIEW",
           actionRequired,
           actionSummary: classification.action_summary,

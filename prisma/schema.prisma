@@ -130,10 +130,19 @@ model JobApplication {
   roleTitle   String?
   // "LEAD" | "APPLIED" | "OA" | "INTERVIEW" | "OFFER" | "REJECTION" | "ARCHIVED"
   status         String    @default("LEAD")
-  // "EMAIL" | "PORTAL"
+  // "EMAIL" | "PORTAL" (legacy mirror of applicationMethod)
   dispatchType   String    @default("EMAIL")
   // "PENDING_REVIEW" | "SENT" | "MANUAL_APPLIED"
   dispatchStatus String    @default("PENDING_REVIEW")
+  /// Draft pipeline: DETECTED | DRAFT_PREPARED | DRAFT_SAVED_GMAIL | SENT | DISMISSED
+  opportunityStatus String @default("DETECTED")
+  /// DIRECT_EMAIL | EXTERNAL_LINK | PORTAL_QUICK_APPLY
+  applicationMethod String @default("DIRECT_EMAIL")
+  applyUrl          String?
+  draftSubject      String?
+  draftBody         String?  @db.Text
+  gmailDraftId      String?
+  gmailMessageId    String?
   appliedAt      DateTime?
   sentAt         DateTime?
   matchScore     Int?
@@ -157,6 +166,7 @@ model JobApplication {
   @@index([accountId, status])
   @@index([persistentProfileId, status])
   @@index([accountId, companyName])
+  @@index([accountId, opportunityStatus])
   @@index([actionRequired])
 }
 

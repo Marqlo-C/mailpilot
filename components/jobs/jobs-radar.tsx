@@ -20,6 +20,7 @@ import {
 } from "@/app/actions/dispatch";
 import { emptyRejections } from "@/app/actions/jobs";
 import { AtsHandoffDrawer } from "@/components/jobs/ats-handoff-drawer";
+import { DraftReviewDialog } from "@/components/jobs/draft-review-dialog";
 import {
   SenderAvatar,
   domainFromActionUrl,
@@ -70,6 +71,7 @@ export function JobsRadar({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [portalJob, setPortalJob] = useState<JobApplication | null>(null);
+  const [draftJob, setDraftJob] = useState<JobApplication | null>(null);
 
   const leads = useMemo(
     () => jobs.filter((j) => j.status === "LEAD" && !j.isArchived),
@@ -188,10 +190,23 @@ export function JobsRadar({
                           </Badge>
                         )}
                         <Badge variant="outline">
-                          {job.dispatchType === "PORTAL"
+                          {job.applicationMethod === "PORTAL_QUICK_APPLY" ||
+                          job.dispatchType === "PORTAL"
                             ? "Portal"
-                            : "Email Lead"}
+                            : job.applicationMethod === "EXTERNAL_LINK"
+                              ? "External link"
+                              : "Email Lead"}
                         </Badge>
+                        {job.opportunityStatus &&
+                        job.opportunityStatus !== "DETECTED" ? (
+                          <Badge variant="secondary">
+                            {job.opportunityStatus === "DRAFT_PREPARED"
+                              ? "Draft ready"
+                              : job.opportunityStatus === "DRAFT_SAVED_GMAIL"
+                                ? "In Gmail drafts"
+                                : job.opportunityStatus}
+                          </Badge>
+                        ) : null}
                       </div>
                     </div>
                   </CardHeader>
@@ -209,23 +224,10 @@ export function JobsRadar({
                           size="sm"
                           variant="outline"
                           disabled={pending}
-                          onClick={() => {
-                            startTransition(async () => {
-                              const result = await sendSingleApplication(
-                                job.id,
-                                true
-                              );
-                              if (!result.ok) {
-                                toast.error(result.error);
-                                return;
-                              }
-                              toast.success("Draft created in Gmail");
-                              router.refresh();
-                            });
-                          }}
+                          onClick={() => setDraftJob(job)}
                         >
                           <Mail className="h-4 w-4" />
-                          Review & Send Email
+                          Review & Edit Draft
                         </Button>
                         <Button
                           size="sm"
@@ -436,6 +438,12 @@ export function JobsRadar({
         onOpenChange={(open) => !open && setPortalJob(null)}
         application={portalJob}
         profile={profile}
+      />
+      <DraftReviewDialog
+        open={Boolean(draftJob)}
+        onOpenChange={(open) => !open && setDraftJob(null)}
+        application={draftJob}
+        onCompleted={() => router.refresh()}
       />
     </>
   );

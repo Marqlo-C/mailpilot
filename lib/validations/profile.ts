@@ -82,6 +82,24 @@ export const APPLICATION_STATUSES = [
 
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
+export const OPPORTUNITY_STATUSES = [
+  "DETECTED",
+  "DRAFT_PREPARED",
+  "DRAFT_SAVED_GMAIL",
+  "SENT",
+  "DISMISSED",
+] as const;
+
+export type OpportunityStatus = (typeof OPPORTUNITY_STATUSES)[number];
+
+export const APPLICATION_METHODS = [
+  "DIRECT_EMAIL",
+  "EXTERNAL_LINK",
+  "PORTAL_QUICK_APPLY",
+] as const;
+
+export type ApplicationMethod = (typeof APPLICATION_METHODS)[number];
+
 export const tailoredDataSchema = z.object({
   selectedBullets: z.array(z.string()).default([]),
   coverLetter: z.string().default(""),

@@ -8,7 +8,11 @@ import {
 import { generateTailoredResumePdf } from "@/lib/pdf-generator";
 import { prisma } from "@/lib/prisma";
 import { tailorResumeForJob } from "@/lib/resume-tailor";
-import type { MasterProfileInput } from "@/lib/validations/profile";
+import { resolveApplicationMethod } from "@/lib/application-method";
+import type {
+  MasterProfileInput,
+  OpportunityStatus,
+} from "@/lib/validations/profile";
 import { tailoredDataSchema } from "@/lib/validations/profile";
 import { parseAccountRules } from "@/lib/validations/rules";
 
@@ -91,7 +95,9 @@ async function loadMasterProfile(
       location: e.location,
       startDate: e.startDate,
       endDate: e.endDate,
-      bullets: (e.bullets as MasterProfileInput["experiences"][number]["bullets"]) ?? [],
+      bullets:
+        (e.bullets as MasterProfileInput["experiences"][number]["bullets"]) ??
+        [],
       displayOrder: e.displayOrder,
     })),
     projects: profile.projects.map((p) => ({
@@ -112,19 +118,43 @@ async function loadMasterProfile(
   };
 }
 
+function resolveRecipient(input: {
+  toEmail?: string;
+  actionSummary: string | null;
+  actionUrl: string | null;
+  applyUrl: string | null;
+  fallbackEmail: string;
+}): string {
+  const mailtoSource = input.applyUrl || input.actionUrl;
+  const mailtoRecipient = mailtoSource?.startsWith("mailto:")
+    ? mailtoSource.replace(/^mailto:/i, "").split("?")[0]
+    : null;
+  const emailInSummary = input.actionSummary?.match(
+    /[\w.+-]+@[\w-]+\.[\w.-]+/
+  )?.[0];
+  return (
+    input.toEmail ||
+    mailtoRecipient ||
+    emailInSummary ||
+    input.fallbackEmail
+  );
+}
+
 export type DispatchOptions = {
   createDraftOnly?: boolean;
   toEmail?: string;
+  /** When true, use persisted draftSubject/draftBody instead of regenerating. */
+  usePreparedDraft?: boolean;
 };
 
 /**
- * Generates a tailored PDF and creates a Gmail draft or sends the application email.
+ * Generates (or reuses) a tailored draft and either creates a Gmail draft or sends.
  */
 export async function dispatchApplicationEmail(
   accountId: string,
   applicationId: string,
   options: DispatchOptions = {}
-): Promise<{ mode: "draft" | "sent" }> {
+): Promise<{ mode: "draft" | "sent"; gmailDraftId?: string | null }> {
   const account = await prisma.account.findUnique({ where: { id: accountId } });
   if (!account || !account.isActive) {
     throw new Error("Account not found or inactive");
@@ -143,7 +173,8 @@ export async function dispatchApplicationEmail(
     : null;
 
   const requirements =
-    existingTailored?.success && existingTailored.data.jobRequirements.length > 0
+    existingTailored?.success &&
+    existingTailored.data.jobRequirements.length > 0
       ? existingTailored.data.jobRequirements
       : [
           application.roleTitle ?? "role",
@@ -151,30 +182,48 @@ export async function dispatchApplicationEmail(
           application.actionSummary ?? "",
         ].filter(Boolean);
 
-  const tailored = await tailorResumeForJob(requirements, profile, {
-    jobText: application.actionSummary ?? undefined,
-  });
+  const usePrepared =
+    options.usePreparedDraft === true &&
+    Boolean(application.draftSubject?.trim() && application.draftBody?.trim());
+
+  const tailored = usePrepared
+    ? {
+        selectedExperience: profile.experiences,
+        coverLetter: application.draftBody!,
+        selectedBullets:
+          existingTailored?.success
+            ? existingTailored.data.selectedBullets
+            : [],
+        jobRequirements: requirements,
+      }
+    : await tailorResumeForJob(requirements, profile, {
+        jobText: application.actionSummary ?? undefined,
+        companyName: application.companyName,
+        roleTitle: application.roleTitle,
+      });
 
   const pdf = await generateTailoredResumePdf(
     profile,
-    tailored.selectedExperience
+    tailored.selectedExperience.length > 0
+      ? tailored.selectedExperience
+      : profile.experiences
   );
 
-  const emailInSummary = application.actionSummary?.match(
-    /[\w.+-]+@[\w-]+\.[\w.-]+/
-  )?.[0];
-  const mailtoRecipient = application.actionUrl?.startsWith("mailto:")
-    ? application.actionUrl.replace(/^mailto:/i, "").split("?")[0]
-    : null;
-  const recipient =
-    options.toEmail ||
-    emailInSummary ||
-    mailtoRecipient ||
-    account.email;
+  const recipient = resolveRecipient({
+    toEmail: options.toEmail,
+    actionSummary: application.actionSummary,
+    actionUrl: application.actionUrl,
+    applyUrl: application.applyUrl,
+    fallbackEmail: account.email,
+  });
 
-  const subject = `Application: ${application.roleTitle ?? "Role"} at ${
-    application.companyName ?? "Your Company"
-  }`;
+  const subject =
+    usePrepared && application.draftSubject
+      ? application.draftSubject
+      : `Application: ${application.roleTitle ?? "Role"} at ${
+          application.companyName ?? "Your Company"
+        }`;
+
   const filename = `${profile.fullName.replace(/\s+/g, "_")}_Resume.pdf`;
   const raw = buildMimeMessage({
     from: account.email,
@@ -187,36 +236,51 @@ export async function dispatchApplicationEmail(
 
   const gmail = await getGmailClientForAccount(account);
   const createDraftOnly = options.createDraftOnly === true;
+  let gmailDraftId: string | null = application.gmailDraftId;
+  let gmailMessageId: string | null = application.gmailMessageId;
 
   try {
     if (createDraftOnly) {
-      await gmail.users.drafts.create({
+      const draft = await gmail.users.drafts.create({
         userId: "me",
         requestBody: {
           message: { raw: encodeRaw(raw) },
         },
       });
+      gmailDraftId = draft.data.id ?? gmailDraftId;
     } else {
-      await gmail.users.messages.send({
+      const sent = await gmail.users.messages.send({
         userId: "me",
         requestBody: { raw: encodeRaw(raw) },
       });
+      gmailMessageId = sent.data.id ?? gmailMessageId;
     }
   } catch (error) {
     rethrowIfInsufficientScope(error);
   }
 
   const now = new Date();
+  const opportunityStatus: OpportunityStatus = createDraftOnly
+    ? "DRAFT_SAVED_GMAIL"
+    : "SENT";
+
   await prisma.jobApplication.update({
     where: { id: applicationId },
     data: {
+      draftSubject: subject,
+      draftBody: tailored.coverLetter,
+      gmailDraftId,
+      gmailMessageId,
+      opportunityStatus,
       tailoredData: {
         selectedBullets: tailored.selectedBullets,
         coverLetter: tailored.coverLetter,
         jobRequirements: tailored.jobRequirements,
       } as Prisma.InputJsonValue,
       ...(createDraftOnly
-        ? {}
+        ? {
+            dispatchStatus: "PENDING_REVIEW",
+          }
         : {
             dispatchStatus: "SENT",
             status: "APPLIED",
@@ -226,7 +290,122 @@ export async function dispatchApplicationEmail(
     },
   });
 
-  return { mode: createDraftOnly ? "draft" : "sent" };
+  return {
+    mode: createDraftOnly ? "draft" : "sent",
+    gmailDraftId,
+  };
+}
+
+/**
+ * Generates an in-app draft (subject + body) and persists it without touching Gmail yet.
+ */
+export async function prepareApplicationDraft(
+  accountId: string,
+  applicationId: string
+): Promise<{
+  subject: string;
+  body: string;
+  recipient: string;
+  opportunityStatus: OpportunityStatus;
+}> {
+  const account = await prisma.account.findUnique({ where: { id: accountId } });
+  if (!account || !account.isActive) {
+    throw new Error("Account not found or inactive");
+  }
+
+  const application = await prisma.jobApplication.findFirst({
+    where: { id: applicationId, accountId },
+  });
+  if (!application) {
+    throw new Error("Application not found");
+  }
+
+  const profile = await loadMasterProfile(accountId);
+  const existingTailored = application.tailoredData
+    ? tailoredDataSchema.safeParse(application.tailoredData)
+    : null;
+
+  const requirements =
+    existingTailored?.success &&
+    existingTailored.data.jobRequirements.length > 0
+      ? existingTailored.data.jobRequirements
+      : [
+          application.roleTitle ?? "role",
+          application.companyName ?? "company",
+          application.actionSummary ?? "",
+        ].filter(Boolean);
+
+  const tailored = await tailorResumeForJob(requirements, profile, {
+    jobText: application.actionSummary ?? undefined,
+    companyName: application.companyName,
+    roleTitle: application.roleTitle,
+  });
+
+  const subject = `Application: ${application.roleTitle ?? "Role"} at ${
+    application.companyName ?? "Your Company"
+  }`;
+  const recipient = resolveRecipient({
+    actionSummary: application.actionSummary,
+    actionUrl: application.actionUrl,
+    applyUrl: application.applyUrl,
+    fallbackEmail: account.email,
+  });
+
+  await prisma.jobApplication.update({
+    where: { id: applicationId },
+    data: {
+      draftSubject: subject,
+      draftBody: tailored.coverLetter,
+      opportunityStatus: "DRAFT_PREPARED",
+      tailoredData: {
+        selectedBullets: tailored.selectedBullets,
+        coverLetter: tailored.coverLetter,
+        jobRequirements: tailored.jobRequirements,
+      } as Prisma.InputJsonValue,
+    },
+  });
+
+  return {
+    subject,
+    body: tailored.coverLetter,
+    recipient,
+    opportunityStatus: "DRAFT_PREPARED",
+  };
+}
+
+export async function updatePreparedDraft(
+  accountId: string,
+  applicationId: string,
+  input: { subject: string; body: string }
+): Promise<void> {
+  const application = await prisma.jobApplication.findFirst({
+    where: { id: applicationId, accountId },
+  });
+  if (!application) {
+    throw new Error("Application not found");
+  }
+
+  const existingTailored = application.tailoredData
+    ? tailoredDataSchema.safeParse(application.tailoredData)
+    : null;
+
+  await prisma.jobApplication.update({
+    where: { id: applicationId },
+    data: {
+      draftSubject: input.subject.trim(),
+      draftBody: input.body.trim(),
+      opportunityStatus: "DRAFT_PREPARED",
+      tailoredData: {
+        selectedBullets: existingTailored?.success
+          ? existingTailored.data.selectedBullets
+          : [],
+        coverLetter: input.body.trim(),
+        jobRequirements: existingTailored?.success
+          ? existingTailored.data.jobRequirements
+          : [],
+      } as Prisma.InputJsonValue,
+    },
+  });
 }
 
 export async function countSendsToday(accountId: string): Promise<number> {
@@ -235,8 +414,10 @@ export async function countSendsToday(accountId: string): Promise<number> {
   return prisma.jobApplication.count({
     where: {
       accountId,
-      dispatchStatus: "SENT",
-      sentAt: { gte: start },
+      OR: [
+        { dispatchStatus: "SENT", sentAt: { gte: start } },
+        { opportunityStatus: "SENT", sentAt: { gte: start } },
+      ],
     },
   });
 }

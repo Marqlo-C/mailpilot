@@ -7,6 +7,8 @@ import {
   countSendsToday,
   dispatchApplicationEmail,
   getDailySendLimit,
+  prepareApplicationDraft,
+  updatePreparedDraft,
 } from "@/lib/dispatch";
 import {
   InsufficientScopeError,
@@ -55,8 +57,13 @@ export async function sendSingleApplication(
       }
     }
 
+    const hasPreparedDraft = Boolean(
+      application.draftSubject?.trim() && application.draftBody?.trim()
+    );
+
     const result = await dispatchApplicationEmail(accountId, applicationId, {
       createDraftOnly: asDraft,
+      usePreparedDraft: hasPreparedDraft,
     });
     revalidatePath("/jobs");
     revalidatePath("/");
@@ -72,6 +79,113 @@ export async function sendSingleApplication(
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Dispatch failed",
+    };
+  }
+}
+
+/**
+ * Generates an editable in-app draft and persists subject/body on the job row.
+ */
+export async function prepareDraftForReview(
+  applicationId: string
+): Promise<
+  ActionResult<{ subject: string; body: string; recipient: string }>
+> {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application) {
+    return { ok: false, error: "Application not found" };
+  }
+  if (!application.accountId) {
+    return {
+      ok: false,
+      error: "Gmail account is unlinked. Reconnect to continue.",
+    };
+  }
+
+  try {
+    if (
+      application.draftSubject?.trim() &&
+      application.draftBody?.trim() &&
+      (application.opportunityStatus === "DRAFT_PREPARED" ||
+        application.opportunityStatus === "DRAFT_SAVED_GMAIL")
+    ) {
+      const account = await prisma.account.findUnique({
+        where: { id: application.accountId },
+      });
+      const mailtoSource = application.applyUrl || application.actionUrl;
+      const mailtoRecipient = mailtoSource?.startsWith("mailto:")
+        ? mailtoSource.replace(/^mailto:/i, "").split("?")[0]
+        : null;
+      const emailInSummary = application.actionSummary?.match(
+        /[\w.+-]+@[\w-]+\.[\w.-]+/
+      )?.[0];
+      return {
+        ok: true,
+        data: {
+          subject: application.draftSubject,
+          body: application.draftBody,
+          recipient:
+            mailtoRecipient || emailInSummary || account?.email || "",
+        },
+      };
+    }
+
+    const draft = await prepareApplicationDraft(
+      application.accountId,
+      applicationId
+    );
+    revalidatePath("/jobs");
+    return {
+      ok: true,
+      data: {
+        subject: draft.subject,
+        body: draft.body,
+        recipient: draft.recipient,
+      },
+    };
+  } catch (error) {
+    console.error("prepareDraftForReview failed", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to prepare draft",
+    };
+  }
+}
+
+/**
+ * Persists user edits to the in-app draft before Gmail save/send.
+ */
+export async function saveDraftEdits(
+  applicationId: string,
+  input: { subject: string; body: string }
+): Promise<ActionResult> {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application?.accountId) {
+    return { ok: false, error: "Application not found" };
+  }
+
+  const subject = input.subject.trim();
+  const body = input.body.trim();
+  if (!subject || !body) {
+    return { ok: false, error: "Subject and body are required" };
+  }
+
+  try {
+    await updatePreparedDraft(application.accountId, applicationId, {
+      subject,
+      body,
+    });
+    revalidatePath("/jobs");
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to save draft",
     };
   }
 }
@@ -143,6 +257,8 @@ export async function markPortalAsApplied(
       status: "APPLIED",
       dispatchStatus: "MANUAL_APPLIED",
       dispatchType: "PORTAL",
+      applicationMethod: "PORTAL_QUICK_APPLY",
+      opportunityStatus: "SENT",
       appliedAt: now,
     },
   });
