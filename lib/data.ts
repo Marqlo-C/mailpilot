@@ -238,7 +238,7 @@ export async function getJobOpportunitiesForAccount(
         accountId,
         status: { not: "DISMISSED" },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ matchScore: "desc" }, { receivedAt: "desc" }],
     });
   } catch (error) {
     console.error("getJobOpportunitiesForAccount failed", error);

@@ -12,6 +12,7 @@ import {
 
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { canDraftDirectEmail } from "@/lib/application-method";
+import { formatDistanceToNow } from "@/lib/format-distance";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -59,8 +60,7 @@ function CompanyLogo({
   domain: string | null;
 }) {
   const [failed, setFailed] = useState(false);
-  const src =
-    logoUrl || getCompanyLogoUrl(company, domain);
+  const src = logoUrl || getCompanyLogoUrl(company, domain);
   const initial = (company.trim()[0] ?? "?").toUpperCase();
 
   if (failed) {
@@ -102,12 +102,13 @@ export function OpportunityCard({
   const canEmail = canDraftDirectEmail(opportunity.recipientEmail);
   const score = opportunity.matchScore ?? 0;
   const belowThreshold = score < matchThreshold;
+  const receivedLabel = formatDistanceToNow(new Date(opportunity.receivedAt), {
+    addSuffix: true,
+  });
 
   return (
     <Card
-      className={cn(
-        belowThreshold && opportunity.isArchived && "opacity-80"
-      )}
+      className={cn(belowThreshold && opportunity.isArchived && "opacity-80")}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start gap-3">
@@ -168,56 +169,60 @@ export function OpportunityCard({
           </p>
         ) : null}
       </CardHeader>
-      <CardFooter className="flex flex-wrap gap-2">
-        {opportunity.applyUrl ? (
-          <Button asChild size="sm" variant={canEmail ? "outline" : "default"}>
+      <CardFooter className="flex flex-col items-stretch gap-3">
+        <div className="flex flex-wrap gap-2">
+          {opportunity.applyUrl ? (
             <a
               href={opportunity.applyUrl}
               target="_blank"
               rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
             >
-              <ExternalLink className="h-4 w-4" />
-              View Posting
+              Open Job Posting
+              <ExternalLink className="h-3.5 w-3.5" />
             </a>
-          </Button>
-        ) : null}
+          ) : null}
 
-        {canEmail ? (
-          <>
+          {canEmail ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={onReviewDraft}
+              >
+                <Mail className="h-4 w-4" />
+                Review & Edit Draft
+              </Button>
+              <Button size="sm" disabled={pending} onClick={onSendNow}>
+                <Send className="h-4 w-4" />
+                Send now
+              </Button>
+            </>
+          ) : (
             <Button
               size="sm"
               variant="outline"
               disabled={pending}
-              onClick={onReviewDraft}
+              onClick={onMarkApplied}
             >
-              <Mail className="h-4 w-4" />
-              Review & Edit Draft
+              Mark applied
             </Button>
-            <Button size="sm" disabled={pending} onClick={onSendNow}>
-              <Send className="h-4 w-4" />
-              Send now
-            </Button>
-          </>
-        ) : (
+          )}
+
           <Button
             size="sm"
-            variant="outline"
+            variant="ghost"
             disabled={pending}
-            onClick={onMarkApplied}
+            onClick={onDismiss}
           >
-            Mark applied
+            <Archive className="h-4 w-4" />
+            Dismiss
           </Button>
-        )}
-
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={pending}
-          onClick={onDismiss}
-        >
-          <Archive className="h-4 w-4" />
-          Dismiss
-        </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Received {receivedLabel}
+        </p>
       </CardFooter>
     </Card>
   );

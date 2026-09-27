@@ -434,7 +434,12 @@ export async function persistClassifiedEmail(input: {
     const sharedData = {
       location: job.location ?? null,
       salary: job.salary ?? null,
+      salaryMax:
+        typeof job.salaryMax === "number"
+          ? job.salaryMax
+          : null,
       postedAt: job.postedAt ?? null,
+      receivedAt: emailDate,
       description: job.description ?? null,
       applyUrl: job.applyUrl ?? null,
       applicationType,
@@ -448,18 +453,28 @@ export async function persistClassifiedEmail(input: {
     };
 
     if (existing) {
+      // Backfill metadata without wiping user-driven application status.
       await prisma.jobOpportunity.update({
         where: { id: existing.id },
         data: {
-          ...sharedData,
           location: job.location ?? existing.location,
           salary: job.salary ?? existing.salary,
+          salaryMax:
+            typeof job.salaryMax === "number"
+              ? job.salaryMax
+              : existing.salaryMax,
           postedAt: job.postedAt ?? existing.postedAt,
+          receivedAt: emailDate,
           description: job.description ?? existing.description,
           applyUrl: job.applyUrl ?? existing.applyUrl,
+          applicationType,
+          recipientEmail,
           recipientName: job.recipientName ?? existing.recipientName,
-          companyDomain: companyDomain ?? existing.companyDomain,
-          logoUrl: logoUrl || existing.logoUrl,
+          companyDomain: existing.companyDomain ?? companyDomain,
+          logoUrl: existing.logoUrl ?? logoUrl,
+          matchScore,
+          matchReason: matchReason ?? existing.matchReason,
+          isArchived,
         },
       });
       opportunitiesUpserted += 1;

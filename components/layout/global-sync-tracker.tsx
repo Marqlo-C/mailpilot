@@ -56,7 +56,10 @@ export function GlobalSyncTracker({
           if (result.data.syncError) {
             toast.error(result.data.syncError);
           } else {
-            toast.success("Inbox scan complete. New opportunities loaded.");
+            const count = result.data.lastSyncProcessed ?? 0;
+            toast.success(
+              `Sync complete. ${count} opportunit${count === 1 ? "y" : "ies"} updated.`
+            );
           }
           router.refresh();
         }

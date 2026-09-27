@@ -74,6 +74,8 @@ model Account {
   isSyncing           Boolean            @default(false)
   lastSyncedAt        DateTime?
   syncError           String?
+  /// Opportunities upserted on the most recent completed sync (for UI toast).
+  lastSyncProcessed   Int?
 
   settings        AccountSettings?
   subscriptions   Subscription[]
@@ -163,11 +165,17 @@ model JobOpportunity {
   logoUrl         String?
   title           String
   location        String?
+  /// Display string (e.g. "$115,000 - $130,000/yr" or "$55/hr").
   salary          String?
+  /// Normalized annualized max for numerical sorting (hourly × 2080 when needed).
+  salaryMax       Float?
   /// Relative listing age when present (e.g. "2 days ago", "Just posted").
   postedAt        String?
+  /// Gmail message internalDate (when the email was received).
+  receivedAt      DateTime @default(now())
   description     String?  @db.Text
-  applyUrl        String?
+  /// Full tracking / direct application link (may be long aggregator URLs).
+  applyUrl        String?  @db.Text
   /// DIRECT_EMAIL | EXTERNAL_LINK | QUICK_APPLY
   applicationType String   @default("EXTERNAL_LINK")
   /// Must be null when no direct recruiter contact exists (no email drafts allowed).
@@ -180,7 +188,7 @@ model JobOpportunity {
   /// 0–100 fit vs candidate profile; below threshold → isArchived.
   matchScore      Int      @default(0)
   /// One-sentence AI verdict of fit / mismatch.
-  matchReason     String?
+  matchReason     String?  @db.Text
   /// True when matchScore is below the account threshold (hidden by default).
   isArchived      Boolean  @default(false)
 
@@ -193,6 +201,8 @@ model JobOpportunity {
   @@index([emailMessageId])
   @@index([accountId, createdAt])
   @@index([accountId, matchScore])
+  @@index([accountId, receivedAt])
+  @@index([accountId, salaryMax])
 }
 
 model JobApplication {

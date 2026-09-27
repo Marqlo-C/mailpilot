@@ -5,8 +5,12 @@ import { resolveApplicationType } from "@/lib/application-method";
 import {
   buildClassifierUserPrompt,
   buildProfileAwareClassifierSystemPrompt,
+  ensureCandidateProfileForScoring,
+  heuristicMatchScore,
+  parseSalaryMax,
   type CandidateProfileSummary,
 } from "@/lib/ai/classifier";
+import { cleanEmailPayload } from "@/lib/email/cleaner";
 import { prisma } from "@/lib/prisma";
 
 export const extractedJobSchema = z.object({
@@ -15,6 +19,7 @@ export const extractedJobSchema = z.object({
   title: z.string().min(1),
   location: z.string().nullable().optional(),
   salary: z.string().nullable().optional(),
+  salaryMax: z.coerce.number().nullable().optional(),
   postedAt: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
   applyUrl: z.string().nullable().optional(),
@@ -23,7 +28,7 @@ export const extractedJobSchema = z.object({
     .optional(),
   recipientEmail: z.string().nullable().optional(),
   recipientName: z.string().nullable().optional(),
-  matchScore: z.number().min(0).max(100).optional(),
+  matchScore: z.coerce.number().min(0).max(100).optional(),
   matchReason: z.string().nullable().optional(),
 });
 
@@ -71,8 +76,6 @@ export type ClassifyOptions = {
   /** When provided, scoring is profile-aware. */
   candidateProfile?: CandidateProfileSummary | null;
 };
-
-const MAX_BODY_CHARS = 4500;
 
 const SUBJECT_KEYWORDS = [
   "application",
@@ -155,7 +158,12 @@ export async function loadCandidateProfileSummary(
     },
   });
 
-  if (!profile) return null;
+  if (!profile) {
+    console.warn(
+      `Sync warning: Account ${accountId} has no linked UserProfile. Match scoring will use software/CS defaults.`
+    );
+    return null;
+  }
 
   const skillsJson = (profile.skills ?? {}) as {
     languages?: string[];
@@ -193,6 +201,12 @@ export async function loadCandidateProfileSummary(
     ...new Set(profile.experiences.map((e) => e.role).filter(Boolean)),
   ];
 
+  if (skills.length === 0 && experienceSummary === "n/a") {
+    console.warn(
+      `Sync warning: Account ${accountId} profile is empty. Match scoring will use software/CS defaults.`
+    );
+  }
+
   return {
     educationSummary,
     skills: [...skills, ...projectTitles].slice(0, 50),
@@ -207,7 +221,7 @@ export async function loadCandidateProfileSummary(
  */
 export function normalizeClassification(
   raw: JobClassification,
-  context: { subject: string; fromEmail?: string | null }
+  context: { subject: string; fromEmail?: string | null; emailBody?: string }
 ): JobClassification {
   let emailCategory: EmailCategory = raw.email_category;
   if (
@@ -228,6 +242,7 @@ export function normalizeClassification(
         title: raw.role_title,
         location: null,
         salary: null,
+        salaryMax: null,
         postedAt: null,
         description: raw.action_summary,
         applyUrl: raw.action_url,
@@ -243,8 +258,11 @@ export function normalizeClassification(
   const fromIsNoReply = /noreply|no-reply|donotreply|jobs@|alerts@/i.test(
     context.fromEmail ?? ""
   );
+  const bodyMarkdownUrls = [
+    ...(context.emailBody?.matchAll(/\[([^\]]*)\]\((https?:[^)\s]+)\)/gi) ?? []),
+  ].map((m) => m[2]);
 
-  jobs = jobs.slice(0, 15).map((job) => {
+  jobs = jobs.slice(0, 15).map((job, index) => {
     let recipientEmail = (job.recipientEmail ?? "").trim() || null;
     if (recipientEmail) {
       const lower = recipientEmail.toLowerCase();
@@ -271,14 +289,30 @@ export function normalizeClassification(
       recipientEmail = context.fromEmail;
     }
 
+    let applyUrl = (job.applyUrl ?? "").trim() || null;
+    if (
+      applyUrl &&
+      /unsubscribe|mailto:|privacy|preferences/i.test(applyUrl)
+    ) {
+      applyUrl = null;
+    }
+    // Recover aggregator apply links from preserved markdown when LLM omitted them.
+    if (!applyUrl && bodyMarkdownUrls.length > 0) {
+      const candidate =
+        bodyMarkdownUrls[Math.min(index, bodyMarkdownUrls.length - 1)] ?? null;
+      if (candidate && !/unsubscribe|privacy|preferences/i.test(candidate)) {
+        applyUrl = candidate;
+      }
+    }
+
     const applicationType =
       job.applicationType ??
       resolveApplicationType({
-        applyUrl: job.applyUrl,
+        applyUrl,
         recipientEmail,
       });
     const resolvedType = resolveApplicationType({
-      applyUrl: job.applyUrl,
+      applyUrl,
       recipientEmail:
         applicationType === "DIRECT_EMAIL" ? recipientEmail : null,
     });
@@ -287,21 +321,44 @@ export function normalizeClassification(
     }
 
     const companyDomain =
-      (job.companyDomain ?? "").trim().replace(/^https?:\/\//i, "").replace(/^www\./i, "").split("/")[0] ||
-      null;
+      (job.companyDomain ?? "")
+        .trim()
+        .replace(/^https?:\/\//i, "")
+        .replace(/^www\./i, "")
+        .split("/")[0] || null;
+
+    let matchScore = clampScore(job.matchScore);
+    let matchReason =
+      (job.matchReason ?? "").trim() ||
+      "No match rationale returned by the classifier.";
+
+    // Fix 0%/missing scores for clearly aligned software roles.
+    if (matchScore === 0) {
+      matchScore = heuristicMatchScore(job.title, job.company);
+      if (!job.matchReason?.trim()) {
+        matchReason =
+          matchScore >= 75
+            ? "Heuristic score: title aligns with software/CS target roles."
+            : "Heuristic score: limited profile overlap signals.";
+      }
+    }
+
+    const salaryMax =
+      typeof job.salaryMax === "number" && !Number.isNaN(job.salaryMax)
+        ? job.salaryMax
+        : parseSalaryMax(job.salary);
 
     return {
       ...job,
       companyDomain,
+      salaryMax,
       postedAt: job.postedAt ?? null,
       description: job.description ?? null,
       recipientEmail,
-      applyUrl: job.applyUrl ?? null,
+      applyUrl,
       applicationType: resolvedType,
-      matchScore: clampScore(job.matchScore),
-      matchReason:
-        (job.matchReason ?? "").trim() ||
-        "No match rationale returned by the classifier.",
+      matchScore,
+      matchReason,
     };
   });
 
@@ -314,42 +371,10 @@ export function normalizeClassification(
 
 /**
  * Strips HTML/tracking while preserving link destinations for applyUrl extraction.
+ * Delegates to cleanEmailPayload for a single minification path.
  */
 export function sanitizeEmailBody(raw: string): string {
-  let text = raw;
-
-  text = text.replace(/<style[\s\S]*?<\/style>/gi, " ");
-  text = text.replace(/<script[\s\S]*?<\/script>/gi, " ");
-  text = text.replace(/<img\b[^>]*>/gi, " ");
-
-  // Preserve href targets before stripping tags.
-  text = text.replace(
-    /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
-    (_, href: string, label: string) =>
-      `${label.replace(/<[^>]+>/g, " ").trim()} (${href}) `
-  );
-
-  text = text.replace(/<[^>]+>/g, " ");
-
-  text = text
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'");
-
-  // Keep destination URLs from markdown links.
-  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)");
-
-  text = text.replace(
-    /https?:\/\/\S*(?:unsubscribe|pixel|track\/open)\S*/gi,
-    " "
-  );
-
-  text = text.replace(/\s+/g, " ").trim();
-
-  return text.slice(0, MAX_BODY_CHARS);
+  return cleanEmailPayload(raw);
 }
 
 /**
@@ -364,7 +389,7 @@ export async function classifyJobEmail(
 
   const sanitizedBody = sanitizeEmailBody(options.body);
   const systemPrompt = buildProfileAwareClassifierSystemPrompt(
-    options.candidateProfile ?? null
+    ensureCandidateProfileForScoring(options.candidateProfile ?? null)
   );
   const userPrompt = buildClassifierUserPrompt({
     subject: options.subject,
@@ -394,6 +419,7 @@ export async function classifyJobEmail(
     return normalizeClassification(parsed, {
       subject: options.subject,
       fromEmail: options.fromEmail,
+      emailBody: sanitizedBody,
     });
   } catch (error) {
     console.warn("Failed to parse job classification JSON", error);

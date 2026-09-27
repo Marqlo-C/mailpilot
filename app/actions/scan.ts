@@ -72,8 +72,10 @@ export async function triggerHistoricalScan(
 
   after(async () => {
     let errorMessage: string | null = null;
+    let jobsFound = 0;
     try {
-      await scanHistoricalEmails(scanAccountId, scanDays);
+      const summary = await scanHistoricalEmails(scanAccountId, scanDays);
+      jobsFound = summary.jobsFound;
       revalidatePath("/");
       revalidatePath("/subscriptions");
       revalidatePath("/jobs");
@@ -96,6 +98,7 @@ export async function triggerHistoricalScan(
             isSyncing: false,
             lastSyncedAt: new Date(),
             syncError: errorMessage,
+            lastSyncProcessed: errorMessage ? null : jobsFound,
           },
         });
       } catch (finalizeError) {
@@ -117,6 +120,7 @@ export type AccountSyncStatus = {
   isSyncing: boolean;
   lastSyncedAt: string | null;
   syncError: string | null;
+  lastSyncProcessed: number | null;
 };
 
 /** Lightweight poll target for GlobalSyncTracker. */
@@ -134,6 +138,7 @@ export async function getAccountSyncStatus(
         isSyncing: true,
         lastSyncedAt: true,
         syncError: true,
+        lastSyncProcessed: true,
       },
     });
 
@@ -147,6 +152,7 @@ export async function getAccountSyncStatus(
         isSyncing: account.isSyncing,
         lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
         syncError: account.syncError,
+        lastSyncProcessed: account.lastSyncProcessed,
       },
     };
   } catch (error) {

@@ -27,7 +27,7 @@ import {
 import { AtsHandoffDrawer } from "@/components/jobs/ats-handoff-drawer";
 import { DraftReviewDialog } from "@/components/jobs/draft-review-dialog";
 import { OpportunityDraftDialog } from "@/components/jobs/opportunity-draft-dialog";
-import { OpportunityCard } from "@/components/opportunities/opportunity-card";
+import { OpportunitiesView } from "@/components/opportunities/opportunities-view";
 import {
   SenderAvatar,
   domainFromActionUrl,
@@ -229,15 +229,15 @@ export function JobsRadar({
           {leadCount === 0 ? (
             <EmptyState text="No leads in the queue yet." />
           ) : (
-            <div className="grid gap-3 md:grid-cols-2">
-              {opportunityLeads.map((opp) => (
-                <OpportunityCard
-                  key={`opp-${opp.id}`}
-                  opportunity={opp}
+            <div className="space-y-4">
+              {opportunityLeads.length > 0 ? (
+                <OpportunitiesView
+                  opportunities={opportunityLeads}
                   matchThreshold={matchThreshold}
                   pending={pending}
-                  onReviewDraft={() => setDraftOpportunity(opp)}
-                  onSendNow={() => {
+                  emptyText="No matching opportunities."
+                  onReviewDraft={(opp) => setDraftOpportunity(opp)}
+                  onSendNow={(opp) => {
                     startTransition(async () => {
                       const result = await sendOpportunityApplication(
                         opp.id,
@@ -251,22 +251,24 @@ export function JobsRadar({
                       router.refresh();
                     });
                   }}
-                  onMarkApplied={() => {
+                  onMarkApplied={(opp) => {
                     startTransition(async () => {
                       await markOpportunityExternalApplied(opp.id);
                       toast.success("Marked as applied");
                       router.refresh();
                     });
                   }}
-                  onDismiss={() => {
+                  onDismiss={(opp) => {
                     startTransition(async () => {
                       await dismissOpportunity(opp.id);
                       router.refresh();
                     });
                   }}
                 />
-              ))}
+              ) : null}
 
+              {leads.length > 0 ? (
+                <div className="grid gap-3 md:grid-cols-2">
               {leads.map((job) => {
                 const canEmail = Boolean(
                   extractRecruiterEmail({
@@ -403,6 +405,8 @@ export function JobsRadar({
                   </Card>
                 );
               })}
+                </div>
+              ) : null}
             </div>
           )}
         </TabsContent>
