@@ -32,37 +32,39 @@ export default async function JobsPage() {
     active?.rules.dismissedRetentionDays ??
     DEFAULT_ACCOUNT_RULES.dismissedRetentionDays;
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-            Job Radar
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Leads, applications, action items, and history in one pipeline.
-          </p>
+  if (!active) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+              Job Radar
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Leads, applications, action items, and history in one pipeline.
+            </p>
+          </div>
+          <ScanInboxDialog accountId={null} />
         </div>
-        <ScanInboxDialog accountId={active?.id ?? null} />
-      </div>
 
-      {!active ? (
         <div className="rounded-lg border border-dashed border-border px-6 py-16 text-center">
           <p className="font-medium">Connect a Gmail account first</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Job classification starts once an inbox is linked.
           </p>
         </div>
-      ) : (
-        <JobsRadar
-          accountId={active.id}
-          jobs={jobs}
-          opportunities={opportunities}
-          profile={profile}
-          matchThreshold={threshold}
-          retentionDays={retentionDays}
-        />
-      )}
-    </div>
+      </div>
+    );
+  }
+
+  return (
+    <JobsRadar
+      accountId={active.id}
+      jobs={jobs}
+      opportunities={opportunities}
+      profile={profile}
+      matchThreshold={threshold}
+      retentionDays={retentionDays}
+    />
   );
 }

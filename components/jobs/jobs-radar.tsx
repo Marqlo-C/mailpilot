@@ -28,6 +28,7 @@ import { AtsHandoffDrawer } from "@/components/jobs/ats-handoff-drawer";
 import { DraftReviewDialog } from "@/components/jobs/draft-review-dialog";
 import { OpportunityDraftDialog } from "@/components/jobs/opportunity-draft-dialog";
 import { OpportunitiesView } from "@/components/opportunities/opportunities-view";
+import { SyncControls } from "@/components/opportunities/sync-controls";
 import {
   SenderAvatar,
   domainFromActionUrl,
@@ -48,8 +49,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import {
+  segmentedTabsListClassName,
+  segmentedTabsTriggerClassName,
+  TabCountBadge,
+} from "@/components/ui/segmented-tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type JobsRadarProps = {
@@ -76,15 +80,6 @@ function formatCountdown(deadlineAt: Date | null): string {
   const hours = Math.floor(ms / (1000 * 60 * 60));
   if (hours < 24) return `${hours}h left`;
   return `${Math.floor(hours / 24)}d left`;
-}
-
-function TabCount({ count }: { count: number }) {
-  if (count <= 0) return null;
-  return (
-    <Badge variant="secondary" className="ml-1.5">
-      {count}
-    </Badge>
-  );
 }
 
 export function JobsRadar({
@@ -146,6 +141,20 @@ export function JobsRadar({
       ).length,
     [opportunities, matchThreshold]
   );
+  const hasOpportunityLeads = useMemo(
+    () =>
+      opportunities.some(
+        (o) => o.status === "DISCOVERED" && !isUserArchived(o)
+      ),
+    [opportunities]
+  );
+  const discoveredLeadCount = useMemo(
+    () =>
+      opportunities.filter(
+        (o) => o.status === "DISCOVERED" && !isUserArchived(o)
+      ).length,
+    [opportunities]
+  );
 
   const leads = useMemo(
     () => jobs.filter((j) => j.status === "LEAD" && !j.isArchived),
@@ -171,7 +180,7 @@ export function JobsRadar({
     [jobs]
   );
 
-  const leadCount = opportunityLeadsAll.length + leads.length;
+  const leadCount = discoveredLeadCount + leads.length;
   const appliedCount = opportunityApplied.length + applied.length;
   const actionCount = opportunityAction.length + actionRequired.length;
   const historyCount = opportunityHistory.length + history.length;
@@ -204,89 +213,89 @@ export function JobsRadar({
   }
 
   return (
-    <>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+          Job Radar
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Leads, applications, action items, and history in one pipeline.
+        </p>
+      </div>
+
       <Tabs defaultValue="leads">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:inline-flex sm:grid-cols-none">
-            <TabsTrigger value="leads">
-              Leads / Queue
-              <TabCount count={leadCount} />
+        <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <TabsList className={segmentedTabsListClassName}>
+            <TabsTrigger value="leads" className={segmentedTabsTriggerClassName}>
+              <span>Leads / Queue</span>
+              <TabCountBadge count={leadCount} />
             </TabsTrigger>
-            <TabsTrigger value="applied">
-              Applied
-              <TabCount count={appliedCount} />
+            <TabsTrigger
+              value="applied"
+              className={segmentedTabsTriggerClassName}
+            >
+              <span>Applied</span>
+              <TabCountBadge count={appliedCount} />
             </TabsTrigger>
-            <TabsTrigger value="action">
-              Action Required
-              <TabCount count={actionCount} />
+            <TabsTrigger
+              value="action"
+              className={segmentedTabsTriggerClassName}
+            >
+              <span>Action Required</span>
+              <TabCountBadge count={actionCount} />
             </TabsTrigger>
-            <TabsTrigger value="history">
-              History
-              <TabCount count={historyCount} />
+            <TabsTrigger
+              value="history"
+              className={segmentedTabsTriggerClassName}
+            >
+              <span>History</span>
+              <TabCountBadge count={historyCount} />
             </TabsTrigger>
           </TabsList>
 
-          <Button
-            type="button"
-            size="sm"
-            disabled={pending || batchIds.length === 0}
-            onClick={() => {
-              startTransition(async () => {
-                const toastId = toast.loading(
-                  `Batch sending ${batchIds.length} applications…`
-                );
-                const result = await batchSendApplications(batchIds);
-                if (!result.ok || !result.data) {
-                  toast.error(result.ok ? "Batch failed" : result.error, {
-                    id: toastId,
-                  });
-                  return;
-                }
-                toast.success(
-                  `Sent ${result.data.sent}, skipped ${result.data.skipped}`,
-                  { id: toastId }
-                );
-                router.refresh();
-              });
-            }}
-          >
-            {pending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-            Batch Send Approved ({batchIds.length})
-          </Button>
+          <div className="flex shrink-0 items-center gap-2.5 self-start sm:self-auto">
+            <Button
+              type="button"
+              size="sm"
+              disabled={pending || batchIds.length === 0}
+              className="bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-40"
+              onClick={() => {
+                startTransition(async () => {
+                  const toastId = toast.loading(
+                    `Batch sending ${batchIds.length} applications…`
+                  );
+                  const result = await batchSendApplications(batchIds);
+                  if (!result.ok || !result.data) {
+                    toast.error(result.ok ? "Batch failed" : result.error, {
+                      id: toastId,
+                    });
+                    return;
+                  }
+                  toast.success(
+                    `Sent ${result.data.sent}, skipped ${result.data.skipped}`,
+                    { id: toastId }
+                  );
+                  router.refresh();
+                });
+              }}
+            >
+              {pending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
+              Batch Send Approved ({batchIds.length})
+            </Button>
+            <SyncControls accountId={accountId} />
+          </div>
         </div>
 
         <TabsContent value="leads" className="space-y-3">
-          <div className="flex flex-col gap-2 rounded-lg border border-border/80 bg-muted/30 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <Switch
-                id="show-only-matches"
-                checked={showOnlyMatches}
-                onCheckedChange={setShowOnlyMatches}
-              />
-              <Label htmlFor="show-only-matches" className="text-sm font-normal">
-                {showOnlyMatches
-                  ? `Show only matches (≥ ${matchThreshold}%)`
-                  : "Show all (including filtered)"}
-              </Label>
-            </div>
-            {archivedLeadCount > 0 ? (
-              <p className="text-xs text-muted-foreground">
-                {archivedLeadCount} below-threshold listing
-                {archivedLeadCount === 1 ? "" : "s"}
-                {showOnlyMatches ? " hidden" : " visible"}
-              </p>
-            ) : null}
-          </div>
-
-          {leadCount === 0 ? (
+          {leadCount === 0 && !hasOpportunityLeads ? (
             <EmptyState text="No leads in the queue yet." />
           ) : (
             <div className="space-y-4">
-              {opportunityLeadsAll.length > 0 ? (
+              {hasOpportunityLeads ? (
                 <OpportunitiesView
                   opportunities={opportunityLeadsAll}
                   matchThreshold={matchThreshold}
@@ -294,6 +303,9 @@ export function JobsRadar({
                   variant="leads"
                   pending={pending}
                   emptyText="No matching opportunities."
+                  showMatchesOnly={showOnlyMatches}
+                  onShowMatchesOnlyChange={setShowOnlyMatches}
+                  hiddenCount={archivedLeadCount}
                   onReviewDraft={(opp) => setDraftOpportunity(opp)}
                   onSendNow={handleOpportunitySend}
                   onMarkApplied={(opp) => {
@@ -719,7 +731,7 @@ export function JobsRadar({
         opportunity={draftOpportunity}
         onCompleted={() => router.refresh()}
       />
-    </>
+    </div>
   );
 }
 

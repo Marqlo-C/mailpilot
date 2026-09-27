@@ -11,6 +11,7 @@ import {
   unsubscribeSender,
 } from "@/app/actions/subscriptions";
 import { SenderAvatar } from "@/components/sender-avatar";
+import { SyncControls } from "@/components/opportunities/sync-controls";
 import type { CleanupAction } from "@/lib/unsubscribe";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  segmentedTabsListClassName,
+  segmentedTabsTriggerClassName,
+  TabCountBadge,
+} from "@/components/ui/segmented-tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ArchiveEntry = {
@@ -143,18 +149,41 @@ export function SubscriptionsView({
   }
 
   return (
-    <>
-      <Tabs defaultValue="active" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="active">
-            Active Subscriptions ({active.length})
-          </TabsTrigger>
-          <TabsTrigger value="archive">
-            Unsubscribed Archive ({archive.length})
-          </TabsTrigger>
-        </TabsList>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+          Subscriptions
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Active lists and an archive box for second-chance inbox cleanup.
+        </p>
+      </div>
 
-        <TabsContent value="active" className="mt-4 space-y-4">
+      <Tabs defaultValue="active" className="w-full">
+        <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <TabsList className={segmentedTabsListClassName}>
+            <TabsTrigger
+              value="active"
+              className={segmentedTabsTriggerClassName}
+            >
+              <span>Active Subscriptions</span>
+              <TabCountBadge count={active.length} />
+            </TabsTrigger>
+            <TabsTrigger
+              value="archive"
+              className={segmentedTabsTriggerClassName}
+            >
+              <span>Unsubscribed</span>
+              <TabCountBadge count={archive.length} />
+            </TabsTrigger>
+          </TabsList>
+
+          <div className="flex shrink-0 items-center gap-2.5 self-start sm:self-auto">
+            <SyncControls accountId={accountId} />
+          </div>
+        </div>
+
+        <TabsContent value="active" className="mt-0 space-y-4">
           {active.length === 0 ? (
             <EmptyState
               title="No active subscriptions"
@@ -174,7 +203,7 @@ export function SubscriptionsView({
           )}
         </TabsContent>
 
-        <TabsContent value="archive" className="mt-4 space-y-4">
+        <TabsContent value="archive" className="mt-0 space-y-4">
           {archive.length === 0 ? (
             <EmptyState
               title="Archive is empty"
@@ -270,7 +299,7 @@ export function SubscriptionsView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
 

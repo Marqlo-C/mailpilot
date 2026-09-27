@@ -1,4 +1,3 @@
-import { ScanInboxDialog } from "@/components/scan-inbox-dialog";
 import { SubscriptionsView } from "@/components/subscriptions/subscriptions-view";
 import {
   getActiveAccount,
@@ -16,9 +15,9 @@ export default async function SubscriptionsPage() {
       ? await getSubscriptionHistoryForProfile(active.persistentProfileId)
       : [];
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+  if (!active) {
+    return (
+      <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
             Subscriptions
@@ -27,20 +26,18 @@ export default async function SubscriptionsPage() {
             Active lists and an archive box for second-chance inbox cleanup.
           </p>
         </div>
-        <ScanInboxDialog accountId={active?.id ?? null} />
-      </div>
-
-      {!active ? (
         <EmptyAccount />
-      ) : (
-        <SubscriptionsView
-          accountId={active.id}
-          subscriptions={subscriptions}
-          history={history}
-          defaultCleanup={active.rules.autoCleanAfterUnsub}
-        />
-      )}
-    </div>
+      </div>
+    );
+  }
+
+  return (
+    <SubscriptionsView
+      accountId={active.id}
+      subscriptions={subscriptions}
+      history={history}
+      defaultCleanup={active.rules.autoCleanAfterUnsub}
+    />
   );
 }
 

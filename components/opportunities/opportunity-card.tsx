@@ -62,12 +62,12 @@ type OpportunityCardProps = {
 
 function scoreTone(score: number): string {
   if (score >= 80) {
-    return "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+    return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
   }
   if (score >= 60) {
-    return "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400";
+    return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
   }
-  return "border-border bg-muted/70 text-muted-foreground";
+  return "bg-muted/60 text-muted-foreground";
 }
 
 function CompanyLogo({
@@ -108,8 +108,8 @@ function CompanyLogo({
 }
 
 /**
- * Opportunity card with top checkbox row, liquid metadata pills,
- * expandable body, and bottom-pinned actions.
+ * Opportunity card with corner classification badge, full-width header,
+ * liquid metadata pills, and split primary/safety action bar.
  */
 export function OpportunityCard({
   opportunity,
@@ -202,114 +202,114 @@ export function OpportunityCard({
       ? "Easy Apply"
       : "External";
 
-  const dismissBtnClass =
-    "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600 disabled:opacity-50 dark:hover:text-rose-400";
+  const secondaryBtnClass =
+    "inline-flex items-center gap-1.5 rounded-lg border border-[#3c837b]/40 px-3 py-1.5 text-xs font-medium text-[#3c837b] transition-colors hover:border-[#3c837b] hover:bg-[#3c837b]/10 disabled:opacity-50";
 
-  const ghostBtnClass =
-    "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50";
+  const safetyBtnClass =
+    "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground/80 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50";
+
+  const dismissBtnClass =
+    "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground/80 transition-colors hover:bg-muted hover:text-rose-500/90 disabled:opacity-50";
+
+  const statusTag =
+    variant === "history" ? (
+      <span
+        className={cn(
+          "rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase",
+          opportunity.isArchived && !dismissed
+            ? "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+            : "border-border bg-muted text-muted-foreground"
+        )}
+      >
+        {opportunity.isArchived && !dismissed ? "Archived" : "Dismissed"}
+      </span>
+    ) : opportunity.status === "REVIEW_READY" ? (
+      <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+        Draft ready
+      </span>
+    ) : variant === "leads" && opportunity.isArchived && !userArchived ? (
+      <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+        Below threshold
+      </span>
+    ) : null;
 
   return (
     <article
       className={cn(
-        "group relative flex h-full flex-col rounded-2xl border bg-card shadow-sm transition-all duration-200",
+        "group relative flex h-full flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition-all duration-200",
         belowThreshold &&
           opportunity.isArchived &&
           !userArchived &&
           "opacity-90",
         isSelected
-          ? "border-primary/60 bg-primary/[0.015] ring-2 ring-primary/20"
+          ? "border-[#3c837b]/70 bg-primary/[0.015] ring-2 ring-[#3c837b]/20"
           : "border-border/80 hover:border-border hover:shadow-md"
       )}
     >
-      {/* 1. Dedicated top-left checkbox row */}
-      <div className="flex items-center justify-between px-4 pt-3 sm:px-5">
-        {onToggleSelect ? (
-          <label className="flex cursor-pointer select-none items-center gap-2">
+      {/* Top-left: matching checkbox corner pill */}
+      {onToggleSelect ? (
+        <div className="absolute top-0 left-0 z-10 inline-flex h-[27px] select-none items-center justify-center rounded-br-xl border-b border-r border-border/70 bg-secondary/35 px-2.5 backdrop-blur-sm">
+          <label className="m-0 flex cursor-pointer items-center p-0">
             <input
               type="checkbox"
               checked={isSelected}
               onChange={() => onToggleSelect(opportunity.id)}
-              className="h-4 w-4 cursor-pointer rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30"
+              className="h-3.5 w-3.5 cursor-pointer rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30"
               aria-label={`Select ${opportunity.title}`}
             />
           </label>
-        ) : (
-          <div className="h-4" />
-        )}
+        </div>
+      ) : null}
 
-        {variant === "history" ? (
-          <span
-            className={cn(
-              "rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase",
-              opportunity.isArchived && !dismissed
-                ? "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                : "border-border bg-muted text-muted-foreground"
-            )}
-          >
-            {opportunity.isArchived && !dismissed ? "Archived" : "Dismissed"}
-          </span>
-        ) : opportunity.status === "REVIEW_READY" ? (
-          <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-            Draft ready
-          </span>
-        ) : variant === "leads" &&
-          opportunity.isArchived &&
-          !userArchived ? (
-          <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-            Below threshold
-          </span>
-        ) : (
-          <div className="h-4" />
-        )}
+      {/* Top-right: classification + match score corner pill */}
+      <div className="absolute top-0 right-0 z-10 inline-flex h-[27px] select-none items-stretch overflow-hidden rounded-bl-xl border-b border-l border-border/70 bg-secondary/35 backdrop-blur-sm">
+        <div
+          className="inline-flex items-center gap-1 px-2.5 text-[11px] font-medium text-muted-foreground"
+          title={classifyLabel}
+        >
+          {isQuickApply ? (
+            <Zap className="h-3 w-3 fill-amber-500/20 text-amber-500" />
+          ) : isDirectEmail ? (
+            <Mail className="h-3 w-3 text-muted-foreground/80" />
+          ) : (
+            <ExternalLink className="h-3 w-3 text-muted-foreground/80" />
+          )}
+          <span>{classifyLabel}</span>
+        </div>
+        <div className="my-1 w-px bg-border/70" />
+        <div
+          className={cn(
+            "inline-flex items-center px-2.5 text-xs font-bold tracking-tight tabular-nums",
+            scoreTone(score)
+          )}
+          title={opportunity.matchReason ?? undefined}
+        >
+          {score}%
+        </div>
       </div>
 
-      {/* 2. Header: company + metrics */}
-      <div className="flex items-start justify-between gap-4 px-4 pb-3 pt-2 sm:px-5">
-        <div className="flex min-w-0 items-start gap-3">
-          <CompanyLogo
-            company={opportunity.company}
-            logoUrl={opportunity.logoUrl}
-            domain={opportunity.companyDomain}
-          />
-          <div className="min-w-0">
+      {/* Header: logo + role with clearance below corner pills */}
+      <div className="flex items-start gap-3.5 px-4 pt-9 pb-3 sm:px-5">
+        <CompanyLogo
+          company={opportunity.company}
+          logoUrl={opportunity.logoUrl}
+          domain={opportunity.companyDomain}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
             <h4 className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               {opportunity.company}
             </h4>
-            <h3 className="mt-0.5 truncate text-base font-semibold leading-snug text-foreground">
-              {opportunity.title}
-            </h3>
+            {statusTag}
           </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <span
-            title={classifyLabel}
-            className="inline-flex select-none items-center gap-1 rounded-full border border-border/70 bg-secondary/50 px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
-          >
-            {isQuickApply ? (
-              <Zap className="h-3 w-3 fill-amber-500/20 text-amber-500" />
-            ) : isDirectEmail ? (
-              <Mail className="h-3 w-3 text-muted-foreground" />
-            ) : (
-              <ExternalLink className="h-3 w-3 text-muted-foreground" />
-            )}
-            <span>{classifyLabel}</span>
-          </span>
-
-          <span
-            className={cn(
-              "rounded-full border px-2.5 py-0.5 text-xs font-bold tabular-nums",
-              scoreTone(score)
-            )}
-            title={opportunity.matchReason ?? undefined}
-          >
-            {score}%
-          </span>
+          <h3 className="mt-0.5 truncate text-base font-semibold leading-snug text-foreground">
+            {opportunity.title}
+          </h3>
         </div>
       </div>
 
-      {/* 3. Curved metadata capsule islands */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-1.5 select-none sm:px-5">
+      {/* 3. Curved metadata capsules */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-1 select-none sm:px-5">
         <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-secondary/40 px-3 py-1 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
@@ -346,7 +346,7 @@ export function OpportunityCard({
       </div>
 
       {/* 4. Content body */}
-      <div className="flex flex-1 flex-col justify-start space-y-3.5 p-4 sm:p-5">
+      <div className="flex flex-1 flex-col justify-start space-y-3 px-4 py-3.5 sm:px-5">
         {opportunity.description ? (
           <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">
             {opportunity.description}
@@ -363,9 +363,9 @@ export function OpportunityCard({
         ) : null}
       </div>
 
-      {/* 5. Pinned bottom action bar */}
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 rounded-b-2xl border-t border-border/60 bg-muted/[0.12] px-4 py-3 sm:px-5">
-        <div>
+      {/* 5. Pinned bottom action bar — primary left, safety right */}
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/[0.12] px-4 py-3 sm:px-5">
+        <div className="flex flex-wrap items-center gap-2">
           {opportunity.applyUrl ? (
             <a
               href={opportunity.applyUrl}
@@ -381,50 +381,100 @@ export function OpportunityCard({
               No apply link detected
             </span>
           )}
-        </div>
 
-        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
           {variant === "leads" ? (
-            <>
-              {canEmail ? (
-                <>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={onReviewDraft}
-                    className={ghostBtnClass}
-                  >
-                    <Mail className="h-3.5 w-3.5" />
-                    <span>Review Draft</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={onSendNow}
-                    className={ghostBtnClass}
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                    <span>Send now</span>
-                  </button>
-                </>
-              ) : (
+            canEmail ? (
+              <>
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={onMarkApplied}
-                  className={ghostBtnClass}
+                  onClick={onReviewDraft}
+                  className={secondaryBtnClass}
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                  <span>Mark Applied</span>
+                  <Mail className="h-3.5 w-3.5" />
+                  <span>Review Draft</span>
                 </button>
-              )}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={onSendNow}
+                  className={secondaryBtnClass}
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  <span>Send now</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onMarkApplied}
+                className={secondaryBtnClass}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Mark Applied</span>
+              </button>
+            )
+          ) : null}
+
+          {variant === "action" && canEmail ? (
+            <>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onReviewDraft}
+                className={secondaryBtnClass}
+              >
+                <Mail className="h-3.5 w-3.5" />
+                <span>Review Draft</span>
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onSendNow}
+                className={secondaryBtnClass}
+              >
+                <Send className="h-3.5 w-3.5" />
+                <span>Send now</span>
+              </button>
+            </>
+          ) : null}
+
+          {variant === "applied" ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onUnmarkApplied}
+              className={secondaryBtnClass}
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              <span>Unmark Applied</span>
+            </button>
+          ) : null}
+
+          {variant === "history" ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={runRestore}
+              className={secondaryBtnClass}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>{restoreLabel}</span>
+            </button>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1">
+          {variant === "leads" ? (
+            <>
               <button
                 type="button"
                 disabled={busy}
                 onClick={runArchive}
-                className={ghostBtnClass}
+                className={safetyBtnClass}
               >
-                <Archive className="h-3.5 w-3.5 text-muted-foreground" />
+                <Archive className="h-3.5 w-3.5 text-muted-foreground/80" />
                 <span>Archive</span>
               </button>
               <button
@@ -433,46 +483,22 @@ export function OpportunityCard({
                 onClick={runDismiss}
                 className={dismissBtnClass}
               >
-                <XCircle className="h-3.5 w-3.5 text-muted-foreground/70" />
+                <XCircle className="h-3.5 w-3.5" />
                 <span>Dismiss</span>
               </button>
             </>
           ) : null}
 
           {variant === "action" ? (
-            <>
-              {canEmail ? (
-                <>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={onReviewDraft}
-                    className={ghostBtnClass}
-                  >
-                    <Mail className="h-3.5 w-3.5" />
-                    <span>Review Draft</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={onSendNow}
-                    className={ghostBtnClass}
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                    <span>Send now</span>
-                  </button>
-                </>
-              ) : null}
-              <button
-                type="button"
-                disabled={busy}
-                onClick={runDismiss}
-                className={dismissBtnClass}
-              >
-                <XCircle className="h-3.5 w-3.5 text-muted-foreground/70" />
-                <span>Dismiss</span>
-              </button>
-            </>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={runDismiss}
+              className={dismissBtnClass}
+            >
+              <XCircle className="h-3.5 w-3.5" />
+              <span>Dismiss</span>
+            </button>
           ) : null}
 
           {variant === "applied" ? (
@@ -480,19 +506,10 @@ export function OpportunityCard({
               <button
                 type="button"
                 disabled={busy}
-                onClick={onUnmarkApplied}
-                className={ghostBtnClass}
-              >
-                <Undo2 className="h-3.5 w-3.5" />
-                <span>Unmark Applied</span>
-              </button>
-              <button
-                type="button"
-                disabled={busy}
                 onClick={runArchive}
-                className={ghostBtnClass}
+                className={safetyBtnClass}
               >
-                <Archive className="h-3.5 w-3.5" />
+                <Archive className="h-3.5 w-3.5 text-muted-foreground/80" />
                 <span>Archive</span>
               </button>
               <button
@@ -501,7 +518,7 @@ export function OpportunityCard({
                 onClick={runDismiss}
                 className={dismissBtnClass}
               >
-                <XCircle className="h-3.5 w-3.5 text-muted-foreground/70" />
+                <XCircle className="h-3.5 w-3.5" />
                 <span>Dismiss</span>
               </button>
             </>
@@ -509,16 +526,6 @@ export function OpportunityCard({
 
           {variant === "history" ? (
             <>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={runRestore}
-                className={ghostBtnClass}
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                <span>{restoreLabel}</span>
-              </button>
-
               {opportunity.isArchived && !dismissed ? (
                 <button
                   type="button"
@@ -527,7 +534,7 @@ export function OpportunityCard({
                   title="Move to Dismissed so it can be deleted or auto-purged"
                   className={dismissBtnClass}
                 >
-                  <XCircle className="h-3.5 w-3.5 text-muted-foreground/70" />
+                  <XCircle className="h-3.5 w-3.5" />
                   <span>Dismiss</span>
                 </button>
               ) : null}
@@ -542,9 +549,9 @@ export function OpportunityCard({
                     type="button"
                     disabled={busy}
                     onClick={runDelete}
-                    className={dismissBtnClass}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600 disabled:opacity-50 dark:hover:text-rose-400"
                   >
-                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground/70" />
+                    <Trash2 className="h-3.5 w-3.5" />
                     <span>Delete</span>
                   </button>
                 </>

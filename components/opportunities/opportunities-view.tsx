@@ -5,9 +5,6 @@ import { useRouter } from "next/navigation";
 import type { JobOpportunity } from "@prisma/client";
 import {
   Archive,
-  ArrowUpDown,
-  CheckSquare,
-  Square,
   Trash2,
   Undo2,
   XCircle,
@@ -24,7 +21,6 @@ import {
   OpportunityCard,
   type OpportunityCardVariant,
 } from "@/components/opportunities/opportunity-card";
-import { Label } from "@/components/ui/label";
 
 export type OpportunitySort = "best_match" | "newest" | "highest_pay";
 
@@ -36,6 +32,10 @@ type OpportunitiesViewProps = {
   emptyText?: string;
   showSort?: boolean;
   retentionDays?: number;
+  /** When set, shows the matches-only toggle in the consolidated toolbar. */
+  showMatchesOnly?: boolean;
+  onShowMatchesOnlyChange?: (value: boolean) => void;
+  hiddenCount?: number;
   onReviewDraft?: (opp: JobOpportunity) => void;
   onSendNow?: (opp: JobOpportunity) => void;
   onMarkApplied?: (opp: JobOpportunity) => void;
@@ -81,6 +81,9 @@ export function OpportunitiesView({
   emptyText = "No opportunities yet.",
   showSort = true,
   retentionDays = 30,
+  showMatchesOnly,
+  onShowMatchesOnlyChange,
+  hiddenCount = 0,
   onReviewDraft,
   onSendNow,
   onMarkApplied,
@@ -91,6 +94,10 @@ export function OpportunitiesView({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [batchPending, startBatch] = useTransition();
   const busy = pending || batchPending;
+
+  const showMatchesFilter =
+    typeof showMatchesOnly === "boolean" &&
+    typeof onShowMatchesOnlyChange === "function";
 
   const sorted = useMemo(
     () => sortOpportunities(opportunities, sort),
@@ -144,59 +151,86 @@ export function OpportunitiesView({
 
   return (
     <div className="space-y-3">
-      {showSort || sorted.length > 0 ? (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          {showSort ? (
-            <div className="flex items-center gap-2">
-              <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-              <Label
-                htmlFor="opp-sort"
-                className="text-sm text-muted-foreground"
-              >
-                Sort by
-              </Label>
-              <select
-                id="opp-sort"
-                className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                value={sort}
-                onChange={(e) => setSort(e.target.value as OpportunitySort)}
-              >
-                <option value="best_match">Best Match</option>
-                <option value="newest">Most Recent</option>
-                <option value="highest_pay">Highest Compensation</option>
-              </select>
-            </div>
-          ) : (
-            <div />
-          )}
-          <p className="text-xs text-muted-foreground">
-            {sorted.length} listing{sorted.length === 1 ? "" : "s"}
-          </p>
-        </div>
-      ) : null}
+      {showSort || showMatchesFilter || sorted.length > 0 ? (
+        <div className="mb-3 flex select-none flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-card px-3.5 py-2 shadow-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            {sorted.length > 0 ? (
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  onChange={handleSelectAll}
+                  className="h-3.5 w-3.5 cursor-pointer rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30"
+                />
+                <span>
+                  {isAllSelected
+                    ? "Deselect All"
+                    : `Select All (${sorted.length})`}
+                </span>
+              </label>
+            ) : null}
 
-      {sorted.length > 0 ? (
-        <div className="flex items-center justify-between px-0.5 text-sm text-muted-foreground">
-          <button
-            type="button"
-            onClick={handleSelectAll}
-            className="inline-flex items-center gap-1.5 font-medium transition-colors hover:text-foreground"
-          >
-            {isAllSelected ? (
-              <CheckSquare className="h-4 w-4 text-primary" />
-            ) : (
-              <Square className="h-4 w-4" />
-            )}
-            {isAllSelected
-              ? "Deselect All"
-              : `Select All (${sorted.length})`}
-          </button>
-          {selectedIds.length > 0 ? (
-            <span className="text-xs font-semibold text-primary">
-              {selectedIds.length} item
-              {selectedIds.length > 1 ? "s" : ""} selected
+            {sorted.length > 0 && showMatchesFilter ? (
+              <div className="h-4 w-px bg-border/70" />
+            ) : null}
+
+            {showMatchesFilter ? (
+              <>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={showMatchesOnly}
+                    onChange={(e) =>
+                      onShowMatchesOnlyChange?.(e.target.checked)
+                    }
+                    className="peer sr-only"
+                  />
+                  <div className="relative h-[18px] w-8 rounded-full bg-muted after:absolute after:top-[2px] after:left-[2px] after:h-3.5 after:w-3.5 after:rounded-full after:border after:border-border after:bg-white after:transition-all after:content-[''] peer-checked:bg-[#3c837b] peer-checked:after:translate-x-3.5 peer-checked:after:border-white peer-focus:outline-none" />
+                  <span className="ml-2 text-xs font-medium text-foreground">
+                    Show only matches (≥ {matchThreshold}%)
+                  </span>
+                </label>
+
+                {hiddenCount > 0 && showMatchesOnly ? (
+                  <span className="hidden text-[11px] text-muted-foreground/80 md:inline">
+                    ({hiddenCount} hidden)
+                  </span>
+                ) : null}
+              </>
+            ) : null}
+
+            {selectedIds.length > 0 ? (
+              <span className="text-xs font-semibold text-primary">
+                {selectedIds.length} selected
+              </span>
+            ) : null}
+          </div>
+
+          <div className="ml-auto flex items-center gap-3">
+            {showSort ? (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span>Sort by</span>
+                <select
+                  id="opp-sort"
+                  value={sort}
+                  onChange={(e) =>
+                    setSort(e.target.value as OpportunitySort)
+                  }
+                  className="h-7 rounded-lg border border-border bg-background px-2 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-[#3c837b]"
+                >
+                  <option value="best_match">Best Match</option>
+                  <option value="newest">Most Recent</option>
+                  <option value="highest_pay">Highest Compensation</option>
+                </select>
+              </div>
+            ) : null}
+
+            {showSort ? <div className="h-4 w-px bg-border/70" /> : null}
+
+            <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">
+              {sorted.length} listing{sorted.length === 1 ? "" : "s"}
             </span>
-          ) : null}
+          </div>
         </div>
       ) : null}
 
