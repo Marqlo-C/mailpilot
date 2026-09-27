@@ -1,24 +1,30 @@
 import type { NextConfig } from "next";
 
+const pdfkitAssets = [
+  "./node_modules/pdfkit/js/standard-fonts/**/*",
+  "./node_modules/pdfkit/js/data/**/*",
+];
+
+const pdfjsAssets = [
+  "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+  "./node_modules/pdfjs-dist/legacy/build/pdf.mjs",
+];
+
 const nextConfig: NextConfig = {
-  // Keep PDF / DOCX parsers external so Node resolves them from node_modules
-  // instead of bundling broken worker paths into the serverless function.
+  // Keep document packages external so Node resolves them from node_modules
+  // (avoids broken bundled worker / font paths in Vercel lambdas).
   serverExternalPackages: [
+    "pdfkit",
     "pdf-parse",
     "pdfjs-dist",
     "@react-pdf/renderer",
     "mammoth",
   ],
-  // Include pdfjs worker assets if any transitive dependency still resolves them.
+  // Force Vercel file tracing to copy pdfkit fonts (+ pdfjs workers) into functions.
   outputFileTracingIncludes: {
-    "/api/**/*": [
-      "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
-      "./node_modules/pdfjs-dist/legacy/build/pdf.mjs",
-    ],
-    "/*": [
-      "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
-      "./node_modules/pdfjs-dist/legacy/build/pdf.mjs",
-    ],
+    "/api/**/*": [...pdfkitAssets, ...pdfjsAssets],
+    "/**/*": [...pdfkitAssets, ...pdfjsAssets],
+    "/*": [...pdfkitAssets, ...pdfjsAssets],
   },
 };
 
