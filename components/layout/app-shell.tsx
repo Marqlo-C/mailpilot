@@ -14,6 +14,7 @@ import { useState } from "react";
 
 import { Logo, NavLogo } from "@/components/brand/logo";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
+import { GlobalSyncTracker } from "@/components/layout/global-sync-tracker";
 import { SyncBadge } from "@/components/layout/sync-badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ type AppShellProps = {
   activeAccountId: string | null;
   activeEmail: string | null;
   hasHistoryId: boolean;
+  initialIsSyncing?: boolean;
   children: React.ReactNode;
 };
 
@@ -39,6 +41,7 @@ export function AppShell({
   activeAccountId,
   activeEmail,
   hasHistoryId,
+  initialIsSyncing = false,
   children,
 }: AppShellProps) {
   const pathname = usePathname();
@@ -46,6 +49,11 @@ export function AppShell({
 
   return (
     <div className="min-h-screen md:flex">
+      <GlobalSyncTracker
+        accountId={activeAccountId}
+        initialIsSyncing={initialIsSyncing}
+      />
+
       {/* Desktop sidebar */}
       <aside
         className={cn(

@@ -10,6 +10,7 @@ import {
 import {
   classifyEmail,
   extractMessageBody,
+  loadCandidateProfileSummary,
   sanitizeEmailBody,
   type LlmProvider,
 } from "@/lib/llm";
@@ -313,6 +314,7 @@ async function scanJobCandidates(
 
   const rules = parseAccountRules(account.settings?.rules);
   const llmProvider = normalizeProvider(account.settings?.llmProvider);
+  const candidateProfile = await loadCandidateProfileSummary(account.id);
   let jobsFound = 0;
 
   // Sequential LLM calls to respect free-tier limits
@@ -345,6 +347,7 @@ async function scanJobCandidates(
         subject,
         body,
         fromEmail: sender?.email ?? null,
+        candidateProfile,
       });
 
       if (

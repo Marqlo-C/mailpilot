@@ -31,7 +31,8 @@ const DAY_LABELS: Record<ScanDays, string> = {
 };
 
 /**
- * Dropdown control that kicks off a historical inbox scan with toast feedback.
+ * Starts an inbox scan in the background and unlocks the UI immediately.
+ * Completion feedback comes from GlobalSyncTracker.
  */
 export function ScanInboxDialog({ accountId, className }: ScanInboxDialogProps) {
   const router = useRouter();
@@ -49,23 +50,17 @@ export function ScanInboxDialog({ accountId, className }: ScanInboxDialogProps) 
 
     startTransition(async () => {
       setOptimisticScanning(true);
-      const toastId = toast.loading(
-        `Scanning inbox for past ${days} days...`
-      );
-
       const result = await triggerHistoricalScan(accountId, days);
 
-      if (!result.ok || !result.data) {
-        toast.error(result.ok ? "Scan returned no data" : result.error, {
-          id: toastId,
-        });
+      if (!result.ok) {
+        toast.error(result.error);
         return;
       }
 
       toast.success(
-        `Scan complete: Found ${result.data.subscriptionsFound} subscriptions and ${result.data.jobsFound} job updates.`,
-        { id: toastId }
+        result.data?.message ?? "Sync started in background"
       );
+      // Re-seed layout so the global sync pill appears without waiting for poll.
       router.refresh();
     });
   }
@@ -83,7 +78,7 @@ export function ScanInboxDialog({ accountId, className }: ScanInboxDialogProps) 
           <RefreshCw
             className={cn("h-4 w-4", scanning && "animate-spin")}
           />
-          {scanning ? "Scanning…" : "Scan Inbox"}
+          {scanning ? "Starting…" : "Scan Inbox"}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">

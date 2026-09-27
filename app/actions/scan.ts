@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -12,10 +13,8 @@ import {
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
 } from "@/lib/google";
-import {
-  scanHistoricalEmails,
-  type HistoricalScanSummary,
-} from "@/lib/historical-scan";
+import { scanHistoricalEmails } from "@/lib/historical-scan";
+import { prisma } from "@/lib/prisma";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -32,12 +31,13 @@ const scanInputSchema = z.object({
 });
 
 /**
- * Triggers a bounded historical inbox scan for subscriptions + job candidates.
+ * Starts a historical inbox scan in the background and returns immediately.
+ * UI stays navigable; GlobalSyncTracker polls isSyncing for progress.
  */
 export async function triggerHistoricalScan(
   accountId: string,
   days: number
-): Promise<ActionResult<HistoricalScanSummary>> {
+): Promise<ActionResult<{ message: string }>> {
   const parsed = scanInputSchema.safeParse({ accountId, days });
   if (!parsed.success) {
     return {
@@ -46,28 +46,114 @@ export async function triggerHistoricalScan(
     };
   }
 
-  try {
-    const summary = await scanHistoricalEmails(
-      parsed.data.accountId,
-      parsed.data.days as ScanDays
-    );
+  const account = await prisma.account.findUnique({
+    where: { id: parsed.data.accountId },
+    select: { id: true, isActive: true, isSyncing: true },
+  });
 
-    revalidatePath("/");
-    revalidatePath("/subscriptions");
-    revalidatePath("/jobs");
+  if (!account || !account.isActive) {
+    return { ok: false, error: "Account not found or inactive" };
+  }
 
-    return { ok: true, data: summary };
-  } catch (error) {
-    console.error("triggerHistoricalScan failed", error);
-    if (
-      error instanceof InsufficientScopeError ||
-      isInsufficientScopeError(error)
-    ) {
-      return { ok: false, error: REAUTH_REQUIRED_MESSAGE };
+  if (account.isSyncing) {
+    return {
+      ok: true,
+      data: { message: "Sync already running in background" },
+    };
+  }
+
+  await prisma.account.update({
+    where: { id: account.id },
+    data: { isSyncing: true, syncError: null },
+  });
+
+  const scanAccountId = account.id;
+  const scanDays = parsed.data.days as ScanDays;
+
+  after(async () => {
+    let errorMessage: string | null = null;
+    try {
+      await scanHistoricalEmails(scanAccountId, scanDays);
+      revalidatePath("/");
+      revalidatePath("/subscriptions");
+      revalidatePath("/jobs");
+    } catch (error) {
+      console.error("Background historical scan failed", error);
+      if (
+        error instanceof InsufficientScopeError ||
+        isInsufficientScopeError(error)
+      ) {
+        errorMessage = REAUTH_REQUIRED_MESSAGE;
+      } else {
+        errorMessage =
+          error instanceof Error ? error.message : "Historical scan failed";
+      }
+    } finally {
+      try {
+        await prisma.account.update({
+          where: { id: scanAccountId },
+          data: {
+            isSyncing: false,
+            lastSyncedAt: new Date(),
+            syncError: errorMessage,
+          },
+        });
+      } catch (finalizeError) {
+        console.error(
+          "Failed to clear isSyncing after background scan",
+          finalizeError
+        );
+      }
     }
+  });
+
+  return {
+    ok: true,
+    data: { message: "Sync started in background" },
+  };
+}
+
+export type AccountSyncStatus = {
+  isSyncing: boolean;
+  lastSyncedAt: string | null;
+  syncError: string | null;
+};
+
+/** Lightweight poll target for GlobalSyncTracker. */
+export async function getAccountSyncStatus(
+  accountId: string
+): Promise<ActionResult<AccountSyncStatus>> {
+  if (!accountId) {
+    return { ok: false, error: "accountId is required" };
+  }
+
+  try {
+    const account = await prisma.account.findUnique({
+      where: { id: accountId },
+      select: {
+        isSyncing: true,
+        lastSyncedAt: true,
+        syncError: true,
+      },
+    });
+
+    if (!account) {
+      return { ok: false, error: "Account not found" };
+    }
+
+    return {
+      ok: true,
+      data: {
+        isSyncing: account.isSyncing,
+        lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
+        syncError: account.syncError,
+      },
+    };
+  } catch (error) {
+    console.error("getAccountSyncStatus failed", error);
     return {
       ok: false,
-      error: error instanceof Error ? error.message : "Historical scan failed",
+      error: error instanceof Error ? error.message : "Failed to read sync status",
     };
   }
 }

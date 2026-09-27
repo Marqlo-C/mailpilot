@@ -70,6 +70,11 @@ model Account {
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
+  /// Background inbox scan / sync tracking
+  isSyncing           Boolean            @default(false)
+  lastSyncedAt        DateTime?
+  syncError           String?
+
   settings        AccountSettings?
   subscriptions   Subscription[]
   jobApplications JobApplication[]
@@ -152,9 +157,16 @@ model JobOpportunity {
   emailMessage    EmailMessage? @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
 
   company         String
+  /// Inferred website domain for zero-token favicon lookup (e.g. "stripe.com").
+  companyDomain   String?
+  /// Computed favicon / logo URL (Google S2 or Unavatar).
+  logoUrl         String?
   title           String
   location        String?
   salary          String?
+  /// Relative listing age when present (e.g. "2 days ago", "Just posted").
+  postedAt        String?
+  description     String?  @db.Text
   applyUrl        String?
   /// DIRECT_EMAIL | EXTERNAL_LINK | QUICK_APPLY
   applicationType String   @default("EXTERNAL_LINK")
@@ -165,16 +177,22 @@ model JobOpportunity {
   draftBody       String?  @db.Text
   /// DISCOVERED | REVIEW_READY | APPLIED | DISMISSED
   status          String   @default("DISCOVERED")
-  matchScore      Int?
-  matchRationale  String?
+  /// 0–100 fit vs candidate profile; below threshold → isArchived.
+  matchScore      Int      @default(0)
+  /// One-sentence AI verdict of fit / mismatch.
+  matchReason     String?
+  /// True when matchScore is below the account threshold (hidden by default).
+  isArchived      Boolean  @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([accountId, status])
   @@index([accountId, applicationType])
+  @@index([accountId, isArchived])
   @@index([emailMessageId])
   @@index([accountId, createdAt])
+  @@index([accountId, matchScore])
 }
 
 model JobApplication {

@@ -27,11 +27,12 @@ import {
 import { AtsHandoffDrawer } from "@/components/jobs/ats-handoff-drawer";
 import { DraftReviewDialog } from "@/components/jobs/draft-review-dialog";
 import { OpportunityDraftDialog } from "@/components/jobs/opportunity-draft-dialog";
+import { OpportunityCard } from "@/components/opportunities/opportunity-card";
 import {
   SenderAvatar,
   domainFromActionUrl,
 } from "@/components/sender-avatar";
-import { canDraftDirectEmail, extractRecruiterEmail } from "@/lib/application-method";
+import { extractRecruiterEmail } from "@/lib/application-method";
 import type { MasterProfileInput } from "@/lib/validations/profile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type JobsRadarProps = {
@@ -70,12 +73,6 @@ function formatCountdown(deadlineAt: Date | null): string {
   return `${Math.floor(hours / 24)}d left`;
 }
 
-function applicationTypeLabel(type: string): string {
-  if (type === "DIRECT_EMAIL") return "Email Lead";
-  if (type === "QUICK_APPLY") return "Quick Apply";
-  return "External link";
-}
-
 export function JobsRadar({
   accountId,
   jobs,
@@ -89,17 +86,29 @@ export function JobsRadar({
   const [draftJob, setDraftJob] = useState<JobApplication | null>(null);
   const [draftOpportunity, setDraftOpportunity] =
     useState<JobOpportunity | null>(null);
+  const [showOnlyMatches, setShowOnlyMatches] = useState(true);
 
-  const opportunityLeads = useMemo(
-    () =>
-      opportunities.filter(
-        (o) => o.status === "DISCOVERED" || o.status === "REVIEW_READY"
-      ),
-    [opportunities]
-  );
+  const opportunityLeads = useMemo(() => {
+    const leads = opportunities.filter(
+      (o) => o.status === "DISCOVERED" || o.status === "REVIEW_READY"
+    );
+    if (!showOnlyMatches) return leads;
+    return leads.filter(
+      (o) => !o.isArchived && (o.matchScore ?? 0) >= matchThreshold
+    );
+  }, [opportunities, showOnlyMatches, matchThreshold]);
   const opportunityApplied = useMemo(
     () => opportunities.filter((o) => o.status === "APPLIED"),
     [opportunities]
+  );
+  const archivedLeadCount = useMemo(
+    () =>
+      opportunities.filter(
+        (o) =>
+          (o.status === "DISCOVERED" || o.status === "REVIEW_READY") &&
+          (o.isArchived || (o.matchScore ?? 0) < matchThreshold)
+      ).length,
+    [opportunities, matchThreshold]
   );
 
   const leads = useMemo(
@@ -195,139 +204,68 @@ export function JobsRadar({
         </div>
 
         <TabsContent value="leads" className="space-y-3">
+          <div className="flex flex-col gap-2 rounded-lg border border-border/80 bg-muted/30 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="show-only-matches"
+                checked={showOnlyMatches}
+                onCheckedChange={setShowOnlyMatches}
+              />
+              <Label htmlFor="show-only-matches" className="text-sm font-normal">
+                {showOnlyMatches
+                  ? `Show only matches (≥ ${matchThreshold}%)`
+                  : "Show all (including filtered)"}
+              </Label>
+            </div>
+            {archivedLeadCount > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                {archivedLeadCount} below-threshold listing
+                {archivedLeadCount === 1 ? "" : "s"}
+                {showOnlyMatches ? " hidden" : " visible"}
+              </p>
+            ) : null}
+          </div>
+
           {leadCount === 0 ? (
             <EmptyState text="No leads in the queue yet." />
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
-              {opportunityLeads.map((opp) => {
-                const canEmail = canDraftDirectEmail(opp.recipientEmail);
-                return (
-                  <Card key={`opp-${opp.id}`}>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start gap-3">
-                        <SenderAvatar
-                          name={opp.company}
-                          domain={domainFromActionUrl(opp.applyUrl)}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <CardTitle className="text-base">
-                            {opp.company}
-                          </CardTitle>
-                          <CardDescription>{opp.title}</CardDescription>
-                          {(opp.location || opp.salary) && (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {[opp.location, opp.salary]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          {typeof opp.matchScore === "number" && (
-                            <Badge
-                              variant={
-                                opp.matchScore >= matchThreshold
-                                  ? "default"
-                                  : "secondary"
-                              }
-                            >
-                              {opp.matchScore}%
-                            </Badge>
-                          )}
-                          <Badge variant="outline">
-                            {applicationTypeLabel(opp.applicationType)}
-                          </Badge>
-                          {opp.status === "REVIEW_READY" ? (
-                            <Badge variant="secondary">Draft ready</Badge>
-                          ) : null}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardFooter className="flex flex-wrap gap-2">
-                      {canEmail ? (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={pending}
-                            onClick={() => setDraftOpportunity(opp)}
-                          >
-                            <Mail className="h-4 w-4" />
-                            Review & Edit Draft
-                          </Button>
-                          <Button
-                            size="sm"
-                            disabled={pending}
-                            onClick={() => {
-                              startTransition(async () => {
-                                const result =
-                                  await sendOpportunityApplication(
-                                    opp.id,
-                                    false
-                                  );
-                                if (!result.ok) {
-                                  toast.error(result.error);
-                                  return;
-                                }
-                                toast.success("Application sent");
-                                router.refresh();
-                              });
-                            }}
-                          >
-                            <Send className="h-4 w-4" />
-                            Send now
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          {opp.applyUrl ? (
-                            <Button asChild size="sm">
-                              <a
-                                href={opp.applyUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                                {opp.applicationType === "QUICK_APPLY"
-                                  ? "Quick Apply"
-                                  : "Open apply link"}
-                              </a>
-                            </Button>
-                          ) : null}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={pending}
-                            onClick={() => {
-                              startTransition(async () => {
-                                await markOpportunityExternalApplied(opp.id);
-                                toast.success("Marked as applied");
-                                router.refresh();
-                              });
-                            }}
-                          >
-                            Mark applied
-                          </Button>
-                        </>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={pending}
-                        onClick={() => {
-                          startTransition(async () => {
-                            await dismissOpportunity(opp.id);
-                            router.refresh();
-                          });
-                        }}
-                      >
-                        <Archive className="h-4 w-4" />
-                        Dismiss
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                );
-              })}
+              {opportunityLeads.map((opp) => (
+                <OpportunityCard
+                  key={`opp-${opp.id}`}
+                  opportunity={opp}
+                  matchThreshold={matchThreshold}
+                  pending={pending}
+                  onReviewDraft={() => setDraftOpportunity(opp)}
+                  onSendNow={() => {
+                    startTransition(async () => {
+                      const result = await sendOpportunityApplication(
+                        opp.id,
+                        false
+                      );
+                      if (!result.ok) {
+                        toast.error(result.error);
+                        return;
+                      }
+                      toast.success("Application sent");
+                      router.refresh();
+                    });
+                  }}
+                  onMarkApplied={() => {
+                    startTransition(async () => {
+                      await markOpportunityExternalApplied(opp.id);
+                      toast.success("Marked as applied");
+                      router.refresh();
+                    });
+                  }}
+                  onDismiss={() => {
+                    startTransition(async () => {
+                      await dismissOpportunity(opp.id);
+                      router.refresh();
+                    });
+                  }}
+                />
+              ))}
 
               {leads.map((job) => {
                 const canEmail = Boolean(

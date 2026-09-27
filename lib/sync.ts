@@ -10,6 +10,7 @@ import {
 import {
   classifyJobEmail,
   extractMessageBody,
+  loadCandidateProfileSummary,
   matchesJobSubjectKeywords,
   sanitizeEmailBody,
   type LlmProvider,
@@ -18,6 +19,10 @@ import {
   ensurePersistentProfileForAccount,
 } from "@/lib/persistent-profile";
 import { resolveApplicationType } from "@/lib/application-method";
+import {
+  getCompanyLogoUrl,
+  inferDomainFromUrl,
+} from "@/lib/company-logo";
 import { prisma } from "@/lib/prisma";
 import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
 import { parseAccountRules } from "@/lib/validations/rules";
@@ -172,6 +177,7 @@ async function processMessage(
   const llmProvider = normalizeProvider(settings?.llmProvider);
 
   const sender = from ? parseFromHeader(from) : null;
+  const candidateProfile = await loadCandidateProfileSummary(account.id);
 
   const classification = await classifyJobEmail({
     llmProvider,
@@ -179,6 +185,7 @@ async function processMessage(
     subject,
     body,
     fromEmail: sender?.email ?? null,
+    candidateProfile,
   });
 
   if (!classification || !classification.is_job_related) {
@@ -396,6 +403,7 @@ export async function persistClassifiedEmail(input: {
   }
 
   // DIRECT_RECRUITER / JOB_BOARD_DIGEST → one EmailMessage, many JobOpportunity rows
+  const threshold = rules.matchScoreThreshold ?? 75;
   let opportunitiesUpserted = 0;
   for (const job of classification.jobs) {
     const applicationType = resolveApplicationType({
@@ -406,6 +414,14 @@ export async function persistClassifiedEmail(input: {
     const recipientEmail =
       applicationType === "DIRECT_EMAIL" ? job.recipientEmail : null;
 
+    const companyDomain =
+      job.companyDomain ?? inferDomainFromUrl(job.applyUrl) ?? null;
+    const logoUrl = getCompanyLogoUrl(job.company, companyDomain);
+    const matchScore =
+      typeof job.matchScore === "number" ? job.matchScore : 0;
+    const matchReason = job.matchReason ?? null;
+    const isArchived = matchScore < threshold;
+
     const existing = await prisma.jobOpportunity.findFirst({
       where: {
         accountId: account.id,
@@ -415,16 +431,35 @@ export async function persistClassifiedEmail(input: {
       },
     });
 
+    const sharedData = {
+      location: job.location ?? null,
+      salary: job.salary ?? null,
+      postedAt: job.postedAt ?? null,
+      description: job.description ?? null,
+      applyUrl: job.applyUrl ?? null,
+      applicationType,
+      recipientEmail,
+      recipientName: job.recipientName ?? null,
+      companyDomain,
+      logoUrl,
+      matchScore,
+      matchReason,
+      isArchived,
+    };
+
     if (existing) {
       await prisma.jobOpportunity.update({
         where: { id: existing.id },
         data: {
+          ...sharedData,
           location: job.location ?? existing.location,
           salary: job.salary ?? existing.salary,
+          postedAt: job.postedAt ?? existing.postedAt,
+          description: job.description ?? existing.description,
           applyUrl: job.applyUrl ?? existing.applyUrl,
-          applicationType,
-          recipientEmail,
           recipientName: job.recipientName ?? existing.recipientName,
+          companyDomain: companyDomain ?? existing.companyDomain,
+          logoUrl: logoUrl || existing.logoUrl,
         },
       });
       opportunitiesUpserted += 1;
@@ -437,12 +472,7 @@ export async function persistClassifiedEmail(input: {
         emailMessageId: emailMessage.id,
         company: job.company,
         title: job.title,
-        location: job.location ?? null,
-        salary: job.salary ?? null,
-        applyUrl: job.applyUrl ?? null,
-        applicationType,
-        recipientEmail,
-        recipientName: job.recipientName ?? null,
+        ...sharedData,
         status: "DISCOVERED",
       },
     });

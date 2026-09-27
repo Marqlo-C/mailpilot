@@ -83,6 +83,25 @@ export async function extractResumeDraft(
 }
 
 /**
+ * Extracts a resume/LinkedIn archive and saves it as the master profile.
+ * Intended for non-blocking background uploads from the dialog.
+ */
+export async function applyResumeUpload(
+  formData: FormData
+): Promise<ActionResult<{ profileId: string }>> {
+  const extracted = await extractResumeDraft(formData);
+  if (!extracted.ok || !extracted.data) {
+    return {
+      ok: false,
+      error: extracted.ok ? "Empty draft" : extracted.error,
+    };
+  }
+
+  const accountId = String(formData.get("accountId") ?? "");
+  return saveMasterProfile(accountId, extracted.data);
+}
+
+/**
  * Transactionally upserts the master profile and related entities.
  * Resume import path — does not overwrite linked account URLs.
  */

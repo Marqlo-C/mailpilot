@@ -27,6 +27,9 @@ export type AccountSummary = Pick<
   | "createdAt"
   | "persistentProfileId"
   | "encryptedAccess"
+  | "isSyncing"
+  | "lastSyncedAt"
+  | "syncError"
 >;
 
 export type AccountWithSettings = AccountSummary & {
@@ -61,6 +64,9 @@ export async function listAccounts(): Promise<AccountSummary[]> {
           createdAt: true,
           persistentProfileId: true,
           encryptedAccess: true,
+          isSyncing: true,
+          lastSyncedAt: true,
+          syncError: true,
         },
       });
     }
@@ -80,6 +86,9 @@ export async function listAccounts(): Promise<AccountSummary[]> {
         createdAt: true,
         persistentProfileId: true,
         encryptedAccess: true,
+        isSyncing: true,
+        lastSyncedAt: true,
+        syncError: true,
       },
     });
   } catch (error) {
@@ -149,6 +158,9 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
       createdAt: selected.createdAt,
       persistentProfileId: durable.id,
       encryptedAccess: selected.encryptedAccess,
+      isSyncing: selected.isSyncing,
+      lastSyncedAt: selected.lastSyncedAt,
+      syncError: selected.syncError,
       settings: selected.settings,
       rules,
       hasCredentials: Boolean(

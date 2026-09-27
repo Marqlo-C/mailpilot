@@ -6,7 +6,7 @@ import { FolderGit2, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  extractResumeDraft,
+  applyResumeUpload,
   importGitHubProjects,
   saveMasterProfile,
 } from "@/app/actions/profile";
@@ -63,19 +63,20 @@ export function ResumeUploadDialog({
     formData.set("accountId", accountId);
     formData.set("file", file);
 
-    const isZip = file.name.toLowerCase().endsWith(".zip");
-    startTransition(async () => {
-      const toastId = toast.loading(
-        isZip ? "Parsing LinkedIn archive…" : "Extracting resume…"
-      );
-      const result = await extractResumeDraft(formData);
-      if (!result.ok || !result.data) {
-        toast.error(result.ok ? "Empty draft" : result.error, { id: toastId });
+    // Unlock navigation immediately — parse + save continues in the background.
+    setOpen(false);
+    setDraft(null);
+    toast.message("Parsing resume in the background...");
+
+    void (async () => {
+      const result = await applyResumeUpload(formData);
+      if (!result.ok) {
+        toast.error(result.error);
         return;
       }
-      setDraft(result.data);
-      toast.success("Draft ready — review before saving", { id: toastId });
-    });
+      toast.success("Profile updated from resume");
+      router.refresh();
+    })();
   }
 
   function onSyncGitHub() {
@@ -134,7 +135,7 @@ export function ResumeUploadDialog({
           <DialogDescription>
             {editMode
               ? "Review the structured profile for accuracy, then save or re-upload a source file."
-              : "Import from a resume, LinkedIn archive, or sync GitHub projects, then review before saving."}
+              : "Import from a resume, LinkedIn archive, or sync GitHub projects. Uploads parse in the background so you can keep navigating."}
           </DialogDescription>
         </DialogHeader>
 
@@ -145,14 +146,18 @@ export function ResumeUploadDialog({
           </span>
           <span className="max-w-md text-xs text-muted-foreground">
             Upload Resume (PDF/DOCX), LinkedIn Profile PDF, Indeed PDF, or
-            LinkedIn Data Archive (.zip)
+            LinkedIn Data Archive (.zip). Dialog closes immediately; parsing
+            continues in the background.
           </span>
           <input
             type="file"
             accept=".pdf,.docx,.zip,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/zip,application/x-zip-compressed,text/plain"
             className="hidden"
-            disabled={pending}
-            onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
+            onChange={(e) => {
+              const selected = e.target.files?.[0] ?? null;
+              e.target.value = "";
+              onFileChange(selected);
+            }}
           />
         </label>
 
@@ -274,12 +279,14 @@ export function ResumeUploadDialog({
           </Tabs>
         )}
 
-        <DialogFooter>
-          <Button type="button" disabled={!draft || pending} onClick={onSave}>
-            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Save Master Profile
-          </Button>
-        </DialogFooter>
+        {editMode && (
+          <DialogFooter>
+            <Button type="button" disabled={!draft || pending} onClick={onSave}>
+              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Save Master Profile
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
