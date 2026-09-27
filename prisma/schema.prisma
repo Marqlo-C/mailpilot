@@ -116,6 +116,8 @@ model Subscription {
   status         String    @default("ACTIVE") // "ACTIVE" | "UNSUBSCRIBED" | "FAILED"
   emailCount     Int       @default(1)
   lastReceivedAt DateTime?
+  /// Last unsubscribe/cleanup error for UI hover (cleared on success).
+  lastError      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

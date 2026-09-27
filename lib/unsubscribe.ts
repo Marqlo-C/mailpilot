@@ -10,7 +10,20 @@ export type UnsubscribeResult = {
   method: "POST" | "MAILTO" | "GET";
   ok: boolean;
   detail?: string;
+  /** True when RFC 8058 POST failed and GET fallback was attempted. */
+  usedGetFallback?: boolean;
 };
+
+export type UnsubscribeAndCleanupResult = {
+  unsub: UnsubscribeResult;
+  cleanupOk: boolean;
+  cleanupError: string | null;
+  cleanedCount: number;
+};
+
+function stripUrlBrackets(url: string): string {
+  return url.trim().replace(/^<|>$/g, "");
+}
 
 const HTTP_URL_RE = /<(https?:\/\/[^>]+)>/gi;
 const MAILTO_URL_RE = /<(mailto:[^>]+)>/gi;
@@ -60,8 +73,9 @@ export function parseListUnsubscribeHeaders(
 }
 
 /**
- * Executes unsubscribe in priority order: RFC 8058 POST → mailto → HTTPS GET.
- * Optionally cleans up past messages from the sender.
+ * Executes unsubscribe in priority order: RFC 8058 POST → GET fallback → mailto.
+ * Cleanup (trash/archive) is returned separately so HTTP unsub failure does not
+ * wipe a successful Gmail cleanup.
  */
 export async function executeUnsubscribe(
   gmail: gmail_v1.Gmail,
@@ -74,29 +88,85 @@ export async function executeUnsubscribe(
     | "unsubMailto"
   >,
   cleanupAction: CleanupAction = "NONE"
-): Promise<UnsubscribeResult> {
-  let result: UnsubscribeResult | null = null;
+): Promise<UnsubscribeAndCleanupResult> {
+  const unsub = await executeUnsubscribeHttpChain(gmail, subscription);
 
-  if (subscription.unsubPostUrl) {
-    result = await executeOneClickPost(
-      subscription.unsubPostUrl,
-      subscription.unsubPostBody ?? "List-Unsubscribe=One-Click"
-    );
-  } else if (subscription.unsubMailto) {
-    result = await executeMailtoUnsubscribe(gmail, subscription.unsubMailto);
-  } else if (subscription.unsubHttpUrl) {
-    result = await executeHttpGetUnsubscribe(subscription.unsubHttpUrl);
-  } else {
-    throw new Error(
-      `Subscription for ${subscription.senderEmail} has no unsubscribe target`
-    );
-  }
+  let cleanupOk = true;
+  let cleanupError: string | null = null;
+  let cleanedCount = 0;
 
   if (cleanupAction !== "NONE") {
-    await cleanupSenderMessages(gmail, subscription.senderEmail, cleanupAction);
+    try {
+      cleanedCount = await cleanupSenderMessages(
+        gmail,
+        subscription.senderEmail,
+        cleanupAction
+      );
+    } catch (cleanupErr) {
+      cleanupOk = false;
+      cleanupError =
+        cleanupErr instanceof Error
+          ? cleanupErr.message
+          : "Gmail cleanup failed";
+    }
   }
 
-  return result;
+  return { unsub, cleanupOk, cleanupError, cleanedCount };
+}
+
+/**
+ * POST (one-click) → GET fallback on failure → mailto last resort.
+ */
+async function executeUnsubscribeHttpChain(
+  gmail: gmail_v1.Gmail,
+  subscription: Pick<
+    Subscription,
+    "unsubHttpUrl" | "unsubPostUrl" | "unsubPostBody" | "unsubMailto"
+  >
+): Promise<UnsubscribeResult> {
+  const postUrl = subscription.unsubPostUrl
+    ? stripUrlBrackets(subscription.unsubPostUrl)
+    : null;
+  const httpUrl = subscription.unsubHttpUrl
+    ? stripUrlBrackets(subscription.unsubHttpUrl)
+    : postUrl;
+
+  if (postUrl) {
+    const postResult = await executeOneClickPost(
+      postUrl,
+      subscription.unsubPostBody ?? "List-Unsubscribe=One-Click"
+    );
+    if (postResult.ok) {
+      return postResult;
+    }
+
+    // RFC 8058 soft-fail: many providers 404/405 POST but accept GET.
+    if (httpUrl) {
+      const getResult = await executeHttpGetUnsubscribe(httpUrl);
+      if (getResult.ok) {
+        return { ...getResult, usedGetFallback: true };
+      }
+      // Prefer GET detail if both failed; keep POST context.
+      return {
+        method: "GET",
+        ok: false,
+        usedGetFallback: true,
+        detail: `POST ${postResult.detail}; GET ${getResult.detail}`,
+      };
+    }
+
+    return postResult;
+  }
+
+  if (subscription.unsubMailto) {
+    return executeMailtoUnsubscribe(gmail, subscription.unsubMailto);
+  }
+
+  if (httpUrl) {
+    return executeHttpGetUnsubscribe(httpUrl);
+  }
+
+  throw new Error("Subscription has no unsubscribe target");
 }
 
 async function executeOneClickPost(

@@ -59,14 +59,31 @@ export async function unsubscribeSender(
       parsedCleanup.data
     );
 
+    const unsubOk = result.unsub.ok;
+    const cleanupRequested = parsedCleanup.data !== "NONE";
+    const cleanupOk = !cleanupRequested || result.cleanupOk;
+
+    // Decoupled status: FAILED only when both sides fail (or unsub fails with no cleanup).
+    const bothFailed = !unsubOk && !cleanupOk;
+    const status = bothFailed ? "FAILED" : "UNSUBSCRIBED";
+    const lastError = bothFailed
+      ? [result.unsub.detail, result.cleanupError].filter(Boolean).join(" | ") ||
+        "Unsubscribe failed"
+      : !unsubOk
+        ? result.unsub.detail ?? "Unsubscribe link rejected (messages still cleaned)"
+        : !cleanupOk
+          ? result.cleanupError
+          : null;
+
     await prisma.subscription.update({
       where: { id: subscriptionId },
       data: {
-        status: result.ok ? "UNSUBSCRIBED" : "FAILED",
+        status,
+        lastError,
       },
     });
 
-    if (result.ok) {
+    if (status === "UNSUBSCRIBED") {
       const profile = await ensurePersistentProfileForAccount(
         subscription.account
       );
@@ -81,23 +98,32 @@ export async function unsubscribeSender(
     revalidatePath("/subscriptions");
     revalidatePath("/");
 
-    if (!result.ok) {
+    if (bothFailed) {
       return {
         ok: false,
-        error: result.detail ?? "Unsubscribe request failed",
+        error: lastError ?? "Unsubscribe request failed",
       };
     }
 
     return {
       ok: true,
-      data: { method: result.method },
+      data: {
+        method: result.unsub.usedGetFallback
+          ? `${result.unsub.method}_FALLBACK`
+          : result.unsub.method,
+        cleaned: result.cleanedCount,
+      },
     };
   } catch (error) {
     console.error("unsubscribeSender failed", error);
 
     await prisma.subscription.update({
       where: { id: subscriptionId },
-      data: { status: "FAILED" },
+      data: {
+        status: "FAILED",
+        lastError:
+          error instanceof Error ? error.message : "Unsubscribe failed",
+      },
     });
 
     if (

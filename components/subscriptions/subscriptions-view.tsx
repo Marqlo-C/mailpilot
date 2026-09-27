@@ -331,6 +331,14 @@ function ActiveDesktopTable({
                     variant={
                       sub.status === "FAILED" ? "destructive" : "secondary"
                     }
+                    title={
+                      sub.status === "FAILED"
+                        ? sub.lastError ?? "Unknown failure"
+                        : undefined
+                    }
+                    className={
+                      sub.status === "FAILED" ? "cursor-help" : undefined
+                    }
                   >
                     {sub.status}
                   </Badge>
@@ -384,7 +392,14 @@ function ActiveMobileCards({
               <Badge variant={method.variant}>{method.label}</Badge>
             </div>
             <div className="mt-3 flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">
+              <span
+                className="text-muted-foreground"
+                title={
+                  sub.status === "FAILED"
+                    ? sub.lastError ?? "Unknown failure"
+                    : undefined
+                }
+              >
                 {sub.emailCount} email{sub.emailCount === 1 ? "" : "s"} ·{" "}
                 {sub.status}
               </span>
