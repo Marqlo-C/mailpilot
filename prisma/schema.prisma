@@ -73,6 +73,8 @@ model Account {
   settings        AccountSettings?
   subscriptions   Subscription[]
   jobApplications JobApplication[]
+  emailMessages   EmailMessage[]
+  jobOpportunities JobOpportunity[]
   profile         UserProfile?
 
   @@index([email])
@@ -113,6 +115,66 @@ model Subscription {
 
   @@unique([accountId, senderEmail])
   @@index([accountId, status])
+}
+
+/// Parent Gmail message that may yield zero or many JobOpportunity rows.
+model EmailMessage {
+  id          String   @id @default(cuid())
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  messageId   String
+  threadId    String
+  subject     String?
+  fromEmail   String?
+  fromName    String?
+  /// DIRECT_RECRUITER | JOB_BOARD_DIGEST | APPLICATION_STATUS | IRRELEVANT
+  emailCategory String @default("IRRELEVANT")
+  emailDate   DateTime
+  snippet     String?  @db.Text
+
+  opportunities JobOpportunity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([accountId, messageId])
+  @@index([accountId, emailCategory])
+  @@index([accountId, emailDate])
+}
+
+/// Extracted job posting from a recruiter email or job-board digest.
+model JobOpportunity {
+  id              String   @id @default(cuid())
+  accountId       String
+  account         Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  emailMessageId  String?
+  emailMessage    EmailMessage? @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
+
+  company         String
+  title           String
+  location        String?
+  salary          String?
+  applyUrl        String?
+  /// DIRECT_EMAIL | EXTERNAL_LINK | QUICK_APPLY
+  applicationType String   @default("EXTERNAL_LINK")
+  /// Must be null when no direct recruiter contact exists (no email drafts allowed).
+  recipientEmail  String?
+  recipientName   String?
+  draftSubject    String?
+  draftBody       String?  @db.Text
+  /// DISCOVERED | REVIEW_READY | APPLIED | DISMISSED
+  status          String   @default("DISCOVERED")
+  matchScore      Int?
+  matchRationale  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([accountId, status])
+  @@index([accountId, applicationType])
+  @@index([emailMessageId])
+  @@index([accountId, createdAt])
 }
 
 model JobApplication {

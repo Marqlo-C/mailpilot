@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { JobApplication } from "@prisma/client";
+import type { JobApplication, JobOpportunity } from "@prisma/client";
 import {
   Archive,
   ExternalLink,
@@ -19,12 +19,19 @@ import {
   updateApplicationStatus,
 } from "@/app/actions/dispatch";
 import { emptyRejections } from "@/app/actions/jobs";
+import {
+  dismissOpportunity,
+  markOpportunityExternalApplied,
+  sendOpportunityApplication,
+} from "@/app/actions/opportunities";
 import { AtsHandoffDrawer } from "@/components/jobs/ats-handoff-drawer";
 import { DraftReviewDialog } from "@/components/jobs/draft-review-dialog";
+import { OpportunityDraftDialog } from "@/components/jobs/opportunity-draft-dialog";
 import {
   SenderAvatar,
   domainFromActionUrl,
 } from "@/components/sender-avatar";
+import { canDraftDirectEmail, extractRecruiterEmail } from "@/lib/application-method";
 import type { MasterProfileInput } from "@/lib/validations/profile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +48,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 type JobsRadarProps = {
   accountId: string;
   jobs: JobApplication[];
+  opportunities: JobOpportunity[];
   profile: MasterProfileInput | null;
   matchThreshold: number;
 };
@@ -62,9 +70,16 @@ function formatCountdown(deadlineAt: Date | null): string {
   return `${Math.floor(hours / 24)}d left`;
 }
 
+function applicationTypeLabel(type: string): string {
+  if (type === "DIRECT_EMAIL") return "Email Lead";
+  if (type === "QUICK_APPLY") return "Quick Apply";
+  return "External link";
+}
+
 export function JobsRadar({
   accountId,
   jobs,
+  opportunities,
   profile,
   matchThreshold,
 }: JobsRadarProps) {
@@ -72,6 +87,20 @@ export function JobsRadar({
   const [pending, startTransition] = useTransition();
   const [portalJob, setPortalJob] = useState<JobApplication | null>(null);
   const [draftJob, setDraftJob] = useState<JobApplication | null>(null);
+  const [draftOpportunity, setDraftOpportunity] =
+    useState<JobOpportunity | null>(null);
+
+  const opportunityLeads = useMemo(
+    () =>
+      opportunities.filter(
+        (o) => o.status === "DISCOVERED" || o.status === "REVIEW_READY"
+      ),
+    [opportunities]
+  );
+  const opportunityApplied = useMemo(
+    () => opportunities.filter((o) => o.status === "APPLIED"),
+    [opportunities]
+  );
 
   const leads = useMemo(
     () => jobs.filter((j) => j.status === "LEAD" && !j.isArchived),
@@ -97,11 +126,20 @@ export function JobsRadar({
     [jobs]
   );
 
+  const leadCount = opportunityLeads.length + leads.length;
+
   const batchIds = leads
     .filter(
       (j) =>
         j.dispatchType === "EMAIL" &&
-        (j.matchScore ?? 0) >= matchThreshold
+        (j.matchScore ?? 0) >= matchThreshold &&
+        Boolean(
+          extractRecruiterEmail({
+            actionSummary: j.actionSummary,
+            actionUrl: j.actionUrl,
+            applyUrl: j.applyUrl,
+          })
+        )
     )
     .map((j) => j.id);
 
@@ -112,9 +150,9 @@ export function JobsRadar({
           <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:inline-flex sm:grid-cols-none">
             <TabsTrigger value="leads">
               Leads / Queue
-              {leads.length > 0 && (
+              {leadCount > 0 && (
                 <Badge variant="secondary" className="ml-1.5">
-                  {leads.length}
+                  {leadCount}
                 </Badge>
               )}
             </TabsTrigger>
@@ -157,127 +195,307 @@ export function JobsRadar({
         </div>
 
         <TabsContent value="leads" className="space-y-3">
-          {leads.length === 0 ? (
+          {leadCount === 0 ? (
             <EmptyState text="No leads in the queue yet." />
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
-              {leads.map((job) => (
-                <Card key={job.id}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start gap-3">
-                      <SenderAvatar
-                        name={job.companyName}
-                        domain={domainFromActionUrl(job.actionUrl)}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <CardTitle className="text-base">
-                          {job.companyName ?? "Unknown company"}
-                        </CardTitle>
-                        <CardDescription>
-                          {job.roleTitle ?? "Role not specified"}
-                        </CardDescription>
+              {opportunityLeads.map((opp) => {
+                const canEmail = canDraftDirectEmail(opp.recipientEmail);
+                return (
+                  <Card key={`opp-${opp.id}`}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start gap-3">
+                        <SenderAvatar
+                          name={opp.company}
+                          domain={domainFromActionUrl(opp.applyUrl)}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <CardTitle className="text-base">
+                            {opp.company}
+                          </CardTitle>
+                          <CardDescription>{opp.title}</CardDescription>
+                          {(opp.location || opp.salary) && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {[opp.location, opp.salary]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          {typeof opp.matchScore === "number" && (
+                            <Badge
+                              variant={
+                                opp.matchScore >= matchThreshold
+                                  ? "default"
+                                  : "secondary"
+                              }
+                            >
+                              {opp.matchScore}%
+                            </Badge>
+                          )}
+                          <Badge variant="outline">
+                            {applicationTypeLabel(opp.applicationType)}
+                          </Badge>
+                          {opp.status === "REVIEW_READY" ? (
+                            <Badge variant="secondary">Draft ready</Badge>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
-                        {typeof job.matchScore === "number" && (
-                          <Badge
-                            variant={
-                              job.matchScore >= matchThreshold
-                                ? "default"
-                                : "secondary"
-                            }
+                    </CardHeader>
+                    <CardFooter className="flex flex-wrap gap-2">
+                      {canEmail ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            onClick={() => setDraftOpportunity(opp)}
                           >
-                            {job.matchScore}%
-                          </Badge>
-                        )}
-                        <Badge variant="outline">
-                          {job.applicationMethod === "PORTAL_QUICK_APPLY" ||
-                          job.dispatchType === "PORTAL"
-                            ? "Portal"
-                            : job.applicationMethod === "EXTERNAL_LINK"
-                              ? "External link"
-                              : "Email Lead"}
-                        </Badge>
-                        {job.opportunityStatus &&
-                        job.opportunityStatus !== "DETECTED" ? (
-                          <Badge variant="secondary">
-                            {job.opportunityStatus === "DRAFT_PREPARED"
-                              ? "Draft ready"
-                              : job.opportunityStatus === "DRAFT_SAVED_GMAIL"
-                                ? "In Gmail drafts"
-                                : job.opportunityStatus}
-                          </Badge>
-                        ) : null}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardFooter className="flex flex-wrap gap-2">
-                    {job.dispatchType === "PORTAL" ? (
+                            <Mail className="h-4 w-4" />
+                            Review & Edit Draft
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={pending}
+                            onClick={() => {
+                              startTransition(async () => {
+                                const result =
+                                  await sendOpportunityApplication(
+                                    opp.id,
+                                    false
+                                  );
+                                if (!result.ok) {
+                                  toast.error(result.error);
+                                  return;
+                                }
+                                toast.success("Application sent");
+                                router.refresh();
+                              });
+                            }}
+                          >
+                            <Send className="h-4 w-4" />
+                            Send now
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          {opp.applyUrl ? (
+                            <Button asChild size="sm">
+                              <a
+                                href={opp.applyUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                                {opp.applicationType === "QUICK_APPLY"
+                                  ? "Quick Apply"
+                                  : "Open apply link"}
+                              </a>
+                            </Button>
+                          ) : null}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            onClick={() => {
+                              startTransition(async () => {
+                                await markOpportunityExternalApplied(opp.id);
+                                toast.success("Marked as applied");
+                                router.refresh();
+                              });
+                            }}
+                          >
+                            Mark applied
+                          </Button>
+                        </>
+                      )}
                       <Button
                         size="sm"
-                        onClick={() => setPortalJob(job)}
+                        variant="ghost"
+                        disabled={pending}
+                        onClick={() => {
+                          startTransition(async () => {
+                            await dismissOpportunity(opp.id);
+                            router.refresh();
+                          });
+                        }}
                       >
-                        ATS Quick-Fill
+                        <Archive className="h-4 w-4" />
+                        Dismiss
                       </Button>
-                    ) : (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={pending}
-                          onClick={() => setDraftJob(job)}
-                        >
-                          <Mail className="h-4 w-4" />
-                          Review & Edit Draft
-                        </Button>
-                        <Button
-                          size="sm"
-                          disabled={pending}
-                          onClick={() => {
-                            startTransition(async () => {
-                              const result = await sendSingleApplication(
-                                job.id,
-                                false
-                              );
-                              if (!result.ok) {
-                                toast.error(result.error);
-                                return;
+                    </CardFooter>
+                  </Card>
+                );
+              })}
+
+              {leads.map((job) => {
+                const canEmail = Boolean(
+                  extractRecruiterEmail({
+                    actionSummary: job.actionSummary,
+                    actionUrl: job.actionUrl,
+                    applyUrl: job.applyUrl,
+                  })
+                );
+                const isPortal =
+                  job.dispatchType === "PORTAL" ||
+                  job.applicationMethod === "PORTAL_QUICK_APPLY" ||
+                  job.applicationMethod === "EXTERNAL_LINK" ||
+                  !canEmail;
+
+                return (
+                  <Card key={job.id}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start gap-3">
+                        <SenderAvatar
+                          name={job.companyName}
+                          domain={domainFromActionUrl(job.actionUrl)}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <CardTitle className="text-base">
+                            {job.companyName ?? "Unknown company"}
+                          </CardTitle>
+                          <CardDescription>
+                            {job.roleTitle ?? "Role not specified"}
+                          </CardDescription>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          {typeof job.matchScore === "number" && (
+                            <Badge
+                              variant={
+                                job.matchScore >= matchThreshold
+                                  ? "default"
+                                  : "secondary"
                               }
-                              toast.success("Application sent");
-                              router.refresh();
-                            });
-                          }}
-                        >
-                          <Send className="h-4 w-4" />
-                          Send now
-                        </Button>
-                      </>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={pending}
-                      onClick={() => {
-                        startTransition(async () => {
-                          await updateApplicationStatus(job.id, "ARCHIVED");
-                          router.refresh();
-                        });
-                      }}
-                    >
-                      <Archive className="h-4 w-4" />
-                      Archive
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))}
+                            >
+                              {job.matchScore}%
+                            </Badge>
+                          )}
+                          <Badge variant="outline">
+                            {isPortal
+                              ? job.applicationMethod === "EXTERNAL_LINK"
+                                ? "External link"
+                                : "Portal"
+                              : "Email Lead"}
+                          </Badge>
+                          {job.opportunityStatus &&
+                          job.opportunityStatus !== "DETECTED" ? (
+                            <Badge variant="secondary">
+                              {job.opportunityStatus === "DRAFT_PREPARED"
+                                ? "Draft ready"
+                                : job.opportunityStatus === "DRAFT_SAVED_GMAIL"
+                                  ? "In Gmail drafts"
+                                  : job.opportunityStatus}
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardFooter className="flex flex-wrap gap-2">
+                      {isPortal ? (
+                        <>
+                          {(job.applyUrl || job.actionUrl) && (
+                            <Button asChild size="sm" variant="outline">
+                              <a
+                                href={job.applyUrl || job.actionUrl || "#"}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                                Open link
+                              </a>
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            onClick={() => setPortalJob(job)}
+                          >
+                            ATS Quick-Fill
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            onClick={() => setDraftJob(job)}
+                          >
+                            <Mail className="h-4 w-4" />
+                            Review & Edit Draft
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={pending}
+                            onClick={() => {
+                              startTransition(async () => {
+                                const result = await sendSingleApplication(
+                                  job.id,
+                                  false
+                                );
+                                if (!result.ok) {
+                                  toast.error(result.error);
+                                  return;
+                                }
+                                toast.success("Application sent");
+                                router.refresh();
+                              });
+                            }}
+                          >
+                            <Send className="h-4 w-4" />
+                            Send now
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={pending}
+                        onClick={() => {
+                          startTransition(async () => {
+                            await updateApplicationStatus(job.id, "ARCHIVED");
+                            router.refresh();
+                          });
+                        }}
+                      >
+                        <Archive className="h-4 w-4" />
+                        Archive
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
 
         <TabsContent value="applied" className="space-y-3">
-          {applied.length === 0 ? (
+          {applied.length === 0 && opportunityApplied.length === 0 ? (
             <EmptyState text="No active applications waiting for a response." />
           ) : (
             <ul className="space-y-2">
+              {opportunityApplied.map((opp) => (
+                <li
+                  key={`opp-applied-${opp.id}`}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <SenderAvatar
+                      name={opp.company}
+                      domain={domainFromActionUrl(opp.applyUrl)}
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{opp.company}</p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        {opp.title}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="secondary">
+                    Applied {daysAgo(opp.updatedAt)}
+                  </Badge>
+                </li>
+              ))}
               {applied.map((job) => (
                 <li
                   key={job.id}
@@ -443,6 +661,12 @@ export function JobsRadar({
         open={Boolean(draftJob)}
         onOpenChange={(open) => !open && setDraftJob(null)}
         application={draftJob}
+        onCompleted={() => router.refresh()}
+      />
+      <OpportunityDraftDialog
+        open={Boolean(draftOpportunity)}
+        onOpenChange={(open) => !open && setDraftOpportunity(null)}
+        opportunity={draftOpportunity}
         onCompleted={() => router.refresh()}
       />
     </>

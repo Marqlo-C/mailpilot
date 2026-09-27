@@ -9,16 +9,12 @@ import {
 } from "@/lib/google";
 import {
   classifyEmail,
+  extractMessageBody,
   sanitizeEmailBody,
   type LlmProvider,
 } from "@/lib/llm";
-import { ensurePersistentProfileForAccount } from "@/lib/persistent-profile";
-import {
-  dispatchTypeFromMethod,
-  resolveApplicationMethod,
-} from "@/lib/application-method";
 import { prisma } from "@/lib/prisma";
-import { applyRejectionAction, mapClassificationStatus, parseFromHeader } from "@/lib/sync";
+import { parseFromHeader, persistClassifiedEmail } from "@/lib/sync";
 import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
 import { parseAccountRules } from "@/lib/validations/rules";
 import type { ScanDays } from "@/lib/scan-types";
@@ -39,7 +35,7 @@ const SUBSCRIPTION_HEADERS = [
   "Date",
 ] as const;
 
-const JOB_CANDIDATE_LIMIT = 25;
+const JOB_CANDIDATE_LIMIT = 30;
 const METADATA_CONCURRENCY = 5;
 const RATE_LIMIT_BASE_MS = 800;
 
@@ -114,12 +110,6 @@ function getHeader(
 
 function normalizeProvider(value: string | null | undefined): LlmProvider {
   return value === "LOCAL_OLLAMA" ? "LOCAL_OLLAMA" : "OPENROUTER";
-}
-
-function parseDeadline(iso: string | null): Date | null {
-  if (!iso) return null;
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 /**
@@ -295,22 +285,34 @@ async function scanJobCandidates(
   },
   days: ScanDays
 ): Promise<number> {
-  const query = `newer_than:${days}d (subject:(application OR applied OR interview OR status OR assessment OR hackerrank OR coderpad OR "thank you") OR "thank you for applying")`;
+  // Include job-board digests (Glassdoor / LinkedIn / Indeed) alongside status mail.
+  const query = `newer_than:${days}d (subject:(application OR applied OR interview OR status OR assessment OR hackerrank OR coderpad OR "thank you" OR "job alert" OR "jobs for you" OR "new jobs" OR "recommended jobs" OR glassdoor OR indeed OR linkedin OR hiring OR opportunity) OR "thank you for applying" OR from:(glassdoor.com OR indeed.com OR linkedin.com))`;
   const messageIds = await listMessageIds(gmail, query, JOB_CANDIDATE_LIMIT);
 
-  const existing = await prisma.jobApplication.findMany({
-    where: {
-      accountId: account.id,
-      messageId: { in: messageIds },
-    },
-    select: { messageId: true },
-  });
-  const existingIds = new Set(existing.map((row) => row.messageId));
+  const [existingApps, existingMessages] = await Promise.all([
+    prisma.jobApplication.findMany({
+      where: {
+        accountId: account.id,
+        messageId: { in: messageIds },
+      },
+      select: { messageId: true },
+    }),
+    prisma.emailMessage.findMany({
+      where: {
+        accountId: account.id,
+        messageId: { in: messageIds },
+      },
+      select: { messageId: true },
+    }),
+  ]);
+  const existingIds = new Set([
+    ...existingApps.map((row) => row.messageId),
+    ...existingMessages.map((row) => row.messageId),
+  ]);
   const candidates = messageIds.filter((id) => !existingIds.has(id));
 
   const rules = parseAccountRules(account.settings?.rules);
   const llmProvider = normalizeProvider(account.settings?.llmProvider);
-  const durable = await ensurePersistentProfileForAccount(account);
   let jobsFound = 0;
 
   // Sequential LLM calls to respect free-tier limits
@@ -326,23 +328,30 @@ async function scanJobCandidates(
 
       const headers = message.data.payload?.headers;
       const subject = getHeader(headers, "Subject") ?? "";
+      const from = getHeader(headers, "From");
+      const sender = from ? parseFromHeader(from) : null;
+      const bodyRaw = extractMessageBody(message.data.payload);
       const snippet = sanitizeEmailBody(message.data.snippet ?? "");
       const body =
-        snippet.length > 0
-          ? snippet.slice(0, 1200)
-          : sanitizeEmailBody(
-              // Prefer snippet; fall back to minimal header-derived text
-              `${subject}`
-            ).slice(0, 1200);
+        bodyRaw.trim().length > 0
+          ? bodyRaw
+          : snippet.length > 0
+            ? snippet
+            : subject;
 
       const classification = await classifyEmail({
         llmProvider,
         localOllamaUrl: account.settings?.localOllamaUrl,
         subject,
         body,
+        fromEmail: sender?.email ?? null,
       });
 
-      if (!classification || !classification.is_job_related) {
+      if (
+        !classification ||
+        !classification.is_job_related ||
+        classification.email_category === "IRRELEVANT"
+      ) {
         await sleep(200);
         continue;
       }
@@ -352,54 +361,21 @@ async function scanJobCandidates(
         ? new Date(Number(message.data.internalDate))
         : new Date();
 
-      const mappedStatus = mapClassificationStatus(classification.status);
-      let isTrashed = false;
-      let isArchived = false;
-
-      if (mappedStatus === "REJECTION") {
-        const action = await applyRejectionAction(gmail, messageId, rules);
-        isTrashed = action.isTrashed;
-        isArchived = action.isArchived;
-      }
-
-      const actionRequired =
-        mappedStatus === "INTERVIEW" || mappedStatus === "OA"
-          ? true
-          : classification.action_required;
-
-      await prisma.jobApplication.create({
-        data: {
-          accountId: account.id,
-          persistentProfileId: durable.id,
-          messageId,
-          threadId,
-          companyName: classification.company_name,
-          roleTitle: classification.role_title,
-          status: mappedStatus,
-          applicationMethod: resolveApplicationMethod({
-            actionUrl: classification.action_url,
-            actionSummary: classification.action_summary,
-          }),
-          dispatchType: dispatchTypeFromMethod(
-            resolveApplicationMethod({
-              actionUrl: classification.action_url,
-              actionSummary: classification.action_summary,
-            })
-          ),
-          applyUrl: classification.action_url,
-          opportunityStatus: "DETECTED",
-          dispatchStatus: "PENDING_REVIEW",
-          actionRequired,
-          actionSummary: classification.action_summary,
-          actionUrl: classification.action_url,
-          deadlineAt: parseDeadline(classification.deadline_iso),
-          emailDate,
-          isTrashed,
-          isArchived,
-        },
+      const result = await persistClassifiedEmail({
+        gmail,
+        account,
+        messageId,
+        threadId,
+        subject,
+        body,
+        sender,
+        emailDate,
+        classification,
+        rules,
       });
 
-      jobsFound += 1;
+      jobsFound +=
+        result.opportunitiesUpserted + (result.applicationTouched ? 1 : 0);
       await sleep(350);
     } catch (error) {
       console.error(`Historical job scan failed for ${messageId}`, error);

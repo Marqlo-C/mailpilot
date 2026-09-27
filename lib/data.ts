@@ -3,6 +3,7 @@ import type {
   Account,
   AccountSettings,
   JobApplication,
+  JobOpportunity,
   Subscription,
   SubscriptionHistory,
 } from "@prisma/client";
@@ -212,6 +213,23 @@ export async function getJobsForAccount(
     });
   } catch (error) {
     console.error("getJobsForAccount failed", error);
+    return [];
+  }
+}
+
+export async function getJobOpportunitiesForAccount(
+  accountId: string
+): Promise<JobOpportunity[]> {
+  try {
+    return await prisma.jobOpportunity.findMany({
+      where: {
+        accountId,
+        status: { not: "DISMISSED" },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  } catch (error) {
+    console.error("getJobOpportunitiesForAccount failed", error);
     return [];
   }
 }

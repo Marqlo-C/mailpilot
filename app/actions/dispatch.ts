@@ -10,6 +10,7 @@ import {
   prepareApplicationDraft,
   updatePreparedDraft,
 } from "@/lib/dispatch";
+import { extractRecruiterEmail } from "@/lib/application-method";
 import {
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
@@ -20,6 +21,9 @@ import {
   APPLICATION_STATUSES,
   type ApplicationStatus,
 } from "@/lib/validations/profile";
+
+const NO_RECRUITER_EMAIL_ERROR =
+  "No recruiter email address — email drafts are forbidden without a direct contact. Use the external apply link instead.";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -44,6 +48,16 @@ export async function sendSingleApplication(
     };
   }
   const accountId = application.accountId;
+
+  if (
+    !extractRecruiterEmail({
+      actionSummary: application.actionSummary,
+      actionUrl: application.actionUrl,
+      applyUrl: application.applyUrl,
+    })
+  ) {
+    return { ok: false, error: NO_RECRUITER_EMAIL_ERROR };
+  }
 
   try {
     if (!asDraft) {
@@ -104,6 +118,15 @@ export async function prepareDraftForReview(
     };
   }
 
+  const recipientGate = extractRecruiterEmail({
+    actionSummary: application.actionSummary,
+    actionUrl: application.actionUrl,
+    applyUrl: application.applyUrl,
+  });
+  if (!recipientGate) {
+    return { ok: false, error: NO_RECRUITER_EMAIL_ERROR };
+  }
+
   try {
     if (
       application.draftSubject?.trim() &&
@@ -111,23 +134,12 @@ export async function prepareDraftForReview(
       (application.opportunityStatus === "DRAFT_PREPARED" ||
         application.opportunityStatus === "DRAFT_SAVED_GMAIL")
     ) {
-      const account = await prisma.account.findUnique({
-        where: { id: application.accountId },
-      });
-      const mailtoSource = application.applyUrl || application.actionUrl;
-      const mailtoRecipient = mailtoSource?.startsWith("mailto:")
-        ? mailtoSource.replace(/^mailto:/i, "").split("?")[0]
-        : null;
-      const emailInSummary = application.actionSummary?.match(
-        /[\w.+-]+@[\w-]+\.[\w.-]+/
-      )?.[0];
       return {
         ok: true,
         data: {
           subject: application.draftSubject,
           body: application.draftBody,
-          recipient:
-            mailtoRecipient || emailInSummary || account?.email || "",
+          recipient: recipientGate,
         },
       };
     }
@@ -167,6 +179,16 @@ export async function saveDraftEdits(
   });
   if (!application?.accountId) {
     return { ok: false, error: "Application not found" };
+  }
+
+  if (
+    !extractRecruiterEmail({
+      actionSummary: application.actionSummary,
+      actionUrl: application.actionUrl,
+      applyUrl: application.applyUrl,
+    })
+  ) {
+    return { ok: false, error: NO_RECRUITER_EMAIL_ERROR };
   }
 
   const subject = input.subject.trim();

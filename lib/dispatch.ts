@@ -8,13 +8,21 @@ import {
 import { generateTailoredResumePdf } from "@/lib/pdf-generator";
 import { prisma } from "@/lib/prisma";
 import { tailorResumeForJob } from "@/lib/resume-tailor";
-import { resolveApplicationMethod } from "@/lib/application-method";
+import {
+  extractRecruiterEmail,
+  resolveApplicationMethod,
+} from "@/lib/application-method";
 import type {
   MasterProfileInput,
   OpportunityStatus,
 } from "@/lib/validations/profile";
 import { tailoredDataSchema } from "@/lib/validations/profile";
 import { parseAccountRules } from "@/lib/validations/rules";
+
+const NO_RECRUITER_EMAIL_ERROR =
+  "No recruiter email address — email drafts are forbidden without a direct contact.";
+
+export { extractRecruiterEmail };
 
 function encodeRaw(raw: string): string {
   return Buffer.from(raw)
@@ -118,26 +126,18 @@ async function loadMasterProfile(
   };
 }
 
-function resolveRecipient(input: {
-  toEmail?: string;
-  actionSummary: string | null;
-  actionUrl: string | null;
-  applyUrl: string | null;
-  fallbackEmail: string;
+/** Extracts a recruiter email from job fields. Never invents or falls back to the account. */
+function requireRecruiterEmail(input: {
+  toEmail?: string | null;
+  actionSummary?: string | null;
+  actionUrl?: string | null;
+  applyUrl?: string | null;
 }): string {
-  const mailtoSource = input.applyUrl || input.actionUrl;
-  const mailtoRecipient = mailtoSource?.startsWith("mailto:")
-    ? mailtoSource.replace(/^mailto:/i, "").split("?")[0]
-    : null;
-  const emailInSummary = input.actionSummary?.match(
-    /[\w.+-]+@[\w-]+\.[\w.-]+/
-  )?.[0];
-  return (
-    input.toEmail ||
-    mailtoRecipient ||
-    emailInSummary ||
-    input.fallbackEmail
-  );
+  const email = extractRecruiterEmail(input);
+  if (!email) {
+    throw new Error(NO_RECRUITER_EMAIL_ERROR);
+  }
+  return email;
 }
 
 export type DispatchOptions = {
@@ -166,6 +166,13 @@ export async function dispatchApplicationEmail(
   if (!application) {
     throw new Error("Application not found");
   }
+
+  const recipient = requireRecruiterEmail({
+    toEmail: options.toEmail,
+    actionSummary: application.actionSummary,
+    actionUrl: application.actionUrl,
+    applyUrl: application.applyUrl,
+  });
 
   const profile = await loadMasterProfile(accountId);
   const existingTailored = application.tailoredData
@@ -208,14 +215,6 @@ export async function dispatchApplicationEmail(
       ? tailored.selectedExperience
       : profile.experiences
   );
-
-  const recipient = resolveRecipient({
-    toEmail: options.toEmail,
-    actionSummary: application.actionSummary,
-    actionUrl: application.actionUrl,
-    applyUrl: application.applyUrl,
-    fallbackEmail: account.email,
-  });
 
   const subject =
     usePrepared && application.draftSubject
@@ -320,6 +319,12 @@ export async function prepareApplicationDraft(
     throw new Error("Application not found");
   }
 
+  const recipient = requireRecruiterEmail({
+    actionSummary: application.actionSummary,
+    actionUrl: application.actionUrl,
+    applyUrl: application.applyUrl,
+  });
+
   const profile = await loadMasterProfile(accountId);
   const existingTailored = application.tailoredData
     ? tailoredDataSchema.safeParse(application.tailoredData)
@@ -344,12 +349,6 @@ export async function prepareApplicationDraft(
   const subject = `Application: ${application.roleTitle ?? "Role"} at ${
     application.companyName ?? "Your Company"
   }`;
-  const recipient = resolveRecipient({
-    actionSummary: application.actionSummary,
-    actionUrl: application.actionUrl,
-    applyUrl: application.applyUrl,
-    fallbackEmail: account.email,
-  });
 
   await prisma.jobApplication.update({
     where: { id: applicationId },
