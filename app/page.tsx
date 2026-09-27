@@ -83,7 +83,7 @@ export default async function DashboardPage() {
           <ScanInboxDialog accountId={active?.id ?? null} />
           {!active && (
             <Button asChild>
-              <a href="/api/auth/google">Connect Gmail</a>
+              <a href="/api/auth/google?intent=link">Connect Gmail</a>
             </Button>
           )}
         </div>

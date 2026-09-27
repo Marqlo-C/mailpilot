@@ -81,7 +81,7 @@ export function AccountSwitcher({
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={() => {
-            window.location.href = "/api/auth/google";
+            window.location.href = "/api/auth/google?intent=link";
           }}
         >
           <Plus className="h-4 w-4" />

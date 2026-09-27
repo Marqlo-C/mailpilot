@@ -46,8 +46,8 @@ export default async function LoginPage({
   const params = await searchParams;
   const href =
     params.next && params.next.startsWith("/")
-      ? `/api/auth/google?next=${encodeURIComponent(params.next)}`
-      : "/api/auth/google";
+      ? `/api/auth/google?intent=login&next=${encodeURIComponent(params.next)}`
+      : "/api/auth/google?intent=login";
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">

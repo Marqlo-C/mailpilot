@@ -26,12 +26,26 @@ export async function setActiveAccount(
     return { ok: false, error: "Not authenticated" };
   }
 
+  const sessionAccount = await prisma.account.findFirst({
+    where: { id: session, isActive: true },
+    select: { id: true, persistentProfileId: true },
+  });
+  if (!sessionAccount) {
+    return { ok: false, error: "Session expired" };
+  }
+
   const account = await prisma.account.findFirst({
-    where: { id: accountId, isActive: true },
+    where: {
+      id: accountId,
+      isActive: true,
+      ...(sessionAccount.persistentProfileId
+        ? { persistentProfileId: sessionAccount.persistentProfileId }
+        : { id: sessionAccount.id }),
+    },
   });
 
   if (!account) {
-    return { ok: false, error: "Account not found" };
+    return { ok: false, error: "Account not found for this user" };
   }
 
   const cookieStore = await cookies();

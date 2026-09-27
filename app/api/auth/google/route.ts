@@ -5,16 +5,29 @@ import { getAuthorizationUrl } from "@/lib/google";
 
 export const runtime = "nodejs";
 
+export type OAuthIntent = "login" | "link";
+
 /**
- * Initiates Google OAuth (gmail.modify + gmail.compose + openid profile).
- * Default prompt is `select_account` so returning users skip the permissions
- * screen. Pass `?forceConsent=true` to re-prompt and obtain a fresh refresh token.
+ * Initiates Google OAuth.
+ * - `intent=login` (default): independent user sign-in / create separate profile
+ * - `intent=link`: attach another mailbox to the currently authenticated profile
+ * - `forceConsent=true`: force Google permission consent (refresh token / scope changes)
  */
 export async function GET(req: NextRequest) {
   try {
+    const intent: OAuthIntent =
+      req.nextUrl.searchParams.get("intent") === "link" ? "link" : "login";
     const forceConsent =
       req.nextUrl.searchParams.get("forceConsent") === "true";
-    const state = randomBytes(24).toString("hex");
+
+    const state = Buffer.from(
+      JSON.stringify({
+        intent,
+        timestamp: Date.now(),
+        nonce: randomBytes(16).toString("hex"),
+      })
+    ).toString("base64url");
+
     const authUrl = getAuthorizationUrl(state, { forceConsent });
 
     const response = NextResponse.redirect(authUrl);

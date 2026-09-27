@@ -133,10 +133,10 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-2">
             <Button asChild>
-              <a href="/api/auth/google">Link Gmail account</a>
+              <a href="/api/auth/google?intent=link">Link Gmail account</a>
             </Button>
             <Button asChild variant="outline">
-              <a href="/api/auth/google?forceConsent=true">
+              <a href="/api/auth/google?intent=link&forceConsent=true">
                 Re-authorize Scopes
               </a>
             </Button>

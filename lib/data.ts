@@ -41,8 +41,34 @@ export async function listAccounts(): Promise<AccountSummary[]> {
       return [];
     }
 
+    const sessionAccount = await prisma.account.findUnique({
+      where: { id: sessionAccountId },
+      select: { persistentProfileId: true },
+    });
+
+    if (!sessionAccount?.persistentProfileId) {
+      // Session inbox has no durable profile yet — only return itself.
+      return prisma.account.findMany({
+        where: { id: sessionAccountId, isActive: true },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          email: true,
+          isActive: true,
+          historyId: true,
+          updatedAt: true,
+          createdAt: true,
+          persistentProfileId: true,
+          encryptedAccess: true,
+        },
+      });
+    }
+
     return await prisma.account.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        persistentProfileId: sessionAccount.persistentProfileId,
+      },
       orderBy: { createdAt: "asc" },
       select: {
         id: true,
@@ -74,8 +100,18 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
     }
 
     const cookieStore = await cookies();
+    const sessionAccount = await prisma.account.findUnique({
+      where: { id: sessionAccountId },
+      select: { persistentProfileId: true },
+    });
+
     const accounts = await prisma.account.findMany({
-      where: { isActive: true },
+      where: sessionAccount?.persistentProfileId
+        ? {
+            isActive: true,
+            persistentProfileId: sessionAccount.persistentProfileId,
+          }
+        : { id: sessionAccountId, isActive: true },
       include: {
         settings: true,
         persistentProfile: { include: { permanentSettings: true } },
