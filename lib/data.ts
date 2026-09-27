@@ -234,10 +234,7 @@ export async function getJobOpportunitiesForAccount(
 ): Promise<JobOpportunity[]> {
   try {
     return await prisma.jobOpportunity.findMany({
-      where: {
-        accountId,
-        status: { not: "DISMISSED" },
-      },
+      where: { accountId },
       orderBy: [{ matchScore: "desc" }, { receivedAt: "desc" }],
     });
   } catch (error) {

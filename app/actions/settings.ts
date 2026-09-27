@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 
+import { getActiveAccount } from "@/lib/data";
 import { ensurePersistentProfileForAccount } from "@/lib/persistent-profile";
 import { prisma } from "@/lib/prisma";
 import {
@@ -24,6 +25,15 @@ const ruleKeySchema = z.enum([
   "applicationMode",
   "matchScoreThreshold",
   "maxAutoSendsPerDay",
+  "dismissedRetentionDays",
+]);
+
+const retentionDaysSchema = z.union([
+  z.literal(10),
+  z.literal(15),
+  z.literal(30),
+  z.literal(45),
+  z.literal(60),
 ]);
 
 const llmProviderSchema = z.enum(["OPENROUTER", "LOCAL_OLLAMA"]);
@@ -148,4 +158,52 @@ export async function updateOllamaUrl(
 
   revalidatePath("/settings");
   return { ok: true };
+}
+
+/**
+ * Updates dismissed History auto-delete retention (stored in AccountSettings.rules).
+ */
+export async function updateDismissedRetention(
+  days: number
+): Promise<ActionResult<{ dismissedRetentionDays: number }>> {
+  const parsed = retentionDaysSchema.safeParse(days);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid retention period" };
+  }
+
+  const account = await getActiveAccount();
+  if (!account) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId: account.id },
+  });
+  if (!settings) {
+    return { ok: false, error: "Account settings not found" };
+  }
+
+  const current = parseAccountRules(settings.rules);
+  const validated = accountRulesSchema.safeParse({
+    ...current,
+    dismissedRetentionDays: parsed.data,
+  });
+  if (!validated.success) {
+    return {
+      ok: false,
+      error: validated.error.issues.map((i) => i.message).join("; "),
+    };
+  }
+
+  await prisma.accountSettings.update({
+    where: { accountId: account.id },
+    data: { rules: validated.data as Prisma.InputJsonValue },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  return {
+    ok: true,
+    data: { dismissedRetentionDays: validated.data.dismissedRetentionDays },
+  };
 }

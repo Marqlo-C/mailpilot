@@ -185,12 +185,16 @@ model JobOpportunity {
   draftBody       String?  @db.Text
   /// DISCOVERED | REVIEW_READY | APPLIED | DISMISSED
   status          String   @default("DISCOVERED")
-  /// 0–100 fit vs candidate profile; below threshold → isArchived.
+  /// Preserves category before user archive/dismiss so Restore can return cleanly.
+  previousStatus  String?
+  /// 0–100 fit vs candidate profile; below threshold → isArchived (when not user-archived).
   matchScore      Int      @default(0)
   /// One-sentence AI verdict of fit / mismatch.
   matchReason     String?  @db.Text
-  /// True when matchScore is below the account threshold (hidden by default).
+  /// Below-threshold soft-hide, OR user-archived (when previousStatus is set).
   isArchived      Boolean  @default(false)
+  /// Set when status becomes DISMISSED; auto-purged after retention window.
+  dismissedAt     DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -203,6 +207,7 @@ model JobOpportunity {
   @@index([accountId, matchScore])
   @@index([accountId, receivedAt])
   @@index([accountId, salaryMax])
+  @@index([dismissedAt])
 }
 
 model JobApplication {

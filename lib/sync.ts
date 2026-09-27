@@ -420,7 +420,7 @@ export async function persistClassifiedEmail(input: {
     const matchScore =
       typeof job.matchScore === "number" ? job.matchScore : 0;
     const matchReason = job.matchReason ?? null;
-    const isArchived = matchScore < threshold;
+    const scoreArchived = matchScore < threshold;
 
     const existing = await prisma.jobOpportunity.findFirst({
       where: {
@@ -449,11 +449,17 @@ export async function persistClassifiedEmail(input: {
       logoUrl,
       matchScore,
       matchReason,
-      isArchived,
+      isArchived: scoreArchived,
     };
 
     if (existing) {
-      // Backfill metadata without wiping user-driven application status.
+      const userArchived =
+        existing.status !== "DISMISSED" &&
+        existing.isArchived &&
+        existing.previousStatus != null;
+      const dismissed = existing.status === "DISMISSED";
+
+      // Backfill metadata without wiping user-driven lifecycle state.
       await prisma.jobOpportunity.update({
         where: { id: existing.id },
         data: {
@@ -474,7 +480,10 @@ export async function persistClassifiedEmail(input: {
           logoUrl: existing.logoUrl ?? logoUrl,
           matchScore,
           matchReason: matchReason ?? existing.matchReason,
-          isArchived,
+          // Preserve user archive / dismiss; only refresh score-based soft-hide otherwise.
+          ...(dismissed || userArchived
+            ? {}
+            : { isArchived: scoreArchived }),
         },
       });
       opportunitiesUpserted += 1;

@@ -4,6 +4,7 @@ import { AiModelsCard } from "@/components/settings/ai-models-card";
 import { ApplicationAutomationCard } from "@/components/settings/application-automation-card";
 import { AutomationRulesCard } from "@/components/settings/automation-rules-card";
 import { MasterProfileCard } from "@/components/settings/master-profile-card";
+import { DismissedRetentionSetting } from "@/components/settings/retention-setting";
 import { getActiveAccount, listAccounts } from "@/lib/data";
 import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
 
@@ -57,6 +58,12 @@ export default async function SettingsPage({
           rules={active?.rules ?? DEFAULT_ACCOUNT_RULES}
           matchThreshold={
             profile?.matchThreshold ?? active?.rules.matchScoreThreshold
+          }
+        />
+        <DismissedRetentionSetting
+          currentDays={
+            active?.rules.dismissedRetentionDays ??
+            DEFAULT_ACCOUNT_RULES.dismissedRetentionDays
           }
         />
         <AutomationRulesCard

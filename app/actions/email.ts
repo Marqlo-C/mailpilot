@@ -10,6 +10,7 @@ import {
   isInsufficientScopeError,
 } from "@/lib/google";
 import { getActiveAccount } from "@/lib/data";
+import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
 import { runOpportunitySync } from "@/lib/opportunity-sync";
 import { prisma } from "@/lib/prisma";
 
@@ -23,12 +24,37 @@ const syncInputSchema = z.object({
   accountId: z.string().min(1).optional(),
 });
 
+const STALE_LOCK_MS = 90 * 1000;
+
+/**
+ * Immediately clears a stuck isSyncing lock for the active account.
+ */
+export async function forceResetSyncStatus(): Promise<ActionResult> {
+  const active = await getActiveAccount();
+  if (!active) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  await prisma.account.update({
+    where: { id: active.id },
+    data: {
+      isSyncing: false,
+      syncError: null,
+      lastSyncedAt: new Date(),
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/jobs");
+  return { ok: true };
+}
+
 /**
  * Dual-mode inbox opportunity sync.
  * - forceRescan=false → incremental (after:lastSyncedAt), skip known EmailMessages
  * - forceRescan=true  → lookback window, re-extract & backfill salary/scores/links/logos
  *
- * Returns immediately; work runs in after(). GlobalSyncTracker surfaces completion.
+ * Returns immediately; work runs in after(). finally always clears isSyncing.
  */
 export async function syncInboxOpportunities(
   input: {
@@ -56,7 +82,7 @@ export async function syncInboxOpportunities(
 
   const account = await prisma.account.findUnique({
     where: { id: accountId },
-    select: { id: true, isActive: true, isSyncing: true },
+    select: { id: true, isActive: true, isSyncing: true, updatedAt: true },
   });
 
   if (!account || !account.isActive) {
@@ -64,13 +90,19 @@ export async function syncInboxOpportunities(
   }
 
   if (account.isSyncing) {
-    return {
-      ok: true,
-      data: {
-        message: "Sync already running in background",
-        mode: forceRescan ? "rescan" : "incremental",
-      },
-    };
+    const lockAgeMs = Date.now() - account.updatedAt.getTime();
+    if (lockAgeMs <= STALE_LOCK_MS) {
+      return {
+        ok: true,
+        data: {
+          message: "Sync already running in background",
+          mode: forceRescan ? "rescan" : "incremental",
+        },
+      };
+    }
+    console.warn(
+      `Clearing stale sync lock before new sync (age=${Math.round(lockAgeMs / 1000)}s)`
+    );
   }
 
   await prisma.account.update({
@@ -97,6 +129,17 @@ export async function syncInboxOpportunities(
       });
       processed = result.opportunitiesUpserted;
 
+      try {
+        const purge = await purgeExpiredDismissed(syncAccountId);
+        if (purge.purgedCount > 0) {
+          console.info(
+            `Purged ${purge.purgedCount} dismissed opportunities (retention=${purge.retentionDays}d)`
+          );
+        }
+      } catch (purgeError) {
+        console.error("purgeExpiredDismissed failed", purgeError);
+      }
+
       revalidatePath("/");
       revalidatePath("/jobs");
       revalidatePath("/subscriptions");
@@ -112,6 +155,7 @@ export async function syncInboxOpportunities(
           error instanceof Error ? error.message : "Inbox sync failed";
       }
     } finally {
+      // ALWAYS clear lock — even on crash / timeout paths we control.
       try {
         await prisma.account.update({
           where: { id: syncAccountId },
@@ -123,7 +167,19 @@ export async function syncInboxOpportunities(
           },
         });
       } catch (finalizeError) {
-        console.error("Failed to clear isSyncing after inbox sync", finalizeError);
+        console.error(
+          "Failed to clear isSyncing after inbox sync",
+          finalizeError
+        );
+        // Last-resort retry without optional fields.
+        try {
+          await prisma.account.update({
+            where: { id: syncAccountId },
+            data: { isSyncing: false },
+          });
+        } catch (retryError) {
+          console.error("Retry clear isSyncing also failed", retryError);
+        }
       }
     }
   });

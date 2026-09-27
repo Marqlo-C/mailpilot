@@ -2,103 +2,208 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { CheckCircle2, Loader2, RotateCcw } from "lucide-react";
 
-import { getAccountSyncStatus } from "@/app/actions/scan";
+import { forceResetSyncStatus } from "@/app/actions/email";
 import { cn } from "@/lib/utils";
 
-const POLL_MS_ACTIVE = 4000;
-const POLL_MS_IDLE = 15000;
+export const SYNC_STARTED_EVENT = "mailpilot:sync-started";
 
 type GlobalSyncTrackerProps = {
   accountId: string | null;
-  /** SSR seed so the pill can appear before the first poll. */
   initialIsSyncing?: boolean;
 };
 
 /**
- * Polls account.isSyncing and shows a non-blocking navbar pill while scans run.
- * When sync finishes, toasts completion and refreshes the current route.
+ * Bottom-right floating sync capsule with stale-lock polling, client safety
+ * timeout, and a one-click force reset.
  */
 export function GlobalSyncTracker({
   accountId,
   initialIsSyncing = false,
 }: GlobalSyncTrackerProps) {
   const router = useRouter();
-  const wasSyncingRef = useRef(initialIsSyncing);
   const [isSyncing, setIsSyncing] = useState(initialIsSyncing);
+  const [justFinished, setJustFinished] = useState(false);
+  const [showForceReset, setShowForceReset] = useState(false);
+  const pollCount = useRef(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Sync prop changes from server
   useEffect(() => {
-    wasSyncingRef.current = initialIsSyncing;
     setIsSyncing(initialIsSyncing);
+    if (!initialIsSyncing) {
+      setShowForceReset(false);
+    }
   }, [accountId, initialIsSyncing]);
 
+  // Optimistic activation when SyncControls fires
   useEffect(() => {
-    if (!accountId) {
-      setIsSyncing(false);
-      wasSyncingRef.current = false;
+    function handleSyncStart() {
+      pollCount.current = 0;
+      setShowForceReset(false);
+      setJustFinished(false);
+      setIsSyncing(true);
+    }
+
+    window.addEventListener(SYNC_STARTED_EVENT, handleSyncStart);
+    return () => window.removeEventListener(SYNC_STARTED_EVENT, handleSyncStart);
+  }, []);
+
+  // Polling loop: runs ONLY while isSyncing is true
+  useEffect(() => {
+    if (!accountId || !isSyncing) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
       return;
     }
 
-    let cancelled = false;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    pollCount.current = 0;
+    setShowForceReset(false);
 
-    async function poll() {
-      const result = await getAccountSyncStatus(accountId!);
-      if (cancelled) return;
+    intervalRef.current = setInterval(() => {
+      void (async () => {
+        pollCount.current += 1;
 
-      if (result.ok && result.data) {
-        const next = result.data.isSyncing;
-        const wasSyncing = wasSyncingRef.current;
-
-        if (wasSyncing && !next) {
-          if (result.data.syncError) {
-            toast.error(result.data.syncError);
-          } else {
-            const count = result.data.lastSyncProcessed ?? 0;
-            toast.success(
-              `Sync complete. ${count} opportunit${count === 1 ? "y" : "ies"} updated.`
-            );
-          }
-          router.refresh();
+        // Show manual reset option after ~30s of polling
+        if (pollCount.current >= 12) {
+          setShowForceReset(true);
         }
 
-        wasSyncingRef.current = next;
-        setIsSyncing(next);
-        timeoutId = setTimeout(poll, next ? POLL_MS_ACTIVE : POLL_MS_IDLE);
-      } else {
-        timeoutId = setTimeout(poll, POLL_MS_IDLE);
-      }
-    }
+        // Hard stop client spinner after ~60s
+        if (pollCount.current >= 24) {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+          setIsSyncing(false);
+          setShowForceReset(false);
+          return;
+        }
 
-    timeoutId = setTimeout(poll, initialIsSyncing ? 500 : POLL_MS_ACTIVE);
+        try {
+          const res = await fetch("/api/account/sync-status", {
+            cache: "no-store",
+          });
+          if (!res.ok) {
+            if (pollCount.current >= 4) {
+              if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+              }
+              setIsSyncing(false);
+            }
+            return;
+          }
+
+          const data = (await res.json()) as {
+            isSyncing?: boolean;
+          };
+
+          if (data.isSyncing) return;
+
+          // 1. Immediately kill the polling loop
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+
+          // 2. Transition state
+          setIsSyncing(false);
+          setShowForceReset(false);
+          setJustFinished(true);
+
+          // 3. Refresh server data
+          router.refresh();
+        } catch (err) {
+          console.error("Sync poll error:", err);
+          if (pollCount.current >= 4) {
+            if (intervalRef.current) {
+              clearInterval(intervalRef.current);
+              intervalRef.current = null;
+            }
+            setIsSyncing(false);
+          }
+        }
+      })();
+    }, 2500);
 
     return () => {
-      cancelled = true;
-      if (timeoutId) clearTimeout(timeoutId);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
-  }, [accountId, initialIsSyncing, router]);
+  }, [accountId, isSyncing, router]);
 
-  if (!accountId || !isSyncing) {
+  // Dedicated dismissal timer: badge disappears after 3.5s
+  useEffect(() => {
+    if (!justFinished) return;
+
+    const timer = setTimeout(() => {
+      setJustFinished(false);
+    }, 3500);
+
+    return () => clearTimeout(timer);
+  }, [justFinished]);
+
+  async function handleForceReset() {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setIsSyncing(false);
+    setShowForceReset(false);
+    setJustFinished(false);
+    try {
+      await forceResetSyncStatus();
+    } catch (error) {
+      console.error("forceResetSyncStatus failed", error);
+    }
+    router.refresh();
+  }
+
+  if (!accountId || (!isSyncing && !justFinished)) {
     return null;
   }
 
   return (
-    <div
+    <aside
       role="status"
       aria-live="polite"
       className={cn(
-        "pointer-events-none fixed left-1/2 top-3 z-50 -translate-x-1/2",
-        "md:left-auto md:right-6 md:translate-x-0"
+        "fixed bottom-5 right-5 z-50 flex max-w-[min(92vw,24rem)] items-center gap-3 rounded-full border border-border bg-background/95 px-4 py-2.5 text-sm shadow-xl backdrop-blur",
+        "mb-16 md:mb-0",
+        "animate-in fade-in slide-in-from-bottom-2"
       )}
     >
-      <div className="pointer-events-auto inline-flex max-w-[min(92vw,22rem)] items-center gap-2 rounded-full border border-border bg-background/95 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur-md">
-        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
-        <span className="truncate text-foreground">
-          Scanning inbox for new opportunities…
-        </span>
-      </div>
-    </div>
+      {isSyncing ? (
+        <>
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+          <span className="font-medium text-foreground">
+            Scanning inbox for opportunities…
+          </span>
+          {showForceReset ? (
+            <button
+              type="button"
+              onClick={() => void handleForceReset()}
+              className="ml-1 inline-flex items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Reset
+            </button>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+          <span className="font-medium text-foreground">
+            Scan complete — opportunities updated
+          </span>
+        </>
+      )}
+    </aside>
   );
 }

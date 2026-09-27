@@ -1,11 +1,12 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { syncInboxOpportunities } from "@/app/actions/email";
+import { SYNC_STARTED_EVENT } from "@/components/layout/global-sync-tracker";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -23,30 +24,27 @@ type SyncControlsProps = {
 };
 
 /**
- * Dual-mode inbox sync:
- * - Primary: fast incremental sync (new mail since lastSyncedAt)
- * - Menu: Force Rescan & Backfill (14d) to re-extract wages/scores/links/logos
+ * Dual-mode inbox sync with granular force-rescan lookbacks (5 / 10 / 14 days).
  */
 export function SyncControls({ accountId, className }: SyncControlsProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [optimisticScanning, setOptimisticScanning] = useOptimistic(false);
+  const disabled = !accountId || pending;
 
-  const scanning = pending || optimisticScanning;
-  const disabled = !accountId || scanning;
-
-  function runSync(forceRescan: boolean) {
+  function runSync(forceRescan: boolean, lookbackDays = 14) {
     if (!accountId) {
       toast.error("Connect a Gmail account first");
       return;
     }
 
+    // Activate bottom indicator immediately (before the server round-trip).
+    window.dispatchEvent(new Event(SYNC_STARTED_EVENT));
+
     startTransition(async () => {
-      setOptimisticScanning(true);
       const result = await syncInboxOpportunities({
         accountId,
         forceRescan,
-        lookbackDays: 14,
+        lookbackDays,
       });
 
       if (!result.ok) {
@@ -57,7 +55,7 @@ export function SyncControls({ accountId, className }: SyncControlsProps) {
       toast.success(
         result.data?.message ??
           (forceRescan
-            ? "Force rescan started in background"
+            ? `Force rescan (${lookbackDays}d) started`
             : "Sync started in background")
       );
       router.refresh();
@@ -74,8 +72,8 @@ export function SyncControls({ accountId, className }: SyncControlsProps) {
         className="rounded-r-none border-r-0"
         onClick={() => runSync(false)}
       >
-        <RefreshCw className={cn("h-4 w-4", scanning && "animate-spin")} />
-        {scanning ? "Starting…" : "Sync Inbox"}
+        <RefreshCw className={cn("h-4 w-4", pending && "animate-spin")} />
+        {pending ? "Starting…" : "Sync Inbox"}
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -90,7 +88,7 @@ export function SyncControls({ accountId, className }: SyncControlsProps) {
             <ChevronDown className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuContent align="end" className="w-72">
           <DropdownMenuLabel>Inbox sync</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -99,14 +97,30 @@ export function SyncControls({ accountId, className }: SyncControlsProps) {
           >
             Sync Inbox
             <span className="ml-auto text-xs text-muted-foreground">
-              new mail
+              new mail only
             </span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+            Force rescan &amp; backfill
+          </DropdownMenuLabel>
+          <DropdownMenuItem
+            disabled={disabled}
+            onSelect={() => runSync(true, 5)}
+          >
+            Quick Rescan (Last 5 Days)
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={disabled}
-            onSelect={() => runSync(true)}
+            onSelect={() => runSync(true, 10)}
           >
-            Force Rescan & Backfill (14d)
+            Standard Rescan (Last 10 Days)
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={disabled}
+            onSelect={() => runSync(true, 14)}
+          >
+            Deep Backfill (Last 14 Days)
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

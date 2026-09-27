@@ -28,6 +28,9 @@ export default async function JobsPage() {
   const threshold =
     active?.rules.matchScoreThreshold ??
     DEFAULT_ACCOUNT_RULES.matchScoreThreshold;
+  const retentionDays =
+    active?.rules.dismissedRetentionDays ??
+    DEFAULT_ACCOUNT_RULES.dismissedRetentionDays;
 
   return (
     <div className="space-y-6">
@@ -57,6 +60,7 @@ export default async function JobsPage() {
           opportunities={opportunities}
           profile={profile}
           matchThreshold={threshold}
+          retentionDays={retentionDays}
         />
       )}
     </div>
