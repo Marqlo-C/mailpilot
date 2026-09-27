@@ -1,9 +1,17 @@
 import mammoth from "mammoth";
+import pdfParse from "pdf-parse";
+
+/**
+ * Extracts plain text from a PDF buffer using pdf-parse v1.
+ * Runs entirely in-process on Node — no pdfjs worker.mjs file required.
+ */
+export async function parsePdfBuffer(buffer: Buffer): Promise<string> {
+  const data = await pdfParse(buffer);
+  return (data.text ?? "").trim();
+}
 
 /**
  * Extracts plain text from an uploaded resume file (PDF, DOCX, or TXT).
- * PDF parsing is dynamically imported so SSR pages that import profile actions
- * do not eagerly load pdf-parse (which expects DOMMatrix in the browser).
  */
 export async function extractTextFromFile(file: File): Promise<string> {
   const name = file.name.toLowerCase();
@@ -11,15 +19,7 @@ export async function extractTextFromFile(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
 
   if (type === "application/pdf" || name.endsWith(".pdf")) {
-    await import("@/lib/polyfills");
-    const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: buffer });
-    try {
-      const result = await parser.getText();
-      return result.text?.trim() ?? "";
-    } finally {
-      await parser.destroy().catch(() => undefined);
-    }
+    return parsePdfBuffer(buffer);
   }
 
   if (

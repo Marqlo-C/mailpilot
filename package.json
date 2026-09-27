@@ -29,7 +29,7 @@
     "mammoth": "^1.12.3",
     "next": "^15.5.26",
     "papaparse": "^5.7.0",
-    "pdf-parse": "^2.4.5",
+    "pdf-parse": "^1.1.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "sonner": "^2.0.8",
