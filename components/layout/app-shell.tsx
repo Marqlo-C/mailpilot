@@ -16,6 +16,7 @@ import { Logo, NavLogo } from "@/components/brand/logo";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { GlobalSyncTracker } from "@/components/layout/global-sync-tracker";
 import { SyncBadge } from "@/components/layout/sync-badge";
+import { SyncTelemetry } from "@/components/opportunities/sync-telemetry";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AccountSummary } from "@/lib/data";
@@ -33,6 +34,7 @@ type AppShellProps = {
   activeEmail: string | null;
   hasHistoryId: boolean;
   initialIsSyncing?: boolean;
+  initialLastSyncedAt?: Date | string | null;
   children: React.ReactNode;
 };
 
@@ -42,6 +44,7 @@ export function AppShell({
   activeEmail,
   hasHistoryId,
   initialIsSyncing = false,
+  initialLastSyncedAt = null,
   children,
 }: AppShellProps) {
   const pathname = usePathname();
@@ -140,11 +143,11 @@ export function AppShell({
             </p>
           </div>
           <div className="hidden min-w-0 md:block">
-            <p className="text-sm text-muted-foreground">
-              {activeEmail
-                ? `Working in ${activeEmail}`
-                : "Connect a Gmail account to get started"}
-            </p>
+            <SyncTelemetry
+              connected={Boolean(activeAccountId)}
+              initialIsSyncing={initialIsSyncing}
+              initialLastSyncedAt={initialLastSyncedAt}
+            />
           </div>
           <div className="flex items-center gap-2">
             <div className="md:hidden">

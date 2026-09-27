@@ -354,58 +354,107 @@ export async function persistClassifiedEmail(input: {
             isArchived,
           },
         });
-        return { opportunitiesUpserted: 0, applicationTouched: true };
+      } else {
+        await prisma.jobApplication.upsert({
+          where: {
+            accountId_messageId: {
+              accountId: account.id,
+              messageId,
+            },
+          },
+          create: {
+            accountId: account.id,
+            persistentProfileId: durable.id,
+            messageId,
+            threadId,
+            companyName,
+            roleTitle: classification.role_title,
+            status: mappedStatus,
+            dispatchType: "EMAIL",
+            applicationMethod: "DIRECT_EMAIL",
+            opportunityStatus: "DETECTED",
+            dispatchStatus: "PENDING_REVIEW",
+            actionRequired,
+            actionSummary: classification.action_summary,
+            actionUrl: classification.action_url,
+            deadlineAt,
+            emailDate,
+            isTrashed,
+            isArchived,
+          },
+          update: {
+            persistentProfileId: durable.id,
+            companyName,
+            roleTitle: classification.role_title,
+            status: mappedStatus,
+            actionRequired,
+            actionSummary: classification.action_summary,
+            actionUrl: classification.action_url,
+            deadlineAt,
+            emailDate,
+            isTrashed,
+            isArchived,
+          },
+        });
       }
+    } else {
+      await prisma.jobApplication.upsert({
+        where: {
+          accountId_messageId: {
+            accountId: account.id,
+            messageId,
+          },
+        },
+        create: {
+          accountId: account.id,
+          persistentProfileId: durable.id,
+          messageId,
+          threadId,
+          companyName,
+          roleTitle: classification.role_title,
+          status: mappedStatus,
+          dispatchType: "EMAIL",
+          applicationMethod: "DIRECT_EMAIL",
+          opportunityStatus: "DETECTED",
+          dispatchStatus: "PENDING_REVIEW",
+          actionRequired,
+          actionSummary: classification.action_summary,
+          actionUrl: classification.action_url,
+          deadlineAt,
+          emailDate,
+          isTrashed,
+          isArchived,
+        },
+        update: {
+          persistentProfileId: durable.id,
+          companyName,
+          roleTitle: classification.role_title,
+          status: mappedStatus,
+          actionRequired,
+          actionSummary: classification.action_summary,
+          actionUrl: classification.action_url,
+          deadlineAt,
+          emailDate,
+          isTrashed,
+          isArchived,
+        },
+      });
     }
 
-    await prisma.jobApplication.upsert({
-      where: {
-        accountId_messageId: {
-          accountId: account.id,
-          messageId,
-        },
-      },
-      create: {
-        accountId: account.id,
-        persistentProfileId: durable.id,
-        messageId,
-        threadId,
-        companyName,
-        roleTitle: classification.role_title,
-        status: mappedStatus,
-        dispatchType: "EMAIL",
-        applicationMethod: "DIRECT_EMAIL",
-        opportunityStatus: "DETECTED",
-        dispatchStatus: "PENDING_REVIEW",
-        actionRequired,
-        actionSummary: classification.action_summary,
-        actionUrl: classification.action_url,
-        deadlineAt,
-        emailDate,
-        isTrashed,
-        isArchived,
-      },
-      update: {
-        persistentProfileId: durable.id,
-        companyName,
-        roleTitle: classification.role_title,
-        status: mappedStatus,
-        actionRequired,
-        actionSummary: classification.action_summary,
-        actionUrl: classification.action_url,
-        deadlineAt,
-        emailDate,
-        isTrashed,
-        isArchived,
-      },
-    });
-    return { opportunitiesUpserted: 0, applicationTouched: true };
+    // Fall through to JobOpportunity upsert when listings were extracted.
+    if (classification.jobs.length === 0) {
+      return { opportunitiesUpserted: 0, applicationTouched: true };
+    }
   }
 
-  // DIRECT_RECRUITER / JOB_BOARD_DIGEST → one EmailMessage, many JobOpportunity rows
+  // DIRECT_RECRUITER / JOB_BOARD_DIGEST / applied listings → JobOpportunity rows
   const threshold = rules.matchScoreThreshold ?? 75;
   let opportunitiesUpserted = 0;
   for (const job of classification.jobs) {
+    const cleanCompany = job.company.trim();
+    const cleanTitle = job.title.trim();
+    if (!cleanCompany || !cleanTitle) continue;
+
     const applicationType = resolveApplicationType({
       applyUrl: job.applyUrl,
       recipientEmail: job.recipientEmail,
@@ -416,50 +465,46 @@ export async function persistClassifiedEmail(input: {
 
     const companyDomain =
       job.companyDomain ?? inferDomainFromUrl(job.applyUrl) ?? null;
-    const logoUrl = getCompanyLogoUrl(job.company, companyDomain);
+    const logoUrl = getCompanyLogoUrl(cleanCompany, companyDomain);
     const matchScore =
       typeof job.matchScore === "number" ? job.matchScore : 0;
     const matchReason = job.matchReason ?? null;
     const scoreArchived = matchScore < threshold;
+    const isAlreadyApplied = Boolean(job.isAlreadyApplied);
 
+    // Account-wide dedupe (not scoped to this emailMessageId).
     const existing = await prisma.jobOpportunity.findFirst({
       where: {
         accountId: account.id,
-        emailMessageId: emailMessage.id,
-        company: job.company,
-        title: job.title,
+        company: { equals: cleanCompany, mode: "insensitive" },
+        title: { equals: cleanTitle, mode: "insensitive" },
       },
     });
-
-    const sharedData = {
-      location: job.location ?? null,
-      salary: job.salary ?? null,
-      salaryMax:
-        typeof job.salaryMax === "number"
-          ? job.salaryMax
-          : null,
-      postedAt: job.postedAt ?? null,
-      receivedAt: emailDate,
-      description: job.description ?? null,
-      applyUrl: job.applyUrl ?? null,
-      applicationType,
-      recipientEmail,
-      recipientName: job.recipientName ?? null,
-      companyDomain,
-      logoUrl,
-      matchScore,
-      matchReason,
-      isArchived: scoreArchived,
-    };
 
     if (existing) {
       const userArchived =
         existing.status !== "DISMISSED" &&
         existing.isArchived &&
         existing.previousStatus != null;
-      const dismissed = existing.status === "DISMISSED";
 
-      // Backfill metadata without wiping user-driven lifecycle state.
+      // Upgrade to APPLIED when email confirms application; never reset
+      // APPLIED / DISMISSED / REVIEW_READY back to DISCOVERED.
+      let resolvedStatus = existing.status;
+      if (
+        isAlreadyApplied &&
+        existing.status !== "APPLIED" &&
+        existing.status !== "DISMISSED"
+      ) {
+        resolvedStatus = "APPLIED";
+      }
+
+      const preserveLifecycle =
+        existing.status === "APPLIED" ||
+        existing.status === "DISMISSED" ||
+        existing.status === "REVIEW_READY" ||
+        userArchived ||
+        resolvedStatus === "APPLIED";
+
       await prisma.jobOpportunity.update({
         where: { id: existing.id },
         data: {
@@ -470,40 +515,69 @@ export async function persistClassifiedEmail(input: {
               ? job.salaryMax
               : existing.salaryMax,
           postedAt: job.postedAt ?? existing.postedAt,
-          receivedAt: emailDate,
+          // Keep the freshest sighting timestamp without inventing duplicates.
+          receivedAt:
+            emailDate > existing.receivedAt ? emailDate : existing.receivedAt,
           description: job.description ?? existing.description,
           applyUrl: job.applyUrl ?? existing.applyUrl,
           applicationType,
-          recipientEmail,
+          recipientEmail: recipientEmail ?? existing.recipientEmail,
           recipientName: job.recipientName ?? existing.recipientName,
           companyDomain: existing.companyDomain ?? companyDomain,
           logoUrl: existing.logoUrl ?? logoUrl,
           matchScore,
           matchReason: matchReason ?? existing.matchReason,
-          // Preserve user archive / dismiss; only refresh score-based soft-hide otherwise.
-          ...(dismissed || userArchived
-            ? {}
-            : { isArchived: scoreArchived }),
+          status: resolvedStatus,
+          // Only refresh score-archive for still-DISCOVERED soft-hides.
+          isArchived: preserveLifecycle
+            ? resolvedStatus === "APPLIED"
+              ? false
+              : existing.isArchived
+            : scoreArchived,
+          // Clear user-archive markers once promoted to APPLIED.
+          ...(resolvedStatus === "APPLIED"
+            ? { previousStatus: null, dismissedAt: null }
+            : {}),
         },
       });
       opportunitiesUpserted += 1;
       continue;
     }
 
+    const initialStatus = isAlreadyApplied ? "APPLIED" : "DISCOVERED";
+
     await prisma.jobOpportunity.create({
       data: {
         accountId: account.id,
         emailMessageId: emailMessage.id,
-        company: job.company,
-        title: job.title,
-        ...sharedData,
-        status: "DISCOVERED",
+        company: cleanCompany,
+        title: cleanTitle,
+        location: job.location ?? null,
+        salary: job.salary ?? null,
+        salaryMax:
+          typeof job.salaryMax === "number" ? job.salaryMax : null,
+        postedAt: job.postedAt ?? null,
+        receivedAt: emailDate,
+        description: job.description ?? null,
+        applyUrl: job.applyUrl ?? null,
+        applicationType,
+        recipientEmail,
+        recipientName: job.recipientName ?? null,
+        companyDomain,
+        logoUrl,
+        matchScore,
+        matchReason,
+        status: initialStatus,
+        isArchived: initialStatus === "DISCOVERED" ? scoreArchived : false,
       },
     });
     opportunitiesUpserted += 1;
   }
 
-  return { opportunitiesUpserted, applicationTouched: false };
+  return {
+    opportunitiesUpserted,
+    applicationTouched: classification.email_category === "APPLICATION_STATUS",
+  };
 }
 
 export function mapClassificationStatus(

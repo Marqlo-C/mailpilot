@@ -64,6 +64,7 @@ export default async function RootLayout({
           activeEmail={active?.email ?? null}
           hasHistoryId={Boolean(active?.historyId)}
           initialIsSyncing={Boolean(active?.isSyncing)}
+          initialLastSyncedAt={active?.lastSyncedAt ?? null}
         >
           {children}
         </AppShell>

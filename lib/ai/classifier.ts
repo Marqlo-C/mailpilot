@@ -20,6 +20,7 @@ export type ScoredOpportunityDraft = {
   applicationType: ApplicationType;
   recipientEmail: string | null;
   recipientName: string | null;
+  isAlreadyApplied: boolean;
   matchScore: number;
   matchReason: string;
 };
@@ -139,6 +140,39 @@ export function parseSalaryMax(salary: string | null | undefined): number | null
   return max;
 }
 
+const APPLIED_SIGNAL_RE =
+  /\b(?:you\s+applied|applied\s+on\b|application\s+(?:submitted|sent|received|viewed|confirmed)|status\s*:\s*applied|application\s+status\s*:\s*applied)\b/i;
+
+const DESCRIPTION_CHROME_RE =
+  /\b(?:applied\s+on\s+[^.;\n]+|view\s+application|unsubscribe(?:\s+here)?|manage\s+preferences|easy\s+apply|one[- ]click\s+apply)\b[.;:]?\s*/gi;
+
+/**
+ * Detects explicit "already applied" signals in listing / email text.
+ */
+export function detectAlreadyApplied(
+  ...parts: Array<string | null | undefined>
+): boolean {
+  const hay = parts.filter(Boolean).join(" \n ");
+  if (!hay.trim()) return false;
+  return APPLIED_SIGNAL_RE.test(hay);
+}
+
+/**
+ * Strips applied-on timestamps, unsubscribe chrome, and platform disclaimers
+ * from opportunity descriptions.
+ */
+export function cleanOpportunityDescription(
+  description: string | null | undefined
+): string | null {
+  if (!description) return null;
+  const cleaned = description
+    .replace(DESCRIPTION_CHROME_RE, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+
 /**
  * System prompt for profile-aware multi-job extraction + match scoring.
  */
@@ -177,6 +211,7 @@ Return ONLY valid JSON (no markdown fences):
       "applicationType": "DIRECT_EMAIL" | "EXTERNAL_LINK" | "QUICK_APPLY",
       "recipientEmail": string | null,
       "recipientName": string | null,
+      "isAlreadyApplied": boolean,
       "matchScore": number,
       "matchReason": string
     }
@@ -196,7 +231,8 @@ Extraction rules:
 - salary: explicit compensation text if present, else null.
 - salaryMax: estimated annualized MAXIMUM numeric value when salary is present (e.g. "$120k" -> 120000, "$50/hr" -> 104000), else null.
 - postedAt: relative posting age if stated (e.g. "2 days ago", "Just posted"), else null.
-- description: 1-2 sentence summary of requirements / tech stack.
+- description: 1-2 sentence role/requirements summary. STRIP OUT tracking chrome such as "Applied on [Date]", "View application", "Unsubscribe", "Easy Apply", and platform disclaimers — never leave those phrases in description.
+- isAlreadyApplied: true ONLY when the email explicitly indicates the candidate already applied to THIS listing (e.g. "Applied on [Date]", "You applied", "Application submitted", "Application viewed", "Status: Applied", "Application sent"). Otherwise false.
 - applyUrl: Extract the EXACT markdown hyperlink destination URL associated with this role or its "Apply" / "View Job" link (the URL inside [...](URL)). DO NOT return null if a URL is present in the markdown text. Prefer listing/apply URLs over unsubscribe links. Aggregator tracking links are OK.
 - recipientEmail must be a real recruiter/hiring email ONLY. Never invent emails. Use null for job boards / no-reply senders.
 - applicationType: DIRECT_EMAIL only when a real recruiter email exists; QUICK_APPLY for LinkedIn Easy Apply / Glassdoor / Indeed; otherwise EXTERNAL_LINK.

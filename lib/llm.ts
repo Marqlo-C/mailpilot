@@ -5,6 +5,8 @@ import { resolveApplicationType } from "@/lib/application-method";
 import {
   buildClassifierUserPrompt,
   buildProfileAwareClassifierSystemPrompt,
+  cleanOpportunityDescription,
+  detectAlreadyApplied,
   ensureCandidateProfileForScoring,
   heuristicMatchScore,
   parseSalaryMax,
@@ -28,6 +30,7 @@ export const extractedJobSchema = z.object({
     .optional(),
   recipientEmail: z.string().nullable().optional(),
   recipientName: z.string().nullable().optional(),
+  isAlreadyApplied: z.boolean().optional().default(false),
   matchScore: z.coerce.number().min(0).max(100).optional(),
   matchReason: z.string().nullable().optional(),
 });
@@ -248,6 +251,13 @@ export function normalizeClassification(
         applyUrl: raw.action_url,
         recipientEmail: mailto,
         recipientName: null,
+        isAlreadyApplied:
+          raw.status === "APPLIED" ||
+          detectAlreadyApplied(
+            context.subject,
+            raw.action_summary,
+            context.emailBody
+          ),
         matchScore: 50,
         matchReason: "Synthesized from single-job classification fields.",
       },
@@ -348,15 +358,23 @@ export function normalizeClassification(
         ? job.salaryMax
         : parseSalaryMax(job.salary);
 
+    const rawDescription = job.description ?? null;
+    const description = cleanOpportunityDescription(rawDescription);
+    const isAlreadyApplied =
+      Boolean(job.isAlreadyApplied) ||
+      detectAlreadyApplied(rawDescription, job.title) ||
+      (emailCategory === "APPLICATION_STATUS" && raw.status === "APPLIED");
+
     return {
       ...job,
       companyDomain,
       salaryMax,
       postedAt: job.postedAt ?? null,
-      description: job.description ?? null,
+      description,
       recipientEmail,
       applyUrl,
       applicationType: resolvedType,
+      isAlreadyApplied,
       matchScore,
       matchReason,
     };

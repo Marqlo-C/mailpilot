@@ -7,6 +7,7 @@ import {
   Mail,
 } from "lucide-react";
 
+import { COLORED_WORDMARK_SRC, Wordmark } from "@/components/brand/logo";
 import { ScanInboxDialog } from "@/components/scan-inbox-dialog";
 import {
   SenderAvatar,
@@ -71,12 +72,24 @@ export default async function DashboardPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-medium text-primary">Overview</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight md:text-4xl">
-            MailPilot
+          <h1 className="mt-2">
+            <span className="sr-only">MailPilot</span>
+            {/* Crop ~25% top + bottom (show middle 50%): 2× image inside clipped band */}
+            <span className="inline-flex h-[78px] max-w-[min(100%,27rem)] items-center overflow-hidden rounded-[32%/42%] md:max-w-[33rem]">
+              <Wordmark
+                src={COLORED_WORDMARK_SRC}
+                height={156}
+                imgClassName="max-w-none"
+                priority
+              />
+            </span>
           </h1>
-          <p className="mt-2 max-w-xl text-sm text-muted-foreground md:text-base">
+          <p className="mt-2 max-w-xl text-xs leading-snug text-muted-foreground">
             Real-time unsubscribe detection and job-application triage for{" "}
-            {active?.email ?? "your Gmail inboxes"}.
+            <span className="font-medium text-foreground">
+              {active?.email ?? "your Gmail inboxes"}
+            </span>
+            .
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

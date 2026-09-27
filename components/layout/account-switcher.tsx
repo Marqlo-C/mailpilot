@@ -45,7 +45,7 @@ export function AccountSwitcher({
           disabled={pending}
         >
           <span className="flex min-w-0 items-center gap-2">
-            <Logo variant="icon" size="sm" showWordmark={false} />
+            <Logo variant="icon" size="xs" showWordmark={false} />
             <span className="truncate">{label}</span>
           </span>
           <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
