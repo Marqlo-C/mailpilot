@@ -23,6 +23,10 @@ import {
   getCompanyLogoUrl,
   inferDomainFromUrl,
 } from "@/lib/company-logo";
+import {
+  isPlaceholderTitle,
+  parseApplicationEmail,
+} from "@/lib/parsers/application-parser";
 import { prisma } from "@/lib/prisma";
 import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
 import { parseAccountRules } from "@/lib/validations/rules";
@@ -276,84 +280,208 @@ export async function persistClassifiedEmail(input: {
     },
   });
 
-  // APPLICATION_STATUS → existing JobApplication lifecycle path
+  // APPLICATION_STATUS → JobApplication lifecycle, unless we already have
+  // JobOpportunity listings (avoids Applied-tab duplicates).
   if (classification.email_category === "APPLICATION_STATUS") {
     const mappedStatus = mapClassificationStatus(classification.status);
-    const lifecycleStatuses = new Set([
-      "OA",
-      "INTERVIEW",
-      "OFFER",
-      "REJECTION",
-      "APPLIED",
-    ]);
 
-    let isTrashed = false;
-    let isArchived = false;
-
-    if (mappedStatus === "REJECTION") {
-      const action = await applyRejectionAction(gmail, messageId, rules);
-      isTrashed = action.isTrashed;
-      isArchived = action.isArchived;
+    // Enrich company/title/location from confirmation body when possible.
+    const parsedApp = parseApplicationEmail(subject, body);
+    if (parsedApp) {
+      classification.company_name = parsedApp.company;
+      classification.role_title = parsedApp.title;
+      if (classification.jobs.length > 0) {
+        const job0 = classification.jobs[0];
+        job0.company = parsedApp.company;
+        if (!isPlaceholderTitle(parsedApp.title)) {
+          job0.title = parsedApp.title;
+        }
+        if (parsedApp.location) {
+          job0.location = parsedApp.location;
+        }
+        job0.isAlreadyApplied = true;
+      }
     }
 
-    const actionRequired =
-      mappedStatus === "INTERVIEW" || mappedStatus === "OA"
-        ? true
-        : classification.action_required;
-
-    const deadlineAt = parseDeadline(classification.deadline_iso);
-    const companyName = classification.company_name;
-    const durable = await ensurePersistentProfileForAccount(account);
-
-    if (lifecycleStatuses.has(mappedStatus)) {
-      const existing =
-        (await prisma.jobApplication.findFirst({
-          where: {
-            OR: [
-              { accountId: account.id, threadId },
-              { persistentProfileId: durable.id, threadId },
-            ],
-          },
-        })) ??
-        (companyName
-          ? await prisma.jobApplication.findFirst({
-              where: {
-                OR: [
-                  { accountId: account.id },
-                  { persistentProfileId: durable.id },
-                ],
-                companyName: {
-                  contains: companyName,
-                  mode: "insensitive",
-                },
-                status: {
-                  in: ["LEAD", "APPLIED", "OA", "INTERVIEW", "OFFER"],
-                },
-              },
-              orderBy: { updatedAt: "desc" },
-            })
-          : null);
-
-      if (existing) {
-        await prisma.jobApplication.update({
-          where: { id: existing.id },
-          data: {
-            messageId,
-            threadId,
-            accountId: account.id,
-            persistentProfileId: durable.id,
-            status: mappedStatus,
-            companyName: companyName ?? existing.companyName,
-            roleTitle: classification.role_title ?? existing.roleTitle,
-            actionRequired,
-            actionSummary: classification.action_summary,
-            actionUrl: classification.action_url,
-            deadlineAt,
-            emailDate,
-            isTrashed,
-            isArchived,
-          },
+    // Fall through to JobOpportunity upsert when listings were extracted.
+    // If APPLICATION_STATUS has no jobs array, synthesize one from header fields
+    // so standalone confirmations still appear under Applied.
+    if (classification.jobs.length === 0) {
+      if (
+        mappedStatus === "APPLIED" &&
+        (classification.company_name?.trim() ||
+          classification.role_title?.trim())
+      ) {
+        classification.jobs.push({
+          company: classification.company_name?.trim() || "Unknown Company",
+          companyDomain: null,
+          title: classification.role_title?.trim() || "Applied Position",
+          location: null,
+          salary: null,
+          salaryMax: null,
+          postedAt: null,
+          description:
+            classification.action_summary ??
+            "Application confirmation detected via inbox",
+          applyUrl: classification.action_url,
+          applicationType: "EXTERNAL_LINK",
+          recipientEmail: null,
+          recipientName: null,
+          isAlreadyApplied: true,
+          matchScore: 80,
+          matchReason:
+            "Standalone application confirmation (no prior lead matched)",
         });
+
+      }
+    }
+
+    const preferOpportunityPipeline =
+      mappedStatus === "APPLIED" && classification.jobs.length > 0;
+
+
+    if (preferOpportunityPipeline) {
+      // Remove dual-pipeline duplicates (all APPLIED JobApplications for company).
+      const companyName = classification.company_name?.trim();
+      const removed = await prisma.jobApplication.deleteMany({
+        where: {
+          accountId: account.id,
+          OR: [
+            { messageId },
+            ...(companyName
+              ? [
+                  {
+                    companyName: {
+                      equals: companyName,
+                      mode: "insensitive" as const,
+                    },
+                    status: "APPLIED" as const,
+                  },
+                ]
+              : []),
+          ],
+        },
+      });
+
+    } else {
+      const lifecycleStatuses = new Set([
+        "OA",
+        "INTERVIEW",
+        "OFFER",
+        "REJECTION",
+        "APPLIED",
+      ]);
+
+      let isTrashed = false;
+      let isArchived = false;
+
+      if (mappedStatus === "REJECTION") {
+        const action = await applyRejectionAction(gmail, messageId, rules);
+        isTrashed = action.isTrashed;
+        isArchived = action.isArchived;
+      }
+
+      const actionRequired =
+        mappedStatus === "INTERVIEW" || mappedStatus === "OA"
+          ? true
+          : classification.action_required;
+
+      const deadlineAt = parseDeadline(classification.deadline_iso);
+      const companyName = classification.company_name;
+      const durable = await ensurePersistentProfileForAccount(account);
+
+      if (lifecycleStatuses.has(mappedStatus)) {
+        const existing =
+          (await prisma.jobApplication.findFirst({
+            where: {
+              OR: [
+                { accountId: account.id, threadId },
+                { persistentProfileId: durable.id, threadId },
+              ],
+            },
+          })) ??
+          (companyName
+            ? await prisma.jobApplication.findFirst({
+                where: {
+                  OR: [
+                    { accountId: account.id },
+                    { persistentProfileId: durable.id },
+                  ],
+                  companyName: {
+                    contains: companyName,
+                    mode: "insensitive",
+                  },
+                  status: {
+                    in: ["LEAD", "APPLIED", "OA", "INTERVIEW", "OFFER"],
+                  },
+                },
+                orderBy: { updatedAt: "desc" },
+              })
+            : null);
+
+        if (existing) {
+          await prisma.jobApplication.update({
+            where: { id: existing.id },
+            data: {
+              messageId,
+              threadId,
+              accountId: account.id,
+              persistentProfileId: durable.id,
+              status: mappedStatus,
+              companyName: companyName ?? existing.companyName,
+              roleTitle: classification.role_title ?? existing.roleTitle,
+              actionRequired,
+              actionSummary: classification.action_summary,
+              actionUrl: classification.action_url,
+              deadlineAt,
+              emailDate,
+              isTrashed,
+              isArchived,
+            },
+          });
+        } else {
+          await prisma.jobApplication.upsert({
+            where: {
+              accountId_messageId: {
+                accountId: account.id,
+                messageId,
+              },
+            },
+            create: {
+              accountId: account.id,
+              persistentProfileId: durable.id,
+              messageId,
+              threadId,
+              companyName,
+              roleTitle: classification.role_title,
+              status: mappedStatus,
+              dispatchType: "EMAIL",
+              applicationMethod: "DIRECT_EMAIL",
+              opportunityStatus: "DETECTED",
+              dispatchStatus: "PENDING_REVIEW",
+              actionRequired,
+              actionSummary: classification.action_summary,
+              actionUrl: classification.action_url,
+              deadlineAt,
+              emailDate,
+              isTrashed,
+              isArchived,
+            },
+            update: {
+              persistentProfileId: durable.id,
+              companyName,
+              roleTitle: classification.role_title,
+              status: mappedStatus,
+              actionRequired,
+              actionSummary: classification.action_summary,
+              actionUrl: classification.action_url,
+              deadlineAt,
+              emailDate,
+              isTrashed,
+              isArchived,
+            },
+          });
+        }
       } else {
         await prisma.jobApplication.upsert({
           where: {
@@ -397,53 +525,10 @@ export async function persistClassifiedEmail(input: {
           },
         });
       }
-    } else {
-      await prisma.jobApplication.upsert({
-        where: {
-          accountId_messageId: {
-            accountId: account.id,
-            messageId,
-          },
-        },
-        create: {
-          accountId: account.id,
-          persistentProfileId: durable.id,
-          messageId,
-          threadId,
-          companyName,
-          roleTitle: classification.role_title,
-          status: mappedStatus,
-          dispatchType: "EMAIL",
-          applicationMethod: "DIRECT_EMAIL",
-          opportunityStatus: "DETECTED",
-          dispatchStatus: "PENDING_REVIEW",
-          actionRequired,
-          actionSummary: classification.action_summary,
-          actionUrl: classification.action_url,
-          deadlineAt,
-          emailDate,
-          isTrashed,
-          isArchived,
-        },
-        update: {
-          persistentProfileId: durable.id,
-          companyName,
-          roleTitle: classification.role_title,
-          status: mappedStatus,
-          actionRequired,
-          actionSummary: classification.action_summary,
-          actionUrl: classification.action_url,
-          deadlineAt,
-          emailDate,
-          isTrashed,
-          isArchived,
-        },
-      });
-    }
 
-    // Fall through to JobOpportunity upsert when listings were extracted.
-    if (classification.jobs.length === 0) {
-      return { opportunitiesUpserted: 0, applicationTouched: true };
+      if (classification.jobs.length === 0) {
+        return { opportunitiesUpserted: 0, applicationTouched: true };
+      }
     }
   }
 
@@ -472,14 +557,35 @@ export async function persistClassifiedEmail(input: {
     const scoreArchived = matchScore < threshold;
     const isAlreadyApplied = Boolean(job.isAlreadyApplied);
 
-    // Account-wide dedupe (not scoped to this emailMessageId).
-    const existing = await prisma.jobOpportunity.findFirst({
+    // Scoped dedupe: exact (company + title), else upgrade a placeholder
+    // for this company. Never overwrite a different real role at the company.
+    let existing = await prisma.jobOpportunity.findFirst({
       where: {
         accountId: account.id,
         company: { equals: cleanCompany, mode: "insensitive" },
         title: { equals: cleanTitle, mode: "insensitive" },
       },
     });
+
+    let upgradingPlaceholder = false;
+    if (
+      !existing &&
+      isAlreadyApplied &&
+      !isPlaceholderTitle(cleanTitle)
+    ) {
+      existing = await prisma.jobOpportunity.findFirst({
+        where: {
+          accountId: account.id,
+          company: { equals: cleanCompany, mode: "insensitive" },
+          OR: [
+            { title: { equals: "Applied Position", mode: "insensitive" } },
+            { title: { equals: "Software Engineer", mode: "insensitive" } },
+          ],
+        },
+        orderBy: { receivedAt: "desc" },
+      });
+      upgradingPlaceholder = Boolean(existing);
+    }
 
     if (existing) {
       const userArchived =
@@ -498,6 +604,12 @@ export async function persistClassifiedEmail(input: {
         resolvedStatus = "APPLIED";
       }
 
+      const shouldUpgradeTitle =
+        upgradingPlaceholder &&
+        !isPlaceholderTitle(cleanTitle) &&
+        cleanTitle !== existing.title;
+
+
       const preserveLifecycle =
         existing.status === "APPLIED" ||
         existing.status === "DISMISSED" ||
@@ -508,6 +620,7 @@ export async function persistClassifiedEmail(input: {
       await prisma.jobOpportunity.update({
         where: { id: existing.id },
         data: {
+          ...(shouldUpgradeTitle ? { title: cleanTitle } : {}),
           location: job.location ?? existing.location,
           salary: job.salary ?? existing.salary,
           salaryMax:
@@ -528,6 +641,7 @@ export async function persistClassifiedEmail(input: {
           matchScore,
           matchReason: matchReason ?? existing.matchReason,
           status: resolvedStatus,
+          emailMessageId: emailMessage.id,
           // Only refresh score-archive for still-DISCOVERED soft-hides.
           isArchived: preserveLifecycle
             ? resolvedStatus === "APPLIED"
@@ -540,11 +654,13 @@ export async function persistClassifiedEmail(input: {
             : {}),
         },
       });
+
       opportunitiesUpserted += 1;
       continue;
     }
 
     const initialStatus = isAlreadyApplied ? "APPLIED" : "DISCOVERED";
+
 
     await prisma.jobOpportunity.create({
       data: {

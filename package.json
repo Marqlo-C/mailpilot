@@ -7,7 +7,9 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "cleanup:duplicates": "npx tsx scripts/cleanup-duplicates.ts",
+    "revert:false-applied": "npx tsx scripts/revert-false-applied.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

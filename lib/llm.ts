@@ -1,7 +1,9 @@
 import { z } from "zod";
 
-import type { EmailCategory } from "@/lib/application-method";
-import { resolveApplicationType } from "@/lib/application-method";
+import {
+  type EmailCategory,
+  resolveApplicationType,
+} from "@/lib/application-method";
 import {
   buildClassifierUserPrompt,
   buildProfileAwareClassifierSystemPrompt,
@@ -13,6 +15,10 @@ import {
   type CandidateProfileSummary,
 } from "@/lib/ai/classifier";
 import { cleanEmailPayload } from "@/lib/email/cleaner";
+import {
+  isPlaceholderTitle,
+  parseApplicationEmail,
+} from "@/lib/parsers/application-parser";
 import { prisma } from "@/lib/prisma";
 
 export const extractedJobSchema = z.object({
@@ -83,6 +89,9 @@ export type ClassifyOptions = {
 const SUBJECT_KEYWORDS = [
   "application",
   "applied",
+  "application was sent",
+  "thank you for applying",
+  "thank you for your application",
   "interview",
   "thank you for your interest",
   "status",
@@ -102,6 +111,9 @@ const SUBJECT_KEYWORDS = [
   "open role",
   "we're hiring",
   "we are hiring",
+  "engineer",
+  "developer",
+  "software",
 ] as const;
 
 const DIGEST_SENDER_HINTS = [
@@ -113,7 +125,17 @@ const DIGEST_SENDER_HINTS = [
   "no-reply@",
   "jobalert",
   "alerts@",
+  "greenhouse",
+  "lever.co",
+  "workday",
+  "ashbyhq",
+  "smartrecruiters",
+  "icims",
 ] as const;
+
+/** LinkedIn / ATS confirmation: "your application was sent to Acme". */
+const APPLICATION_SENT_TO_RE =
+  /(?:your\s+)?application\s+(?:was\s+|has\s+been\s+)?sent\s+to\s+(.+?)(?:\s*[-–|·]|$)/i;
 
 const DEFAULT_OPENROUTER_MODELS = [
   process.env.OPENROUTER_MODEL,
@@ -139,6 +161,87 @@ export function matchesJobSubjectKeywords(subject: string): boolean {
 function looksLikeDigest(subject: string, fromEmail?: string | null): boolean {
   const hay = `${subject} ${fromEmail ?? ""}`.toLowerCase();
   return DIGEST_SENDER_HINTS.some((hint) => hay.includes(hint));
+}
+
+/**
+ * Deterministic APPLICATION_STATUS classification when LLM is unavailable
+ * but the subject clearly confirms an application was submitted.
+ */
+export function heuristicApplicationConfirmation(input: {
+  subject: string;
+  body?: string;
+  fromEmail?: string | null;
+}): JobClassification | null {
+  const { subject, body, fromEmail } = input;
+  const parsed = parseApplicationEmail(subject, body ?? "");
+  const sentMatch = subject.match(APPLICATION_SENT_TO_RE);
+  const thankYou =
+    /thank you for (?:your )?appl/i.test(subject) ||
+    /application\s+(?:received|submitted|confirmed)/i.test(subject);
+  const appliedSignal = detectAlreadyApplied(subject, body);
+
+  if (!parsed && !sentMatch && !thankYou && !appliedSignal) {
+    return null;
+  }
+
+  let company = parsed?.company?.trim() || null;
+  if (!company && sentMatch?.[1]) {
+    company = sentMatch[1].replace(/\s+/g, " ").trim();
+  }
+  if (!company && fromEmail) {
+    const domain = fromEmail.split("@")[1]?.toLowerCase() ?? "";
+    if (
+      domain &&
+      !DIGEST_SENDER_HINTS.some((hint) =>
+        domain.includes(hint.replace("@", ""))
+      )
+    ) {
+      company = domain.split(".")[0] ?? null;
+    }
+  }
+
+  const resolvedCompany =
+    company && company.length > 0 ? company : "Unknown Company";
+  const title =
+    parsed?.title && !isPlaceholderTitle(parsed.title)
+      ? parsed.title
+      : "Applied Position";
+  const location = parsed?.location ?? null;
+
+
+  return {
+    is_job_related: true,
+    email_category: "APPLICATION_STATUS",
+    company_name: resolvedCompany,
+    role_title: title,
+    status: "APPLIED",
+    action_required: false,
+    action_summary: "Application confirmation detected from inbox",
+    action_url: null,
+    deadline_iso: null,
+    jobs: [
+      {
+        company: resolvedCompany,
+        companyDomain: null,
+        title,
+        location,
+        salary: null,
+        salaryMax: null,
+        postedAt: null,
+        description: location
+          ? `Application submitted (${location}).`
+          : "Application submitted; confirmation email detected.",
+        applyUrl: null,
+        applicationType: "EXTERNAL_LINK",
+        recipientEmail: null,
+        recipientName: null,
+        isAlreadyApplied: true,
+        matchScore: 80,
+        matchReason:
+          "Application confirmation detected via inbox (heuristic fallback)",
+      },
+    ],
+  };
 }
 
 function clampScore(value: number | null | undefined): number {
@@ -401,8 +504,21 @@ export function sanitizeEmailBody(raw: string): string {
 export async function classifyJobEmail(
   options: ClassifyOptions
 ): Promise<JobClassification | null> {
-  if (!matchesJobSubjectKeywords(options.subject)) {
+  const passesSubject = matchesJobSubjectKeywords(options.subject);
+  const knownJobSender = looksLikeDigest(options.subject, options.fromEmail);
+  const appliedHeuristic = heuristicApplicationConfirmation({
+    subject: options.subject,
+    body: options.body,
+    fromEmail: options.fromEmail,
+  });
+
+  if (!passesSubject && !knownJobSender && !appliedHeuristic) {
     return null;
+  }
+
+  // Fast-path clear application confirmations without burning LLM quota.
+  if (appliedHeuristic) {
+    return appliedHeuristic;
   }
 
   const sanitizedBody = sanitizeEmailBody(options.body);

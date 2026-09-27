@@ -32,10 +32,15 @@ export type OpportunitySyncResult = {
 };
 
 const JOB_QUERY_BASE =
-  "(subject:(job OR career OR role OR hiring OR interview OR opportunity OR application OR alert) OR from:(glassdoor OR linkedin OR indeed OR lever OR greenhouse OR dice)) -in:trash -in:spam";
+  "(" +
+  'subject:(job OR career OR role OR hiring OR interview OR opportunity OR application OR applied OR alert OR "thank you for applying" OR "application received" OR "application was sent" OR offer)' +
+  " OR from:(glassdoor OR linkedin OR indeed OR lever OR greenhouse OR dice OR workday OR ashbyhq OR smartrecruiters OR icims OR myworkdayjobs)" +
+  ") -in:trash -in:spam";
 
 const BATCH_SIZE = 4;
 const RATE_LIMIT_BASE_MS = 800;
+/** Overlap buffer so boundary emails are not dropped between incremental runs. */
+const INCREMENTAL_OVERLAP_SECONDS = 10 * 60;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -128,9 +133,10 @@ function buildSyncQuery(input: {
   let query = JOB_QUERY_BASE;
 
   if (!input.forceRescan && input.lastSyncedAt) {
-    // Incremental: only mail newer than last sync (5-minute buffer).
+    // Incremental: only mail newer than last sync (10-minute overlap buffer).
     const afterTimestamp =
-      Math.floor(input.lastSyncedAt.getTime() / 1000) - 300;
+      Math.floor(input.lastSyncedAt.getTime() / 1000) -
+      INCREMENTAL_OVERLAP_SECONDS;
     query += ` after:${afterTimestamp}`;
   } else {
     query += ` newer_than:${input.lookbackDays}d`;
@@ -184,6 +190,7 @@ export async function runOpportunitySync(
     });
 
     const messageIds = await listGmailMessageIds(gmail, query, maxMessages);
+
     if (messageIds.length === 0) {
       return { processed: 0, opportunitiesUpserted: 0, skipped: 0 };
     }
