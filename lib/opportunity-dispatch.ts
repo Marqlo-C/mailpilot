@@ -285,6 +285,7 @@ export async function dispatchOpportunityEmail(
       draftSubject: subject,
       draftBody: body,
       status: createDraftOnly ? "REVIEW_READY" : "APPLIED",
+      ...(createDraftOnly ? {} : { appliedAt: new Date() }),
     },
   });
 

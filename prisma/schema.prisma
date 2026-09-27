@@ -95,6 +95,7 @@ model AccountSettings {
 
   llmProvider    String  @default("OPENROUTER") // "OPENROUTER" | "LOCAL_OLLAMA"
   localOllamaUrl String? @default("http://localhost:11434")
+  ollamaModel    String? @default("llama3.1:8b")
 
   // Dynamic rules validated via Zod schema (accountRulesSchema)
   rules          Json    @default("{}")
@@ -189,6 +190,8 @@ model JobOpportunity {
   status          String   @default("DISCOVERED")
   /// Preserves category before user archive/dismiss so Restore can return cleanly.
   previousStatus  String?
+  /// When the candidate applied (email confirmation date or manual mark).
+  appliedAt       DateTime?
   /// 0–100 fit vs candidate profile; below threshold → isArchived (when not user-archived).
   matchScore      Int      @default(0)
   /// One-sentence AI verdict of fit / mismatch.

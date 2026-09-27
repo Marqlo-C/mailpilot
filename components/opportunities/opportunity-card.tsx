@@ -136,6 +136,15 @@ export function OpportunityCard({
   const score = opportunity.matchScore ?? 0;
   const belowThreshold = score < matchThreshold;
   const dismissed = opportunity.status === "DISMISSED";
+  const isApplied =
+    opportunity.status === "APPLIED" || Boolean(opportunity.appliedAt);
+  const appliedDate = opportunity.appliedAt ?? opportunity.receivedAt;
+  const appliedLabel = appliedDate
+    ? new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "numeric",
+      }).format(new Date(appliedDate))
+    : "Recently";
   const userArchived = isUserArchived(opportunity);
   const isQuickApply = opportunity.applicationType === "QUICK_APPLY";
   const isDirectEmail = opportunity.applicationType === "DIRECT_EMAIL";
@@ -261,7 +270,7 @@ export function OpportunityCard({
         </div>
       ) : null}
 
-      {/* Top-right: classification + match score corner pill */}
+      {/* Top-right: classification + match score / applied date corner pill */}
       <div className="absolute top-0 right-0 z-10 inline-flex h-[27px] select-none items-stretch overflow-hidden rounded-bl-xl border-b border-l border-border/70 bg-secondary/35 backdrop-blur-sm">
         <div
           className="inline-flex items-center gap-1 px-2.5 text-[11px] font-medium text-muted-foreground"
@@ -277,15 +286,28 @@ export function OpportunityCard({
           <span>{classifyLabel}</span>
         </div>
         <div className="my-1 w-px bg-border/70" />
-        <div
-          className={cn(
-            "inline-flex items-center px-2.5 text-xs font-bold tracking-tight tabular-nums",
-            scoreTone(score)
-          )}
-          title={opportunity.matchReason ?? undefined}
-        >
-          {score}%
-        </div>
+        {isApplied ? (
+          <div
+            className="inline-flex items-center gap-1 px-2.5 text-[11px] font-medium text-muted-foreground"
+            title={
+              appliedDate
+                ? new Date(appliedDate).toLocaleString()
+                : "Applied"
+            }
+          >
+            Applied {appliedLabel}
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "inline-flex items-center px-2.5 text-xs font-bold tracking-tight tabular-nums",
+              scoreTone(score)
+            )}
+            title={opportunity.matchReason ?? undefined}
+          >
+            {score}%
+          </div>
+        )}
       </div>
 
       {/* Header: logo + role with clearance below corner pills */}

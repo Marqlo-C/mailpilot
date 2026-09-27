@@ -9,30 +9,59 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function isPlaceholderTitle(title: string | null | undefined): boolean {
+/** Generic placeholder title when a confirmation omits the role name. */
+export function genericRoleTitle(company: string): string {
+  const cleaned = company.trim() || "Unknown Company";
+  return `Role at ${cleaned}`;
+}
+
+/**
+ * True for placeholder / receipt titles that should be upgraded when a
+ * real role name is later extracted. Role-agnostic — no profession names.
+ */
+export function isGenericTitle(
+  title: string | null | undefined,
+  company?: string | null
+): boolean {
   if (!title) return true;
   const lower = title.toLowerCase().trim();
-  return (
+  if (
     lower === "applied position" ||
-    lower === "software engineer" ||
+    lower === "applicant" ||
     lower.includes("application was sent") ||
     lower === "linkedin"
-  );
+  ) {
+    return true;
+  }
+  if (company) {
+    const roleAt = genericRoleTitle(company).toLowerCase();
+    if (lower === roleAt) return true;
+  }
+  return /^role at .+/i.test(title.trim());
+}
+
+/** @deprecated Prefer isGenericTitle — kept for existing call sites. */
+export function isPlaceholderTitle(
+  title: string | null | undefined,
+  company?: string | null
+): boolean {
+  return isGenericTitle(title, company);
 }
 
 /**
  * Extracts company / title / location from application confirmation emails
  * (LinkedIn Easy Apply, Greenhouse, Workday, Lever, Ashby).
- * Handles multi-line and whitespace-collapsed bodies.
+ * Handles multi-line and whitespace-collapsed bodies. Fully role-agnostic.
  */
 export function parseApplicationEmail(
   subject: string,
   body: string
 ): ExtractedApplication | null {
+  const cleanSubject = subject.trim();
   const cleanBody = body.replace(/\r\n/g, "\n").replace(/\u00a0/g, " ");
 
-  // 1. Extract Company from Subject: e.g. "Marq, your application was sent to ByteDance"
-  const linkedInMatch = subject.match(
+  // --- A. LinkedIn Confirmations ---
+  const linkedInMatch = cleanSubject.match(
     /(?:your application was sent to|application (?:was |has been )?sent to)\s+([^.\n\r]+)/i
   );
 
@@ -43,7 +72,6 @@ export function parseApplicationEmail(
     let title: string | null = null;
     let location: string | null = null;
 
-    // Split body after "your application was sent to <Company>"
     const postSentParts = cleanBody.split(
       new RegExp(
         `(?:your application was sent to|application was sent to)\\s+${escCompany}`,
@@ -59,8 +87,6 @@ export function parseApplicationEmail(
         ""
       );
 
-      // Title sits before the next Company token; location after it.
-      // e.g. "Backend Software Engineer - Platforms ByteDance · San Jose, CA"
       const roleParts = contentAfterSent.split(
         new RegExp(`\\b${escCompany}\\b`, "i")
       );
@@ -98,7 +124,7 @@ export function parseApplicationEmail(
       }
     }
 
-    // Collapsed-whitespace fallback when split above missed (no second company token).
+    // Collapsed-whitespace fallback
     if (!title) {
       const collapsed = cleanBody.replace(/\s+/g, " ").trim();
       const flatMatch = new RegExp(
@@ -106,7 +132,8 @@ export function parseApplicationEmail(
         "i"
       ).exec(collapsed);
       if (flatMatch) {
-        const candidateTitle = flatMatch[1]?.replace(/\s+/g, " ").trim() || null;
+        const candidateTitle =
+          flatMatch[1]?.replace(/\s+/g, " ").trim() || null;
         if (
           candidateTitle &&
           !candidateTitle.toLowerCase().includes("application")
@@ -133,20 +160,38 @@ export function parseApplicationEmail(
 
     return {
       company,
-      title: title && !isPlaceholderTitle(title) ? title : "Applied Position",
+      title:
+        title && !isGenericTitle(title, company)
+          ? title
+          : genericRoleTitle(company),
       location: location || null,
       appliedDate,
     };
   }
 
-  // 2. Generic ATS Confirmation fallback (Workday, Greenhouse, Lever)
-  const genericMatch = subject.match(
+  // --- B. Generic ATS: "Thank you for applying to [Role] at [Company]" ---
+  const atsWithRoleMatch = cleanSubject.match(
+    /(?:applying to|application for)\s+(.+?)\s+(?:at|with)\s+([^.\n\r-]+)/i
+  );
+
+  if (atsWithRoleMatch) {
+    return {
+      title: atsWithRoleMatch[1].trim(),
+      company: atsWithRoleMatch[2].trim(),
+      location: null,
+      appliedDate: new Date(),
+    };
+  }
+
+  const genericCompanyMatch = cleanSubject.match(
     /(?:thank you for applying to|application received for|applied to)\s+([^.\n\r-]+)/i
   );
-  if (genericMatch) {
+
+  if (genericCompanyMatch) {
+    const company = genericCompanyMatch[1].trim();
     return {
-      company: genericMatch[1].trim(),
-      title: "Applied Position",
+      company,
+      title: genericRoleTitle(company),
       location: null,
       appliedDate: new Date(),
     };

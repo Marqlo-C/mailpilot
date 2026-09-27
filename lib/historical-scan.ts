@@ -281,6 +281,7 @@ async function scanJobCandidates(
     settings: {
       llmProvider: string;
       localOllamaUrl: string | null;
+      ollamaModel: string | null;
       rules: unknown;
     } | null;
   },
@@ -344,6 +345,7 @@ async function scanJobCandidates(
       const classification = await classifyEmail({
         llmProvider,
         localOllamaUrl: account.settings?.localOllamaUrl,
+        ollamaModel: account.settings?.ollamaModel,
         subject,
         body,
         fromEmail: sender?.email ?? null,

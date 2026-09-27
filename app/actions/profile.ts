@@ -70,6 +70,7 @@ export async function extractResumeDraft(
           ? "LOCAL_OLLAMA"
           : "OPENROUTER",
       localOllamaUrl: account.settings?.localOllamaUrl,
+      ollamaModel: account.settings?.ollamaModel,
     });
 
     return { ok: true, data: draft };

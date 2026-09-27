@@ -178,7 +178,7 @@ export async function runOpportunitySync(
 
     if (!account.profile) {
       console.warn(
-        "Sync warning: Account has no linked profile. Match scoring will use software/CS defaults."
+        "Sync warning: Account has no linked profile. Match scoring will use generic profile defaults."
       );
     }
 
@@ -250,6 +250,7 @@ export async function runOpportunitySync(
             const classification = await classifyEmail({
               llmProvider,
               localOllamaUrl: account.settings?.localOllamaUrl,
+              ollamaModel: account.settings?.ollamaModel,
               subject,
               body: cleanedText,
               fromEmail: sender?.email ?? null,

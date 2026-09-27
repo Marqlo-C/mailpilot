@@ -139,6 +139,7 @@ function inferTechnologies(text: string): string[] {
 export type ParseResumeOptions = {
   llmProvider?: LlmProvider;
   localOllamaUrl?: string | null;
+  ollamaModel?: string | null;
 };
 
 /**
@@ -158,6 +159,7 @@ export async function parseResumeToStructuredProfile(
     userPrompt: sliced,
     llmProvider: options.llmProvider ?? "OPENROUTER",
     localOllamaUrl: options.localOllamaUrl,
+    ollamaModel: options.ollamaModel,
   });
 
   if (!json) {

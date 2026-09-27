@@ -11,6 +11,7 @@ import {
   SESSION_COOKIE,
 } from "@/lib/constants";
 import { getGmailClientForAccount } from "@/lib/google";
+import { normalizeOllamaBaseUrl } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
 import { processInboxDelta } from "@/lib/sync";
 
@@ -141,13 +142,14 @@ export async function triggerManualSync(
 export async function pingOllama(
   accountId: string,
   url?: string
-): Promise<ActionResult<{ models: number }>> {
+): Promise<ActionResult<{ models: string[] }>> {
   const settings = await prisma.accountSettings.findUnique({
     where: { accountId },
   });
 
-  const base =
-    url?.trim() || settings?.localOllamaUrl || "http://localhost:11434";
+  const base = normalizeOllamaBaseUrl(
+    url?.trim() || settings?.localOllamaUrl || "http://localhost:11434"
+  );
 
   try {
     const endpoint = new URL("/api/tags", base).toString();
@@ -160,8 +162,19 @@ export async function pingOllama(
       return { ok: false, error: `Ollama responded with HTTP ${response.status}` };
     }
 
-    const json = (await response.json()) as { models?: unknown[] };
-    return { ok: true, data: { models: json.models?.length ?? 0 } };
+    const json = (await response.json()) as {
+      models?: Array<string | { name?: string; model?: string }>;
+    };
+
+    const models = (json.models ?? [])
+      .map((entry) => {
+        if (typeof entry === "string") return entry.trim();
+        return (entry.name ?? entry.model ?? "").trim();
+      })
+      .filter((name) => name.length > 0)
+      .sort((a, b) => a.localeCompare(b));
+
+    return { ok: true, data: { models } };
   } catch (error) {
     return {
       ok: false,

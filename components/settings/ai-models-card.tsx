@@ -25,19 +25,32 @@ type AiModelsCardProps = {
   accountId: string | null;
   llmProvider: string;
   localOllamaUrl: string;
+  ollamaModel: string;
 };
 
 export function AiModelsCard({
   accountId,
   llmProvider,
   localOllamaUrl,
+  ollamaModel,
 }: AiModelsCardProps) {
   const router = useRouter();
   const [url, setUrl] = useState(localOllamaUrl);
+  const [selectedModel, setSelectedModel] = useState(ollamaModel);
+  const [models, setModels] = useState<string[]>(
+    ollamaModel ? [ollamaModel] : []
+  );
   const [pingMessage, setPingMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const useOllama = llmProvider === "LOCAL_OLLAMA";
   const disabled = !accountId || pending;
+
+  const selectOptions =
+    models.length > 0
+      ? models
+      : selectedModel
+        ? [selectedModel]
+        : [];
 
   return (
     <Card>
@@ -95,13 +108,26 @@ export function AiModelsCard({
               onClick={() => {
                 if (!accountId) return;
                 startTransition(async () => {
-                  await updateOllamaUrl(accountId, url);
+                  await updateOllamaUrl(accountId, url, selectedModel);
                   const result = await pingOllama(accountId, url);
-                  setPingMessage(
-                    result.ok
-                      ? `Connected — ${result.data?.models ?? 0} model(s)`
-                      : result.error
-                  );
+                  if (result.ok && result.data) {
+                    const tags = result.data.models;
+                    setModels(tags);
+                    setPingMessage(
+                      `Connected — ${tags.length} model(s)`
+                    );
+                    if (
+                      tags.length > 0 &&
+                      !tags.includes(selectedModel)
+                    ) {
+                      const next = tags[0]!;
+                      setSelectedModel(next);
+                      await updateOllamaUrl(accountId, url, next);
+                    }
+                  } else {
+                    setModels([]);
+                    setPingMessage(result.ok ? null : result.error);
+                  }
                   router.refresh();
                 });
               }}
@@ -116,6 +142,33 @@ export function AiModelsCard({
             <p className="text-sm text-muted-foreground">{pingMessage}</p>
           )}
         </div>
+
+        {selectOptions.length > 0 && (
+          <div className="space-y-2">
+            <Label htmlFor="ollama-model">Ollama model</Label>
+            <select
+              id="ollama-model"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              value={selectedModel}
+              disabled={disabled}
+              onChange={(e) => {
+                const next = e.target.value;
+                setSelectedModel(next);
+                if (!accountId) return;
+                startTransition(async () => {
+                  await updateOllamaUrl(accountId, url, next);
+                  router.refresh();
+                });
+              }}
+            >
+              {selectOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

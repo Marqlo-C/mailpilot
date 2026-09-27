@@ -1,20 +1,14 @@
 import { PrismaClient } from "@prisma/client";
 
+import { isGenericTitle } from "../lib/parsers/application-parser";
+
 const prisma = new PrismaClient();
 
-function isPlaceholderTitle(title: string): boolean {
-  const lower = title.toLowerCase().trim();
-  return (
-    lower === "applied position" ||
-    lower.includes("application was sent") ||
-    lower === "linkedin"
-  );
-}
-
 /**
- * One-shot cleanup: merge Applied Position duplicates per company and
+ * One-shot cleanup: merge generic/placeholder duplicates per company and
  * purge APPLIED JobApplication rows that mirror JobOpportunity cards.
  * Does NOT wipe OA/INTERVIEW/REJECTION JobApplications.
+ * Safe for multi-tenant use — never hardcodes profession titles.
  */
 async function cleanupDuplicates() {
   console.log("Starting database deduplication cleanup...");
@@ -38,28 +32,30 @@ async function cleanupDuplicates() {
   for (const [, opps] of grouped.entries()) {
     if (opps.length <= 1) continue;
 
+    const company = opps[0]?.company ?? "";
+
     const bestRecord =
       opps.find(
-        (o) => !isPlaceholderTitle(o.title) && o.status === "APPLIED"
+        (o) => !isGenericTitle(o.title, company) && o.status === "APPLIED"
       ) ||
-      opps.find((o) => !isPlaceholderTitle(o.title)) ||
+      opps.find((o) => !isGenericTitle(o.title, company)) ||
       opps.find((o) => o.status === "APPLIED") ||
       opps[0];
 
     const titleWithContent = opps.find(
-      (o) => !isPlaceholderTitle(o.title)
+      (o) => !isGenericTitle(o.title, company)
     )?.title;
     const locationWithContent = opps.find((o) => Boolean(o.location))?.location;
 
     if (
-      (isPlaceholderTitle(bestRecord.title) && titleWithContent) ||
+      (isGenericTitle(bestRecord.title, company) && titleWithContent) ||
       (!bestRecord.location && locationWithContent) ||
       bestRecord.status !== "APPLIED"
     ) {
       await prisma.jobOpportunity.update({
         where: { id: bestRecord.id },
         data: {
-          ...(isPlaceholderTitle(bestRecord.title) && titleWithContent
+          ...(isGenericTitle(bestRecord.title, company) && titleWithContent
             ? { title: titleWithContent }
             : {}),
           ...(locationWithContent && !bestRecord.location
@@ -79,7 +75,7 @@ async function cleanupDuplicates() {
       .filter((o) => o.id !== bestRecord.id)
       .filter(
         (o) =>
-          isPlaceholderTitle(o.title) ||
+          isGenericTitle(o.title, company) ||
           o.title.toLowerCase() === bestRecord.title.toLowerCase()
       )
       .map((o) => o.id);
@@ -98,22 +94,21 @@ async function cleanupDuplicates() {
     select: { accountId: true, company: true },
   });
 
-  let legacyDeleted = 0;
+  let appsDeleted = 0;
   for (const opp of appliedOpps) {
-    const result = await prisma.jobApplication.deleteMany({
+    const del = await prisma.jobApplication.deleteMany({
       where: {
         accountId: opp.accountId,
-        status: "APPLIED",
         companyName: { equals: opp.company, mode: "insensitive" },
+        status: "APPLIED",
       },
     });
-    legacyDeleted += result.count;
+    appsDeleted += del.count;
   }
 
-  console.log(`Deduplication complete:
-- Deleted ${totalDeleted} duplicate JobOpportunity rows
-- Upgraded ${totalUpgraded} placeholder / APPLIED records
-- Purged ${legacyDeleted} mirrored APPLIED JobApplication rows`);
+  console.log(
+    `Cleanup complete. Upgraded ${totalUpgraded} opportunities, deleted ${totalDeleted} duplicate opportunities, deleted ${appsDeleted} mirrored APPLIED applications.`
+  );
 }
 
 cleanupDuplicates()

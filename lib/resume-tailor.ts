@@ -51,6 +51,7 @@ export async function tailorResumeForJob(
   options: {
     llmProvider?: LlmProvider;
     localOllamaUrl?: string | null;
+    ollamaModel?: string | null;
     jobText?: string;
     companyName?: string | null;
     roleTitle?: string | null;
@@ -86,6 +87,7 @@ export async function tailorResumeForJob(
     }),
     llmProvider: options.llmProvider ?? "OPENROUTER",
     localOllamaUrl: options.localOllamaUrl,
+    ollamaModel: options.ollamaModel,
   });
 
   const parsed = result ? tailorSchema.safeParse(result) : null;

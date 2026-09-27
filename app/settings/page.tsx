@@ -76,6 +76,7 @@ export default async function SettingsPage({
           localOllamaUrl={
             active?.settings?.localOllamaUrl ?? "http://localhost:11434"
           }
+          ollamaModel={active?.settings?.ollamaModel ?? "llama3.1:8b"}
         />
       </div>
     </div>

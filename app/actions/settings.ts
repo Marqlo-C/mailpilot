@@ -132,16 +132,31 @@ export async function updateLlmProvider(
 }
 
 /**
- * Updates the local Ollama endpoint URL.
+ * Updates the local Ollama endpoint URL and optionally the selected model.
  */
 export async function updateOllamaUrl(
   accountId: string,
-  url: string
+  url: string,
+  ollamaModel?: string | null
 ): Promise<ActionResult> {
   const trimmed = url.trim();
   const parsed = z.string().url().safeParse(trimmed);
   if (!parsed.success) {
     return { ok: false, error: "Invalid Ollama URL" };
+  }
+
+  const modelParsed =
+    ollamaModel === undefined
+      ? null
+      : z
+          .string()
+          .trim()
+          .min(1)
+          .max(120)
+          .safeParse(ollamaModel?.trim() || "llama3.1:8b");
+
+  if (ollamaModel !== undefined && modelParsed && !modelParsed.success) {
+    return { ok: false, error: "Invalid Ollama model" };
   }
 
   const settings = await prisma.accountSettings.findUnique({
@@ -153,7 +168,10 @@ export async function updateOllamaUrl(
 
   await prisma.accountSettings.update({
     where: { accountId },
-    data: { localOllamaUrl: parsed.data },
+    data: {
+      localOllamaUrl: parsed.data,
+      ...(modelParsed?.success ? { ollamaModel: modelParsed.data } : {}),
+    },
   });
 
   revalidatePath("/settings");

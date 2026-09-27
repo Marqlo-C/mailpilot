@@ -24,7 +24,8 @@ import {
   inferDomainFromUrl,
 } from "@/lib/company-logo";
 import {
-  isPlaceholderTitle,
+  genericRoleTitle,
+  isGenericTitle,
   parseApplicationEmail,
 } from "@/lib/parsers/application-parser";
 import { prisma } from "@/lib/prisma";
@@ -48,6 +49,7 @@ export type ClassifiableAccount = {
   settings: {
     llmProvider: string;
     localOllamaUrl: string | null;
+    ollamaModel: string | null;
     rules: unknown;
   } | null;
 };
@@ -186,6 +188,7 @@ async function processMessage(
   const classification = await classifyJobEmail({
     llmProvider,
     localOllamaUrl: settings?.localOllamaUrl,
+    ollamaModel: settings?.ollamaModel,
     subject,
     body,
     fromEmail: sender?.email ?? null,
@@ -293,7 +296,7 @@ export async function persistClassifiedEmail(input: {
       if (classification.jobs.length > 0) {
         const job0 = classification.jobs[0];
         job0.company = parsedApp.company;
-        if (!isPlaceholderTitle(parsedApp.title)) {
+        if (!isGenericTitle(parsedApp.title, parsedApp.company)) {
           job0.title = parsedApp.title;
         }
         if (parsedApp.location) {
@@ -315,7 +318,11 @@ export async function persistClassifiedEmail(input: {
         classification.jobs.push({
           company: classification.company_name?.trim() || "Unknown Company",
           companyDomain: null,
-          title: classification.role_title?.trim() || "Applied Position",
+          title:
+            classification.role_title?.trim() ||
+            genericRoleTitle(
+              classification.company_name?.trim() || "Unknown Company"
+            ),
           location: null,
           salary: null,
           salaryMax: null,
@@ -329,8 +336,7 @@ export async function persistClassifiedEmail(input: {
           recipientName: null,
           isAlreadyApplied: true,
           matchScore: 80,
-          matchReason:
-            "Standalone application confirmation (no prior lead matched)",
+          matchReason: "Application confirmed via email receipt.",
         });
 
       }
@@ -568,18 +574,20 @@ export async function persistClassifiedEmail(input: {
     });
 
     let upgradingPlaceholder = false;
-    if (
-      !existing &&
-      isAlreadyApplied &&
-      !isPlaceholderTitle(cleanTitle)
-    ) {
+    if (!existing && isAlreadyApplied && !isGenericTitle(cleanTitle, cleanCompany)) {
       existing = await prisma.jobOpportunity.findFirst({
         where: {
           accountId: account.id,
           company: { equals: cleanCompany, mode: "insensitive" },
           OR: [
             { title: { equals: "Applied Position", mode: "insensitive" } },
-            { title: { equals: "Software Engineer", mode: "insensitive" } },
+            { title: { equals: "Applicant", mode: "insensitive" } },
+            {
+              title: {
+                equals: genericRoleTitle(cleanCompany),
+                mode: "insensitive",
+              },
+            },
           ],
         },
         orderBy: { receivedAt: "desc" },
@@ -606,9 +614,8 @@ export async function persistClassifiedEmail(input: {
 
       const shouldUpgradeTitle =
         upgradingPlaceholder &&
-        !isPlaceholderTitle(cleanTitle) &&
+        !isGenericTitle(cleanTitle, cleanCompany) &&
         cleanTitle !== existing.title;
-
 
       const preserveLifecycle =
         existing.status === "APPLIED" ||
@@ -616,6 +623,11 @@ export async function persistClassifiedEmail(input: {
         existing.status === "REVIEW_READY" ||
         userArchived ||
         resolvedStatus === "APPLIED";
+
+      const appliedAt =
+        resolvedStatus === "APPLIED"
+          ? existing.appliedAt ?? emailDate ?? new Date()
+          : existing.appliedAt;
 
       await prisma.jobOpportunity.update({
         where: { id: existing.id },
@@ -641,6 +653,7 @@ export async function persistClassifiedEmail(input: {
           matchScore,
           matchReason: matchReason ?? existing.matchReason,
           status: resolvedStatus,
+          appliedAt,
           emailMessageId: emailMessage.id,
           // Only refresh score-archive for still-DISCOVERED soft-hides.
           isArchived: preserveLifecycle
@@ -660,7 +673,6 @@ export async function persistClassifiedEmail(input: {
     }
 
     const initialStatus = isAlreadyApplied ? "APPLIED" : "DISCOVERED";
-
 
     await prisma.jobOpportunity.create({
       data: {
@@ -684,6 +696,7 @@ export async function persistClassifiedEmail(input: {
         matchScore,
         matchReason,
         status: initialStatus,
+        appliedAt: isAlreadyApplied ? emailDate ?? new Date() : null,
         isArchived: initialStatus === "DISCOVERED" ? scoreArchived : false,
       },
     });

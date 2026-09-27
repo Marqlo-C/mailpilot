@@ -171,7 +171,12 @@ export async function markOpportunityExternalApplied(
 ): Promise<ActionResult> {
   await prisma.jobOpportunity.update({
     where: { id: opportunityId },
-    data: { status: "APPLIED", isArchived: false, previousStatus: null },
+    data: {
+      status: "APPLIED",
+      isArchived: false,
+      previousStatus: null,
+      appliedAt: new Date(),
+    },
   });
   revalidatePath("/jobs");
   return { ok: true };
@@ -188,6 +193,7 @@ export async function unmarkApplied(
       isArchived: false,
       previousStatus: null,
       dismissedAt: null,
+      appliedAt: null,
     },
   });
   revalidatePath("/jobs");

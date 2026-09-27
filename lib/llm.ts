@@ -16,7 +16,8 @@ import {
 } from "@/lib/ai/classifier";
 import { cleanEmailPayload } from "@/lib/email/cleaner";
 import {
-  isPlaceholderTitle,
+  genericRoleTitle,
+  isGenericTitle,
   parseApplicationEmail,
 } from "@/lib/parsers/application-parser";
 import { prisma } from "@/lib/prisma";
@@ -79,12 +80,27 @@ export type LlmProvider = "OPENROUTER" | "LOCAL_OLLAMA";
 export type ClassifyOptions = {
   llmProvider: LlmProvider;
   localOllamaUrl?: string | null;
+  ollamaModel?: string | null;
   subject: string;
   body: string;
   fromEmail?: string | null;
   /** When provided, scoring is profile-aware. */
   candidateProfile?: CandidateProfileSummary | null;
 };
+
+const DEFAULT_OLLAMA_MODEL = "llama3.1:8b";
+
+/**
+ * Strips trailing slashes and a trailing `/v1` so `/api/tags` and `/api/chat`
+ * resolve against the Ollama root (not an OpenAI-compat base path).
+ */
+export function normalizeOllamaBaseUrl(raw: string): string {
+  let base = raw.trim().replace(/\/+$/, "");
+  if (base.toLowerCase().endsWith("/v1")) {
+    base = base.slice(0, -3).replace(/\/+$/, "");
+  }
+  return base || "http://localhost:11434";
+}
 
 const SUBJECT_KEYWORDS = [
   "application",
@@ -96,8 +112,8 @@ const SUBJECT_KEYWORDS = [
   "thank you for your interest",
   "status",
   "assessment",
-  "hackerrank",
-  "coderpad",
+  //"hackerrank",
+  //"coderpad",
   "next steps",
   "job alert",
   "jobs for you",
@@ -111,9 +127,9 @@ const SUBJECT_KEYWORDS = [
   "open role",
   "we're hiring",
   "we are hiring",
-  "engineer",
-  "developer",
-  "software",
+  //"engineer",
+  //"developer",
+  //"software",
 ] as const;
 
 const DIGEST_SENDER_HINTS = [
@@ -203,11 +219,10 @@ export function heuristicApplicationConfirmation(input: {
   const resolvedCompany =
     company && company.length > 0 ? company : "Unknown Company";
   const title =
-    parsed?.title && !isPlaceholderTitle(parsed.title)
+    parsed?.title && !isGenericTitle(parsed.title, resolvedCompany)
       ? parsed.title
-      : "Applied Position";
+      : genericRoleTitle(resolvedCompany);
   const location = parsed?.location ?? null;
-
 
   return {
     is_job_related: true,
@@ -237,8 +252,7 @@ export function heuristicApplicationConfirmation(input: {
         recipientName: null,
         isAlreadyApplied: true,
         matchScore: 80,
-        matchReason:
-          "Application confirmation detected via inbox (heuristic fallback)",
+        matchReason: "Application confirmed via email receipt.",
       },
     ],
   };
@@ -266,7 +280,7 @@ export async function loadCandidateProfileSummary(
 
   if (!profile) {
     console.warn(
-      `Sync warning: Account ${accountId} has no linked UserProfile. Match scoring will use software/CS defaults.`
+      `Sync warning: Account ${accountId} has no linked UserProfile. Match scoring will use generic profile defaults.`
     );
     return null;
   }
@@ -309,7 +323,7 @@ export async function loadCandidateProfileSummary(
 
   if (skills.length === 0 && experienceSummary === "n/a") {
     console.warn(
-      `Sync warning: Account ${accountId} profile is empty. Match scoring will use software/CS defaults.`
+      `Sync warning: Account ${accountId} profile is empty. Match scoring will use generic profile defaults.`
     );
   }
 
@@ -327,7 +341,12 @@ export async function loadCandidateProfileSummary(
  */
 export function normalizeClassification(
   raw: JobClassification,
-  context: { subject: string; fromEmail?: string | null; emailBody?: string }
+  context: {
+    subject: string;
+    fromEmail?: string | null;
+    emailBody?: string;
+    candidateProfile?: CandidateProfileSummary | null;
+  }
 ): JobClassification {
   let emailCategory: EmailCategory = raw.email_category;
   if (
@@ -445,14 +464,18 @@ export function normalizeClassification(
       (job.matchReason ?? "").trim() ||
       "No match rationale returned by the classifier.";
 
-    // Fix 0%/missing scores for clearly aligned software roles.
+    // Fix 0%/missing scores with a light profile-overlap heuristic.
     if (matchScore === 0) {
-      matchScore = heuristicMatchScore(job.title, job.company);
+      matchScore = heuristicMatchScore(
+        job.title,
+        job.company,
+        context.candidateProfile
+      );
       if (!job.matchReason?.trim()) {
         matchReason =
           matchScore >= 75
-            ? "Heuristic score: title aligns with software/CS target roles."
-            : "Heuristic score: limited profile overlap signals.";
+            ? "Position aligns with candidate profile criteria and preferences."
+            : "Limited overlap with candidate profile criteria.";
       }
     }
 
@@ -536,6 +559,7 @@ export async function classifyJobEmail(
     userPrompt,
     llmProvider: options.llmProvider,
     localOllamaUrl: options.localOllamaUrl,
+    ollamaModel: options.ollamaModel,
   });
 
   if (!result) {
@@ -554,6 +578,7 @@ export async function classifyJobEmail(
       subject: options.subject,
       fromEmail: options.fromEmail,
       emailBody: sanitizedBody,
+      candidateProfile: options.candidateProfile,
     });
   } catch (error) {
     console.warn("Failed to parse job classification JSON", error);
@@ -569,6 +594,7 @@ export type CallLLMOptions = {
   userPrompt: string;
   llmProvider?: LlmProvider;
   localOllamaUrl?: string | null;
+  ollamaModel?: string | null;
 };
 
 /**
@@ -584,7 +610,8 @@ export async function callLLMWithFallback(
       const result = await callOllamaJson(
         options.localOllamaUrl ?? "http://localhost:11434",
         options.systemPrompt,
-        options.userPrompt
+        options.userPrompt,
+        options.ollamaModel
       );
       if (result) {
         return result;
@@ -600,30 +627,47 @@ export async function callLLMWithFallback(
 async function callOllamaJson(
   baseUrl: string,
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  model?: string | null
 ): Promise<Record<string, unknown> | null> {
-  const endpoint = new URL("/api/generate", baseUrl).toString();
-  const response = await fetch(endpoint, {
+  const cleanBaseUrl = normalizeOllamaBaseUrl(baseUrl);
+  const resolvedModel =
+    (model?.trim() || process.env.OLLAMA_MODEL?.trim() || DEFAULT_OLLAMA_MODEL);
+  const url = `${cleanBaseUrl}/api/chat`;
+
+  const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: process.env.OLLAMA_MODEL ?? "llama3.2",
+      model: resolvedModel,
       stream: false,
       format: "json",
-      prompt: `${systemPrompt}\n\n${userPrompt}`,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
     }),
   });
 
   if (!response.ok) {
+    const errorBody = await response.text();
+    console.error(
+      `Ollama HTTP ${response.status} (${resolvedModel} @ ${url}):`,
+      errorBody
+    );
     throw new Error(`Ollama HTTP ${response.status}`);
   }
 
-  const json = (await response.json()) as { response?: string };
-  if (!json.response) {
+  const json = (await response.json()) as {
+    message?: { content?: string };
+    response?: string;
+  };
+  const content = json.message?.content ?? json.response;
+  if (!content) {
     return null;
   }
 
-  return parseJsonObject(json.response);
+  return parseJsonObject(content);
 }
 
 async function callOpenRouterJson(

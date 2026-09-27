@@ -42,7 +42,11 @@ Rules:
 export async function evaluateJobFit(
   jobText: string,
   profile: MasterProfile,
-  options: { llmProvider?: LlmProvider; localOllamaUrl?: string | null } = {}
+  options: {
+    llmProvider?: LlmProvider;
+    localOllamaUrl?: string | null;
+    ollamaModel?: string | null;
+  } = {}
 ): Promise<JobFitResult> {
   const profileSummary = {
     fullName: profile.fullName,
@@ -64,6 +68,7 @@ export async function evaluateJobFit(
     userPrompt: `PROFILE:\n${JSON.stringify(profileSummary)}\n\nJOB:\n${jobText.slice(0, 8000)}`,
     llmProvider: options.llmProvider ?? "OPENROUTER",
     localOllamaUrl: options.localOllamaUrl,
+    ollamaModel: options.ollamaModel,
   });
 
   if (!result) {
