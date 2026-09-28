@@ -39,9 +39,15 @@ export function MasterResumeCard({
             <p className="text-muted-foreground">{profile.email}</p>
             <p className="text-xs text-muted-foreground">
               Last updated{" "}
-              {profile.updatedAt
-                ? new Date(profile.updatedAt).toLocaleString()
-                : "—"}
+              <span suppressHydrationWarning>
+                {profile.updatedAt
+                  ? `${new Date(profile.updatedAt).toLocaleString("en-US", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                      timeZone: "UTC",
+                    })} UTC`
+                  : "—"}
+              </span>
               {" · "}
               {profile.experiences.length} roles · {profile.projects.length}{" "}
               projects · {profile.education.length} education

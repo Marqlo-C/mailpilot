@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { ResumeUploadDialog } from "@/components/profile/resume-upload-dialog";
 import { ManualProfileEditor } from "@/components/profile/manual-profile-editor";
 import { ProfileRevisionsMenu } from "@/components/profile/profile-revisions-menu";
@@ -41,6 +42,14 @@ const LINKED_FIELDS: Array<{
   { key: "linkedHandshake", label: "Handshake" },
 ];
 
+function formatUpdatedAtUtc(iso: string): string {
+  return `${new Date(iso).toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  })} UTC`;
+}
+
 /**
  * Unified Master Profile card: header identity, edit/import actions, and
  * collapsible snapshot of skills / experience / projects / education.
@@ -49,6 +58,38 @@ export function MasterProfileCard({
   accountId,
   profile,
 }: MasterProfileCardProps) {
+  useEffect(() => {
+    // #region agent log
+    if (profile?.updatedAt) {
+      const utc = formatUpdatedAtUtc(profile.updatedAt);
+      const local = new Date(profile.updatedAt).toLocaleString();
+      fetch(
+        "http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Debug-Session-Id": "3c315a",
+          },
+          body: JSON.stringify({
+            sessionId: "3c315a",
+            runId: "post-fix",
+            hypothesisId: "J",
+            location: "master-profile-card.tsx:mount",
+            message: "date format comparison (UTC vs local)",
+            data: {
+              utc,
+              local,
+              mismatched: utc.replace(" UTC", "") !== local,
+            },
+            timestamp: Date.now(),
+          }),
+        }
+      ).catch(() => {});
+    }
+    // #endregion
+  }, [profile?.updatedAt]);
+
   return (
     <Card className="border-border/80 bg-muted/20 shadow-none">
       <CardHeader className="gap-4 border-b border-border/60 sm:flex-row sm:items-start sm:justify-between">
@@ -67,7 +108,9 @@ export function MasterProfileCard({
               <div className="flex flex-wrap items-center gap-2">
                 {profile.updatedAt ? (
                   <CardDescription>
-                    Updated {new Date(profile.updatedAt).toLocaleString()}
+                    <span suppressHydrationWarning>
+                      Updated {formatUpdatedAtUtc(profile.updatedAt)}
+                    </span>
                   </CardDescription>
                 ) : null}
               </div>

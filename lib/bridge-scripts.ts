@@ -125,7 +125,7 @@ fi
 
 echo "Launching Cloudflare Quick Tunnel..."
 TUNNEL_LOG=$(mktemp)
-"$CF_PATH" tunnel --url http://127.0.0.1:11434 > "$TUNNEL_LOG" 2>&1 &
+"$CF_PATH" tunnel --url http://127.0.0.1:11434 --http-host-header localhost:11434 > "$TUNNEL_LOG" 2>&1 &
 TUNNEL_PID=$!
 
 cleanup() {
@@ -228,7 +228,7 @@ $tempLog = [System.IO.Path]::GetTempFileName()
 
 $psi = New-Object System.Diagnostics.ProcessStartInfo
 $psi.FileName = $cfPath
-$psi.Arguments = "tunnel --url http://127.0.0.1:11434"
+$psi.Arguments = "tunnel --url http://127.0.0.1:11434 --http-host-header localhost:11434"
 $psi.UseShellExecute = $false
 $psi.CreateNoWindow = $true
 $psi.RedirectStandardOutput = $true

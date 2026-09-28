@@ -109,47 +109,29 @@ async function persistBridgeStatus(
   });
 }
 
-/** Drops tunnel URL and connection flags when the bridge is no longer reachable. */
-async function clearBridgeConnection(accountId: string): Promise<void> {
-  const settings = await prisma.accountSettings.findUnique({
-    where: { accountId },
-  });
-  if (!settings) return;
-
-  const current = parseAccountRules(settings.rules);
-  const validated = accountRulesSchema.parse({
-    ...current,
-    availableModels: [],
-    bridgeConnected: false,
-  });
-
-  await prisma.accountSettings.update({
-    where: { accountId },
-    data: {
-      localOllamaUrl: null,
-      rules: validated as Prisma.InputJsonValue,
-    },
-  });
-}
-
+/** Marks bridge offline without wiping the registered tunnel URL. */
 async function handleUnreachable(
   accountId: string,
   hadStoredUrl: boolean,
   error: string,
   status: OllamaConnectionStatus
 ): Promise<NextResponse> {
-  if (hadStoredUrl) {
-    await clearBridgeConnection(accountId);
-  } else {
-    await persistBridgeStatus(accountId, { connected: false, models: [] });
-  }
+  // Never clear localOllamaUrl on a failed ping — Cloudflare/Ollama can
+  // return transient 403s; wiping the URL forces the user to re-run the CLI.
+  await persistBridgeStatus(accountId, { connected: false, models: [] });
 
   return NextResponse.json({
     connected: false,
     status,
     models: [],
-    cleared: hadStoredUrl,
+    cleared: false,
     error,
+    _debug: {
+      hypothesisId: "H",
+      reason: "unreachable",
+      hadStoredUrl,
+      status,
+    },
   });
 }
 
@@ -393,19 +375,10 @@ export async function POST(request: Request) {
     try {
       const accountId = await getAuthenticatedAccountId();
       if (accountId) {
-        const settings = await prisma.accountSettings.findUnique({
-          where: { accountId },
-          select: { localOllamaUrl: true },
+        await persistBridgeStatus(accountId, {
+          connected: false,
+          models: [],
         });
-        const hadStoredUrl = Boolean(settings?.localOllamaUrl?.trim());
-        if (hadStoredUrl) {
-          await clearBridgeConnection(accountId);
-        } else {
-          await persistBridgeStatus(accountId, {
-            connected: false,
-            models: [],
-          });
-        }
       }
     } catch {
       // best-effort status clear
@@ -419,6 +392,7 @@ export async function POST(request: Request) {
       connected: false,
       status: "offline" satisfies OllamaConnectionStatus,
       models: [],
+      cleared: false,
       error: isTimeout
         ? "Connection timed out. Check that your terminal bridge is running."
         : "Failed to reach tunnel endpoint.",

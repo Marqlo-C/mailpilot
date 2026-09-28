@@ -95,9 +95,15 @@ export function ProfessionalProfileSnapshot({
           <CardDescription>
             Audit the structured master profile used for matching, tailoring,
             and dispatch. Last updated{" "}
-            {profile.updatedAt
-              ? new Date(profile.updatedAt).toLocaleString()
-              : "—"}
+            <span suppressHydrationWarning>
+              {profile.updatedAt
+                ? `${new Date(profile.updatedAt).toLocaleString("en-US", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                    timeZone: "UTC",
+                  })} UTC`
+                : "—"}
+            </span>
             .
           </CardDescription>
         </div>

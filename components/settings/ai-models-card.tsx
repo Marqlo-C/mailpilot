@@ -464,9 +464,9 @@ export function AiModelsCard({
   const windowsServe =
     '$env:OLLAMA_HOST="0.0.0.0:11434"; $env:OLLAMA_ORIGINS="*"; ollama serve';
   const cloudflaredMac =
-    'CF=/tmp/cloudflared; if command -v cloudflared >/dev/null 2>&1; then CF="$(command -v cloudflared)"; elif [ ! -x "$CF" ]; then curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz" | tar -xz -C /tmp && chmod +x "$CF" && xattr -d com.apple.quarantine "$CF" 2>/dev/null || true; fi; "$CF" tunnel --url http://127.0.0.1:11434';
+    'CF=/tmp/cloudflared; if command -v cloudflared >/dev/null 2>&1; then CF="$(command -v cloudflared)"; elif [ ! -x "$CF" ]; then curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz" | tar -xz -C /tmp && chmod +x "$CF" && xattr -d com.apple.quarantine "$CF" 2>/dev/null || true; fi; "$CF" tunnel --url http://127.0.0.1:11434 --http-host-header localhost:11434';
   const cloudflaredWin =
-    '$cf="$env:TEMP\\cloudflared.exe"; if (-not (Test-Path $cf)) { Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile $cf -UseBasicParsing }; & $cf tunnel --url http://127.0.0.1:11434';
+    '$cf="$env:TEMP\\cloudflared.exe"; if (-not (Test-Path $cf)) { Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile $cf -UseBasicParsing }; & $cf tunnel --url http://127.0.0.1:11434 --http-host-header localhost:11434';
 
   return (
     <Card className="overflow-hidden border-border/80 shadow-sm">
