@@ -13,7 +13,12 @@ import {
 export const dynamic = "force-dynamic";
 
 const verifyBodySchema = z.object({
-  url: z.string().url().optional(),
+  // Empty string from clients must not hard-fail as 400
+  url: z.preprocess((val) => {
+    if (typeof val !== "string") return undefined;
+    const trimmed = val.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }, z.string().url().optional()),
 });
 
 const ollamaTagsSchema = z.object({
@@ -139,21 +144,66 @@ export async function POST(request: Request) {
   try {
     const accountId = await getAuthenticatedAccountId();
     if (!accountId) {
+      // #region agent log
+      fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "3c315a",
+        },
+        body: JSON.stringify({
+          sessionId: "3c315a",
+          runId: "pre-fix",
+          hypothesisId: "B",
+          location: "api/ollama/verify:POST",
+          message: "unauthorized",
+          data: {},
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const raw: unknown = await request.json().catch(() => ({}));
     const parsed = verifyBodySchema.safeParse(raw);
     if (!parsed.success) {
-      return NextResponse.json(
-        {
-          connected: false,
-          status: "error" satisfies OllamaConnectionStatus,
-          models: [],
-          error: "Invalid request body",
+      // #region agent log
+      fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "3c315a",
         },
-        { status: 400 }
-      );
+        body: JSON.stringify({
+          sessionId: "3c315a",
+          runId: "post-fix",
+          hypothesisId: "C",
+          location: "api/ollama/verify:POST",
+          message: "zod rejected body — returning 200",
+          data: {
+            issues: parsed.error.issues.map((i) => i.message),
+            rawKeys:
+              raw && typeof raw === "object"
+                ? Object.keys(raw as object)
+                : [],
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      // Treat bad/empty body like missing tunnel (no 400 loop in Network tab)
+      return NextResponse.json({
+        connected: false,
+        status: "waiting" satisfies OllamaConnectionStatus,
+        models: [],
+        error: "Bridge tunnel not found. Run the terminal command, then Check Connection.",
+        _debug: {
+          hypothesisId: "C",
+          reason: "zod_rejected",
+          issues: parsed.error.issues.map((i) => i.message),
+        },
+      });
     }
 
     // Prefer payload URL; fall back to DB so browser state lag doesn't block verify
@@ -166,17 +216,45 @@ export async function POST(request: Request) {
     let targetUrl = parsed.data.url?.trim() || storedUrl || undefined;
 
     if (!targetUrl) {
-      await persistBridgeStatus(accountId, { connected: false, models: [] });
-      return NextResponse.json(
-        {
-          connected: false,
-          status: "waiting" satisfies OllamaConnectionStatus,
-          models: [],
-          error:
-            "No bridge tunnel found. Run the terminal command first, then Check Connection.",
+      // #region agent log
+      fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "3c315a",
         },
-        { status: 400 }
-      );
+        body: JSON.stringify({
+          sessionId: "3c315a",
+          runId: "post-fix",
+          hypothesisId: "B",
+          location: "api/ollama/verify:POST",
+          message: "no targetUrl — returning 200 connected:false",
+          data: {
+            hadPayloadUrl: Boolean(parsed.data.url),
+            hadStoredUrl: Boolean(storedUrl),
+            accountIdLen: accountId.length,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      await persistBridgeStatus(accountId, { connected: false, models: [] });
+      // 200 (not 400): missing tunnel is an expected bridge state, not a client error
+      return NextResponse.json({
+        connected: false,
+        status: "waiting" satisfies OllamaConnectionStatus,
+        models: [],
+        error:
+          "Bridge tunnel not found. Make sure the terminal script is running on the same domain you are browsing.",
+        _debug: {
+          hypothesisId: "B",
+          reason: "no_target_url",
+          hadPayloadUrl: Boolean(parsed.data.url),
+          hadStoredUrl: Boolean(storedUrl),
+          httpWouldHaveBeen: 400,
+          nowStatus: 200,
+        },
+      });
     }
 
     const hadStoredUrl = storedUrl.length > 0;
