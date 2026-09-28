@@ -112,7 +112,6 @@ async function persistBridgeStatus(
 /** Marks bridge offline without wiping the registered tunnel URL. */
 async function handleUnreachable(
   accountId: string,
-  hadStoredUrl: boolean,
   error: string,
   status: OllamaConnectionStatus
 ): Promise<NextResponse> {
@@ -126,12 +125,6 @@ async function handleUnreachable(
     models: [],
     cleared: false,
     error,
-    _debug: {
-      hypothesisId: "H",
-      reason: "unreachable",
-      hadStoredUrl,
-      status,
-    },
   });
 }
 
@@ -139,65 +132,19 @@ export async function POST(request: Request) {
   try {
     const accountId = await getAuthenticatedAccountId();
     if (!accountId) {
-      // #region agent log
-      fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "3c315a",
-        },
-        body: JSON.stringify({
-          sessionId: "3c315a",
-          runId: "pre-fix",
-          hypothesisId: "B",
-          location: "api/ollama/verify:POST",
-          message: "unauthorized",
-          data: {},
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const raw: unknown = await request.json().catch(() => ({}));
     const parsed = verifyBodySchema.safeParse(raw);
     if (!parsed.success) {
-      // #region agent log
-      fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "3c315a",
-        },
-        body: JSON.stringify({
-          sessionId: "3c315a",
-          runId: "post-fix",
-          hypothesisId: "C",
-          location: "api/ollama/verify:POST",
-          message: "zod rejected body — returning 200",
-          data: {
-            issues: parsed.error.issues.map((i) => i.message),
-            rawKeys:
-              raw && typeof raw === "object"
-                ? Object.keys(raw as object)
-                : [],
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       // Treat bad/empty body like missing tunnel (no 400 loop in Network tab)
       return NextResponse.json({
         connected: false,
         status: "waiting" satisfies OllamaConnectionStatus,
         models: [],
-        error: "Bridge tunnel not found. Run the terminal command, then Check Connection.",
-        _debug: {
-          hypothesisId: "C",
-          reason: "zod_rejected",
-          issues: parsed.error.issues.map((i) => i.message),
-        },
+        error:
+          "Bridge tunnel not found. Run the terminal command, then Check Connection.",
       });
     }
 
@@ -234,39 +181,7 @@ export async function POST(request: Request) {
     // Client often still holds the schema default localhost; never treat that as a tunnel
     const payloadTunnel = isRegisteredTunnelUrl(payloadUrl) ? payloadUrl : "";
 
-    let targetUrl = payloadTunnel || storedTunnel || undefined;
-
-    // #region agent log
-    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "3c315a",
-      },
-      body: JSON.stringify({
-        sessionId: "3c315a",
-        runId: "post-fix",
-        hypothesisId: "G",
-        location: "api/ollama/verify:POST",
-        message: "URL resolution",
-        data: {
-          accountIdLen: accountId.length,
-          emailMatchAccountId: settingsByEmail?.accountId === accountId,
-          hadPayloadUrl: Boolean(payloadUrl),
-          rawStoredIsTunnel: isRegisteredTunnelUrl(rawStored),
-          rawStoredHost: (() => {
-            try {
-              return rawStored ? new URL(rawStored).hostname : null;
-            } catch {
-              return "invalid";
-            }
-          })(),
-          hasTarget: Boolean(targetUrl),
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
+    const targetUrl = payloadTunnel || storedTunnel || undefined;
 
     if (!targetUrl) {
       await persistBridgeStatus(accountId, { connected: false, models: [] });
@@ -277,20 +192,6 @@ export async function POST(request: Request) {
         models: [],
         error:
           "Bridge tunnel not found. Make sure the terminal command registered successfully with your email.",
-        _debug: {
-          hypothesisId: "G",
-          reason: "no_target_url",
-          hadPayloadUrl: Boolean(payloadUrl),
-          hadStoredTunnel: Boolean(storedTunnel),
-          rawStoredHost: (() => {
-            try {
-              return rawStored ? new URL(rawStored).hostname : null;
-            } catch {
-              return "invalid";
-            }
-          })(),
-          nowStatus: 200,
-        },
       });
     }
 
@@ -300,7 +201,6 @@ export async function POST(request: Request) {
     if (!isAllowedOllamaUrl(base)) {
       return handleUnreachable(
         accountId,
-        hadStoredUrl,
         "URL not allowed. Use a *.trycloudflare.com tunnel or localhost.",
         "error"
       );
@@ -327,7 +227,6 @@ export async function POST(request: Request) {
         (err.name === "AbortError" || err.name === "TimeoutError");
       return handleUnreachable(
         accountId,
-        hadStoredUrl,
         isTimeout
           ? "Connection timed out. Check that your terminal bridge is running."
           : "Failed to reach tunnel endpoint.",
@@ -340,7 +239,6 @@ export async function POST(request: Request) {
     if (!res.ok) {
       return handleUnreachable(
         accountId,
-        hadStoredUrl,
         `Daemon returned status ${res.status}`,
         hadStoredUrl ? "offline" : "error"
       );
@@ -364,12 +262,6 @@ export async function POST(request: Request) {
       status: "connected" satisfies OllamaConnectionStatus,
       activeUrl: base,
       models,
-      _debug: {
-        hypothesisId: "G",
-        reason: "connected",
-        accountIdLen: accountId.length,
-        modelCount: models.length,
-      },
     });
   } catch (err) {
     try {

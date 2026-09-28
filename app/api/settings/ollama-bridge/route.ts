@@ -68,37 +68,11 @@ export async function POST(request: Request) {
       include: { settings: true },
     });
 
-    // #region agent log
-    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "3c315a",
-      },
-      body: JSON.stringify({
-        sessionId: "3c315a",
-        runId: "post-fix",
-        hypothesisId: "F",
-        location: "api/settings/ollama-bridge:POST",
-        message: "bridge registration lookup",
-        data: {
-          found: Boolean(account),
-          accountIdLen: account?.id.length ?? 0,
-          hasSettings: Boolean(account?.settings),
-          action: action ?? "register",
-          hasUrl: Boolean(ollamaUrl),
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-
     if (!account) {
       return NextResponse.json(
         {
           success: false,
           error: `No account found for ${email}`,
-          _debug: { hypothesisId: "F", reason: "account_not_found" },
         },
         { status: 404 }
       );
@@ -110,7 +84,6 @@ export async function POST(request: Request) {
         {
           success: false,
           error: "Invalid or missing bridge CLI secret",
-          _debug: { hypothesisId: "F", reason: "secret_mismatch" },
         },
         { status: 403 }
       );
@@ -179,11 +152,6 @@ export async function POST(request: Request) {
       activeUrl: normalizedUrl,
       url: normalizedUrl,
       accountId: account.id,
-      _debug: {
-        hypothesisId: "F",
-        reason: "registered",
-        accountIdLen: account.id.length,
-      },
     });
   } catch (error) {
     console.error("[OLLAMA_BRIDGE_ERROR]", error);

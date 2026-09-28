@@ -56,19 +56,6 @@ type VerifyResponse = {
   activeUrl?: string;
   error?: string;
   cleared?: boolean;
-  _debug?: {
-    hypothesisId?: string;
-    reason?: string;
-    hadPayloadUrl?: boolean;
-    hadStoredUrl?: boolean;
-    hadStoredTunnel?: boolean;
-    rawStoredHost?: string | null;
-    httpWouldHaveBeen?: number;
-    nowStatus?: number;
-    issues?: string[];
-    accountIdLen?: number;
-    modelCount?: number;
-  };
 };
 
 function deriveConnectionStatus(
@@ -200,27 +187,6 @@ export function AiModelsCard({
 
   useEffect(() => {
     setMounted(true);
-    // #region agent log
-    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "3c315a",
-      },
-      body: JSON.stringify({
-        sessionId: "3c315a",
-        runId: "post-fix",
-        hypothesisId: "A",
-        location: "ai-models-card.tsx:mounted",
-        message: "client mounted; origin will switch",
-        data: {
-          windowOrigin:
-            typeof window !== "undefined" ? window.location.origin : null,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
   }, []);
 
   // Stable production origin on SSR + first client paint (hydration-safe)
@@ -286,62 +252,12 @@ export function AiModelsCard({
         payload.url = candidate;
       }
 
-      // #region agent log
-      fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "3c315a",
-        },
-        body: JSON.stringify({
-          sessionId: "3c315a",
-          runId: "post-fix",
-          hypothesisId: "E",
-          location: "ai-models-card.tsx:handleVerifyConnection",
-          message: "verify click start",
-          data: {
-            hasCandidate: Boolean(candidate),
-            candidateLen: candidate.length,
-            payloadHasUrl: Boolean(payload.url),
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-
       const res = await fetch("/api/ollama/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = (await res.json()) as VerifyResponse;
-
-      // #region agent log
-      fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "3c315a",
-        },
-        body: JSON.stringify({
-          sessionId: "3c315a",
-          runId: "post-fix",
-          hypothesisId: data._debug?.hypothesisId ?? "B",
-          location: "ai-models-card.tsx:handleVerifyConnection",
-          message: "verify response (prod-forwarded)",
-          data: {
-            httpStatus: res.status,
-            connected: data.connected ?? false,
-            status: data.status ?? null,
-            error: data.error ?? null,
-            serverDebug: data._debug ?? null,
-            pageOrigin:
-              typeof window !== "undefined" ? window.location.origin : null,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
 
       const status: ConnectionStatus =
         data.status ??
