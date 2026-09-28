@@ -66,25 +66,61 @@ fi
 MODELS_JSON=$(curl -s --max-time 5 "http://127.0.0.1:11434/api/tags" | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | tr '\\n' ',' | sed 's/,$//' || true)
 echo "Local Ollama active. Models detected: \${MODELS_JSON:-none}"
 
-# Detect OS + CPU for the official standalone cloudflared binary
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
-case "$OS-$ARCH" in
-  darwin-arm64)   CF_BIN="cloudflared-darwin-arm64" ;;
-  darwin-x86_64)  CF_BIN="cloudflared-darwin-amd64" ;;
-  linux-aarch64|linux-arm64) CF_BIN="cloudflared-linux-arm64" ;;
-  linux-x86_64)   CF_BIN="cloudflared-linux-amd64" ;;
-  *)
-    echo "Unsupported platform: $OS/$ARCH"
-    exit 1
-    ;;
-esac
+# Resolve cloudflared: system PATH → /tmp cache → download
+if command -v cloudflared >/dev/null 2>&1; then
+  CF_PATH="$(command -v cloudflared)"
+  echo "Found system cloudflared at $CF_PATH"
+elif [ -x "/tmp/cloudflared" ]; then
+  CF_PATH="/tmp/cloudflared"
+  echo "Using cached /tmp/cloudflared"
+else
+  echo "Downloading standalone tunnel client..."
+  OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+  ARCH=$(uname -m)
+  CF_PATH="/tmp/cloudflared"
 
-CF_PATH="/tmp/cloudflared"
-if [ ! -x "$CF_PATH" ]; then
-  echo "Downloading standalone tunnel client ($CF_BIN)..."
-  curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/$CF_BIN" -o "$CF_PATH"
-  chmod +x "$CF_PATH"
+  if [ "$OS" = "darwin" ]; then
+    # Cloudflare ships macOS builds as .tgz tarballs
+    TAR_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz"
+    if [ "$ARCH" = "arm64" ]; then
+      ARM_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz"
+      if curl -sLI -f "$ARM_URL" > /dev/null 2>&1; then
+        TAR_URL="$ARM_URL"
+      fi
+    fi
+    if ! curl -fsSL "$TAR_URL" | tar -xz -C /tmp; then
+      echo "Failed to download and extract cloudflared."
+      exit 1
+    fi
+    # tar may extract as cloudflared or cloudflared-darwin-*
+    if [ ! -f "$CF_PATH" ]; then
+      EXTRACTED=$(find /tmp -maxdepth 1 -type f -name 'cloudflared*' | head -n 1 || true)
+      if [ -n "$EXTRACTED" ] && [ "$EXTRACTED" != "$CF_PATH" ]; then
+        mv "$EXTRACTED" "$CF_PATH"
+      fi
+    fi
+    chmod +x "$CF_PATH"
+    xattr -d com.apple.quarantine "$CF_PATH" 2>/dev/null || true
+  else
+    case "$ARCH" in
+      aarch64|arm64) CF_BIN="cloudflared-linux-arm64" ;;
+      x86_64)        CF_BIN="cloudflared-linux-amd64" ;;
+      *)
+        echo "Unsupported Linux architecture: $ARCH"
+        exit 1
+        ;;
+    esac
+    if ! curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/$CF_BIN" -o "$CF_PATH"; then
+      echo "Failed to download cloudflared."
+      exit 1
+    fi
+    chmod +x "$CF_PATH"
+  fi
+
+  if [ ! -x "$CF_PATH" ]; then
+    echo "cloudflared binary missing after download."
+    exit 1
+  fi
 fi
 
 echo "Launching Cloudflare Quick Tunnel..."

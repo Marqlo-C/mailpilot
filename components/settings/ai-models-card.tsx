@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -152,7 +152,6 @@ export function AiModelsCard({
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(
     () => deriveConnectionStatus(initialConnected, localOllamaUrl)
   );
-  const connectionStatusRef = useRef(connectionStatus);
   const [bridgeSecret, setBridgeSecret] = useState(initialBridgeSecret);
   const [revealSecret, setRevealSecret] = useState(false);
   const [copiedSecret, setCopiedSecret] = useState(false);
@@ -171,10 +170,6 @@ export function AiModelsCard({
   useEffect(() => {
     setBridgeSecret(initialBridgeSecret);
   }, [initialBridgeSecret]);
-
-  useEffect(() => {
-    connectionStatusRef.current = connectionStatus;
-  }, [connectionStatus]);
 
   useEffect(() => {
     setUrl(localOllamaUrl);
@@ -226,114 +221,83 @@ export function AiModelsCard({
   const activeBridgeCommand =
     bridgeOs === "mac" ? macBridgeCommand : winBridgeCommand;
 
-  const runVerify = useCallback(
-    async (opts?: {
-      overrideUrl?: string;
-      heartbeat?: boolean;
-      silent?: boolean;
-    }): Promise<ConnectionStatus> => {
-      if (!accountId) return "waiting";
-      if (!opts?.silent) setVerifying(true);
+  /** On-demand only — never called from useEffect / intervals. */
+  async function handleVerifyConnection(
+    overrideUrl?: string
+  ): Promise<ConnectionStatus> {
+    if (!accountId || verifying) return connectionStatus;
 
-      const previous = connectionStatusRef.current;
+    setVerifying(true);
+    try {
+      const candidate = (overrideUrl ?? url).trim();
+      const payload: { url?: string } = {};
+      if (candidate) payload.url = candidate;
 
-      try {
-        const payload: { url?: string; heartbeat?: boolean } = {};
-        if (opts?.heartbeat) {
-          payload.heartbeat = true;
-        } else {
-          const candidate = (opts?.overrideUrl ?? url).trim();
-          if (candidate) payload.url = candidate;
-        }
+      const res = await fetch("/api/ollama/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json()) as VerifyResponse;
 
-        const res = await fetch("/api/ollama/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = (await res.json()) as VerifyResponse;
+      const status: ConnectionStatus =
+        data.status ??
+        (data.connected ? "connected" : data.error ? "error" : "waiting");
 
-        const status: ConnectionStatus =
-          data.status ??
-          (data.connected ? "connected" : data.error ? "error" : "waiting");
+      if (status === "connected" && Array.isArray(data.models)) {
+        setConnectionStatus("connected");
+        setModels(data.models);
+        if (data.activeUrl) setUrl(data.activeUrl);
+        setStatusMessage(
+          `Connected — ${data.models.length} model${data.models.length === 1 ? "" : "s"} available`
+        );
 
-        if (status === "connected" && Array.isArray(data.models)) {
-          setConnectionStatus("connected");
-          setModels(data.models);
-          if (data.activeUrl) setUrl(data.activeUrl);
-          setStatusMessage(
-            `Connected — ${data.models.length} model${data.models.length === 1 ? "" : "s"} available`
-          );
-
-          if (
-            data.models.length > 0 &&
-            !data.models.includes(selectedModel) &&
-            accountId
-          ) {
-            const next = data.models[0]!;
-            setSelectedModel(next);
-            const active = data.activeUrl ?? opts?.overrideUrl ?? url;
-            if (active.trim()) {
-              await updateOllamaUrl(accountId, active.trim(), next);
-            }
+        if (
+          data.models.length > 0 &&
+          !data.models.includes(selectedModel) &&
+          accountId
+        ) {
+          const next = data.models[0]!;
+          setSelectedModel(next);
+          const active = data.activeUrl ?? candidate;
+          if (active.trim()) {
+            await updateOllamaUrl(accountId, active.trim(), next);
           }
-
-          if (previous !== "connected") {
-            router.refresh();
-          }
-          return "connected";
         }
 
-        setConnectionStatus(status);
-        if (data.cleared || status === "offline") {
-          setUrl("");
-          setModels([]);
-          setStatusMessage(
-            data.error ??
-              "Tunnel closed or unreachable. Re-run the bridge command or save a new URL."
-          );
-        } else if (status === "waiting") {
-          setStatusMessage(null);
-        } else {
-          setStatusMessage(
-            data.error ?? "Could not reach Ollama. Is the bridge running?"
-          );
-        }
+        router.refresh();
+        return "connected";
+      }
 
-        if (previous === "connected" && status !== "connected") {
-          router.refresh();
-        }
-
-        return status;
-      } catch {
-        setConnectionStatus("offline");
+      setConnectionStatus(status);
+      if (data.cleared || status === "offline") {
         setUrl("");
         setModels([]);
         setStatusMessage(
-          "Tunnel closed or unreachable. Re-run the bridge command or save a new URL."
+          data.error ??
+            "Tunnel closed or unreachable. Re-run the bridge command or save a new URL."
         );
-        if (previous === "connected") {
-          router.refresh();
-        }
-        return "offline";
-      } finally {
-        if (!opts?.silent) setVerifying(false);
+      } else if (status === "waiting") {
+        setStatusMessage(null);
+      } else {
+        setStatusMessage(
+          data.error ?? "Could not reach Ollama. Is the bridge running?"
+        );
       }
-    },
-    [accountId, router, selectedModel, url]
-  );
 
-  // Heartbeat every 3s while Local Ollama is enabled
-  useEffect(() => {
-    if (!useOllama || !accountId) return;
-
-    void runVerify({ heartbeat: true, silent: true });
-    const intervalId = window.setInterval(() => {
-      void runVerify({ heartbeat: true, silent: true });
-    }, 3000);
-
-    return () => window.clearInterval(intervalId);
-  }, [useOllama, accountId, runVerify]);
+      router.refresh();
+      return status;
+    } catch {
+      setConnectionStatus("offline");
+      setModels([]);
+      setStatusMessage(
+        "Tunnel closed or unreachable. Re-run the bridge command or save a new URL."
+      );
+      return "offline";
+    } finally {
+      setVerifying(false);
+    }
+  }
 
   function persistSecret(next: string, successMessage: string) {
     if (!accountId) return;
@@ -392,7 +356,7 @@ export function AiModelsCard({
   const windowsServe =
     '$env:OLLAMA_HOST="0.0.0.0:11434"; $env:OLLAMA_ORIGINS="*"; ollama serve';
   const cloudflaredMac =
-    "curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64 -o /tmp/cloudflared && chmod +x /tmp/cloudflared && /tmp/cloudflared tunnel --url http://127.0.0.1:11434";
+    'CF=/tmp/cloudflared; if command -v cloudflared >/dev/null 2>&1; then CF="$(command -v cloudflared)"; elif [ ! -x "$CF" ]; then curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz" | tar -xz -C /tmp && chmod +x "$CF" && xattr -d com.apple.quarantine "$CF" 2>/dev/null || true; fi; "$CF" tunnel --url http://127.0.0.1:11434';
   const cloudflaredWin =
     '$cf="$env:TEMP\\cloudflared.exe"; if (-not (Test-Path $cf)) { Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile $cf -UseBasicParsing }; & $cf tunnel --url http://127.0.0.1:11434';
 
@@ -607,8 +571,9 @@ export function AiModelsCard({
                     in your terminal.
                   </li>
                   <li>
-                    Keep the terminal open — connection status updates
-                    automatically below.
+                    Keep the terminal open, then click{" "}
+                    <strong className="text-foreground">Check Connection</strong>{" "}
+                    below.
                   </li>
                 </ol>
 
@@ -687,10 +652,8 @@ export function AiModelsCard({
                             return;
                           }
                           const ok =
-                            (await runVerify({
-                              overrideUrl: url,
-                              silent: false,
-                            })) === "connected";
+                            (await handleVerifyConnection(url)) ===
+                            "connected";
                           if (ok) {
                             toast.success("Ollama URL saved and verified");
                           } else {
@@ -750,7 +713,7 @@ export function AiModelsCard({
                 className="shrink-0"
                 disabled={disabled || verifying}
                 onClick={() => {
-                  void runVerify({ silent: false }).then((status) => {
+                  void handleVerifyConnection().then((status) => {
                     if (status === "connected") {
                       toast.success("Ollama connection verified");
                     } else {
@@ -786,7 +749,7 @@ export function AiModelsCard({
                     size="sm"
                     disabled={disabled || verifying}
                     onClick={() => {
-                      void runVerify({ silent: false }).then((status) => {
+                      void handleVerifyConnection().then((status) => {
                         if (status === "connected") {
                           toast.success("Models refreshed");
                         } else {
