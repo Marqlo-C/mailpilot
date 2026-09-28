@@ -12,9 +12,11 @@ import {
   ExternalLink,
   Mail,
   MapPin,
+  MoreHorizontal,
   RotateCcw,
   Send,
   Sparkles,
+  ThumbsDown,
   Trash2,
   Undo2,
   XCircle,
@@ -27,6 +29,14 @@ import {
   dismissOpportunities,
   restoreOpportunities,
 } from "@/app/actions/opportunities";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { canDraftDirectEmail } from "@/lib/application-method";
 import { formatDistanceToNow } from "@/lib/format-distance";
@@ -56,6 +66,7 @@ type OpportunityCardProps = {
   onUnmarkApplied?: () => void;
   onArchive?: () => void;
   onDismiss?: () => void;
+  onLessLikeThis?: () => void;
   onRestore?: () => void;
   onDelete?: () => void;
 };
@@ -125,6 +136,7 @@ export function OpportunityCard({
   onUnmarkApplied,
   onArchive,
   onDismiss,
+  onLessLikeThis,
   onRestore,
   onDelete,
 }: OpportunityCardProps) {
@@ -214,11 +226,8 @@ export function OpportunityCard({
   const secondaryBtnClass =
     "inline-flex items-center gap-1.5 rounded-lg border border-[#3c837b]/40 px-3 py-1.5 text-xs font-medium text-[#3c837b] transition-colors hover:border-[#3c837b] hover:bg-[#3c837b]/10 disabled:opacity-50";
 
-  const safetyBtnClass =
-    "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground/80 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50";
-
-  const dismissBtnClass =
-    "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground/80 transition-colors hover:bg-muted hover:text-rose-500/90 disabled:opacity-50";
+  const showOverflowMenu =
+    variant === "leads" || variant === "applied" || variant === "action";
 
   const statusTag =
     variant === "history" ? (
@@ -385,7 +394,7 @@ export function OpportunityCard({
         ) : null}
       </div>
 
-      {/* 5. Pinned bottom action bar — primary left, safety right */}
+      {/* 5. Pinned bottom action bar — primary left, overflow menu right */}
       <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/[0.12] px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-center gap-2">
           {opportunity.applyUrl ? (
@@ -488,97 +497,91 @@ export function OpportunityCard({
         </div>
 
         <div className="flex flex-wrap items-center gap-1">
-          {variant === "leads" ? (
-            <>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={runArchive}
-                className={safetyBtnClass}
-              >
-                <Archive className="h-3.5 w-3.5 text-muted-foreground/80" />
-                <span>Archive</span>
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={runDismiss}
-                className={dismissBtnClass}
-              >
-                <XCircle className="h-3.5 w-3.5" />
-                <span>Dismiss</span>
-              </button>
-            </>
+          {variant === "history" && dismissed ? (
+            <span className="inline-flex items-center gap-1 px-1 text-[11px] text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              {daysLeft}d left
+            </span>
           ) : null}
 
-          {variant === "action" ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={runDismiss}
-              className={dismissBtnClass}
-            >
-              <XCircle className="h-3.5 w-3.5" />
-              <span>Dismiss</span>
-            </button>
-          ) : null}
-
-          {variant === "applied" ? (
-            <>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={runArchive}
-                className={safetyBtnClass}
-              >
-                <Archive className="h-3.5 w-3.5 text-muted-foreground/80" />
-                <span>Archive</span>
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={runDismiss}
-                className={dismissBtnClass}
-              >
-                <XCircle className="h-3.5 w-3.5" />
-                <span>Dismiss</span>
-              </button>
-            </>
+          {showOverflowMenu ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={busy}
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">More actions</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {(variant === "leads" || variant === "applied") && (
+                  <DropdownMenuItem
+                    disabled={busy}
+                    onClick={runArchive}
+                  >
+                    <Archive className="mr-2 h-4 w-4" />
+                    Archive
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem disabled={busy} onClick={runDismiss}>
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Dismiss
+                </DropdownMenuItem>
+                {onLessLikeThis ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      disabled={busy}
+                      onClick={onLessLikeThis}
+                      className="text-amber-600 focus:bg-amber-50 focus:text-amber-600 dark:text-amber-400 dark:focus:bg-amber-950/50 dark:focus:text-amber-400"
+                    >
+                      <ThumbsDown className="mr-2 h-4 w-4" />
+                      Less like this
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null}
 
           {variant === "history" ? (
-            <>
-              {opportunity.isArchived && !dismissed ? (
-                <button
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   disabled={busy}
-                  onClick={runDismiss}
-                  title="Move to Dismissed so it can be deleted or auto-purged"
-                  className={dismissBtnClass}
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
                 >
-                  <XCircle className="h-3.5 w-3.5" />
-                  <span>Dismiss</span>
-                </button>
-              ) : null}
-
-              {dismissed ? (
-                <>
-                  <span className="inline-flex items-center gap-1 px-1 text-[11px] text-muted-foreground">
-                    <Clock className="h-3 w-3" />
-                    {daysLeft}d left
-                  </span>
-                  <button
-                    type="button"
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">More actions</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {opportunity.isArchived && !dismissed ? (
+                  <DropdownMenuItem disabled={busy} onClick={runDismiss}>
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Dismiss
+                  </DropdownMenuItem>
+                ) : null}
+                {dismissed ? (
+                  <DropdownMenuItem
                     disabled={busy}
                     onClick={runDelete}
-                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600 disabled:opacity-50 dark:hover:text-rose-400"
+                    className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    <span>Delete</span>
-                  </button>
-                </>
-              ) : null}
-            </>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null}
         </div>
       </div>

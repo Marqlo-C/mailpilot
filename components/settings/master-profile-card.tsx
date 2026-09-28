@@ -2,6 +2,7 @@
 
 import { ResumeUploadDialog } from "@/components/profile/resume-upload-dialog";
 import { ManualProfileEditor } from "@/components/profile/manual-profile-editor";
+import { ProfileRevisionsMenu } from "@/components/profile/profile-revisions-menu";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -15,6 +16,7 @@ import type { MasterProfileInput } from "@/lib/validations/profile";
 export type ProfileSnapshotData = MasterProfileInput & {
   updatedAt?: string;
   matchThreshold?: number;
+  linkedWebsite?: string | null;
   linkedIndeed?: string | null;
   linkedGlassdoor?: string | null;
   linkedGithub?: string | null;
@@ -31,6 +33,7 @@ const LINKED_FIELDS: Array<{
   key: keyof ProfileSnapshotData;
   label: string;
 }> = [
+  { key: "linkedWebsite", label: "Website" },
   { key: "linkedLinkedin", label: "LinkedIn" },
   { key: "linkedGithub", label: "GitHub" },
   { key: "linkedIndeed", label: "Indeed" },
@@ -83,6 +86,7 @@ export function MasterProfileCard({
               accountId={accountId}
               triggerLabel="Import Resume"
             />
+            {profile ? <ProfileRevisionsMenu accountId={accountId} /> : null}
           </div>
         ) : null}
       </CardHeader>

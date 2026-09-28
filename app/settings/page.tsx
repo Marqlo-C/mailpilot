@@ -3,6 +3,7 @@ import { AccountsCard } from "@/components/settings/accounts-card";
 import { AiModelsCard } from "@/components/settings/ai-models-card";
 import { ApplicationAutomationCard } from "@/components/settings/application-automation-card";
 import { AutomationRulesCard } from "@/components/settings/automation-rules-card";
+import { ExcludedTitlesCard } from "@/components/settings/excluded-titles-card";
 import { MasterProfileCard } from "@/components/settings/master-profile-card";
 import { DismissedRetentionSetting } from "@/components/settings/retention-setting";
 import { getActiveAccount, listAccounts } from "@/lib/data";
@@ -69,6 +70,13 @@ export default async function SettingsPage({
         <AutomationRulesCard
           accountId={active?.id ?? null}
           rules={active?.rules ?? DEFAULT_ACCOUNT_RULES}
+        />
+        <ExcludedTitlesCard
+          accountId={active?.id ?? null}
+          excludedTitles={
+            active?.rules.excludedTitles ??
+            DEFAULT_ACCOUNT_RULES.excludedTitles
+          }
         />
         <AiModelsCard
           accountId={active?.id ?? null}

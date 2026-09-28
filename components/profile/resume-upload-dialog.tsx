@@ -2,7 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FolderGit2, Loader2, Upload } from "lucide-react";
+import {
+  FileText,
+  FolderGit2,
+  Loader2,
+  Upload,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -23,6 +29,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ResumeUploadDialogProps = {
@@ -42,7 +49,8 @@ export function ResumeUploadDialog({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<MasterProfileInput | null>(null);
-  const [githubHandle, setGithubHandle] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [githubInput, setGithubInput] = useState("");
   const [pending, startTransition] = useTransition();
   const editMode = Boolean(initialProfile);
 
@@ -53,34 +61,56 @@ export function ResumeUploadDialog({
     }
     if (!next) {
       setDraft(null);
-      setGithubHandle("");
+      setSelectedFile(null);
+      setGithubInput("");
     }
   }
 
-  function onFileChange(file: File | null) {
-    if (!file) return;
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    e.target.value = "";
+    if (file) {
+      setSelectedFile(file);
+    }
+  }
+
+  function handleSubmit() {
+    if (!selectedFile) return;
+
     const formData = new FormData();
-    formData.set("accountId", accountId);
-    formData.set("file", file);
+    formData.append("accountId", accountId);
+    formData.append("file", selectedFile);
 
-    // Unlock navigation immediately — parse + save continues in the background.
+    const trimmedGithub = githubInput.trim();
+    if (trimmedGithub) {
+      formData.append("githubUsername", trimmedGithub);
+    }
+
+    setSelectedFile(null);
+    setGithubInput("");
     setOpen(false);
-    setDraft(null);
-    toast.message("Parsing resume in the background...");
 
-    void (async () => {
-      const result = await applyResumeUpload(formData);
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
+    const uploadPromise = applyResumeUpload(formData).then((res) => {
+      if (!res.ok) {
+        throw new Error(
+          res.error || "Failed to parse and consolidate profile"
+        );
       }
-      toast.success("Profile updated from resume");
       router.refresh();
-    })();
+      return res;
+    });
+
+    toast.promise(uploadPromise, {
+      loading:
+        "Ingesting profile & GitHub data in background. You can navigate freely...",
+      success: "Master profile successfully updated!",
+      error: (err) =>
+        err instanceof Error ? err.message : "Failed to process profile",
+    });
   }
 
   function onSyncGitHub() {
-    const handle = githubHandle.trim();
+    const handle = githubInput.trim();
     if (!handle) {
       toast.error("Enter a GitHub username or profile URL");
       return;
@@ -135,63 +165,116 @@ export function ResumeUploadDialog({
           <DialogDescription>
             {editMode
               ? "Review the structured profile for accuracy, then save or re-upload a source file."
-              : "Import from a resume, LinkedIn archive, or sync GitHub projects. Uploads parse in the background so you can keep navigating."}
+              : "Stage a resume and optional GitHub handle, then ingest in the background — you can keep navigating."}
           </DialogDescription>
         </DialogHeader>
 
-        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border px-6 py-10 text-center hover:bg-muted/40">
-          <Upload className="h-6 w-6 text-muted-foreground" />
-          <span className="text-sm font-medium">
-            Drop a file or click to browse
-          </span>
-          <span className="max-w-md text-xs text-muted-foreground">
-            Upload Resume (PDF/DOCX), LinkedIn Profile PDF, Indeed PDF, or
-            LinkedIn Data Archive (.zip). Dialog closes immediately; parsing
-            continues in the background.
-          </span>
-          <input
-            type="file"
-            accept=".pdf,.docx,.zip,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/zip,application/x-zip-compressed,text/plain"
-            className="hidden"
-            onChange={(e) => {
-              const selected = e.target.files?.[0] ?? null;
-              e.target.value = "";
-              onFileChange(selected);
-            }}
-          />
-        </label>
+        <div className="space-y-4">
+          {!selectedFile ? (
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border px-6 py-10 text-center transition hover:bg-muted/50">
+              <FileText className="mb-1 h-8 w-8 text-muted-foreground" />
+              <span className="text-sm font-medium">
+                Choose a Resume (PDF, DOCX, or ZIP)
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Click to browse — file is staged until you submit
+              </span>
+              <input
+                type="file"
+                accept=".pdf,.docx,.txt,.zip,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/zip,application/x-zip-compressed,text/plain"
+                className="hidden"
+                onChange={handleFileSelect}
+                disabled={pending}
+              />
+            </label>
+          ) : (
+            <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
+              <div className="flex min-w-0 items-center gap-2.5 overflow-hidden">
+                <FileText className="h-5 w-5 shrink-0 text-primary" />
+                <span className="truncate text-sm font-medium">
+                  {selectedFile.name}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  ({(selectedFile.size / 1024).toFixed(1)} KB)
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => setSelectedFile(null)}
+                disabled={pending}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
 
-        <div className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <FolderGit2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="GitHub username or URL"
-              value={githubHandle}
-              disabled={pending}
-              onChange={(e) => setGithubHandle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  onSyncGitHub();
-                }
-              }}
-            />
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="github-handle"
+              className="flex items-center gap-1.5 text-xs font-medium"
+            >
+              <FolderGit2 className="h-3.5 w-3.5" />
+              GitHub Username or Profile URL (Optional)
+            </Label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Input
+                id="github-handle"
+                type="text"
+                name="githubUsername"
+                placeholder="e.g. octocat or https://github.com/octocat"
+                value={githubInput}
+                disabled={pending}
+                onChange={(e) => setGithubInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !selectedFile) {
+                    e.preventDefault();
+                    onSyncGitHub();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={pending || !githubInput.trim()}
+                onClick={onSyncGitHub}
+                className="shrink-0"
+              >
+                {pending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FolderGit2 className="h-4 w-4" />
+                )}
+                Sync only
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              We will extract your resume first, then pull deep technical CAR
+              bullets from your repositories. A GitHub URL found in the resume
+              is used automatically when this field is empty.
+            </p>
           </div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={pending || !githubHandle.trim()}
-            onClick={onSyncGitHub}
-          >
-            {pending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <FolderGit2 className="h-4 w-4" />
-            )}
-            Sync GitHub Repos
-          </Button>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+              disabled={pending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!selectedFile || pending}
+              onClick={handleSubmit}
+            >
+              Parse & Ingest Profile
+            </Button>
+          </div>
         </div>
 
         {draft && (

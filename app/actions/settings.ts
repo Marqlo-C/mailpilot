@@ -26,6 +26,7 @@ const ruleKeySchema = z.enum([
   "matchScoreThreshold",
   "maxAutoSendsPerDay",
   "dismissedRetentionDays",
+  "excludedTitles",
 ]);
 
 const retentionDaysSchema = z.union([
@@ -224,4 +225,73 @@ export async function updateDismissedRetention(
     ok: true,
     data: { dismissedRetentionDays: validated.data.dismissedRetentionDays },
   };
+}
+
+/**
+ * Appends a role title/pattern to AccountSettings.rules.excludedTitles.
+ */
+export async function addExcludedTitle(
+  accountId: string,
+  title: string
+): Promise<ActionResult<{ excludedTitles: string[] }>> {
+  const clean = title.trim();
+  if (!clean) return { ok: false, error: "Title cannot be empty" };
+
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId },
+  });
+  if (!settings) return { ok: false, error: "Settings not found" };
+
+  const rules = parseAccountRules(settings.rules);
+  const existing = rules.excludedTitles ?? [];
+  const already = existing.some(
+    (t) => t.toLowerCase() === clean.toLowerCase()
+  );
+  const updated = already ? existing : [...existing, clean];
+
+  if (!already) {
+    const validated = accountRulesSchema.parse({
+      ...rules,
+      excludedTitles: updated,
+    });
+    await prisma.accountSettings.update({
+      where: { accountId },
+      data: { rules: validated as Prisma.InputJsonValue },
+    });
+  }
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  return { ok: true, data: { excludedTitles: updated } };
+}
+
+/**
+ * Removes a role title/pattern from AccountSettings.rules.excludedTitles.
+ */
+export async function removeExcludedTitle(
+  accountId: string,
+  title: string
+): Promise<ActionResult<{ excludedTitles: string[] }>> {
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId },
+  });
+  if (!settings) return { ok: false, error: "Settings not found" };
+
+  const rules = parseAccountRules(settings.rules);
+  const updated = (rules.excludedTitles ?? []).filter(
+    (t) => t.toLowerCase() !== title.toLowerCase().trim()
+  );
+
+  const validated = accountRulesSchema.parse({
+    ...rules,
+    excludedTitles: updated,
+  });
+  await prisma.accountSettings.update({
+    where: { accountId },
+    data: { rules: validated as Prisma.InputJsonValue },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  return { ok: true, data: { excludedTitles: updated } };
 }

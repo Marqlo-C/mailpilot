@@ -6,6 +6,17 @@ import { revalidatePath } from "next/cache";
 import { extractTextFromFile } from "@/lib/document-parser";
 import { syncGitHubProjects, normalizeGitHubUsername } from "@/lib/github-sync";
 import { parseLinkedInArchive } from "@/lib/linkedin-archive-parser";
+import {
+  consolidateProfiles,
+  enrichLinksFromRawText,
+  extractPlatformLinks,
+  resolveGithubHandle,
+} from "@/lib/profile-consolidation";
+import {
+  loadProfileSnapshot,
+  recordProfileSnapshot,
+  serializeUserProfileToInput,
+} from "@/lib/profile-history";
 import { prisma } from "@/lib/prisma";
 import { parseResumeToStructuredProfile } from "@/lib/resume-parser";
 import {
@@ -21,6 +32,17 @@ import { parseAccountRules } from "@/lib/validations/rules";
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
+
+export type ProfileHistoryItem = {
+  id: string;
+  summary: string;
+  createdAt: string;
+};
+
+export type UpdateMasterProfileOptions = {
+  summary?: string;
+  skipHistory?: boolean;
+};
 
 /**
  * Parses an uploaded resume / LinkedIn archive into a draft MasterProfile.
@@ -73,7 +95,9 @@ export async function extractResumeDraft(
       ollamaModel: account.settings?.ollamaModel,
     });
 
-    return { ok: true, data: draft };
+    const links = enrichLinksFromRawText(text, draft.links);
+
+    return { ok: true, data: { ...draft, links } };
   } catch (error) {
     console.error("extractResumeDraft failed", error);
     return {
@@ -84,44 +108,172 @@ export async function extractResumeDraft(
 }
 
 /**
- * Extracts a resume/LinkedIn archive and saves it as the master profile.
- * Intended for non-blocking background uploads from the dialog.
+ * Extracts a resume/LinkedIn archive first, optionally runs GitHub deep sync,
+ * then additively consolidates into the master profile.
  */
 export async function applyResumeUpload(
   formData: FormData
 ): Promise<ActionResult<{ profileId: string }>> {
+  const accountId = String(formData.get("accountId") ?? "");
+  if (!accountId) {
+    return { ok: false, error: "accountId is required" };
+  }
+
+  // 1. Extract resume ground truth first
   const extracted = await extractResumeDraft(formData);
   if (!extracted.ok || !extracted.data) {
     return {
       ok: false,
-      error: extracted.ok ? "Empty draft" : extracted.error,
+      error: extracted.ok ? "Empty draft returned" : extracted.error,
     };
   }
 
-  const accountId = String(formData.get("accountId") ?? "");
-  return saveMasterProfile(accountId, extracted.data);
+  let profileDraft = extracted.data;
+
+  // 2. GitHub handle from explicit input OR detected resume links
+  const inputGithub = String(formData.get("githubUsername") ?? "").trim();
+  const targetGithubHandle = resolveGithubHandle(
+    inputGithub,
+    profileDraft.links
+  );
+
+  // 3. Deep technical inference when a handle is present
+  if (targetGithubHandle) {
+    try {
+      const account = await prisma.account.findUnique({
+        where: { id: accountId },
+        include: { settings: true },
+      });
+
+      const username = normalizeGitHubUsername(targetGithubHandle);
+      const githubProjects = await syncGitHubProjects(username, {
+        llmProvider:
+          account?.settings?.llmProvider === "LOCAL_OLLAMA"
+            ? "LOCAL_OLLAMA"
+            : "OPENROUTER",
+        localOllamaUrl: account?.settings?.localOllamaUrl,
+        ollamaModel: account?.settings?.ollamaModel,
+      });
+
+      const linkedGithub = `https://github.com/${username}`;
+      const existingProjectNames = new Set(
+        profileDraft.projects.map((p) =>
+          p.name.toLowerCase().replace(/[^a-z0-9]/g, "")
+        )
+      );
+
+      const additionalProjects = githubProjects
+        .filter(
+          (gp) =>
+            !existingProjectNames.has(
+              gp.name.toLowerCase().replace(/[^a-z0-9]/g, "")
+            )
+        )
+        .map((gp) => ({
+          name: gp.name,
+          description: gp.description,
+          technologies: gp.technologies,
+          link: gp.link,
+          bullets: gp.bullets,
+        }));
+
+      const hasGithubLink = profileDraft.links.some(
+        (l) =>
+          l.url.toLowerCase().includes("github.com/") &&
+          !l.url.toLowerCase().includes("github.io")
+      );
+
+      profileDraft = {
+        ...profileDraft,
+        projects: [...profileDraft.projects, ...additionalProjects],
+        links: hasGithubLink
+          ? profileDraft.links
+          : [...profileDraft.links, { label: "GitHub", url: linkedGithub }],
+      };
+    } catch (githubError) {
+      console.warn(
+        "GitHub deep sync failed during resume upload; proceeding with resume data only:",
+        githubError
+      );
+    }
+  }
+
+  // 4. Additive consolidation + snapshot
+  return saveMasterProfile(accountId, profileDraft, {
+    summary: "Before Resume Extraction",
+  });
 }
 
 /**
- * Transactionally upserts the master profile and related entities.
- * Resume import path — does not overwrite linked account URLs.
+ * Additively consolidates incoming profile data with any existing master profile,
+ * auto-fills linked platform URLs from the links array, then persists.
  */
 export async function saveMasterProfile(
   accountId: string,
-  data: MasterProfileInput
+  data: MasterProfileInput,
+  options?: UpdateMasterProfileOptions
 ): Promise<ActionResult<{ profileId: string }>> {
   const existing = await prisma.userProfile.findUnique({
     where: { accountId },
+    include: {
+      experiences: { orderBy: { displayOrder: "asc" } },
+      projects: true,
+      education: true,
+    },
   });
 
-  return updateMasterProfile(accountId, {
-    ...data,
-    linkedIndeed: existing?.linkedIndeed ?? null,
-    linkedGlassdoor: existing?.linkedGlassdoor ?? null,
-    linkedGithub: existing?.linkedGithub ?? null,
-    linkedLinkedin: existing?.linkedLinkedin ?? null,
-    linkedHandshake: existing?.linkedHandshake ?? null,
-  });
+  const platforms = extractPlatformLinks(data.links);
+  let consolidated: MasterProfileInput = data;
+
+  if (existing) {
+    const current = serializeUserProfileToInput(existing);
+    consolidated = consolidateProfiles(current, data);
+  }
+
+  if (platforms.linkedWebsite) {
+    const hasWebsite = consolidated.links.some(
+      (l) =>
+        l.url.toLowerCase() === platforms.linkedWebsite!.toLowerCase() ||
+        l.label.toLowerCase().includes("portfolio") ||
+        l.label.toLowerCase().includes("website")
+    );
+    if (!hasWebsite) {
+      consolidated = {
+        ...consolidated,
+        links: [
+          ...consolidated.links,
+          { label: "Portfolio", url: platforms.linkedWebsite },
+        ],
+      };
+    }
+  }
+
+  const resolvedPlatforms = extractPlatformLinks(consolidated.links);
+
+  return updateMasterProfile(
+    accountId,
+    {
+      ...consolidated,
+      linkedWebsite:
+        existing?.linkedWebsite ?? resolvedPlatforms.linkedWebsite ?? null,
+      linkedIndeed:
+        existing?.linkedIndeed ?? resolvedPlatforms.linkedIndeed ?? null,
+      linkedGlassdoor:
+        existing?.linkedGlassdoor ?? resolvedPlatforms.linkedGlassdoor ?? null,
+      linkedGithub:
+        existing?.linkedGithub ?? resolvedPlatforms.linkedGithub ?? null,
+      linkedLinkedin:
+        existing?.linkedLinkedin ?? resolvedPlatforms.linkedLinkedin ?? null,
+      linkedHandshake:
+        existing?.linkedHandshake ?? resolvedPlatforms.linkedHandshake ?? null,
+    },
+    {
+      summary:
+        options?.summary ??
+        (existing ? "Additive Profile Update" : "Before Resume Extraction"),
+      skipHistory: options?.skipHistory,
+    }
+  );
 }
 
 /**
@@ -130,7 +282,8 @@ export async function saveMasterProfile(
  */
 export async function updateMasterProfile(
   accountId: string,
-  data: MasterProfileUpdateInput | MasterProfileInput
+  data: MasterProfileUpdateInput | MasterProfileInput,
+  options?: UpdateMasterProfileOptions
 ): Promise<ActionResult<{ profileId: string }>> {
   const parsed = masterProfileSchema.safeParse(data);
   if (!parsed.success) {
@@ -148,6 +301,24 @@ export async function updateMasterProfile(
   const payload = parsed.data;
 
   try {
+    if (!options?.skipHistory) {
+      const existingTree = await prisma.userProfile.findUnique({
+        where: { accountId },
+        include: {
+          experiences: { orderBy: { displayOrder: "asc" } },
+          projects: true,
+          education: true,
+        },
+      });
+      if (existingTree) {
+        await recordProfileSnapshot(
+          existingTree.id,
+          options?.summary ?? "Manual Edit",
+          serializeUserProfileToInput(existingTree)
+        );
+      }
+    }
+
     const profileId = await prisma.$transaction(async (tx) => {
       const existing = await tx.userProfile.findUnique({
         where: { accountId },
@@ -161,6 +332,7 @@ export async function updateMasterProfile(
         summary: payload.summary ?? null,
         links: payload.links as Prisma.InputJsonValue,
         skills: payload.skills as Prisma.InputJsonValue,
+        linkedWebsite: payload.linkedWebsite ?? null,
         linkedIndeed: payload.linkedIndeed ?? null,
         linkedGlassdoor: payload.linkedGlassdoor ?? null,
         linkedGithub: payload.linkedGithub ?? null,
@@ -249,6 +421,7 @@ export async function getMasterProfile(
     MasterProfileInput & {
       updatedAt?: string;
       matchThreshold: number;
+      linkedWebsite: string | null;
       linkedIndeed: string | null;
       linkedGlassdoor: string | null;
       linkedGithub: string | null;
@@ -315,6 +488,7 @@ export async function getMasterProfile(
         })),
         updatedAt: profile.updatedAt.toISOString(),
         matchThreshold: profile.matchThreshold,
+        linkedWebsite: profile.linkedWebsite,
         linkedIndeed: profile.linkedIndeed,
         linkedGlassdoor: profile.linkedGlassdoor,
         linkedGithub: profile.linkedGithub,
@@ -329,6 +503,68 @@ export async function getMasterProfile(
       error: error instanceof Error ? error.message : "Failed to load profile",
     };
   }
+}
+
+/**
+ * Lists the last 5 profile revision snapshots (newest first).
+ */
+export async function getProfileHistory(
+  accountId: string
+): Promise<ActionResult<ProfileHistoryItem[]>> {
+  const profile = await prisma.userProfile.findUnique({
+    where: { accountId },
+    select: { id: true },
+  });
+
+  if (!profile) return { ok: false, error: "Profile not found" };
+
+  const history = await prisma.profileHistory.findMany({
+    where: { profileId: profile.id },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: { id: true, summary: true, createdAt: true },
+  });
+
+  return {
+    ok: true,
+    data: history.map((h) => ({
+      id: h.id,
+      summary: h.summary,
+      createdAt: h.createdAt.toISOString(),
+    })),
+  };
+}
+
+/**
+ * Restores a prior snapshot. Current state is archived first via updateMasterProfile.
+ */
+export async function restoreProfileHistory(
+  accountId: string,
+  historyId: string
+): Promise<ActionResult> {
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { profile: true },
+  });
+  if (!account?.profile) return { ok: false, error: "Profile not found" };
+
+  const target = await prisma.profileHistory.findUnique({
+    where: { id: historyId },
+  });
+  if (!target || target.profileId !== account.profile.id) {
+    return { ok: false, error: "Revision not found" };
+  }
+
+  const restoredData = target.snapshot as MasterProfileUpdateInput;
+
+  const result = await updateMasterProfile(accountId, restoredData, {
+    summary: `Restored: ${target.summary}`,
+  });
+  if (!result.ok) return result;
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  return { ok: true };
 }
 
 /**
@@ -437,6 +673,7 @@ export async function updateLinkedAccounts(
     await prisma.userProfile.update({
       where: { accountId },
       data: {
+        linkedWebsite: parsed.data.linkedWebsite,
         linkedIndeed: parsed.data.linkedIndeed,
         linkedGlassdoor: parsed.data.linkedGlassdoor,
         linkedGithub: parsed.data.linkedGithub,
@@ -473,7 +710,7 @@ export async function importGitHubProjects(
 
   const account = await prisma.account.findUnique({
     where: { id: accountId },
-    include: { profile: true },
+    include: { profile: true, settings: true },
   });
   if (!account) {
     return { ok: false, error: "Account not found" };
@@ -487,7 +724,24 @@ export async function importGitHubProjects(
 
   try {
     const username = normalizeGitHubUsername(handle);
-    const projects = await syncGitHubProjects(username);
+
+    const preSync = await loadProfileSnapshot(account.profile.id);
+    if (preSync) {
+      await recordProfileSnapshot(
+        account.profile.id,
+        "Before GitHub Sync",
+        preSync
+      );
+    }
+
+    const projects = await syncGitHubProjects(username, {
+      llmProvider:
+        account.settings?.llmProvider === "LOCAL_OLLAMA"
+          ? "LOCAL_OLLAMA"
+          : "OPENROUTER",
+      localOllamaUrl: account.settings?.localOllamaUrl,
+      ollamaModel: account.settings?.ollamaModel,
+    });
     const linkedGithub = `https://github.com/${username}`;
 
     await prisma.$transaction(async (tx) => {

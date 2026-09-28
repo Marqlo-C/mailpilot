@@ -52,6 +52,7 @@ function emptyForm(emailFallback = ""): MasterProfileUpdateInput {
     experiences: [],
     projects: [],
     education: [],
+    linkedWebsite: null,
     linkedIndeed: null,
     linkedGlassdoor: null,
     linkedGithub: null,
@@ -90,6 +91,7 @@ function profileToForm(profile: ProfileSnapshotData | null): MasterProfileUpdate
       ...ed,
       id: ed.id ?? newId(),
     })),
+    linkedWebsite: profile.linkedWebsite ?? null,
     linkedIndeed: profile.linkedIndeed ?? null,
     linkedGlassdoor: profile.linkedGlassdoor ?? null,
     linkedGithub: profile.linkedGithub ?? null,
@@ -212,6 +214,14 @@ export function ManualProfileEditor({
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
+                <Field
+                  label="Personal Website / Portfolio"
+                  type="url"
+                  value={form.linkedWebsite ?? ""}
+                  onChange={(v) =>
+                    setForm((f) => ({ ...f, linkedWebsite: v || null }))
+                  }
+                />
                 <Field
                   label="LinkedIn URL"
                   type="url"

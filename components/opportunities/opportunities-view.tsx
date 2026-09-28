@@ -15,6 +15,7 @@ import {
   archiveOpportunities,
   deleteDismissedPermanently,
   dismissOpportunities,
+  markLessLikeThis,
   restoreOpportunities,
 } from "@/app/actions/opportunities";
 import {
@@ -22,15 +23,14 @@ import {
   type OpportunityCardVariant,
 } from "@/components/opportunities/opportunity-card";
 
-export type OpportunitySort = "best_match" | "newest" | "highest_pay";
-
 type OpportunitiesViewProps = {
   opportunities: JobOpportunity[];
   matchThreshold: number;
   variant?: OpportunityCardVariant;
   pending?: boolean;
   emptyText?: string;
-  showSort?: boolean;
+  /** When false, hides the listing count in the toolbar. */
+  showListingCount?: boolean;
   retentionDays?: number;
   /** When set, shows the matches-only toggle in the consolidated toolbar. */
   showMatchesOnly?: boolean;
@@ -40,38 +40,12 @@ type OpportunitiesViewProps = {
   onSendNow?: (opp: JobOpportunity) => void;
   onMarkApplied?: (opp: JobOpportunity) => void;
   onUnmarkApplied?: (opp: JobOpportunity) => void;
+  onLessLikeThis?: (opp: JobOpportunity) => void;
 };
 
-function sortOpportunities(
-  items: JobOpportunity[],
-  sort: OpportunitySort
-): JobOpportunity[] {
-  const copy = [...items];
-  switch (sort) {
-    case "newest":
-      return copy.sort(
-        (a, b) =>
-          new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
-      );
-    case "highest_pay":
-      return copy.sort((a, b) => {
-        const aPay = a.salaryMax ?? -1;
-        const bPay = b.salaryMax ?? -1;
-        if (aPay < 0 && bPay < 0) {
-          return (b.matchScore ?? 0) - (a.matchScore ?? 0);
-        }
-        if (aPay < 0) return 1;
-        if (bPay < 0) return -1;
-        return bPay - aPay;
-      });
-    case "best_match":
-    default:
-      return copy.sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0));
-  }
-}
-
 /**
- * Opportunities grid with sorting, multi-select, and bulk lifecycle actions.
+ * Opportunities grid with multi-select and bulk lifecycle actions.
+ * Sorting is owned by the parent tab (see lib/opportunities/sorting.ts).
  */
 export function OpportunitiesView({
   opportunities,
@@ -79,7 +53,7 @@ export function OpportunitiesView({
   variant = "leads",
   pending = false,
   emptyText = "No opportunities yet.",
-  showSort = true,
+  showListingCount = true,
   retentionDays = 30,
   showMatchesOnly,
   onShowMatchesOnlyChange,
@@ -88,25 +62,36 @@ export function OpportunitiesView({
   onSendNow,
   onMarkApplied,
   onUnmarkApplied,
+  onLessLikeThis,
 }: OpportunitiesViewProps) {
   const router = useRouter();
-  const [sort, setSort] = useState<OpportunitySort>("best_match");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [batchPending, startBatch] = useTransition();
   const busy = pending || batchPending;
+
+  function handleLessLikeThis(opp: JobOpportunity) {
+    if (onLessLikeThis) {
+      onLessLikeThis(opp);
+      return;
+    }
+    startBatch(async () => {
+      const result = await markLessLikeThis(opp.id);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`Less like “${opp.title}” — dismissed`);
+      router.refresh();
+    });
+  }
 
   const showMatchesFilter =
     typeof showMatchesOnly === "boolean" &&
     typeof onShowMatchesOnlyChange === "function";
 
-  const sorted = useMemo(
-    () => sortOpportunities(opportunities, sort),
-    [opportunities, sort]
-  );
-
   const selectedRecords = useMemo(
-    () => sorted.filter((o) => selectedIds.includes(o.id)),
-    [sorted, selectedIds]
+    () => opportunities.filter((o) => selectedIds.includes(o.id)),
+    [opportunities, selectedIds]
   );
   const archivedSelectedIds = useMemo(
     () =>
@@ -123,7 +108,7 @@ export function OpportunitiesView({
     [selectedRecords]
   );
   const isAllSelected =
-    sorted.length > 0 && selectedIds.length === sorted.length;
+    opportunities.length > 0 && selectedIds.length === opportunities.length;
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) =>
@@ -135,7 +120,7 @@ export function OpportunitiesView({
     if (isAllSelected) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(sorted.map((o) => o.id));
+      setSelectedIds(opportunities.map((o) => o.id));
     }
   }
 
@@ -149,12 +134,15 @@ export function OpportunitiesView({
     router.refresh();
   }
 
+  const showToolbar =
+    showMatchesFilter || opportunities.length > 0 || showListingCount;
+
   return (
     <div className="space-y-3">
-      {showSort || showMatchesFilter || sorted.length > 0 ? (
+      {showToolbar ? (
         <div className="mb-3 flex select-none flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-card px-3.5 py-2 shadow-sm">
           <div className="flex flex-wrap items-center gap-3">
-            {sorted.length > 0 ? (
+            {opportunities.length > 0 ? (
               <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
                 <input
                   type="checkbox"
@@ -163,14 +151,12 @@ export function OpportunitiesView({
                   className="h-3.5 w-3.5 cursor-pointer rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30"
                 />
                 <span>
-                  {isAllSelected
-                    ? "Deselect All"
-                    : `Select All (${sorted.length})`}
+                  {isAllSelected ? "Deselect All" : "Select All"}
                 </span>
               </label>
             ) : null}
 
-            {sorted.length > 0 && showMatchesFilter ? (
+            {opportunities.length > 0 && showMatchesFilter ? (
               <div className="h-4 w-px bg-border/70" />
             ) : null}
 
@@ -206,41 +192,24 @@ export function OpportunitiesView({
             ) : null}
           </div>
 
-          <div className="ml-auto flex items-center gap-3">
-            {showSort ? (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span>Sort by</span>
-                <select
-                  id="opp-sort"
-                  value={sort}
-                  onChange={(e) =>
-                    setSort(e.target.value as OpportunitySort)
-                  }
-                  className="h-7 rounded-lg border border-border bg-background px-2 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-[#3c837b]"
-                >
-                  <option value="best_match">Best Match</option>
-                  <option value="newest">Most Recent</option>
-                  <option value="highest_pay">Highest Compensation</option>
-                </select>
-              </div>
-            ) : null}
-
-            {showSort ? <div className="h-4 w-px bg-border/70" /> : null}
-
-            <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">
-              {sorted.length} listing{sorted.length === 1 ? "" : "s"}
-            </span>
-          </div>
+          {showListingCount ? (
+            <div className="ml-auto flex items-center gap-3">
+              <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">
+                {opportunities.length} listing
+                {opportunities.length === 1 ? "" : "s"}
+              </span>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
-      {sorted.length === 0 ? (
+      {opportunities.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
           {emptyText}
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {sorted.map((opp) => (
+          {opportunities.map((opp) => (
             <OpportunityCard
               key={opp.id}
               opportunity={opp}
@@ -254,6 +223,11 @@ export function OpportunitiesView({
               onSendNow={() => onSendNow?.(opp)}
               onMarkApplied={() => onMarkApplied?.(opp)}
               onUnmarkApplied={() => onUnmarkApplied?.(opp)}
+              onLessLikeThis={
+                variant === "history"
+                  ? undefined
+                  : () => handleLessLikeThis(opp)
+              }
             />
           ))}
         </div>

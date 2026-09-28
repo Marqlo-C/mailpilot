@@ -5,6 +5,8 @@ export type CandidateProfileSummary = {
   skills: string[];
   experienceSummary: string;
   targetTitles: string[];
+  /** Role patterns banned via "Less like this". */
+  excludedTitles?: string[];
 };
 
 export type ScoredOpportunityDraft = {
@@ -63,6 +65,7 @@ export function ensureCandidateProfileForScoring(
       profile.targetTitles.length > 0
         ? profile.targetTitles
         : DEFAULT_PROFILE.targetTitles,
+    excludedTitles: profile.excludedTitles ?? [],
   };
 }
 
@@ -82,12 +85,21 @@ export function formatCandidateProfileSummary(
       ? p.targetTitles.slice(0, 8).join(", ")
       : "Not specified";
 
-  return [
+  const lines = [
     `- Target Degree / Education: ${p.educationSummary}`,
     `- Skills & Technologies: ${skills}`,
     `- Past Experience / Titles: ${p.experienceSummary}`,
     `- Likely Target Titles: ${titles}`,
-  ].join("\n");
+  ];
+
+  const excluded = (p.excludedTitles ?? []).filter((t) => t.trim().length > 0);
+  if (excluded.length > 0) {
+    lines.push(
+      `- Excluded Titles / Roles to Dislike: ${excluded.slice(0, 40).join(", ")}. Score any matches below 25.`
+    );
+  }
+
+  return lines.join("\n");
 }
 
 /**
@@ -247,6 +259,7 @@ Match Score (0-100) — compare each role against the Candidate Profile above:
 - Strong overlap with the candidate's target titles, skills, education, or experience MUST score 75-100.
 - Adjacent / stretch roles relative to that profile score 40-74.
 - Roles clearly outside the candidate's field / preferences MUST score below 30.
+- Titles matching any "Excluded Titles / Roles to Dislike" MUST score below 25.
 - When the candidate profile fields are "Not specified", score conservatively (40-60) unless the email itself states clear alignment.
 - NEVER default all jobs to 0. Every extracted job must include a reasoned matchScore.
 - matchReason: concise 1-sentence explanation of fit or mismatch against THIS candidate's profile — never assume a profession.

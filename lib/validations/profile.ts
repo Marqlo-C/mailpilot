@@ -69,6 +69,8 @@ export type ExperienceBullet = z.infer<typeof experienceBulletSchema>;
 export type Skills = z.infer<typeof skillsSchema>;
 export type MasterProfileInput = z.infer<typeof masterProfileInputSchema>;
 export type WorkExperienceInput = z.infer<typeof workExperienceInputSchema>;
+export type ProjectInput = z.infer<typeof projectInputSchema>;
+export type EducationInput = z.infer<typeof educationInputSchema>;
 
 export const APPLICATION_STATUSES = [
   "LEAD",
@@ -128,6 +130,7 @@ function optionalHttpsUrl(label: string) {
 
 /** External professional profile URLs on UserProfile. */
 export const linkedAccountsSchema = z.object({
+  linkedWebsite: optionalHttpsUrl("Personal Website"),
   linkedIndeed: optionalHttpsUrl("Indeed"),
   linkedGlassdoor: optionalHttpsUrl("Glassdoor"),
   linkedGithub: optionalHttpsUrl("GitHub"),
@@ -136,6 +139,7 @@ export const linkedAccountsSchema = z.object({
 });
 
 export type LinkedAccountsInput = {
+  linkedWebsite?: string | null;
   linkedIndeed?: string | null;
   linkedGlassdoor?: string | null;
   linkedGithub?: string | null;
@@ -148,6 +152,7 @@ export type LinkedAccountsInput = {
  * Alias requested by settings UX: `masterProfileSchema`.
  */
 export const masterProfileSchema = masterProfileInputSchema.extend({
+  linkedWebsite: optionalHttpsUrl("Personal Website"),
   linkedIndeed: optionalHttpsUrl("Indeed"),
   linkedGlassdoor: optionalHttpsUrl("Glassdoor"),
   linkedGithub: optionalHttpsUrl("GitHub"),

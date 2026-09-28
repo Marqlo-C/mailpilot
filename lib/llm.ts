@@ -21,6 +21,7 @@ import {
   parseApplicationEmail,
 } from "@/lib/parsers/application-parser";
 import { prisma } from "@/lib/prisma";
+import { parseAccountRules } from "@/lib/validations/rules";
 
 export const extractedJobSchema = z.object({
   company: z.string().min(1),
@@ -45,7 +46,7 @@ export const extractedJobSchema = z.object({
 export type ExtractedJob = z.infer<typeof extractedJobSchema>;
 
 export const jobClassificationSchema = z.object({
-  is_job_related: z.boolean(),
+  is_job_related: z.boolean().default(true),
   email_category: z
     .enum([
       "DIRECT_RECRUITER",
@@ -53,23 +54,26 @@ export const jobClassificationSchema = z.object({
       "APPLICATION_STATUS",
       "IRRELEVANT",
     ])
-    .default("IRRELEVANT"),
-  company_name: z.string().nullable(),
-  role_title: z.string().nullable(),
-  status: z.enum([
-    "REJECTION",
-    "INTERVIEW",
-    "OA",
-    "RECEIVED",
-    "OTHER",
-    "OFFER",
-    "LEAD",
-    "APPLIED",
-  ]),
-  action_required: z.boolean(),
-  action_summary: z.string().nullable(),
-  action_url: z.string().nullable(),
-  deadline_iso: z.string().nullable(),
+    .default("JOB_BOARD_DIGEST"),
+  company_name: z.string().nullish().default(null),
+  role_title: z.string().nullish().default(null),
+  status: z
+    .enum([
+      "REJECTION",
+      "INTERVIEW",
+      "OA",
+      "RECEIVED",
+      "OTHER",
+      "OFFER",
+      "LEAD",
+      "APPLIED",
+    ])
+    .nullish()
+    .transform((value) => value ?? "LEAD"),
+  action_required: z.boolean().default(false),
+  action_summary: z.string().nullish().default(null),
+  action_url: z.string().nullish().default(null),
+  deadline_iso: z.string().nullish().default(null),
   jobs: z.array(extractedJobSchema).default([]),
 });
 
@@ -264,25 +268,40 @@ function clampScore(value: number | null | undefined): number {
 }
 
 /**
- * Loads a compact candidate summary from the account's UserProfile (resume data).
+ * Loads a compact candidate summary from the account's UserProfile (resume data)
+ * plus excluded title patterns from AccountSettings.rules.
  */
 export async function loadCandidateProfileSummary(
   accountId: string
 ): Promise<CandidateProfileSummary | null> {
-  const profile = await prisma.userProfile.findUnique({
-    where: { accountId },
-    include: {
-      experiences: { orderBy: { displayOrder: "asc" }, take: 4 },
-      education: true,
-      projects: { take: 4 },
-    },
-  });
+  const [profile, settings] = await Promise.all([
+    prisma.userProfile.findUnique({
+      where: { accountId },
+      include: {
+        experiences: { orderBy: { displayOrder: "asc" }, take: 4 },
+        education: true,
+        projects: { take: 4 },
+      },
+    }),
+    prisma.accountSettings.findUnique({
+      where: { accountId },
+      select: { rules: true },
+    }),
+  ]);
+
+  const excludedTitles = parseAccountRules(settings?.rules).excludedTitles;
 
   if (!profile) {
     console.warn(
       `Sync warning: Account ${accountId} has no linked UserProfile. Match scoring will use generic profile defaults.`
     );
-    return null;
+    return {
+      educationSummary: "Not specified",
+      skills: [],
+      experienceSummary: "Not specified",
+      targetTitles: [],
+      excludedTitles,
+    };
   }
 
   const skillsJson = (profile.skills ?? {}) as {
@@ -332,6 +351,7 @@ export async function loadCandidateProfileSummary(
     skills: [...skills, ...projectTitles].slice(0, 50),
     experienceSummary,
     targetTitles,
+    excludedTitles,
   };
 }
 
@@ -522,6 +542,71 @@ export function sanitizeEmailBody(raw: string): string {
 }
 
 /**
+ * Softens local-LLM quirks: unwraps common wrappers, maps camelCase aliases,
+ * promotes `opportunities` → `jobs`, and infers `is_job_related` from job lists.
+ */
+export function coerceClassificationPayload(
+  raw: Record<string, unknown>
+): Record<string, unknown> {
+  let payload: Record<string, unknown> = raw;
+
+  for (const key of ["data", "result", "classification"] as const) {
+    const nested = payload[key];
+    if (
+      nested &&
+      typeof nested === "object" &&
+      !Array.isArray(nested) &&
+      (Array.isArray((nested as Record<string, unknown>).jobs) ||
+        Array.isArray((nested as Record<string, unknown>).opportunities) ||
+        typeof (nested as Record<string, unknown>).is_job_related ===
+          "boolean" ||
+        typeof (nested as Record<string, unknown>).isJobRelated === "boolean")
+    ) {
+      payload = nested as Record<string, unknown>;
+      break;
+    }
+  }
+
+  const next: Record<string, unknown> = { ...payload };
+
+  if (next.is_job_related === undefined && next.isJobRelated !== undefined) {
+    next.is_job_related = next.isJobRelated;
+  }
+  if (next.email_category === undefined && next.emailCategory !== undefined) {
+    next.email_category = next.emailCategory;
+  }
+  if (next.company_name === undefined && next.companyName !== undefined) {
+    next.company_name = next.companyName;
+  }
+  if (next.role_title === undefined && next.roleTitle !== undefined) {
+    next.role_title = next.roleTitle;
+  }
+  if (next.action_required === undefined && next.actionRequired !== undefined) {
+    next.action_required = next.actionRequired;
+  }
+  if (next.action_summary === undefined && next.actionSummary !== undefined) {
+    next.action_summary = next.actionSummary;
+  }
+  if (next.action_url === undefined && next.actionUrl !== undefined) {
+    next.action_url = next.actionUrl;
+  }
+  if (next.deadline_iso === undefined && next.deadlineIso !== undefined) {
+    next.deadline_iso = next.deadlineIso;
+  }
+
+  if (!Array.isArray(next.jobs) && Array.isArray(next.opportunities)) {
+    next.jobs = next.opportunities;
+  }
+
+  const jobs = Array.isArray(next.jobs) ? next.jobs : [];
+  if (jobs.length > 0 && next.is_job_related === undefined) {
+    next.is_job_related = true;
+  }
+
+  return next;
+}
+
+/**
  * Classifies a job-related email with optional profile-aware match scoring.
  */
 export async function classifyJobEmail(
@@ -567,12 +652,7 @@ export async function classifyJobEmail(
   }
 
   try {
-    // Accept either "jobs" or "opportunities" from the model.
-    const normalizedPayload =
-      Array.isArray(result.jobs) || !Array.isArray(result.opportunities)
-        ? result
-        : { ...result, jobs: result.opportunities };
-
+    const normalizedPayload = coerceClassificationPayload(result);
     const parsed = jobClassificationSchema.parse(normalizedPayload);
     return normalizeClassification(parsed, {
       subject: options.subject,
@@ -581,7 +661,11 @@ export async function classifyJobEmail(
       candidateProfile: options.candidateProfile,
     });
   } catch (error) {
-    console.warn("Failed to parse job classification JSON", error);
+    console.warn(
+      "Failed to parse job classification JSON",
+      error,
+      JSON.stringify(result).slice(0, 300)
+    );
     return null;
   }
 }

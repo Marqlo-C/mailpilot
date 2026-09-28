@@ -1,5 +1,3 @@
-import { Radio } from "lucide-react";
-
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +7,7 @@ type SyncBadgeProps = {
   compact?: boolean;
 };
 
+/** High-contrast Connected / Offline status badge for sidebar + mobile. */
 export function SyncBadge({ connected, watching, compact }: SyncBadgeProps) {
   if (!connected) {
     return (
@@ -21,20 +20,13 @@ export function SyncBadge({ connected, watching, compact }: SyncBadgeProps) {
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 rounded-md border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary",
-        compact && "gap-1 px-1.5"
+        "inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400",
+        compact && "px-2"
       )}
+      title={watching ? "Push watch active" : "Connected"}
     >
-      <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-40" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-      </span>
-      {!compact && (
-        <>
-          <Radio className="h-3.5 w-3.5" />
-          <span>{watching ? "Live sync" : "Connected"}</span>
-        </>
-      )}
+      <span className="h-1.5 w-1.5 rounded-full animate-pulse bg-emerald-500" />
+      {!compact && <span>Connected</span>}
     </div>
   );
 }

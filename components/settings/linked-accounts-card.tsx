@@ -6,6 +6,7 @@ import {
   Building2,
   Briefcase,
   FolderGit2,
+  Globe,
   GraduationCap,
   Handshake,
   type LucideIcon,
@@ -37,6 +38,12 @@ const FIELDS: Array<{
   placeholder: string;
   icon: LucideIcon;
 }> = [
+  {
+    key: "linkedWebsite",
+    label: "Personal Website / Portfolio",
+    placeholder: "https://marqlo-c.github.io or https://yourportfolio.com",
+    icon: Globe,
+  },
   {
     key: "linkedLinkedin",
     label: "LinkedIn",
@@ -77,6 +84,7 @@ export function LinkedAccountsCard({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState<Record<keyof LinkedAccountsInput, string>>({
+    linkedWebsite: values.linkedWebsite ?? "",
     linkedIndeed: values.linkedIndeed ?? "",
     linkedGlassdoor: values.linkedGlassdoor ?? "",
     linkedGithub: values.linkedGithub ?? "",
@@ -92,6 +100,7 @@ export function LinkedAccountsCard({
     setError(null);
     startTransition(async () => {
       const result = await updateLinkedAccounts(accountId, {
+        linkedWebsite: form.linkedWebsite,
         linkedIndeed: form.linkedIndeed,
         linkedGlassdoor: form.linkedGlassdoor,
         linkedGithub: form.linkedGithub,

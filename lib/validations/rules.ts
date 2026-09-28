@@ -22,6 +22,8 @@ export const accountRulesSchema = z.object({
       z.literal(60),
     ])
     .default(30),
+  /** Role titles / patterns banned via "Less like this". */
+  excludedTitles: z.array(z.string()).default([]),
 });
 
 export type AccountRules = z.infer<typeof accountRulesSchema>;
@@ -34,4 +36,17 @@ export const DEFAULT_ACCOUNT_RULES: AccountRules = accountRulesSchema.parse({});
  */
 export function parseAccountRules(rules: unknown): AccountRules {
   return accountRulesSchema.parse(rules ?? {});
+}
+
+/** Case-insensitive exact or substring match against excluded title patterns. */
+export function titleMatchesExcluded(
+  title: string,
+  excludedTitles: string[] | null | undefined
+): boolean {
+  const t = title.toLowerCase().trim();
+  if (!t || !excludedTitles?.length) return false;
+  return excludedTitles.some((ex) => {
+    const e = ex.toLowerCase().trim();
+    return e.length > 0 && (t === e || t.includes(e));
+  });
 }

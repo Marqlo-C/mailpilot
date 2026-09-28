@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { addExcludedTitle } from "@/app/actions/settings";
 import { canDraftDirectEmail } from "@/lib/application-method";
 import {
   countSendsToday,
@@ -179,6 +180,25 @@ export async function markOpportunityExternalApplied(
     },
   });
   revalidatePath("/jobs");
+  return { ok: true };
+}
+
+/**
+ * Ban this role pattern ("Less like this") and dismiss the card to History.
+ */
+export async function markLessLikeThis(
+  opportunityId: string
+): Promise<ActionResult> {
+  const opp = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+  });
+  if (!opp) return { ok: false, error: "Opportunity not found" };
+
+  const banned = await addExcludedTitle(opp.accountId, opp.title);
+  if (!banned.ok) return banned;
+
+  const dismissed = await dismissOpportunities([opportunityId]);
+  if (!dismissed.ok) return dismissed;
   return { ok: true };
 }
 

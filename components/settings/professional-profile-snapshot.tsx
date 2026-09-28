@@ -16,6 +16,7 @@ import type { MasterProfileInput } from "@/lib/validations/profile";
 export type ProfileSnapshotData = MasterProfileInput & {
   updatedAt?: string;
   matchThreshold?: number;
+  linkedWebsite?: string | null;
   linkedIndeed?: string | null;
   linkedGlassdoor?: string | null;
   linkedGithub?: string | null;
@@ -32,6 +33,7 @@ const LINKED_FIELDS: Array<{
   key: keyof ProfileSnapshotData;
   label: string;
 }> = [
+  { key: "linkedWebsite", label: "Website" },
   { key: "linkedLinkedin", label: "LinkedIn" },
   { key: "linkedGithub", label: "GitHub" },
   { key: "linkedIndeed", label: "Indeed" },

@@ -287,6 +287,7 @@ model UserProfile {
 
   matchThreshold  Int     @default(75)
 
+  linkedWebsite   String?
   linkedIndeed    String?
   linkedGlassdoor String?
   linkedGithub    String?
@@ -296,9 +297,24 @@ model UserProfile {
   experiences WorkExperience[]
   projects    Project[]
   education   Education[]
+  history     ProfileHistory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model ProfileHistory {
+  id        String      @id @default(cuid())
+  profileId String
+  profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  /// e.g. "Before GitHub Sync", "Before Resume Extraction", "Manual Edit"
+  summary   String
+  /// Complete MasterProfileInput JSON snapshot
+  snapshot  Json
+  createdAt DateTime    @default(now())
+
+  @@index([profileId, createdAt])
 }
 
 model WorkExperience {

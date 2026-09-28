@@ -30,7 +30,7 @@ import {
 } from "@/lib/parsers/application-parser";
 import { prisma } from "@/lib/prisma";
 import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
-import { parseAccountRules } from "@/lib/validations/rules";
+import { parseAccountRules, titleMatchesExcluded } from "@/lib/validations/rules";
 
 type SenderInfo = {
   name: string | null;
@@ -110,7 +110,10 @@ export async function processInboxDelta(
 
   await prisma.account.update({
     where: { id: account.id },
-    data: { historyId: latestHistoryId },
+    data: {
+      historyId: latestHistoryId,
+      lastSyncedAt: new Date(),
+    },
   });
 }
 
@@ -540,6 +543,7 @@ export async function persistClassifiedEmail(input: {
 
   // DIRECT_RECRUITER / JOB_BOARD_DIGEST / applied listings → JobOpportunity rows
   const threshold = rules.matchScoreThreshold ?? 75;
+  const excludedTitles = rules.excludedTitles ?? [];
   let opportunitiesUpserted = 0;
   for (const job of classification.jobs) {
     const cleanCompany = job.company.trim();
@@ -557,10 +561,17 @@ export async function persistClassifiedEmail(input: {
     const companyDomain =
       job.companyDomain ?? inferDomainFromUrl(job.applyUrl) ?? null;
     const logoUrl = getCompanyLogoUrl(cleanCompany, companyDomain);
-    const matchScore =
+    let matchScore =
       typeof job.matchScore === "number" ? job.matchScore : 0;
-    const matchReason = job.matchReason ?? null;
-    const scoreArchived = matchScore < threshold;
+    let matchReason = job.matchReason ?? null;
+    const excluded = titleMatchesExcluded(cleanTitle, excludedTitles);
+    if (excluded) {
+      matchScore = Math.min(matchScore, 20);
+      if (!matchReason?.trim()) {
+        matchReason = "Title matches an excluded role pattern.";
+      }
+    }
+    const scoreArchived = excluded || matchScore < threshold;
     const isAlreadyApplied = Boolean(job.isAlreadyApplied);
 
     // Scoped dedupe: exact (company + title), else upgrade a placeholder

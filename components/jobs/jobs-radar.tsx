@@ -38,6 +38,13 @@ import {
   isInHistory,
   isUserArchived,
 } from "@/lib/opportunities/lifecycle";
+import {
+  TAB_SORT_CONFIG,
+  sortActionRequired,
+  sortJobApplications,
+  sortOpportunities,
+  tabKeyFromValue,
+} from "@/lib/opportunities/sorting";
 import type { MasterProfileInput } from "@/lib/validations/profile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -97,6 +104,19 @@ export function JobsRadar({
   const [draftOpportunity, setDraftOpportunity] =
     useState<JobOpportunity | null>(null);
   const [showOnlyMatches, setShowOnlyMatches] = useState(true);
+  const [activeTab, setActiveTab] = useState("leads");
+  const [sort, setSort] = useState(TAB_SORT_CONFIG.leads.defaultSort);
+
+  const sortConfig = TAB_SORT_CONFIG[tabKeyFromValue(activeTab)];
+
+  function handleTabChange(nextTab: string) {
+    setActiveTab(nextTab);
+    const nextConfig = TAB_SORT_CONFIG[tabKeyFromValue(nextTab)];
+    const allowed = nextConfig.options.map((o) => o.value);
+    if (!allowed.includes(sort)) {
+      setSort(nextConfig.defaultSort);
+    }
+  }
 
   // Leads: discoveries not user-archived. Matches-only hides below-threshold.
   const opportunityLeadsAll = useMemo(() => {
@@ -130,6 +150,23 @@ export function JobsRadar({
   const opportunityHistory = useMemo(
     () => opportunities.filter((o) => isInHistory(o)),
     [opportunities]
+  );
+
+  const sortedOpportunityLeads = useMemo(
+    () => sortOpportunities(opportunityLeadsAll, sort),
+    [opportunityLeadsAll, sort]
+  );
+  const sortedOpportunityApplied = useMemo(
+    () => sortOpportunities(opportunityApplied, sort),
+    [opportunityApplied, sort]
+  );
+  const sortedOpportunityAction = useMemo(
+    () => sortOpportunities(opportunityAction, sort),
+    [opportunityAction, sort]
+  );
+  const sortedOpportunityHistory = useMemo(
+    () => sortOpportunities(opportunityHistory, sort),
+    [opportunityHistory, sort]
   );
   const archivedLeadCount = useMemo(
     () =>
@@ -180,6 +217,23 @@ export function JobsRadar({
     [jobs]
   );
 
+  const sortedLeads = useMemo(
+    () => sortJobApplications(leads, sort),
+    [leads, sort]
+  );
+  const sortedApplied = useMemo(
+    () => sortJobApplications(applied, sort),
+    [applied, sort]
+  );
+  const sortedActionRequired = useMemo(
+    () => sortActionRequired(actionRequired, sort),
+    [actionRequired, sort]
+  );
+  const sortedHistory = useMemo(
+    () => sortJobApplications(history, sort),
+    [history, sort]
+  );
+
   const leadCount = discoveredLeadCount + leads.length;
   const appliedCount = opportunityApplied.length + applied.length;
   const actionCount = opportunityAction.length + actionRequired.length;
@@ -223,7 +277,7 @@ export function JobsRadar({
         </p>
       </div>
 
-      <Tabs defaultValue="leads">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <TabsList className={segmentedTabsListClassName}>
             <TabsTrigger value="leads" className={segmentedTabsTriggerClassName}>
@@ -253,7 +307,22 @@ export function JobsRadar({
             </TabsTrigger>
           </TabsList>
 
-          <div className="flex shrink-0 items-center gap-2.5 self-start sm:self-auto">
+          <div className="flex shrink-0 flex-wrap items-center gap-2.5 self-start sm:self-auto">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="whitespace-nowrap">Sort by</span>
+              <select
+                id="jobs-tab-sort"
+                value={sort}
+                onChange={(e) => setSort(e.target.value)}
+                className="h-8 rounded-lg border border-border bg-background px-2 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-[#3c837b]"
+              >
+                {sortConfig.options.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <Button
               type="button"
               size="sm"
@@ -297,7 +366,7 @@ export function JobsRadar({
             <div className="space-y-4">
               {hasOpportunityLeads ? (
                 <OpportunitiesView
-                  opportunities={opportunityLeadsAll}
+                  opportunities={sortedOpportunityLeads}
                   matchThreshold={matchThreshold}
                   retentionDays={retentionDays}
                   variant="leads"
@@ -318,9 +387,9 @@ export function JobsRadar({
                 />
               ) : null}
 
-              {leads.length > 0 ? (
+              {sortedLeads.length > 0 ? (
                 <div className="grid gap-3 md:grid-cols-2">
-                  {leads.map((job) => {
+                  {sortedLeads.map((job) => {
                     const canEmail = Boolean(
                       extractRecruiterEmail({
                         actionSummary: job.actionSummary,
@@ -457,14 +526,13 @@ export function JobsRadar({
             <EmptyState text="No active applications waiting for a response." />
           ) : (
             <>
-              {opportunityApplied.length > 0 ? (
+              {sortedOpportunityApplied.length > 0 ? (
                 <OpportunitiesView
-                  opportunities={opportunityApplied}
+                  opportunities={sortedOpportunityApplied}
                   matchThreshold={matchThreshold}
                   retentionDays={retentionDays}
                   variant="applied"
                   pending={pending}
-                  showSort={false}
                   emptyText="No applied opportunities."
                   onUnmarkApplied={(opp) => {
                     startTransition(async () => {
@@ -475,9 +543,9 @@ export function JobsRadar({
                   }}
                 />
               ) : null}
-              {applied.length > 0 ? (
+              {sortedApplied.length > 0 ? (
                 <ul className="space-y-2">
-                  {applied.map((job) => (
+                  {sortedApplied.map((job) => (
                     <li
                       key={job.id}
                       className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"
@@ -528,22 +596,21 @@ export function JobsRadar({
             <EmptyState text="Nothing needs your attention right now." />
           ) : (
             <>
-              {opportunityAction.length > 0 ? (
+              {sortedOpportunityAction.length > 0 ? (
                 <OpportunitiesView
-                  opportunities={opportunityAction}
+                  opportunities={sortedOpportunityAction}
                   matchThreshold={matchThreshold}
                   retentionDays={retentionDays}
                   variant="action"
                   pending={pending}
-                  showSort={false}
                   emptyText="No drafts awaiting review."
                   onReviewDraft={(opp) => setDraftOpportunity(opp)}
                   onSendNow={handleOpportunitySend}
                 />
               ) : null}
-              {actionRequired.length > 0 ? (
+              {sortedActionRequired.length > 0 ? (
                 <div className="grid gap-3 md:grid-cols-2">
-                  {actionRequired.map((job) => (
+                  {sortedActionRequired.map((job) => (
                     <Card key={job.id} className="border-primary/30">
                       <CardHeader className="pb-3">
                         <div className="flex items-start gap-3">
@@ -645,20 +712,19 @@ export function JobsRadar({
             <EmptyState text="No history yet." />
           ) : (
             <>
-              {opportunityHistory.length > 0 ? (
+              {sortedOpportunityHistory.length > 0 ? (
                 <OpportunitiesView
-                  opportunities={opportunityHistory}
+                  opportunities={sortedOpportunityHistory}
                   matchThreshold={matchThreshold}
                   retentionDays={retentionDays}
                   variant="history"
                   pending={pending}
-                  showSort={false}
                   emptyText="No archived opportunities."
                 />
               ) : null}
-              {history.length > 0 ? (
+              {sortedHistory.length > 0 ? (
                 <ul className="space-y-2">
-                  {history.map((job) => (
+                  {sortedHistory.map((job) => (
                     <li
                       key={job.id}
                       className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"
