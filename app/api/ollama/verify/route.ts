@@ -14,7 +14,6 @@ export const dynamic = "force-dynamic";
 
 const verifyBodySchema = z.object({
   url: z.string().url().optional(),
-  heartbeat: z.boolean().optional().default(false),
 });
 
 const ollamaTagsSchema = z.object({
@@ -157,25 +156,27 @@ export async function POST(request: Request) {
       );
     }
 
+    // Prefer payload URL; fall back to DB so browser state lag doesn't block verify
     const settings = await prisma.accountSettings.findUnique({
       where: { accountId },
-      select: { localOllamaUrl: true, rules: true },
+      select: { localOllamaUrl: true },
     });
 
     const storedUrl = settings?.localOllamaUrl?.trim() ?? "";
-    let targetUrl = parsed.data.url?.trim();
-
-    if (!targetUrl) {
-      targetUrl = storedUrl || undefined;
-    }
+    let targetUrl = parsed.data.url?.trim() || storedUrl || undefined;
 
     if (!targetUrl) {
       await persistBridgeStatus(accountId, { connected: false, models: [] });
-      return NextResponse.json({
-        connected: false,
-        status: "waiting" satisfies OllamaConnectionStatus,
-        models: [],
-      });
+      return NextResponse.json(
+        {
+          connected: false,
+          status: "waiting" satisfies OllamaConnectionStatus,
+          models: [],
+          error:
+            "No bridge tunnel found. Run the terminal command first, then Check Connection.",
+        },
+        { status: 400 }
+      );
     }
 
     const hadStoredUrl = storedUrl.length > 0;
@@ -191,7 +192,7 @@ export async function POST(request: Request) {
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
+    const timeout = setTimeout(() => controller.abort(), 6000);
 
     let res: Response;
     try {
@@ -199,13 +200,22 @@ export async function POST(request: Request) {
         method: "GET",
         signal: controller.signal,
         cache: "no-store",
+        headers: {
+          "User-Agent": "MailPilot-Bridge/1.0",
+          Accept: "application/json",
+        },
       });
-    } catch {
+    } catch (err) {
       clearTimeout(timeout);
+      const isTimeout =
+        err instanceof Error &&
+        (err.name === "AbortError" || err.name === "TimeoutError");
       return handleUnreachable(
         accountId,
         hadStoredUrl,
-        "Could not reach Ollama at this URL.",
+        isTimeout
+          ? "Connection timed out. Check that your terminal bridge is running."
+          : "Failed to reach tunnel endpoint.",
         hadStoredUrl ? "offline" : "waiting"
       );
     } finally {
@@ -216,7 +226,7 @@ export async function POST(request: Request) {
       return handleUnreachable(
         accountId,
         hadStoredUrl,
-        `Ollama responded with HTTP ${res.status}`,
+        `Daemon returned status ${res.status}`,
         hadStoredUrl ? "offline" : "error"
       );
     }
@@ -240,7 +250,7 @@ export async function POST(request: Request) {
       activeUrl: base,
       models,
     });
-  } catch {
+  } catch (err) {
     try {
       const accountId = await getAuthenticatedAccountId();
       if (accountId) {
@@ -262,11 +272,17 @@ export async function POST(request: Request) {
       // best-effort status clear
     }
 
+    const isTimeout =
+      err instanceof Error &&
+      (err.name === "AbortError" || err.name === "TimeoutError");
+
     return NextResponse.json({
       connected: false,
       status: "offline" satisfies OllamaConnectionStatus,
       models: [],
-      error: "Could not reach Ollama at this URL.",
+      error: isTimeout
+        ? "Connection timed out. Check that your terminal bridge is running."
+        : "Failed to reach tunnel endpoint.",
     });
   }
 }
