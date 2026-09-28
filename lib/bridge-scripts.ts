@@ -155,25 +155,28 @@ if [ -z "$TUNNEL_URL" ]; then
 fi
 
 echo "Public Tunnel: $TUNNEL_URL"
-echo "Registering bridge with MailPilot..."
+printf "Registering bridge with MailPilot... "
 
 RESP=$(curl -s -X POST "$API_BASE/api/settings/ollama-bridge" \\
   -H "Content-Type: application/json" \\
   -d "{\\"email\\":\\"$EMAIL\\",\\"ollamaUrl\\":\\"$TUNNEL_URL\\",\\"bridgeSecret\\":\\"$SECRET\\"}")
 
 if echo "$RESP" | grep -q '"success":true'; then
+  echo "ok"
   echo ""
   echo "=========================================================="
   echo "MAILPILOT LOCAL OLLAMA BRIDGE ACTIVE"
   echo "  Connected account: $EMAIL"
-  echo "  Inferences are now routed straight to your local GPU."
+  echo "  Tunnel URL: $TUNNEL_URL"
   echo "=========================================================="
   echo "Keep this terminal window open while using MailPilot."
-  echo "  Press Ctrl+C when finished to close the bridge."
+  echo "Press Ctrl+C when finished to close the bridge."
   echo ""
   wait "$TUNNEL_PID" || true
 else
-  echo "Registration failed: $RESP"
+  echo "FAILED"
+  echo ""
+  echo "Error from MailPilot: $RESP"
   exit 1
 fi
 `;
@@ -270,7 +273,7 @@ try {
     }
 
     Write-Host "Public Tunnel: $tunnelUrl" -ForegroundColor Green
-    Write-Host "Registering bridge with MailPilot..." -ForegroundColor Cyan
+    Write-Host -NoNewline "Registering bridge with MailPilot... "
 
     $body = @{
         email = $Email
@@ -278,24 +281,37 @@ try {
         bridgeSecret = $Secret
     } | ConvertTo-Json
 
-    $resp = Invoke-RestMethod -Uri "$ApiBase/api/settings/ollama-bridge" -Method Post -Body $body -ContentType "application/json"
+    try {
+        $resp = Invoke-RestMethod -Uri "$ApiBase/api/settings/ollama-bridge" -Method Post -Body $body -ContentType "application/json"
+    } catch {
+        Write-Host "FAILED" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Error from MailPilot: $($_.Exception.Message)" -ForegroundColor Red
+        if ($_.ErrorDetails.Message) {
+            Write-Host $_.ErrorDetails.Message -ForegroundColor Red
+        }
+        exit 1
+    }
 
     if ($resp.success) {
+        Write-Host "ok" -ForegroundColor Green
         Write-Host ""
         Write-Host "==========================================================" -ForegroundColor Green
         Write-Host "MAILPILOT LOCAL OLLAMA BRIDGE ACTIVE" -ForegroundColor Green
         Write-Host "  Connected account: $Email"
-        Write-Host "  Inferences are now routed straight to your local GPU."
+        Write-Host "  Tunnel URL: $tunnelUrl"
         Write-Host "=========================================================="
         Write-Host "Keep this terminal window open while using MailPilot."
-        Write-Host "  Press Ctrl+C when finished to close the bridge."
+        Write-Host "Press Ctrl+C when finished to close the bridge."
         Write-Host ""
 
         while (-not $proc.HasExited) {
             Start-Sleep -Seconds 1
         }
     } else {
-        Write-Host "Registration failed." -ForegroundColor Red
+        Write-Host "FAILED" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Error from MailPilot: $($resp | ConvertTo-Json -Compress)" -ForegroundColor Red
         exit 1
     }
 } finally {

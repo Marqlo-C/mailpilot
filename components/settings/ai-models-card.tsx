@@ -61,9 +61,13 @@ type VerifyResponse = {
     reason?: string;
     hadPayloadUrl?: boolean;
     hadStoredUrl?: boolean;
+    hadStoredTunnel?: boolean;
+    rawStoredHost?: string | null;
     httpWouldHaveBeen?: number;
     nowStatus?: number;
     issues?: string[];
+    accountIdLen?: number;
+    modelCount?: number;
   };
 };
 
@@ -238,7 +242,7 @@ export function AiModelsCard({
       ? "error"
       : connectionStatus;
 
-  const emailForCommand = accountEmail?.trim() ?? "";
+  const emailForCommand = (accountEmail?.trim() ?? "").toLowerCase();
   const secretForCommand = bridgeSecret.trim();
   const macBridgeUrl =
     hasSecret && emailForCommand
@@ -257,7 +261,7 @@ export function AiModelsCard({
   const activeBridgeCommand =
     bridgeOs === "mac" ? macBridgeCommand : winBridgeCommand;
 
-  /** On-demand only — omit url so API falls back to DB tunnel when browser state lags. */
+  /** On-demand only — omit localhost placeholders so API uses DB tunnel. */
   async function handleVerifyConnection(
     overrideUrl?: string
   ): Promise<ConnectionStatus> {
@@ -267,7 +271,20 @@ export function AiModelsCard({
     try {
       const candidate = (overrideUrl ?? url).trim();
       const payload: { url?: string } = {};
-      if (candidate) payload.url = candidate;
+      // Only forward real Cloudflare tunnels; never the schema default localhost
+      if (
+        candidate &&
+        (() => {
+          try {
+            const host = new URL(candidate).hostname.toLowerCase();
+            return host.endsWith(".trycloudflare.com");
+          } catch {
+            return false;
+          }
+        })()
+      ) {
+        payload.url = candidate;
+      }
 
       // #region agent log
       fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
@@ -502,7 +519,13 @@ export function AiModelsCard({
           />
         </div>
 
-        {useOllama && (
+        {useOllama && !mounted && (
+          <div className="rounded-xl border border-border/60 bg-muted/20 p-4 text-xs text-muted-foreground">
+            Loading Ollama settings…
+          </div>
+        )}
+
+        {useOllama && mounted && (
           <div className="space-y-5">
             {/* Setup methods */}
             <Tabs defaultValue="automated" className="w-full">

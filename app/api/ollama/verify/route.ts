@@ -62,6 +62,19 @@ function isAllowedOllamaUrl(raw: string): boolean {
   }
 }
 
+/** True only for a registered Cloudflare Quick Tunnel (not the schema default localhost). */
+function isRegisteredTunnelUrl(raw: string): boolean {
+  try {
+    const parsed = new URL(raw);
+    return (
+      parsed.protocol === "https:" &&
+      parsed.hostname.toLowerCase().endsWith(".trycloudflare.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
 function extractModelNames(
   models: z.infer<typeof ollamaTagsSchema>["models"]
 ): string[] {
@@ -206,38 +219,74 @@ export async function POST(request: Request) {
       });
     }
 
-    // Prefer payload URL; fall back to DB so browser state lag doesn't block verify
-    const settings = await prisma.accountSettings.findUnique({
-      where: { accountId },
-      select: { localOllamaUrl: true },
+    // Same AccountSettings row the bridge registers via accountId (session cookie).
+    // Also re-resolve by email so casing / multi-path writes can't diverge.
+    const account = await prisma.account.findFirst({
+      where: { id: accountId, isActive: true },
+      select: {
+        id: true,
+        email: true,
+        settings: { select: { localOllamaUrl: true } },
+      },
     });
 
-    const storedUrl = settings?.localOllamaUrl?.trim() ?? "";
-    let targetUrl = parsed.data.url?.trim() || storedUrl || undefined;
+    const settingsByEmail =
+      account?.email != null
+        ? await prisma.accountSettings.findFirst({
+            where: {
+              account: {
+                email: { equals: account.email, mode: "insensitive" },
+              },
+            },
+            select: { localOllamaUrl: true, accountId: true },
+          })
+        : null;
+
+    const rawStored =
+      account?.settings?.localOllamaUrl?.trim() ||
+      settingsByEmail?.localOllamaUrl?.trim() ||
+      "";
+    // Ignore schema default localhost — only a registered *.trycloudflare.com counts
+    const storedTunnel = isRegisteredTunnelUrl(rawStored) ? rawStored : "";
+    const payloadUrl = parsed.data.url?.trim() || "";
+    // Client often still holds the schema default localhost; never treat that as a tunnel
+    const payloadTunnel = isRegisteredTunnelUrl(payloadUrl) ? payloadUrl : "";
+
+    let targetUrl = payloadTunnel || storedTunnel || undefined;
+
+    // #region agent log
+    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "3c315a",
+      },
+      body: JSON.stringify({
+        sessionId: "3c315a",
+        runId: "post-fix",
+        hypothesisId: "G",
+        location: "api/ollama/verify:POST",
+        message: "URL resolution",
+        data: {
+          accountIdLen: accountId.length,
+          emailMatchAccountId: settingsByEmail?.accountId === accountId,
+          hadPayloadUrl: Boolean(payloadUrl),
+          rawStoredIsTunnel: isRegisteredTunnelUrl(rawStored),
+          rawStoredHost: (() => {
+            try {
+              return rawStored ? new URL(rawStored).hostname : null;
+            } catch {
+              return "invalid";
+            }
+          })(),
+          hasTarget: Boolean(targetUrl),
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
 
     if (!targetUrl) {
-      // #region agent log
-      fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "3c315a",
-        },
-        body: JSON.stringify({
-          sessionId: "3c315a",
-          runId: "post-fix",
-          hypothesisId: "B",
-          location: "api/ollama/verify:POST",
-          message: "no targetUrl — returning 200 connected:false",
-          data: {
-            hadPayloadUrl: Boolean(parsed.data.url),
-            hadStoredUrl: Boolean(storedUrl),
-            accountIdLen: accountId.length,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       await persistBridgeStatus(accountId, { connected: false, models: [] });
       // 200 (not 400): missing tunnel is an expected bridge state, not a client error
       return NextResponse.json({
@@ -245,19 +294,25 @@ export async function POST(request: Request) {
         status: "waiting" satisfies OllamaConnectionStatus,
         models: [],
         error:
-          "Bridge tunnel not found. Make sure the terminal script is running on the same domain you are browsing.",
+          "Bridge tunnel not found. Make sure the terminal command registered successfully with your email.",
         _debug: {
-          hypothesisId: "B",
+          hypothesisId: "G",
           reason: "no_target_url",
-          hadPayloadUrl: Boolean(parsed.data.url),
-          hadStoredUrl: Boolean(storedUrl),
-          httpWouldHaveBeen: 400,
+          hadPayloadUrl: Boolean(payloadUrl),
+          hadStoredTunnel: Boolean(storedTunnel),
+          rawStoredHost: (() => {
+            try {
+              return rawStored ? new URL(rawStored).hostname : null;
+            } catch {
+              return "invalid";
+            }
+          })(),
           nowStatus: 200,
         },
       });
     }
 
-    const hadStoredUrl = storedUrl.length > 0;
+    const hadStoredUrl = storedTunnel.length > 0;
     const base = normalizeOllamaBaseUrl(targetUrl);
 
     if (!isAllowedOllamaUrl(base)) {
@@ -315,7 +370,7 @@ export async function POST(request: Request) {
 
     await persistBridgeStatus(accountId, { connected: true, models });
 
-    if (storedUrl !== base) {
+    if (rawStored !== base) {
       await prisma.accountSettings.update({
         where: { accountId },
         data: { localOllamaUrl: base },
@@ -327,6 +382,12 @@ export async function POST(request: Request) {
       status: "connected" satisfies OllamaConnectionStatus,
       activeUrl: base,
       models,
+      _debug: {
+        hypothesisId: "G",
+        reason: "connected",
+        accountIdLen: accountId.length,
+        modelCount: models.length,
+      },
     });
   } catch (err) {
     try {
