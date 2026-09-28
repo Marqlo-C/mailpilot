@@ -27,6 +27,7 @@ const ruleKeySchema = z.enum([
   "maxAutoSendsPerDay",
   "dismissedRetentionDays",
   "excludedTitles",
+  "bridgeSecret",
 ]);
 
 const retentionDaysSchema = z.union([
@@ -105,7 +106,44 @@ export async function updateRule(
 }
 
 /**
+ * Persists AccountSettings.rules.bridgeSecret without clobbering other rules.
+ * Pass an empty string to clear (stored as null).
+ */
+export async function updateBridgeSecret(
+  accountId: string,
+  secret: string
+): Promise<ActionResult<{ bridgeSecret: string | null }>> {
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId },
+  });
+  if (!settings) {
+    return { ok: false, error: "Account settings not found" };
+  }
+
+  const current = parseAccountRules(settings.rules);
+  const validated = accountRulesSchema.safeParse({
+    ...current,
+    bridgeSecret: secret,
+  });
+  if (!validated.success) {
+    return {
+      ok: false,
+      error: validated.error.issues.map((i) => i.message).join("; "),
+    };
+  }
+
+  await prisma.accountSettings.update({
+    where: { accountId },
+    data: { rules: validated.data as Prisma.InputJsonValue },
+  });
+
+  revalidatePath("/settings");
+  return { ok: true, data: { bridgeSecret: validated.data.bridgeSecret } };
+}
+
+/**
  * Updates the LLM provider column on AccountSettings.
+ * Switching off Local Ollama clears the tunnel URL and invalidates bridgeSecret.
  */
 export async function updateLlmProvider(
   accountId: string,
@@ -123,10 +161,29 @@ export async function updateLlmProvider(
     return { ok: false, error: "Account settings not found" };
   }
 
-  await prisma.accountSettings.update({
-    where: { accountId },
-    data: { llmProvider: parsed.data },
-  });
+  if (parsed.data === "OPENROUTER") {
+    const current = parseAccountRules(settings.rules);
+    const validated = accountRulesSchema.parse({
+      ...current,
+      bridgeSecret: null,
+      availableModels: [],
+      bridgeConnected: false,
+    });
+
+    await prisma.accountSettings.update({
+      where: { accountId },
+      data: {
+        llmProvider: "OPENROUTER",
+        localOllamaUrl: null,
+        rules: validated as Prisma.InputJsonValue,
+      },
+    });
+  } else {
+    await prisma.accountSettings.update({
+      where: { accountId },
+      data: { llmProvider: parsed.data },
+    });
+  }
 
   revalidatePath("/settings");
   return { ok: true };

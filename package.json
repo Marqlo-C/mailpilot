@@ -9,6 +9,7 @@
     "lint": "next lint",
     "postinstall": "prisma generate",
     "cleanup:duplicates": "npx tsx scripts/cleanup-duplicates.ts",
+    "ollama:bridge": "node scripts/ollama-bridge.mjs",
     "bundle": "repomix --include 'lib/**,prisma/**,app/actions/**,types/**'"
   },
   "dependencies": {
@@ -37,6 +38,7 @@
     "react-dom": "^19.3.0",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
+    "untun": "^0.2.2",
     "zod": "^4.6.5"
   },
   "devDependencies": {

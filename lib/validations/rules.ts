@@ -24,6 +24,21 @@ export const accountRulesSchema = z.object({
     .default(30),
   /** Role titles / patterns banned via "Less like this". */
   excludedTitles: z.array(z.string()).default([]),
+  /**
+   * Optional secret required by the Ollama terminal bridge when registering a
+   * Cloudflare Quick Tunnel URL against this account.
+   */
+  bridgeSecret: z
+    .string()
+    .nullish()
+    .transform((val) => {
+      const trimmed = val?.trim() ?? "";
+      return trimmed.length > 0 ? trimmed : null;
+    }),
+  /** Last known model tags returned from a successful Ollama /api/tags ping. */
+  availableModels: z.array(z.string()).default([]),
+  /** Whether the last verify ping reached Ollama successfully. */
+  bridgeConnected: z.boolean().default(false),
 });
 
 export type AccountRules = z.infer<typeof accountRulesSchema>;

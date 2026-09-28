@@ -80,11 +80,13 @@ export default async function SettingsPage({
         />
         <AiModelsCard
           accountId={active?.id ?? null}
+          accountEmail={active?.email ?? null}
           llmProvider={active?.settings?.llmProvider ?? "OPENROUTER"}
-          localOllamaUrl={
-            active?.settings?.localOllamaUrl ?? "http://localhost:11434"
-          }
+          localOllamaUrl={active?.settings?.localOllamaUrl ?? ""}
           ollamaModel={active?.settings?.ollamaModel ?? "llama3.1:8b"}
+          bridgeSecret={active?.rules.bridgeSecret ?? ""}
+          availableModels={active?.rules.availableModels ?? []}
+          bridgeConnected={active?.rules.bridgeConnected ?? false}
         />
       </div>
     </div>
