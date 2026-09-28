@@ -1,21 +1,22 @@
 import { timingSafeEqual } from "crypto";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
 import { runOpportunitySync } from "@/lib/opportunity-sync";
 import { prisma } from "@/lib/prisma";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+/** Hobby-friendly ceiling so multi-account runs stay under the platform limit. */
 export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-function isAuthorized(req: NextRequest): boolean {
+function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET?.trim();
   if (!secret) {
     return false;
   }
 
-  const header = req.headers.get("authorization");
+  const header = request.headers.get("authorization");
   if (!header?.startsWith("Bearer ")) {
     return false;
   }
@@ -32,21 +33,14 @@ function isAuthorized(req: NextRequest): boolean {
 }
 
 /**
- * Vercel Cron — incremental inbox opportunity sync for all active accounts.
- * Protect with Authorization: Bearer $CRON_SECRET.
+ * GitHub Actions (or other) cron ping — sequential inbox sync for all
+ * accounts with active Google refresh tokens. Caps each cycle at 10 emails
+ * to stay under the 60s Hobby timeout.
  */
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  const authorized = isAuthorized(req);
-
-  if (!authorized) {
-    console.warn("[Cron Sync] Unauthorized invocation attempt", {
-      authHeader: authHeader ? "present" : "missing",
-    });
+export async function GET(request: Request) {
+  if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  console.log("[Cron Sync] Starting automated sync run…");
 
   try {
     const accounts = await prisma.account.findMany({
@@ -57,41 +51,40 @@ export async function GET(req: NextRequest) {
       select: {
         id: true,
         email: true,
-        lastSyncedAt: true,
       },
     });
 
     if (accounts.length === 0) {
       return NextResponse.json({
-        success: true,
-        message: "No accounts to sync",
-        timestamp: new Date().toISOString(),
-        report: [],
+        message: "No active accounts to sync",
+        processed: 0,
       });
     }
 
-    const report: Array<{
-      email: string;
-      success: boolean;
-      processed?: number;
-      opportunitiesUpserted?: number;
-      skipped?: number;
+    const results: Array<{
+      account: string;
+      status: "ok" | "failed";
+      syncResult?: {
+        processed: number;
+        opportunitiesUpserted: number;
+        skipped: number;
+      };
       error?: string;
     }> = [];
 
+    // Sequential to stay under memory / duration limits on Hobby.
     for (const account of accounts) {
       try {
-        console.log(`[Cron Sync] Syncing ${account.email}`);
-        const result = await runOpportunitySync(account.id, {
+        const syncResult = await runOpportunitySync(account.id, {
           forceRescan: false,
-          maxMessages: 25,
+          maxMessages: 10,
         });
 
         try {
           await purgeExpiredDismissed(account.id);
         } catch (purgeError) {
           console.error(
-            `[Cron Sync] purge failed for ${account.email}`,
+            `Cron sync purge failed for ${account.email}:`,
             purgeError
           );
         }
@@ -102,25 +95,21 @@ export async function GET(req: NextRequest) {
             lastSyncedAt: new Date(),
             isSyncing: false,
             syncError: null,
-            lastSyncProcessed: result.opportunitiesUpserted,
+            lastSyncProcessed: syncResult.opportunitiesUpserted,
           },
         });
 
-        report.push({
-          email: account.email,
-          success: true,
-          processed: result.processed,
-          opportunitiesUpserted: result.opportunitiesUpserted,
-          skipped: result.skipped,
+        results.push({
+          account: account.email,
+          status: "ok",
+          syncResult,
         });
-      } catch (accErr) {
-        const message =
-          accErr instanceof Error ? accErr.message : "Unknown sync error";
-        console.error(`[Cron Sync] Error syncing ${account.email}:`, message);
-        report.push({
-          email: account.email,
-          success: false,
-          error: message,
+      } catch (err) {
+        console.error(`Cron sync failed for account ${account.email}:`, err);
+        results.push({
+          account: account.email,
+          status: "failed",
+          error: err instanceof Error ? err.message : "Unknown error",
         });
       }
     }
@@ -128,12 +117,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
-      report,
+      results,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Cron sync fatal error";
-    console.error("[Cron Sync Fatal]", error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Cron handler encountered fatal error:", error);
+    return NextResponse.json(
+      { error: "Internal server error during multi-account sync" },
+      { status: 500 }
+    );
   }
 }
