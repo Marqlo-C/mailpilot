@@ -716,13 +716,29 @@ async function callOllamaJson(
 ): Promise<Record<string, unknown> | null> {
   const cleanBaseUrl = normalizeOllamaBaseUrl(baseUrl);
   const resolvedModel =
-    (model?.trim() || process.env.OLLAMA_MODEL?.trim() || DEFAULT_OLLAMA_MODEL);
-  const url = `${cleanBaseUrl}/api/chat`;
+    model?.trim() || process.env.OLLAMA_MODEL?.trim() || DEFAULT_OLLAMA_MODEL;
 
+  // 1. Fast 2s health check — fail open to OpenRouter/PENDING_AI if tunnel is dead
+  try {
+    const pingRes = await fetch(`${cleanBaseUrl}/api/tags`, {
+      method: "GET",
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!pingRes.ok) {
+      throw new Error(`Ollama health check failed with status ${pingRes.status}`);
+    }
+  } catch (pingErr) {
+    throw new Error(
+      `Ollama tunnel offline or unreachable: ${(pingErr as Error).message}`
+    );
+  }
+
+  // 2. Full inference with a generous 25s window for local 8B/26B models
+  const url = `${cleanBaseUrl}/api/chat`;
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(4000),
+    signal: AbortSignal.timeout(25000),
     body: JSON.stringify({
       model: resolvedModel,
       stream: false,
@@ -748,9 +764,7 @@ async function callOllamaJson(
     response?: string;
   };
   const content = json.message?.content ?? json.response;
-  if (!content) {
-    return null;
-  }
+  if (!content) return null;
 
   return parseJsonObject(content);
 }

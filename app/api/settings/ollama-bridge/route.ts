@@ -125,11 +125,10 @@ export async function POST(request: Request) {
 
     const normalizedUrl = ollamaUrl.replace(/\/+$/, "");
 
-    // Keep bridgeConnected false until /api/ollama/verify pings the tunnel.
     const nextRules = accountRulesSchema.parse({
       ...rules,
       availableModels: [],
-      bridgeConnected: false,
+      bridgeConnected: true,
     });
 
     await prisma.accountSettings.upsert({
