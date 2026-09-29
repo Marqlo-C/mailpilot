@@ -426,6 +426,34 @@ export function normalizeClassification(
   const fromIsNoReply = /noreply|no-reply|donotreply|jobs@|alerts@/i.test(
     context.fromEmail ?? ""
   );
+
+  // Direct outreach with empty jobs[] must still produce a draftable opportunity.
+  if (jobs.length === 0 && emailCategory === "DIRECT_RECRUITER") {
+    const fallbackTitle =
+      raw.role_title ||
+      context.subject.replace(/^re:\s*/i, "").trim() ||
+      "Role";
+    const fallbackCompany = raw.company_name || "Company";
+    jobs.push({
+      company: fallbackCompany,
+      companyDomain: null,
+      title: fallbackTitle,
+      location: null,
+      salary: null,
+      salaryMax: null,
+      postedAt: null,
+      description: raw.action_summary || context.subject,
+      applyUrl: null,
+      recipientEmail:
+        context.fromEmail && !fromIsNoReply ? context.fromEmail : null,
+      recipientName: null,
+      isAlreadyApplied: false,
+      matchScore: 80,
+      matchReason: "Direct inbound recruiter or hiring manager outreach.",
+      applicationType: "DIRECT_EMAIL",
+    });
+  }
+
   const bodyMarkdownUrls = [
     ...(context.emailBody?.matchAll(/\[([^\]]*)\]\((https?:[^)\s]+)\)/gi) ?? []),
   ].map((m) => m[2]);
@@ -448,6 +476,7 @@ export function normalizeClassification(
         recipientEmail = mailto;
       }
     }
+    // If direct reach-out and no specific recipient extracted, fall back to sender
     if (
       !recipientEmail &&
       emailCategory === "DIRECT_RECRUITER" &&
@@ -473,20 +502,22 @@ export function normalizeClassification(
       }
     }
 
-    const applicationType =
-      job.applicationType ??
-      resolveApplicationType({
+    // Direct emails with a valid contact must ALWAYS resolve to DIRECT_EMAIL
+    let resolvedType: "DIRECT_EMAIL" | "EXTERNAL_LINK" | "QUICK_APPLY" =
+      "EXTERNAL_LINK";
+
+    if (recipientEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+      resolvedType = "DIRECT_EMAIL";
+    } else {
+      resolvedType = resolveApplicationType({
         applyUrl,
-        recipientEmail,
+        recipientEmail: null,
       });
-    const resolvedType = resolveApplicationType({
-      applyUrl,
-      recipientEmail:
-        applicationType === "DIRECT_EMAIL" ? recipientEmail : null,
-    });
-    if (resolvedType !== "DIRECT_EMAIL") {
       recipientEmail = null;
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'post-fix',hypothesisId:'A',location:'lib/llm.ts:normalizeClassification:typeResolve',message:'resolvedType computation',data:{emailCategory,hasRecipientBeforeWipe:Boolean(recipientEmail),llmApplicationType:job.applicationType??null,resolvedType,willWipeRecipient:resolvedType!=='DIRECT_EMAIL',hasApplyUrl:Boolean(applyUrl),fromIsNoReply,hasFromEmail:Boolean(context.fromEmail)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     const companyDomain =
       (job.companyDomain ?? "")
@@ -541,6 +572,10 @@ export function normalizeClassification(
       matchReason,
     };
   });
+
+  // #region agent log
+  fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'post-fix',hypothesisId:'B',location:'lib/llm.ts:normalizeClassification:exit',message:'normalizeClassification exit',data:{emailCategory,rawJobsCount:(raw.jobs??[]).length,finalJobsCount:jobs.length,finalTypes:jobs.map(j=>j.applicationType),finalHasRecipient:jobs.map(j=>Boolean(j.recipientEmail)),isJobRelated:Boolean(raw.is_job_related),subjectPreview:context.subject.slice(0,80)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
 
   return {
     ...raw,
@@ -670,6 +705,9 @@ export async function classifyJobEmail(
   try {
     const normalizedPayload = coerceClassificationPayload(result);
     const parsed = jobClassificationSchema.parse(normalizedPayload);
+    // #region agent log
+    fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'pre-fix',hypothesisId:'C',location:'lib/llm.ts:classifyJobEmail:parsed',message:'LLM classification before normalize',data:{emailCategory:parsed.email_category,isJobRelated:parsed.is_job_related,jobsCount:(parsed.jobs??[]).length,hasCompany:Boolean(parsed.company_name),hasRole:Boolean(parsed.role_title),subjectPreview:options.subject.slice(0,80)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     return normalizeClassification(parsed, {
       subject: options.subject,
       fromEmail: options.fromEmail,

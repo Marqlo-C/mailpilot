@@ -5577,356 +5577,6 @@ export async function renewWatchForAccount(
 }
 </file>
 
-<file path="lib/opportunity-sync.ts">
-import { GaxiosError } from "gaxios";
-import type { gmail_v1 } from "googleapis";
-
-import {
-  getGmailClientForAccount,
-  InsufficientScopeError,
-  REAUTH_REQUIRED_MESSAGE,
-  isInsufficientScopeError,
-} from "@/lib/google";
-import { cleanEmailPayload } from "@/lib/email/cleaner";
-import {
-  classifyEmail,
-  extractMessageBody,
-  loadCandidateProfileSummary,
-  matchesJobSubjectKeywords,
-  sanitizeEmailBody,
-  type LlmProvider,
-} from "@/lib/llm";
-import { prisma } from "@/lib/prisma";
-import { parseFromHeader, persistClassifiedEmail } from "@/lib/sync";
-import { parseAccountRules } from "@/lib/validations/rules";
-
-export type OpportunitySyncOptions = {
-  forceRescan?: boolean;
-  lookbackDays?: number;
-  /** Cap Gmail list size (Hobby / free-tier friendly). */
-  maxMessages?: number;
-};
-
-export type OpportunitySyncResult = {
-  processed: number;
-  opportunitiesUpserted: number;
-  skipped: number;
-};
-
-const JOB_QUERY_BASE =
-  "(" +
-  'subject:(job OR career OR role OR hiring OR interview OR opportunity OR application OR applied OR alert OR "thank you for applying" OR "application received" OR "application was sent" OR offer)' +
-  " OR from:(glassdoor OR linkedin OR indeed OR lever OR greenhouse OR dice OR workday OR ashbyhq OR smartrecruiters OR icims OR myworkdayjobs)" +
-  ") -in:trash -in:spam";
-
-const BATCH_SIZE = 4;
-const RATE_LIMIT_BASE_MS = 800;
-/** Overlap buffer so boundary emails are not dropped between incremental runs. */
-const INCREMENTAL_OVERLAP_SECONDS = 10 * 60;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function isRateLimited(error: unknown): boolean {
-  if (error instanceof GaxiosError) {
-    return error.response?.status === 429;
-  }
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: number | string }).code === 429
-  ) {
-    return true;
-  }
-  return false;
-}
-
-async function withRateLimitRetry<T>(
-  operation: () => Promise<T>,
-  attempt = 0
-): Promise<T> {
-  try {
-    return await operation();
-  } catch (error) {
-    if (isRateLimited(error) && attempt < 4) {
-      await sleep(RATE_LIMIT_BASE_MS * 2 ** attempt);
-      return withRateLimitRetry(operation, attempt + 1);
-    }
-    throw error;
-  }
-}
-
-function normalizeProvider(value: string | null | undefined): LlmProvider {
-  return value === "LOCAL_OLLAMA" ? "LOCAL_OLLAMA" : "OPENROUTER";
-}
-
-function getHeader(
-  headers: gmail_v1.Schema$MessagePartHeader[] | undefined,
-  name: string
-): string | undefined {
-  return (
-    headers?.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ??
-    undefined
-  );
-}
-
-async function listGmailMessageIds(
-  gmail: gmail_v1.Gmail,
-  query: string,
-  maxResults: number
-): Promise<string[]> {
-  const ids: string[] = [];
-  let pageToken: string | undefined;
-
-  do {
-    const remaining = maxResults - ids.length;
-    if (remaining <= 0) break;
-
-    const listed = await withRateLimitRetry(() =>
-      gmail.users.messages.list({
-        userId: "me",
-        q: query,
-        maxResults: Math.min(100, remaining),
-        pageToken,
-      })
-    );
-
-    for (const message of listed.data.messages ?? []) {
-      if (message.id) ids.push(message.id);
-      if (ids.length >= maxResults) break;
-    }
-
-    pageToken =
-      ids.length >= maxResults
-        ? undefined
-        : (listed.data.nextPageToken ?? undefined);
-  } while (pageToken);
-
-  return ids;
-}
-
-function buildSyncQuery(input: {
-  forceRescan: boolean;
-  lookbackDays: number;
-  lastSyncedAt: Date | null;
-}): string {
-  let query = JOB_QUERY_BASE;
-
-  if (!input.forceRescan && input.lastSyncedAt) {
-    // Incremental: only mail newer than last sync (10-minute overlap buffer).
-    const afterTimestamp =
-      Math.floor(input.lastSyncedAt.getTime() / 1000) -
-      INCREMENTAL_OVERLAP_SECONDS;
-    query += ` after:${afterTimestamp}`;
-  } else {
-    query += ` newer_than:${input.lookbackDays}d`;
-  }
-
-  return query;
-}
-
-/**
- * Fast incremental opportunity sync, or forced lookback rescan/backfill.
- * Uses cleaned payloads + batched concurrency (4) to cut AI latency.
- */
-export async function runOpportunitySync(
-  accountId: string,
-  options: OpportunitySyncOptions = {}
-): Promise<OpportunitySyncResult> {
-  const forceRescan = options.forceRescan === true;
-  const lookbackDays = options.lookbackDays ?? 14;
-  const maxMessages = options.maxMessages ?? 25;
-
-  try {
-    const account = await prisma.account.findUnique({
-      where: { id: accountId },
-      include: {
-        settings: true,
-        profile: {
-          include: {
-            experiences: { orderBy: { displayOrder: "asc" }, take: 4 },
-            education: true,
-            projects: { take: 4 },
-          },
-        },
-      },
-    });
-
-    if (!account || !account.isActive) {
-      throw new Error("Account not found or inactive");
-    }
-
-    if (!account.profile) {
-      console.warn(
-        "Sync warning: Account has no linked profile. Match scoring will use generic profile defaults."
-      );
-    }
-
-    const gmail = await getGmailClientForAccount(account);
-    const query = buildSyncQuery({
-      forceRescan,
-      lookbackDays,
-      lastSyncedAt: account.lastSyncedAt,
-    });
-
-    const messageIds = await listGmailMessageIds(gmail, query, maxMessages);
-
-    if (messageIds.length === 0) {
-      return { processed: 0, opportunitiesUpserted: 0, skipped: 0 };
-    }
-
-    let targetIds = messageIds;
-    if (!forceRescan) {
-      // Dedup against EmailMessage.messageId (Gmail ids), not JobOpportunity cuid FKs.
-      // Re-process PENDING_AI rows so offline-parked mail gets classified when AI returns.
-      const processed = await prisma.emailMessage.findMany({
-        where: {
-          accountId,
-          messageId: { in: messageIds },
-          emailCategory: { not: "PENDING_AI" },
-        },
-        select: { messageId: true },
-      });
-      const processedSet = new Set(processed.map((row) => row.messageId));
-      targetIds = messageIds.filter((id) => !processedSet.has(id));
-    }
-
-    if (targetIds.length === 0) {
-      return {
-        processed: 0,
-        opportunitiesUpserted: 0,
-        skipped: messageIds.length,
-      };
-    }
-
-    const rules = parseAccountRules(account.settings?.rules);
-    const llmProvider = normalizeProvider(account.settings?.llmProvider);
-    const candidateProfile = await loadCandidateProfileSummary(accountId);
-
-    let opportunitiesUpserted = 0;
-
-    for (let i = 0; i < targetIds.length; i += BATCH_SIZE) {
-      const chunk = targetIds.slice(i, i + BATCH_SIZE);
-      const results = await Promise.all(
-        chunk.map(async (messageId) => {
-          try {
-            const message = await withRateLimitRetry(() =>
-              gmail.users.messages.get({
-                userId: "me",
-                id: messageId,
-                format: "full",
-              })
-            );
-
-            const headers = message.data.payload?.headers;
-            const subject = getHeader(headers, "Subject") ?? "";
-            const from = getHeader(headers, "From");
-            const sender = from ? parseFromHeader(from) : null;
-            const rawBody = extractMessageBody(message.data.payload);
-            const cleanedText = cleanEmailPayload(
-              rawBody.trim().length > 0
-                ? rawBody
-                : message.data.snippet ?? subject
-            );
-
-            const classification = await classifyEmail({
-              llmProvider,
-              localOllamaUrl: account.settings?.localOllamaUrl,
-              ollamaModel: account.settings?.ollamaModel,
-              subject,
-              body: cleanedText,
-              fromEmail: sender?.email ?? null,
-              candidateProfile,
-            });
-
-            if (
-              !classification ||
-              !classification.is_job_related ||
-              classification.email_category === "IRRELEVANT"
-            ) {
-              if (!classification && matchesJobSubjectKeywords(subject)) {
-                const threadId = message.data.threadId ?? messageId;
-                const emailDate = message.data.internalDate
-                  ? new Date(Number(message.data.internalDate))
-                  : new Date();
-
-                await prisma.emailMessage.upsert({
-                  where: {
-                    accountId_messageId: {
-                      accountId,
-                      messageId,
-                    },
-                  },
-                  create: {
-                    accountId,
-                    messageId,
-                    threadId,
-                    subject,
-                    fromEmail: sender?.email ?? null,
-                    fromName: sender?.name ?? null,
-                    emailCategory: "PENDING_AI",
-                    emailDate,
-                    snippet: sanitizeEmailBody(cleanedText).slice(0, 500),
-                  },
-                  update: {
-                    emailCategory: "PENDING_AI",
-                  },
-                });
-              }
-              return 0;
-            }
-
-            const threadId = message.data.threadId ?? messageId;
-            const emailDate = message.data.internalDate
-              ? new Date(Number(message.data.internalDate))
-              : new Date();
-
-            const result = await persistClassifiedEmail({
-              gmail,
-              account,
-              messageId,
-              threadId,
-              subject,
-              body: cleanedText,
-              sender,
-              emailDate,
-              classification,
-              rules,
-            });
-
-            return result.opportunitiesUpserted + (result.applicationTouched ? 1 : 0);
-          } catch (error) {
-            console.error(`Opportunity sync failed for ${messageId}`, error);
-            if (isRateLimited(error)) {
-              await sleep(RATE_LIMIT_BASE_MS * 2);
-            }
-            return 0;
-          }
-        })
-      );
-
-      opportunitiesUpserted += results.reduce((sum, n) => sum + n, 0);
-    }
-
-    return {
-      processed: targetIds.length,
-      opportunitiesUpserted,
-      skipped: messageIds.length - targetIds.length,
-    };
-  } catch (error) {
-    if (
-      error instanceof InsufficientScopeError ||
-      isInsufficientScopeError(error)
-    ) {
-      throw new InsufficientScopeError(REAUTH_REQUIRED_MESSAGE);
-    }
-    throw error;
-  }
-}
-</file>
-
 <file path="lib/resume-tailor.ts">
 import { z } from "zod";
 
@@ -9065,6 +8715,359 @@ export async function getDailySendLimit(accountId: string): Promise<number> {
 }
 </file>
 
+<file path="lib/opportunity-sync.ts">
+import { GaxiosError } from "gaxios";
+import type { gmail_v1 } from "googleapis";
+
+import {
+  getGmailClientForAccount,
+  InsufficientScopeError,
+  REAUTH_REQUIRED_MESSAGE,
+  isInsufficientScopeError,
+} from "@/lib/google";
+import { cleanEmailPayload } from "@/lib/email/cleaner";
+import {
+  classifyEmail,
+  extractMessageBody,
+  loadCandidateProfileSummary,
+  matchesJobEmailKeywords,
+  sanitizeEmailBody,
+  type LlmProvider,
+} from "@/lib/llm";
+import { prisma } from "@/lib/prisma";
+import { parseFromHeader, persistClassifiedEmail } from "@/lib/sync";
+import { parseAccountRules } from "@/lib/validations/rules";
+
+export type OpportunitySyncOptions = {
+  forceRescan?: boolean;
+  lookbackDays?: number;
+  /** Cap Gmail list size (Hobby / free-tier friendly). */
+  maxMessages?: number;
+};
+
+export type OpportunitySyncResult = {
+  processed: number;
+  opportunitiesUpserted: number;
+  skipped: number;
+};
+
+const JOB_QUERY_BASE =
+  "(" +
+  'subject:(job OR career OR role OR hiring OR interview OR opportunity OR application OR applied OR alert OR "thank you for applying" OR "application received" OR "application was sent" OR offer)' +
+  " OR from:(glassdoor OR linkedin OR indeed OR lever OR greenhouse OR dice OR workday OR ashbyhq OR smartrecruiters OR icims OR myworkdayjobs)" +
+  ") -in:trash -in:spam";
+
+const BATCH_SIZE = 4;
+const RATE_LIMIT_BASE_MS = 800;
+/** Overlap buffer so boundary emails are not dropped between incremental runs. */
+const INCREMENTAL_OVERLAP_SECONDS = 10 * 60;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRateLimited(error: unknown): boolean {
+  if (error instanceof GaxiosError) {
+    return error.response?.status === 429;
+  }
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: number | string }).code === 429
+  ) {
+    return true;
+  }
+  return false;
+}
+
+async function withRateLimitRetry<T>(
+  operation: () => Promise<T>,
+  attempt = 0
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (isRateLimited(error) && attempt < 4) {
+      await sleep(RATE_LIMIT_BASE_MS * 2 ** attempt);
+      return withRateLimitRetry(operation, attempt + 1);
+    }
+    throw error;
+  }
+}
+
+function normalizeProvider(value: string | null | undefined): LlmProvider {
+  return value === "LOCAL_OLLAMA" ? "LOCAL_OLLAMA" : "OPENROUTER";
+}
+
+function getHeader(
+  headers: gmail_v1.Schema$MessagePartHeader[] | undefined,
+  name: string
+): string | undefined {
+  return (
+    headers?.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ??
+    undefined
+  );
+}
+
+async function listGmailMessageIds(
+  gmail: gmail_v1.Gmail,
+  query: string,
+  maxResults: number
+): Promise<string[]> {
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const remaining = maxResults - ids.length;
+    if (remaining <= 0) break;
+
+    const listed = await withRateLimitRetry(() =>
+      gmail.users.messages.list({
+        userId: "me",
+        q: query,
+        maxResults: Math.min(100, remaining),
+        pageToken,
+      })
+    );
+
+    for (const message of listed.data.messages ?? []) {
+      if (message.id) ids.push(message.id);
+      if (ids.length >= maxResults) break;
+    }
+
+    pageToken =
+      ids.length >= maxResults
+        ? undefined
+        : (listed.data.nextPageToken ?? undefined);
+  } while (pageToken);
+
+  return ids;
+}
+
+function buildSyncQuery(input: {
+  forceRescan: boolean;
+  lookbackDays: number;
+  lastSyncedAt: Date | null;
+}): string {
+  let query = JOB_QUERY_BASE;
+
+  if (!input.forceRescan && input.lastSyncedAt) {
+    // Incremental: only mail newer than last sync (10-minute overlap buffer).
+    const afterTimestamp =
+      Math.floor(input.lastSyncedAt.getTime() / 1000) -
+      INCREMENTAL_OVERLAP_SECONDS;
+    query += ` after:${afterTimestamp}`;
+  } else {
+    query += ` newer_than:${input.lookbackDays}d`;
+  }
+
+  return query;
+}
+
+/**
+ * Fast incremental opportunity sync, or forced lookback rescan/backfill.
+ * Uses cleaned payloads + batched concurrency (4) to cut AI latency.
+ */
+export async function runOpportunitySync(
+  accountId: string,
+  options: OpportunitySyncOptions = {}
+): Promise<OpportunitySyncResult> {
+  const forceRescan = options.forceRescan === true;
+  const lookbackDays = options.lookbackDays ?? 14;
+  const maxMessages = options.maxMessages ?? 25;
+
+  try {
+    const account = await prisma.account.findUnique({
+      where: { id: accountId },
+      include: {
+        settings: true,
+        profile: {
+          include: {
+            experiences: { orderBy: { displayOrder: "asc" }, take: 4 },
+            education: true,
+            projects: { take: 4 },
+          },
+        },
+      },
+    });
+
+    if (!account || !account.isActive) {
+      throw new Error("Account not found or inactive");
+    }
+
+    if (!account.profile) {
+      console.warn(
+        "Sync warning: Account has no linked profile. Match scoring will use generic profile defaults."
+      );
+    }
+
+    const gmail = await getGmailClientForAccount(account);
+    const query = buildSyncQuery({
+      forceRescan,
+      lookbackDays,
+      lastSyncedAt: account.lastSyncedAt,
+    });
+
+    const messageIds = await listGmailMessageIds(gmail, query, maxMessages);
+
+    if (messageIds.length === 0) {
+      return { processed: 0, opportunitiesUpserted: 0, skipped: 0 };
+    }
+
+    let targetIds = messageIds;
+    if (!forceRescan) {
+      // Dedup against EmailMessage.messageId (Gmail ids), not JobOpportunity cuid FKs.
+      // Re-process PENDING_AI rows so offline-parked mail gets classified when AI returns.
+      const processed = await prisma.emailMessage.findMany({
+        where: {
+          accountId,
+          messageId: { in: messageIds },
+          emailCategory: { not: "PENDING_AI" },
+        },
+        select: { messageId: true },
+      });
+      const processedSet = new Set(processed.map((row) => row.messageId));
+      targetIds = messageIds.filter((id) => !processedSet.has(id));
+    }
+
+    if (targetIds.length === 0) {
+      return {
+        processed: 0,
+        opportunitiesUpserted: 0,
+        skipped: messageIds.length,
+      };
+    }
+
+    const rules = parseAccountRules(account.settings?.rules);
+    const llmProvider = normalizeProvider(account.settings?.llmProvider);
+    const candidateProfile = await loadCandidateProfileSummary(accountId);
+
+    let opportunitiesUpserted = 0;
+
+    for (let i = 0; i < targetIds.length; i += BATCH_SIZE) {
+      const chunk = targetIds.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        chunk.map(async (messageId) => {
+          try {
+            const message = await withRateLimitRetry(() =>
+              gmail.users.messages.get({
+                userId: "me",
+                id: messageId,
+                format: "full",
+              })
+            );
+
+            const headers = message.data.payload?.headers;
+            const subject = getHeader(headers, "Subject") ?? "";
+            const from = getHeader(headers, "From");
+            const sender = from ? parseFromHeader(from) : null;
+            const rawBody = extractMessageBody(message.data.payload);
+            const cleanedText = cleanEmailPayload(
+              rawBody.trim().length > 0
+                ? rawBody
+                : message.data.snippet ?? subject
+            );
+
+            const classification = await classifyEmail({
+              llmProvider,
+              localOllamaUrl: account.settings?.localOllamaUrl,
+              ollamaModel: account.settings?.ollamaModel,
+              subject,
+              body: cleanedText,
+              fromEmail: sender?.email ?? null,
+              candidateProfile,
+            });
+
+            if (
+              !classification ||
+              !classification.is_job_related ||
+              classification.email_category === "IRRELEVANT"
+            ) {
+              if (
+                !classification &&
+                matchesJobEmailKeywords(subject, cleanedText)
+              ) {
+                const threadId = message.data.threadId ?? messageId;
+                const emailDate = message.data.internalDate
+                  ? new Date(Number(message.data.internalDate))
+                  : new Date();
+
+                await prisma.emailMessage.upsert({
+                  where: {
+                    accountId_messageId: {
+                      accountId,
+                      messageId,
+                    },
+                  },
+                  create: {
+                    accountId,
+                    messageId,
+                    threadId,
+                    subject,
+                    fromEmail: sender?.email ?? null,
+                    fromName: sender?.name ?? null,
+                    emailCategory: "PENDING_AI",
+                    emailDate,
+                    snippet: sanitizeEmailBody(cleanedText).slice(0, 500),
+                  },
+                  update: {
+                    emailCategory: "PENDING_AI",
+                  },
+                });
+              }
+              return 0;
+            }
+
+            const threadId = message.data.threadId ?? messageId;
+            const emailDate = message.data.internalDate
+              ? new Date(Number(message.data.internalDate))
+              : new Date();
+
+            const result = await persistClassifiedEmail({
+              gmail,
+              account,
+              messageId,
+              threadId,
+              subject,
+              body: cleanedText,
+              sender,
+              emailDate,
+              classification,
+              rules,
+            });
+
+            return result.opportunitiesUpserted + (result.applicationTouched ? 1 : 0);
+          } catch (error) {
+            console.error(`Opportunity sync failed for ${messageId}`, error);
+            if (isRateLimited(error)) {
+              await sleep(RATE_LIMIT_BASE_MS * 2);
+            }
+            return 0;
+          }
+        })
+      );
+
+      opportunitiesUpserted += results.reduce((sum, n) => sum + n, 0);
+    }
+
+    return {
+      processed: targetIds.length,
+      opportunitiesUpserted,
+      skipped: messageIds.length - targetIds.length,
+    };
+  } catch (error) {
+    if (
+      error instanceof InsufficientScopeError ||
+      isInsufficientScopeError(error)
+    ) {
+      throw new InsufficientScopeError(REAUTH_REQUIRED_MESSAGE);
+    }
+    throw error;
+  }
+}
+</file>
+
 <file path="app/actions/profile.ts">
 "use server";
 
@@ -10958,6 +10961,365 @@ export async function getDashboardMetrics(
 }
 </file>
 
+<file path="prisma/schema.prisma">
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+/// Durable identity that survives Gmail credential unlink / re-link.
+model PersistentProfile {
+  id        String   @id @default(cuid())
+  /// Google OpenID `sub`, or sha256(email) fallback when sub is unavailable.
+  googleSub String   @unique
+  email     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts            Account[]
+  permanentSettings   PermanentSettings?
+  jobApplications     JobApplication[]
+  subscriptionHistory SubscriptionHistory[]
+
+  @@index([email])
+}
+
+/// Job Radar automation knobs that persist with the profile (not credentials).
+model PermanentSettings {
+  id                  String            @id @default(cuid())
+  persistentProfileId String            @unique
+  persistentProfile   PersistentProfile @relation(fields: [persistentProfileId], references: [id], onDelete: Cascade)
+
+  // "MANUAL_REVIEW" | "AUTO_SEND"
+  applicationMode     String @default("MANUAL_REVIEW")
+  matchScoreThreshold Int    @default(75)
+  maxAutoSendsPerDay  Int    @default(5)
+
+  updatedAt DateTime @updatedAt
+}
+
+/// Archive of past unsubscribe / ignore decisions keyed to the durable profile.
+model SubscriptionHistory {
+  id            String            @id @default(cuid())
+  userProfileId String
+  userProfile   PersistentProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+
+  senderEmail String
+  senderName  String?
+  // "UNSUBSCRIBED" | "IGNORED"
+  status      String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userProfileId, senderEmail])
+  @@index([userProfileId, status])
+}
+
+model Account {
+  id                  String             @id @default(cuid())
+  email               String             @unique
+  /// Nullable so "Unlink Gmail" can clear credentials without deleting history.
+  encryptedAccess     String?
+  encryptedRefresh    String?
+  tokenExpiry         DateTime?
+  historyId           String?
+  isActive            Boolean            @default(true)
+  persistentProfileId String?
+  persistentProfile   PersistentProfile? @relation(fields: [persistentProfileId], references: [id], onDelete: SetNull)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  /// Background inbox scan / sync tracking
+  isSyncing           Boolean            @default(false)
+  lastSyncedAt        DateTime?
+  syncError           String?
+  /// Opportunities upserted on the most recent completed sync (for UI toast).
+  lastSyncProcessed   Int?
+
+  settings        AccountSettings?
+  subscriptions   Subscription[]
+  jobApplications JobApplication[]
+  emailMessages   EmailMessage[]
+  jobOpportunities JobOpportunity[]
+  profile         UserProfile?
+
+  @@index([email])
+  @@index([persistentProfileId])
+}
+
+model AccountSettings {
+  id             String  @id @default(cuid())
+  accountId      String  @unique
+  account        Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  llmProvider    String  @default("OPENROUTER") // "OPENROUTER" | "LOCAL_OLLAMA"
+  localOllamaUrl String? @default("http://localhost:11434")
+  ollamaModel    String? @default("llama3.1:8b")
+
+  // Dynamic rules validated via Zod schema (accountRulesSchema)
+  rules          Json    @default("{}")
+
+  updatedAt DateTime @updatedAt
+}
+
+model Subscription {
+  id             String    @id @default(cuid())
+  accountId      String
+  account        Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  senderName     String?
+  senderEmail    String
+  unsubHttpUrl   String?
+  unsubPostUrl   String?
+  unsubPostBody  String?
+  unsubMailto    String?
+  status         String    @default("ACTIVE") // "ACTIVE" | "UNSUBSCRIBED" | "FAILED"
+  emailCount     Int       @default(1)
+  lastReceivedAt DateTime?
+  /// Last unsubscribe/cleanup error for UI hover (cleared on success).
+  lastError      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([accountId, senderEmail])
+  @@index([accountId, status])
+}
+
+/// Parent Gmail message that may yield zero or many JobOpportunity rows.
+model EmailMessage {
+  id          String   @id @default(cuid())
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  messageId   String
+  threadId    String
+  subject     String?
+  fromEmail   String?
+  fromName    String?
+  /// DIRECT_RECRUITER | JOB_BOARD_DIGEST | APPLICATION_STATUS | IRRELEVANT
+  emailCategory String @default("IRRELEVANT")
+  emailDate   DateTime
+  snippet     String?  @db.Text
+
+  opportunities JobOpportunity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([accountId, messageId])
+  @@index([accountId, emailCategory])
+  @@index([accountId, emailDate])
+}
+
+/// Extracted job posting from a recruiter email or job-board digest.
+model JobOpportunity {
+  id              String   @id @default(cuid())
+  accountId       String
+  account         Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  emailMessageId  String?
+  emailMessage    EmailMessage? @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
+
+  company         String
+  /// Inferred website domain for zero-token favicon lookup (e.g. "stripe.com").
+  companyDomain   String?
+  /// Computed favicon / logo URL (Google S2 or Unavatar).
+  logoUrl         String?
+  title           String
+  location        String?
+  /// Display string (e.g. "$115,000 - $130,000/yr" or "$55/hr").
+  salary          String?
+  /// Normalized annualized max for numerical sorting (hourly × 2080 when needed).
+  salaryMax       Float?
+  /// Relative listing age when present (e.g. "2 days ago", "Just posted").
+  postedAt        String?
+  /// Gmail message internalDate (when the email was received).
+  receivedAt      DateTime @default(now())
+  description     String?  @db.Text
+  /// Full tracking / direct application link (may be long aggregator URLs).
+  applyUrl        String?  @db.Text
+  /// DIRECT_EMAIL | EXTERNAL_LINK | QUICK_APPLY
+  applicationType String   @default("EXTERNAL_LINK")
+  /// Must be null when no direct recruiter contact exists (no email drafts allowed).
+  recipientEmail  String?
+  recipientName   String?
+  draftSubject    String?
+  draftBody       String?  @db.Text
+  /// DISCOVERED | REVIEW_READY | APPLIED | DISMISSED
+  status          String   @default("DISCOVERED")
+  /// Preserves category before user archive/dismiss so Restore can return cleanly.
+  previousStatus  String?
+  /// When the candidate applied (email confirmation date or manual mark).
+  appliedAt       DateTime?
+  /// 0–100 fit vs candidate profile; below threshold → isArchived (when not user-archived).
+  matchScore      Int      @default(0)
+  /// One-sentence AI verdict of fit / mismatch.
+  matchReason     String?  @db.Text
+  /// Below-threshold soft-hide, OR user-archived (when previousStatus is set).
+  isArchived      Boolean  @default(false)
+  /// Set when status becomes DISMISSED; auto-purged after retention window.
+  dismissedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([accountId, status])
+  @@index([accountId, applicationType])
+  @@index([accountId, isArchived])
+  @@index([emailMessageId])
+  @@index([accountId, createdAt])
+  @@index([accountId, matchScore])
+  @@index([accountId, receivedAt])
+  @@index([accountId, salaryMax])
+  @@index([dismissedAt])
+}
+
+model JobApplication {
+  id                  String             @id @default(cuid())
+  /// Optional link to live Gmail credentials; cleared if account row is removed.
+  accountId           String?
+  account             Account?           @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  /// Durable owner — survives credential unlink.
+  persistentProfileId String?
+  persistentProfile   PersistentProfile? @relation(fields: [persistentProfileId], references: [id], onDelete: SetNull)
+
+  messageId String
+  threadId  String
+  companyName String?
+  roleTitle   String?
+  // "LEAD" | "APPLIED" | "OA" | "INTERVIEW" | "OFFER" | "REJECTION" | "ARCHIVED"
+  status         String    @default("LEAD")
+  // "EMAIL" | "PORTAL" (legacy mirror of applicationMethod)
+  dispatchType   String    @default("EMAIL")
+  // "PENDING_REVIEW" | "SENT" | "MANUAL_APPLIED"
+  dispatchStatus String    @default("PENDING_REVIEW")
+  /// Draft pipeline: DETECTED | DRAFT_PREPARED | DRAFT_SAVED_GMAIL | SENT | DISMISSED
+  opportunityStatus String @default("DETECTED")
+  /// DIRECT_EMAIL | EXTERNAL_LINK | PORTAL_QUICK_APPLY
+  applicationMethod String @default("DIRECT_EMAIL")
+  applyUrl          String?
+  draftSubject      String?
+  draftBody         String?  @db.Text
+  gmailDraftId      String?
+  gmailMessageId    String?
+  appliedAt      DateTime?
+  sentAt         DateTime?
+  matchScore     Int?
+  matchRationale String?
+  // { selectedBullets: string[], coverLetter: string, jobRequirements: string[] }
+  tailoredData   Json?
+
+  actionRequired Boolean   @default(false)
+  actionSummary  String?
+  actionUrl      String?
+  deadlineAt     DateTime?
+  emailDate      DateTime
+  isTrashed      Boolean   @default(false)
+  isArchived     Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([accountId, messageId])
+  @@index([persistentProfileId, messageId])
+  @@index([accountId, status])
+  @@index([persistentProfileId, status])
+  @@index([accountId, companyName])
+  @@index([accountId, opportunityStatus])
+  @@index([actionRequired])
+}
+
+model UserProfile {
+  id        String  @id @default(cuid())
+  accountId String  @unique
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  fullName String
+  email    String
+  phone    String?
+  location String?
+  summary  String?
+  // [{ label: string, url: string }]
+  links    Json    @default("[]")
+  // { languages: string[], frameworks: string[], tools: string[], concepts: string[] }
+  skills   Json    @default("{}")
+
+  matchThreshold  Int     @default(75)
+
+  linkedWebsite   String?
+  linkedIndeed    String?
+  linkedGlassdoor String?
+  linkedGithub    String?
+  linkedLinkedin  String?
+  linkedHandshake String?
+
+  experiences WorkExperience[]
+  projects    Project[]
+  education   Education[]
+  history     ProfileHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProfileHistory {
+  id        String      @id @default(cuid())
+  profileId String
+  profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  /// e.g. "Before GitHub Sync", "Before Resume Extraction", "Manual Edit"
+  summary   String
+  /// Complete MasterProfileInput JSON snapshot
+  snapshot  Json
+  createdAt DateTime    @default(now())
+
+  @@index([profileId, createdAt])
+}
+
+model WorkExperience {
+  id        String      @id @default(cuid())
+  profileId String
+  profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  company      String
+  role         String
+  location     String?
+  startDate    String
+  endDate      String?
+  // [{ id: string, rawText: string, technologies: string[], hasMetric: boolean }]
+  bullets      Json
+  displayOrder Int      @default(0)
+}
+
+model Project {
+  id           String      @id @default(cuid())
+  profileId    String
+  profile      UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  name         String
+  description  String
+  technologies String[]
+  link         String?
+  bullets      String[]
+}
+
+model Education {
+  id             String      @id @default(cuid())
+  profileId      String
+  profile        UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  institution    String
+  degree         String
+  fieldOfStudy   String?
+  graduationDate String?
+}
+</file>
+
 <file path="lib/llm.ts">
 import { z } from "zod";
 
@@ -11067,35 +11429,34 @@ export function normalizeOllamaBaseUrl(raw: string): string {
   return base || "http://localhost:11434";
 }
 
-const SUBJECT_KEYWORDS = [
-  "application",
-  "applied",
-  "application was sent",
-  "thank you for applying",
-  "thank you for your application",
-  "interview",
-  "thank you for your interest",
-  "status",
-  "assessment",
-  //"hackerrank",
-  //"coderpad",
-  "next steps",
-  "job alert",
-  "jobs for you",
-  "new jobs",
-  "recommended jobs",
-  "glassdoor",
-  "indeed",
-  "linkedin",
-  "hiring",
-  "opportunity",
-  "open role",
-  "we're hiring",
-  "we are hiring",
-  //"engineer",
-  //"developer",
-  //"software",
-] as const;
+export const JOB_EMAIL_KEYWORD_PATTERNS: RegExp[] = [
+  // 1. Core Job & Opportunity Nouns / Stems (handles plurals)
+  /\b(job|jobs|career|careers|role|roles|position|positions|opening|openings)\b/i,
+  /opportunit/i, // Stems "opportunity", "opportunities", "opportunistic"
+
+  // 2. Hiring & Direct Sourcing Hooks
+  /\b(we'?re hiring|we are hiring|now hiring|join (our|the) team)\b/i,
+  /\b(saw your|came across your|found your|viewed your)\s+(profile|github|portfolio|work|experience|linkedin)\b/i,
+  /\b(open to|interested in)\s+(a new|new|exploring)?\s*(role|roles|opportunit|chat|discussing|position)/i,
+  /\b(talent acquisition|technical recruiter|sourcer|headhunter|executive search)\b/i,
+  /\b(intro|exploratory|quick)\s+(call|chat|screen|conversation)\b/i,
+
+  // 3. Application Lifecycle & ATS Statuses
+  /\b(application|applied|applicant|candidacy|candidate)\b/i,
+  /\b(thank you for|thanks for)\s+(applying|your application|your interest)\b/i,
+  /\b(application\s+(received|submitted|sent|confirmed|status|update))\b/i,
+  /\b(interview|interviewing|phone screen|tech screen|onsite|hiring manager)\b/i,
+  /\b(next steps|moving forward|status update)\b/i,
+  /\b(offer letter|job offer|offer of employment)\b/i,
+  /\b(regret to inform|other candidates|not moving forward)\b/i,
+
+  // 4. Online Assessments (OAs) & Screening Platforms
+  /\b(hackerrank|codesignal|coderpad|karat|byteboard|codility|take-home|online assessment)\b/i,
+
+  // 5. ATS Providers & Job Boards / Portals
+  /\b(greenhouse|lever\.co|ashbyhq|workday|myworkdayjobs|smartrecruiters|icims|jobvite|bamboohr|rippling|pinpointhq|workable|breezy\.hr)\b/i,
+  /\b(linkedin|indeed|glassdoor|dice\.com|ziprecruiter|wellfound|angel\.co|joinhandshake|handshake)\b/i,
+];
 
 const DIGEST_SENDER_HINTS = [
   "glassdoor",
@@ -11132,12 +11493,29 @@ const DEFAULT_OPENROUTER_MODELS = [
 ].filter(Boolean) as string[];
 
 /**
- * Returns true when the subject matches job-triage pre-filter keywords.
+ * Pre-filter: subject first, then optional snippet/body (first 1000 chars).
  */
-export function matchesJobSubjectKeywords(subject: string): boolean {
-  const lower = subject.toLowerCase();
-  return SUBJECT_KEYWORDS.some((keyword) => lower.includes(keyword));
+export function matchesJobEmailKeywords(
+  subject: string,
+  snippetOrBody?: string | null
+): boolean {
+  if (JOB_EMAIL_KEYWORD_PATTERNS.some((re) => re.test(subject))) {
+    return true;
+  }
+  if (
+    snippetOrBody &&
+    JOB_EMAIL_KEYWORD_PATTERNS.some((re) =>
+      re.test(snippetOrBody.slice(0, 1000))
+    )
+  ) {
+    return true;
+  }
+  return false;
 }
+
+/** Backward-compatible alias for callers still using the old name. */
+export const matchesJobSubjectKeywords = (text: string) =>
+  matchesJobEmailKeywords(text);
 
 function looksLikeDigest(subject: string, fromEmail?: string | null): boolean {
   const hay = `${subject} ${fromEmail ?? ""}`.toLowerCase();
@@ -11573,7 +11951,7 @@ export function coerceClassificationPayload(
 export async function classifyJobEmail(
   options: ClassifyOptions
 ): Promise<JobClassification | null> {
-  const passesSubject = matchesJobSubjectKeywords(options.subject);
+  const passesPreFilter = matchesJobEmailKeywords(options.subject, options.body);
   const knownJobSender = looksLikeDigest(options.subject, options.fromEmail);
   const appliedHeuristic = heuristicApplicationConfirmation({
     subject: options.subject,
@@ -11581,7 +11959,7 @@ export async function classifyJobEmail(
     fromEmail: options.fromEmail,
   });
 
-  if (!passesSubject && !knownJobSender && !appliedHeuristic) {
+  if (!passesPreFilter && !knownJobSender && !appliedHeuristic) {
     return null;
   }
 
@@ -11677,13 +12055,29 @@ async function callOllamaJson(
 ): Promise<Record<string, unknown> | null> {
   const cleanBaseUrl = normalizeOllamaBaseUrl(baseUrl);
   const resolvedModel =
-    (model?.trim() || process.env.OLLAMA_MODEL?.trim() || DEFAULT_OLLAMA_MODEL);
-  const url = `${cleanBaseUrl}/api/chat`;
+    model?.trim() || process.env.OLLAMA_MODEL?.trim() || DEFAULT_OLLAMA_MODEL;
 
+  // 1. Fast 2s health check — fail open to OpenRouter/PENDING_AI if tunnel is dead
+  try {
+    const pingRes = await fetch(`${cleanBaseUrl}/api/tags`, {
+      method: "GET",
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!pingRes.ok) {
+      throw new Error(`Ollama health check failed with status ${pingRes.status}`);
+    }
+  } catch (pingErr) {
+    throw new Error(
+      `Ollama tunnel offline or unreachable: ${(pingErr as Error).message}`
+    );
+  }
+
+  // 2. Full inference with a generous 25s window for local 8B/26B models
+  const url = `${cleanBaseUrl}/api/chat`;
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(4000),
+    signal: AbortSignal.timeout(25000),
     body: JSON.stringify({
       model: resolvedModel,
       stream: false,
@@ -11709,9 +12103,7 @@ async function callOllamaJson(
     response?: string;
   };
   const content = json.message?.content ?? json.response;
-  if (!content) {
-    return null;
-  }
+  if (!content) return null;
 
   return parseJsonObject(content);
 }
@@ -11905,365 +12297,6 @@ function decodeBase64Url(data: string): string {
 }
 </file>
 
-<file path="prisma/schema.prisma">
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-generator client {
-  provider = "prisma-client-js"
-}
-
-/// Durable identity that survives Gmail credential unlink / re-link.
-model PersistentProfile {
-  id        String   @id @default(cuid())
-  /// Google OpenID `sub`, or sha256(email) fallback when sub is unavailable.
-  googleSub String   @unique
-  email     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  accounts            Account[]
-  permanentSettings   PermanentSettings?
-  jobApplications     JobApplication[]
-  subscriptionHistory SubscriptionHistory[]
-
-  @@index([email])
-}
-
-/// Job Radar automation knobs that persist with the profile (not credentials).
-model PermanentSettings {
-  id                  String            @id @default(cuid())
-  persistentProfileId String            @unique
-  persistentProfile   PersistentProfile @relation(fields: [persistentProfileId], references: [id], onDelete: Cascade)
-
-  // "MANUAL_REVIEW" | "AUTO_SEND"
-  applicationMode     String @default("MANUAL_REVIEW")
-  matchScoreThreshold Int    @default(75)
-  maxAutoSendsPerDay  Int    @default(5)
-
-  updatedAt DateTime @updatedAt
-}
-
-/// Archive of past unsubscribe / ignore decisions keyed to the durable profile.
-model SubscriptionHistory {
-  id            String            @id @default(cuid())
-  userProfileId String
-  userProfile   PersistentProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
-
-  senderEmail String
-  senderName  String?
-  // "UNSUBSCRIBED" | "IGNORED"
-  status      String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([userProfileId, senderEmail])
-  @@index([userProfileId, status])
-}
-
-model Account {
-  id                  String             @id @default(cuid())
-  email               String             @unique
-  /// Nullable so "Unlink Gmail" can clear credentials without deleting history.
-  encryptedAccess     String?
-  encryptedRefresh    String?
-  tokenExpiry         DateTime?
-  historyId           String?
-  isActive            Boolean            @default(true)
-  persistentProfileId String?
-  persistentProfile   PersistentProfile? @relation(fields: [persistentProfileId], references: [id], onDelete: SetNull)
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-
-  /// Background inbox scan / sync tracking
-  isSyncing           Boolean            @default(false)
-  lastSyncedAt        DateTime?
-  syncError           String?
-  /// Opportunities upserted on the most recent completed sync (for UI toast).
-  lastSyncProcessed   Int?
-
-  settings        AccountSettings?
-  subscriptions   Subscription[]
-  jobApplications JobApplication[]
-  emailMessages   EmailMessage[]
-  jobOpportunities JobOpportunity[]
-  profile         UserProfile?
-
-  @@index([email])
-  @@index([persistentProfileId])
-}
-
-model AccountSettings {
-  id             String  @id @default(cuid())
-  accountId      String  @unique
-  account        Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
-
-  llmProvider    String  @default("OPENROUTER") // "OPENROUTER" | "LOCAL_OLLAMA"
-  localOllamaUrl String? @default("http://localhost:11434")
-  ollamaModel    String? @default("llama3.1:8b")
-
-  // Dynamic rules validated via Zod schema (accountRulesSchema)
-  rules          Json    @default("{}")
-
-  updatedAt DateTime @updatedAt
-}
-
-model Subscription {
-  id             String    @id @default(cuid())
-  accountId      String
-  account        Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
-
-  senderName     String?
-  senderEmail    String
-  unsubHttpUrl   String?
-  unsubPostUrl   String?
-  unsubPostBody  String?
-  unsubMailto    String?
-  status         String    @default("ACTIVE") // "ACTIVE" | "UNSUBSCRIBED" | "FAILED"
-  emailCount     Int       @default(1)
-  lastReceivedAt DateTime?
-  /// Last unsubscribe/cleanup error for UI hover (cleared on success).
-  lastError      String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([accountId, senderEmail])
-  @@index([accountId, status])
-}
-
-/// Parent Gmail message that may yield zero or many JobOpportunity rows.
-model EmailMessage {
-  id          String   @id @default(cuid())
-  accountId   String
-  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-
-  messageId   String
-  threadId    String
-  subject     String?
-  fromEmail   String?
-  fromName    String?
-  /// DIRECT_RECRUITER | JOB_BOARD_DIGEST | APPLICATION_STATUS | IRRELEVANT
-  emailCategory String @default("IRRELEVANT")
-  emailDate   DateTime
-  snippet     String?  @db.Text
-
-  opportunities JobOpportunity[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([accountId, messageId])
-  @@index([accountId, emailCategory])
-  @@index([accountId, emailDate])
-}
-
-/// Extracted job posting from a recruiter email or job-board digest.
-model JobOpportunity {
-  id              String   @id @default(cuid())
-  accountId       String
-  account         Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  emailMessageId  String?
-  emailMessage    EmailMessage? @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
-
-  company         String
-  /// Inferred website domain for zero-token favicon lookup (e.g. "stripe.com").
-  companyDomain   String?
-  /// Computed favicon / logo URL (Google S2 or Unavatar).
-  logoUrl         String?
-  title           String
-  location        String?
-  /// Display string (e.g. "$115,000 - $130,000/yr" or "$55/hr").
-  salary          String?
-  /// Normalized annualized max for numerical sorting (hourly × 2080 when needed).
-  salaryMax       Float?
-  /// Relative listing age when present (e.g. "2 days ago", "Just posted").
-  postedAt        String?
-  /// Gmail message internalDate (when the email was received).
-  receivedAt      DateTime @default(now())
-  description     String?  @db.Text
-  /// Full tracking / direct application link (may be long aggregator URLs).
-  applyUrl        String?  @db.Text
-  /// DIRECT_EMAIL | EXTERNAL_LINK | QUICK_APPLY
-  applicationType String   @default("EXTERNAL_LINK")
-  /// Must be null when no direct recruiter contact exists (no email drafts allowed).
-  recipientEmail  String?
-  recipientName   String?
-  draftSubject    String?
-  draftBody       String?  @db.Text
-  /// DISCOVERED | REVIEW_READY | APPLIED | DISMISSED
-  status          String   @default("DISCOVERED")
-  /// Preserves category before user archive/dismiss so Restore can return cleanly.
-  previousStatus  String?
-  /// When the candidate applied (email confirmation date or manual mark).
-  appliedAt       DateTime?
-  /// 0–100 fit vs candidate profile; below threshold → isArchived (when not user-archived).
-  matchScore      Int      @default(0)
-  /// One-sentence AI verdict of fit / mismatch.
-  matchReason     String?  @db.Text
-  /// Below-threshold soft-hide, OR user-archived (when previousStatus is set).
-  isArchived      Boolean  @default(false)
-  /// Set when status becomes DISMISSED; auto-purged after retention window.
-  dismissedAt     DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([accountId, status])
-  @@index([accountId, applicationType])
-  @@index([accountId, isArchived])
-  @@index([emailMessageId])
-  @@index([accountId, createdAt])
-  @@index([accountId, matchScore])
-  @@index([accountId, receivedAt])
-  @@index([accountId, salaryMax])
-  @@index([dismissedAt])
-}
-
-model JobApplication {
-  id                  String             @id @default(cuid())
-  /// Optional link to live Gmail credentials; cleared if account row is removed.
-  accountId           String?
-  account             Account?           @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  /// Durable owner — survives credential unlink.
-  persistentProfileId String?
-  persistentProfile   PersistentProfile? @relation(fields: [persistentProfileId], references: [id], onDelete: SetNull)
-
-  messageId String
-  threadId  String
-  companyName String?
-  roleTitle   String?
-  // "LEAD" | "APPLIED" | "OA" | "INTERVIEW" | "OFFER" | "REJECTION" | "ARCHIVED"
-  status         String    @default("LEAD")
-  // "EMAIL" | "PORTAL" (legacy mirror of applicationMethod)
-  dispatchType   String    @default("EMAIL")
-  // "PENDING_REVIEW" | "SENT" | "MANUAL_APPLIED"
-  dispatchStatus String    @default("PENDING_REVIEW")
-  /// Draft pipeline: DETECTED | DRAFT_PREPARED | DRAFT_SAVED_GMAIL | SENT | DISMISSED
-  opportunityStatus String @default("DETECTED")
-  /// DIRECT_EMAIL | EXTERNAL_LINK | PORTAL_QUICK_APPLY
-  applicationMethod String @default("DIRECT_EMAIL")
-  applyUrl          String?
-  draftSubject      String?
-  draftBody         String?  @db.Text
-  gmailDraftId      String?
-  gmailMessageId    String?
-  appliedAt      DateTime?
-  sentAt         DateTime?
-  matchScore     Int?
-  matchRationale String?
-  // { selectedBullets: string[], coverLetter: string, jobRequirements: string[] }
-  tailoredData   Json?
-
-  actionRequired Boolean   @default(false)
-  actionSummary  String?
-  actionUrl      String?
-  deadlineAt     DateTime?
-  emailDate      DateTime
-  isTrashed      Boolean   @default(false)
-  isArchived     Boolean   @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([accountId, messageId])
-  @@index([persistentProfileId, messageId])
-  @@index([accountId, status])
-  @@index([persistentProfileId, status])
-  @@index([accountId, companyName])
-  @@index([accountId, opportunityStatus])
-  @@index([actionRequired])
-}
-
-model UserProfile {
-  id        String  @id @default(cuid())
-  accountId String  @unique
-  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
-
-  fullName String
-  email    String
-  phone    String?
-  location String?
-  summary  String?
-  // [{ label: string, url: string }]
-  links    Json    @default("[]")
-  // { languages: string[], frameworks: string[], tools: string[], concepts: string[] }
-  skills   Json    @default("{}")
-
-  matchThreshold  Int     @default(75)
-
-  linkedWebsite   String?
-  linkedIndeed    String?
-  linkedGlassdoor String?
-  linkedGithub    String?
-  linkedLinkedin  String?
-  linkedHandshake String?
-
-  experiences WorkExperience[]
-  projects    Project[]
-  education   Education[]
-  history     ProfileHistory[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model ProfileHistory {
-  id        String      @id @default(cuid())
-  profileId String
-  profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  /// e.g. "Before GitHub Sync", "Before Resume Extraction", "Manual Edit"
-  summary   String
-  /// Complete MasterProfileInput JSON snapshot
-  snapshot  Json
-  createdAt DateTime    @default(now())
-
-  @@index([profileId, createdAt])
-}
-
-model WorkExperience {
-  id        String      @id @default(cuid())
-  profileId String
-  profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  company      String
-  role         String
-  location     String?
-  startDate    String
-  endDate      String?
-  // [{ id: string, rawText: string, technologies: string[], hasMetric: boolean }]
-  bullets      Json
-  displayOrder Int      @default(0)
-}
-
-model Project {
-  id           String      @id @default(cuid())
-  profileId    String
-  profile      UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  name         String
-  description  String
-  technologies String[]
-  link         String?
-  bullets      String[]
-}
-
-model Education {
-  id             String      @id @default(cuid())
-  profileId      String
-  profile        UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  institution    String
-  degree         String
-  fieldOfStudy   String?
-  graduationDate String?
-}
-</file>
-
 <file path="lib/sync.ts">
 import type { gmail_v1 } from "googleapis";
 import type { Account, AccountSettings } from "@prisma/client";
@@ -12278,7 +12311,7 @@ import {
   classifyJobEmail,
   extractMessageBody,
   loadCandidateProfileSummary,
-  matchesJobSubjectKeywords,
+  matchesJobEmailKeywords,
   sanitizeEmailBody,
   type LlmProvider,
 } from "@/lib/llm";
@@ -12444,7 +12477,7 @@ async function processMessage(
     });
   }
 
-  if (!matchesJobSubjectKeywords(subject)) {
+  if (!matchesJobEmailKeywords(subject, message.data.snippet)) {
     return;
   }
 
@@ -12467,7 +12500,7 @@ async function processMessage(
 
   if (!classification || !classification.is_job_related) {
     // Bridge/LLM offline: park keyword-matching mail for a later classify pass
-    if (!classification && matchesJobSubjectKeywords(subject)) {
+    if (!classification && matchesJobEmailKeywords(subject, body)) {
       const emailDate = message.data.internalDate
         ? new Date(Number(message.data.internalDate))
         : new Date();

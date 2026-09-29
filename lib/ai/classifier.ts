@@ -237,7 +237,7 @@ Return ONLY valid JSON (no markdown fences):
 }
 
 Category rules:
-- DIRECT_RECRUITER: personal 1:1 from a recruiter/hiring manager with a real human reply-to or mailto contact.
+- DIRECT_RECRUITER: personal 1:1 outreach from ANY company representative (Recruiter, Talent Partner, Engineering Manager, Tech Lead, Founder, VP, or Director) discussing an open position or exploring fit. You MUST extract exactly one job into 'jobs' with the role discussed.
 - JOB_BOARD_DIGEST: Glassdoor / Indeed / LinkedIn / similar digests or alerts listing one OR many jobs.
 - APPLICATION_STATUS: rejection, interview invite, OA, offer, or application confirmation about a candidacy already in progress.
 - IRRELEVANT: marketing spam or non-job content.
