@@ -35,7 +35,7 @@ export type OpportunitySyncResult = {
 
 const JOB_QUERY_BASE =
   "(" +
-  'subject:(job OR career OR role OR hiring OR interview OR opportunity OR application OR applied OR alert OR "thank you for applying" OR "application received" OR "application was sent" OR offer)' +
+  'subject:(job OR career OR role OR hiring OR interview OR opportunity OR opportunities OR application OR applied OR alert OR "thank you for applying" OR "application received" OR "application was sent" OR offer)' +
   " OR from:(glassdoor OR linkedin OR indeed OR lever OR greenhouse OR dice OR workday OR ashbyhq OR smartrecruiters OR icims OR myworkdayjobs)" +
   ") -in:trash -in:spam";
 
@@ -191,33 +191,48 @@ export async function runOpportunitySync(
       lastSyncedAt: account.lastSyncedAt,
     });
 
-    const messageIds = await listGmailMessageIds(gmail, query, maxMessages);
+    const gmailMessageIds = await listGmailMessageIds(gmail, query, maxMessages);
 
-    if (messageIds.length === 0) {
+    // Pull up to 10 backlogged PENDING_AI emails so Sync Inbox drains the queue.
+    const pendingRows = await prisma.emailMessage.findMany({
+      where: {
+        accountId,
+        emailCategory: "PENDING_AI",
+      },
+      select: { messageId: true },
+      take: 10,
+    });
+    const pendingIds = pendingRows.map((r) => r.messageId);
+
+    const combinedCandidateIds = Array.from(
+      new Set([...gmailMessageIds, ...pendingIds])
+    );
+
+    if (combinedCandidateIds.length === 0) {
       return { processed: 0, opportunitiesUpserted: 0, skipped: 0 };
     }
 
-    let targetIds = messageIds;
+    let targetIds = combinedCandidateIds;
     if (!forceRescan) {
       // Dedup against EmailMessage.messageId (Gmail ids), not JobOpportunity cuid FKs.
       // Re-process PENDING_AI rows so offline-parked mail gets classified when AI returns.
       const processed = await prisma.emailMessage.findMany({
         where: {
           accountId,
-          messageId: { in: messageIds },
+          messageId: { in: combinedCandidateIds },
           emailCategory: { not: "PENDING_AI" },
         },
         select: { messageId: true },
       });
       const processedSet = new Set(processed.map((row) => row.messageId));
-      targetIds = messageIds.filter((id) => !processedSet.has(id));
+      targetIds = combinedCandidateIds.filter((id) => !processedSet.has(id));
     }
 
     if (targetIds.length === 0) {
       return {
         processed: 0,
         opportunitiesUpserted: 0,
-        skipped: messageIds.length,
+        skipped: combinedCandidateIds.length,
       };
     }
 
@@ -227,8 +242,10 @@ export async function runOpportunitySync(
 
     let opportunitiesUpserted = 0;
 
-    for (let i = 0; i < targetIds.length; i += BATCH_SIZE) {
-      const chunk = targetIds.slice(i, i + BATCH_SIZE);
+    // Serialize local Ollama inference to avoid concurrent queue timeouts.
+    const effectiveBatchSize = llmProvider === "LOCAL_OLLAMA" ? 1 : BATCH_SIZE;
+    for (let i = 0; i < targetIds.length; i += effectiveBatchSize) {
+      const chunk = targetIds.slice(i, i + effectiveBatchSize);
       const results = await Promise.all(
         chunk.map(async (messageId) => {
           try {
@@ -266,10 +283,14 @@ export async function runOpportunitySync(
               !classification.is_job_related ||
               classification.email_category === "IRRELEVANT"
             ) {
-              if (
-                !classification &&
-                matchesJobEmailKeywords(subject, cleanedText)
-              ) {
+              if (classification) {
+                // LLM successfully ran and determined it is not a job -> clear from PENDING_AI
+                await prisma.emailMessage.updateMany({
+                  where: { accountId, messageId },
+                  data: { emailCategory: "IRRELEVANT" },
+                });
+              } else if (matchesJobEmailKeywords(subject, cleanedText)) {
+                // LLM was offline or failed -> park as PENDING_AI
                 const threadId = message.data.threadId ?? messageId;
                 const emailDate = message.data.internalDate
                   ? new Date(Number(message.data.internalDate))
@@ -336,7 +357,7 @@ export async function runOpportunitySync(
     return {
       processed: targetIds.length,
       opportunitiesUpserted,
-      skipped: messageIds.length - targetIds.length,
+      skipped: combinedCandidateIds.length - targetIds.length,
     };
   } catch (error) {
     if (

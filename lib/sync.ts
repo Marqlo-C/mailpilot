@@ -178,9 +178,6 @@ async function processMessage(
   }
 
   if (!matchesJobEmailKeywords(subject, message.data.snippet)) {
-    // #region agent log
-    fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'pre-fix',hypothesisId:'D',location:'lib/sync.ts:processMessage:prefilter',message:'dropped by keyword prefilter',data:{subjectPreview:subject.slice(0,80),hasSnippet:Boolean(message.data.snippet),snippetPreview:(message.data.snippet??'').slice(0,120)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return;
   }
 
@@ -201,9 +198,17 @@ async function processMessage(
     candidateProfile,
   });
 
-  if (!classification || !classification.is_job_related) {
-    // Bridge/LLM offline: park keyword-matching mail for a later classify pass
-    if (!classification && matchesJobEmailKeywords(subject, body)) {
+  if (
+    !classification ||
+    !classification.is_job_related ||
+    classification.email_category === "IRRELEVANT"
+  ) {
+    if (classification) {
+      await prisma.emailMessage.updateMany({
+        where: { accountId: account.id, messageId },
+        data: { emailCategory: "IRRELEVANT" },
+      });
+    } else if (matchesJobEmailKeywords(subject, body)) {
       const emailDate = message.data.internalDate
         ? new Date(Number(message.data.internalDate))
         : new Date();
@@ -231,10 +236,6 @@ async function processMessage(
         },
       });
     }
-    return;
-  }
-
-  if (classification.email_category === "IRRELEVANT") {
     return;
   }
 
@@ -577,9 +578,6 @@ export async function persistClassifiedEmail(input: {
   const threshold = rules.matchScoreThreshold ?? 75;
   const excludedTitles = rules.excludedTitles ?? [];
   let opportunitiesUpserted = 0;
-  // #region agent log
-  fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'pre-fix',hypothesisId:'E',location:'lib/sync.ts:persistClassifiedEmail:beforeUpsert',message:'persist opportunity loop entry',data:{emailCategory:classification.email_category,jobsCount:classification.jobs.length,threshold,jobSummaries:classification.jobs.slice(0,5).map(j=>({applicationType:j.applicationType,hasRecipient:Boolean(j.recipientEmail),matchScore:j.matchScore,titleLen:(j.title??'').length,companyLen:(j.company??'').length}))},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   for (const job of classification.jobs) {
     const cleanCompany = job.company.trim();
     const cleanTitle = job.title.trim();

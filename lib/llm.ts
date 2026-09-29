@@ -103,7 +103,11 @@ export function normalizeOllamaBaseUrl(raw: string): string {
   if (base.toLowerCase().endsWith("/v1")) {
     base = base.slice(0, -3).replace(/\/+$/, "");
   }
-  return base || "http://localhost:11434";
+  // Replace localhost with IPv4 127.0.0.1 to avoid Node IPv6 resolution failures
+  base = base.replace(/^http:\/\/localhost(?::|$)/i, (match) =>
+    match.replace("localhost", "127.0.0.1")
+  );
+  return base || "http://127.0.0.1:11434";
 }
 
 export const JOB_EMAIL_KEYWORD_PATTERNS: RegExp[] = [
@@ -515,9 +519,6 @@ export function normalizeClassification(
       });
       recipientEmail = null;
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'post-fix',hypothesisId:'A',location:'lib/llm.ts:normalizeClassification:typeResolve',message:'resolvedType computation',data:{emailCategory,hasRecipientBeforeWipe:Boolean(recipientEmail),llmApplicationType:job.applicationType??null,resolvedType,willWipeRecipient:resolvedType!=='DIRECT_EMAIL',hasApplyUrl:Boolean(applyUrl),fromIsNoReply,hasFromEmail:Boolean(context.fromEmail)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     const companyDomain =
       (job.companyDomain ?? "")
@@ -573,10 +574,6 @@ export function normalizeClassification(
     };
   });
 
-  // #region agent log
-  fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'post-fix',hypothesisId:'B',location:'lib/llm.ts:normalizeClassification:exit',message:'normalizeClassification exit',data:{emailCategory,rawJobsCount:(raw.jobs??[]).length,finalJobsCount:jobs.length,finalTypes:jobs.map(j=>j.applicationType),finalHasRecipient:jobs.map(j=>Boolean(j.recipientEmail)),isJobRelated:Boolean(raw.is_job_related),subjectPreview:context.subject.slice(0,80)},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-
   return {
     ...raw,
     email_category: emailCategory,
@@ -611,7 +608,10 @@ export function coerceClassificationPayload(
         Array.isArray((nested as Record<string, unknown>).opportunities) ||
         typeof (nested as Record<string, unknown>).is_job_related ===
           "boolean" ||
-        typeof (nested as Record<string, unknown>).isJobRelated === "boolean")
+        typeof (nested as Record<string, unknown>).is_job_related ===
+          "string" ||
+        typeof (nested as Record<string, unknown>).isJobRelated === "boolean" ||
+        typeof (nested as Record<string, unknown>).isJobRelated === "string")
     ) {
       payload = nested as Record<string, unknown>;
       break;
@@ -649,6 +649,38 @@ export function coerceClassificationPayload(
     next.jobs = next.opportunities;
   }
 
+  // Local LLMs often emit "true"/"false" strings — coerce before Zod.
+  if (typeof next.is_job_related === "string") {
+    next.is_job_related =
+      (next.is_job_related as string).trim().toLowerCase() === "true";
+  }
+  if (typeof next.isJobRelated === "string") {
+    next.is_job_related =
+      (next.isJobRelated as string).trim().toLowerCase() === "true";
+  }
+  if (typeof next.action_required === "string") {
+    next.action_required =
+      (next.action_required as string).trim().toLowerCase() === "true";
+  }
+  if (typeof next.actionRequired === "string") {
+    next.action_required =
+      (next.actionRequired as string).trim().toLowerCase() === "true";
+  }
+
+  if (Array.isArray(next.jobs)) {
+    next.jobs = (next.jobs as Record<string, unknown>[]).map((j) => {
+      if (j && typeof j === "object") {
+        const jobObj = { ...j };
+        if (typeof jobObj.isAlreadyApplied === "string") {
+          jobObj.isAlreadyApplied =
+            (jobObj.isAlreadyApplied as string).trim().toLowerCase() === "true";
+        }
+        return jobObj;
+      }
+      return j;
+    });
+  }
+
   const jobs = Array.isArray(next.jobs) ? next.jobs : [];
   if (jobs.length > 0 && next.is_job_related === undefined) {
     next.is_job_related = true;
@@ -680,7 +712,7 @@ export async function classifyJobEmail(
     return appliedHeuristic;
   }
 
-  const sanitizedBody = sanitizeEmailBody(options.body);
+  const sanitizedBody = sanitizeEmailBody(options.body).slice(0, 4000);
   const systemPrompt = buildProfileAwareClassifierSystemPrompt(
     ensureCandidateProfileForScoring(options.candidateProfile ?? null)
   );
@@ -705,9 +737,6 @@ export async function classifyJobEmail(
   try {
     const normalizedPayload = coerceClassificationPayload(result);
     const parsed = jobClassificationSchema.parse(normalizedPayload);
-    // #region agent log
-    fetch('http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c315a'},body:JSON.stringify({sessionId:'3c315a',runId:'pre-fix',hypothesisId:'C',location:'lib/llm.ts:classifyJobEmail:parsed',message:'LLM classification before normalize',data:{emailCategory:parsed.email_category,isJobRelated:parsed.is_job_related,jobsCount:(parsed.jobs??[]).length,hasCompany:Boolean(parsed.company_name),hasRole:Boolean(parsed.role_title),subjectPreview:options.subject.slice(0,80)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return normalizeClassification(parsed, {
       subject: options.subject,
       fromEmail: options.fromEmail,
@@ -768,15 +797,19 @@ async function callOllamaJson(
   userPrompt: string,
   model?: string | null
 ): Promise<Record<string, unknown> | null> {
-  const cleanBaseUrl = normalizeOllamaBaseUrl(baseUrl);
+  const isDev = process.env.NODE_ENV === "development";
+  // In dev, bypass external Cloudflare tunnel hairpinning and connect directly
+  const cleanBaseUrl = isDev
+    ? "http://127.0.0.1:11434"
+    : normalizeOllamaBaseUrl(baseUrl);
   const resolvedModel =
     model?.trim() || process.env.OLLAMA_MODEL?.trim() || DEFAULT_OLLAMA_MODEL;
 
-  // 1. Fast 2s health check — fail open to OpenRouter/PENDING_AI if tunnel is dead
+  // 1. Fast 5s health check — fail open to OpenRouter/PENDING_AI if tunnel is dead
   try {
     const pingRes = await fetch(`${cleanBaseUrl}/api/tags`, {
       method: "GET",
-      signal: AbortSignal.timeout(2000),
+      signal: AbortSignal.timeout(5000),
     });
     if (!pingRes.ok) {
       throw new Error(`Ollama health check failed with status ${pingRes.status}`);
@@ -787,12 +820,12 @@ async function callOllamaJson(
     );
   }
 
-  // 2. Full inference with a generous 25s window for local 8B/26B models
+  // 2. Full inference with an 80s window for local CPU/GPU JSON generation
   const url = `${cleanBaseUrl}/api/chat`;
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(25000),
+    signal: AbortSignal.timeout(80000),
     body: JSON.stringify({
       model: resolvedModel,
       stream: false,
@@ -845,8 +878,12 @@ async function callOpenRouterJson(
         return result;
       }
     } catch (error) {
-      if (error instanceof RateLimitError) {
-        console.warn(`OpenRouter 429 on ${model}; trying next model`);
+      const message = error instanceof Error ? error.message : String(error);
+      const is403 = /\b403\b/.test(message);
+      if (error instanceof RateLimitError || is403) {
+        console.warn(
+          `OpenRouter ${error instanceof RateLimitError ? "429" : "403"} on ${model}; trying next model`
+        );
         continue;
       }
       console.warn(`OpenRouter model ${model} failed`, error);

@@ -24,7 +24,7 @@ const syncInputSchema = z.object({
   accountId: z.string().min(1).optional(),
 });
 
-const STALE_LOCK_MS = 90 * 1000;
+const STALE_LOCK_MS = 180 * 1000;
 
 /**
  * Immediately clears a stuck isSyncing lock for the active account.

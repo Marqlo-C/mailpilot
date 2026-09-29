@@ -89,7 +89,12 @@ function extractModelNames(
 
 async function persistBridgeStatus(
   accountId: string,
-  opts: { connected: boolean; models: string[] }
+  opts: {
+    connected: boolean;
+    models: string[];
+    localOllamaUrl?: string | null;
+    setLocalProvider?: boolean;
+  }
 ): Promise<void> {
   const settings = await prisma.accountSettings.findUnique({
     where: { accountId },
@@ -105,7 +110,15 @@ async function persistBridgeStatus(
 
   await prisma.accountSettings.update({
     where: { accountId },
-    data: { rules: validated as Prisma.InputJsonValue },
+    data: {
+      rules: validated as Prisma.InputJsonValue,
+      ...(opts.localOllamaUrl !== undefined
+        ? { localOllamaUrl: opts.localOllamaUrl }
+        : {}),
+      ...(opts.setLocalProvider && opts.connected
+        ? { llmProvider: "LOCAL_OLLAMA" as const }
+        : {}),
+    },
   });
 }
 
@@ -175,18 +188,34 @@ export async function POST(request: Request) {
       account?.settings?.localOllamaUrl?.trim() ||
       settingsByEmail?.localOllamaUrl?.trim() ||
       "";
-    // Ignore schema default localhost — only a registered *.trycloudflare.com counts
+    // Prefer a registered Cloudflare tunnel; also accept local Ollama hosts.
     const storedTunnel = isRegisteredTunnelUrl(rawStored) ? rawStored : "";
     const payloadUrl = parsed.data.url?.trim() || "";
-    // Client often still holds the schema default localhost; never treat that as a tunnel
     const payloadTunnel = isRegisteredTunnelUrl(payloadUrl) ? payloadUrl : "";
 
-    const targetUrl = payloadTunnel || storedTunnel || undefined;
+    const isDev = process.env.NODE_ENV === "development";
+    const storedLocal =
+      rawStored && isAllowedOllamaUrl(normalizeOllamaBaseUrl(rawStored))
+        ? normalizeOllamaBaseUrl(rawStored)
+        : "";
+    const payloadLocal =
+      payloadUrl &&
+      !isRegisteredTunnelUrl(payloadUrl) &&
+      isAllowedOllamaUrl(normalizeOllamaBaseUrl(payloadUrl))
+        ? normalizeOllamaBaseUrl(payloadUrl)
+        : "";
+
+    // Tunnel first in prod; in dev fall back to direct 127.0.0.1 when no tunnel.
+    const targetUrl =
+      payloadTunnel ||
+      storedTunnel ||
+      (isDev ? payloadLocal || storedLocal || "http://127.0.0.1:11434" : undefined);
 
     if (!targetUrl) {
       await persistBridgeStatus(accountId, { connected: false, models: [] });
       // 200 (not 400): missing tunnel is an expected bridge state, not a client error
       return NextResponse.json({
+        success: false,
         connected: false,
         status: "waiting" satisfies OllamaConnectionStatus,
         models: [],
@@ -195,7 +224,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const hadStoredUrl = storedTunnel.length > 0;
+    const hadStoredUrl = storedTunnel.length > 0 || storedLocal.length > 0;
     const base = normalizeOllamaBaseUrl(targetUrl);
 
     if (!isAllowedOllamaUrl(base)) {
@@ -248,16 +277,15 @@ export async function POST(request: Request) {
     const tags = ollamaTagsSchema.safeParse(json);
     const models = tags.success ? extractModelNames(tags.data.models) : [];
 
-    await persistBridgeStatus(accountId, { connected: true, models });
-
-    if (rawStored !== base) {
-      await prisma.accountSettings.update({
-        where: { accountId },
-        data: { localOllamaUrl: base },
-      });
-    }
+    await persistBridgeStatus(accountId, {
+      connected: true,
+      models,
+      localOllamaUrl: base,
+      setLocalProvider: true,
+    });
 
     return NextResponse.json({
+      success: true,
       connected: true,
       status: "connected" satisfies OllamaConnectionStatus,
       activeUrl: base,

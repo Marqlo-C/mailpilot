@@ -14,6 +14,11 @@ import { getGmailClientForAccount } from "@/lib/google";
 import { normalizeOllamaBaseUrl } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
 import { processInboxDelta } from "@/lib/sync";
+import { Prisma } from "@prisma/client";
+import {
+  accountRulesSchema,
+  parseAccountRules,
+} from "@/lib/validations/rules";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -147,15 +152,15 @@ export async function pingOllama(
     where: { accountId },
   });
 
-  const base = normalizeOllamaBaseUrl(
-    url?.trim() || settings?.localOllamaUrl || "http://localhost:11434"
-  );
+  const raw =
+    url?.trim() || settings?.localOllamaUrl || "http://127.0.0.1:11434";
+  const base = normalizeOllamaBaseUrl(raw);
 
   try {
     const endpoint = new URL("/api/tags", base).toString();
     const response = await fetch(endpoint, {
       method: "GET",
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {
@@ -173,6 +178,22 @@ export async function pingOllama(
       })
       .filter((name) => name.length > 0)
       .sort((a, b) => a.localeCompare(b));
+
+    const current = parseAccountRules(settings?.rules);
+    const validated = accountRulesSchema.parse({
+      ...current,
+      availableModels: models,
+      bridgeConnected: true,
+    });
+
+    await prisma.accountSettings.update({
+      where: { accountId },
+      data: {
+        localOllamaUrl: base,
+        llmProvider: "LOCAL_OLLAMA",
+        rules: validated as Prisma.InputJsonValue,
+      },
+    });
 
     return { ok: true, data: { models } };
   } catch (error) {
