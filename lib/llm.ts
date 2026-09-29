@@ -722,6 +722,7 @@ async function callOllamaJson(
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(4000),
     body: JSON.stringify({
       model: resolvedModel,
       stream: false,
