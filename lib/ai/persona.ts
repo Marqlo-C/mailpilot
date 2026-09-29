@@ -77,8 +77,45 @@ function yearsBetween(start: Date, end: Date): number {
   return Math.max(0, (end.getTime() - start.getTime()) / MS_PER_YEAR);
 }
 
+/** Tenths precision for internal tier thresholds only — never inject into prose. */
 function roundYears(years: number): number {
   return Math.round(years * 10) / 10;
+}
+
+/**
+ * Human-facing tenure phrases for prompts / timelineContext / toneGuidance.
+ * Never emits robotic decimals like "0.7 years" or "8.3 years".
+ */
+function formatHumanYears(years: number): string {
+  if (!Number.isFinite(years) || years < 0.5) {
+    return "less than a year";
+  }
+  const rounded = Math.round(years);
+  if (rounded < 1) {
+    return "less than a year";
+  }
+  const unit = rounded === 1 ? "year" : "years";
+  const floor = Math.floor(years);
+  const frac = Math.round((years - floor) * 100) / 100;
+
+  if (frac >= 0.7 && frac < 0.95) {
+    const ceil = Math.ceil(years);
+    return `nearly ${ceil} ${ceil === 1 ? "year" : "years"}`;
+  }
+  if (frac > 0.15 && frac < 0.45 && floor >= 1) {
+    return `over ${floor} ${floor === 1 ? "year" : "years"}`;
+  }
+  if (Math.abs(years - rounded) <= 0.15) {
+    return `about ${rounded} ${unit}`;
+  }
+  return `around ${rounded} ${unit}`;
+}
+
+/** True when cached prose still contains literal decimal tenure readouts. */
+function hasRoboticDecimalYears(text: string): boolean {
+  return (
+    /\d+\.\d+\s*(?:years?|y)\b/i.test(text) || /~\d+\.\d+y\b/i.test(text)
+  );
 }
 
 type RoleSignal = {
@@ -251,11 +288,17 @@ function toneForTier(
     case "Early Career / New Grad":
       return `${grounding} Write as an early-career candidate: curious, clear, and concise. Emphasize availability and learning without sounding desperate. Do not claim senior ownership, architecture leadership, or deep domain authority.`;
     case "Mid-Level Professional":
-      return `${grounding} Write as a mid-level peer (~${techYears || "a few"} years in-track): confident, practical, logistics-first. Reference recent shipping work casually when useful. Do not inflate into staff/lead voice.`;
+      return `${grounding} Write as a mid-level peer (${
+        techYears > 0 ? formatHumanYears(techYears) : "a few years"
+      } in-track): confident, practical, logistics-first. Reference recent shipping work casually when useful. Do not inflate into staff/lead voice.`;
     case "Senior Engineer / Tech Lead":
       return `${grounding} Write as a senior peer: terse, calm, and logistics-first with hiring managers/recruiters. Do not oversell or restate the resume. Keep replies short and match their formality.`;
     case "Career Switcher":
-      return `${grounding} Write as a career switcher with ~${techYears} year${techYears === 1 ? "" : "s"} in the technical track (not ${roundYears(techYears + priorNonTechYears)} total calendar years as engineering seniority). Be honest about the pivot. Highlight transferable strengths without inventing domain tenure. Stay humble about new-stack depth. Focus on motivation, learning velocity, and next steps — never fake senior alignment to a Staff/Principal/Lead role.`;
+      return `${grounding} Write as a career switcher with ${formatHumanYears(
+        techYears
+      )} in the technical track (not ${formatHumanYears(
+        techYears + priorNonTechYears
+      )} total calendar time as engineering seniority). Be honest about the pivot. Highlight transferable strengths without inventing domain tenure. Stay humble about new-stack depth. Focus on motivation, learning velocity, and next steps — never fake senior alignment to a Staff/Principal/Lead role.`;
   }
 }
 
@@ -264,8 +307,7 @@ function toneForTier(
  * Accepts a MasterProfileInput-shaped object (or loose profile payload).
  */
 export function synthesizeCandidatePersona(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  profile: any
+  profile: unknown
 ): CandidatePersona {
   const normalized = normalizeProfile(profile);
   const roles = collectRoles(normalized);
@@ -306,18 +348,26 @@ export function synthesizeCandidatePersona(
 
   if (switcher.isSwitcher) {
     timelineParts.push(
-      `Career switcher: ~${switcher.priorNonTechYears}y prior non-tech experience, then ~${switcher.techYears}y in the technical track`
+      `Career switcher: ${formatHumanYears(
+        switcher.priorNonTechYears
+      )} prior non-tech experience, then ${formatHumanYears(
+        switcher.techYears
+      )} in the technical track`
     );
     timelineParts.push(
-      `Do NOT treat the combined ~${calendarYears} calendar years as engineering seniority`
+      `Do NOT treat the combined ${formatHumanYears(
+        calendarYears
+      )} of calendar time as engineering seniority`
     );
   } else if (relevantYears > 0) {
     timelineParts.push(
-      `~${relevantYears} year${relevantYears === 1 ? "" : "s"} of in-track professional experience`
+      `${formatHumanYears(relevantYears)} of in-track professional experience`
     );
     if (calendarYears > relevantYears + 0.5) {
       timelineParts.push(
-        `(~${calendarYears}y calendar span including non-matching roles)`
+        `(${formatHumanYears(
+          calendarYears
+        )} calendar span including non-matching roles)`
       );
     }
   } else {
@@ -338,7 +388,9 @@ export function synthesizeCandidatePersona(
   if (grad) {
     timelineParts.push(
       `Most recent graduation around ${grad.getFullYear()}${
-        yearsSinceGrad !== null ? ` (~${yearsSinceGrad}y ago)` : ""
+        yearsSinceGrad !== null
+          ? ` (${formatHumanYears(yearsSinceGrad)} ago)`
+          : ""
       }`
     );
   }
@@ -374,14 +426,19 @@ export async function getCachedOrSynthesizePersona(
     SENIORITY_TIERS.includes(tier as SeniorityTier);
 
   if (cacheHit) {
-    // Fill a missing timeline without changing tier/tone; persist if we can.
-    if (!timeline) {
+    const staleDecimals =
+      hasRoboticDecimalYears(tone) || hasRoboticDecimalYears(timeline);
+
+    // Refresh when timeline is missing OR cached prose still has decimal tenure.
+    if (!timeline || staleDecimals) {
       const synthesized = synthesizeCandidatePersona(profile);
-      const filled: CandidatePersona = {
-        seniorityTier: tier as SeniorityTier,
-        timelineContext: synthesized.timelineContext,
-        toneGuidance: tone,
-      };
+      const filled: CandidatePersona = staleDecimals
+        ? synthesized
+        : {
+            seniorityTier: tier as SeniorityTier,
+            timelineContext: synthesized.timelineContext,
+            toneGuidance: tone,
+          };
       await persistPersonaCache(profile, filled, dbClient);
       return filled;
     }
