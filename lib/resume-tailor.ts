@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   getCachedOrSynthesizePersona,
   type CandidatePersona,
+  type PersonaDbClient,
   type ProfileWithPersonaCache,
 } from "@/lib/ai/persona";
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
@@ -29,6 +30,8 @@ export type DraftContextualEmailParams = {
   };
   /** Full profile (or cache-bearing profile) for lazy persona synthesis when candidate.persona is absent. */
   profile?: ProfileWithPersonaCache | null;
+  /** Prisma client used for lazy persona write-back on cache miss. */
+  dbClient?: PersonaDbClient | null;
   sender: {
     cleanFirstName?: string | null;
     titleOrPersona?: string | null;
@@ -98,17 +101,25 @@ const BANNED_PHRASES = [
   "leverage my expertise",
 ] as const;
 
-/** Body-only contextual email drafts — answer first, don't parrot background. */
-export const CONTEXTUAL_DRAFT_SYSTEM_PROMPT = `You are writing a direct, natural email reply on behalf of the job seeker from your personal inbox. 
-Your goal is to sound like a senior professional: concise, grounded, and human.
+/** Body-only contextual email drafts — persona-aware, concise, human. */
+export const CONTEXTUAL_DRAFT_SYSTEM_PROMPT = `You are writing a direct, natural email reply on behalf of the job seeker from your personal inbox.
+Your goal is to sound concise, grounded, and human — matching the candidate's actual career stage (see CANDIDATE PERSONA / toneGuidance when provided).
 
 CORE BEHAVIOR:
-1. **Answer the Sender First:** Read the inbound email carefully. If the sender asked a direct question (like "Are you available Wednesday or Thursday?"), answer it immediately. 
+1. **Answer the Sender First:** Read the inbound email carefully. If the sender asked a direct question (like "Are you available Wednesday or Thursday?"), answer it immediately.
 2. **Do not repeat their pitch:** If the recruiter already called out your background (e.g., your Next.js work or past company), do NOT parrot it back to them or try to "sell" yourself. They already know your background. Just acknowledge it naturally and focus on the logistics or the next step.
 3. **Match length:** If their email is long and detailed, keep your reply tight and focused (2–3 sentences max). If they asked for a time to chat, give them a time or ask a quick logistical question.
+4. **Follow toneGuidance:** When CANDIDATE PERSONA includes toneGuidance and seniorityTier, adapt voice to that tier. Do not default to a generic "senior professional" register if the persona is Early Career or Career Switcher.
+
+ABSOLUTE FACTUAL & SENIORITY INTEGRITY:
+1. Only reference skills, technologies, companies, or experiences present in CANDIDATE_SKILLS / CANDIDATE_SUMMARY / timelineContext. Never invent qualifications, years of experience, leadership scope, or tool proficiencies.
+2. Never fake senior alignment. If the opportunity is Staff / Principal / Lead / Senior and the candidate persona is Early Career, Mid-Level, or Career Switcher, do NOT claim you are a natural fit for that level, do NOT exaggerate tenure, do NOT exagerrate the scope of your work and do NOT speak as if you have owned architecture or large org scope.
+3. For Career Switchers: treat technical-track years as the only seniority signal. Prior non-tech calendar years are transferable context, not engineering seniority. Never blur them into "X years as an engineer."
+4. Never write years of experience with decimal points or fractions. Always round down to the nearest whole year.
+5. Never use self-validation about level ("I'm ready for a senior role", "my experience aligns with Staff expectations", "I operate at a lead level").
 
 STYLE GUARDRAILS:
-1. **NO GREETING & NO SIGN-OFF:** Output ONLY the body text. The app handles greetings and sign-offs automatically.
+1. **NO GREETING & NO SIGN-OFF:** Output ONLY the body paragraphs. Do not include an opening salutation or greeting (e.g. "Hi [Name],", "Hey [Name],", "Hello,", "Dear [Name],") and do not include a closing sign-off — the application layout prepends the greeting and appends the signature automatically. Never start the body with Hi/Hey/Hello/Dear.
 2. **NO CORPORATE SLOP:** Never use filler like "I hope this email finds you well", "Your note caught my attention", "I'm thrilled/excited", or "I feel well-positioned to contribute."
 3. **PUNCTUATION:** No em-dashes (—). No semicolons (;). Use standard punctuation and normal hyphens (-).
 
@@ -143,13 +154,16 @@ Identity rules (critical — never invert these):
 }
 
 /** Slim profile slice for fast email drafts (keeps prompts tiny). */
-export function buildSlimCandidate(profile: ProfileWithPersonaCache): {
+export async function buildSlimCandidate(
+  profile: ProfileWithPersonaCache,
+  dbClient?: PersonaDbClient | null
+): Promise<{
   firstName: string;
   recentRole: string | null;
   summary: string | null;
   topSkills: string[];
   persona: CandidatePersona;
-} {
+}> {
   const topSkills = [
     ...profile.skills.languages,
     ...profile.skills.frameworks,
@@ -171,7 +185,7 @@ export function buildSlimCandidate(profile: ProfileWithPersonaCache): {
     recentRole: recent
       ? `${recent.role} at ${recent.company}`.slice(0, 120)
       : null,
-    persona: getCachedOrSynthesizePersona(profile),
+    persona: await getCachedOrSynthesizePersona(profile, dbClient),
   };
 }
 
@@ -186,11 +200,34 @@ function scrubDraftPunctuation(text: string): string {
     .trim();
 }
 
+/**
+ * Strip leading salutations the model sometimes emits even when told not to.
+ * Handles line-only greetings and same-line "Hi Name, body…" prefixes, repeatedly
+ * so duplicated greetings do not survive into assembleEmailBody.
+ */
+function stripLeadingSalutations(text: string): string {
+  let next = text.trimStart();
+  for (let i = 0; i < 5; i++) {
+    const before = next;
+    // Entire greeting line(s): "Hi Marcus," / "Dear Hiring Manager," + newlines
+    next = next.replace(
+      /^(?:hi|hey|hello|dear)\b[^\n]{0,80}?\r?\n+/i,
+      ""
+    );
+    // Same-line prefix: "Hi Marcus, Thanks for…" / "Hello, …" / "Hey there, …"
+    next = next.replace(
+      /^(?:hi|hey|hello|dear)(?:\s+[A-Za-z][\w'.-]*){0,3}[,:!]\s+/i,
+      ""
+    );
+    next = next.trimStart();
+    if (next === before) break;
+  }
+  return next;
+}
+
 /** Single pass: strip greetings/sign-offs, banned phrases, and bad punctuation. */
 function sanitizeDraft(text: string): string {
-  let next = text.trim();
-  // Strip accidental greetings/sign-offs if emitted by the model
-  next = next.replace(/^(?:hi|hey|hello|dear)\b[^\n]*\n+/i, "");
+  let next = stripLeadingSalutations(text.trim());
   next = next.replace(
     /\n*(?:best(?:\s+regards)?|thanks|thank you|regards|sincerely)[,!]?\s*\n+[^\n]+\s*$/i,
     ""
@@ -220,11 +257,13 @@ function assembleEmailBody(
   cleanFirstName: string | null | undefined,
   candidateFirstName: string
 ): string {
+  // Final guard: never prepend if a leading salutation somehow survived sanitize.
+  const body = stripLeadingSalutations(cleanedBody).trim();
   const greeting = cleanFirstName?.trim()
     ? `Hi ${cleanFirstName.trim()},`
     : "Hi there,";
   const signoff = `Best,\n${candidateFirstName}`;
-  return `${greeting}\n\n${cleanedBody}\n\n${signoff}`;
+  return `${greeting}\n\n${body}\n\n${signoff}`;
 }
 
 function defaultBodyParagraphs(input: DraftContextualEmailParams): string {
@@ -253,12 +292,14 @@ export async function draftContextualEmail(
 
   const persona =
     input.candidate.persona ??
-    (input.profile ? getCachedOrSynthesizePersona(input.profile) : null);
+    (input.profile
+      ? await getCachedOrSynthesizePersona(input.profile, input.dbClient)
+      : null);
 
   const systemPrompt = persona
     ? `${CONTEXTUAL_DRAFT_SYSTEM_PROMPT}
 
-CANDIDATE PERSONA (adapt voice to this career stage):
+CANDIDATE PERSONA (mandatory — adapt voice; do not override with fake seniority):
 - seniorityTier: ${persona.seniorityTier}
 - timelineContext: ${persona.timelineContext}
 - toneGuidance: ${persona.toneGuidance}`
