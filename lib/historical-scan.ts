@@ -350,6 +350,7 @@ async function scanJobCandidates(
         body,
         fromEmail: sender?.email ?? null,
         candidateProfile,
+        allowCloudFallback: rules.allowCloudFallback,
       });
 
       if (

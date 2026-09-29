@@ -45,6 +45,7 @@ export type DraftContextualEmailParams = {
     provider: LlmProvider;
     localOllamaUrl?: string | null;
     ollamaModel?: string | null;
+    allowCloudFallback?: boolean;
   };
 };
 
@@ -378,6 +379,7 @@ CANDIDATE PERSONA (mandatory — adapt voice; do not override with fake seniorit
     llmProvider: input.llmConfig.provider,
     localOllamaUrl: input.llmConfig.localOllamaUrl,
     ollamaModel: input.llmConfig.ollamaModel,
+    allowCloudFallback: input.llmConfig.allowCloudFallback,
   });
 
   const parsed = result ? contextualDraftSchema.safeParse(result) : null;
@@ -424,6 +426,7 @@ export async function tailorResumeForJob(
     llmProvider?: LlmProvider;
     localOllamaUrl?: string | null;
     ollamaModel?: string | null;
+    allowCloudFallback?: boolean;
     jobText?: string;
     companyName?: string | null;
     roleTitle?: string | null;
@@ -460,6 +463,7 @@ export async function tailorResumeForJob(
     llmProvider: options.llmProvider ?? "OPENROUTER",
     localOllamaUrl: options.localOllamaUrl,
     ollamaModel: options.ollamaModel,
+    allowCloudFallback: options.allowCloudFallback,
   });
 
   const parsed = result ? tailorSchema.safeParse(result) : null;

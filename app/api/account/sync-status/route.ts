@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { SYNC_LOCK_STALE_MS } from "@/lib/constants";
 import { getActiveAccount } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 
@@ -7,11 +8,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const STALE_THRESHOLD_MS = 90 * 1000;
-
 /**
  * Lightweight poll endpoint for GlobalSyncTracker.
- * Auto-heals stale isSyncing locks older than 90 seconds.
+ * Auto-heals stale isSyncing locks older than SYNC_LOCK_STALE_MS (10 min).
  */
 export async function GET() {
   try {
@@ -61,7 +60,7 @@ export async function GET() {
 
     if (account.isSyncing) {
       const lockAgeMs = Date.now() - account.updatedAt.getTime();
-      if (lockAgeMs > STALE_THRESHOLD_MS) {
+      if (lockAgeMs > SYNC_LOCK_STALE_MS) {
         console.warn(
           `Detected stale sync lock for ${account.id} (age=${Math.round(lockAgeMs / 1000)}s). Auto-resetting.`
         );

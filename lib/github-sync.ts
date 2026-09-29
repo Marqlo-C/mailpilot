@@ -165,6 +165,7 @@ async function analyzeRepoArtifacts(params: {
     llmProvider?: LlmProvider;
     localOllamaUrl?: string | null;
     ollamaModel?: string | null;
+    allowCloudFallback?: boolean;
   };
 }): Promise<{ bullets: string[]; technologies: string[] }> {
   const { repoName, description, readme, manifestTechnologies, llmOptions } =
@@ -193,6 +194,7 @@ async function analyzeRepoArtifacts(params: {
       llmProvider: llmOptions?.llmProvider ?? "LOCAL_OLLAMA",
       localOllamaUrl: llmOptions?.localOllamaUrl,
       ollamaModel: llmOptions?.ollamaModel,
+      allowCloudFallback: llmOptions?.allowCloudFallback,
     });
 
     if (
@@ -233,6 +235,7 @@ export async function syncGitHubProjects(
     llmProvider?: LlmProvider;
     localOllamaUrl?: string | null;
     ollamaModel?: string | null;
+    allowCloudFallback?: boolean;
   } = {}
 ): Promise<ProjectItem[]> {
   const username = normalizeGitHubUsername(usernameOrUrl);

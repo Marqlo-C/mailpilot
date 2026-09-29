@@ -87,6 +87,7 @@ export default async function SettingsPage({
           bridgeSecret={active?.rules.bridgeSecret ?? ""}
           availableModels={active?.rules.availableModels ?? []}
           bridgeConnected={active?.rules.bridgeConnected ?? false}
+          allowCloudFallback={active?.rules.allowCloudFallback ?? false}
         />
       </div>
     </div>

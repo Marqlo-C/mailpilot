@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { syncInboxOpportunities } from "@/app/actions/email";
 import { SYNC_STARTED_EVENT } from "@/components/layout/global-sync-tracker";
+import { startSyncStatusBackoffPoll } from "@/lib/sync-status-poll";
 import { cn } from "@/lib/utils";
 
 type SyncTelemetryProps = {
@@ -46,60 +47,44 @@ export function SyncTelemetry({
     return () => window.removeEventListener(SYNC_STARTED_EVENT, handleSyncStart);
   }, []);
 
-  useEffect(() => {
-    if (!isSyncing) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch("/api/account/sync-status", {
-          cache: "no-store",
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          isSyncing?: boolean;
-          pendingClassificationCount?: number;
-        };
-        if (typeof data.pendingClassificationCount === "number") {
-          setPendingCount(data.pendingClassificationCount);
-        }
-        if (!data.isSyncing) {
-          setIsSyncing(false);
-          router.refresh();
-        }
-      } catch {
-        // ignore transient poll errors
-      }
-    }, 2500);
-
-    return () => clearInterval(interval);
-  }, [isSyncing, router]);
+  // Active sync polling lives only in GlobalSyncTracker to avoid dual
+  // /api/account/sync-status loops. SyncTelemetry mirrors via props + events.
 
   // Light poll while awaiting classification so the badge clears when AI recovers
   useEffect(() => {
     if (isSyncing || pendingCount <= 0) return;
 
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch("/api/account/sync-status", {
-          cache: "no-store",
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          isSyncing?: boolean;
-          pendingClassificationCount?: number;
-        };
-        if (data.isSyncing) {
-          setIsSyncing(true);
+    return startSyncStatusBackoffPoll({
+      initialMs: 15_000,
+      maxMs: 30_000,
+      factor: 1.2,
+      hardStopMs: 10 * 60_000,
+      onTick: async () => {
+        try {
+          const res = await fetch("/api/account/sync-status", {
+            cache: "no-store",
+          });
+          if (!res.ok) return "continue";
+          const data = (await res.json()) as {
+            isSyncing?: boolean;
+            pendingClassificationCount?: number;
+          };
+          if (data.isSyncing) {
+            setIsSyncing(true);
+            return "stop";
+          }
+          if (typeof data.pendingClassificationCount === "number") {
+            setPendingCount(data.pendingClassificationCount);
+            if (data.pendingClassificationCount <= 0) {
+              return "stop";
+            }
+          }
+          return "continue";
+        } catch {
+          return "continue";
         }
-        if (typeof data.pendingClassificationCount === "number") {
-          setPendingCount(data.pendingClassificationCount);
-        }
-      } catch {
-        // ignore
-      }
-    }, 15_000);
-
-    return () => clearInterval(interval);
+      },
+    });
   }, [isSyncing, pendingCount]);
 
   function handleTriggerSync() {

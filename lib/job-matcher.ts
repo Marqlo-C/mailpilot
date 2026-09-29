@@ -46,6 +46,7 @@ export async function evaluateJobFit(
     llmProvider?: LlmProvider;
     localOllamaUrl?: string | null;
     ollamaModel?: string | null;
+    allowCloudFallback?: boolean;
   } = {}
 ): Promise<JobFitResult> {
   const profileSummary = {
@@ -69,6 +70,7 @@ export async function evaluateJobFit(
     llmProvider: options.llmProvider ?? "OPENROUTER",
     localOllamaUrl: options.localOllamaUrl,
     ollamaModel: options.ollamaModel,
+    allowCloudFallback: options.allowCloudFallback,
   });
 
   if (!result) {

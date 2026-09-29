@@ -26,6 +26,7 @@ import {
   APPLICATION_STATUSES,
   type ApplicationStatus,
 } from "@/lib/validations/profile";
+import { parseAccountRules } from "@/lib/validations/rules";
 
 const NO_RECRUITER_EMAIL_ERROR =
   "No recruiter email address — email drafts are forbidden without a direct contact. Use the external apply link instead.";
@@ -468,13 +469,29 @@ export async function downloadTailoredPdfAction(
   }
 
   const { updatedAt: _updatedAt, ...profile } = profileResult.data;
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId: application.accountId },
+  });
+  const rules = parseAccountRules(settings?.rules);
   const tailored = await tailorResumeForJob(
     [
       application.roleTitle ?? "",
       application.companyName ?? "",
       application.actionSummary ?? "",
     ].filter(Boolean),
-    profile
+    profile,
+    {
+      llmProvider:
+        settings?.llmProvider === "LOCAL_OLLAMA"
+          ? "LOCAL_OLLAMA"
+          : "OPENROUTER",
+      localOllamaUrl: settings?.localOllamaUrl,
+      ollamaModel: settings?.ollamaModel,
+      allowCloudFallback: rules.allowCloudFallback,
+      companyName: application.companyName,
+      roleTitle: application.roleTitle,
+      jobText: application.actionSummary ?? undefined,
+    }
   );
 
   const pdf = await generateTailoredResumePdf(

@@ -87,6 +87,7 @@ export async function extractResumeDraft(
     // Reconstruct a File-like for text extractors that expect File
     const rebuilt = new File([buffer], file.name, { type: file.type });
     const text = await extractTextFromFile(rebuilt);
+    const rules = parseAccountRules(account.settings?.rules);
     const draft = await parseResumeToStructuredProfile(text, {
       llmProvider:
         account.settings?.llmProvider === "LOCAL_OLLAMA"
@@ -94,6 +95,7 @@ export async function extractResumeDraft(
           : "OPENROUTER",
       localOllamaUrl: account.settings?.localOllamaUrl,
       ollamaModel: account.settings?.ollamaModel,
+      allowCloudFallback: rules.allowCloudFallback,
     });
 
     const links = enrichLinksFromRawText(text, draft.links);
@@ -154,6 +156,8 @@ export async function applyResumeUpload(
             : "OPENROUTER",
         localOllamaUrl: account?.settings?.localOllamaUrl,
         ollamaModel: account?.settings?.ollamaModel,
+        allowCloudFallback: parseAccountRules(account?.settings?.rules)
+          .allowCloudFallback,
       });
 
       const linkedGithub = `https://github.com/${username}`;
@@ -746,6 +750,8 @@ export async function importGitHubProjects(
           : "OPENROUTER",
       localOllamaUrl: account.settings?.localOllamaUrl,
       ollamaModel: account.settings?.ollamaModel,
+      allowCloudFallback: parseAccountRules(account.settings?.rules)
+        .allowCloudFallback,
     });
     const linkedGithub = `https://github.com/${username}`;
 

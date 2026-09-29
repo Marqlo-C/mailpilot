@@ -159,6 +159,7 @@ export async function prepareOpportunityDraft(
       provider: normalizeProvider(account?.settings?.llmProvider),
       localOllamaUrl: account?.settings?.localOllamaUrl,
       ollamaModel: account?.settings?.ollamaModel,
+      allowCloudFallback: parseAccountRules(account?.settings?.rules).allowCloudFallback,
     },
   });
 
@@ -262,6 +263,7 @@ export async function refineOpportunityDraft(
       provider: normalizeProvider(account?.settings?.llmProvider),
       localOllamaUrl: account?.settings?.localOllamaUrl,
       ollamaModel: account?.settings?.ollamaModel,
+      allowCloudFallback: parseAccountRules(account?.settings?.rules).allowCloudFallback,
     },
   });
 
@@ -352,7 +354,10 @@ export async function dispatchOpportunityEmail(
   opportunityId: string,
   options: { createDraftOnly?: boolean } = {}
 ): Promise<{ mode: "draft" | "sent" }> {
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { settings: true },
+  });
   if (!account?.isActive) {
     throw new Error("Account not found or inactive");
   }
@@ -373,11 +378,9 @@ export async function dispatchOpportunityEmail(
   const subject =
     opportunity.draftSubject?.trim() ||
     `Application: ${opportunity.title} at ${opportunity.company}`;
+  const accountRules = parseAccountRules(account.settings?.rules);
   let body = opportunity.draftBody?.trim() ?? "";
   if (!body) {
-    const accountSettings = await prisma.accountSettings.findUnique({
-      where: { accountId },
-    });
     const slim = await buildSlimCandidate(profile, prisma);
     const draft = await draftContextualEmail({
       candidate: slim,
@@ -398,9 +401,10 @@ export async function dispatchOpportunityEmail(
         .join("\n")
         .slice(0, 1500),
       llmConfig: {
-        provider: normalizeProvider(accountSettings?.llmProvider),
-        localOllamaUrl: accountSettings?.localOllamaUrl,
-        ollamaModel: accountSettings?.ollamaModel,
+        provider: normalizeProvider(account.settings?.llmProvider),
+        localOllamaUrl: account.settings?.localOllamaUrl,
+        ollamaModel: account.settings?.ollamaModel,
+        allowCloudFallback: accountRules.allowCloudFallback,
       },
     });
     body = draft.body;
@@ -413,6 +417,10 @@ export async function dispatchOpportunityEmail(
     {
       companyName: opportunity.company,
       roleTitle: opportunity.title,
+      llmProvider: normalizeProvider(account.settings?.llmProvider),
+      localOllamaUrl: account.settings?.localOllamaUrl,
+      ollamaModel: account.settings?.ollamaModel,
+      allowCloudFallback: accountRules.allowCloudFallback,
     }
   );
 

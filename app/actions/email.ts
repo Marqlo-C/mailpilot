@@ -9,6 +9,7 @@ import {
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
 } from "@/lib/google";
+import { SYNC_LOCK_STALE_MS } from "@/lib/constants";
 import { getActiveAccount } from "@/lib/data";
 import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
 import { runOpportunitySync } from "@/lib/opportunity-sync";
@@ -24,7 +25,6 @@ const syncInputSchema = z.object({
   accountId: z.string().min(1).optional(),
 });
 
-const STALE_LOCK_MS = 180 * 1000;
 
 /**
  * Immediately clears a stuck isSyncing lock for the active account.
@@ -91,7 +91,7 @@ export async function syncInboxOpportunities(
 
   if (account.isSyncing) {
     const lockAgeMs = Date.now() - account.updatedAt.getTime();
-    if (lockAgeMs <= STALE_LOCK_MS) {
+    if (lockAgeMs <= SYNC_LOCK_STALE_MS) {
       return {
         ok: true,
         data: {

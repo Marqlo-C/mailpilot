@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, RotateCcw } from "lucide-react";
 
 import { forceResetSyncStatus } from "@/app/actions/email";
+import { SYNC_LOCK_STALE_MS } from "@/lib/constants";
+import { startSyncStatusBackoffPoll } from "@/lib/sync-status-poll";
 import { cn } from "@/lib/utils";
 
 export const SYNC_STARTED_EVENT = "mailpilot:sync-started";
@@ -15,8 +17,8 @@ type GlobalSyncTrackerProps = {
 };
 
 /**
- * Bottom-right floating sync capsule with stale-lock polling, client safety
- * timeout, and a one-click force reset.
+ * Bottom-right floating sync capsule with TCP-inspired backoff polling,
+ * client safety timeout, and a one-click force reset.
  */
 export function GlobalSyncTracker({
   accountId,
@@ -26,8 +28,7 @@ export function GlobalSyncTracker({
   const [isSyncing, setIsSyncing] = useState(initialIsSyncing);
   const [justFinished, setJustFinished] = useState(false);
   const [showForceReset, setShowForceReset] = useState(false);
-  const pollCount = useRef(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const disposePollRef = useRef<(() => void) | null>(null);
 
   // Sync prop changes from server
   useEffect(() => {
@@ -40,7 +41,6 @@ export function GlobalSyncTracker({
   // Optimistic activation when SyncControls fires
   useEffect(() => {
     function handleSyncStart() {
-      pollCount.current = 0;
       setShowForceReset(false);
       setJustFinished(false);
       setIsSyncing(true);
@@ -50,91 +50,66 @@ export function GlobalSyncTracker({
     return () => window.removeEventListener(SYNC_STARTED_EVENT, handleSyncStart);
   }, []);
 
-  // Polling loop: runs ONLY while isSyncing is true
+  // Backoff poll: 3s → 10s while waiting for server acknowledgment
   useEffect(() => {
     if (!accountId || !isSyncing) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      disposePollRef.current?.();
+      disposePollRef.current = null;
       return;
     }
 
-    pollCount.current = 0;
     setShowForceReset(false);
+    let consecutiveErrors = 0;
 
-    intervalRef.current = setInterval(() => {
-      void (async () => {
-        pollCount.current += 1;
-
-        // Show manual reset option after ~30s of polling
-        if (pollCount.current >= 12) {
-          setShowForceReset(true);
-        }
-
-        // Hard stop client spinner after ~60s
-        if (pollCount.current >= 24) {
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-          }
-          setIsSyncing(false);
-          setShowForceReset(false);
-          return;
-        }
-
+    disposePollRef.current = startSyncStatusBackoffPoll({
+      initialMs: 3000,
+      maxMs: 10_000,
+      hardStopMs: SYNC_LOCK_STALE_MS,
+      slowAfterMs: 120_000,
+      onSlow: () => setShowForceReset(true),
+      onHardStop: () => {
+        setIsSyncing(false);
+        setShowForceReset(false);
+      },
+      onTick: async () => {
         try {
           const res = await fetch("/api/account/sync-status", {
             cache: "no-store",
           });
           if (!res.ok) {
-            if (pollCount.current >= 4) {
-              if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-              }
+            consecutiveErrors += 1;
+            if (consecutiveErrors >= 4) {
               setIsSyncing(false);
+              return "stop";
             }
-            return;
+            return "continue";
           }
 
-          const data = (await res.json()) as {
-            isSyncing?: boolean;
-          };
+          consecutiveErrors = 0;
+          const data = (await res.json()) as { isSyncing?: boolean };
 
-          if (data.isSyncing) return;
+          if (data.isSyncing) return "continue";
 
-          // 1. Immediately kill the polling loop
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-          }
-
-          // 2. Transition state
           setIsSyncing(false);
           setShowForceReset(false);
           setJustFinished(true);
-
-          // 3. Refresh server data
           router.refresh();
+          return "stop";
         } catch (err) {
           console.error("Sync poll error:", err);
-          if (pollCount.current >= 4) {
-            if (intervalRef.current) {
-              clearInterval(intervalRef.current);
-              intervalRef.current = null;
-            }
+          consecutiveErrors += 1;
+          if (consecutiveErrors >= 4) {
             setIsSyncing(false);
+            return "stop";
           }
+          return "continue";
         }
-      })();
-    }, 2500);
+      },
+    });
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      disposePollRef.current?.();
+      disposePollRef.current = null;
     };
   }, [accountId, isSyncing, router]);
 
@@ -150,10 +125,8 @@ export function GlobalSyncTracker({
   }, [justFinished]);
 
   async function handleForceReset() {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
+    disposePollRef.current?.();
+    disposePollRef.current = null;
     setIsSyncing(false);
     setShowForceReset(false);
     setJustFinished(false);
