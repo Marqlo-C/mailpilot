@@ -198,6 +198,48 @@ export async function refineApplicationDraftAction(
   }
 }
 
+/** Force a fresh LLM draft (ignores cached draftSubject/draftBody). */
+export async function regenerateApplicationDraftAction(
+  applicationId: string
+): Promise<
+  ActionResult<{ subject: string; body: string; recipient: string | null }>
+> {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application) {
+    return { ok: false, error: "Application not found" };
+  }
+  if (!application.accountId) {
+    return {
+      ok: false,
+      error: "Gmail account is unlinked. Reconnect to continue.",
+    };
+  }
+
+  try {
+    const draft = await prepareApplicationDraft(
+      application.accountId,
+      applicationId
+    );
+    revalidatePath("/jobs");
+    return {
+      ok: true,
+      data: {
+        subject: draft.subject,
+        body: draft.body,
+        recipient: draft.recipient,
+      },
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to regenerate draft",
+    };
+  }
+}
+
 export async function updateApplicationRecipientAction(
   applicationId: string,
   recipientEmail: string

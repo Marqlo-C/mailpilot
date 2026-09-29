@@ -70,6 +70,35 @@ export async function prepareOpportunityDraftForReview(
   }
 }
 
+/** Force a fresh LLM draft (ignores cached draftSubject/draftBody). */
+export async function regenerateOpportunityDraftAction(
+  opportunityId: string
+): Promise<
+  ActionResult<{ subject: string; body: string; recipient: string | null }>
+> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+
+  try {
+    const draft = await prepareOpportunityDraft(
+      opportunity.accountId,
+      opportunityId
+    );
+    revalidatePath("/jobs");
+    return { ok: true, data: draft };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to regenerate draft",
+    };
+  }
+}
+
 export async function refineOpportunityDraftAction(
   opportunityId: string,
   instruction: string

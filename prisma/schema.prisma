@@ -294,6 +294,11 @@ model UserProfile {
   linkedLinkedin  String?
   linkedHandshake String?
 
+  /// Cached career-stage persona (recomputed on master profile save)
+  seniorityTier   String?
+  timelineContext  String?
+  toneGuidance     String?
+
   experiences WorkExperience[]
   projects    Project[]
   education   Education[]

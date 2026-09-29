@@ -17,11 +17,13 @@ import {
   extractRecruiterEmail,
   resolveApplicationMethod,
 } from "@/lib/application-method";
+import { cleanRecruiterFirstName } from "@/lib/email-utils";
 import type { LlmProvider } from "@/lib/llm";
 import type {
   MasterProfileInput,
   OpportunityStatus,
 } from "@/lib/validations/profile";
+import type { ProfileWithPersonaCache } from "@/lib/ai/persona";
 import { tailoredDataSchema } from "@/lib/validations/profile";
 import { parseAccountRules } from "@/lib/validations/rules";
 
@@ -79,7 +81,7 @@ function buildMimeMessage(input: {
 
 async function loadMasterProfile(
   accountId: string
-): Promise<MasterProfileInput> {
+): Promise<ProfileWithPersonaCache> {
   const profile = await prisma.userProfile.findUnique({
     where: { accountId },
     include: {
@@ -133,6 +135,9 @@ async function loadMasterProfile(
       fieldOfStudy: ed.fieldOfStudy,
       graduationDate: ed.graduationDate,
     })),
+    seniorityTier: profile.seniorityTier,
+    timelineContext: profile.timelineContext,
+    toneGuidance: profile.toneGuidance,
   };
 }
 
@@ -340,10 +345,16 @@ export async function prepareApplicationDraft(
 
   const profile = await loadMasterProfile(accountId);
   const slim = buildSlimCandidate(profile);
+  const recruiterName = cleanRecruiterFirstName(
+    null,
+    recipient,
+    application.actionSummary
+  );
   const draft = await draftContextualEmail({
     candidate: slim,
+    profile,
     sender: {
-      cleanFirstName: null,
+      cleanFirstName: recruiterName,
       titleOrPersona: "Recruiter",
       companyName: application.companyName ?? "Company",
       roleLabel: application.roleTitle,
@@ -415,10 +426,20 @@ export async function refineApplicationDraft(
 
   const profile = await loadMasterProfile(accountId);
   const slim = buildSlimCandidate(profile);
+  const recruiterName = cleanRecruiterFirstName(
+    null,
+    extractRecruiterEmail({
+      actionSummary: application.actionSummary,
+      actionUrl: application.actionUrl,
+      applyUrl: application.applyUrl,
+    }),
+    [application.draftBody, application.actionSummary].filter(Boolean).join("\n")
+  );
   const draft = await draftContextualEmail({
     candidate: slim,
+    profile,
     sender: {
-      cleanFirstName: null,
+      cleanFirstName: recruiterName,
       titleOrPersona: "Recruiter",
       companyName: application.companyName ?? "Company",
       roleLabel: application.roleTitle,

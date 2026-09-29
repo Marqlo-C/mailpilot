@@ -18,6 +18,7 @@ import {
   tailorResumeForJob,
 } from "@/lib/resume-tailor";
 import type { MasterProfileInput } from "@/lib/validations/profile";
+import type { ProfileWithPersonaCache } from "@/lib/ai/persona";
 import { parseAccountRules } from "@/lib/validations/rules";
 
 function normalizeProvider(value: string | null | undefined): LlmProvider {
@@ -69,7 +70,7 @@ function buildMimeMessage(input: {
 
 async function loadMasterProfile(
   accountId: string
-): Promise<MasterProfileInput> {
+): Promise<ProfileWithPersonaCache> {
   const profile = await prisma.userProfile.findUnique({
     where: { accountId },
     include: {
@@ -123,6 +124,9 @@ async function loadMasterProfile(
       fieldOfStudy: ed.fieldOfStudy,
       graduationDate: ed.graduationDate,
     })),
+    seniorityTier: profile.seniorityTier,
+    timelineContext: profile.timelineContext,
+    toneGuidance: profile.toneGuidance,
   };
 }
 
@@ -161,7 +165,13 @@ export async function prepareOpportunityDraft(
 
   const recruiterName = cleanRecruiterFirstName(
     opportunity.emailMessage?.fromName ?? opportunity.recipientName,
-    opportunity.emailMessage?.fromEmail ?? opportunity.recipientEmail
+    opportunity.emailMessage?.fromEmail ?? opportunity.recipientEmail,
+    [
+      opportunity.emailMessage?.snippet,
+      opportunity.description,
+    ]
+      .filter(Boolean)
+      .join("\n")
   );
 
   const recruiterTitle = extractSenderTitle(
@@ -195,6 +205,7 @@ export async function prepareOpportunityDraft(
 
   const draft = await draftContextualEmail({
     candidate: slim,
+    profile,
     sender: {
       cleanFirstName: recruiterName,
       titleOrPersona: recruiterTitle,
@@ -265,7 +276,13 @@ export async function refineOpportunityDraft(
 
   const recruiterName = cleanRecruiterFirstName(
     opportunity.emailMessage?.fromName ?? opportunity.recipientName,
-    opportunity.emailMessage?.fromEmail ?? opportunity.recipientEmail
+    opportunity.emailMessage?.fromEmail ?? opportunity.recipientEmail,
+    [
+      opportunity.emailMessage?.snippet,
+      opportunity.description,
+    ]
+      .filter(Boolean)
+      .join("\n")
   );
   const recruiterTitle = extractSenderTitle(
     [
@@ -289,6 +306,7 @@ export async function refineOpportunityDraft(
 
   const draft = await draftContextualEmail({
     candidate: slim,
+    profile,
     sender: {
       cleanFirstName: recruiterName,
       titleOrPersona: recruiterTitle,
@@ -420,10 +438,12 @@ export async function dispatchOpportunityEmail(
     const slim = buildSlimCandidate(profile);
     const draft = await draftContextualEmail({
       candidate: slim,
+      profile,
       sender: {
         cleanFirstName: cleanRecruiterFirstName(
           opportunity.recipientName,
-          opportunity.recipientEmail
+          opportunity.recipientEmail,
+          opportunity.description
         ),
         titleOrPersona: null,
         companyName: opportunity.company,

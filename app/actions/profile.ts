@@ -17,6 +17,7 @@ import {
   recordProfileSnapshot,
   serializeUserProfileToInput,
 } from "@/lib/profile-history";
+import { synthesizeCandidatePersona } from "@/lib/ai/persona";
 import { prisma } from "@/lib/prisma";
 import { parseResumeToStructuredProfile } from "@/lib/resume-parser";
 import {
@@ -299,6 +300,7 @@ export async function updateMasterProfile(
   }
 
   const payload = parsed.data;
+  const persona = synthesizeCandidatePersona(payload);
 
   try {
     if (!options?.skipHistory) {
@@ -338,6 +340,9 @@ export async function updateMasterProfile(
         linkedGithub: payload.linkedGithub ?? null,
         linkedLinkedin: payload.linkedLinkedin ?? null,
         linkedHandshake: payload.linkedHandshake ?? null,
+        seniorityTier: persona.seniorityTier,
+        timelineContext: persona.timelineContext,
+        toneGuidance: persona.toneGuidance,
       };
 
       const profile = existing

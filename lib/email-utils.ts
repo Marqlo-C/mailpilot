@@ -94,14 +94,20 @@ function emailLocalPart(fromEmail?: string | null): string | null {
 }
 
 /**
- * Extract a human first name for greetings. Returns null for handles,
- * generic inboxes, or unparseable display names so callers use "Hi there,".
+ * Extract a human first name for greetings. Prefers a professional sign-off in
+ * the email body/snippet (handles shared aliases like recruiting@company.com),
+ * then From display name, then a person-like email local-part.
+ * Returns null for handles, generic inboxes, or unparseable names.
  */
 export function cleanRecruiterFirstName(
   fromName?: string | null,
-  fromEmail?: string | null
+  fromEmail?: string | null,
+  bodyOrSnippet?: string | null
 ): string | null {
   const local = emailLocalPart(fromEmail);
+
+  const fromSignoff = firstNameFromSignoff(bodyOrSnippet);
+  if (fromSignoff) return fromSignoff;
 
   if (fromName?.trim()) {
     let cleaned = fromName
@@ -151,6 +157,32 @@ export function cleanRecruiterFirstName(
   }
 
   return null;
+}
+
+const SIGNOFF_RE =
+  /(?:^|\n)\s*(?:best(?:\s+regards)?|warm(?:est)?\s+regards|kind\s+regards|regards|thanks|thank you|cheers|sincerely|cordially|all the best)\s*[,!]?\s*\n+\s*([A-Za-z][A-Za-z'-]{1,23})(?:\s+[A-Za-z][A-Za-z'-]{1,23})?\s*(?:\n|$)/gi;
+
+/**
+ * Scan the tail of an email body/snippet for "Best,\nSarah"-style sign-offs.
+ */
+function firstNameFromSignoff(bodyOrSnippet?: string | null): string | null {
+  const raw = (bodyOrSnippet ?? "").trim();
+  if (!raw) return null;
+
+  // Prefer the closing block where human signatures live.
+  const tail = raw.slice(-1200);
+  let match: RegExpExecArray | null = null;
+  let last: RegExpExecArray | null = null;
+  SIGNOFF_RE.lastIndex = 0;
+  while ((match = SIGNOFF_RE.exec(tail)) !== null) {
+    last = match;
+  }
+  const candidate = last?.[1]?.trim() ?? null;
+  if (!candidate) return null;
+  if (looksLikeHandle(candidate)) return null;
+  if (GENERIC_MAILBOXES.has(candidate.toLowerCase())) return null;
+  if (TITLE_TOKENS.has(candidate.toLowerCase())) return null;
+  return capitalizeWord(candidate);
 }
 
 const TITLE_PATTERNS: Array<{ re: RegExp; label: string }> = [

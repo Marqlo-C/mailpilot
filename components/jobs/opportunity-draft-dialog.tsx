@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { JobOpportunity } from "@prisma/client";
-import { Loader2, Mail, Send, Sparkles } from "lucide-react";
+import { Loader2, Mail, RefreshCw, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   prepareOpportunityDraftForReview,
+  regenerateOpportunityDraftAction,
   refineOpportunityDraftAction,
   saveOpportunityDraftEdits,
   sendOpportunityApplication,
@@ -42,6 +43,7 @@ export function OpportunityDraftDialog({
 }: OpportunityDraftDialogProps) {
   const [pending, startTransition] = useTransition();
   const [refining, startRefine] = useTransition();
+  const [retrying, startRetry] = useTransition();
   const [loadingDraft, setLoadingDraft] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -123,7 +125,25 @@ export function OpportunityDraftDialog({
     });
   }
 
-  const busy = pending || refining || loadingDraft;
+  function handleRetry() {
+    if (!opportunity) return;
+    startRetry(async () => {
+      const result = await regenerateOpportunityDraftAction(opportunity.id);
+      if (!result.ok || !result.data) {
+        toast.error(result.ok ? "Empty draft" : result.error);
+        return;
+      }
+      setSubject(result.data.subject);
+      setBody(result.data.body);
+      if (result.data.recipient) {
+        setRecipient(result.data.recipient);
+      }
+      setError(null);
+      toast.success("Draft regenerated");
+    });
+  }
+
+  const busy = pending || refining || retrying || loadingDraft;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -194,21 +214,37 @@ export function OpportunityDraftDialog({
                     }
                   }}
                 />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="shrink-0"
-                  disabled={busy || !refineInstruction.trim()}
-                  onClick={handleRefine}
-                >
-                  {refining ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-4 w-4" />
-                  )}
-                  Refine
-                </Button>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy}
+                    onClick={handleRetry}
+                    title="Generate a fresh draft"
+                  >
+                    {retrying ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    Retry
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={busy || !refineInstruction.trim()}
+                    onClick={handleRefine}
+                  >
+                    {refining ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                    Refine
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
