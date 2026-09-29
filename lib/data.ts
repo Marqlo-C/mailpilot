@@ -36,6 +36,7 @@ export type AccountWithSettings = AccountSummary & {
   settings: AccountSettings | null;
   rules: AccountRules;
   hasCredentials: boolean;
+  pendingClassificationCount: number;
 };
 
 export async function listAccounts(): Promise<AccountSummary[]> {
@@ -149,6 +150,13 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
       durable.permanentSettings
     );
 
+    const pendingClassificationCount = await prisma.emailMessage.count({
+      where: {
+        accountId: selected.id,
+        emailCategory: "PENDING_AI",
+      },
+    });
+
     return {
       id: selected.id,
       email: selected.email,
@@ -166,6 +174,7 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
       hasCredentials: Boolean(
         selected.encryptedAccess && selected.encryptedRefresh
       ),
+      pendingClassificationCount,
     };
   } catch (error) {
     console.error("getActiveAccount failed", error);

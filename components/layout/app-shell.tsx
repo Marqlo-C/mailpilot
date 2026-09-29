@@ -34,7 +34,7 @@ type AppShellProps = {
   activeEmail: string | null;
   hasHistoryId: boolean;
   initialIsSyncing?: boolean;
-  initialLastSyncedAt?: Date | string | null;
+  initialPendingClassificationCount?: number;
   children: React.ReactNode;
 };
 
@@ -44,7 +44,7 @@ export function AppShell({
   activeEmail,
   hasHistoryId,
   initialIsSyncing = false,
-  initialLastSyncedAt = null,
+  initialPendingClassificationCount = 0,
   children,
 }: AppShellProps) {
   const pathname = usePathname();
@@ -144,9 +144,12 @@ export function AppShell({
           </div>
           <div className="hidden min-w-0 md:block">
             <SyncTelemetry
+              accountId={activeAccountId}
               connected={Boolean(activeAccountId)}
               initialIsSyncing={initialIsSyncing}
-              initialLastSyncedAt={initialLastSyncedAt}
+              initialPendingClassificationCount={
+                initialPendingClassificationCount
+              }
             />
           </div>
           <div className="flex items-center gap-2">

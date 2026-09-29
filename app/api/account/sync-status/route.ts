@@ -23,22 +23,31 @@ export async function GET() {
           lastSyncProcessed: null,
           syncError: null,
           wasStaleReset: false,
+          pendingClassificationCount: 0,
         },
         { status: 401 }
       );
     }
 
-    const account = await prisma.account.findUnique({
-      where: { id: active.id },
-      select: {
-        id: true,
-        isSyncing: true,
-        lastSyncedAt: true,
-        syncError: true,
-        lastSyncProcessed: true,
-        updatedAt: true,
-      },
-    });
+    const [account, pendingClassificationCount] = await Promise.all([
+      prisma.account.findUnique({
+        where: { id: active.id },
+        select: {
+          id: true,
+          isSyncing: true,
+          lastSyncedAt: true,
+          syncError: true,
+          lastSyncProcessed: true,
+          updatedAt: true,
+        },
+      }),
+      prisma.emailMessage.count({
+        where: {
+          accountId: active.id,
+          emailCategory: "PENDING_AI",
+        },
+      }),
+    ]);
 
     if (!account) {
       return NextResponse.json({
@@ -46,6 +55,7 @@ export async function GET() {
         lastSyncProcessed: null,
         syncError: null,
         wasStaleReset: false,
+        pendingClassificationCount: 0,
       });
     }
 
@@ -69,6 +79,7 @@ export async function GET() {
           syncError: "Previous sync timed out",
           lastSyncProcessed: null,
           wasStaleReset: true,
+          pendingClassificationCount,
         });
       }
     }
@@ -79,6 +90,7 @@ export async function GET() {
       syncError: account.syncError,
       lastSyncProcessed: account.lastSyncProcessed,
       wasStaleReset: false,
+      pendingClassificationCount,
     });
   } catch (error) {
     console.error("GET /api/account/sync-status failed", error);
@@ -87,6 +99,7 @@ export async function GET() {
       lastSyncProcessed: null,
       syncError: null,
       wasStaleReset: false,
+      pendingClassificationCount: 0,
     });
   }
 }

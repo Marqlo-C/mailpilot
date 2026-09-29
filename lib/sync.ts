@@ -199,6 +199,35 @@ async function processMessage(
   });
 
   if (!classification || !classification.is_job_related) {
+    // Bridge/LLM offline: park keyword-matching mail for a later classify pass
+    if (!classification && matchesJobSubjectKeywords(subject)) {
+      const emailDate = message.data.internalDate
+        ? new Date(Number(message.data.internalDate))
+        : new Date();
+
+      await prisma.emailMessage.upsert({
+        where: {
+          accountId_messageId: {
+            accountId: account.id,
+            messageId,
+          },
+        },
+        create: {
+          accountId: account.id,
+          messageId,
+          threadId,
+          subject,
+          fromEmail: sender?.email ?? null,
+          fromName: sender?.name ?? null,
+          emailCategory: "PENDING_AI",
+          emailDate,
+          snippet: sanitizeEmailBody(body).slice(0, 500),
+        },
+        update: {
+          emailCategory: "PENDING_AI",
+        },
+      });
+    }
     return;
   }
 

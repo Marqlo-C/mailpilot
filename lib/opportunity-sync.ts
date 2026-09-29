@@ -12,6 +12,8 @@ import {
   classifyEmail,
   extractMessageBody,
   loadCandidateProfileSummary,
+  matchesJobSubjectKeywords,
+  sanitizeEmailBody,
   type LlmProvider,
 } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
@@ -198,15 +200,17 @@ export async function runOpportunitySync(
     let targetIds = messageIds;
     if (!forceRescan) {
       // Dedup against EmailMessage.messageId (Gmail ids), not JobOpportunity cuid FKs.
-      const existing = await prisma.emailMessage.findMany({
+      // Re-process PENDING_AI rows so offline-parked mail gets classified when AI returns.
+      const processed = await prisma.emailMessage.findMany({
         where: {
           accountId,
           messageId: { in: messageIds },
+          emailCategory: { not: "PENDING_AI" },
         },
         select: { messageId: true },
       });
-      const existingSet = new Set(existing.map((row) => row.messageId));
-      targetIds = messageIds.filter((id) => !existingSet.has(id));
+      const processedSet = new Set(processed.map((row) => row.messageId));
+      targetIds = messageIds.filter((id) => !processedSet.has(id));
     }
 
     if (targetIds.length === 0) {
@@ -262,6 +266,35 @@ export async function runOpportunitySync(
               !classification.is_job_related ||
               classification.email_category === "IRRELEVANT"
             ) {
+              if (!classification && matchesJobSubjectKeywords(subject)) {
+                const threadId = message.data.threadId ?? messageId;
+                const emailDate = message.data.internalDate
+                  ? new Date(Number(message.data.internalDate))
+                  : new Date();
+
+                await prisma.emailMessage.upsert({
+                  where: {
+                    accountId_messageId: {
+                      accountId,
+                      messageId,
+                    },
+                  },
+                  create: {
+                    accountId,
+                    messageId,
+                    threadId,
+                    subject,
+                    fromEmail: sender?.email ?? null,
+                    fromName: sender?.name ?? null,
+                    emailCategory: "PENDING_AI",
+                    emailDate,
+                    snippet: sanitizeEmailBody(cleanedText).slice(0, 500),
+                  },
+                  update: {
+                    emailCategory: "PENDING_AI",
+                  },
+                });
+              }
               return 0;
             }
 

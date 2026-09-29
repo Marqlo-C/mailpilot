@@ -25,6 +25,11 @@ export const metadata: Metadata = {
   title: "MailPilot+",
   description:
     "Intelligent inbox triage and autonomous job application engine",
+  icons: {
+    icon: "/logos/colored-logo-only.png",
+    shortcut: "/logos/colored-logo-only.png",
+    apple: "/logos/colored-logo-only.png",
+  },
 };
 
 export default async function RootLayout({
@@ -64,7 +69,9 @@ export default async function RootLayout({
           activeEmail={active?.email ?? null}
           hasHistoryId={Boolean(active?.historyId)}
           initialIsSyncing={Boolean(active?.isSyncing)}
-          initialLastSyncedAt={active?.lastSyncedAt ?? null}
+          initialPendingClassificationCount={
+            active?.pendingClassificationCount ?? 0
+          }
         >
           {children}
         </AppShell>

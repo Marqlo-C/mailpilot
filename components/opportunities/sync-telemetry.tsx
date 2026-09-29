@@ -1,39 +1,42 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
+import { syncInboxOpportunities } from "@/app/actions/email";
 import { SYNC_STARTED_EVENT } from "@/components/layout/global-sync-tracker";
-import { formatDistanceToNow } from "@/lib/format-distance";
 import { cn } from "@/lib/utils";
 
 type SyncTelemetryProps = {
-  initialLastSyncedAt?: Date | string | null;
+  accountId?: string | null;
   initialIsSyncing?: boolean;
+  initialPendingClassificationCount?: number;
   connected?: boolean;
   className?: string;
 };
 
 /**
- * Header telemetry pill: high-contrast Connected badge + Last synced.
+ * Header status indicator: Syncing / awaiting classification / Live.
  */
 export function SyncTelemetry({
-  initialLastSyncedAt = null,
+  accountId = null,
   initialIsSyncing = false,
+  initialPendingClassificationCount = 0,
   connected = true,
   className,
 }: SyncTelemetryProps) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
   const [isSyncing, setIsSyncing] = useState(initialIsSyncing);
-  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(
-    initialLastSyncedAt ? new Date(initialLastSyncedAt) : null
+  const [pendingCount, setPendingCount] = useState(
+    initialPendingClassificationCount
   );
-  const [, setTick] = useState(0);
 
   useEffect(() => {
     setIsSyncing(initialIsSyncing);
-    if (initialLastSyncedAt) {
-      setLastSyncedAt(new Date(initialLastSyncedAt));
-    }
-  }, [initialIsSyncing, initialLastSyncedAt]);
+    setPendingCount(initialPendingClassificationCount);
+  }, [initialIsSyncing, initialPendingClassificationCount]);
 
   useEffect(() => {
     function handleSyncStart() {
@@ -54,13 +57,14 @@ export function SyncTelemetry({
         if (!res.ok) return;
         const data = (await res.json()) as {
           isSyncing?: boolean;
-          lastSyncedAt?: string | null;
+          pendingClassificationCount?: number;
         };
-        if (data.lastSyncedAt) {
-          setLastSyncedAt(new Date(data.lastSyncedAt));
+        if (typeof data.pendingClassificationCount === "number") {
+          setPendingCount(data.pendingClassificationCount);
         }
         if (!data.isSyncing) {
           setIsSyncing(false);
+          router.refresh();
         }
       } catch {
         // ignore transient poll errors
@@ -68,14 +72,58 @@ export function SyncTelemetry({
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [isSyncing]);
+  }, [isSyncing, router]);
 
+  // Light poll while awaiting classification so the badge clears when AI recovers
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTick((t) => t + 1);
-    }, 60_000);
+    if (isSyncing || pendingCount <= 0) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/account/sync-status", {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          isSyncing?: boolean;
+          pendingClassificationCount?: number;
+        };
+        if (data.isSyncing) {
+          setIsSyncing(true);
+        }
+        if (typeof data.pendingClassificationCount === "number") {
+          setPendingCount(data.pendingClassificationCount);
+        }
+      } catch {
+        // ignore
+      }
+    }, 15_000);
+
     return () => clearInterval(interval);
-  }, []);
+  }, [isSyncing, pendingCount]);
+
+  function handleTriggerSync() {
+    if (!accountId || isSyncing || pending) return;
+
+    window.dispatchEvent(new Event(SYNC_STARTED_EVENT));
+    setIsSyncing(true);
+
+    startTransition(async () => {
+      const result = await syncInboxOpportunities({
+        accountId,
+        forceRescan: false,
+      });
+
+      if (!result.ok) {
+        toast.error(result.error);
+        setIsSyncing(false);
+        return;
+      }
+
+      toast.success(result.data?.message ?? "Sync started in background");
+      router.refresh();
+    });
+  }
 
   if (!connected) {
     return (
@@ -95,43 +143,39 @@ export function SyncTelemetry({
     );
   }
 
-  const relativeTime = lastSyncedAt
-    ? `Last synced ${formatDistanceToNow(lastSyncedAt, { addSuffix: true })}`
-    : "Not synced yet";
-
   return (
     <div
-      className={cn(
-        "inline-flex select-none items-center gap-2 text-xs text-muted-foreground",
-        className
-      )}
+      className={cn("inline-flex select-none items-center", className)}
       role="status"
       aria-live="polite"
     >
-      <div
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
-          isSyncing
-            ? "border-primary/30 bg-primary/10 text-primary"
-            : "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-        )}
-      >
-        <span
-          className={cn(
-            "h-1.5 w-1.5 rounded-full",
-            isSyncing
-              ? "animate-pulse bg-primary"
-              : "animate-pulse bg-emerald-500"
-          )}
-        />
-        {isSyncing ? "Sync in progress" : "Connected"}
-      </div>
-
-      <span className="text-border">•</span>
-
-      <span className="text-foreground/80">
-        {isSyncing ? "Syncing inbox…" : relativeTime}
-      </span>
+      {isSyncing ? (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+          <span>Syncing inbox...</span>
+        </div>
+      ) : pendingCount > 0 ? (
+        <button
+          type="button"
+          onClick={handleTriggerSync}
+          disabled={pending}
+          className="flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-500/20 disabled:opacity-60 dark:text-amber-400"
+        >
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-500" />
+          </span>
+          <span>
+            {pendingCount}{" "}
+            {pendingCount === 1 ? "email" : "emails"} awaiting classification
+          </span>
+        </button>
+      ) : (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          <span>Synced. Inbox updated</span>
+        </div>
+      )}
     </div>
   );
 }
