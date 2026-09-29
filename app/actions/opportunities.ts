@@ -9,7 +9,9 @@ import {
   dispatchOpportunityEmail,
   getDailySendLimit,
   prepareOpportunityDraft,
+  refineOpportunityDraft,
   updateOpportunityDraft,
+  updateOpportunityRecipient,
 } from "@/lib/opportunity-dispatch";
 import {
   InsufficientScopeError,
@@ -17,15 +19,18 @@ import {
   isInsufficientScopeError,
 } from "@/lib/google";
 import { prisma } from "@/lib/prisma";
+import { z } from "zod";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
 
+const recipientEmailSchema = z.string().trim().email();
+
 export async function prepareOpportunityDraftForReview(
   opportunityId: string
 ): Promise<
-  ActionResult<{ subject: string; body: string; recipient: string }>
+  ActionResult<{ subject: string; body: string; recipient: string | null }>
 > {
   const opportunity = await prisma.jobOpportunity.findUnique({
     where: { id: opportunityId },
@@ -34,31 +39,27 @@ export async function prepareOpportunityDraftForReview(
     return { ok: false, error: "Opportunity not found" };
   }
 
-  if (!canDraftDirectEmail(opportunity.recipientEmail)) {
-    return {
-      ok: false,
-      error:
-        "No recruiter email on this listing. Use the external apply link instead — email drafts are disabled.",
-    };
-  }
-
   try {
     if (
       opportunity.draftSubject?.trim() &&
       opportunity.draftBody?.trim() &&
-      (opportunity.status === "REVIEW_READY" || opportunity.status === "DISCOVERED")
+      (opportunity.status === "REVIEW_READY" ||
+        opportunity.status === "DISCOVERED")
     ) {
       return {
         ok: true,
         data: {
           subject: opportunity.draftSubject,
           body: opportunity.draftBody,
-          recipient: opportunity.recipientEmail!,
+          recipient: opportunity.recipientEmail,
         },
       };
     }
 
-    const draft = await prepareOpportunityDraft(opportunity.accountId, opportunityId);
+    const draft = await prepareOpportunityDraft(
+      opportunity.accountId,
+      opportunityId
+    );
     revalidatePath("/jobs");
     return { ok: true, data: draft };
   } catch (error) {
@@ -69,21 +70,75 @@ export async function prepareOpportunityDraftForReview(
   }
 }
 
-export async function saveOpportunityDraftEdits(
+export async function refineOpportunityDraftAction(
   opportunityId: string,
-  input: { subject: string; body: string }
-): Promise<ActionResult> {
+  instruction: string
+): Promise<ActionResult<{ subject: string; body: string }>> {
   const opportunity = await prisma.jobOpportunity.findUnique({
     where: { id: opportunityId },
   });
   if (!opportunity) {
     return { ok: false, error: "Opportunity not found" };
   }
-  if (!canDraftDirectEmail(opportunity.recipientEmail)) {
+
+  try {
+    const draft = await refineOpportunityDraft(
+      opportunity.accountId,
+      opportunityId,
+      instruction
+    );
+    revalidatePath("/jobs");
+    return { ok: true, data: draft };
+  } catch (error) {
     return {
       ok: false,
-      error: "Cannot save an email draft without a recruiter email address.",
+      error: error instanceof Error ? error.message : "Failed to refine draft",
     };
+  }
+}
+
+export async function updateOpportunityRecipientAction(
+  opportunityId: string,
+  recipientEmail: string
+): Promise<ActionResult<{ recipientEmail: string }>> {
+  const parsed = recipientEmailSchema.safeParse(recipientEmail);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid recipient email address" };
+  }
+
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+
+  try {
+    const data = await updateOpportunityRecipient(
+      opportunity.accountId,
+      opportunityId,
+      parsed.data
+    );
+    revalidatePath("/jobs");
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to update recipient",
+    };
+  }
+}
+
+export async function saveOpportunityDraftEdits(
+  opportunityId: string,
+  input: { subject: string; body: string; recipientEmail?: string }
+): Promise<ActionResult> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
   }
 
   const subject = input.subject.trim();
@@ -92,10 +147,31 @@ export async function saveOpportunityDraftEdits(
     return { ok: false, error: "Subject and body are required" };
   }
 
+  if (input.recipientEmail !== undefined && input.recipientEmail.trim()) {
+    const parsed = recipientEmailSchema.safeParse(input.recipientEmail);
+    if (!parsed.success) {
+      return { ok: false, error: "Invalid recipient email address" };
+    }
+  }
+
+  const effectiveRecipient =
+    input.recipientEmail !== undefined
+      ? input.recipientEmail.trim()
+      : opportunity.recipientEmail;
+  if (!canDraftDirectEmail(effectiveRecipient)) {
+    return {
+      ok: false,
+      error: "Add a valid recruiter email in the To field before saving.",
+    };
+  }
+
   try {
     await updateOpportunityDraft(opportunity.accountId, opportunityId, {
       subject,
       body,
+      ...(input.recipientEmail !== undefined
+        ? { recipientEmail: input.recipientEmail }
+        : {}),
     });
     revalidatePath("/jobs");
     return { ok: true };

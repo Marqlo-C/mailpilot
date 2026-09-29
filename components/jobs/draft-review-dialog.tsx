@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { JobApplication } from "@prisma/client";
-import { Loader2, Mail, Send } from "lucide-react";
+import { Loader2, Mail, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   prepareDraftForReview,
+  refineApplicationDraftAction,
   saveDraftEdits,
   sendSingleApplication,
 } from "@/app/actions/dispatch";
@@ -39,10 +40,12 @@ export function DraftReviewDialog({
   onCompleted,
 }: DraftReviewDialogProps) {
   const [pending, startTransition] = useTransition();
+  const [refining, startRefine] = useTransition();
   const [loadingDraft, setLoadingDraft] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [recipient, setRecipient] = useState("");
+  const [refineInstruction, setRefineInstruction] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,6 +54,7 @@ export function DraftReviewDialog({
     let cancelled = false;
     setLoadingDraft(true);
     setError(null);
+    setRefineInstruction("");
 
     void (async () => {
       const result = await prepareDraftForReview(application.id);
@@ -63,7 +67,7 @@ export function DraftReviewDialog({
       }
       setSubject(result.data.subject);
       setBody(result.data.body);
-      setRecipient(result.data.recipient);
+      setRecipient(result.data.recipient ?? "");
     })();
 
     return () => {
@@ -71,12 +75,14 @@ export function DraftReviewDialog({
     };
   }, [open, application]);
 
-  function persistThen(
-    action: "gmail-draft" | "send"
-  ) {
+  function persistThen(action: "gmail-draft" | "send") {
     if (!application) return;
     startTransition(async () => {
-      const saved = await saveDraftEdits(application.id, { subject, body });
+      const saved = await saveDraftEdits(application.id, {
+        subject,
+        body,
+        recipientEmail: recipient,
+      });
       if (!saved.ok) {
         toast.error(saved.error);
         return;
@@ -106,6 +112,26 @@ export function DraftReviewDialog({
     });
   }
 
+  function handleRefine() {
+    if (!application || !refineInstruction.trim()) return;
+    startRefine(async () => {
+      const result = await refineApplicationDraftAction(
+        application.id,
+        refineInstruction.trim()
+      );
+      if (!result.ok || !result.data) {
+        toast.error(result.ok ? "Empty refine result" : result.error);
+        return;
+      }
+      setSubject(result.data.subject);
+      setBody(result.data.body);
+      setRefineInstruction("");
+      toast.success("Draft refined");
+    });
+  }
+
+  const busy = pending || refining || loadingDraft;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
@@ -131,9 +157,11 @@ export function DraftReviewDialog({
               <Label htmlFor="draft-to">To</Label>
               <Input
                 id="draft-to"
+                type="email"
+                placeholder="recruiter@company.com"
                 value={recipient}
-                readOnly
-                className="bg-muted/40"
+                disabled={busy}
+                onChange={(e) => setRecipient(e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -141,7 +169,7 @@ export function DraftReviewDialog({
               <Input
                 id="draft-subject"
                 value={subject}
-                disabled={pending}
+                disabled={busy}
                 onChange={(e) => setSubject(e.target.value)}
               />
             </div>
@@ -151,13 +179,48 @@ export function DraftReviewDialog({
                 id="draft-body"
                 className="min-h-56 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 value={body}
-                disabled={pending}
+                disabled={busy}
                 onChange={(e) => setBody(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Written as you (the applicant) to the hiring team — greetings
-                should never address your own name.
+                Written as you (the applicant) to the hiring team. Keep it
+                short, human, and grounded in your real skills.
               </p>
+            </div>
+            <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
+              <Label htmlFor="draft-refine" className="text-xs">
+                Refine with AI
+              </Label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  id="draft-refine"
+                  placeholder="e.g., Make it punchier, mention FastAPI, sound more casual..."
+                  value={refineInstruction}
+                  onChange={(e) => setRefineInstruction(e.target.value)}
+                  disabled={busy}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleRefine();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0"
+                  disabled={busy || !refineInstruction.trim()}
+                  onClick={handleRefine}
+                >
+                  {refining ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  Refine
+                </Button>
+              </div>
             </div>
             {error ? (
               <p className="text-sm text-destructive">{error}</p>
@@ -169,7 +232,9 @@ export function DraftReviewDialog({
           <Button
             type="button"
             variant="outline"
-            disabled={pending || loadingDraft || !subject.trim() || !body.trim()}
+            disabled={
+              busy || !subject.trim() || !body.trim() || !recipient.trim()
+            }
             onClick={() => persistThen("gmail-draft")}
           >
             {pending ? (
@@ -181,7 +246,9 @@ export function DraftReviewDialog({
           </Button>
           <Button
             type="button"
-            disabled={pending || loadingDraft || !subject.trim() || !body.trim()}
+            disabled={
+              busy || !subject.trim() || !body.trim() || !recipient.trim()
+            }
             onClick={() => persistThen("send")}
           >
             {pending ? (

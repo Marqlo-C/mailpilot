@@ -8,9 +8,14 @@ import {
   dispatchApplicationEmail,
   getDailySendLimit,
   prepareApplicationDraft,
+  refineApplicationDraft,
+  updateApplicationRecipient,
   updatePreparedDraft,
 } from "@/lib/dispatch";
-import { extractRecruiterEmail } from "@/lib/application-method";
+import {
+  canDraftDirectEmail,
+  extractRecruiterEmail,
+} from "@/lib/application-method";
 import {
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
@@ -24,6 +29,8 @@ import {
 
 const NO_RECRUITER_EMAIL_ERROR =
   "No recruiter email address — email drafts are forbidden without a direct contact. Use the external apply link instead.";
+
+const recipientEmailSchema = z.string().trim().email();
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -103,7 +110,7 @@ export async function sendSingleApplication(
 export async function prepareDraftForReview(
   applicationId: string
 ): Promise<
-  ActionResult<{ subject: string; body: string; recipient: string }>
+  ActionResult<{ subject: string; body: string; recipient: string | null }>
 > {
   const application = await prisma.jobApplication.findUnique({
     where: { id: applicationId },
@@ -123,9 +130,6 @@ export async function prepareDraftForReview(
     actionUrl: application.actionUrl,
     applyUrl: application.applyUrl,
   });
-  if (!recipientGate) {
-    return { ok: false, error: NO_RECRUITER_EMAIL_ERROR };
-  }
 
   try {
     if (
@@ -167,12 +171,72 @@ export async function prepareDraftForReview(
   }
 }
 
+export async function refineApplicationDraftAction(
+  applicationId: string,
+  instruction: string
+): Promise<ActionResult<{ subject: string; body: string }>> {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application?.accountId) {
+    return { ok: false, error: "Application not found" };
+  }
+
+  try {
+    const draft = await refineApplicationDraft(
+      application.accountId,
+      applicationId,
+      instruction
+    );
+    revalidatePath("/jobs");
+    return { ok: true, data: draft };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to refine draft",
+    };
+  }
+}
+
+export async function updateApplicationRecipientAction(
+  applicationId: string,
+  recipientEmail: string
+): Promise<ActionResult<{ recipientEmail: string }>> {
+  const parsed = recipientEmailSchema.safeParse(recipientEmail);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid recipient email address" };
+  }
+
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application?.accountId) {
+    return { ok: false, error: "Application not found" };
+  }
+
+  try {
+    const data = await updateApplicationRecipient(
+      application.accountId,
+      applicationId,
+      parsed.data
+    );
+    revalidatePath("/jobs");
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to update recipient",
+    };
+  }
+}
+
 /**
  * Persists user edits to the in-app draft before Gmail save/send.
  */
 export async function saveDraftEdits(
   applicationId: string,
-  input: { subject: string; body: string }
+  input: { subject: string; body: string; recipientEmail?: string }
 ): Promise<ActionResult> {
   const application = await prisma.jobApplication.findUnique({
     where: { id: applicationId },
@@ -181,26 +245,39 @@ export async function saveDraftEdits(
     return { ok: false, error: "Application not found" };
   }
 
-  if (
-    !extractRecruiterEmail({
-      actionSummary: application.actionSummary,
-      actionUrl: application.actionUrl,
-      applyUrl: application.applyUrl,
-    })
-  ) {
-    return { ok: false, error: NO_RECRUITER_EMAIL_ERROR };
-  }
-
   const subject = input.subject.trim();
   const body = input.body.trim();
   if (!subject || !body) {
     return { ok: false, error: "Subject and body are required" };
   }
 
+  if (input.recipientEmail !== undefined && input.recipientEmail.trim()) {
+    const parsed = recipientEmailSchema.safeParse(input.recipientEmail);
+    if (!parsed.success) {
+      return { ok: false, error: "Invalid recipient email address" };
+    }
+  }
+
+  const effectiveRecipient =
+    input.recipientEmail !== undefined
+      ? input.recipientEmail.trim()
+      : extractRecruiterEmail({
+          actionSummary: application.actionSummary,
+          actionUrl: application.actionUrl,
+          applyUrl: application.applyUrl,
+        });
+
+  if (!canDraftDirectEmail(effectiveRecipient)) {
+    return { ok: false, error: NO_RECRUITER_EMAIL_ERROR };
+  }
+
   try {
     await updatePreparedDraft(application.accountId, applicationId, {
       subject,
       body,
+      ...(input.recipientEmail !== undefined
+        ? { recipientEmail: input.recipientEmail }
+        : {}),
     });
     revalidatePath("/jobs");
     return { ok: true };

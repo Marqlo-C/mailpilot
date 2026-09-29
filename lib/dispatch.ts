@@ -7,11 +7,17 @@ import {
 } from "@/lib/google";
 import { generateTailoredResumePdf } from "@/lib/pdf-generator";
 import { prisma } from "@/lib/prisma";
-import { tailorResumeForJob } from "@/lib/resume-tailor";
 import {
+  buildSlimCandidate,
+  draftContextualEmail,
+  tailorResumeForJob,
+} from "@/lib/resume-tailor";
+import {
+  canDraftDirectEmail,
   extractRecruiterEmail,
   resolveApplicationMethod,
 } from "@/lib/application-method";
+import type { LlmProvider } from "@/lib/llm";
 import type {
   MasterProfileInput,
   OpportunityStatus,
@@ -23,6 +29,10 @@ const NO_RECRUITER_EMAIL_ERROR =
   "No recruiter email address — email drafts are forbidden without a direct contact.";
 
 export { extractRecruiterEmail };
+
+function normalizeProvider(value: string | null | undefined): LlmProvider {
+  return value === "LOCAL_OLLAMA" ? "LOCAL_OLLAMA" : "OPENROUTER";
+}
 
 function encodeRaw(raw: string): string {
   return Buffer.from(raw)
@@ -304,10 +314,13 @@ export async function prepareApplicationDraft(
 ): Promise<{
   subject: string;
   body: string;
-  recipient: string;
+  recipient: string | null;
   opportunityStatus: OpportunityStatus;
 }> {
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { settings: true },
+  });
   if (!account || !account.isActive) {
     throw new Error("Account not found or inactive");
   }
@@ -319,63 +332,172 @@ export async function prepareApplicationDraft(
     throw new Error("Application not found");
   }
 
-  const recipient = requireRecruiterEmail({
+  const recipient = extractRecruiterEmail({
     actionSummary: application.actionSummary,
     actionUrl: application.actionUrl,
     applyUrl: application.applyUrl,
   });
 
   const profile = await loadMasterProfile(accountId);
-  const existingTailored = application.tailoredData
-    ? tailoredDataSchema.safeParse(application.tailoredData)
-    : null;
-
-  const requirements =
-    existingTailored?.success &&
-    existingTailored.data.jobRequirements.length > 0
-      ? existingTailored.data.jobRequirements
-      : [
-          application.roleTitle ?? "role",
-          application.companyName ?? "company",
-          application.actionSummary ?? "",
-        ].filter(Boolean);
-
-  const tailored = await tailorResumeForJob(requirements, profile, {
-    jobText: application.actionSummary ?? undefined,
-    companyName: application.companyName,
-    roleTitle: application.roleTitle,
+  const slim = buildSlimCandidate(profile);
+  const draft = await draftContextualEmail({
+    candidate: slim,
+    sender: {
+      cleanFirstName: null,
+      titleOrPersona: "Recruiter",
+      companyName: application.companyName ?? "Company",
+      roleLabel: application.roleTitle,
+    },
+    inboundSnippet: [
+      application.actionSummary,
+      application.roleTitle,
+      application.companyName,
+    ]
+      .filter(Boolean)
+      .join("\n")
+      .slice(0, 1500),
+    llmConfig: {
+      provider: normalizeProvider(account.settings?.llmProvider),
+      localOllamaUrl: account.settings?.localOllamaUrl,
+      ollamaModel: account.settings?.ollamaModel,
+    },
   });
-
-  const subject = `Application: ${application.roleTitle ?? "Role"} at ${
-    application.companyName ?? "Your Company"
-  }`;
 
   await prisma.jobApplication.update({
     where: { id: applicationId },
     data: {
-      draftSubject: subject,
-      draftBody: tailored.coverLetter,
+      draftSubject: draft.subject,
+      draftBody: draft.body,
       opportunityStatus: "DRAFT_PREPARED",
       tailoredData: {
-        selectedBullets: tailored.selectedBullets,
-        coverLetter: tailored.coverLetter,
-        jobRequirements: tailored.jobRequirements,
+        selectedBullets: [],
+        coverLetter: draft.body,
+        jobRequirements: [
+          application.roleTitle ?? "",
+          application.companyName ?? "",
+        ].filter(Boolean),
       } as Prisma.InputJsonValue,
     },
   });
 
   return {
-    subject,
-    body: tailored.coverLetter,
+    subject: draft.subject,
+    body: draft.body,
     recipient,
     opportunityStatus: "DRAFT_PREPARED",
   };
 }
 
+export async function refineApplicationDraft(
+  accountId: string,
+  applicationId: string,
+  instruction: string
+): Promise<{ subject: string; body: string }> {
+  const trimmed = instruction.trim();
+  if (!trimmed) {
+    throw new Error("Refinement instruction is required");
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { settings: true },
+  });
+  if (!account?.isActive) {
+    throw new Error("Account not found or inactive");
+  }
+
+  const application = await prisma.jobApplication.findFirst({
+    where: { id: applicationId, accountId },
+  });
+  if (!application) {
+    throw new Error("Application not found");
+  }
+
+  const profile = await loadMasterProfile(accountId);
+  const slim = buildSlimCandidate(profile);
+  const draft = await draftContextualEmail({
+    candidate: slim,
+    sender: {
+      cleanFirstName: null,
+      titleOrPersona: "Recruiter",
+      companyName: application.companyName ?? "Company",
+      roleLabel: application.roleTitle,
+    },
+    inboundSnippet: [
+      application.draftBody,
+      application.draftSubject,
+      application.actionSummary,
+    ]
+      .filter(Boolean)
+      .join("\n---\n")
+      .slice(0, 1500),
+    customInstruction: trimmed,
+    llmConfig: {
+      provider: normalizeProvider(account.settings?.llmProvider),
+      localOllamaUrl: account.settings?.localOllamaUrl,
+      ollamaModel: account.settings?.ollamaModel,
+    },
+  });
+
+  const existingTailored = application.tailoredData
+    ? tailoredDataSchema.safeParse(application.tailoredData)
+    : null;
+
+  await prisma.jobApplication.update({
+    where: { id: applicationId },
+    data: {
+      draftSubject: draft.subject,
+      draftBody: draft.body,
+      opportunityStatus: "DRAFT_PREPARED",
+      tailoredData: {
+        selectedBullets: existingTailored?.success
+          ? existingTailored.data.selectedBullets
+          : [],
+        coverLetter: draft.body,
+        jobRequirements: existingTailored?.success
+          ? existingTailored.data.jobRequirements
+          : [],
+      } as Prisma.InputJsonValue,
+    },
+  });
+
+  return draft;
+}
+
+export async function updateApplicationRecipient(
+  accountId: string,
+  applicationId: string,
+  recipientEmail: string
+): Promise<{ recipientEmail: string }> {
+  const email = recipientEmail.trim().toLowerCase();
+  if (!canDraftDirectEmail(email)) {
+    throw new Error("Invalid recipient email address");
+  }
+
+  const application = await prisma.jobApplication.findFirst({
+    where: { id: applicationId, accountId },
+    select: { id: true },
+  });
+  if (!application) {
+    throw new Error("Application not found");
+  }
+
+  await prisma.jobApplication.update({
+    where: { id: applicationId },
+    data: {
+      applyUrl: `mailto:${email}`,
+      applicationMethod: "DIRECT_EMAIL",
+      dispatchType: "EMAIL",
+    },
+  });
+
+  return { recipientEmail: email };
+}
+
 export async function updatePreparedDraft(
   accountId: string,
   applicationId: string,
-  input: { subject: string; body: string }
+  input: { subject: string; body: string; recipientEmail?: string }
 ): Promise<void> {
   const application = await prisma.jobApplication.findFirst({
     where: { id: applicationId, accountId },
@@ -388,12 +510,29 @@ export async function updatePreparedDraft(
     ? tailoredDataSchema.safeParse(application.tailoredData)
     : null;
 
+  let applyUrlUpdate: { applyUrl?: string; applicationMethod?: string; dispatchType?: string } =
+    {};
+  if (input.recipientEmail !== undefined) {
+    const email = input.recipientEmail.trim().toLowerCase();
+    if (email) {
+      if (!canDraftDirectEmail(email)) {
+        throw new Error("Invalid recipient email address");
+      }
+      applyUrlUpdate = {
+        applyUrl: `mailto:${email}`,
+        applicationMethod: "DIRECT_EMAIL",
+        dispatchType: "EMAIL",
+      };
+    }
+  }
+
   await prisma.jobApplication.update({
     where: { id: applicationId },
     data: {
       draftSubject: input.subject.trim(),
       draftBody: input.body.trim(),
       opportunityStatus: "DRAFT_PREPARED",
+      ...applyUrlUpdate,
       tailoredData: {
         selectedBullets: existingTailored?.success
           ? existingTailored.data.selectedBullets
