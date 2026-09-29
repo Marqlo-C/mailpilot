@@ -8,7 +8,6 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  DollarSign,
   ExternalLink,
   Mail,
   MapPin,
@@ -167,6 +166,9 @@ export function OpportunityCard({
   const receivedLabel = formatDistanceToNow(new Date(opportunity.receivedAt), {
     addSuffix: true,
   });
+  const salaryRaw = opportunity.salary?.trim() ?? "";
+  const salaryLabel =
+    !salaryRaw || /^\$?\s*tbd\b/i.test(salaryRaw) ? "$TBD" : salaryRaw;
 
   function runArchive() {
     if (onArchive) {
@@ -339,36 +341,36 @@ export function OpportunityCard({
         </div>
       </div>
 
-      {/* 3. Curved metadata capsules */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-1 select-none sm:px-5">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-secondary/40 px-3 py-1 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-            <span className="max-w-[180px] truncate">
-              {opportunity.location || "Remote / Unspecified"}
-            </span>
-          </div>
-          {opportunity.salary ? (
-            <>
-              <span className="text-border">•</span>
-              <div className="flex items-center gap-0.5 font-medium text-emerald-600 dark:text-emerald-400">
-                <DollarSign className="h-3 w-3 shrink-0" />
-                <span>{opportunity.salary}</span>
-              </div>
-            </>
-          ) : null}
+      {/* Exactly two metadata pills: location | salary · posted · received */}
+      <div className="flex flex-wrap items-center gap-2 px-4 py-1 select-none sm:px-5">
+        <div className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/60 bg-secondary/40 px-3 py-1 text-xs text-muted-foreground">
+          <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+          <span className="max-w-[200px] truncate">
+            {opportunity.location?.trim()
+              ? opportunity.location.trim()
+              : "Remote / Unspecified"}
+          </span>
         </div>
 
-        <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-secondary/40 px-3 py-1 text-xs text-muted-foreground sm:ml-auto">
-          {opportunity.postedAt ? (
-            <>
-              <div className="flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-                <span>Posted: {opportunity.postedAt}</span>
-              </div>
-              <span className="text-border">•</span>
-            </>
-          ) : null}
+        <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-full border border-border/60 bg-secondary/40 px-3 py-1 text-xs text-muted-foreground sm:ml-auto">
+          <span className="font-medium text-emerald-600 dark:text-emerald-400">
+            {salaryLabel}
+          </span>
+          <span className="text-border" aria-hidden>
+            ·
+          </span>
+          <div className="flex items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+            <span>
+              Posted:{" "}
+              {opportunity.postedAt?.trim()
+                ? opportunity.postedAt.trim()
+                : "Not specified"}
+            </span>
+          </div>
+          <span className="text-border" aria-hidden>
+            ·
+          </span>
           <div className="flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
             <span>Received: {receivedLabel}</span>

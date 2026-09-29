@@ -39,6 +39,11 @@ export const accountRulesSchema = z.object({
   availableModels: z.array(z.string()).default([]),
   /** Whether the last verify ping reached Ollama successfully. */
   bridgeConnected: z.boolean().default(false),
+  /**
+   * When true and llmProvider is LOCAL_OLLAMA, failed/unreachable local calls
+   * may fall back to OpenRouter. Default false — no silent cloud fallback.
+   */
+  allowCloudFallback: z.boolean().default(false),
 });
 
 export type AccountRules = z.infer<typeof accountRulesSchema>;

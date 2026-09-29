@@ -28,6 +28,7 @@ const ruleKeySchema = z.enum([
   "dismissedRetentionDays",
   "excludedTitles",
   "bridgeSecret",
+  "allowCloudFallback",
 ]);
 
 const retentionDaysSchema = z.union([

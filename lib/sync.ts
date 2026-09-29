@@ -11,8 +11,8 @@ import {
   classifyJobEmail,
   extractMessageBody,
   loadCandidateProfileSummary,
-  matchesJobEmailKeywords,
   sanitizeEmailBody,
+  shouldClassifyEmail,
   type LlmProvider,
 } from "@/lib/llm";
 import {
@@ -177,17 +177,26 @@ async function processMessage(
     });
   }
 
-  if (!matchesJobEmailKeywords(subject, message.data.snippet)) {
+  const body = extractMessageBody(message.data.payload);
+  const sender = from ? parseFromHeader(from) : null;
+
+  if (
+    !shouldClassifyEmail({
+      subject,
+      body,
+      snippet: message.data.snippet,
+      fromEmail: sender?.email ?? null,
+    })
+  ) {
     return;
   }
 
-  const body = extractMessageBody(message.data.payload);
   const settings = account.settings;
   const llmProvider = normalizeProvider(settings?.llmProvider);
 
-  const sender = from ? parseFromHeader(from) : null;
   const candidateProfile = await loadCandidateProfileSummary(account.id);
 
+  const accountRules = parseAccountRules(settings?.rules);
   const classification = await classifyJobEmail({
     llmProvider,
     localOllamaUrl: settings?.localOllamaUrl,
@@ -196,6 +205,7 @@ async function processMessage(
     body,
     fromEmail: sender?.email ?? null,
     candidateProfile,
+    allowCloudFallback: accountRules.allowCloudFallback,
   });
 
   if (
@@ -208,7 +218,14 @@ async function processMessage(
         where: { accountId: account.id, messageId },
         data: { emailCategory: "IRRELEVANT" },
       });
-    } else if (matchesJobEmailKeywords(subject, body)) {
+    } else if (
+      shouldClassifyEmail({
+        subject,
+        body,
+        snippet: message.data.snippet,
+        fromEmail: sender?.email ?? null,
+      })
+    ) {
       const emailDate = message.data.internalDate
         ? new Date(Number(message.data.internalDate))
         : new Date();

@@ -244,6 +244,7 @@ export type ParseResumeOptions = {
   llmProvider?: LlmProvider;
   localOllamaUrl?: string | null;
   ollamaModel?: string | null;
+  allowCloudFallback?: boolean;
 };
 
 /**
@@ -264,6 +265,7 @@ export async function parseResumeToStructuredProfile(
     llmProvider: options.llmProvider ?? "OPENROUTER",
     localOllamaUrl: options.localOllamaUrl,
     ollamaModel: options.ollamaModel,
+    allowCloudFallback: options.allowCloudFallback,
   });
 
   if (!json) {

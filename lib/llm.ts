@@ -8,12 +8,25 @@ import {
   buildClassifierUserPrompt,
   buildProfileAwareClassifierSystemPrompt,
   cleanOpportunityDescription,
+  clampScore,
   detectAlreadyApplied,
   ensureCandidateProfileForScoring,
   heuristicMatchScore,
   parseSalaryMax,
+  normalizeSalaryDisplay,
+  seniorityMismatchPenalty,
   type CandidateProfileSummary,
 } from "@/lib/ai/classifier";
+import {
+  APPLICATION_SENT_TO_RE,
+  DIGEST_SENDER_HINTS,
+  JOB_EMAIL_KEYWORD_PATTERNS,
+  looksLikeDigest,
+  matchesJobEmailKeywords,
+  matchesJobSubjectKeywords,
+  shouldClassifyEmail,
+} from "@/lib/ai/prefilter";
+import { getCachedOrSynthesizePersona } from "@/lib/ai/persona";
 import { cleanEmailPayload } from "@/lib/email/cleaner";
 import {
   genericRoleTitle,
@@ -23,24 +36,65 @@ import {
 import { prisma } from "@/lib/prisma";
 import { parseAccountRules } from "@/lib/validations/rules";
 
+export {
+  JOB_EMAIL_KEYWORD_PATTERNS,
+  matchesJobEmailKeywords,
+  matchesJobSubjectKeywords,
+  shouldClassifyEmail,
+  looksLikeDigest,
+};
+
 export const extractedJobSchema = z.object({
-  company: z.string().min(1),
-  companyDomain: z.string().nullable().optional(),
-  title: z.string().min(1),
-  location: z.string().nullable().optional(),
-  salary: z.string().nullable().optional(),
+  company: z.preprocess(
+    (v) => (v == null ? "" : v),
+    z.string().min(1)
+  ),
+  companyDomain: z.preprocess(
+    (v) => (v == null ? null : v),
+    z.string().nullable().optional()
+  ),
+  title: z.preprocess(
+    (v) => (v == null ? "" : v),
+    z.string().min(1)
+  ),
+  location: z.preprocess(
+    (v) => (v == null ? null : v),
+    z.string().nullable().optional()
+  ),
+  salary: z.preprocess(
+    (v) => (v == null ? null : v),
+    z.string().nullable().optional()
+  ),
   salaryMax: z.coerce.number().nullable().optional(),
-  postedAt: z.string().nullable().optional(),
-  description: z.string().nullable().optional(),
-  applyUrl: z.string().nullable().optional(),
+  postedAt: z.preprocess(
+    (v) => (v == null ? null : v),
+    z.string().nullable().optional()
+  ),
+  description: z.preprocess(
+    (v) => (v == null ? null : v),
+    z.string().nullable().optional()
+  ),
+  applyUrl: z.preprocess(
+    (v) => (v == null ? null : v),
+    z.string().nullable().optional()
+  ),
   applicationType: z
     .enum(["DIRECT_EMAIL", "EXTERNAL_LINK", "QUICK_APPLY"])
     .optional(),
-  recipientEmail: z.string().nullable().optional(),
-  recipientName: z.string().nullable().optional(),
+  recipientEmail: z.preprocess(
+    (v) => (v == null ? null : v),
+    z.string().nullable().optional()
+  ),
+  recipientName: z.preprocess(
+    (v) => (v == null ? null : v),
+    z.string().nullable().optional()
+  ),
   isAlreadyApplied: z.boolean().optional().default(false),
   matchScore: z.coerce.number().min(0).max(100).optional(),
-  matchReason: z.string().nullable().optional(),
+  matchReason: z.preprocess(
+    (v) => (v == null ? null : v),
+    z.string().nullable().optional()
+  ),
 });
 
 export type ExtractedJob = z.infer<typeof extractedJobSchema>;
@@ -90,6 +144,8 @@ export type ClassifyOptions = {
   fromEmail?: string | null;
   /** When provided, scoring is profile-aware. */
   candidateProfile?: CandidateProfileSummary | null;
+  /** Account rule: allow OpenRouter when local Ollama fails. */
+  allowCloudFallback?: boolean;
 };
 
 const DEFAULT_OLLAMA_MODEL = "llama3.1:8b";
@@ -110,56 +166,6 @@ export function normalizeOllamaBaseUrl(raw: string): string {
   return base || "http://127.0.0.1:11434";
 }
 
-export const JOB_EMAIL_KEYWORD_PATTERNS: RegExp[] = [
-  // 1. Core Job & Opportunity Nouns / Stems (handles plurals)
-  /\b(job|jobs|career|careers|role|roles|position|positions|opening|openings)\b/i,
-  /opportunit/i, // Stems "opportunity", "opportunities", "opportunistic"
-
-  // 2. Hiring & Direct Sourcing Hooks
-  /\b(we'?re hiring|we are hiring|now hiring|join (our|the) team)\b/i,
-  /\b(saw your|came across your|found your|viewed your)\s+(profile|github|portfolio|work|experience|linkedin)\b/i,
-  /\b(open to|interested in)\s+(a new|new|exploring)?\s*(role|roles|opportunit|chat|discussing|position)/i,
-  /\b(talent acquisition|technical recruiter|sourcer|headhunter|executive search)\b/i,
-  /\b(intro|exploratory|quick)\s+(call|chat|screen|conversation)\b/i,
-
-  // 3. Application Lifecycle & ATS Statuses
-  /\b(application|applied|applicant|candidacy|candidate)\b/i,
-  /\b(thank you for|thanks for)\s+(applying|your application|your interest)\b/i,
-  /\b(application\s+(received|submitted|sent|confirmed|status|update))\b/i,
-  /\b(interview|interviewing|phone screen|tech screen|onsite|hiring manager)\b/i,
-  /\b(next steps|moving forward|status update)\b/i,
-  /\b(offer letter|job offer|offer of employment)\b/i,
-  /\b(regret to inform|other candidates|not moving forward)\b/i,
-
-  // 4. Online Assessments (OAs) & Screening Platforms
-  /\b(hackerrank|codesignal|coderpad|karat|byteboard|codility|take-home|online assessment)\b/i,
-
-  // 5. ATS Providers & Job Boards / Portals
-  /\b(greenhouse|lever\.co|ashbyhq|workday|myworkdayjobs|smartrecruiters|icims|jobvite|bamboohr|rippling|pinpointhq|workable|breezy\.hr)\b/i,
-  /\b(linkedin|indeed|glassdoor|dice\.com|ziprecruiter|wellfound|angel\.co|joinhandshake|handshake)\b/i,
-];
-
-const DIGEST_SENDER_HINTS = [
-  "glassdoor",
-  "indeed",
-  "linkedin",
-  "jobs@",
-  "noreply@",
-  "no-reply@",
-  "jobalert",
-  "alerts@",
-  "greenhouse",
-  "lever.co",
-  "workday",
-  "ashbyhq",
-  "smartrecruiters",
-  "icims",
-] as const;
-
-/** LinkedIn / ATS confirmation: "your application was sent to Acme". */
-const APPLICATION_SENT_TO_RE =
-  /(?:your\s+)?application\s+(?:was\s+|has\s+been\s+)?sent\s+to\s+(.+?)(?:\s*[-–|·]|$)/i;
-
 const DEFAULT_OPENROUTER_MODELS = [
   process.env.OPENROUTER_MODEL,
   "qwen/qwen3.8-27b:free",
@@ -172,36 +178,6 @@ const DEFAULT_OPENROUTER_MODELS = [
   "google/gemini-2.5-flash",
   "openai/gpt-4o-mini",
 ].filter(Boolean) as string[];
-
-/**
- * Pre-filter: subject first, then optional snippet/body (first 1000 chars).
- */
-export function matchesJobEmailKeywords(
-  subject: string,
-  snippetOrBody?: string | null
-): boolean {
-  if (JOB_EMAIL_KEYWORD_PATTERNS.some((re) => re.test(subject))) {
-    return true;
-  }
-  if (
-    snippetOrBody &&
-    JOB_EMAIL_KEYWORD_PATTERNS.some((re) =>
-      re.test(snippetOrBody.slice(0, 1000))
-    )
-  ) {
-    return true;
-  }
-  return false;
-}
-
-/** Backward-compatible alias for callers still using the old name. */
-export const matchesJobSubjectKeywords = (text: string) =>
-  matchesJobEmailKeywords(text);
-
-function looksLikeDigest(subject: string, fromEmail?: string | null): boolean {
-  const hay = `${subject} ${fromEmail ?? ""}`.toLowerCase();
-  return DIGEST_SENDER_HINTS.some((hint) => hay.includes(hint));
-}
 
 /**
  * Deterministic APPLICATION_STATUS classification when LLM is unavailable
@@ -282,14 +258,9 @@ export function heuristicApplicationConfirmation(input: {
   };
 }
 
-function clampScore(value: number | null | undefined): number {
-  if (typeof value !== "number" || Number.isNaN(value)) return 0;
-  return Math.max(0, Math.min(100, Math.round(value)));
-}
-
 /**
- * Loads a compact candidate summary from the account's UserProfile (resume data)
- * plus excluded title patterns from AccountSettings.rules.
+ * Loads a compact candidate summary from the account's UserProfile (resume data),
+ * cached persona columns, and excluded title patterns from AccountSettings.rules.
  */
 export async function loadCandidateProfileSummary(
   accountId: string
@@ -321,6 +292,7 @@ export async function loadCandidateProfileSummary(
       experienceSummary: "Not specified",
       targetTitles: [],
       excludedTitles,
+      persona: null,
     };
   }
 
@@ -366,12 +338,65 @@ export async function loadCandidateProfileSummary(
     );
   }
 
+  // Prefer DB-cached persona; synthesize + write-back on miss.
+  const persona = await getCachedOrSynthesizePersona(
+    {
+      accountId: profile.accountId,
+      fullName: profile.fullName,
+      email: profile.email,
+      phone: profile.phone,
+      location: profile.location,
+      summary: profile.summary,
+      links: [],
+      skills: {
+        languages: skillsJson.languages ?? [],
+        frameworks: skillsJson.frameworks ?? [],
+        tools: skillsJson.tools ?? [],
+        concepts: skillsJson.concepts ?? [],
+      },
+      experiences: profile.experiences.map((e) => ({
+        id: e.id,
+        company: e.company,
+        role: e.role,
+        location: e.location,
+        startDate: e.startDate,
+        endDate: e.endDate,
+        bullets: [],
+        displayOrder: e.displayOrder,
+      })),
+      projects: profile.projects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        technologies: p.technologies,
+        link: p.link,
+        bullets: p.bullets,
+      })),
+      education: profile.education.map((ed) => ({
+        id: ed.id,
+        institution: ed.institution,
+        degree: ed.degree,
+        fieldOfStudy: ed.fieldOfStudy,
+        graduationDate: ed.graduationDate,
+      })),
+      seniorityTier: profile.seniorityTier,
+      timelineContext: profile.timelineContext,
+      toneGuidance: profile.toneGuidance,
+    },
+    prisma
+  );
+
   return {
     educationSummary,
     skills: [...skills, ...projectTitles].slice(0, 50),
     experienceSummary,
     targetTitles,
     excludedTitles,
+    persona: {
+      seniorityTier: persona.seniorityTier,
+      timelineContext: persona.timelineContext,
+      toneGuidance: persona.toneGuidance,
+    },
   };
 }
 
@@ -545,12 +570,29 @@ export function normalizeClassification(
             ? "Position aligns with candidate profile criteria and preferences."
             : "Limited overlap with candidate profile criteria.";
       }
+    } else {
+      // Soft-enforce persona seniority mismatch when the model over-scores.
+      const penalty = seniorityMismatchPenalty(
+        job.title,
+        context.candidateProfile?.persona?.seniorityTier
+      );
+      if (penalty >= 40 && matchScore >= 50) {
+        matchScore = Math.min(matchScore, 34);
+        if (!/seniority|staff|principal|tenure|years/i.test(matchReason)) {
+          matchReason = `${matchReason} Seniority mismatch vs candidate persona.`.trim();
+        }
+      } else if (penalty >= 20 && matchScore >= 70) {
+        matchScore = Math.min(matchScore, 58);
+      }
     }
 
+    const salary = normalizeSalaryDisplay(job.salary);
+    // Prefer raw string for salaryMax so "per hour" / hourly cues aren't lost
+    // after display cleanup strips pay-period chrome.
     const salaryMax =
       typeof job.salaryMax === "number" && !Number.isNaN(job.salaryMax)
         ? job.salaryMax
-        : parseSalaryMax(job.salary);
+        : parseSalaryMax(job.salary) ?? parseSalaryMax(salary);
 
     const rawDescription = job.description ?? null;
     const description = cleanOpportunityDescription(rawDescription);
@@ -562,6 +604,7 @@ export function normalizeClassification(
     return {
       ...job,
       companyDomain,
+      salary,
       salaryMax,
       postedAt: job.postedAt ?? null,
       description,
@@ -668,22 +711,56 @@ export function coerceClassificationPayload(
   }
 
   if (Array.isArray(next.jobs)) {
-    next.jobs = (next.jobs as Record<string, unknown>[]).map((j) => {
-      if (j && typeof j === "object") {
-        const jobObj = { ...j };
+    next.jobs = (next.jobs as unknown[])
+      .map((j) => {
+        if (!j || typeof j !== "object" || Array.isArray(j)) return null;
+        const jobObj = { ...(j as Record<string, unknown>) };
+        // Local LLMs emit null for optional job strings — coerce before Zod.
+        for (const key of [
+          "company",
+          "title",
+          "location",
+          "companyDomain",
+          "salary",
+          "postedAt",
+          "description",
+          "url",
+          "applyUrl",
+          "recipientEmail",
+          "recipientName",
+          "matchReason",
+        ] as const) {
+          if (jobObj[key] === null || jobObj[key] === undefined) {
+            if (key === "company" || key === "title") {
+              jobObj[key] = "";
+            } else {
+              jobObj[key] = null;
+            }
+          }
+        }
         if (typeof jobObj.isAlreadyApplied === "string") {
           jobObj.isAlreadyApplied =
             (jobObj.isAlreadyApplied as string).trim().toLowerCase() === "true";
         }
         return jobObj;
-      }
-      return j;
-    });
+      })
+      .filter((j): j is Record<string, unknown> => {
+        if (!j) return false;
+        const company =
+          typeof j.company === "string" ? j.company.trim() : "";
+        const title = typeof j.title === "string" ? j.title.trim() : "";
+        return company.length > 0 && title.length > 0;
+      });
   }
 
   const jobs = Array.isArray(next.jobs) ? next.jobs : [];
   if (jobs.length > 0 && next.is_job_related === undefined) {
     next.is_job_related = true;
+  }
+
+  // Non-job digests/newsletters must not carry partial job stubs that blow Zod.
+  if (next.is_job_related === false) {
+    next.jobs = [];
   }
 
   return next;
@@ -695,15 +772,20 @@ export function coerceClassificationPayload(
 export async function classifyJobEmail(
   options: ClassifyOptions
 ): Promise<JobClassification | null> {
-  const passesPreFilter = matchesJobEmailKeywords(options.subject, options.body);
-  const knownJobSender = looksLikeDigest(options.subject, options.fromEmail);
   const appliedHeuristic = heuristicApplicationConfirmation({
     subject: options.subject,
     body: options.body,
     fromEmail: options.fromEmail,
   });
 
-  if (!passesPreFilter && !knownJobSender && !appliedHeuristic) {
+  if (
+    !shouldClassifyEmail({
+      subject: options.subject,
+      body: options.body,
+      fromEmail: options.fromEmail,
+    }) &&
+    !appliedHeuristic
+  ) {
     return null;
   }
 
@@ -722,13 +804,27 @@ export async function classifyJobEmail(
     fromEmail: options.fromEmail,
   });
 
-  const result = await callLLMWithFallback({
-    systemPrompt,
-    userPrompt,
-    llmProvider: options.llmProvider,
-    localOllamaUrl: options.localOllamaUrl,
-    ollamaModel: options.ollamaModel,
-  });
+  let result: Record<string, unknown> | null;
+  try {
+    result = await callLLMWithFallback({
+      systemPrompt,
+      userPrompt,
+      llmProvider: options.llmProvider,
+      localOllamaUrl: options.localOllamaUrl,
+      ollamaModel: options.ollamaModel,
+      allowCloudFallback: options.allowCloudFallback,
+    });
+  } catch (error) {
+    // Sync/scan paths must not crash the request — park as PENDING_AI via null.
+    if (error instanceof OllamaUnreachableError) {
+      console.error(
+        `[classify] ${error.message} — skipping LLM classification for this message`
+      );
+      return null;
+    }
+    console.error("[classify] Unexpected LLM failure", error);
+    return null;
+  }
 
   if (!result) {
     return null;
@@ -762,10 +858,66 @@ export type CallLLMOptions = {
   llmProvider?: LlmProvider;
   localOllamaUrl?: string | null;
   ollamaModel?: string | null;
+  /**
+   * When true (or env OLLAMA_ALLOW_OPENROUTER_FALLBACK=true), LOCAL_OLLAMA may
+   * fall back to OpenRouter after local failure. Default: no silent fallback.
+   * Prefer account rule `allowCloudFallback`.
+   */
+  allowCloudFallback?: boolean;
+  /** @deprecated Use allowCloudFallback */
+  allowOpenRouterFallback?: boolean;
 };
 
+/** Thrown when LOCAL_OLLAMA is selected but the instance cannot be reached. */
+export class OllamaUnreachableError extends Error {
+  readonly url: string;
+
+  constructor(url: string, detail?: string) {
+    const suffix = detail?.trim() ? `: ${detail.trim()}` : "";
+    super(`Local Ollama instance unreachable at ${url}${suffix}`);
+    this.name = "OllamaUnreachableError";
+    this.url = url;
+  }
+}
+
+function isOpenRouterFallbackEnabled(options: CallLLMOptions): boolean {
+  if (options.allowCloudFallback === true) return true;
+  if (options.allowOpenRouterFallback === true) return true;
+  const env = process.env.OLLAMA_ALLOW_OPENROUTER_FALLBACK?.trim().toLowerCase();
+  return env === "1" || env === "true" || env === "yes";
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function resolveOllamaBaseUrl(configured?: string | null): string {
+  const isDev = process.env.NODE_ENV === "development";
+  if (isDev) return "http://127.0.0.1:11434";
+  return normalizeOllamaBaseUrl(
+    configured?.trim() || "http://127.0.0.1:11434"
+  );
+}
+
+/** Adaptive idle / hard-cap timeouts from prompt payload size. */
+function computeOllamaTimeouts(payloadChars: number): {
+  idleTimeoutMs: number;
+  hardCapMs: number;
+} {
+  const idleTimeoutMs = Math.min(
+    180_000,
+    Math.max(45_000, 30_000 + Math.ceil(payloadChars / 40) * 800)
+  );
+  const hardCapMs = Math.min(
+    600_000,
+    Math.max(120_000, idleTimeoutMs * 2 + Math.ceil(payloadChars / 25) * 1000)
+  );
+  return { idleTimeoutMs, hardCapMs };
+}
+
 /**
- * Shared LLM dispatcher with local Ollama preference and OpenRouter fallback chain.
+ * Shared LLM dispatcher. LOCAL_OLLAMA never silently falls back to OpenRouter
+ * unless allowCloudFallback / OLLAMA_ALLOW_OPENROUTER_FALLBACK is set.
  */
 export async function callLLMWithFallback(
   options: CallLLMOptions
@@ -773,87 +925,314 @@ export async function callLLMWithFallback(
   const provider = options.llmProvider ?? "OPENROUTER";
 
   if (provider === "LOCAL_OLLAMA") {
+    const baseUrl = resolveOllamaBaseUrl(options.localOllamaUrl);
     try {
       const result = await callOllamaJson(
-        options.localOllamaUrl ?? "http://localhost:11434",
+        baseUrl,
         options.systemPrompt,
         options.userPrompt,
         options.ollamaModel
       );
       if (result) {
+        console.info("[Ollama:Done]", {
+          url: baseUrl,
+          status: "success",
+        });
         return result;
       }
+      console.error("[Ollama:Error]", {
+        url: baseUrl,
+        reason: "empty_or_invalid_json_after_retry",
+        fallback: isOpenRouterFallbackEnabled(options)
+          ? "openrouter"
+          : "none",
+      });
+      if (!isOpenRouterFallbackEnabled(options)) {
+        return null;
+      }
+      console.info("[Ollama:Active]", {
+        note: "allowCloudFallback enabled — trying OpenRouter",
+      });
     } catch (error) {
-      console.warn("Local Ollama failed; falling back to OpenRouter", error);
+      if (error instanceof OllamaUnreachableError) {
+        console.error("[Ollama:Error]", {
+          url: error.url,
+          reason: "unreachable",
+          message: error.message,
+          fallback: isOpenRouterFallbackEnabled(options)
+            ? "openrouter"
+            : "none",
+        });
+        if (!isOpenRouterFallbackEnabled(options)) {
+          throw error;
+        }
+        console.info("[Ollama:Active]", {
+          note: "allowCloudFallback enabled despite unreachable local — trying OpenRouter",
+        });
+      } else {
+        console.error("[Ollama:Error]", {
+          url: baseUrl,
+          reason: "generation_failed",
+          message: error instanceof Error ? error.message : String(error),
+          fallback: isOpenRouterFallbackEnabled(options)
+            ? "openrouter"
+            : "none",
+        });
+        if (!isOpenRouterFallbackEnabled(options)) {
+          return null;
+        }
+        console.info("[Ollama:Active]", {
+          note: "allowCloudFallback enabled — trying OpenRouter",
+        });
+      }
     }
   }
 
   return callOpenRouterJson(options.systemPrompt, options.userPrompt);
 }
 
+/**
+ * Health-check once, then generate with a single brief retry for blips / bad JSON.
+ */
 async function callOllamaJson(
   baseUrl: string,
   systemPrompt: string,
   userPrompt: string,
   model?: string | null
 ): Promise<Record<string, unknown> | null> {
-  const isDev = process.env.NODE_ENV === "development";
-  // In dev, bypass external Cloudflare tunnel hairpinning and connect directly
-  const cleanBaseUrl = isDev
-    ? "http://127.0.0.1:11434"
-    : normalizeOllamaBaseUrl(baseUrl);
   const resolvedModel =
     model?.trim() || process.env.OLLAMA_MODEL?.trim() || DEFAULT_OLLAMA_MODEL;
+  const payloadChars = systemPrompt.length + userPrompt.length;
+  const timeouts = computeOllamaTimeouts(payloadChars);
 
-  // 1. Fast 5s health check — fail open to OpenRouter/PENDING_AI if tunnel is dead
   try {
-    const pingRes = await fetch(`${cleanBaseUrl}/api/tags`, {
+    const pingRes = await fetch(`${baseUrl}/api/tags`, {
       method: "GET",
       signal: AbortSignal.timeout(5000),
     });
     if (!pingRes.ok) {
-      throw new Error(`Ollama health check failed with status ${pingRes.status}`);
+      throw new OllamaUnreachableError(
+        baseUrl,
+        `health check HTTP ${pingRes.status}`
+      );
     }
   } catch (pingErr) {
-    throw new Error(
-      `Ollama tunnel offline or unreachable: ${(pingErr as Error).message}`
-    );
+    if (pingErr instanceof OllamaUnreachableError) throw pingErr;
+    const detail =
+      pingErr instanceof Error ? pingErr.message : String(pingErr);
+    throw new OllamaUnreachableError(baseUrl, detail);
   }
 
-  // 2. Full inference with an 80s window for local CPU/GPU JSON generation
-  const url = `${cleanBaseUrl}/api/chat`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(80000),
-    body: JSON.stringify({
-      model: resolvedModel,
-      stream: false,
-      format: "json",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    }),
+  console.info("[Ollama:Active]", {
+    phase: "health_ok",
+    url: baseUrl,
+    model: resolvedModel,
+    payloadChars,
+    idleTimeoutMs: timeouts.idleTimeoutMs,
+    hardCapMs: timeouts.hardCapMs,
   });
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error(
-      `Ollama HTTP ${response.status} (${resolvedModel} @ ${url}):`,
-      errorBody
-    );
-    throw new Error(`Ollama HTTP ${response.status}`);
+  const maxAttempts = 2;
+  let lastFailure: string | null = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const startedAt = Date.now();
+    try {
+      console.info("[Ollama:Active]", {
+        phase: "generate_start",
+        attempt,
+        maxAttempts,
+        url: baseUrl,
+        model: resolvedModel,
+        payloadChars,
+        startedAt: new Date(startedAt).toISOString(),
+      });
+
+      const result = await callOllamaGenerateOnce(
+        baseUrl,
+        resolvedModel,
+        systemPrompt,
+        userPrompt,
+        timeouts
+      );
+      const durationMs = Date.now() - startedAt;
+      if (result) {
+        console.info("[Ollama:Done]", {
+          phase: "generate_success",
+          attempt,
+          url: baseUrl,
+          model: resolvedModel,
+          durationMs,
+          payloadChars,
+        });
+        return result;
+      }
+      lastFailure = "empty or invalid JSON content";
+      console.error("[Ollama:Error]", {
+        phase: "generate_empty_json",
+        attempt,
+        durationMs,
+        lastFailure,
+      });
+    } catch (error) {
+      if (error instanceof OllamaUnreachableError) throw error;
+      lastFailure = error instanceof Error ? error.message : String(error);
+      console.error("[Ollama:Error]", {
+        phase: "generate_attempt_failed",
+        attempt,
+        durationMs: Date.now() - startedAt,
+        message: lastFailure,
+      });
+    }
+
+    if (attempt < maxAttempts) {
+      await sleep(500);
+    }
   }
 
-  const json = (await response.json()) as {
-    message?: { content?: string };
-    response?: string;
-  };
-  const content = json.message?.content ?? json.response;
-  if (!content) return null;
+  console.error("[Ollama:Error]", {
+    phase: "give_up",
+    url: baseUrl,
+    model: resolvedModel,
+    attempts: maxAttempts,
+    lastFailure,
+  });
+  return null;
+}
 
-  return parseJsonObject(content);
+async function callOllamaGenerateOnce(
+  baseUrl: string,
+  resolvedModel: string,
+  systemPrompt: string,
+  userPrompt: string,
+  timeouts: { idleTimeoutMs: number; hardCapMs: number }
+): Promise<Record<string, unknown> | null> {
+  const url = `${baseUrl}/api/chat`;
+  const controller = new AbortController();
+  const hardCapTimer = setTimeout(() => {
+    controller.abort();
+  }, timeouts.hardCapMs);
+
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  const resetIdle = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      controller.abort();
+    }, timeouts.idleTimeoutMs);
+  };
+
+  try {
+    resetIdle();
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: resolvedModel,
+        stream: true,
+        format: "json",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => "");
+      console.error("[Ollama:Error]", {
+        phase: "http_error",
+        status: response.status,
+        model: resolvedModel,
+        url,
+        body: errorBody.slice(0, 300),
+      });
+      throw new Error(`Ollama HTTP ${response.status}`);
+    }
+
+    if (!response.body) {
+      throw new Error("Ollama response missing body stream");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let content = "";
+    let chunkCount = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      resetIdle();
+      chunkCount += 1;
+      buffer += decoder.decode(value, { stream: true });
+
+      let newlineIdx = buffer.indexOf("\n");
+      while (newlineIdx >= 0) {
+        const line = buffer.slice(0, newlineIdx).trim();
+        buffer = buffer.slice(newlineIdx + 1);
+        newlineIdx = buffer.indexOf("\n");
+        if (!line) continue;
+
+        try {
+          const event = JSON.parse(line) as {
+            message?: { content?: string };
+            response?: string;
+            done?: boolean;
+            error?: string;
+          };
+          if (event.error) {
+            throw new Error(event.error);
+          }
+          const piece = event.message?.content ?? event.response ?? "";
+          if (piece) content += piece;
+        } catch (parseErr) {
+          if (parseErr instanceof SyntaxError) continue;
+          throw parseErr;
+        }
+      }
+    }
+
+    const trailing = buffer.trim();
+    if (trailing) {
+      try {
+        const event = JSON.parse(trailing) as {
+          message?: { content?: string };
+          response?: string;
+        };
+        const piece = event.message?.content ?? event.response ?? "";
+        if (piece) content += piece;
+      } catch {
+        // ignore
+      }
+    }
+
+    console.info("[Ollama:Active]", {
+      phase: "stream_complete",
+      chunks: chunkCount,
+      contentChars: content.length,
+      model: resolvedModel,
+    });
+
+    if (!content.trim()) {
+      return null;
+    }
+
+    return parseJsonObject(content);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (
+      /fetch failed|ECONNREFUSED|ENOTFOUND|timeout|AbortError|aborted/i.test(
+        detail
+      )
+    ) {
+      throw new OllamaUnreachableError(baseUrl, detail);
+    }
+    throw error;
+  } finally {
+    clearTimeout(hardCapTimer);
+    if (idleTimer) clearTimeout(idleTimer);
+  }
 }
 
 async function callOpenRouterJson(

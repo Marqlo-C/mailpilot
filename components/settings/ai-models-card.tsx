@@ -16,6 +16,7 @@ import {
   updateBridgeSecret,
   updateLlmProvider,
   updateOllamaUrl,
+  updateRule,
 } from "@/app/actions/settings";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +41,7 @@ type AiModelsCardProps = {
   bridgeSecret: string;
   availableModels?: string[];
   bridgeConnected?: boolean;
+  allowCloudFallback?: boolean;
 };
 
 type ConnectionStatus =
@@ -139,10 +141,14 @@ export function AiModelsCard({
   bridgeSecret: initialBridgeSecret,
   availableModels: initialModels = [],
   bridgeConnected: initialConnected = false,
+  allowCloudFallback: initialAllowCloudFallback = false,
 }: AiModelsCardProps) {
   const router = useRouter();
   const [url, setUrl] = useState(localOllamaUrl);
   const [selectedModel, setSelectedModel] = useState(ollamaModel);
+  const [allowCloudFallback, setAllowCloudFallback] = useState(
+    initialAllowCloudFallback
+  );
   const [models, setModels] = useState<string[]>(
     initialModels.length > 0
       ? initialModels
@@ -172,6 +178,10 @@ export function AiModelsCard({
   useEffect(() => {
     setBridgeSecret(initialBridgeSecret);
   }, [initialBridgeSecret]);
+
+  useEffect(() => {
+    setAllowCloudFallback(initialAllowCloudFallback);
+  }, [initialAllowCloudFallback]);
 
   useEffect(() => {
     setUrl(localOllamaUrl);
@@ -754,6 +764,44 @@ export function AiModelsCard({
                 </div>
               </TabsContent>
             </Tabs>
+
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-border/80 bg-background px-4 py-3.5">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium tracking-tight">
+                  Allow cloud fallback (OpenRouter) when Local Ollama fails
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Off by default — local failures stay local and do not silently
+                  route to OpenRouter.
+                </p>
+              </div>
+              <Switch
+                checked={allowCloudFallback}
+                disabled={disabled}
+                onCheckedChange={(checked) => {
+                  if (!accountId) return;
+                  setAllowCloudFallback(checked);
+                  startTransition(async () => {
+                    const result = await updateRule(
+                      accountId,
+                      "allowCloudFallback",
+                      checked
+                    );
+                    if (!result.ok) {
+                      setAllowCloudFallback(!checked);
+                      toast.error(result.error);
+                      return;
+                    }
+                    toast.success(
+                      checked
+                        ? "Cloud fallback enabled"
+                        : "Cloud fallback disabled"
+                    );
+                    router.refresh();
+                  });
+                }}
+              />
+            </div>
 
             {/* Status — outside tabs */}
             <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-background p-4 sm:flex-row sm:items-center sm:justify-between">

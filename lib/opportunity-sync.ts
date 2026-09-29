@@ -12,8 +12,8 @@ import {
   classifyEmail,
   extractMessageBody,
   loadCandidateProfileSummary,
-  matchesJobEmailKeywords,
   sanitizeEmailBody,
+  shouldClassifyEmail,
   type LlmProvider,
 } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
@@ -276,6 +276,7 @@ export async function runOpportunitySync(
               body: cleanedText,
               fromEmail: sender?.email ?? null,
               candidateProfile,
+              allowCloudFallback: rules.allowCloudFallback,
             });
 
             if (
@@ -289,7 +290,13 @@ export async function runOpportunitySync(
                   where: { accountId, messageId },
                   data: { emailCategory: "IRRELEVANT" },
                 });
-              } else if (matchesJobEmailKeywords(subject, cleanedText)) {
+              } else if (
+                shouldClassifyEmail({
+                  subject,
+                  body: cleanedText,
+                  fromEmail: sender?.email ?? null,
+                })
+              ) {
                 // LLM was offline or failed -> park as PENDING_AI
                 const threadId = message.data.threadId ?? messageId;
                 const emailDate = message.data.internalDate

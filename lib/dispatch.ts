@@ -108,7 +108,10 @@ export async function dispatchApplicationEmail(
   applicationId: string,
   options: DispatchOptions = {}
 ): Promise<{ mode: "draft" | "sent"; gmailDraftId?: string | null }> {
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { settings: true },
+  });
   if (!account || !account.isActive) {
     throw new Error("Account not found or inactive");
   }
@@ -160,6 +163,10 @@ export async function dispatchApplicationEmail(
         jobText: application.actionSummary ?? undefined,
         companyName: application.companyName,
         roleTitle: application.roleTitle,
+        llmProvider: normalizeProvider(account.settings?.llmProvider),
+        localOllamaUrl: account.settings?.localOllamaUrl,
+        ollamaModel: account.settings?.ollamaModel,
+        allowCloudFallback: parseAccountRules(account.settings?.rules).allowCloudFallback,
       });
 
   const pdf = await generateTailoredResumePdf(
@@ -310,6 +317,7 @@ export async function prepareApplicationDraft(
       provider: normalizeProvider(account.settings?.llmProvider),
       localOllamaUrl: account.settings?.localOllamaUrl,
       ollamaModel: account.settings?.ollamaModel,
+      allowCloudFallback: parseAccountRules(account.settings?.rules).allowCloudFallback,
     },
   });
 
@@ -397,6 +405,7 @@ export async function refineApplicationDraft(
       provider: normalizeProvider(account.settings?.llmProvider),
       localOllamaUrl: account.settings?.localOllamaUrl,
       ollamaModel: account.settings?.ollamaModel,
+      allowCloudFallback: parseAccountRules(account.settings?.rules).allowCloudFallback,
     },
   });
 
