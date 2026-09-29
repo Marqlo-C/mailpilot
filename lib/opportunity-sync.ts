@@ -12,7 +12,7 @@ import {
   classifyEmail,
   extractMessageBody,
   loadCandidateProfileSummary,
-  matchesJobSubjectKeywords,
+  matchesJobEmailKeywords,
   sanitizeEmailBody,
   type LlmProvider,
 } from "@/lib/llm";
@@ -266,7 +266,10 @@ export async function runOpportunitySync(
               !classification.is_job_related ||
               classification.email_category === "IRRELEVANT"
             ) {
-              if (!classification && matchesJobSubjectKeywords(subject)) {
+              if (
+                !classification &&
+                matchesJobEmailKeywords(subject, cleanedText)
+              ) {
                 const threadId = message.data.threadId ?? messageId;
                 const emailDate = message.data.internalDate
                   ? new Date(Number(message.data.internalDate))

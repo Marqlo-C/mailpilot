@@ -106,35 +106,34 @@ export function normalizeOllamaBaseUrl(raw: string): string {
   return base || "http://localhost:11434";
 }
 
-const SUBJECT_KEYWORDS = [
-  "application",
-  "applied",
-  "application was sent",
-  "thank you for applying",
-  "thank you for your application",
-  "interview",
-  "thank you for your interest",
-  "status",
-  "assessment",
-  //"hackerrank",
-  //"coderpad",
-  "next steps",
-  "job alert",
-  "jobs for you",
-  "new jobs",
-  "recommended jobs",
-  "glassdoor",
-  "indeed",
-  "linkedin",
-  "hiring",
-  "opportunity",
-  "open role",
-  "we're hiring",
-  "we are hiring",
-  //"engineer",
-  //"developer",
-  //"software",
-] as const;
+export const JOB_EMAIL_KEYWORD_PATTERNS: RegExp[] = [
+  // 1. Core Job & Opportunity Nouns / Stems (handles plurals)
+  /\b(job|jobs|career|careers|role|roles|position|positions|opening|openings)\b/i,
+  /opportunit/i, // Stems "opportunity", "opportunities", "opportunistic"
+
+  // 2. Hiring & Direct Sourcing Hooks
+  /\b(we'?re hiring|we are hiring|now hiring|join (our|the) team)\b/i,
+  /\b(saw your|came across your|found your|viewed your)\s+(profile|github|portfolio|work|experience|linkedin)\b/i,
+  /\b(open to|interested in)\s+(a new|new|exploring)?\s*(role|roles|opportunit|chat|discussing|position)/i,
+  /\b(talent acquisition|technical recruiter|sourcer|headhunter|executive search)\b/i,
+  /\b(intro|exploratory|quick)\s+(call|chat|screen|conversation)\b/i,
+
+  // 3. Application Lifecycle & ATS Statuses
+  /\b(application|applied|applicant|candidacy|candidate)\b/i,
+  /\b(thank you for|thanks for)\s+(applying|your application|your interest)\b/i,
+  /\b(application\s+(received|submitted|sent|confirmed|status|update))\b/i,
+  /\b(interview|interviewing|phone screen|tech screen|onsite|hiring manager)\b/i,
+  /\b(next steps|moving forward|status update)\b/i,
+  /\b(offer letter|job offer|offer of employment)\b/i,
+  /\b(regret to inform|other candidates|not moving forward)\b/i,
+
+  // 4. Online Assessments (OAs) & Screening Platforms
+  /\b(hackerrank|codesignal|coderpad|karat|byteboard|codility|take-home|online assessment)\b/i,
+
+  // 5. ATS Providers & Job Boards / Portals
+  /\b(greenhouse|lever\.co|ashbyhq|workday|myworkdayjobs|smartrecruiters|icims|jobvite|bamboohr|rippling|pinpointhq|workable|breezy\.hr)\b/i,
+  /\b(linkedin|indeed|glassdoor|dice\.com|ziprecruiter|wellfound|angel\.co|joinhandshake|handshake)\b/i,
+];
 
 const DIGEST_SENDER_HINTS = [
   "glassdoor",
@@ -171,12 +170,29 @@ const DEFAULT_OPENROUTER_MODELS = [
 ].filter(Boolean) as string[];
 
 /**
- * Returns true when the subject matches job-triage pre-filter keywords.
+ * Pre-filter: subject first, then optional snippet/body (first 1000 chars).
  */
-export function matchesJobSubjectKeywords(subject: string): boolean {
-  const lower = subject.toLowerCase();
-  return SUBJECT_KEYWORDS.some((keyword) => lower.includes(keyword));
+export function matchesJobEmailKeywords(
+  subject: string,
+  snippetOrBody?: string | null
+): boolean {
+  if (JOB_EMAIL_KEYWORD_PATTERNS.some((re) => re.test(subject))) {
+    return true;
+  }
+  if (
+    snippetOrBody &&
+    JOB_EMAIL_KEYWORD_PATTERNS.some((re) =>
+      re.test(snippetOrBody.slice(0, 1000))
+    )
+  ) {
+    return true;
+  }
+  return false;
 }
+
+/** Backward-compatible alias for callers still using the old name. */
+export const matchesJobSubjectKeywords = (text: string) =>
+  matchesJobEmailKeywords(text);
 
 function looksLikeDigest(subject: string, fromEmail?: string | null): boolean {
   const hay = `${subject} ${fromEmail ?? ""}`.toLowerCase();
@@ -612,7 +628,7 @@ export function coerceClassificationPayload(
 export async function classifyJobEmail(
   options: ClassifyOptions
 ): Promise<JobClassification | null> {
-  const passesSubject = matchesJobSubjectKeywords(options.subject);
+  const passesPreFilter = matchesJobEmailKeywords(options.subject, options.body);
   const knownJobSender = looksLikeDigest(options.subject, options.fromEmail);
   const appliedHeuristic = heuristicApplicationConfirmation({
     subject: options.subject,
@@ -620,7 +636,7 @@ export async function classifyJobEmail(
     fromEmail: options.fromEmail,
   });
 
-  if (!passesSubject && !knownJobSender && !appliedHeuristic) {
+  if (!passesPreFilter && !knownJobSender && !appliedHeuristic) {
     return null;
   }
 

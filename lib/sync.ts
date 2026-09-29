@@ -11,7 +11,7 @@ import {
   classifyJobEmail,
   extractMessageBody,
   loadCandidateProfileSummary,
-  matchesJobSubjectKeywords,
+  matchesJobEmailKeywords,
   sanitizeEmailBody,
   type LlmProvider,
 } from "@/lib/llm";
@@ -177,7 +177,7 @@ async function processMessage(
     });
   }
 
-  if (!matchesJobSubjectKeywords(subject)) {
+  if (!matchesJobEmailKeywords(subject, message.data.snippet)) {
     return;
   }
 
@@ -200,7 +200,7 @@ async function processMessage(
 
   if (!classification || !classification.is_job_related) {
     // Bridge/LLM offline: park keyword-matching mail for a later classify pass
-    if (!classification && matchesJobSubjectKeywords(subject)) {
+    if (!classification && matchesJobEmailKeywords(subject, body)) {
       const emailDate = message.data.internalDate
         ? new Date(Number(message.data.internalDate))
         : new Date();
