@@ -113,8 +113,6 @@ export function JobsRadar({
     setThreshold(matchThreshold);
   }, [matchThreshold]);
 
-  const sortConfig = TAB_SORT_CONFIG[tabKeyFromValue(activeTab)];
-
   function handleTabChange(nextTab: string) {
     setActiveTab(nextTab);
     const nextConfig = TAB_SORT_CONFIG[tabKeyFromValue(nextTab)];
@@ -324,21 +322,6 @@ export function JobsRadar({
           </TabsList>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2.5 self-start sm:self-auto">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="whitespace-nowrap">Sort by</span>
-              <select
-                id="jobs-tab-sort"
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-background px-2 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-[#3c837b]"
-              >
-                {sortConfig.options.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
             <Button
               type="button"
               size="sm"
@@ -392,6 +375,8 @@ export function JobsRadar({
                   onThresholdChange={setThreshold}
                   onThresholdCommit={commitThreshold}
                   hiddenCount={archivedLeadCount}
+                  sortOption={sort}
+                  onSortOptionChange={setSort}
                   onReviewDraft={(opp) => setDraftOpportunity(opp)}
                   onSendNow={handleOpportunitySend}
                   onMarkApplied={(opp) => {
@@ -551,6 +536,8 @@ export function JobsRadar({
                   variant="applied"
                   pending={pending}
                   emptyText="No applied opportunities."
+                  sortOption={sort}
+                  onSortOptionChange={setSort}
                   onUnmarkApplied={(opp) => {
                     startTransition(async () => {
                       await unmarkApplied(opp.id);
@@ -621,6 +608,8 @@ export function JobsRadar({
                   variant="action"
                   pending={pending}
                   emptyText="No drafts awaiting review."
+                  sortOption={sort}
+                  onSortOptionChange={setSort}
                   onReviewDraft={(opp) => setDraftOpportunity(opp)}
                   onSendNow={handleOpportunitySend}
                 />
@@ -737,6 +726,8 @@ export function JobsRadar({
                   variant="history"
                   pending={pending}
                   emptyText="No archived opportunities."
+                  sortOption={sort}
+                  onSortOptionChange={setSort}
                 />
               ) : null}
               {sortedHistory.length > 0 ? (

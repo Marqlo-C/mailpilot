@@ -10,7 +10,7 @@ import {
   PanelLeftOpen,
   Settings,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Logo, NavLogo } from "@/components/brand/logo";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
@@ -47,6 +47,32 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  /** Desktop sidebar widths: expanded w-60 (240px), collapsed w-[72px]. */
+  const sidebarWidthPx = collapsed ? 72 : 240;
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const sync = () => {
+      const desktop = window.matchMedia("(min-width: 768px)").matches;
+      root.style.setProperty(
+        "--app-sidebar-width",
+        desktop ? `${sidebarWidthPx}px` : "0px"
+      );
+      // Mobile bottom nav: icon + label + py-2.5 ≈ 4.5rem; clear fixed overlays.
+      root.style.setProperty(
+        "--app-mobile-bottom-inset",
+        desktop ? "0px" : "4.5rem"
+      );
+    };
+    sync();
+    const mq = window.matchMedia("(min-width: 768px)");
+    mq.addEventListener("change", sync);
+    return () => {
+      mq.removeEventListener("change", sync);
+      root.style.removeProperty("--app-sidebar-width");
+      root.style.removeProperty("--app-mobile-bottom-inset");
+    };
+  }, [sidebarWidthPx]);
 
   return (
     <SyncStatusProvider
@@ -152,7 +178,10 @@ export function AppShell({
       </div>
 
       {/* Mobile bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-md md:hidden">
+      <nav
+        data-mobile-bottom-nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-md md:hidden"
+      >
         <ul className="grid grid-cols-4">
           {NAV.map((item) => {
             const active =
