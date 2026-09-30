@@ -16,6 +16,7 @@ import { Logo, NavLogo } from "@/components/brand/logo";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { GlobalSyncTracker } from "@/components/layout/global-sync-tracker";
 import { SyncBadge } from "@/components/layout/sync-badge";
+import { SyncStatusProvider } from "@/components/layout/sync-status-provider";
 import { SyncTelemetry } from "@/components/opportunities/sync-telemetry";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -51,11 +52,13 @@ export function AppShell({
   const [collapsed, setCollapsed] = useState(false);
 
   return (
+    <SyncStatusProvider
+      accountId={activeAccountId}
+      initialIsSyncing={initialIsSyncing}
+      initialPendingClassificationCount={initialPendingClassificationCount}
+    >
     <div className="min-h-screen md:flex">
-      <GlobalSyncTracker
-        accountId={activeAccountId}
-        initialIsSyncing={initialIsSyncing}
-      />
+      <GlobalSyncTracker />
 
       {/* Desktop sidebar */}
       <aside
@@ -143,14 +146,7 @@ export function AppShell({
             </p>
           </div>
           <div className="hidden min-w-0 md:block">
-            <SyncTelemetry
-              accountId={activeAccountId}
-              connected={Boolean(activeAccountId)}
-              initialIsSyncing={initialIsSyncing}
-              initialPendingClassificationCount={
-                initialPendingClassificationCount
-              }
-            />
+            <SyncTelemetry connected={Boolean(activeAccountId)} />
           </div>
           <div className="flex items-center gap-2">
             <div className="md:hidden">
@@ -200,5 +196,6 @@ export function AppShell({
         </ul>
       </nav>
     </div>
+    </SyncStatusProvider>
   );
 }
