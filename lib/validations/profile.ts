@@ -112,14 +112,14 @@ export type TailoredData = z.infer<typeof tailoredDataSchema>;
 
 /** Canonical Job Radar match threshold (PermanentSettings + UserProfile mirror). */
 export const DEFAULT_MATCH_THRESHOLD = 75;
-export const MATCH_THRESHOLD_STEP = 5;
+/** @deprecated Prefer any integer 0–100; kept for settings UI defaults. */
+export const MATCH_THRESHOLD_STEP = 1;
 
 export const matchThresholdSchema = z.number().int().min(0).max(100);
 
-/** Snap to 0–100 in 5% increments. */
+/** Clamp to a whole-number Fit Score in 0–100. */
 export function snapMatchThreshold(value: number): number {
-  const clamped = Math.min(100, Math.max(0, Math.round(value)));
-  return Math.round(clamped / MATCH_THRESHOLD_STEP) * MATCH_THRESHOLD_STEP;
+  return Math.min(100, Math.max(0, Math.round(value)));
 }
 
 /**

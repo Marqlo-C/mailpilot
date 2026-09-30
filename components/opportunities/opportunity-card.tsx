@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { JobOpportunity } from "@prisma/client";
 import {
   Archive,
+  Banknote,
   Calendar,
   CheckCircle2,
   Clock,
@@ -169,6 +170,9 @@ export function OpportunityCard({
   const salaryRaw = opportunity.salary?.trim() ?? "";
   const salaryLabel =
     !salaryRaw || /^\$?\s*tbd\b/i.test(salaryRaw) ? "$TBD" : salaryRaw;
+  const locationRaw = opportunity.location?.trim() ?? "";
+  const locationLabel = locationRaw || "Remote / Unspecified";
+  const postedRaw = opportunity.postedAt?.trim() ?? "";
 
   function runArchive() {
     if (onArchive) {
@@ -256,22 +260,22 @@ export function OpportunityCard({
   return (
     <article
       className={cn(
-        "group relative flex h-full flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition-all duration-200",
+        "group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition-all duration-200",
         belowThreshold && !userArchived && "opacity-90",
         isSelected
           ? "border-[#3c837b]/70 bg-primary/[0.015] ring-2 ring-[#3c837b]/20"
           : "border-border/80 hover:border-border hover:shadow-md"
       )}
     >
-      {/* Top-left: matching checkbox corner pill */}
+      {/* Top-left: matching checkbox corner pill (pl matches toolbar Select All) */}
       {onToggleSelect ? (
-        <div className="absolute top-0 left-0 z-10 inline-flex h-[27px] select-none items-center justify-center rounded-br-xl border-b border-r border-border/70 bg-secondary/35 px-2.5 backdrop-blur-sm">
+        <div className="absolute top-0 left-0 z-10 inline-flex h-[27px] select-none items-center justify-center rounded-br-xl border-b border-r border-border/70 bg-secondary/35 px-3.5 backdrop-blur-sm">
           <label className="m-0 flex cursor-pointer items-center p-0">
             <input
               type="checkbox"
               checked={isSelected}
               onChange={() => onToggleSelect(opportunity.id)}
-              className="h-3.5 w-3.5 cursor-pointer rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30"
+              className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30"
               aria-label={`Select ${opportunity.title}`}
             />
           </label>
@@ -338,55 +342,67 @@ export function OpportunityCard({
         </div>
       </div>
 
-      {/* Exactly two metadata pills: location | salary · posted · received */}
-      <div className="flex flex-wrap items-center gap-2 px-4 py-1 select-none sm:px-5">
-        <div className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/60 bg-secondary/40 px-3 py-1 text-xs text-muted-foreground">
-          <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-          <span className="max-w-[200px] truncate">
-            {opportunity.location?.trim()
-              ? opportunity.location.trim()
-              : "Remote / Unspecified"}
+      {/* Metadata — left: location + salary badges; right: unboxed telemetry */}
+      <div className="flex w-full min-w-0 items-center justify-between gap-2 px-4 py-1 text-xs select-none sm:px-5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span
+            className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/40 bg-muted/60 px-2.5 py-1 text-xs font-medium text-foreground/80"
+            title={`Location: ${locationRaw || "Not specified"}`}
+          >
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+            <span className="max-w-[200px] truncate">{locationLabel}</span>
+          </span>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium",
+              salaryRaw && !/^\$?\s*tbd\b/i.test(salaryRaw)
+                ? "border-emerald-200/60 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-400"
+                : "border-border/30 bg-muted/40 text-muted-foreground"
+            )}
+            title={`Salary: ${salaryRaw || "Not specified"}`}
+          >
+            <Banknote className="h-3.5 w-3.5 shrink-0 opacity-80" />
+            <span>{salaryLabel}</span>
           </span>
         </div>
 
-        <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-full border border-border/60 bg-secondary/40 px-3 py-1 text-xs text-muted-foreground sm:ml-auto">
-          <span className="font-medium text-emerald-600 dark:text-emerald-400">
-            {salaryLabel}
+        <div className="flex shrink-0 items-center gap-3 whitespace-nowrap text-muted-foreground">
+          {postedRaw ? (
+            <>
+              <span
+                className="inline-flex items-center gap-1.5"
+                title={`Posted: ${postedRaw}`}
+              >
+                <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+                <span>{postedRaw}</span>
+              </span>
+              <span className="text-muted-foreground/40" aria-hidden>
+                ·
+              </span>
+            </>
+          ) : null}
+          <span
+            className="inline-flex items-center gap-1.5"
+            title={`Received: ${receivedLabel}`}
+          >
+            <Send className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+            <span>{receivedLabel}</span>
           </span>
-          <span className="text-border" aria-hidden>
-            ·
-          </span>
-          <div className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-            <span>
-              Posted:{" "}
-              {opportunity.postedAt?.trim()
-                ? opportunity.postedAt.trim()
-                : "Not specified"}
-            </span>
-          </div>
-          <span className="text-border" aria-hidden>
-            ·
-          </span>
-          <div className="flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-            <span>Received: {receivedLabel}</span>
-          </div>
         </div>
       </div>
 
       {/* 4. Content body */}
       <div className="flex flex-1 flex-col justify-start space-y-3 px-4 py-3.5 sm:px-5">
         {opportunity.description ? (
-          <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">
+          <p className="min-h-[2.5rem] line-clamp-2 text-xs leading-relaxed text-foreground/80 dark:text-foreground/85">
             {opportunity.description}
           </p>
         ) : null}
 
         {opportunity.matchReason ? (
-          <div className="mt-auto flex items-start gap-2.5 rounded-xl border border-border/60 bg-secondary/30 p-3">
-            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 fill-[#3c837b]/15 text-[#3c837b]" />
-            <p className="text-xs leading-relaxed text-foreground/85">
+          <div className="mt-auto flex items-start gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 p-2.5 dark:bg-muted/10">
+            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+            <p className="text-xs leading-relaxed text-muted-foreground">
               {opportunity.matchReason}
             </p>
           </div>
@@ -401,7 +417,7 @@ export function OpportunityCard({
               href={opportunity.applyUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#3c837b] px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#337069]"
+              className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
             >
               View Posting
               <ExternalLink className="h-3.5 w-3.5" />
@@ -511,7 +527,7 @@ export function OpportunityCard({
                   variant="ghost"
                   size="icon"
                   disabled={busy}
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/50 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
                 >
                   <MoreHorizontal className="h-4 w-4" />
                   <span className="sr-only">More actions</span>
@@ -556,7 +572,7 @@ export function OpportunityCard({
                   variant="ghost"
                   size="icon"
                   disabled={busy}
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/50 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
                 >
                   <MoreHorizontal className="h-4 w-4" />
                   <span className="sr-only">More actions</span>

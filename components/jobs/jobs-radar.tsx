@@ -125,7 +125,7 @@ export function JobsRadar({
   }
 
   function commitThreshold(value: number) {
-    const next = Math.min(100, Math.max(0, Math.round(value / 5) * 5));
+    const next = Math.min(100, Math.max(0, Math.round(value)));
     setThreshold(next);
     startTransition(async () => {
       const result = await updateMatchThreshold(accountId, next);

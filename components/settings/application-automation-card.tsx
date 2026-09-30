@@ -52,7 +52,7 @@ export function ApplicationAutomationCard({
 
   function commitThreshold(value: number) {
     if (!accountId) return;
-    const next = Math.min(100, Math.max(0, Math.round(value / 5) * 5));
+    const next = Math.min(100, Math.max(0, Math.round(value)));
     setThreshold(next);
     startTransition(async () => {
       await updateMatchThreshold(accountId, next);
@@ -106,7 +106,7 @@ export function ApplicationAutomationCard({
           <Slider
             min={0}
             max={100}
-            step={5}
+            step={1}
             disabled={disabled}
             value={[threshold]}
             onValueChange={(value) => setThreshold(value[0] ?? threshold)}
