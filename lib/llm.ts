@@ -916,8 +916,34 @@ function computeOllamaTimeouts(payloadChars: number): {
 }
 
 /**
+ * Normalize local Ollama failures into a descriptive Error suitable to throw
+ * or pass into the OpenRouter failover path.
+ */
+function toLocalOllamaError(baseUrl: string, error: unknown): Error {
+  if (error instanceof OllamaUnreachableError) return error;
+  if (error instanceof Error) {
+    const msg = error.message;
+    if (
+      /fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET|timeout|AbortError|aborted|hard.?cap|idle/i.test(
+        msg
+      ) ||
+      error.name === "AbortError" ||
+      error.name === "TimeoutError"
+    ) {
+      return new OllamaUnreachableError(baseUrl, msg);
+    }
+    return error;
+  }
+  return new Error(String(error));
+}
+
+/**
  * Shared LLM dispatcher. LOCAL_OLLAMA never silently falls back to OpenRouter
  * unless allowCloudFallback / OLLAMA_ALLOW_OPENROUTER_FALLBACK is set.
+ *
+ * On genuine local failure (unreachable, timeout/hard-cap abort, outage):
+ * - allowCloudFallback=true  → warn [Ollama:Fallback] and route to OpenRouter
+ * - allowCloudFallback=false → error [Ollama:Error] and throw immediately
  */
 export async function callLLMWithFallback(
   options: CallLLMOptions
@@ -926,6 +952,8 @@ export async function callLLMWithFallback(
 
   if (provider === "LOCAL_OLLAMA") {
     const baseUrl = resolveOllamaBaseUrl(options.localOllamaUrl);
+    const allowFallback = isOpenRouterFallbackEnabled(options);
+
     try {
       const result = await callOllamaJson(
         baseUrl,
@@ -940,51 +968,39 @@ export async function callLLMWithFallback(
         });
         return result;
       }
-      console.error("[Ollama:Error]", {
-        url: baseUrl,
-        reason: "empty_or_invalid_json_after_retry",
-        fallback: isOpenRouterFallbackEnabled(options)
-          ? "openrouter"
-          : "none",
-      });
-      if (!isOpenRouterFallbackEnabled(options)) {
-        return null;
-      }
-      console.info("[Ollama:Active]", {
-        note: "allowCloudFallback enabled — trying OpenRouter",
-      });
+      throw new OllamaUnreachableError(
+        baseUrl,
+        "empty or invalid JSON after local retries (service may be overloaded or model failed to respond)"
+      );
     } catch (error) {
-      if (error instanceof OllamaUnreachableError) {
-        console.error("[Ollama:Error]", {
-          url: error.url,
-          reason: "unreachable",
-          message: error.message,
-          fallback: isOpenRouterFallbackEnabled(options)
-            ? "openrouter"
-            : "none",
-        });
-        if (!isOpenRouterFallbackEnabled(options)) {
-          throw error;
+      const localError = toLocalOllamaError(baseUrl, error);
+
+      if (allowFallback) {
+        console.warn(
+          "[Ollama:Fallback] Local generation failed. Failing over to OpenRouter...",
+          localError
+        );
+        const cloudResult = await callOpenRouterJson(
+          options.systemPrompt,
+          options.userPrompt
+        );
+        if (cloudResult) {
+          console.info(
+            "[Ollama:Fallback] OpenRouter failover succeeded after local failure."
+          );
+        } else {
+          console.error(
+            "[Ollama:Fallback] OpenRouter failover also failed after local failure."
+          );
         }
-        console.info("[Ollama:Active]", {
-          note: "allowCloudFallback enabled despite unreachable local — trying OpenRouter",
-        });
-      } else {
-        console.error("[Ollama:Error]", {
-          url: baseUrl,
-          reason: "generation_failed",
-          message: error instanceof Error ? error.message : String(error),
-          fallback: isOpenRouterFallbackEnabled(options)
-            ? "openrouter"
-            : "none",
-        });
-        if (!isOpenRouterFallbackEnabled(options)) {
-          return null;
-        }
-        console.info("[Ollama:Active]", {
-          note: "allowCloudFallback enabled — trying OpenRouter",
-        });
+        return cloudResult;
       }
+
+      console.error(
+        "[Ollama:Error] Local generation failed. Cloud fallback disabled (allowCloudFallback=false) — not routing to OpenRouter.",
+        localError
+      );
+      throw localError;
     }
   }
 
