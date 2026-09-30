@@ -1,14 +1,14 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Layers, Search } from "lucide-react";
 
 import { WavySlider } from "@/components/ui/wavy-slider";
 import type {
   HistoryStatusFilter,
-  PipelineTab,
   SourceFilter,
 } from "@/lib/opportunities/pipeline-filters";
+import { TAB_SORT_CONFIG, type JobsTabKey } from "@/lib/opportunities/sorting";
 import { cn } from "@/lib/utils";
 
 export function ToolbarRoot({
@@ -21,7 +21,7 @@ export function ToolbarRoot({
   return (
     <div
       className={cn(
-        "inline-flex w-fit max-w-full select-none flex-wrap items-center gap-3 rounded-xl border border-border/80 bg-card px-3.5 py-2 shadow-sm",
+        "inline-flex w-fit max-w-full flex-wrap items-center gap-3 rounded-lg border bg-card px-3 py-2 shadow-sm",
         className
       )}
     >
@@ -30,51 +30,57 @@ export function ToolbarRoot({
   );
 }
 
-export function ToolbarDivider({
-  className,
-}: {
-  className?: string;
-}) {
+export function ToolbarDivider() {
   return (
     <div
-      className={cn(
-        "mx-1 hidden h-4 w-[1px] shrink-0 bg-border/60 sm:block",
-        className
-      )}
+      className="mx-1 hidden h-4 w-[1px] shrink-0 bg-border/60 sm:block"
       aria-hidden
     />
   );
 }
 
 export function ToolbarSelectAll({
-  canSelectAll,
-  isAllSelected,
+  checked,
+  indeterminate = false,
   onToggle,
+  label,
+  disabled = false,
 }: {
-  canSelectAll: boolean;
-  isAllSelected: boolean;
+  checked: boolean;
+  indeterminate?: boolean;
   onToggle: () => void;
+  label: string;
+  disabled?: boolean;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.indeterminate = indeterminate && !checked;
+    }
+  }, [indeterminate, checked]);
+
   return (
     <label
       className={cn(
         "inline-flex items-center gap-2 text-xs font-medium transition-colors",
-        canSelectAll
-          ? "cursor-pointer text-muted-foreground hover:text-foreground"
-          : "cursor-not-allowed text-muted-foreground/40"
+        disabled
+          ? "cursor-not-allowed text-muted-foreground/40"
+          : "cursor-pointer text-muted-foreground hover:text-foreground"
       )}
     >
       <input
+        ref={inputRef}
         type="checkbox"
-        checked={isAllSelected}
-        disabled={!canSelectAll}
+        checked={checked}
+        disabled={disabled}
         onChange={onToggle}
         className={cn(
           "h-3.5 w-3.5 shrink-0 rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30",
-          canSelectAll ? "cursor-pointer" : "cursor-not-allowed opacity-40"
+          disabled ? "cursor-not-allowed" : "cursor-pointer"
         )}
       />
-      <span>{isAllSelected ? "Deselect All" : "Select All"}</span>
+      <span>{label}</span>
     </label>
   );
 }
@@ -144,20 +150,20 @@ export function ToolbarScoreSlider({
 }
 
 export function ToolbarSearch({
-  value,
-  onChange,
+  searchQuery,
+  onSearchChange,
 }: {
-  value: string;
-  onChange: (value: string) => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
 }) {
   return (
-    <div className="relative flex w-36 items-center text-muted-foreground focus-within:text-foreground sm:w-44">
+    <div className="relative flex h-7 w-[7.2rem] items-center text-muted-foreground focus-within:text-foreground sm:w-[9.6rem]">
       <Search className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
       <input
         type="text"
         placeholder="Search roles..."
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={searchQuery}
+        onChange={(e) => onSearchChange(e.target.value)}
         className="h-7 w-full rounded-md border border-input/60 bg-background/50 py-0 pr-2 pl-8 text-xs transition-colors placeholder:text-muted-foreground/60 hover:bg-background focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring"
         aria-label="Search roles, companies, or locations"
       />
@@ -208,6 +214,32 @@ export function ToolbarHistoryStatusFilter({
   );
 }
 
+export function ToolbarSortSelect({
+  activeTab,
+  sortOption,
+  onSortOptionChange,
+}: {
+  activeTab: JobsTabKey;
+  sortOption: string;
+  onSortOptionChange: (sort: string) => void;
+}) {
+  const options = TAB_SORT_CONFIG[activeTab].options;
+  return (
+    <select
+      value={sortOption}
+      onChange={(e) => onSortOptionChange(e.target.value)}
+      className="h-7 cursor-pointer rounded-md border border-input/60 bg-background/50 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-background focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+      aria-label="Sort listings"
+    >
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function ToolbarTelemetry({
   visibleCount,
   totalCount,
@@ -218,8 +250,8 @@ export function ToolbarTelemetry({
   hiddenCount: number;
 }) {
   return (
-    <div className="flex items-center gap-1.5 whitespace-nowrap px-1 text-xs text-muted-foreground">
-      <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+    <div className="flex items-center gap-1.5 whitespace-nowrap text-[11px] font-medium text-muted-foreground">
+      <Layers className="h-3 w-3 shrink-0 text-muted-foreground/60" />
       <span>
         <strong className="font-medium text-foreground">{visibleCount}</strong>{" "}
         of {totalCount} listings
@@ -227,112 +259,10 @@ export function ToolbarTelemetry({
       {hiddenCount > 0 ? (
         <>
           <span className="text-muted-foreground/30">·</span>
-          <span className="text-muted-foreground/70">
+          <span className="font-medium text-muted-foreground/70">
             {hiddenCount} filtered
           </span>
         </>
-      ) : null}
-    </div>
-  );
-}
-
-export type PipelineToolbarProps = {
-  activeTab: PipelineTab;
-  canSelectAll: boolean;
-  isAllSelected: boolean;
-  onSelectAllToggle: () => void;
-  searchQuery: string;
-  onSearchQueryChange: (value: string) => void;
-  sourceFilter: SourceFilter;
-  onSourceFilterChange: (value: SourceFilter) => void;
-  historyStatusFilter?: HistoryStatusFilter;
-  onHistoryStatusFilterChange?: (value: HistoryStatusFilter) => void;
-  matchThreshold?: number;
-  onThresholdChange?: (value: number) => void;
-  onThresholdCommit?: (value: number) => void;
-  scoreDisabled?: boolean;
-  visibleCount: number;
-  totalCount: number;
-  hiddenCount: number;
-  showTelemetry?: boolean;
-};
-
-/**
- * Context-aware Job Radar filter toolbar.
- * Leads: SelectAll + Score + Search + Source + Telemetry
- * Applied / Action: SelectAll + Search + Source + Telemetry
- * History: SelectAll + Search + Status + Telemetry
- */
-export function PipelineToolbar({
-  activeTab,
-  canSelectAll,
-  isAllSelected,
-  onSelectAllToggle,
-  searchQuery,
-  onSearchQueryChange,
-  sourceFilter,
-  onSourceFilterChange,
-  historyStatusFilter = "all",
-  onHistoryStatusFilterChange,
-  matchThreshold = 0,
-  onThresholdChange,
-  onThresholdCommit,
-  scoreDisabled = false,
-  visibleCount,
-  totalCount,
-  hiddenCount,
-  showTelemetry = true,
-}: PipelineToolbarProps) {
-  const showScore = activeTab === "leads" && Boolean(onThresholdCommit);
-  const showSource = activeTab !== "history";
-  const showHistoryStatus = activeTab === "history";
-
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-      <ToolbarRoot>
-        <ToolbarSelectAll
-          canSelectAll={canSelectAll}
-          isAllSelected={isAllSelected}
-          onToggle={onSelectAllToggle}
-        />
-
-        {showScore ? (
-          <>
-            <ToolbarDivider className="mx-0 bg-border/70" />
-            <ToolbarScoreSlider
-              value={matchThreshold}
-              disabled={scoreDisabled}
-              onChange={onThresholdChange}
-              onCommit={onThresholdCommit}
-            />
-          </>
-        ) : null}
-
-        <ToolbarDivider />
-
-        <ToolbarSearch value={searchQuery} onChange={onSearchQueryChange} />
-
-        {showSource ? (
-          <ToolbarSourceFilter
-            value={sourceFilter}
-            onChange={onSourceFilterChange}
-          />
-        ) : null}
-
-        {showHistoryStatus && onHistoryStatusFilterChange ? (
-          <ToolbarHistoryStatusFilter
-            value={historyStatusFilter}
-            onChange={onHistoryStatusFilterChange}
-          />
-        ) : null}
-      </ToolbarRoot>
-
-      {showTelemetry ? (
-        <ToolbarTelemetry
-          visibleCount={visibleCount}
-          totalCount={totalCount}
-          hiddenCount={hiddenCount}
-        />
       ) : null}
     </div>
   );

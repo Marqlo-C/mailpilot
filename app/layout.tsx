@@ -7,7 +7,7 @@ import "@/lib/polyfills";
 import { AppShell } from "@/components/layout/app-shell";
 import { SESSION_COOKIE } from "@/lib/constants";
 import { getActiveAccount, listAccounts } from "@/lib/data";
-import { Toaster } from "sonner";
+import { AppToaster } from "@/components/ui/app-toaster";
 
 import "./globals.css";
 
@@ -47,7 +47,7 @@ export default async function RootLayout({
           className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}
         >
           {children}
-          <Toaster richColors position="top-center" />
+          <AppToaster />
         </body>
       </html>
     );
@@ -74,7 +74,7 @@ export default async function RootLayout({
         >
           {children}
         </AppShell>
-        <Toaster richColors position="top-center" />
+        <AppToaster />
       </body>
     </html>
   );

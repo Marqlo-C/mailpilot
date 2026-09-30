@@ -267,9 +267,9 @@ export function OpportunityCard({
           : "border-border/80 hover:border-border hover:shadow-md"
       )}
     >
-      {/* Top-left: matching checkbox corner pill (pl matches toolbar Select All) */}
+      {/* Top-left: checkbox pill — px-3 matches ToolbarRoot Select All padding */}
       {onToggleSelect ? (
-        <div className="absolute top-0 left-0 z-10 inline-flex h-[27px] select-none items-center justify-center rounded-br-xl border-b border-r border-border/70 bg-secondary/35 px-3.5 backdrop-blur-sm">
+        <div className="absolute top-0 left-0 z-10 inline-flex h-[27px] select-none items-center justify-center rounded-br-xl border-b border-r border-border/70 bg-secondary/35 px-3 backdrop-blur-sm">
           <label className="m-0 flex cursor-pointer items-center p-0">
             <input
               type="checkbox"

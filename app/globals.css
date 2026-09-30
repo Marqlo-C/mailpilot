@@ -48,3 +48,10 @@
     background-attachment: fixed;
   }
 }
+
+/* Fallback for content-centered fixed overlays (inline styles preferred). */
+.app-content-center-x {
+  left: calc(
+    var(--app-sidebar-width, 0px) + (100vw - var(--app-sidebar-width, 0px)) / 2
+  );
+}

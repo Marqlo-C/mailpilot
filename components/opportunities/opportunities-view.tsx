@@ -17,7 +17,7 @@ import {
   OpportunityCard,
   type OpportunityCardVariant,
 } from "@/components/opportunities/opportunity-card";
-import { PipelineToolbar } from "@/components/opportunities/pipeline-toolbar";
+import { PipelineToolbar } from "@/components/jobs/pipeline-toolbar";
 import { isUserArchived } from "@/lib/opportunities/lifecycle";
 import {
   matchesHistoryStatusFilter,
@@ -42,6 +42,9 @@ type OpportunitiesViewProps = {
   onThresholdChange?: (value: number) => void;
   onThresholdCommit?: (value: number) => void;
   hiddenCount?: number;
+  /** Controlled sort from JobsRadar (TAB_SORT_CONFIG). */
+  sortOption: string;
+  onSortOptionChange: (sort: string) => void;
   onReviewDraft?: (opp: JobOpportunity) => void;
   onSendNow?: (opp: JobOpportunity) => void;
   onMarkApplied?: (opp: JobOpportunity) => void;
@@ -70,6 +73,8 @@ export function OpportunitiesView({
   onThresholdChange,
   onThresholdCommit,
   hiddenCount = 0,
+  sortOption,
+  onSortOptionChange,
   onReviewDraft,
   onSendNow,
   onMarkApplied,
@@ -110,7 +115,10 @@ export function OpportunitiesView({
         if (activeTab === "history") {
           return matchesHistoryStatusFilter(o, historyStatusFilter);
         }
-        return matchesSourceFilter(o, sourceFilter);
+        if (activeTab === "leads" || activeTab === "applied") {
+          return matchesSourceFilter(o, sourceFilter);
+        }
+        return true;
       }),
     [
       opportunities,
@@ -172,33 +180,40 @@ export function OpportunitiesView({
     router.refresh();
   }
 
-  const canSelectAll = filteredOpportunities.length > 0;
   const visibleCount = filteredOpportunities.length;
   const totalCount = opportunities.length + hiddenCount;
-  const pipelineHiddenCount = totalCount - visibleCount;
 
   return (
     <div className="space-y-3">
       <PipelineToolbar
         activeTab={activeTab}
-        canSelectAll={canSelectAll}
+        totalCount={totalCount}
+        visibleCount={visibleCount}
+        selectedCount={selectedIds.length}
         isAllSelected={isAllSelected}
-        onSelectAllToggle={handleSelectAll}
-        searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
-        sourceFilter={sourceFilter}
-        onSourceFilterChange={setSourceFilter}
-        historyStatusFilter={historyStatusFilter}
-        onHistoryStatusFilterChange={setHistoryStatusFilter}
-        matchThreshold={matchThreshold}
-        onThresholdChange={onThresholdChange}
-        onThresholdCommit={
+        onToggleSelectAll={handleSelectAll}
+        minScore={matchThreshold}
+        onMinScoreChange={
+          showThresholdControl ? onThresholdChange : undefined
+        }
+        onMinScoreCommit={
           showThresholdControl ? onThresholdCommit : undefined
         }
         scoreDisabled={busy || !onThresholdCommit}
-        visibleCount={visibleCount}
-        totalCount={totalCount}
-        hiddenCount={pipelineHiddenCount}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        sourceFilter={sourceFilter}
+        onSourceFilterChange={
+          activeTab === "leads" || activeTab === "applied"
+            ? setSourceFilter
+            : undefined
+        }
+        historyFilter={historyStatusFilter}
+        onHistoryFilterChange={
+          activeTab === "history" ? setHistoryStatusFilter : undefined
+        }
+        sortOption={sortOption}
+        onSortOptionChange={onSortOptionChange}
         showTelemetry={showListingCount}
       />
 
@@ -236,7 +251,13 @@ export function OpportunitiesView({
         <aside
           role="region"
           aria-label="Bulk actions toolbar"
-          className="fixed bottom-6 left-1/2 z-40 flex max-w-[min(96vw,40rem)] -translate-x-1/2 flex-wrap items-center gap-2 rounded-2xl border border-border bg-background/95 px-4 py-2.5 shadow-2xl backdrop-blur animate-in fade-in slide-in-from-bottom-3"
+          data-bulk-actions
+          className="fixed z-40 flex max-w-[min(96vw,40rem)] -translate-x-1/2 flex-wrap items-center gap-2 rounded-2xl border border-border bg-background/95 px-4 py-2.5 shadow-2xl backdrop-blur animate-in fade-in slide-in-from-bottom-3"
+          style={{
+            left: "calc(var(--app-sidebar-width, 0px) + (100vw - var(--app-sidebar-width, 0px)) / 2)",
+            bottom:
+              "calc(1.5rem + var(--app-mobile-bottom-inset, 0px))",
+          }}
         >
           <span className="mr-1 border-r border-border pr-3 text-xs font-semibold text-muted-foreground">
             {selectedIds.length} Selected
