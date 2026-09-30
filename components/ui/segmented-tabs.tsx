@@ -10,13 +10,19 @@ export const segmentedTabsTriggerClassName =
 type TabCountBadgeProps = {
   count: number;
   className?: string;
+  /** Optional suffix (e.g. "%" for Fit Score threshold). */
+  suffix?: string;
 };
 
 /**
  * Compact count chip that flips to brand tint when its parent tab is active.
  * Parent trigger must include the `group` class (via segmentedTabsTriggerClassName).
  */
-export function TabCountBadge({ count, className }: TabCountBadgeProps) {
+export function TabCountBadge({
+  count,
+  className,
+  suffix,
+}: TabCountBadgeProps) {
   return (
     <span
       className={cn(
@@ -25,6 +31,7 @@ export function TabCountBadge({ count, className }: TabCountBadgeProps) {
       )}
     >
       {count}
+      {suffix}
     </span>
   );
 }
