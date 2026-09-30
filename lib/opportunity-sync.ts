@@ -245,6 +245,19 @@ export async function runOpportunitySync(
     // Serialize local Ollama inference to avoid concurrent queue timeouts.
     const effectiveBatchSize = llmProvider === "LOCAL_OLLAMA" ? 1 : BATCH_SIZE;
     for (let i = 0; i < targetIds.length; i += effectiveBatchSize) {
+      const currentState = await prisma.account.findUnique({
+        where: { id: accountId },
+        select: { isSyncing: true },
+      });
+
+      // If the user clicked Cancel, isSyncing will be false. Abort the loop safely.
+      if (!currentState?.isSyncing) {
+        console.log(
+          `[Sync] Aborting sync loop for account ${accountId} (cancelled by user).`
+        );
+        break;
+      }
+
       const chunk = targetIds.slice(i, i + effectiveBatchSize);
       const results = await Promise.all(
         chunk.map(async (messageId) => {

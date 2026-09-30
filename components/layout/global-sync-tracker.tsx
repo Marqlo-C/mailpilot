@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Loader2, RotateCcw } from "lucide-react";
+import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 
 import {
   SYNC_STARTED_EVENT,
@@ -14,13 +14,7 @@ export { SYNC_STARTED_EVENT };
  * Bottom-right floating sync capsule. Reads shared sync status (no own poller).
  */
 export function GlobalSyncTracker() {
-  const {
-    accountId,
-    isSyncing,
-    justFinished,
-    showForceReset,
-    forceReset,
-  } = useSyncStatus();
+  const { accountId, isSyncing, justFinished, forceReset } = useSyncStatus();
 
   if (!accountId || (!isSyncing && !justFinished)) {
     return null;
@@ -42,16 +36,15 @@ export function GlobalSyncTracker() {
           <span className="font-medium text-foreground">
             Scanning inbox for opportunities…
           </span>
-          {showForceReset ? (
-            <button
-              type="button"
-              onClick={() => void forceReset()}
-              className="ml-1 inline-flex items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground"
-            >
-              <RotateCcw className="h-3 w-3" />
-              Reset
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={() => void forceReset()}
+            className="ml-1 inline-flex shrink-0 text-rose-500 transition-colors hover:text-rose-600"
+            title="Cancel sync — remaining emails stay in the queue"
+            aria-label="Cancel sync"
+          >
+            <XCircle className="h-5 w-5" />
+          </button>
         </>
       ) : (
         <>
