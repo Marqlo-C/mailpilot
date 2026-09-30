@@ -6,7 +6,7 @@ import { ChevronDown, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { syncInboxOpportunities } from "@/app/actions/email";
-import { SYNC_STARTED_EVENT } from "@/components/layout/global-sync-tracker";
+import { SYNC_STARTED_EVENT } from "@/components/layout/sync-status-provider";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,

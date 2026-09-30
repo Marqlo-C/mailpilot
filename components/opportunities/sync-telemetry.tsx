@@ -1,59 +1,43 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { syncInboxOpportunities } from "@/app/actions/email";
-import { SYNC_STARTED_EVENT } from "@/components/layout/global-sync-tracker";
+import {
+  SYNC_STARTED_EVENT,
+  useSyncStatus,
+} from "@/components/layout/sync-status-provider";
 import { cn } from "@/lib/utils";
 
 type SyncTelemetryProps = {
-  accountId?: string | null;
-  initialIsSyncing?: boolean;
-  initialPendingClassificationCount?: number;
   connected?: boolean;
   className?: string;
 };
 
 /**
- * Header status indicator: Syncing / awaiting classification / Live.
+ * Header status indicator. Reads shared sync status (no own poller).
  */
 export function SyncTelemetry({
-  accountId = null,
-  initialIsSyncing = false,
-  initialPendingClassificationCount = 0,
   connected = true,
   className,
 }: SyncTelemetryProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [isSyncing, setIsSyncing] = useState(initialIsSyncing);
-  const [pendingCount, setPendingCount] = useState(
-    initialPendingClassificationCount
-  );
-
-  useEffect(() => {
-    setIsSyncing(initialIsSyncing);
-    setPendingCount(initialPendingClassificationCount);
-  }, [initialIsSyncing, initialPendingClassificationCount]);
-
-  useEffect(() => {
-    function handleSyncStart() {
-      setIsSyncing(true);
-    }
-    window.addEventListener(SYNC_STARTED_EVENT, handleSyncStart);
-    return () => window.removeEventListener(SYNC_STARTED_EVENT, handleSyncStart);
-  }, []);
-
-  // No idle /api/account/sync-status polling here. Status updates come from
-  // server props (layout refresh) and GlobalSyncTracker while isSyncing.
+  const {
+    accountId,
+    isSyncing,
+    pendingCount,
+    markSyncStarted,
+    markSyncFailed,
+  } = useSyncStatus();
 
   function handleTriggerSync() {
     if (!accountId || isSyncing || pending) return;
 
     window.dispatchEvent(new Event(SYNC_STARTED_EVENT));
-    setIsSyncing(true);
+    markSyncStarted();
 
     startTransition(async () => {
       const result = await syncInboxOpportunities({
@@ -63,7 +47,7 @@ export function SyncTelemetry({
 
       if (!result.ok) {
         toast.error(result.error);
-        setIsSyncing(false);
+        markSyncFailed();
         return;
       }
 
@@ -90,6 +74,11 @@ export function SyncTelemetry({
     );
   }
 
+  const syncingLabel =
+    pendingCount > 0
+      ? `Syncing... (${pendingCount} left)`
+      : "Syncing...";
+
   return (
     <div
       className={cn("inline-flex select-none items-center", className)}
@@ -97,9 +86,12 @@ export function SyncTelemetry({
       aria-live="polite"
     >
       {isSyncing ? (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
-          <span>Syncing inbox...</span>
+        <div className="flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-700 dark:text-sky-400">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-500 opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
+          </span>
+          <span>{syncingLabel}</span>
         </div>
       ) : pendingCount > 0 ? (
         <button
@@ -118,8 +110,10 @@ export function SyncTelemetry({
           </span>
         </button>
       ) : (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+        <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          </span>
           <span>Synced. Inbox updated</span>
         </div>
       )}
