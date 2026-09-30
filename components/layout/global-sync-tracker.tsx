@@ -63,7 +63,7 @@ export function GlobalSyncTracker({
 
     disposePollRef.current = startSyncStatusBackoffPoll({
       initialMs: 3000,
-      maxMs: 10_000,
+      maxMs: 20_000,
       hardStopMs: SYNC_LOCK_STALE_MS,
       slowAfterMs: 120_000,
       onSlow: () => setShowForceReset(true),

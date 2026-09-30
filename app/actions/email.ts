@@ -111,6 +111,7 @@ export async function syncInboxOpportunities(
       isSyncing: true,
       syncError: null,
       lastSyncProcessed: null,
+      syncHeartbeatAt: new Date(),
     },
   });
 

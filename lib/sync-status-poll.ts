@@ -1,6 +1,6 @@
 /**
  * TCP-inspired backoff poller for sync-status endpoints.
- * Starts at `initialMs` (default 3s) and grows up to `maxMs` (default 10s).
+ * Starts at `initialMs` (default 3s) and grows up to `maxMs` (default 20s).
  */
 
 export type SyncStatusPollResult = "continue" | "stop";
@@ -8,7 +8,7 @@ export type SyncStatusPollResult = "continue" | "stop";
 export type SyncStatusBackoffOptions = {
   /** First wait before the first poll (default 3000). */
   initialMs?: number;
-  /** Cap on successive waits (default 10000). */
+  /** Cap on successive waits (default 20000). */
   maxMs?: number;
   /** Multiplier applied after each continue (default 1.4). */
   factor?: number;
@@ -30,7 +30,7 @@ export function startSyncStatusBackoffPoll(
   options: SyncStatusBackoffOptions
 ): () => void {
   const initialMs = options.initialMs ?? 3000;
-  const maxMs = options.maxMs ?? 10_000;
+  const maxMs = options.maxMs ?? 20_000;
   const factor = options.factor ?? 1.4;
   const hardStopMs = options.hardStopMs ?? 90_000;
   const slowAfterMs = options.slowAfterMs ?? 30_000;
