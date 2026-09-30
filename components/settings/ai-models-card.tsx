@@ -58,6 +58,7 @@ type VerifyResponse = {
   activeUrl?: string;
   error?: string;
   cleared?: boolean;
+  trustedCli?: boolean;
 };
 
 function deriveConnectionStatus(
@@ -278,7 +279,9 @@ export function AiModelsCard({
         setModels(data.models);
         if (data.activeUrl) setUrl(data.activeUrl);
         setStatusMessage(
-          `${data.models.length} model${data.models.length === 1 ? "" : "s"} available`
+          data.trustedCli
+            ? `${data.models.length} model${data.models.length === 1 ? "" : "s"} via bridge CLI (cloud probe skipped)`
+            : `${data.models.length} model${data.models.length === 1 ? "" : "s"} available`
         );
 
         if (
@@ -299,13 +302,16 @@ export function AiModelsCard({
       }
 
       setConnectionStatus(status);
-      if (data.cleared || status === "offline") {
+      // Keep the tunnel URL visible on failure — clearing it made re-checks harder.
+      if (data.cleared) {
         setUrl("");
+        setModels([]);
+      } else if (status === "offline" || status === "error") {
         setModels([]);
       }
       setStatusMessage(
         data.error ??
-          "Tunnel unreachable. Keep the bridge terminal open, then try again."
+          "Tunnel unreachable from the cloud. Keep the bridge terminal open, then try again."
       );
 
       router.refresh();
@@ -627,7 +633,8 @@ export function AiModelsCard({
                     in your terminal.
                   </li>
                   <li>
-                    Keep the terminal open, then click Check Connection below.
+                    Keep the terminal open — it registers models with MailPilot
+                    automatically. Check Connection is optional.
                   </li>
                 </ol>
 
@@ -818,7 +825,7 @@ export function AiModelsCard({
                 <p className="truncate font-mono text-[11px] text-muted-foreground">
                   {isConnected
                     ? url.trim() || "—"
-                    : "Run the bridge command, then Check Connection."}
+                    : "Run the bridge command in a terminal (it registers automatically)."}
                 </p>
                 {statusMessage && (
                   <p className="text-xs text-muted-foreground">{statusMessage}</p>

@@ -62,9 +62,36 @@ if ! curl -s --max-time 3 "http://127.0.0.1:11434/api/tags" > /dev/null; then
   echo "  Please open the Ollama desktop app first."
   exit 1
 fi
+echo "Local Ollama is running."
 
-MODELS_JSON=$(curl -s --max-time 5 "http://127.0.0.1:11434/api/tags" | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | tr '\\n' ',' | sed 's/,$//' || true)
-echo "Local Ollama active. Models detected: \${MODELS_JSON:-none}"
+# Emit a JSON array of model names from localhost /api/tags (no cloud dependency).
+collect_models_json() {
+  local tags
+  tags=\$(curl -sS --max-time 3 "http://127.0.0.1:11434/api/tags" 2>/dev/null || true)
+  if [ -z "\$tags" ]; then
+    echo "[]"
+    return
+  fi
+  printf '%s' "\$tags" | python3 -c 'import json,sys
+try:
+  d=json.load(sys.stdin)
+  print(json.dumps([m.get("name") or m.get("model") or "" for m in d.get("models",[]) if (m.get("name") or m.get("model"))]))
+except Exception:
+  print("[]")' 2>/dev/null || echo "[]"
+}
+
+build_bridge_payload() {
+  local models_json="\$1"
+  EMAIL="\$EMAIL" TUNNEL_URL="\$TUNNEL_URL" SECRET="\$SECRET" MODELS_JSON="\$models_json" python3 - <<'PY'
+import json, os
+print(json.dumps({
+  "email": os.environ["EMAIL"],
+  "ollamaUrl": os.environ["TUNNEL_URL"],
+  "bridgeSecret": os.environ["SECRET"],
+  "models": json.loads(os.environ.get("MODELS_JSON") or "[]"),
+}))
+PY
+}
 
 # Resolve cloudflared: system PATH → /tmp cache → download
 if command -v cloudflared >/dev/null 2>&1; then
@@ -155,11 +182,18 @@ if [ -z "$TUNNEL_URL" ]; then
 fi
 
 echo "Public Tunnel: $TUNNEL_URL"
+
+# Prove Ollama on this machine and push model list to MailPilot.
+# Prod/Vercel often cannot reach trycloudflare.com — CLI models are the source of truth.
+MODELS_JSON=$(collect_models_json)
+echo "Local models: $MODELS_JSON"
+
 printf "Registering bridge with MailPilot... "
+PAYLOAD=$(build_bridge_payload "$MODELS_JSON")
 
 RESP=$(curl -s -X POST "$API_BASE/api/settings/ollama-bridge" \\
   -H "Content-Type: application/json" \\
-  -d "{\\"email\\":\\"$EMAIL\\",\\"ollamaUrl\\":\\"$TUNNEL_URL\\",\\"bridgeSecret\\":\\"$SECRET\\"}")
+  -d "$PAYLOAD")
 
 if echo "$RESP" | grep -q '"success":true'; then
   echo "ok"
@@ -172,7 +206,7 @@ if echo "$RESP" | grep -q '"success":true'; then
   echo "Keep this terminal window open while using MailPilot."
   echo "Press Ctrl+C when finished to close the bridge."
   echo ""
-  wait "$TUNNEL_PID" || true
+  wait "$TUNNEL_PID" 2>/dev/null || true
 else
   echo "FAILED"
   echo ""
@@ -273,13 +307,26 @@ try {
     }
 
     Write-Host "Public Tunnel: $tunnelUrl" -ForegroundColor Green
+
+    # Prove Ollama locally — do not depend on Vercel reaching Cloudflare.
+    $modelNames = @()
+    try {
+        $localTags = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -Method Get -TimeoutSec 3
+        if ($localTags.models) {
+            $modelNames = @($localTags.models | ForEach-Object { $_.name } | Where-Object { $_ })
+        }
+    } catch {}
+    Write-Host ("Local models: " + (($modelNames -join ", ") -replace '^$', 'none'))
+
     Write-Host -NoNewline "Registering bridge with MailPilot... "
 
-    $body = @{
+    $bodyObj = @{
         email = $Email
         ollamaUrl = $tunnelUrl
         bridgeSecret = $Secret
-    } | ConvertTo-Json
+        models = $modelNames
+    }
+    $body = $bodyObj | ConvertTo-Json -Compress
 
     try {
         $resp = Invoke-RestMethod -Uri "$ApiBase/api/settings/ollama-bridge" -Method Post -Body $body -ContentType "application/json"

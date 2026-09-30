@@ -6,7 +6,7 @@ import { getAuthenticatedAccountId } from "@/lib/auth";
 import {
   normalizeOllamaBaseUrl,
   OllamaUnreachableError,
-  probeOllamaTags,
+  probeOllamaTagsWithRetry,
 } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
 import {
@@ -99,15 +99,45 @@ async function persistBridgeStatus(
   });
 }
 
-/** Marks bridge offline without wiping the registered tunnel URL. */
+/**
+ * Cloud→tunnel probes are flaky from Vercel. If the bridge CLI already
+ * registered models (bridgeConnected + availableModels), keep that state —
+ * do not force the user to re-verify from localhost/dev.
+ */
 async function handleUnreachable(
   accountId: string,
   error: string,
   status: OllamaConnectionStatus
 ): Promise<NextResponse> {
-  // Never clear localOllamaUrl on a failed ping — Cloudflare/Ollama can
-  // return transient 403s; wiping the URL forces the user to re-run the CLI.
-  await persistBridgeStatus(accountId, { connected: false, models: [] });
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId },
+  });
+  const rules = settings ? parseAccountRules(settings.rules) : null;
+  const cliModels = rules?.availableModels ?? [];
+  const storedUrl = settings?.localOllamaUrl?.trim() ?? "";
+  const trustCli =
+    Boolean(rules?.bridgeConnected) &&
+    cliModels.length > 0 &&
+    storedUrl.length > 0 &&
+    isRegisteredTunnelUrl(storedUrl);
+
+  if (!trustCli) {
+    // Never clear localOllamaUrl — wiping it forces a full CLI re-run.
+    await persistBridgeStatus(accountId, { connected: false, models: [] });
+  }
+
+  if (trustCli) {
+    return NextResponse.json({
+      connected: true,
+      status: "connected" satisfies OllamaConnectionStatus,
+      models: cliModels,
+      activeUrl: storedUrl.replace(/\/+$/, ""),
+      cleared: false,
+      trustedCli: true,
+      error:
+        "Cloud could not reach the tunnel, but your bridge CLI registration is still active.",
+    });
+  }
 
   return NextResponse.json({
     connected: false,
@@ -214,7 +244,11 @@ export async function POST(request: Request) {
 
     let models: string[];
     try {
-      const probe = await probeOllamaTags(base, 6000);
+      // Quick Tunnels are flaky from serverless — retry with a longer timeout.
+      const probe = await probeOllamaTagsWithRetry(base, {
+        timeoutMs: isRegisteredTunnelUrl(base) ? 12_000 : 6_000,
+        attempts: isRegisteredTunnelUrl(base) ? 3 : 2,
+      });
       models = probe.models;
     } catch (err) {
       const isTimeout =
@@ -259,30 +293,28 @@ export async function POST(request: Request) {
       models,
     });
   } catch (err) {
-    try {
-      const accountId = await getAuthenticatedAccountId();
-      if (accountId) {
-        await persistBridgeStatus(accountId, {
-          connected: false,
-          models: [],
-        });
-      }
-    } catch {
-      // best-effort status clear
-    }
-
     const isTimeout =
       err instanceof Error &&
       (err.name === "AbortError" || err.name === "TimeoutError");
+    const message = isTimeout
+      ? "Connection timed out. Check that your terminal bridge is running."
+      : "Failed to reach tunnel endpoint.";
+
+    try {
+      const accountId = await getAuthenticatedAccountId();
+      if (accountId) {
+        return handleUnreachable(accountId, message, "offline");
+      }
+    } catch {
+      // fall through
+    }
 
     return NextResponse.json({
       connected: false,
       status: "offline" satisfies OllamaConnectionStatus,
       models: [],
       cleared: false,
-      error: isTimeout
-        ? "Connection timed out. Check that your terminal bridge is running."
-        : "Failed to reach tunnel endpoint.",
+      error: message,
     });
   }
 }

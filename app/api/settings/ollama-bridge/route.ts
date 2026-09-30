@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
-import { probeOllamaTags } from "@/lib/llm";
+import { probeOllamaTagsWithRetry } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
 import {
   accountRulesSchema,
@@ -18,9 +18,21 @@ const bridgeBodySchema = z.object({
   ollamaUrl: z.string().url().optional(),
   action: z.enum(["disconnect"]).optional(),
   bridgeSecret: z.string().min(1, "bridgeSecret is required"),
+  /**
+   * Model tags from the bridge CLI probing localhost Ollama.
+   * Trusted when bridgeSecret matches — avoids relying on Vercel→Cloudflare.
+   */
+  models: z.array(z.string().min(1)).optional(),
 });
 
 export const dynamic = "force-dynamic";
+
+function normalizeModelList(models: string[] | undefined): string[] {
+  if (!models?.length) return [];
+  return [...new Set(models.map((m) => m.trim()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b)
+  );
+}
 
 export async function POST(request: Request) {
   try {
@@ -60,7 +72,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const { email, ollamaUrl, action, bridgeSecret } = parsed.data;
+    const { email, ollamaUrl, action, bridgeSecret, models: clientModels } =
+      parsed.data;
 
     // Case-insensitive lookup — terminal email casing must match the same Account
     // the Settings UI session uses via accountId.
@@ -125,20 +138,30 @@ export async function POST(request: Request) {
     }
 
     const normalizedUrl = ollamaUrl.replace(/\/+$/, "");
+    const fromCli = normalizeModelList(clientModels);
 
-    // Only mark connected after a live /api/tags probe — registering a URL ≠ reachable.
-    let models: string[] = [];
-    let connected = false;
-    try {
-      const probe = await probeOllamaTags(normalizedUrl, 6000);
-      models = probe.models;
-      connected = true;
-    } catch (probeErr) {
-      console.warn("[Ollama:Bridge] Tunnel registered but probe failed", {
-        url: normalizedUrl,
-        error:
-          probeErr instanceof Error ? probeErr.message : String(probeErr),
-      });
+    // Prefer CLI-local proof of Ollama (secret-authenticated). Vercel often cannot
+    // reliably reach trycloudflare.com, so do not require a cloud-side tunnel probe.
+    let models = fromCli;
+    let connected = fromCli.length > 0;
+    let connectedVia: "cli" | "tunnel" | "none" = connected ? "cli" : "none";
+
+    if (!connected) {
+      try {
+        const probe = await probeOllamaTagsWithRetry(normalizedUrl, {
+          timeoutMs: 12_000,
+          attempts: 3,
+        });
+        models = probe.models;
+        connected = true;
+        connectedVia = "tunnel";
+      } catch (probeErr) {
+        console.warn("[Ollama:Bridge] Tunnel registered but probes failed", {
+          url: normalizedUrl,
+          error:
+            probeErr instanceof Error ? probeErr.message : String(probeErr),
+        });
+      }
     }
 
     const nextRules = accountRulesSchema.parse({
@@ -165,7 +188,7 @@ export async function POST(request: Request) {
     if (connected) {
       console.info("[Ollama:Bridge]", {
         connected: true,
-        reachable: true,
+        connectedVia,
         url: normalizedUrl,
         modelsCount: models.length,
         accountId: account.id,
@@ -178,6 +201,7 @@ export async function POST(request: Request) {
       url: normalizedUrl,
       accountId: account.id,
       connected,
+      connectedVia,
       models,
     });
   } catch (error) {

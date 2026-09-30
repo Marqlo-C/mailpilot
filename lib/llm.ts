@@ -229,6 +229,32 @@ export async function probeOllamaTags(
   return { models };
 }
 
+/**
+ * Retries /api/tags — Cloudflare Quick Tunnels are often flaky from serverless.
+ */
+export async function probeOllamaTagsWithRetry(
+  baseUrl: string,
+  opts?: { timeoutMs?: number; attempts?: number; gapMs?: number }
+): Promise<{ models: string[] }> {
+  const timeoutMs = opts?.timeoutMs ?? 12_000;
+  const attempts = opts?.attempts ?? 3;
+  const gapMs = opts?.gapMs ?? 750;
+  let lastError: unknown;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await probeOllamaTags(baseUrl, timeoutMs);
+    } catch (err) {
+      lastError = err;
+      if (i < attempts) {
+        await new Promise((r) => setTimeout(r, gapMs * i));
+      }
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new OllamaUnreachableError(baseUrl, String(lastError));
+}
+
 const DEFAULT_OPENROUTER_MODELS = [
   process.env.OPENROUTER_MODEL,
   "qwen/qwen3.8-27b:free",
