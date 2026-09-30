@@ -15,7 +15,6 @@ import { useState } from "react";
 import { Logo, NavLogo } from "@/components/brand/logo";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { GlobalSyncTracker } from "@/components/layout/global-sync-tracker";
-import { SyncBadge } from "@/components/layout/sync-badge";
 import { SyncStatusProvider } from "@/components/layout/sync-status-provider";
 import { SyncTelemetry } from "@/components/opportunities/sync-telemetry";
 import { Button } from "@/components/ui/button";
@@ -33,7 +32,6 @@ type AppShellProps = {
   accounts: AccountSummary[];
   activeAccountId: string | null;
   activeEmail: string | null;
-  hasHistoryId: boolean;
   initialIsSyncing?: boolean;
   initialPendingClassificationCount?: number;
   children: React.ReactNode;
@@ -43,7 +41,6 @@ export function AppShell({
   accounts,
   activeAccountId,
   activeEmail,
-  hasHistoryId,
   initialIsSyncing = false,
   initialPendingClassificationCount = 0,
   children,
@@ -104,12 +101,6 @@ export function AppShell({
         </nav>
 
         <div className="space-y-3 border-t border-white/10 p-3">
-          {!collapsed && (
-            <SyncBadge
-              connected={Boolean(activeAccountId)}
-              watching={hasHistoryId}
-            />
-          )}
           <Button
             type="button"
             variant="ghost"
@@ -132,30 +123,21 @@ export function AppShell({
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
         {/* Top bar — account dropdown always available */}
         <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border/80 bg-background/80 px-4 py-3 backdrop-blur-md md:px-6">
-          <div className="min-w-0 md:hidden">
+          <div className="shrink-0 md:hidden">
             <span className="inline-flex items-center gap-2 text-foreground">
-              <span className="lg:hidden">
-                <Logo variant="icon" size="sm" showWordmark={false} priority />
-              </span>
+              <Logo variant="icon" size="sm" showWordmark={false} priority />
               <span className="hidden font-semibold tracking-tight sm:inline">
                 MailPilot
               </span>
             </span>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              {activeEmail ?? "No account connected"}
-            </p>
           </div>
-          <div className="hidden min-w-0 md:block">
-            <SyncTelemetry connected={Boolean(activeAccountId)} />
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <SyncTelemetry
+              connected={Boolean(activeAccountId)}
+              className="max-w-full"
+            />
           </div>
-          <div className="flex items-center gap-2">
-            <div className="md:hidden">
-              <SyncBadge
-                connected={Boolean(activeAccountId)}
-                watching={hasHistoryId}
-                compact
-              />
-            </div>
+          <div className="flex shrink-0 items-center gap-2">
             <AccountSwitcher
               accounts={accounts}
               activeAccountId={activeAccountId}
