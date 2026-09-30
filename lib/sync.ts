@@ -17,6 +17,7 @@ import {
 } from "@/lib/llm";
 import {
   ensurePersistentProfileForAccount,
+  mergeRulesWithPermanentSettings,
 } from "@/lib/persistent-profile";
 import { resolveApplicationType } from "@/lib/application-method";
 import {
@@ -30,7 +31,51 @@ import {
 } from "@/lib/parsers/application-parser";
 import { prisma } from "@/lib/prisma";
 import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
-import { parseAccountRules, titleMatchesExcluded } from "@/lib/validations/rules";
+import {
+  parseAccountRules,
+  titleMatchesExcluded,
+  type AccountRules,
+} from "@/lib/validations/rules";
+
+/**
+ * Resolve match threshold the same way the Job Radar UI does:
+ * UserProfile.matchThreshold → PermanentSettings → AccountSettings.rules.
+ */
+export async function resolveIngestionRules(
+  accountId: string,
+  settingsRules: unknown
+): Promise<AccountRules> {
+  const accountRules = parseAccountRules(settingsRules);
+  const [profile, account] = await Promise.all([
+    prisma.userProfile.findUnique({
+      where: { accountId },
+      select: { matchThreshold: true },
+    }),
+    prisma.account.findUnique({
+      where: { id: accountId },
+      select: { id: true, email: true, persistentProfileId: true },
+    }),
+  ]);
+
+  let rules = accountRules;
+  if (account) {
+    const durable = await ensurePersistentProfileForAccount(account);
+    rules = mergeRulesWithPermanentSettings(
+      accountRules,
+      durable.permanentSettings
+    );
+  }
+
+  if (
+    typeof profile?.matchThreshold === "number" &&
+    profile.matchThreshold >= 50 &&
+    profile.matchThreshold <= 100
+  ) {
+    rules = { ...rules, matchScoreThreshold: profile.matchThreshold };
+  }
+
+  return rules;
+}
 
 type SenderInfo = {
   name: string | null;
@@ -196,7 +241,10 @@ async function processMessage(
 
   const candidateProfile = await loadCandidateProfileSummary(account.id);
 
-  const accountRules = parseAccountRules(settings?.rules);
+  const accountRules = await resolveIngestionRules(
+    account.id,
+    settings?.rules
+  );
   const classification = await classifyJobEmail({
     llmProvider,
     localOllamaUrl: settings?.localOllamaUrl,
@@ -256,7 +304,7 @@ async function processMessage(
     return;
   }
 
-  const rules = parseAccountRules(settings?.rules);
+  const rules = accountRules;
   const emailDate = message.data.internalDate
     ? new Date(Number(message.data.internalDate))
     : new Date();
@@ -592,7 +640,6 @@ export async function persistClassifiedEmail(input: {
   }
 
   // DIRECT_RECRUITER / JOB_BOARD_DIGEST / applied listings → JobOpportunity rows
-  const threshold = rules.matchScoreThreshold ?? 75;
   const excludedTitles = rules.excludedTitles ?? [];
   let opportunitiesUpserted = 0;
   for (const job of classification.jobs) {
@@ -613,6 +660,10 @@ export async function persistClassifiedEmail(input: {
     const logoUrl = getCompanyLogoUrl(cleanCompany, companyDomain);
     let matchScore =
       typeof job.matchScore === "number" ? job.matchScore : 0;
+    // Guard: fractional scores that skipped normalizeClassification.
+    if (matchScore > 0 && matchScore <= 1) {
+      matchScore = Math.round(matchScore * 100);
+    }
     let matchReason = job.matchReason ?? null;
     const excluded = titleMatchesExcluded(cleanTitle, excludedTitles);
     if (excluded) {
@@ -621,7 +672,7 @@ export async function persistClassifiedEmail(input: {
         matchReason = "Title matches an excluded role pattern.";
       }
     }
-    const scoreArchived = excluded || matchScore < threshold;
+    // Visibility vs threshold is evaluated at read time; do not persist soft-archive.
     const isAlreadyApplied = Boolean(job.isAlreadyApplied);
 
     // Scoped dedupe: exact (company + title), else upgrade a placeholder
@@ -716,18 +767,51 @@ export async function persistClassifiedEmail(input: {
           status: resolvedStatus,
           appliedAt,
           emailMessageId: emailMessage.id,
-          // Only refresh score-archive for still-DISCOVERED soft-hides.
+          // Preserve user archives only; never persist below-threshold soft-hide.
           isArchived: preserveLifecycle
             ? resolvedStatus === "APPLIED"
               ? false
               : existing.isArchived
-            : scoreArchived,
+            : false,
           // Clear user-archive markers once promoted to APPLIED.
           ...(resolvedStatus === "APPLIED"
             ? { previousStatus: null, dismissedAt: null }
             : {}),
         },
       });
+
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Debug-Session-Id": "3c315a",
+          },
+          body: JSON.stringify({
+            sessionId: "3c315a",
+            runId: "live-threshold",
+            hypothesisId: "H1",
+            location: "lib/sync.ts:updateOpportunity",
+            message: "opportunity update isArchived not score-based",
+            data: {
+              matchScore,
+              excluded,
+              userArchived,
+              preserveLifecycle,
+              writtenIsArchived: preserveLifecycle
+                ? resolvedStatus === "APPLIED"
+                  ? false
+                  : existing.isArchived
+                : false,
+              status: resolvedStatus,
+            },
+            timestamp: Date.now(),
+          }),
+        }
+      ).catch(() => {});
+      // #endregion
 
       opportunitiesUpserted += 1;
       continue;
@@ -758,9 +842,37 @@ export async function persistClassifiedEmail(input: {
         matchReason,
         status: initialStatus,
         appliedAt: isAlreadyApplied ? emailDate ?? new Date() : null,
-        isArchived: initialStatus === "DISCOVERED" ? scoreArchived : false,
+        isArchived: false,
       },
     });
+
+    // #region agent log
+    fetch(
+      "http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "3c315a",
+        },
+        body: JSON.stringify({
+          sessionId: "3c315a",
+          runId: "live-threshold",
+          hypothesisId: "H1",
+          location: "lib/sync.ts:createOpportunity",
+          message: "opportunity create never soft-archives",
+          data: {
+            matchScore,
+            excluded,
+            writtenIsArchived: false,
+            status: initialStatus,
+          },
+          timestamp: Date.now(),
+        }),
+      }
+    ).catch(() => {});
+    // #endregion
+
     opportunitiesUpserted += 1;
   }
 

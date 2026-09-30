@@ -247,7 +247,7 @@ export function OpportunityCard({
       <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
         Draft ready
       </span>
-    ) : variant === "leads" && opportunity.isArchived && !userArchived ? (
+    ) : variant === "leads" && belowThreshold && !userArchived ? (
       <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
         Below threshold
       </span>
@@ -257,10 +257,7 @@ export function OpportunityCard({
     <article
       className={cn(
         "group relative flex h-full flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition-all duration-200",
-        belowThreshold &&
-          opportunity.isArchived &&
-          !userArchived &&
-          "opacity-90",
+        belowThreshold && !userArchived && "opacity-90",
         isSelected
           ? "border-[#3c837b]/70 bg-primary/[0.015] ring-2 ring-[#3c837b]/20"
           : "border-border/80 hover:border-border hover:shadow-md"

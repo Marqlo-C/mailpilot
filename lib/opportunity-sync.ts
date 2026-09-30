@@ -18,7 +18,7 @@ import {
 } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
 import { parseFromHeader, persistClassifiedEmail } from "@/lib/sync";
-import { parseAccountRules } from "@/lib/validations/rules";
+import { resolveIngestionRules } from "@/lib/sync";
 
 export type OpportunitySyncOptions = {
   forceRescan?: boolean;
@@ -236,7 +236,10 @@ export async function runOpportunitySync(
       };
     }
 
-    const rules = parseAccountRules(account.settings?.rules);
+    const rules = await resolveIngestionRules(
+      accountId,
+      account.settings?.rules
+    );
     const llmProvider = normalizeProvider(account.settings?.llmProvider);
     const candidateProfile = await loadCandidateProfileSummary(accountId);
 

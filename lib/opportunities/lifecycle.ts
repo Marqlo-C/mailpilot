@@ -2,7 +2,8 @@ import type { JobOpportunity } from "@prisma/client";
 
 /**
  * User-initiated archive: isArchived + previousStatus set, still not DISMISSED.
- * Distinct from below-threshold soft-hide (isArchived with previousStatus null).
+ * Below-threshold visibility is evaluated at read time from matchScore vs
+ * the live threshold — never persisted as isArchived.
  */
 export function isUserArchived(
   opportunity: Pick<JobOpportunity, "status" | "isArchived" | "previousStatus">
@@ -12,6 +13,24 @@ export function isUserArchived(
     opportunity.isArchived &&
     opportunity.previousStatus != null
   );
+}
+
+/** Legacy score soft-hide rows (isArchived with no user previousStatus). */
+export function isScoreSoftArchived(
+  opportunity: Pick<JobOpportunity, "status" | "isArchived" | "previousStatus">
+): boolean {
+  return (
+    opportunity.status !== "DISMISSED" &&
+    opportunity.isArchived &&
+    opportunity.previousStatus == null
+  );
+}
+
+export function meetsMatchThreshold(
+  matchScore: number | null | undefined,
+  threshold: number
+): boolean {
+  return (matchScore ?? 0) >= threshold;
 }
 
 export function isInHistory(

@@ -242,6 +242,39 @@ export async function getJobOpportunitiesForAccount(
   accountId: string
 ): Promise<JobOpportunity[]> {
   try {
+    // Heal legacy score soft-hides so threshold changes apply without rescan.
+    const cleared = await prisma.jobOpportunity.updateMany({
+      where: {
+        accountId,
+        isArchived: true,
+        previousStatus: null,
+        status: { not: "DISMISSED" },
+      },
+      data: { isArchived: false },
+    });
+
+    // #region agent log
+    fetch(
+      "http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "3c315a",
+        },
+        body: JSON.stringify({
+          sessionId: "3c315a",
+          runId: "live-threshold",
+          hypothesisId: "H3",
+          location: "lib/data.ts:getJobOpportunitiesForAccount",
+          message: "cleared legacy score soft-archives",
+          data: { accountId, cleared: cleared.count },
+          timestamp: Date.now(),
+        }),
+      }
+    ).catch(() => {});
+    // #endregion
+
     return await prisma.jobOpportunity.findMany({
       where: { accountId },
       orderBy: [{ matchScore: "desc" }, { receivedAt: "desc" }],

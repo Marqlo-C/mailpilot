@@ -22,6 +22,7 @@ import {
   OpportunityCard,
   type OpportunityCardVariant,
 } from "@/components/opportunities/opportunity-card";
+import { isUserArchived } from "@/lib/opportunities/lifecycle";
 
 type OpportunitiesViewProps = {
   opportunities: JobOpportunity[];
@@ -94,10 +95,7 @@ export function OpportunitiesView({
     [opportunities, selectedIds]
   );
   const archivedSelectedIds = useMemo(
-    () =>
-      selectedRecords
-        .filter((o) => o.isArchived && o.status !== "DISMISSED")
-        .map((o) => o.id),
+    () => selectedRecords.filter((o) => isUserArchived(o)).map((o) => o.id),
     [selectedRecords]
   );
   const dismissedSelectedIds = useMemo(
