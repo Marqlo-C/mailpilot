@@ -4,10 +4,7 @@ import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import {
-  SCAN_DAY_OPTIONS,
-  type ScanDays,
-} from "@/lib/scan-types";
+import { SYNC_HEARTBEAT_STALE_MS } from "@/lib/constants";
 import {
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
@@ -15,6 +12,10 @@ import {
 } from "@/lib/google";
 import { scanHistoricalEmails } from "@/lib/historical-scan";
 import { prisma } from "@/lib/prisma";
+import {
+  SCAN_DAY_OPTIONS,
+  type ScanDays,
+} from "@/lib/scan-types";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -64,7 +65,11 @@ export async function triggerHistoricalScan(
 
   await prisma.account.update({
     where: { id: account.id },
-    data: { isSyncing: true, syncError: null },
+    data: {
+      isSyncing: true,
+      syncError: null,
+      syncHeartbeatAt: new Date(),
+    },
   });
 
   const scanAccountId = account.id;
@@ -135,10 +140,13 @@ export async function getAccountSyncStatus(
     const account = await prisma.account.findUnique({
       where: { id: accountId },
       select: {
+        id: true,
         isSyncing: true,
         lastSyncedAt: true,
         syncError: true,
         lastSyncProcessed: true,
+        updatedAt: true,
+        syncHeartbeatAt: true,
       },
     });
 
@@ -146,12 +154,40 @@ export async function getAccountSyncStatus(
       return { ok: false, error: "Account not found" };
     }
 
+    let isCurrentlySyncing = account.isSyncing;
+    let syncErrorMessage = account.syncError;
+
+    if (isCurrentlySyncing) {
+      const heartbeatAgeMs =
+        Date.now() -
+        (account.syncHeartbeatAt?.getTime() ?? account.updatedAt.getTime());
+
+      if (heartbeatAgeMs > SYNC_HEARTBEAT_STALE_MS) {
+        console.warn(
+          `[SyncLock:AutoReset] Clearing stale sync lock (heartbeatAge=${Math.round(heartbeatAgeMs / 1000)}s)`
+        );
+
+        syncErrorMessage =
+          "Background sync interrupted. Auto-reset complete.";
+
+        await prisma.account.update({
+          where: { id: account.id },
+          data: {
+            isSyncing: false,
+            syncError: syncErrorMessage,
+          },
+        });
+
+        isCurrentlySyncing = false;
+      }
+    }
+
     return {
       ok: true,
       data: {
-        isSyncing: account.isSyncing,
+        isSyncing: isCurrentlySyncing,
         lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
-        syncError: account.syncError,
+        syncError: syncErrorMessage,
         lastSyncProcessed: account.lastSyncProcessed,
       },
     };

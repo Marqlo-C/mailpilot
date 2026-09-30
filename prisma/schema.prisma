@@ -76,6 +76,8 @@ model Account {
   syncError           String?
   /// Opportunities upserted on the most recent completed sync (for UI toast).
   lastSyncProcessed   Int?
+  /// Touched by the background worker each batch so hang detection uses liveness, not lock start.
+  syncHeartbeatAt     DateTime?
 
   settings        AccountSettings?
   subscriptions   Subscription[]

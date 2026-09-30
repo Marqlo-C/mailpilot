@@ -17,3 +17,9 @@ export const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
  * Sized for long local-Ollama batch classification (minutes per message).
  */
 export const SYNC_LOCK_STALE_MS = 600 * 1000;
+
+/**
+ * Max silence between worker heartbeats before a sync lock is considered dead.
+ * Active Ollama batches should renew `syncHeartbeatAt` each chunk.
+ */
+export const SYNC_HEARTBEAT_STALE_MS = 180 * 1000;

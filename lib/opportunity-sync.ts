@@ -359,6 +359,11 @@ export async function runOpportunitySync(
       );
 
       opportunitiesUpserted += results.reduce((sum, n) => sum + n, 0);
+
+      await prisma.account.update({
+        where: { id: accountId },
+        data: { syncHeartbeatAt: new Date() },
+      });
     }
 
     return {

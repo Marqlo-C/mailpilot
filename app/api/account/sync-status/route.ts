@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { SYNC_LOCK_STALE_MS } from "@/lib/constants";
+import { SYNC_HEARTBEAT_STALE_MS } from "@/lib/constants";
 import { getActiveAccount } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 
@@ -10,7 +10,7 @@ export const revalidate = 0;
 
 /**
  * Lightweight poll endpoint for GlobalSyncTracker.
- * Auto-heals stale isSyncing locks older than SYNC_LOCK_STALE_MS (10 min).
+ * Auto-heals when the worker heartbeat goes silent for SYNC_HEARTBEAT_STALE_MS.
  */
 export async function GET() {
   try {
@@ -38,6 +38,7 @@ export async function GET() {
           syncError: true,
           lastSyncProcessed: true,
           updatedAt: true,
+          syncHeartbeatAt: true,
         },
       }),
       prisma.emailMessage.count({
@@ -59,24 +60,28 @@ export async function GET() {
     }
 
     if (account.isSyncing) {
-      const lockAgeMs = Date.now() - account.updatedAt.getTime();
-      if (lockAgeMs > SYNC_LOCK_STALE_MS) {
+      const heartbeatAgeMs =
+        Date.now() -
+        (account.syncHeartbeatAt?.getTime() ?? account.updatedAt.getTime());
+
+      if (heartbeatAgeMs > SYNC_HEARTBEAT_STALE_MS) {
+        const syncError =
+          "Background sync interrupted. Auto-reset complete.";
         console.warn(
-          `Detected stale sync lock for ${account.id} (age=${Math.round(lockAgeMs / 1000)}s). Auto-resetting.`
+          `[SyncLock:AutoReset] Clearing stale sync lock for ${account.id} (heartbeatAge=${Math.round(heartbeatAgeMs / 1000)}s)`
         );
         await prisma.account.update({
           where: { id: account.id },
           data: {
             isSyncing: false,
-            syncError: "Previous sync timed out",
-            lastSyncedAt: new Date(),
+            syncError,
           },
         });
         return NextResponse.json({
           isSyncing: false,
-          lastSyncedAt: new Date().toISOString(),
-          syncError: "Previous sync timed out",
-          lastSyncProcessed: null,
+          lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
+          syncError,
+          lastSyncProcessed: account.lastSyncProcessed,
           wasStaleReset: true,
           pendingClassificationCount,
         });
