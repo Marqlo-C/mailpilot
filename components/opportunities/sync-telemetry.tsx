@@ -74,11 +74,6 @@ export function SyncTelemetry({
     );
   }
 
-  const syncingLabel =
-    pendingCount > 0
-      ? `Syncing... (${pendingCount} left)`
-      : "Syncing...";
-
   return (
     <div
       className={cn("inline-flex select-none items-center", className)}
@@ -91,7 +86,15 @@ export function SyncTelemetry({
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-500 opacity-75" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
           </span>
-          <span>{syncingLabel}</span>
+          {pendingCount > 0 ? (
+            <span>
+              Classifying{" "}
+              <span className="font-bold tabular-nums">{pendingCount}</span>{" "}
+              {pendingCount === 1 ? "email" : "emails"}…
+            </span>
+          ) : (
+            <span>Syncing inbox…</span>
+          )}
         </div>
       ) : pendingCount > 0 ? (
         <button
@@ -105,7 +108,7 @@ export function SyncTelemetry({
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-500" />
           </span>
           <span>
-            {pendingCount}{" "}
+            <span className="font-bold tabular-nums">{pendingCount}</span>{" "}
             {pendingCount === 1 ? "email" : "emails"} awaiting classification
           </span>
         </button>
@@ -114,7 +117,7 @@ export function SyncTelemetry({
           <span className="relative flex h-1.5 w-1.5">
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
           </span>
-          <span>Synced. Inbox updated</span>
+          <span>Inbox up to date</span>
         </div>
       )}
     </div>

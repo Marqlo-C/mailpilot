@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import type { Account, PermanentSettings, PersistentProfile } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile";
 import {
   DEFAULT_ACCOUNT_RULES,
   type AccountRules,
@@ -9,6 +10,12 @@ import {
 
 export type PersistentProfileWithSettings = PersistentProfile & {
   permanentSettings: PermanentSettings | null;
+};
+
+export type PermanentSettingsSeed = {
+  applicationMode?: AccountRules["applicationMode"];
+  matchScoreThreshold?: number;
+  maxAutoSendsPerDay?: number;
 };
 
 /**
@@ -25,7 +32,7 @@ export async function ensurePersistentProfile(input: {
   email: string;
   googleSub?: string | null;
   accountId?: string;
-  seedRules?: Partial<AccountRules>;
+  seedRules?: PermanentSettingsSeed;
 }): Promise<PersistentProfileWithSettings> {
   const email = input.email.trim().toLowerCase();
   const googleSub =
@@ -40,8 +47,7 @@ export async function ensurePersistentProfile(input: {
     applicationMode:
       input.seedRules?.applicationMode ?? DEFAULT_ACCOUNT_RULES.applicationMode,
     matchScoreThreshold:
-      input.seedRules?.matchScoreThreshold ??
-      DEFAULT_ACCOUNT_RULES.matchScoreThreshold,
+      input.seedRules?.matchScoreThreshold ?? DEFAULT_MATCH_THRESHOLD,
     maxAutoSendsPerDay:
       input.seedRules?.maxAutoSendsPerDay ??
       DEFAULT_ACCOUNT_RULES.maxAutoSendsPerDay,
@@ -109,7 +115,7 @@ export async function ensurePersistentProfileForAccount(
           data: {
             persistentProfileId: existing.id,
             applicationMode: DEFAULT_ACCOUNT_RULES.applicationMode,
-            matchScoreThreshold: DEFAULT_ACCOUNT_RULES.matchScoreThreshold,
+            matchScoreThreshold: DEFAULT_MATCH_THRESHOLD,
             maxAutoSendsPerDay: DEFAULT_ACCOUNT_RULES.maxAutoSendsPerDay,
           },
         });
@@ -130,6 +136,7 @@ export async function ensurePersistentProfileForAccount(
 
 /**
  * Merges AccountSettings.rules with PermanentSettings for UI/dispatch consumers.
+ * Match threshold is intentionally excluded — resolve via resolveMatchThreshold.
  */
 export function mergeRulesWithPermanentSettings(
   accountRules: AccountRules,
@@ -139,7 +146,6 @@ export function mergeRulesWithPermanentSettings(
   return {
     ...accountRules,
     applicationMode: permanent.applicationMode as AccountRules["applicationMode"],
-    matchScoreThreshold: permanent.matchScoreThreshold,
     maxAutoSendsPerDay: permanent.maxAutoSendsPerDay,
   };
 }

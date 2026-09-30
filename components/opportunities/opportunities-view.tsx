@@ -22,6 +22,7 @@ import {
   OpportunityCard,
   type OpportunityCardVariant,
 } from "@/components/opportunities/opportunity-card";
+import { Slider } from "@/components/ui/slider";
 import { isUserArchived } from "@/lib/opportunities/lifecycle";
 
 type OpportunitiesViewProps = {
@@ -33,9 +34,10 @@ type OpportunitiesViewProps = {
   /** When false, hides the listing count in the toolbar. */
   showListingCount?: boolean;
   retentionDays?: number;
-  /** When set, shows the matches-only toggle in the consolidated toolbar. */
-  showMatchesOnly?: boolean;
-  onShowMatchesOnlyChange?: (value: boolean) => void;
+  /** When true, shows the live match-threshold slider in the toolbar. */
+  showThresholdControl?: boolean;
+  onThresholdChange?: (value: number) => void;
+  onThresholdCommit?: (value: number) => void;
   hiddenCount?: number;
   onReviewDraft?: (opp: JobOpportunity) => void;
   onSendNow?: (opp: JobOpportunity) => void;
@@ -56,8 +58,9 @@ export function OpportunitiesView({
   emptyText = "No opportunities yet.",
   showListingCount = true,
   retentionDays = 30,
-  showMatchesOnly,
-  onShowMatchesOnlyChange,
+  showThresholdControl = false,
+  onThresholdChange,
+  onThresholdCommit,
   hiddenCount = 0,
   onReviewDraft,
   onSendNow,
@@ -85,10 +88,6 @@ export function OpportunitiesView({
       router.refresh();
     });
   }
-
-  const showMatchesFilter =
-    typeof showMatchesOnly === "boolean" &&
-    typeof onShowMatchesOnlyChange === "function";
 
   const selectedRecords = useMemo(
     () => opportunities.filter((o) => selectedIds.includes(o.id)),
@@ -133,13 +132,13 @@ export function OpportunitiesView({
   }
 
   const showToolbar =
-    showMatchesFilter || opportunities.length > 0 || showListingCount;
+    showThresholdControl || opportunities.length > 0 || showListingCount;
 
   return (
     <div className="space-y-3">
       {showToolbar ? (
         <div className="mb-3 flex select-none flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-card px-3.5 py-2 shadow-sm">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             {opportunities.length > 0 ? (
               <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
                 <input
@@ -154,33 +153,36 @@ export function OpportunitiesView({
               </label>
             ) : null}
 
-            {opportunities.length > 0 && showMatchesFilter ? (
+            {opportunities.length > 0 && showThresholdControl ? (
               <div className="h-4 w-px bg-border/70" />
             ) : null}
 
-            {showMatchesFilter ? (
-              <>
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    checked={showMatchesOnly}
-                    onChange={(e) =>
-                      onShowMatchesOnlyChange?.(e.target.checked)
-                    }
-                    className="peer sr-only"
-                  />
-                  <div className="relative h-[18px] w-8 rounded-full bg-muted after:absolute after:top-[2px] after:left-[2px] after:h-3.5 after:w-3.5 after:rounded-full after:border after:border-border after:bg-white after:transition-all after:content-[''] peer-checked:bg-[#3c837b] peer-checked:after:translate-x-3.5 peer-checked:after:border-white peer-focus:outline-none" />
-                  <span className="ml-2 text-xs font-medium text-foreground">
-                    Show only matches (≥ {matchThreshold}%)
-                  </span>
-                </label>
-
-                {hiddenCount > 0 && showMatchesOnly ? (
+            {showThresholdControl ? (
+              <div className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-sm">
+                <span className="whitespace-nowrap text-xs font-medium text-foreground">
+                  Match ≥ {matchThreshold}%
+                </span>
+                <Slider
+                  min={0}
+                  max={100}
+                  step={5}
+                  disabled={busy || !onThresholdCommit}
+                  value={[matchThreshold]}
+                  onValueChange={(value) =>
+                    onThresholdChange?.(value[0] ?? matchThreshold)
+                  }
+                  onValueCommit={(value) =>
+                    onThresholdCommit?.(value[0] ?? matchThreshold)
+                  }
+                  className="w-28 sm:w-40"
+                  aria-label="Match score threshold"
+                />
+                {hiddenCount > 0 ? (
                   <span className="hidden text-[11px] text-muted-foreground/80 md:inline">
                     ({hiddenCount} hidden)
                   </span>
                 ) : null}
-              </>
+              </div>
             ) : null}
 
             {selectedIds.length > 0 ? (

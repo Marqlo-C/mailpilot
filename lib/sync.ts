@@ -7,6 +7,7 @@ import {
   registerInboxWatch,
   rethrowIfInsufficientScope,
 } from "@/lib/google";
+import { cleanEmailPayload } from "@/lib/email/cleaner";
 import {
   classifyJobEmail,
   extractMessageBody,
@@ -38,43 +39,26 @@ import {
 } from "@/lib/validations/rules";
 
 /**
- * Resolve match threshold the same way the Job Radar UI does:
- * UserProfile.matchThreshold → PermanentSettings → AccountSettings.rules.
+ * Resolve account rules for ingestion (automation knobs from PermanentSettings).
+ * Match threshold is not part of rules — use resolveMatchThreshold separately.
  */
 export async function resolveIngestionRules(
   accountId: string,
   settingsRules: unknown
 ): Promise<AccountRules> {
   const accountRules = parseAccountRules(settingsRules);
-  const [profile, account] = await Promise.all([
-    prisma.userProfile.findUnique({
-      where: { accountId },
-      select: { matchThreshold: true },
-    }),
-    prisma.account.findUnique({
-      where: { id: accountId },
-      select: { id: true, email: true, persistentProfileId: true },
-    }),
-  ]);
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    select: { id: true, email: true, persistentProfileId: true },
+  });
 
-  let rules = accountRules;
-  if (account) {
-    const durable = await ensurePersistentProfileForAccount(account);
-    rules = mergeRulesWithPermanentSettings(
-      accountRules,
-      durable.permanentSettings
-    );
-  }
+  if (!account) return accountRules;
 
-  if (
-    typeof profile?.matchThreshold === "number" &&
-    profile.matchThreshold >= 50 &&
-    profile.matchThreshold <= 100
-  ) {
-    rules = { ...rules, matchScoreThreshold: profile.matchThreshold };
-  }
-
-  return rules;
+  const durable = await ensurePersistentProfileForAccount(account);
+  return mergeRulesWithPermanentSettings(
+    accountRules,
+    durable.permanentSettings
+  );
 }
 
 type SenderInfo = {
@@ -222,13 +206,18 @@ async function processMessage(
     });
   }
 
-  const body = extractMessageBody(message.data.payload);
+  const fullRawBody = extractMessageBody(message.data.payload);
+  const cleanedText = cleanEmailPayload(
+    fullRawBody.trim().length > 0
+      ? fullRawBody
+      : message.data.snippet ?? subject
+  );
   const sender = from ? parseFromHeader(from) : null;
 
   if (
     !shouldClassifyEmail({
       subject,
-      body,
+      body: cleanedText,
       snippet: message.data.snippet,
       fromEmail: sender?.email ?? null,
     })
@@ -250,7 +239,7 @@ async function processMessage(
     localOllamaUrl: settings?.localOllamaUrl,
     ollamaModel: settings?.ollamaModel,
     subject,
-    body,
+    body: cleanedText,
     fromEmail: sender?.email ?? null,
     candidateProfile,
     allowCloudFallback: accountRules.allowCloudFallback,
@@ -264,12 +253,15 @@ async function processMessage(
     if (classification) {
       await prisma.emailMessage.updateMany({
         where: { accountId: account.id, messageId },
-        data: { emailCategory: "IRRELEVANT" },
+        data: {
+          emailCategory: "IRRELEVANT",
+          rawBody: fullRawBody.trim().length > 0 ? fullRawBody : null,
+        },
       });
     } else if (
       shouldClassifyEmail({
         subject,
-        body,
+        body: cleanedText,
         snippet: message.data.snippet,
         fromEmail: sender?.email ?? null,
       })
@@ -294,10 +286,12 @@ async function processMessage(
           fromName: sender?.name ?? null,
           emailCategory: "PENDING_AI",
           emailDate,
-          snippet: sanitizeEmailBody(body).slice(0, 500),
+          snippet: cleanedText.slice(0, 500),
+          rawBody: fullRawBody.trim().length > 0 ? fullRawBody : null,
         },
         update: {
           emailCategory: "PENDING_AI",
+          rawBody: fullRawBody.trim().length > 0 ? fullRawBody : null,
         },
       });
     }
@@ -315,7 +309,8 @@ async function processMessage(
     messageId,
     threadId,
     subject,
-    body,
+    body: cleanedText,
+    rawBody: fullRawBody,
     sender,
     emailDate,
     classification,
@@ -334,7 +329,10 @@ export async function persistClassifiedEmail(input: {
   messageId: string;
   threadId: string;
   subject: string;
+  /** Cleaned body used for parsing / snippet preview / already-classified LLM text. */
   body: string;
+  /** Full extracted Gmail body preserved for drafting. */
+  rawBody?: string | null;
   sender: SenderInfo | null;
   emailDate: Date;
   classification: NonNullable<
@@ -349,11 +347,18 @@ export async function persistClassifiedEmail(input: {
     threadId,
     subject,
     body,
+    rawBody,
     sender,
     emailDate,
     classification,
     rules,
   } = input;
+
+  const storedRawBody =
+    typeof rawBody === "string" && rawBody.trim().length > 0
+      ? rawBody
+      : null;
+  const snippetPreview = sanitizeEmailBody(body).slice(0, 500);
 
   const emailMessage = await prisma.emailMessage.upsert({
     where: {
@@ -371,7 +376,8 @@ export async function persistClassifiedEmail(input: {
       fromName: sender?.name ?? null,
       emailCategory: classification.email_category,
       emailDate,
-      snippet: sanitizeEmailBody(body).slice(0, 500),
+      snippet: snippetPreview,
+      rawBody: storedRawBody,
     },
     update: {
       threadId,
@@ -380,7 +386,8 @@ export async function persistClassifiedEmail(input: {
       fromName: sender?.name ?? null,
       emailCategory: classification.email_category,
       emailDate,
-      snippet: sanitizeEmailBody(body).slice(0, 500),
+      snippet: snippetPreview,
+      ...(storedRawBody ? { rawBody: storedRawBody } : {}),
     },
   });
 
@@ -780,39 +787,6 @@ export async function persistClassifiedEmail(input: {
         },
       });
 
-      // #region agent log
-      fetch(
-        "http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Debug-Session-Id": "3c315a",
-          },
-          body: JSON.stringify({
-            sessionId: "3c315a",
-            runId: "live-threshold",
-            hypothesisId: "H1",
-            location: "lib/sync.ts:updateOpportunity",
-            message: "opportunity update isArchived not score-based",
-            data: {
-              matchScore,
-              excluded,
-              userArchived,
-              preserveLifecycle,
-              writtenIsArchived: preserveLifecycle
-                ? resolvedStatus === "APPLIED"
-                  ? false
-                  : existing.isArchived
-                : false,
-              status: resolvedStatus,
-            },
-            timestamp: Date.now(),
-          }),
-        }
-      ).catch(() => {});
-      // #endregion
-
       opportunitiesUpserted += 1;
       continue;
     }
@@ -845,33 +819,6 @@ export async function persistClassifiedEmail(input: {
         isArchived: false,
       },
     });
-
-    // #region agent log
-    fetch(
-      "http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "3c315a",
-        },
-        body: JSON.stringify({
-          sessionId: "3c315a",
-          runId: "live-threshold",
-          hypothesisId: "H1",
-          location: "lib/sync.ts:createOpportunity",
-          message: "opportunity create never soft-archives",
-          data: {
-            matchScore,
-            excluded,
-            writtenIsArchived: false,
-            status: initialStatus,
-          },
-          timestamp: Date.now(),
-        }),
-      }
-    ).catch(() => {});
-    // #endregion
 
     opportunitiesUpserted += 1;
   }

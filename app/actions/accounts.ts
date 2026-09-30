@@ -11,7 +11,7 @@ import {
   SESSION_COOKIE,
 } from "@/lib/constants";
 import { getGmailClientForAccount } from "@/lib/google";
-import { normalizeOllamaBaseUrl } from "@/lib/llm";
+import { normalizeOllamaBaseUrl, probeOllamaTags } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
 import { processInboxDelta } from "@/lib/sync";
 import { Prisma } from "@prisma/client";
@@ -157,27 +157,7 @@ export async function pingOllama(
   const base = normalizeOllamaBaseUrl(raw);
 
   try {
-    const endpoint = new URL("/api/tags", base).toString();
-    const response = await fetch(endpoint, {
-      method: "GET",
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (!response.ok) {
-      return { ok: false, error: `Ollama responded with HTTP ${response.status}` };
-    }
-
-    const json = (await response.json()) as {
-      models?: Array<string | { name?: string; model?: string }>;
-    };
-
-    const models = (json.models ?? [])
-      .map((entry) => {
-        if (typeof entry === "string") return entry.trim();
-        return (entry.name ?? entry.model ?? "").trim();
-      })
-      .filter((name) => name.length > 0)
-      .sort((a, b) => a.localeCompare(b));
+    const { models } = await probeOllamaTags(base, 5000);
 
     const current = parseAccountRules(settings?.rules);
     const validated = accountRulesSchema.parse({

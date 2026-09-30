@@ -6,6 +6,7 @@ import {
   getJobOpportunitiesForAccount,
   getJobsForAccount,
 } from "@/lib/data";
+import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile";
 import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
 
 export default async function JobsPage() {
@@ -25,9 +26,7 @@ export default async function JobsPage() {
         })()
       : null;
 
-  const threshold =
-    active?.rules.matchScoreThreshold ??
-    DEFAULT_ACCOUNT_RULES.matchScoreThreshold;
+  const threshold = active?.matchThreshold ?? DEFAULT_MATCH_THRESHOLD;
   const retentionDays =
     active?.rules.dismissedRetentionDays ??
     DEFAULT_ACCOUNT_RULES.dismissedRetentionDays;

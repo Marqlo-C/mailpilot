@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 
 import { canDraftDirectEmail } from "@/lib/application-method";
+import { cleanEmailPayload } from "@/lib/email/cleaner";
 import {
   cleanRecruiterFirstName,
   extractSenderTitle,
@@ -23,6 +24,25 @@ import { parseAccountRules } from "@/lib/validations/rules";
 function normalizeProvider(value: string | null | undefined): LlmProvider {
   return value === "LOCAL_OLLAMA" ? "LOCAL_OLLAMA" : "OPENROUTER";
 }
+
+/** Prefer full stored body (cleaned) over short list snippet for drafting. */
+function emailBodyForDraft(emailMessage?: {
+  rawBody?: string | null;
+  snippet?: string | null;
+} | null): string {
+  const raw = emailMessage?.rawBody?.trim();
+  if (raw) return cleanEmailPayload(raw);
+  return emailMessage?.snippet?.trim() ?? "";
+}
+
+const emailMessageDraftSelect = {
+  snippet: true,
+  rawBody: true,
+  emailCategory: true,
+  fromName: true,
+  fromEmail: true,
+  subject: true,
+} as const;
 
 function encodeRaw(raw: string): string {
   return Buffer.from(raw)
@@ -82,13 +102,7 @@ export async function prepareOpportunityDraft(
     where: { id: opportunityId, accountId },
     include: {
       emailMessage: {
-        select: {
-          snippet: true,
-          emailCategory: true,
-          fromName: true,
-          fromEmail: true,
-          subject: true,
-        },
+        select: emailMessageDraftSelect,
       },
     },
   });
@@ -103,22 +117,18 @@ export async function prepareOpportunityDraft(
 
   const profile = await loadMasterProfile(accountId);
   const slim = await buildSlimCandidate(profile, prisma);
+  const inboundBody = emailBodyForDraft(opportunity.emailMessage);
 
   const recruiterName = cleanRecruiterFirstName(
     opportunity.emailMessage?.fromName ?? opportunity.recipientName,
     opportunity.emailMessage?.fromEmail ?? opportunity.recipientEmail,
-    [
-      opportunity.emailMessage?.snippet,
-      opportunity.description,
-    ]
-      .filter(Boolean)
-      .join("\n")
+    [inboundBody, opportunity.description].filter(Boolean).join("\n")
   );
 
   const recruiterTitle = extractSenderTitle(
     [
       opportunity.emailMessage?.fromName,
-      opportunity.emailMessage?.snippet,
+      inboundBody,
       opportunity.description,
       opportunity.recipientName,
     ]
@@ -133,7 +143,7 @@ export async function prepareOpportunityDraft(
     opportunity.emailMessage?.fromName
       ? `From: ${opportunity.emailMessage.fromName} <${opportunity.emailMessage.fromEmail ?? ""}>`
       : null,
-    opportunity.emailMessage?.snippet,
+    inboundBody,
     opportunity.description,
     opportunity.title,
     opportunity.company,
@@ -141,8 +151,7 @@ export async function prepareOpportunityDraft(
     opportunity.salary,
   ]
     .filter(Boolean)
-    .join("\n")
-    .slice(0, 1500);
+    .join("\n");
 
   const draft = await draftContextualEmail({
     candidate: slim,
@@ -196,12 +205,7 @@ export async function refineOpportunityDraft(
     where: { id: opportunityId, accountId },
     include: {
       emailMessage: {
-        select: {
-          snippet: true,
-          emailCategory: true,
-          fromName: true,
-          fromEmail: true,
-        },
+        select: emailMessageDraftSelect,
       },
     },
   });
@@ -216,21 +220,17 @@ export async function refineOpportunityDraft(
 
   const profile = await loadMasterProfile(accountId);
   const slim = await buildSlimCandidate(profile, prisma);
+  const inboundBody = emailBodyForDraft(opportunity.emailMessage);
 
   const recruiterName = cleanRecruiterFirstName(
     opportunity.emailMessage?.fromName ?? opportunity.recipientName,
     opportunity.emailMessage?.fromEmail ?? opportunity.recipientEmail,
-    [
-      opportunity.emailMessage?.snippet,
-      opportunity.description,
-    ]
-      .filter(Boolean)
-      .join("\n")
+    [inboundBody, opportunity.description].filter(Boolean).join("\n")
   );
   const recruiterTitle = extractSenderTitle(
     [
       opportunity.emailMessage?.fromName,
-      opportunity.emailMessage?.snippet,
+      inboundBody,
       opportunity.description,
     ]
       .filter(Boolean)
@@ -240,12 +240,11 @@ export async function refineOpportunityDraft(
   const inboundSnippet = [
     opportunity.draftBody,
     opportunity.draftSubject,
-    opportunity.emailMessage?.snippet,
+    inboundBody,
     opportunity.description,
   ]
     .filter(Boolean)
-    .join("\n---\n")
-    .slice(0, 1500);
+    .join("\n---\n");
 
   const draft = await draftContextualEmail({
     candidate: slim,
@@ -364,6 +363,11 @@ export async function dispatchOpportunityEmail(
 
   const opportunity = await prisma.jobOpportunity.findFirst({
     where: { id: opportunityId, accountId },
+    include: {
+      emailMessage: {
+        select: emailMessageDraftSelect,
+      },
+    },
   });
   if (!opportunity) {
     throw new Error("Opportunity not found");
@@ -382,6 +386,7 @@ export async function dispatchOpportunityEmail(
   let body = opportunity.draftBody?.trim() ?? "";
   if (!body) {
     const slim = await buildSlimCandidate(profile, prisma);
+    const inboundBody = emailBodyForDraft(opportunity.emailMessage);
     const draft = await draftContextualEmail({
       candidate: slim,
       profile,
@@ -390,16 +395,19 @@ export async function dispatchOpportunityEmail(
         cleanFirstName: cleanRecruiterFirstName(
           opportunity.recipientName,
           opportunity.recipientEmail,
-          opportunity.description
+          [inboundBody, opportunity.description].filter(Boolean).join("\n")
         ),
         titleOrPersona: null,
         companyName: opportunity.company,
         roleLabel: opportunity.title,
       },
-      inboundSnippet: [opportunity.description, opportunity.title]
+      inboundSnippet: [
+        inboundBody,
+        opportunity.description,
+        opportunity.title,
+      ]
         .filter(Boolean)
-        .join("\n")
-        .slice(0, 1500),
+        .join("\n"),
       llmConfig: {
         provider: normalizeProvider(account.settings?.llmProvider),
         localOllamaUrl: account.settings?.localOllamaUrl,

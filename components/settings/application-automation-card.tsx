@@ -16,12 +16,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile";
 import type { AccountRules } from "@/lib/validations/rules";
 
 type ApplicationAutomationCardProps = {
   accountId: string | null;
   rules: AccountRules;
-  /** Preferred source: UserProfile.matchThreshold */
+  /** Canonical: PermanentSettings / UserProfile via getActiveAccount.matchThreshold */
   matchThreshold?: number | null;
 };
 
@@ -32,14 +33,14 @@ export function ApplicationAutomationCard({
 }: ApplicationAutomationCardProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const initialThreshold = matchThreshold ?? rules.matchScoreThreshold;
+  const initialThreshold = matchThreshold ?? DEFAULT_MATCH_THRESHOLD;
   const [threshold, setThreshold] = useState(initialThreshold);
   const disabled = !accountId || pending;
   const autoSend = rules.applicationMode === "AUTO_SEND";
 
   useEffect(() => {
-    setThreshold(matchThreshold ?? rules.matchScoreThreshold);
-  }, [matchThreshold, rules.matchScoreThreshold]);
+    setThreshold(matchThreshold ?? DEFAULT_MATCH_THRESHOLD);
+  }, [matchThreshold]);
 
   function patch(key: keyof AccountRules, value: string | number) {
     if (!accountId) return;
@@ -51,7 +52,7 @@ export function ApplicationAutomationCard({
 
   function commitThreshold(value: number) {
     if (!accountId) return;
-    const next = Math.min(100, Math.max(50, value));
+    const next = Math.min(100, Math.max(0, Math.round(value / 5) * 5));
     setThreshold(next);
     startTransition(async () => {
       await updateMatchThreshold(accountId, next);
@@ -103,7 +104,7 @@ export function ApplicationAutomationCard({
             </span>
           </div>
           <Slider
-            min={50}
+            min={0}
             max={100}
             step={5}
             disabled={disabled}
@@ -112,7 +113,8 @@ export function ApplicationAutomationCard({
             onValueCommit={(value) => commitThreshold(value[0] ?? threshold)}
           />
           <p className="text-xs text-muted-foreground">
-            Leads scoring below this threshold stay in manual review.
+            Leads scoring below this threshold are hidden on Job Radar (0% shows
+            all).
           </p>
         </div>
 

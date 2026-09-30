@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
+import { probeOllamaTags } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
 import {
   accountRulesSchema,
@@ -125,10 +126,25 @@ export async function POST(request: Request) {
 
     const normalizedUrl = ollamaUrl.replace(/\/+$/, "");
 
+    // Only mark connected after a live /api/tags probe — registering a URL ≠ reachable.
+    let models: string[] = [];
+    let connected = false;
+    try {
+      const probe = await probeOllamaTags(normalizedUrl, 6000);
+      models = probe.models;
+      connected = true;
+    } catch (probeErr) {
+      console.warn("[Ollama:Bridge] Tunnel registered but probe failed", {
+        url: normalizedUrl,
+        error:
+          probeErr instanceof Error ? probeErr.message : String(probeErr),
+      });
+    }
+
     const nextRules = accountRulesSchema.parse({
       ...rules,
-      availableModels: [],
-      bridgeConnected: true,
+      availableModels: models,
+      bridgeConnected: connected,
     });
 
     await prisma.accountSettings.upsert({
@@ -146,11 +162,23 @@ export async function POST(request: Request) {
       },
     });
 
+    if (connected) {
+      console.info("[Ollama:Bridge]", {
+        connected: true,
+        reachable: true,
+        url: normalizedUrl,
+        modelsCount: models.length,
+        accountId: account.id,
+      });
+    }
+
     return NextResponse.json({
       success: true,
       activeUrl: normalizedUrl,
       url: normalizedUrl,
       accountId: account.id,
+      connected,
+      models,
     });
   } catch (error) {
     console.error("[OLLAMA_BRIDGE_ERROR]", error);

@@ -15,6 +15,7 @@ import {
   mergeRulesWithPermanentSettings,
 } from "@/lib/persistent-profile";
 import { prisma } from "@/lib/prisma";
+import { resolveMatchThreshold } from "@/lib/validations/profile";
 import { parseAccountRules, type AccountRules } from "@/lib/validations/rules";
 
 export type AccountSummary = Pick<
@@ -35,6 +36,8 @@ export type AccountSummary = Pick<
 export type AccountWithSettings = AccountSummary & {
   settings: AccountSettings | null;
   rules: AccountRules;
+  /** Canonical match threshold (PermanentSettings → UserProfile). */
+  matchThreshold: number;
   hasCredentials: boolean;
   pendingClassificationCount: number;
 };
@@ -150,6 +153,17 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
       durable.permanentSettings
     );
 
+    const profile = await prisma.userProfile.findUnique({
+      where: { accountId: selected.id },
+      select: { matchThreshold: true },
+    });
+
+    const matchThreshold = resolveMatchThreshold({
+      permanentMatchScoreThreshold:
+        durable.permanentSettings?.matchScoreThreshold,
+      profileMatchThreshold: profile?.matchThreshold,
+    });
+
     const pendingClassificationCount = await prisma.emailMessage.count({
       where: {
         accountId: selected.id,
@@ -171,6 +185,7 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
       syncError: selected.syncError,
       settings: selected.settings,
       rules,
+      matchThreshold,
       hasCredentials: Boolean(
         selected.encryptedAccess && selected.encryptedRefresh
       ),
@@ -243,7 +258,7 @@ export async function getJobOpportunitiesForAccount(
 ): Promise<JobOpportunity[]> {
   try {
     // Heal legacy score soft-hides so threshold changes apply without rescan.
-    const cleared = await prisma.jobOpportunity.updateMany({
+    await prisma.jobOpportunity.updateMany({
       where: {
         accountId,
         isArchived: true,
@@ -252,28 +267,6 @@ export async function getJobOpportunitiesForAccount(
       },
       data: { isArchived: false },
     });
-
-    // #region agent log
-    fetch(
-      "http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "3c315a",
-        },
-        body: JSON.stringify({
-          sessionId: "3c315a",
-          runId: "live-threshold",
-          hypothesisId: "H3",
-          location: "lib/data.ts:getJobOpportunitiesForAccount",
-          message: "cleared legacy score soft-archives",
-          data: { accountId, cleared: cleared.count },
-          timestamp: Date.now(),
-        }),
-      }
-    ).catch(() => {});
-    // #endregion
 
     return await prisma.jobOpportunity.findMany({
       where: { accountId },

@@ -23,7 +23,7 @@ const ruleKeySchema = z.enum([
   "rejectionLabelId",
   "autoCleanAfterUnsub",
   "applicationMode",
-  "matchScoreThreshold",
+  "matchScoreThreshold", // deprecated: routed to updateMatchThreshold
   "maxAutoSendsPerDay",
   "dismissedRetentionDays",
   "excludedTitles",
@@ -55,6 +55,21 @@ export async function updateRule(
     return { ok: false, error: `Invalid rule key: ${key}` };
   }
 
+  // Threshold is not stored in AccountSettings.rules — sole writer is updateMatchThreshold.
+  if (parsedKey.data === "matchScoreThreshold") {
+    const { updateMatchThreshold } = await import("@/app/actions/profile");
+    const numeric = typeof value === "number" ? value : Number(value);
+    const result = await updateMatchThreshold(accountId, numeric);
+    if (!result.ok) return result;
+    const settings = await prisma.accountSettings.findUnique({
+      where: { accountId },
+    });
+    return {
+      ok: true,
+      data: parseAccountRules(settings?.rules),
+    };
+  }
+
   const settings = await prisma.accountSettings.findUnique({
     where: { accountId },
     include: { account: true },
@@ -75,14 +90,16 @@ export async function updateRule(
     };
   }
 
+  const { matchScoreThreshold: _drop, ...rulesWithoutThreshold } =
+    validated.data;
+
   await prisma.accountSettings.update({
     where: { accountId },
-    data: { rules: validated.data as Prisma.InputJsonValue },
+    data: { rules: rulesWithoutThreshold as Prisma.InputJsonValue },
   });
 
   if (
     parsedKey.data === "applicationMode" ||
-    parsedKey.data === "matchScoreThreshold" ||
     parsedKey.data === "maxAutoSendsPerDay"
   ) {
     const profile = await ensurePersistentProfileForAccount(settings.account);
@@ -90,20 +107,18 @@ export async function updateRule(
       where: { persistentProfileId: profile.id },
       create: {
         persistentProfileId: profile.id,
-        applicationMode: validated.data.applicationMode,
-        matchScoreThreshold: validated.data.matchScoreThreshold,
-        maxAutoSendsPerDay: validated.data.maxAutoSendsPerDay,
+        applicationMode: rulesWithoutThreshold.applicationMode,
+        maxAutoSendsPerDay: rulesWithoutThreshold.maxAutoSendsPerDay,
       },
       update: {
-        applicationMode: validated.data.applicationMode,
-        matchScoreThreshold: validated.data.matchScoreThreshold,
-        maxAutoSendsPerDay: validated.data.maxAutoSendsPerDay,
+        applicationMode: rulesWithoutThreshold.applicationMode,
+        maxAutoSendsPerDay: rulesWithoutThreshold.maxAutoSendsPerDay,
       },
     });
   }
 
   revalidatePath("/settings");
-  return { ok: true, data: validated.data };
+  return { ok: true, data: rulesWithoutThreshold };
 }
 
 /**

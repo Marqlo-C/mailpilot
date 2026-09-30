@@ -336,7 +336,8 @@ export async function draftContextualEmail(
   input: DraftContextualEmailParams
 ): Promise<ContextualDraftResult> {
   const skills = input.candidate.topSkills.slice(0, 15);
-  const inboundSnippet = input.inboundSnippet.trim().slice(0, 1500);
+  // Prefer fuller inbound context (full stored body cleaned upstream) over short snippets.
+  const inboundSnippet = input.inboundSnippet.trim().slice(0, 6000);
   const firstName = input.candidate.firstName.trim() || "there";
   const cleanFirstName = input.sender.cleanFirstName?.trim() || null;
 
