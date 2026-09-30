@@ -213,7 +213,8 @@ export function OpportunitiesView({
                   disabled={busy || !onThresholdCommit}
                   onChange={(val) => onThresholdChange?.(val)}
                   onCommit={(val) => onThresholdCommit?.(val)}
-                  className="ml-2.5 w-28 sm:ml-3 sm:w-36"
+                  widthClassName="w-28 sm:w-36"
+                  className="ml-2.5 sm:ml-3"
                   aria-label="Minimum fit score"
                 />
                 {hiddenCount > 0 ? (

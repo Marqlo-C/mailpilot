@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { WavySlider } from "@/components/ui/wavy-slider";
 import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile";
 import type { AccountRules } from "@/lib/validations/rules";
 
@@ -103,14 +103,16 @@ export function ApplicationAutomationCard({
               {threshold}%
             </span>
           </div>
-          <Slider
+          <WavySlider
             min={0}
             max={100}
             step={1}
             disabled={disabled}
-            value={[threshold]}
-            onValueChange={(value) => setThreshold(value[0] ?? threshold)}
-            onValueCommit={(value) => commitThreshold(value[0] ?? threshold)}
+            value={threshold}
+            onChange={(val) => setThreshold(val)}
+            onCommit={(val) => commitThreshold(val)}
+            widthClassName="w-full"
+            aria-label="Match threshold"
           />
           <p className="text-xs text-muted-foreground">
             Leads scoring below this threshold are hidden on Job Radar (0% shows
