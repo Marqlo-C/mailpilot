@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { JobApplication, JobOpportunity } from "@prisma/client";
 import {
@@ -24,6 +24,7 @@ import {
   sendOpportunityApplication,
   unmarkApplied,
 } from "@/app/actions/opportunities";
+import { updateMatchThreshold } from "@/app/actions/profile";
 import { AtsHandoffDrawer } from "@/components/jobs/ats-handoff-drawer";
 import { DraftReviewDialog } from "@/components/jobs/draft-review-dialog";
 import { OpportunityDraftDialog } from "@/components/jobs/opportunity-draft-dialog";
@@ -104,9 +105,13 @@ export function JobsRadar({
   const [draftJob, setDraftJob] = useState<JobApplication | null>(null);
   const [draftOpportunity, setDraftOpportunity] =
     useState<JobOpportunity | null>(null);
-  const [showOnlyMatches, setShowOnlyMatches] = useState(true);
+  const [threshold, setThreshold] = useState(matchThreshold);
   const [activeTab, setActiveTab] = useState("leads");
   const [sort, setSort] = useState(TAB_SORT_CONFIG.leads.defaultSort);
+
+  useEffect(() => {
+    setThreshold(matchThreshold);
+  }, [matchThreshold]);
 
   const sortConfig = TAB_SORT_CONFIG[tabKeyFromValue(activeTab)];
 
@@ -119,53 +124,29 @@ export function JobsRadar({
     }
   }
 
-  // Leads: discoveries not user-archived. Matches-only uses live threshold.
-  const opportunityLeadsAll = useMemo(() => {
-    const discovered = opportunities.filter(
-      (o) => o.status === "DISCOVERED" && !isUserArchived(o)
-    );
-    const filtered = showOnlyMatches
-      ? discovered.filter((o) =>
-          meetsMatchThreshold(o.matchScore, matchThreshold)
-        )
-      : discovered;
-
-    // #region agent log
-    fetch(
-      "http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "3c315a",
-        },
-        body: JSON.stringify({
-          sessionId: "3c315a",
-          runId: "live-threshold",
-          hypothesisId: "H2",
-          location: "components/jobs/jobs-radar.tsx:opportunityLeadsAll",
-          message: "live threshold filter applied",
-          data: {
-            matchThreshold,
-            showOnlyMatches,
-            discovered: discovered.length,
-            visible: filtered.length,
-            stickyIsArchivedInDiscovered: discovered.filter((o) => o.isArchived)
-              .length,
-            sampleScores: discovered.slice(0, 8).map((o) => ({
-              score: o.matchScore,
-              isArchived: o.isArchived,
-              previousStatus: o.previousStatus,
-            })),
-          },
-          timestamp: Date.now(),
-        }),
+  function commitThreshold(value: number) {
+    const next = Math.min(100, Math.max(0, Math.round(value / 5) * 5));
+    setThreshold(next);
+    startTransition(async () => {
+      const result = await updateMatchThreshold(accountId, next);
+      if (!result.ok) {
+        toast.error(result.error);
+        setThreshold(matchThreshold);
+        return;
       }
-    ).catch(() => {});
-    // #endregion
+      router.refresh();
+    });
+  }
 
-    return filtered;
-  }, [opportunities, showOnlyMatches, matchThreshold]);
+  // Leads: discoveries not user-archived, filtered by live threshold (0% = all).
+  const opportunityLeadsAll = useMemo(() => {
+    return opportunities.filter(
+      (o) =>
+        o.status === "DISCOVERED" &&
+        !isUserArchived(o) &&
+        meetsMatchThreshold(o.matchScore, threshold)
+    );
+  }, [opportunities, threshold]);
 
   const opportunityAction = useMemo(
     () =>
@@ -209,9 +190,9 @@ export function JobsRadar({
         (o) =>
           o.status === "DISCOVERED" &&
           !isUserArchived(o) &&
-          !meetsMatchThreshold(o.matchScore, matchThreshold)
+          !meetsMatchThreshold(o.matchScore, threshold)
       ).length,
-    [opportunities, matchThreshold]
+    [opportunities, threshold]
   );
   const hasOpportunityLeads = useMemo(
     () =>
@@ -278,7 +259,7 @@ export function JobsRadar({
     .filter(
       (j) =>
         j.dispatchType === "EMAIL" &&
-        meetsMatchThreshold(j.matchScore, matchThreshold) &&
+        meetsMatchThreshold(j.matchScore, threshold) &&
         Boolean(
           extractRecruiterEmail({
             actionSummary: j.actionSummary,
@@ -402,13 +383,14 @@ export function JobsRadar({
               {hasOpportunityLeads ? (
                 <OpportunitiesView
                   opportunities={sortedOpportunityLeads}
-                  matchThreshold={matchThreshold}
+                  matchThreshold={threshold}
                   retentionDays={retentionDays}
                   variant="leads"
                   pending={pending}
                   emptyText="No matching opportunities."
-                  showMatchesOnly={showOnlyMatches}
-                  onShowMatchesOnlyChange={setShowOnlyMatches}
+                  showThresholdControl
+                  onThresholdChange={setThreshold}
+                  onThresholdCommit={commitThreshold}
                   hiddenCount={archivedLeadCount}
                   onReviewDraft={(opp) => setDraftOpportunity(opp)}
                   onSendNow={handleOpportunitySend}
@@ -458,7 +440,7 @@ export function JobsRadar({
                               {typeof job.matchScore === "number" && (
                                 <Badge
                                   variant={
-                                    job.matchScore >= matchThreshold
+                                    job.matchScore >= threshold
                                       ? "default"
                                       : "secondary"
                                   }
@@ -564,7 +546,7 @@ export function JobsRadar({
               {sortedOpportunityApplied.length > 0 ? (
                 <OpportunitiesView
                   opportunities={sortedOpportunityApplied}
-                  matchThreshold={matchThreshold}
+                  matchThreshold={threshold}
                   retentionDays={retentionDays}
                   variant="applied"
                   pending={pending}
@@ -634,7 +616,7 @@ export function JobsRadar({
               {sortedOpportunityAction.length > 0 ? (
                 <OpportunitiesView
                   opportunities={sortedOpportunityAction}
-                  matchThreshold={matchThreshold}
+                  matchThreshold={threshold}
                   retentionDays={retentionDays}
                   variant="action"
                   pending={pending}
@@ -750,7 +732,7 @@ export function JobsRadar({
               {sortedOpportunityHistory.length > 0 ? (
                 <OpportunitiesView
                   opportunities={sortedOpportunityHistory}
-                  matchThreshold={matchThreshold}
+                  matchThreshold={threshold}
                   retentionDays={retentionDays}
                   variant="history"
                   pending={pending}

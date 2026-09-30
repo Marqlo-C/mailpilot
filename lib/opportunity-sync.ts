@@ -277,10 +277,10 @@ export async function runOpportunitySync(
             const subject = getHeader(headers, "Subject") ?? "";
             const from = getHeader(headers, "From");
             const sender = from ? parseFromHeader(from) : null;
-            const rawBody = extractMessageBody(message.data.payload);
+            const fullRawBody = extractMessageBody(message.data.payload);
             const cleanedText = cleanEmailPayload(
-              rawBody.trim().length > 0
-                ? rawBody
+              fullRawBody.trim().length > 0
+                ? fullRawBody
                 : message.data.snippet ?? subject
             );
 
@@ -304,7 +304,11 @@ export async function runOpportunitySync(
                 // LLM successfully ran and determined it is not a job -> clear from PENDING_AI
                 await prisma.emailMessage.updateMany({
                   where: { accountId, messageId },
-                  data: { emailCategory: "IRRELEVANT" },
+                  data: {
+                    emailCategory: "IRRELEVANT",
+                    rawBody:
+                      fullRawBody.trim().length > 0 ? fullRawBody : null,
+                  },
                 });
               } else if (
                 shouldClassifyEmail({
@@ -336,9 +340,13 @@ export async function runOpportunitySync(
                     emailCategory: "PENDING_AI",
                     emailDate,
                     snippet: sanitizeEmailBody(cleanedText).slice(0, 500),
+                    rawBody:
+                      fullRawBody.trim().length > 0 ? fullRawBody : null,
                   },
                   update: {
                     emailCategory: "PENDING_AI",
+                    rawBody:
+                      fullRawBody.trim().length > 0 ? fullRawBody : null,
                   },
                 });
               }
@@ -357,6 +365,7 @@ export async function runOpportunitySync(
               threadId,
               subject,
               body: cleanedText,
+              rawBody: fullRawBody,
               sender,
               emailDate,
               classification,

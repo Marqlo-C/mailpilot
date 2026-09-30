@@ -166,6 +166,69 @@ export function normalizeOllamaBaseUrl(raw: string): string {
   return base || "http://127.0.0.1:11434";
 }
 
+/**
+ * Live reachability probe: GET /api/tags must return 200 + parseable models list.
+ * Used before any "[Ollama:Active] health_ok" / bridgeConnected=true claim.
+ */
+export async function probeOllamaTags(
+  baseUrl: string,
+  timeoutMs = 5000
+): Promise<{ models: string[] }> {
+  const base = normalizeOllamaBaseUrl(baseUrl);
+  let res: Response;
+  try {
+    res = await fetch(`${base}/api/tags`, {
+      method: "GET",
+      signal: AbortSignal.timeout(timeoutMs),
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "MailPilot-OllamaProbe/1.0",
+      },
+    });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new OllamaUnreachableError(base, detail);
+  }
+
+  if (!res.ok) {
+    throw new OllamaUnreachableError(base, `health check HTTP ${res.status}`);
+  }
+
+  let json: unknown;
+  try {
+    json = await res.json();
+  } catch {
+    throw new OllamaUnreachableError(
+      base,
+      "health check returned non-JSON (not a valid Ollama /api/tags response)"
+    );
+  }
+
+  if (
+    !json ||
+    typeof json !== "object" ||
+    !("models" in json) ||
+    !Array.isArray((json as { models: unknown }).models)
+  ) {
+    throw new OllamaUnreachableError(
+      base,
+      "health check JSON missing models[] (not a valid Ollama daemon)"
+    );
+  }
+
+  const models = (json as { models: Array<string | { name?: string; model?: string }> })
+    .models
+    .map((entry) => {
+      if (typeof entry === "string") return entry.trim();
+      return (entry.name ?? entry.model ?? "").trim();
+    })
+    .filter((name) => name.length > 0)
+    .sort((a, b) => a.localeCompare(b));
+
+  return { models };
+}
+
 const DEFAULT_OPENROUTER_MODELS = [
   process.env.OPENROUTER_MODEL,
   "qwen/qwen3.8-27b:free",
@@ -794,6 +857,8 @@ export async function classifyJobEmail(
     return appliedHeuristic;
   }
 
+  // Classifier gets cleaned text only (already cleaned upstream; re-sanitize + hard cap).
+  // Full rawBody is never passed here — it is stored separately on EmailMessage.
   const sanitizedBody = sanitizeEmailBody(options.body).slice(0, 4000);
   const systemPrompt = buildProfileAwareClassifierSystemPrompt(
     ensureCandidateProfileForScoring(options.candidateProfile ?? null)
@@ -965,6 +1030,8 @@ export async function callLLMWithFallback(
         console.info("[Ollama:Done]", {
           url: baseUrl,
           status: "success",
+          reachable: true,
+          generated: true,
         });
         return result;
       }
@@ -1021,28 +1088,15 @@ async function callOllamaJson(
   const payloadChars = systemPrompt.length + userPrompt.length;
   const timeouts = computeOllamaTimeouts(payloadChars);
 
-  try {
-    const pingRes = await fetch(`${baseUrl}/api/tags`, {
-      method: "GET",
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!pingRes.ok) {
-      throw new OllamaUnreachableError(
-        baseUrl,
-        `health check HTTP ${pingRes.status}`
-      );
-    }
-  } catch (pingErr) {
-    if (pingErr instanceof OllamaUnreachableError) throw pingErr;
-    const detail =
-      pingErr instanceof Error ? pingErr.message : String(pingErr);
-    throw new OllamaUnreachableError(baseUrl, detail);
-  }
+  // Strict probe: HTTP 200 alone is not enough — must look like Ollama /api/tags.
+  const probe = await probeOllamaTags(baseUrl, 5000);
 
   console.info("[Ollama:Active]", {
     phase: "health_ok",
+    reachable: true,
     url: baseUrl,
     model: resolvedModel,
+    modelsCount: probe.models.length,
     payloadChars,
     idleTimeoutMs: timeouts.idleTimeoutMs,
     hardCapMs: timeouts.hardCapMs,
@@ -1075,6 +1129,8 @@ async function callOllamaJson(
       if (result) {
         console.info("[Ollama:Done]", {
           phase: "generate_success",
+          reachable: true,
+          generated: true,
           attempt,
           url: baseUrl,
           model: resolvedModel,
@@ -1086,15 +1142,21 @@ async function callOllamaJson(
       lastFailure = "empty or invalid JSON content";
       console.error("[Ollama:Error]", {
         phase: "generate_empty_json",
+        reachable: true,
+        generated: false,
         attempt,
         durationMs,
         lastFailure,
       });
     } catch (error) {
+      // Daemon was reachable (probe passed). Soft aborts/retries stay local;
+      // hard connection loss still escalates as unreachable.
       if (error instanceof OllamaUnreachableError) throw error;
       lastFailure = error instanceof Error ? error.message : String(error);
       console.error("[Ollama:Error]", {
         phase: "generate_attempt_failed",
+        reachable: true,
+        generated: false,
         attempt,
         durationMs: Date.now() - startedAt,
         message: lastFailure,
@@ -1108,6 +1170,8 @@ async function callOllamaJson(
 
   console.error("[Ollama:Error]", {
     phase: "give_up",
+    reachable: true,
+    generated: false,
     url: baseUrl,
     model: resolvedModel,
     attempts: maxAttempts,
@@ -1237,11 +1301,17 @@ async function callOllamaGenerateOnce(
     return parseJsonObject(content);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
+    const name = error instanceof Error ? error.name : "";
+    // Idle/hard-cap aborts mean the daemon answered health but generate stalled —
+    // do NOT label that as unreachable (probe already succeeded).
     if (
-      /fetch failed|ECONNREFUSED|ENOTFOUND|timeout|AbortError|aborted/i.test(
-        detail
-      )
+      name === "AbortError" ||
+      name === "TimeoutError" ||
+      /AbortError|aborted|hard.?cap|idle/i.test(detail)
     ) {
+      throw new Error(`Ollama generate aborted: ${detail}`);
+    }
+    if (/fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET/i.test(detail)) {
       throw new OllamaUnreachableError(baseUrl, detail);
     }
     throw error;

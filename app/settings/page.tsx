@@ -57,9 +57,7 @@ export default async function SettingsPage({
         <ApplicationAutomationCard
           accountId={active?.id ?? null}
           rules={active?.rules ?? DEFAULT_ACCOUNT_RULES}
-          matchThreshold={
-            profile?.matchThreshold ?? active?.rules.matchScoreThreshold
-          }
+          matchThreshold={active?.matchThreshold ?? profile?.matchThreshold}
         />
         <DismissedRetentionSetting
           currentDays={

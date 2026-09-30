@@ -20,10 +20,12 @@ import {
 import { synthesizeCandidatePersona } from "@/lib/ai/persona";
 import { prisma } from "@/lib/prisma";
 import { parseResumeToStructuredProfile } from "@/lib/resume-parser";
+import { ensurePersistentProfileForAccount } from "@/lib/persistent-profile";
 import {
   linkedAccountsSchema,
   masterProfileSchema,
   matchThresholdSchema,
+  snapMatchThreshold,
   type LinkedAccountsInput,
   type MasterProfileInput,
   type MasterProfileUpdateInput,
@@ -577,7 +579,9 @@ export async function restoreProfileHistory(
 }
 
 /**
- * Persists the Job Radar match threshold on UserProfile (and mirrors PermanentSettings).
+ * Sole mutation for Job Radar match threshold.
+ * Writes PermanentSettings.matchScoreThreshold (canonical) and mirrors
+ * UserProfile.matchThreshold when a resume profile exists.
  */
 export async function updateMatchThreshold(
   accountId: string,
@@ -591,54 +595,43 @@ export async function updateMatchThreshold(
     };
   }
 
+  const next = snapMatchThreshold(parsed.data);
+
   const account = await prisma.account.findUnique({
     where: { id: accountId },
-    include: { profile: true, settings: true },
+    select: {
+      id: true,
+      email: true,
+      persistentProfileId: true,
+      profile: { select: { id: true } },
+    },
   });
   if (!account) {
     return { ok: false, error: "Account not found" };
   }
-  if (!account.profile) {
-    return {
-      ok: false,
-      error: "Upload a master resume before setting the match threshold",
-    };
-  }
 
   try {
-    const profile = await prisma.userProfile.update({
-      where: { accountId },
-      data: { matchThreshold: parsed.data },
+    const durable = await ensurePersistentProfileForAccount(account);
+
+    await prisma.permanentSettings.upsert({
+      where: { persistentProfileId: durable.id },
+      create: {
+        persistentProfileId: durable.id,
+        matchScoreThreshold: next,
+      },
+      update: { matchScoreThreshold: next },
     });
 
-    // Keep Job Radar automation knobs in sync when a durable profile exists.
-    if (account.persistentProfileId) {
-      await prisma.permanentSettings.upsert({
-        where: { persistentProfileId: account.persistentProfileId },
-        create: {
-          persistentProfileId: account.persistentProfileId,
-          matchScoreThreshold: parsed.data,
-        },
-        update: { matchScoreThreshold: parsed.data },
-      });
-    }
-
-    if (account.settings) {
-      const rules = parseAccountRules(account.settings.rules);
-      await prisma.accountSettings.update({
+    if (account.profile) {
+      await prisma.userProfile.update({
         where: { accountId },
-        data: {
-          rules: {
-            ...rules,
-            matchScoreThreshold: parsed.data,
-          } as Prisma.InputJsonValue,
-        },
+        data: { matchThreshold: next },
       });
     }
 
     revalidatePath("/settings");
     revalidatePath("/jobs");
-    return { ok: true, data: { matchThreshold: profile.matchThreshold } };
+    return { ok: true, data: { matchThreshold: next } };
   } catch (error) {
     console.error("updateMatchThreshold failed", error);
     return {

@@ -110,7 +110,36 @@ export const tailoredDataSchema = z.object({
 
 export type TailoredData = z.infer<typeof tailoredDataSchema>;
 
-export const matchThresholdSchema = z.number().int().min(50).max(100);
+/** Canonical Job Radar match threshold (PermanentSettings + UserProfile mirror). */
+export const DEFAULT_MATCH_THRESHOLD = 75;
+export const MATCH_THRESHOLD_STEP = 5;
+
+export const matchThresholdSchema = z.number().int().min(0).max(100);
+
+/** Snap to 0–100 in 5% increments. */
+export function snapMatchThreshold(value: number): number {
+  const clamped = Math.min(100, Math.max(0, Math.round(value)));
+  return Math.round(clamped / MATCH_THRESHOLD_STEP) * MATCH_THRESHOLD_STEP;
+}
+
+/**
+ * Single read-path resolver: PermanentSettings first, then UserProfile mirror.
+ * Never falls back to AccountSettings.rules.
+ */
+export function resolveMatchThreshold(input: {
+  permanentMatchScoreThreshold?: number | null;
+  profileMatchThreshold?: number | null;
+}): number {
+  for (const candidate of [
+    input.permanentMatchScoreThreshold,
+    input.profileMatchThreshold,
+  ]) {
+    if (typeof candidate !== "number" || !Number.isFinite(candidate)) continue;
+    const parsed = matchThresholdSchema.safeParse(candidate);
+    if (parsed.success) return snapMatchThreshold(parsed.data);
+  }
+  return DEFAULT_MATCH_THRESHOLD;
+}
 
 function optionalHttpsUrl(label: string) {
   return z

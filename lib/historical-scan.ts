@@ -7,11 +7,11 @@ import {
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
 } from "@/lib/google";
+import { cleanEmailPayload } from "@/lib/email/cleaner";
 import {
   classifyEmail,
   extractMessageBody,
   loadCandidateProfileSummary,
-  sanitizeEmailBody,
   type LlmProvider,
 } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
@@ -336,21 +336,19 @@ async function scanJobCandidates(
       const subject = getHeader(headers, "Subject") ?? "";
       const from = getHeader(headers, "From");
       const sender = from ? parseFromHeader(from) : null;
-      const bodyRaw = extractMessageBody(message.data.payload);
-      const snippet = sanitizeEmailBody(message.data.snippet ?? "");
-      const body =
-        bodyRaw.trim().length > 0
-          ? bodyRaw
-          : snippet.length > 0
-            ? snippet
-            : subject;
+      const fullRawBody = extractMessageBody(message.data.payload);
+      const cleanedText = cleanEmailPayload(
+        fullRawBody.trim().length > 0
+          ? fullRawBody
+          : message.data.snippet ?? subject
+      );
 
       const classification = await classifyEmail({
         llmProvider,
         localOllamaUrl: account.settings?.localOllamaUrl,
         ollamaModel: account.settings?.ollamaModel,
         subject,
-        body,
+        body: cleanedText,
         fromEmail: sender?.email ?? null,
         candidateProfile,
         allowCloudFallback: rules.allowCloudFallback,
@@ -376,7 +374,8 @@ async function scanJobCandidates(
         messageId,
         threadId,
         subject,
-        body,
+        body: cleanedText,
+        rawBody: fullRawBody,
         sender,
         emailDate,
         classification,

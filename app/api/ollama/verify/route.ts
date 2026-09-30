@@ -3,7 +3,11 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { getAuthenticatedAccountId } from "@/lib/auth";
-import { normalizeOllamaBaseUrl } from "@/lib/llm";
+import {
+  normalizeOllamaBaseUrl,
+  OllamaUnreachableError,
+  probeOllamaTags,
+} from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
 import {
   accountRulesSchema,
@@ -19,21 +23,6 @@ const verifyBodySchema = z.object({
     const trimmed = val.trim();
     return trimmed.length > 0 ? trimmed : undefined;
   }, z.string().url().optional()),
-});
-
-const ollamaTagsSchema = z.object({
-  models: z
-    .array(
-      z.union([
-        z.string(),
-        z.object({
-          name: z.string().optional(),
-          model: z.string().optional(),
-        }),
-      ])
-    )
-    .optional()
-    .default([]),
 });
 
 export type OllamaConnectionStatus =
@@ -73,18 +62,6 @@ function isRegisteredTunnelUrl(raw: string): boolean {
   } catch {
     return false;
   }
-}
-
-function extractModelNames(
-  models: z.infer<typeof ollamaTagsSchema>["models"]
-): string[] {
-  return models
-    .map((entry) => {
-      if (typeof entry === "string") return entry.trim();
-      return (entry.name ?? entry.model ?? "").trim();
-    })
-    .filter((name) => name.length > 0)
-    .sort((a, b) => a.localeCompare(b));
 }
 
 async function persistBridgeStatus(
@@ -235,53 +212,43 @@ export async function POST(request: Request) {
       );
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
-
-    let res: Response;
+    let models: string[];
     try {
-      res = await fetch(`${base}/api/tags`, {
-        method: "GET",
-        signal: controller.signal,
-        cache: "no-store",
-        headers: {
-          "User-Agent": "MailPilot-Bridge/1.0",
-          Accept: "application/json",
-        },
-      });
+      const probe = await probeOllamaTags(base, 6000);
+      models = probe.models;
     } catch (err) {
-      clearTimeout(timeout);
       const isTimeout =
         err instanceof Error &&
-        (err.name === "AbortError" || err.name === "TimeoutError");
+        (err.name === "AbortError" ||
+          err.name === "TimeoutError" ||
+          /timeout|aborted/i.test(err.message));
+      const detail =
+        err instanceof OllamaUnreachableError
+          ? err.message.replace(/^Local Ollama instance unreachable at [^:]+:\s*/, "")
+          : err instanceof Error
+            ? err.message
+            : "Failed to reach tunnel endpoint.";
       return handleUnreachable(
         accountId,
         isTimeout
           ? "Connection timed out. Check that your terminal bridge is running."
-          : "Failed to reach tunnel endpoint.",
+          : detail || "Failed to reach tunnel endpoint.",
         hadStoredUrl ? "offline" : "waiting"
       );
-    } finally {
-      clearTimeout(timeout);
     }
-
-    if (!res.ok) {
-      return handleUnreachable(
-        accountId,
-        `Daemon returned status ${res.status}`,
-        hadStoredUrl ? "offline" : "error"
-      );
-    }
-
-    const json: unknown = await res.json();
-    const tags = ollamaTagsSchema.safeParse(json);
-    const models = tags.success ? extractModelNames(tags.data.models) : [];
 
     await persistBridgeStatus(accountId, {
       connected: true,
       models,
       localOllamaUrl: base,
       setLocalProvider: true,
+    });
+
+    console.info("[Ollama:Verify]", {
+      connected: true,
+      reachable: true,
+      url: base,
+      modelsCount: models.length,
     });
 
     return NextResponse.json({

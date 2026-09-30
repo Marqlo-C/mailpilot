@@ -10,7 +10,11 @@ export const accountRulesSchema = z.object({
   applicationMode: z
     .enum(["MANUAL_REVIEW", "AUTO_SEND"])
     .default("MANUAL_REVIEW"),
-  matchScoreThreshold: z.number().min(50).max(100).default(75),
+  /**
+   * @deprecated Threshold lives on PermanentSettings / UserProfile.
+   * Stripped on parse; kept optional so legacy JSON blobs do not fail validation.
+   */
+  matchScoreThreshold: z.number().int().min(0).max(100).optional(),
   maxAutoSendsPerDay: z.number().min(1).max(20).default(5),
   /** Days before DISMISSED History items are permanently purged. */
   dismissedRetentionDays: z
@@ -46,16 +50,26 @@ export const accountRulesSchema = z.object({
   allowCloudFallback: z.boolean().default(false),
 });
 
-export type AccountRules = z.infer<typeof accountRulesSchema>;
+export type AccountRules = Omit<
+  z.infer<typeof accountRulesSchema>,
+  "matchScoreThreshold"
+>;
 
-export const DEFAULT_ACCOUNT_RULES: AccountRules = accountRulesSchema.parse({});
+export const DEFAULT_ACCOUNT_RULES: AccountRules = (() => {
+  const parsed = accountRulesSchema.parse({});
+  const { matchScoreThreshold: _deprecated, ...rest } = parsed;
+  return rest;
+})();
 
 /**
  * Parses and validates the Json `rules` field from AccountSettings.
  * Unknown or partial payloads are filled with schema defaults.
+ * Legacy `matchScoreThreshold` is dropped — use PermanentSettings / UserProfile.
  */
 export function parseAccountRules(rules: unknown): AccountRules {
-  return accountRulesSchema.parse(rules ?? {});
+  const parsed = accountRulesSchema.parse(rules ?? {});
+  const { matchScoreThreshold: _deprecated, ...rest } = parsed;
+  return rest;
 }
 
 /** Case-insensitive exact or substring match against excluded title patterns. */

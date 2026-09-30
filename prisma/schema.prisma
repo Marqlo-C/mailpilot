@@ -143,7 +143,10 @@ model EmailMessage {
   /// DIRECT_RECRUITER | JOB_BOARD_DIGEST | APPLICATION_STATUS | IRRELEVANT
   emailCategory String @default("IRRELEVANT")
   emailDate   DateTime
+  /// Short cleaned preview for list UI.
   snippet     String?  @db.Text
+  /// Full original extracted body (plain/html text from Gmail) for drafting.
+  rawBody     String?  @db.Text
 
   opportunities JobOpportunity[]
 
