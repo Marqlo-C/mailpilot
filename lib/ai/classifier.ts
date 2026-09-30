@@ -156,7 +156,10 @@ export function seniorityMismatchPenalty(
 
 export function clampScore(value: number | null | undefined): number {
   if (typeof value !== "number" || Number.isNaN(value)) return 0;
-  return Math.max(0, Math.min(100, Math.round(value)));
+  // Local LLMs often emit 0–1 ratios (e.g. 0.82) instead of 0–100 percentages.
+  // Without this, Math.round(0.82) → 1 and every "strong" match soft-archives.
+  const normalized = value > 0 && value <= 1 ? value * 100 : value;
+  return Math.max(0, Math.min(100, Math.round(normalized)));
 }
 
 /**

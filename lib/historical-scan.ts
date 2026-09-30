@@ -17,7 +17,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { parseFromHeader, persistClassifiedEmail } from "@/lib/sync";
 import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
-import { parseAccountRules } from "@/lib/validations/rules";
+import { resolveIngestionRules } from "@/lib/sync";
 import type { ScanDays } from "@/lib/scan-types";
 
 export type { ScanDays } from "@/lib/scan-types";
@@ -313,7 +313,10 @@ async function scanJobCandidates(
   ]);
   const candidates = messageIds.filter((id) => !existingIds.has(id));
 
-  const rules = parseAccountRules(account.settings?.rules);
+  const rules = await resolveIngestionRules(
+    account.id,
+    account.settings?.rules
+  );
   const llmProvider = normalizeProvider(account.settings?.llmProvider);
   const candidateProfile = await loadCandidateProfileSummary(account.id);
   let jobsFound = 0;

@@ -37,6 +37,7 @@ import { extractRecruiterEmail } from "@/lib/application-method";
 import {
   isInHistory,
   isUserArchived,
+  meetsMatchThreshold,
 } from "@/lib/opportunities/lifecycle";
 import {
   TAB_SORT_CONFIG,
@@ -118,24 +119,58 @@ export function JobsRadar({
     }
   }
 
-  // Leads: discoveries not user-archived. Matches-only hides below-threshold.
+  // Leads: discoveries not user-archived. Matches-only uses live threshold.
   const opportunityLeadsAll = useMemo(() => {
     const discovered = opportunities.filter(
       (o) => o.status === "DISCOVERED" && !isUserArchived(o)
     );
-    if (!showOnlyMatches) return discovered;
-    return discovered.filter(
-      (o) => !o.isArchived && (o.matchScore ?? 0) >= matchThreshold
-    );
+    const filtered = showOnlyMatches
+      ? discovered.filter((o) =>
+          meetsMatchThreshold(o.matchScore, matchThreshold)
+        )
+      : discovered;
+
+    // #region agent log
+    fetch(
+      "http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "3c315a",
+        },
+        body: JSON.stringify({
+          sessionId: "3c315a",
+          runId: "live-threshold",
+          hypothesisId: "H2",
+          location: "components/jobs/jobs-radar.tsx:opportunityLeadsAll",
+          message: "live threshold filter applied",
+          data: {
+            matchThreshold,
+            showOnlyMatches,
+            discovered: discovered.length,
+            visible: filtered.length,
+            stickyIsArchivedInDiscovered: discovered.filter((o) => o.isArchived)
+              .length,
+            sampleScores: discovered.slice(0, 8).map((o) => ({
+              score: o.matchScore,
+              isArchived: o.isArchived,
+              previousStatus: o.previousStatus,
+            })),
+          },
+          timestamp: Date.now(),
+        }),
+      }
+    ).catch(() => {});
+    // #endregion
+
+    return filtered;
   }, [opportunities, showOnlyMatches, matchThreshold]);
 
   const opportunityAction = useMemo(
     () =>
       opportunities.filter(
-        (o) =>
-          o.status === "REVIEW_READY" &&
-          !o.isArchived &&
-          !isUserArchived(o)
+        (o) => o.status === "REVIEW_READY" && !isUserArchived(o)
       ),
     [opportunities]
   );
@@ -174,7 +209,7 @@ export function JobsRadar({
         (o) =>
           o.status === "DISCOVERED" &&
           !isUserArchived(o) &&
-          (o.isArchived || (o.matchScore ?? 0) < matchThreshold)
+          !meetsMatchThreshold(o.matchScore, matchThreshold)
       ).length,
     [opportunities, matchThreshold]
   );
@@ -243,7 +278,7 @@ export function JobsRadar({
     .filter(
       (j) =>
         j.dispatchType === "EMAIL" &&
-        (j.matchScore ?? 0) >= matchThreshold &&
+        meetsMatchThreshold(j.matchScore, matchThreshold) &&
         Boolean(
           extractRecruiterEmail({
             actionSummary: j.actionSummary,
