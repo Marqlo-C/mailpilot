@@ -126,6 +126,7 @@ export type AccountSyncStatus = {
   lastSyncedAt: string | null;
   syncError: string | null;
   lastSyncProcessed: number | null;
+  pendingClassificationCount: number;
 };
 
 /** Lightweight poll target for GlobalSyncTracker. */
@@ -182,6 +183,13 @@ export async function getAccountSyncStatus(
       }
     }
 
+    const pendingClassificationCount = await prisma.emailMessage.count({
+      where: {
+        accountId: account.id,
+        emailCategory: "PENDING_AI",
+      },
+    });
+
     return {
       ok: true,
       data: {
@@ -189,6 +197,7 @@ export async function getAccountSyncStatus(
         lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
         syncError: syncErrorMessage,
         lastSyncProcessed: account.lastSyncProcessed,
+        pendingClassificationCount,
       },
     };
   } catch (error) {
