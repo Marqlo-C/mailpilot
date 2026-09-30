@@ -67,7 +67,6 @@ export default async function RootLayout({
           accounts={accounts}
           activeAccountId={active?.id ?? null}
           activeEmail={active?.email ?? null}
-          hasHistoryId={Boolean(active?.historyId)}
           initialIsSyncing={Boolean(active?.isSyncing)}
           initialPendingClassificationCount={
             active?.pendingClassificationCount ?? 0
