@@ -1,9 +1,34 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
+
 import { cn } from "@/lib/utils";
 
 /** Brand teal for active wave stroke / thumb / origin. */
 const BRAND_TEAL = "#1ab5af";
+
+/** Wave geometry in CSS pixels — constant across all slider lengths. */
+const WAVE_HALF_PX = 7;
+const WAVE_MID_Y = 6;
+const WAVE_AMP_Y = 3;
+const WAVE_VB_H = 12;
+
+/**
+ * Build a squiggle path for an exact pixel width without stretching.
+ * Longer tracks get more cycles; amplitude stays fixed.
+ */
+function buildWavePath(widthPx: number): string {
+  const width = Math.max(WAVE_HALF_PX * 2, Math.ceil(widthPx));
+  let d = `M 0 ${WAVE_MID_Y} Q ${WAVE_HALF_PX} ${WAVE_MID_Y - WAVE_AMP_Y}, ${WAVE_HALF_PX * 2} ${WAVE_MID_Y}`;
+  for (
+    let x = WAVE_HALF_PX * 4;
+    x <= width + WAVE_HALF_PX * 2;
+    x += WAVE_HALF_PX * 2
+  ) {
+    d += ` T ${x} ${WAVE_MID_Y}`;
+  }
+  return d;
+}
 
 export type WavySliderProps = {
   value: number;
@@ -14,12 +39,20 @@ export type WavySliderProps = {
   max?: number;
   step?: number;
   disabled?: boolean;
+  /**
+   * Horizontal length only — pass any Tailwind width utility
+   * (e.g. `w-28 sm:w-36`, `w-48`, `w-full`). Defaults to full parent width.
+   */
+  widthClassName?: string;
+  /** Extra layout classes (margin, shrink, etc). Do not put width here. */
   className?: string;
   "aria-label"?: string;
 };
 
 /**
- * Material You–style squiggly track with MD3 hover/focus/pressed thumb halo.
+ * Shared Material You–style squiggly slider.
+ * Reuse anywhere; customize length via `widthClassName`.
+ * Wave frequency and amplitude stay constant in CSS pixels.
  */
 export function WavySlider({
   value,
@@ -29,9 +62,34 @@ export function WavySlider({
   max = 100,
   step = 1,
   disabled = false,
-  className = "w-28 sm:w-36",
+  widthClassName = "w-full",
+  className,
   "aria-label": ariaLabel,
 }: WavySliderProps) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [trackWidth, setTrackWidth] = useState(0);
+
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+
+    const update = () => {
+      const next = Math.round(el.getBoundingClientRect().width);
+      setTrackWidth((prev) => (prev === next ? prev : next));
+    };
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const wavePath = useMemo(
+    () => buildWavePath(trackWidth || WAVE_HALF_PX * 12),
+    [trackWidth]
+  );
+  const waveVbW = Math.max(WAVE_HALF_PX * 2, trackWidth || WAVE_HALF_PX * 12);
+
   const clamped = Math.min(max, Math.max(min, value));
   const pct = max === min ? 0 : ((clamped - min) / (max - min)) * 100;
 
@@ -42,8 +100,10 @@ export function WavySlider({
 
   return (
     <div
+      ref={trackRef}
       className={cn(
-        "group relative flex h-8 select-none items-center",
+        "group relative flex h-8 shrink-0 select-none items-center",
+        widthClassName,
         disabled && "pointer-events-none opacity-50",
         className
       )}
@@ -57,23 +117,24 @@ export function WavySlider({
       {/* Inactive track stops at finish-cap center (half of 6px dot = 3px) */}
       <div className="pointer-events-none absolute top-1/2 left-0 right-[3px] z-0 h-[2px] -translate-y-1/2 rounded-full bg-muted-foreground/20" />
 
-      {/* Active wavy track — full-width path, clipped to value % */}
+      {/* Active wavy track — pixel-locked path, clipped to value % */}
       <div
         className="pointer-events-none absolute inset-0 z-[1] flex items-center transition-[clip-path] duration-75"
         style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
       >
         <svg
           className="h-3 w-full"
-          viewBox="0 0 300 12"
+          viewBox={`0 0 ${waveVbW} ${WAVE_VB_H}`}
           preserveAspectRatio="none"
           fill="none"
           aria-hidden
         >
           <path
-            d="M 0 6 Q 10 3, 20 6 T 40 6 T 60 6 T 80 6 T 100 6 T 120 6 T 140 6 T 160 6 T 180 6 T 200 6 T 220 6 T 240 6 T 260 6 T 280 6 T 300 6"
+            d={wavePath}
             stroke={BRAND_TEAL}
             strokeWidth="2.5"
             strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
           />
         </svg>
       </div>
