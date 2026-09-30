@@ -2421,102 +2421,6 @@ export async function safeFetch(
 }
 </file>
 
-<file path="lib/sync-status-poll.ts">
-/**
- * TCP-inspired backoff poller for sync-status endpoints.
- * Starts at `initialMs` (default 3s) and grows up to `maxMs` (default 10s).
- */
-
-export type SyncStatusPollResult = "continue" | "stop";
-
-export type SyncStatusBackoffOptions = {
-  /** First wait before the first poll (default 3000). */
-  initialMs?: number;
-  /** Cap on successive waits (default 10000). */
-  maxMs?: number;
-  /** Multiplier applied after each continue (default 1.4). */
-  factor?: number;
-  /** Invoked on each tick; return "stop" to end the loop. */
-  onTick: () => Promise<SyncStatusPollResult>;
-  /** Optional absolute wall-clock limit (default 90s). */
-  hardStopMs?: number;
-  /** Fired once when elapsed time crosses this threshold (default 30s). */
-  onSlow?: () => void;
-  slowAfterMs?: number;
-  /** Fired once when the wall-clock hard stop is reached. */
-  onHardStop?: () => void;
-};
-
-/**
- * Starts a cancellable backoff poll loop. Returns a dispose function.
- */
-export function startSyncStatusBackoffPoll(
-  options: SyncStatusBackoffOptions
-): () => void {
-  const initialMs = options.initialMs ?? 3000;
-  const maxMs = options.maxMs ?? 10_000;
-  const factor = options.factor ?? 1.4;
-  const hardStopMs = options.hardStopMs ?? 90_000;
-  const slowAfterMs = options.slowAfterMs ?? 30_000;
-
-  let cancelled = false;
-  let delay = initialMs;
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  let slowFired = false;
-  const startedAt = Date.now();
-
-  const clear = () => {
-    if (timeoutId !== null) {
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    }
-  };
-
-  const schedule = (ms: number) => {
-    clear();
-    timeoutId = setTimeout(() => {
-      void runTick();
-    }, ms);
-  };
-
-  const runTick = async () => {
-    if (cancelled) return;
-
-    const elapsed = Date.now() - startedAt;
-    if (!slowFired && elapsed >= slowAfterMs) {
-      slowFired = true;
-      options.onSlow?.();
-    }
-    if (elapsed >= hardStopMs) {
-      options.onHardStop?.();
-      return;
-    }
-
-    let result: SyncStatusPollResult = "continue";
-    try {
-      result = await options.onTick();
-    } catch {
-      result = "continue";
-    }
-
-    if (cancelled || result === "stop") {
-      return;
-    }
-
-    delay = Math.min(maxMs, Math.round(delay * factor));
-    schedule(delay);
-  };
-
-  // First poll after initial delay (avoid hammering immediately on mount)
-  schedule(initialMs);
-
-  return () => {
-    cancelled = true;
-    clear();
-  };
-}
-</file>
-
 <file path="lib/utils.ts">
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -3401,6 +3305,102 @@ export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
+}
+</file>
+
+<file path="lib/sync-status-poll.ts">
+/**
+ * TCP-inspired backoff poller for sync-status endpoints.
+ * Starts at `initialMs` (default 3s) and grows up to `maxMs` (default 20s).
+ */
+
+export type SyncStatusPollResult = "continue" | "stop";
+
+export type SyncStatusBackoffOptions = {
+  /** First wait before the first poll (default 3000). */
+  initialMs?: number;
+  /** Cap on successive waits (default 20000). */
+  maxMs?: number;
+  /** Multiplier applied after each continue (default 1.4). */
+  factor?: number;
+  /** Invoked on each tick; return "stop" to end the loop. */
+  onTick: () => Promise<SyncStatusPollResult>;
+  /** Optional absolute wall-clock limit (default 90s). */
+  hardStopMs?: number;
+  /** Fired once when elapsed time crosses this threshold (default 30s). */
+  onSlow?: () => void;
+  slowAfterMs?: number;
+  /** Fired once when the wall-clock hard stop is reached. */
+  onHardStop?: () => void;
+};
+
+/**
+ * Starts a cancellable backoff poll loop. Returns a dispose function.
+ */
+export function startSyncStatusBackoffPoll(
+  options: SyncStatusBackoffOptions
+): () => void {
+  const initialMs = options.initialMs ?? 3000;
+  const maxMs = options.maxMs ?? 20_000;
+  const factor = options.factor ?? 1.4;
+  const hardStopMs = options.hardStopMs ?? 90_000;
+  const slowAfterMs = options.slowAfterMs ?? 30_000;
+
+  let cancelled = false;
+  let delay = initialMs;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let slowFired = false;
+  const startedAt = Date.now();
+
+  const clear = () => {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+  };
+
+  const schedule = (ms: number) => {
+    clear();
+    timeoutId = setTimeout(() => {
+      void runTick();
+    }, ms);
+  };
+
+  const runTick = async () => {
+    if (cancelled) return;
+
+    const elapsed = Date.now() - startedAt;
+    if (!slowFired && elapsed >= slowAfterMs) {
+      slowFired = true;
+      options.onSlow?.();
+    }
+    if (elapsed >= hardStopMs) {
+      options.onHardStop?.();
+      return;
+    }
+
+    let result: SyncStatusPollResult = "continue";
+    try {
+      result = await options.onTick();
+    } catch {
+      result = "continue";
+    }
+
+    if (cancelled || result === "stop") {
+      return;
+    }
+
+    delay = Math.min(maxMs, Math.round(delay * factor));
+    schedule(delay);
+  };
+
+  // First poll after initial delay (avoid hammering immediately on mount)
+  schedule(initialMs);
+
+  return () => {
+    cancelled = true;
+    clear();
+  };
 }
 </file>
 
@@ -4362,373 +4362,6 @@ function heuristicFit(jobText: string, profile: MasterProfile): JobFitResult {
 }
 </file>
 
-<file path="app/actions/email.ts">
-"use server";
-
-import { after } from "next/server";
-import { revalidatePath } from "next/cache";
-import { z } from "zod";
-
-import {
-  InsufficientScopeError,
-  REAUTH_REQUIRED_MESSAGE,
-  isInsufficientScopeError,
-} from "@/lib/google";
-import { SYNC_LOCK_STALE_MS } from "@/lib/constants";
-import { getActiveAccount } from "@/lib/data";
-import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
-import { runOpportunitySync } from "@/lib/opportunity-sync";
-import { prisma } from "@/lib/prisma";
-
-export type ActionResult<T = undefined> =
-  | { ok: true; data?: T }
-  | { ok: false; error: string };
-
-const syncInputSchema = z.object({
-  forceRescan: z.boolean().default(false),
-  lookbackDays: z.number().int().min(1).max(30).default(14),
-  accountId: z.string().min(1).optional(),
-});
-
-
-/**
- * Immediately clears a stuck isSyncing lock for the active account.
- */
-export async function forceResetSyncStatus(): Promise<ActionResult> {
-  const active = await getActiveAccount();
-  if (!active) {
-    return { ok: false, error: "Unauthorized" };
-  }
-
-  await prisma.account.update({
-    where: { id: active.id },
-    data: {
-      isSyncing: false,
-      syncError: null,
-      lastSyncedAt: new Date(),
-    },
-  });
-
-  revalidatePath("/");
-  revalidatePath("/jobs");
-  return { ok: true };
-}
-
-/**
- * Dual-mode inbox opportunity sync.
- * - forceRescan=false → incremental (after:lastSyncedAt), skip known EmailMessages
- * - forceRescan=true  → lookback window, re-extract & backfill salary/scores/links/logos
- *
- * Returns immediately; work runs in after(). finally always clears isSyncing.
- */
-export async function syncInboxOpportunities(
-  input: {
-    forceRescan?: boolean;
-    lookbackDays?: number;
-    accountId?: string;
-  } = {}
-): Promise<ActionResult<{ message: string; mode: "incremental" | "rescan" }>> {
-  const parsed = syncInputSchema.safeParse(input);
-  if (!parsed.success) {
-    return { ok: false, error: "Invalid sync input" };
-  }
-
-  const forceRescan = parsed.data.forceRescan;
-  const lookbackDays = parsed.data.lookbackDays;
-
-  let accountId = parsed.data.accountId;
-  if (!accountId) {
-    const active = await getActiveAccount();
-    if (!active) {
-      return { ok: false, error: "Unauthorized — connect a Gmail account first" };
-    }
-    accountId = active.id;
-  }
-
-  const account = await prisma.account.findUnique({
-    where: { id: accountId },
-    select: { id: true, isActive: true, isSyncing: true, updatedAt: true },
-  });
-
-  if (!account || !account.isActive) {
-    return { ok: false, error: "Account not found or inactive" };
-  }
-
-  if (account.isSyncing) {
-    const lockAgeMs = Date.now() - account.updatedAt.getTime();
-    if (lockAgeMs <= SYNC_LOCK_STALE_MS) {
-      return {
-        ok: true,
-        data: {
-          message: "Sync already running in background",
-          mode: forceRescan ? "rescan" : "incremental",
-        },
-      };
-    }
-    console.warn(
-      `Clearing stale sync lock before new sync (age=${Math.round(lockAgeMs / 1000)}s)`
-    );
-  }
-
-  await prisma.account.update({
-    where: { id: account.id },
-    data: {
-      isSyncing: true,
-      syncError: null,
-      lastSyncProcessed: null,
-    },
-  });
-
-  const syncAccountId = account.id;
-  const mode = forceRescan ? ("rescan" as const) : ("incremental" as const);
-
-  after(async () => {
-    let errorMessage: string | null = null;
-    let processed = 0;
-
-    try {
-      const result = await runOpportunitySync(syncAccountId, {
-        forceRescan,
-        lookbackDays,
-        maxMessages: 25,
-      });
-      processed = result.opportunitiesUpserted;
-
-      try {
-        const purge = await purgeExpiredDismissed(syncAccountId);
-        if (purge.purgedCount > 0) {
-          console.info(
-            `Purged ${purge.purgedCount} dismissed opportunities (retention=${purge.retentionDays}d)`
-          );
-        }
-      } catch (purgeError) {
-        console.error("purgeExpiredDismissed failed", purgeError);
-      }
-
-      revalidatePath("/");
-      revalidatePath("/jobs");
-      revalidatePath("/subscriptions");
-    } catch (error) {
-      console.error("syncInboxOpportunities background failed", error);
-      if (
-        error instanceof InsufficientScopeError ||
-        isInsufficientScopeError(error)
-      ) {
-        errorMessage = REAUTH_REQUIRED_MESSAGE;
-      } else {
-        errorMessage =
-          error instanceof Error ? error.message : "Inbox sync failed";
-      }
-    } finally {
-      // ALWAYS clear lock — even on crash / timeout paths we control.
-      try {
-        await prisma.account.update({
-          where: { id: syncAccountId },
-          data: {
-            isSyncing: false,
-            lastSyncedAt: new Date(),
-            syncError: errorMessage,
-            lastSyncProcessed: errorMessage ? null : processed,
-          },
-        });
-      } catch (finalizeError) {
-        console.error(
-          "Failed to clear isSyncing after inbox sync",
-          finalizeError
-        );
-        // Last-resort retry without optional fields.
-        try {
-          await prisma.account.update({
-            where: { id: syncAccountId },
-            data: { isSyncing: false },
-          });
-        } catch (retryError) {
-          console.error("Retry clear isSyncing also failed", retryError);
-        }
-      }
-    }
-  });
-
-  return {
-    ok: true,
-    data: {
-      message: forceRescan
-        ? "Force rescan started in background"
-        : "Sync started in background",
-      mode,
-    },
-  };
-}
-</file>
-
-<file path="app/actions/scan.ts">
-"use server";
-
-import { after } from "next/server";
-import { revalidatePath } from "next/cache";
-import { z } from "zod";
-
-import {
-  SCAN_DAY_OPTIONS,
-  type ScanDays,
-} from "@/lib/scan-types";
-import {
-  InsufficientScopeError,
-  REAUTH_REQUIRED_MESSAGE,
-  isInsufficientScopeError,
-} from "@/lib/google";
-import { scanHistoricalEmails } from "@/lib/historical-scan";
-import { prisma } from "@/lib/prisma";
-
-export type ActionResult<T = undefined> =
-  | { ok: true; data?: T }
-  | { ok: false; error: string };
-
-const scanInputSchema = z.object({
-  accountId: z.string().min(1),
-  days: z.union([
-    z.literal(5),
-    z.literal(10),
-    z.literal(15),
-    z.literal(30),
-  ]),
-});
-
-/**
- * Starts a historical inbox scan in the background and returns immediately.
- * UI stays navigable; GlobalSyncTracker polls isSyncing for progress.
- */
-export async function triggerHistoricalScan(
-  accountId: string,
-  days: number
-): Promise<ActionResult<{ message: string }>> {
-  const parsed = scanInputSchema.safeParse({ accountId, days });
-  if (!parsed.success) {
-    return {
-      ok: false,
-      error: `Invalid scan input. days must be one of ${SCAN_DAY_OPTIONS.join(", ")}`,
-    };
-  }
-
-  const account = await prisma.account.findUnique({
-    where: { id: parsed.data.accountId },
-    select: { id: true, isActive: true, isSyncing: true },
-  });
-
-  if (!account || !account.isActive) {
-    return { ok: false, error: "Account not found or inactive" };
-  }
-
-  if (account.isSyncing) {
-    return {
-      ok: true,
-      data: { message: "Sync already running in background" },
-    };
-  }
-
-  await prisma.account.update({
-    where: { id: account.id },
-    data: { isSyncing: true, syncError: null },
-  });
-
-  const scanAccountId = account.id;
-  const scanDays = parsed.data.days as ScanDays;
-
-  after(async () => {
-    let errorMessage: string | null = null;
-    let jobsFound = 0;
-    try {
-      const summary = await scanHistoricalEmails(scanAccountId, scanDays);
-      jobsFound = summary.jobsFound;
-      revalidatePath("/");
-      revalidatePath("/subscriptions");
-      revalidatePath("/jobs");
-    } catch (error) {
-      console.error("Background historical scan failed", error);
-      if (
-        error instanceof InsufficientScopeError ||
-        isInsufficientScopeError(error)
-      ) {
-        errorMessage = REAUTH_REQUIRED_MESSAGE;
-      } else {
-        errorMessage =
-          error instanceof Error ? error.message : "Historical scan failed";
-      }
-    } finally {
-      try {
-        await prisma.account.update({
-          where: { id: scanAccountId },
-          data: {
-            isSyncing: false,
-            lastSyncedAt: new Date(),
-            syncError: errorMessage,
-            lastSyncProcessed: errorMessage ? null : jobsFound,
-          },
-        });
-      } catch (finalizeError) {
-        console.error(
-          "Failed to clear isSyncing after background scan",
-          finalizeError
-        );
-      }
-    }
-  });
-
-  return {
-    ok: true,
-    data: { message: "Sync started in background" },
-  };
-}
-
-export type AccountSyncStatus = {
-  isSyncing: boolean;
-  lastSyncedAt: string | null;
-  syncError: string | null;
-  lastSyncProcessed: number | null;
-};
-
-/** Lightweight poll target for GlobalSyncTracker. */
-export async function getAccountSyncStatus(
-  accountId: string
-): Promise<ActionResult<AccountSyncStatus>> {
-  if (!accountId) {
-    return { ok: false, error: "accountId is required" };
-  }
-
-  try {
-    const account = await prisma.account.findUnique({
-      where: { id: accountId },
-      select: {
-        isSyncing: true,
-        lastSyncedAt: true,
-        syncError: true,
-        lastSyncProcessed: true,
-      },
-    });
-
-    if (!account) {
-      return { ok: false, error: "Account not found" };
-    }
-
-    return {
-      ok: true,
-      data: {
-        isSyncing: account.isSyncing,
-        lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
-        syncError: account.syncError,
-        lastSyncProcessed: account.lastSyncProcessed,
-      },
-    };
-  } catch (error) {
-    console.error("getAccountSyncStatus failed", error);
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Failed to read sync status",
-    };
-  }
-}
-</file>
-
 <file path="app/actions/subscriptions.ts">
 "use server";
 
@@ -5304,28 +4937,6 @@ try {
 }
 `;
 }
-</file>
-
-<file path="lib/constants.ts">
-/** Authenticated browser session (set on Google OAuth success). */
-export const SESSION_COOKIE = "mailpilot_session";
-
-/** Currently selected Gmail account id within an authenticated session. */
-export const ACTIVE_ACCOUNT_COOKIE = "activeAccountId";
-
-/** @deprecated Cleared on logout for migration from older builds. */
-export const LEGACY_ACTIVE_ACCOUNT_COOKIE = "mailpilot_account_id";
-
-/** @deprecated Cleared on logout for migration from older builds. */
-export const LEGACY_LOGGED_OUT_COOKIE = "mailpilot_logged_out";
-
-export const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
-
-/**
- * Max age of an `isSyncing` lock before it is treated as abandoned.
- * Sized for long local-Ollama batch classification (minutes per message).
- */
-export const SYNC_LOCK_STALE_MS = 600 * 1000;
 </file>
 
 <file path="lib/google.ts">
@@ -6348,6 +5959,419 @@ function chunkArray<T>(items: T[], size: number): T[][] {
 }
 </file>
 
+<file path="app/actions/email.ts">
+"use server";
+
+import { after } from "next/server";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+import {
+  InsufficientScopeError,
+  REAUTH_REQUIRED_MESSAGE,
+  isInsufficientScopeError,
+} from "@/lib/google";
+import { SYNC_LOCK_STALE_MS } from "@/lib/constants";
+import { getActiveAccount } from "@/lib/data";
+import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
+import { runOpportunitySync } from "@/lib/opportunity-sync";
+import { prisma } from "@/lib/prisma";
+
+export type ActionResult<T = undefined> =
+  | { ok: true; data?: T }
+  | { ok: false; error: string };
+
+const syncInputSchema = z.object({
+  forceRescan: z.boolean().default(false),
+  lookbackDays: z.number().int().min(1).max(30).default(14),
+  accountId: z.string().min(1).optional(),
+});
+
+
+/**
+ * Immediately clears a stuck isSyncing lock for the active account.
+ */
+export async function forceResetSyncStatus(): Promise<ActionResult> {
+  const active = await getActiveAccount();
+  if (!active) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  await prisma.account.update({
+    where: { id: active.id },
+    data: {
+      isSyncing: false,
+      syncError: null,
+      lastSyncedAt: new Date(),
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/jobs");
+  return { ok: true };
+}
+
+/**
+ * Dual-mode inbox opportunity sync.
+ * - forceRescan=false → incremental (after:lastSyncedAt), skip known EmailMessages
+ * - forceRescan=true  → lookback window, re-extract & backfill salary/scores/links/logos
+ *
+ * Returns immediately; work runs in after(). finally always clears isSyncing.
+ */
+export async function syncInboxOpportunities(
+  input: {
+    forceRescan?: boolean;
+    lookbackDays?: number;
+    accountId?: string;
+  } = {}
+): Promise<ActionResult<{ message: string; mode: "incremental" | "rescan" }>> {
+  const parsed = syncInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid sync input" };
+  }
+
+  const forceRescan = parsed.data.forceRescan;
+  const lookbackDays = parsed.data.lookbackDays;
+
+  let accountId = parsed.data.accountId;
+  if (!accountId) {
+    const active = await getActiveAccount();
+    if (!active) {
+      return { ok: false, error: "Unauthorized — connect a Gmail account first" };
+    }
+    accountId = active.id;
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    select: { id: true, isActive: true, isSyncing: true, updatedAt: true },
+  });
+
+  if (!account || !account.isActive) {
+    return { ok: false, error: "Account not found or inactive" };
+  }
+
+  if (account.isSyncing) {
+    const lockAgeMs = Date.now() - account.updatedAt.getTime();
+    if (lockAgeMs <= SYNC_LOCK_STALE_MS) {
+      return {
+        ok: true,
+        data: {
+          message: "Sync already running in background",
+          mode: forceRescan ? "rescan" : "incremental",
+        },
+      };
+    }
+    console.warn(
+      `Clearing stale sync lock before new sync (age=${Math.round(lockAgeMs / 1000)}s)`
+    );
+  }
+
+  await prisma.account.update({
+    where: { id: account.id },
+    data: {
+      isSyncing: true,
+      syncError: null,
+      lastSyncProcessed: null,
+      syncHeartbeatAt: new Date(),
+    },
+  });
+
+  const syncAccountId = account.id;
+  const mode = forceRescan ? ("rescan" as const) : ("incremental" as const);
+
+  after(async () => {
+    let errorMessage: string | null = null;
+    let processed = 0;
+
+    try {
+      const result = await runOpportunitySync(syncAccountId, {
+        forceRescan,
+        lookbackDays,
+        maxMessages: 25,
+      });
+      processed = result.opportunitiesUpserted;
+
+      try {
+        const purge = await purgeExpiredDismissed(syncAccountId);
+        if (purge.purgedCount > 0) {
+          console.info(
+            `Purged ${purge.purgedCount} dismissed opportunities (retention=${purge.retentionDays}d)`
+          );
+        }
+      } catch (purgeError) {
+        console.error("purgeExpiredDismissed failed", purgeError);
+      }
+
+      revalidatePath("/");
+      revalidatePath("/jobs");
+      revalidatePath("/subscriptions");
+    } catch (error) {
+      console.error("syncInboxOpportunities background failed", error);
+      if (
+        error instanceof InsufficientScopeError ||
+        isInsufficientScopeError(error)
+      ) {
+        errorMessage = REAUTH_REQUIRED_MESSAGE;
+      } else {
+        errorMessage =
+          error instanceof Error ? error.message : "Inbox sync failed";
+      }
+    } finally {
+      // ALWAYS clear lock — even on crash / timeout paths we control.
+      try {
+        await prisma.account.update({
+          where: { id: syncAccountId },
+          data: {
+            isSyncing: false,
+            lastSyncedAt: new Date(),
+            syncError: errorMessage,
+            lastSyncProcessed: errorMessage ? null : processed,
+          },
+        });
+      } catch (finalizeError) {
+        console.error(
+          "Failed to clear isSyncing after inbox sync",
+          finalizeError
+        );
+        // Last-resort retry without optional fields.
+        try {
+          await prisma.account.update({
+            where: { id: syncAccountId },
+            data: { isSyncing: false },
+          });
+        } catch (retryError) {
+          console.error("Retry clear isSyncing also failed", retryError);
+        }
+      }
+    }
+  });
+
+  return {
+    ok: true,
+    data: {
+      message: forceRescan
+        ? "Force rescan started in background"
+        : "Sync started in background",
+      mode,
+    },
+  };
+}
+</file>
+
+<file path="app/actions/scan.ts">
+"use server";
+
+import { after } from "next/server";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+import { SYNC_HEARTBEAT_STALE_MS } from "@/lib/constants";
+import {
+  InsufficientScopeError,
+  REAUTH_REQUIRED_MESSAGE,
+  isInsufficientScopeError,
+} from "@/lib/google";
+import { scanHistoricalEmails } from "@/lib/historical-scan";
+import { prisma } from "@/lib/prisma";
+import {
+  SCAN_DAY_OPTIONS,
+  type ScanDays,
+} from "@/lib/scan-types";
+
+export type ActionResult<T = undefined> =
+  | { ok: true; data?: T }
+  | { ok: false; error: string };
+
+const scanInputSchema = z.object({
+  accountId: z.string().min(1),
+  days: z.union([
+    z.literal(5),
+    z.literal(10),
+    z.literal(15),
+    z.literal(30),
+  ]),
+});
+
+/**
+ * Starts a historical inbox scan in the background and returns immediately.
+ * UI stays navigable; GlobalSyncTracker polls isSyncing for progress.
+ */
+export async function triggerHistoricalScan(
+  accountId: string,
+  days: number
+): Promise<ActionResult<{ message: string }>> {
+  const parsed = scanInputSchema.safeParse({ accountId, days });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: `Invalid scan input. days must be one of ${SCAN_DAY_OPTIONS.join(", ")}`,
+    };
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: parsed.data.accountId },
+    select: { id: true, isActive: true, isSyncing: true },
+  });
+
+  if (!account || !account.isActive) {
+    return { ok: false, error: "Account not found or inactive" };
+  }
+
+  if (account.isSyncing) {
+    return {
+      ok: true,
+      data: { message: "Sync already running in background" },
+    };
+  }
+
+  await prisma.account.update({
+    where: { id: account.id },
+    data: {
+      isSyncing: true,
+      syncError: null,
+      syncHeartbeatAt: new Date(),
+    },
+  });
+
+  const scanAccountId = account.id;
+  const scanDays = parsed.data.days as ScanDays;
+
+  after(async () => {
+    let errorMessage: string | null = null;
+    let jobsFound = 0;
+    try {
+      const summary = await scanHistoricalEmails(scanAccountId, scanDays);
+      jobsFound = summary.jobsFound;
+      revalidatePath("/");
+      revalidatePath("/subscriptions");
+      revalidatePath("/jobs");
+    } catch (error) {
+      console.error("Background historical scan failed", error);
+      if (
+        error instanceof InsufficientScopeError ||
+        isInsufficientScopeError(error)
+      ) {
+        errorMessage = REAUTH_REQUIRED_MESSAGE;
+      } else {
+        errorMessage =
+          error instanceof Error ? error.message : "Historical scan failed";
+      }
+    } finally {
+      try {
+        await prisma.account.update({
+          where: { id: scanAccountId },
+          data: {
+            isSyncing: false,
+            lastSyncedAt: new Date(),
+            syncError: errorMessage,
+            lastSyncProcessed: errorMessage ? null : jobsFound,
+          },
+        });
+      } catch (finalizeError) {
+        console.error(
+          "Failed to clear isSyncing after background scan",
+          finalizeError
+        );
+      }
+    }
+  });
+
+  return {
+    ok: true,
+    data: { message: "Sync started in background" },
+  };
+}
+
+export type AccountSyncStatus = {
+  isSyncing: boolean;
+  lastSyncedAt: string | null;
+  syncError: string | null;
+  lastSyncProcessed: number | null;
+  pendingClassificationCount: number;
+};
+
+/** Lightweight poll target for GlobalSyncTracker. */
+export async function getAccountSyncStatus(
+  accountId: string
+): Promise<ActionResult<AccountSyncStatus>> {
+  if (!accountId) {
+    return { ok: false, error: "accountId is required" };
+  }
+
+  try {
+    const account = await prisma.account.findUnique({
+      where: { id: accountId },
+      select: {
+        id: true,
+        isSyncing: true,
+        lastSyncedAt: true,
+        syncError: true,
+        lastSyncProcessed: true,
+        updatedAt: true,
+        syncHeartbeatAt: true,
+      },
+    });
+
+    if (!account) {
+      return { ok: false, error: "Account not found" };
+    }
+
+    let isCurrentlySyncing = account.isSyncing;
+    let syncErrorMessage = account.syncError;
+
+    if (isCurrentlySyncing) {
+      const heartbeatAgeMs =
+        Date.now() -
+        (account.syncHeartbeatAt?.getTime() ?? account.updatedAt.getTime());
+
+      if (heartbeatAgeMs > SYNC_HEARTBEAT_STALE_MS) {
+        console.warn(
+          `[SyncLock:AutoReset] Clearing stale sync lock (heartbeatAge=${Math.round(heartbeatAgeMs / 1000)}s)`
+        );
+
+        syncErrorMessage =
+          "Background sync interrupted. Auto-reset complete.";
+
+        await prisma.account.update({
+          where: { id: account.id },
+          data: {
+            isSyncing: false,
+            syncError: syncErrorMessage,
+          },
+        });
+
+        isCurrentlySyncing = false;
+      }
+    }
+
+    const pendingClassificationCount = await prisma.emailMessage.count({
+      where: {
+        accountId: account.id,
+        emailCategory: "PENDING_AI",
+      },
+    });
+
+    return {
+      ok: true,
+      data: {
+        isSyncing: isCurrentlySyncing,
+        lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
+        syncError: syncErrorMessage,
+        lastSyncProcessed: account.lastSyncProcessed,
+        pendingClassificationCount,
+      },
+    };
+  } catch (error) {
+    console.error("getAccountSyncStatus failed", error);
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to read sync status",
+    };
+  }
+}
+</file>
+
 <file path="lib/validations/profile.ts">
 import { z } from "zod";
 
@@ -6512,6 +6536,34 @@ export const masterProfileSchema = masterProfileInputSchema.extend({
 });
 
 export type MasterProfileUpdateInput = z.infer<typeof masterProfileSchema>;
+</file>
+
+<file path="lib/constants.ts">
+/** Authenticated browser session (set on Google OAuth success). */
+export const SESSION_COOKIE = "mailpilot_session";
+
+/** Currently selected Gmail account id within an authenticated session. */
+export const ACTIVE_ACCOUNT_COOKIE = "activeAccountId";
+
+/** @deprecated Cleared on logout for migration from older builds. */
+export const LEGACY_ACTIVE_ACCOUNT_COOKIE = "mailpilot_account_id";
+
+/** @deprecated Cleared on logout for migration from older builds. */
+export const LEGACY_LOGGED_OUT_COOKIE = "mailpilot_logged_out";
+
+export const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+/**
+ * Max age of an `isSyncing` lock before it is treated as abandoned.
+ * Sized for long local-Ollama batch classification (minutes per message).
+ */
+export const SYNC_LOCK_STALE_MS = 600 * 1000;
+
+/**
+ * Max silence between worker heartbeats before a sync lock is considered dead.
+ * Active Ollama batches should renew `syncHeartbeatAt` each chunk.
+ */
+export const SYNC_HEARTBEAT_STALE_MS = 180 * 1000;
 </file>
 
 <file path="app/actions/accounts.ts">
@@ -8792,387 +8844,6 @@ ${input.body}
 }
 </file>
 
-<file path="lib/opportunity-sync.ts">
-import { GaxiosError } from "gaxios";
-import type { gmail_v1 } from "googleapis";
-
-import {
-  getGmailClientForAccount,
-  InsufficientScopeError,
-  REAUTH_REQUIRED_MESSAGE,
-  isInsufficientScopeError,
-} from "@/lib/google";
-import { cleanEmailPayload } from "@/lib/email/cleaner";
-import {
-  classifyEmail,
-  extractMessageBody,
-  loadCandidateProfileSummary,
-  sanitizeEmailBody,
-  shouldClassifyEmail,
-  type LlmProvider,
-} from "@/lib/llm";
-import { prisma } from "@/lib/prisma";
-import { parseFromHeader, persistClassifiedEmail } from "@/lib/sync";
-import { parseAccountRules } from "@/lib/validations/rules";
-
-export type OpportunitySyncOptions = {
-  forceRescan?: boolean;
-  lookbackDays?: number;
-  /** Cap Gmail list size (Hobby / free-tier friendly). */
-  maxMessages?: number;
-};
-
-export type OpportunitySyncResult = {
-  processed: number;
-  opportunitiesUpserted: number;
-  skipped: number;
-};
-
-const JOB_QUERY_BASE =
-  "(" +
-  'subject:(job OR career OR role OR hiring OR interview OR opportunity OR opportunities OR application OR applied OR alert OR "thank you for applying" OR "application received" OR "application was sent" OR offer)' +
-  " OR from:(glassdoor OR linkedin OR indeed OR lever OR greenhouse OR dice OR workday OR ashbyhq OR smartrecruiters OR icims OR myworkdayjobs)" +
-  ") -in:trash -in:spam";
-
-const BATCH_SIZE = 4;
-const RATE_LIMIT_BASE_MS = 800;
-/** Overlap buffer so boundary emails are not dropped between incremental runs. */
-const INCREMENTAL_OVERLAP_SECONDS = 10 * 60;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function isRateLimited(error: unknown): boolean {
-  if (error instanceof GaxiosError) {
-    return error.response?.status === 429;
-  }
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: number | string }).code === 429
-  ) {
-    return true;
-  }
-  return false;
-}
-
-async function withRateLimitRetry<T>(
-  operation: () => Promise<T>,
-  attempt = 0
-): Promise<T> {
-  try {
-    return await operation();
-  } catch (error) {
-    if (isRateLimited(error) && attempt < 4) {
-      await sleep(RATE_LIMIT_BASE_MS * 2 ** attempt);
-      return withRateLimitRetry(operation, attempt + 1);
-    }
-    throw error;
-  }
-}
-
-function normalizeProvider(value: string | null | undefined): LlmProvider {
-  return value === "LOCAL_OLLAMA" ? "LOCAL_OLLAMA" : "OPENROUTER";
-}
-
-function getHeader(
-  headers: gmail_v1.Schema$MessagePartHeader[] | undefined,
-  name: string
-): string | undefined {
-  return (
-    headers?.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ??
-    undefined
-  );
-}
-
-async function listGmailMessageIds(
-  gmail: gmail_v1.Gmail,
-  query: string,
-  maxResults: number
-): Promise<string[]> {
-  const ids: string[] = [];
-  let pageToken: string | undefined;
-
-  do {
-    const remaining = maxResults - ids.length;
-    if (remaining <= 0) break;
-
-    const listed = await withRateLimitRetry(() =>
-      gmail.users.messages.list({
-        userId: "me",
-        q: query,
-        maxResults: Math.min(100, remaining),
-        pageToken,
-      })
-    );
-
-    for (const message of listed.data.messages ?? []) {
-      if (message.id) ids.push(message.id);
-      if (ids.length >= maxResults) break;
-    }
-
-    pageToken =
-      ids.length >= maxResults
-        ? undefined
-        : (listed.data.nextPageToken ?? undefined);
-  } while (pageToken);
-
-  return ids;
-}
-
-function buildSyncQuery(input: {
-  forceRescan: boolean;
-  lookbackDays: number;
-  lastSyncedAt: Date | null;
-}): string {
-  let query = JOB_QUERY_BASE;
-
-  if (!input.forceRescan && input.lastSyncedAt) {
-    // Incremental: only mail newer than last sync (10-minute overlap buffer).
-    const afterTimestamp =
-      Math.floor(input.lastSyncedAt.getTime() / 1000) -
-      INCREMENTAL_OVERLAP_SECONDS;
-    query += ` after:${afterTimestamp}`;
-  } else {
-    query += ` newer_than:${input.lookbackDays}d`;
-  }
-
-  return query;
-}
-
-/**
- * Fast incremental opportunity sync, or forced lookback rescan/backfill.
- * Uses cleaned payloads + batched concurrency (4) to cut AI latency.
- */
-export async function runOpportunitySync(
-  accountId: string,
-  options: OpportunitySyncOptions = {}
-): Promise<OpportunitySyncResult> {
-  const forceRescan = options.forceRescan === true;
-  const lookbackDays = options.lookbackDays ?? 14;
-  const maxMessages = options.maxMessages ?? 25;
-
-  try {
-    const account = await prisma.account.findUnique({
-      where: { id: accountId },
-      include: {
-        settings: true,
-        profile: {
-          include: {
-            experiences: { orderBy: { displayOrder: "asc" }, take: 4 },
-            education: true,
-            projects: { take: 4 },
-          },
-        },
-      },
-    });
-
-    if (!account || !account.isActive) {
-      throw new Error("Account not found or inactive");
-    }
-
-    if (!account.profile) {
-      console.warn(
-        "Sync warning: Account has no linked profile. Match scoring will use generic profile defaults."
-      );
-    }
-
-    const gmail = await getGmailClientForAccount(account);
-    const query = buildSyncQuery({
-      forceRescan,
-      lookbackDays,
-      lastSyncedAt: account.lastSyncedAt,
-    });
-
-    const gmailMessageIds = await listGmailMessageIds(gmail, query, maxMessages);
-
-    // Pull up to 10 backlogged PENDING_AI emails so Sync Inbox drains the queue.
-    const pendingRows = await prisma.emailMessage.findMany({
-      where: {
-        accountId,
-        emailCategory: "PENDING_AI",
-      },
-      select: { messageId: true },
-      take: 10,
-    });
-    const pendingIds = pendingRows.map((r) => r.messageId);
-
-    const combinedCandidateIds = Array.from(
-      new Set([...gmailMessageIds, ...pendingIds])
-    );
-
-    if (combinedCandidateIds.length === 0) {
-      return { processed: 0, opportunitiesUpserted: 0, skipped: 0 };
-    }
-
-    let targetIds = combinedCandidateIds;
-    if (!forceRescan) {
-      // Dedup against EmailMessage.messageId (Gmail ids), not JobOpportunity cuid FKs.
-      // Re-process PENDING_AI rows so offline-parked mail gets classified when AI returns.
-      const processed = await prisma.emailMessage.findMany({
-        where: {
-          accountId,
-          messageId: { in: combinedCandidateIds },
-          emailCategory: { not: "PENDING_AI" },
-        },
-        select: { messageId: true },
-      });
-      const processedSet = new Set(processed.map((row) => row.messageId));
-      targetIds = combinedCandidateIds.filter((id) => !processedSet.has(id));
-    }
-
-    if (targetIds.length === 0) {
-      return {
-        processed: 0,
-        opportunitiesUpserted: 0,
-        skipped: combinedCandidateIds.length,
-      };
-    }
-
-    const rules = parseAccountRules(account.settings?.rules);
-    const llmProvider = normalizeProvider(account.settings?.llmProvider);
-    const candidateProfile = await loadCandidateProfileSummary(accountId);
-
-    let opportunitiesUpserted = 0;
-
-    // Serialize local Ollama inference to avoid concurrent queue timeouts.
-    const effectiveBatchSize = llmProvider === "LOCAL_OLLAMA" ? 1 : BATCH_SIZE;
-    for (let i = 0; i < targetIds.length; i += effectiveBatchSize) {
-      const chunk = targetIds.slice(i, i + effectiveBatchSize);
-      const results = await Promise.all(
-        chunk.map(async (messageId) => {
-          try {
-            const message = await withRateLimitRetry(() =>
-              gmail.users.messages.get({
-                userId: "me",
-                id: messageId,
-                format: "full",
-              })
-            );
-
-            const headers = message.data.payload?.headers;
-            const subject = getHeader(headers, "Subject") ?? "";
-            const from = getHeader(headers, "From");
-            const sender = from ? parseFromHeader(from) : null;
-            const rawBody = extractMessageBody(message.data.payload);
-            const cleanedText = cleanEmailPayload(
-              rawBody.trim().length > 0
-                ? rawBody
-                : message.data.snippet ?? subject
-            );
-
-            const classification = await classifyEmail({
-              llmProvider,
-              localOllamaUrl: account.settings?.localOllamaUrl,
-              ollamaModel: account.settings?.ollamaModel,
-              subject,
-              body: cleanedText,
-              fromEmail: sender?.email ?? null,
-              candidateProfile,
-              allowCloudFallback: rules.allowCloudFallback,
-            });
-
-            if (
-              !classification ||
-              !classification.is_job_related ||
-              classification.email_category === "IRRELEVANT"
-            ) {
-              if (classification) {
-                // LLM successfully ran and determined it is not a job -> clear from PENDING_AI
-                await prisma.emailMessage.updateMany({
-                  where: { accountId, messageId },
-                  data: { emailCategory: "IRRELEVANT" },
-                });
-              } else if (
-                shouldClassifyEmail({
-                  subject,
-                  body: cleanedText,
-                  fromEmail: sender?.email ?? null,
-                })
-              ) {
-                // LLM was offline or failed -> park as PENDING_AI
-                const threadId = message.data.threadId ?? messageId;
-                const emailDate = message.data.internalDate
-                  ? new Date(Number(message.data.internalDate))
-                  : new Date();
-
-                await prisma.emailMessage.upsert({
-                  where: {
-                    accountId_messageId: {
-                      accountId,
-                      messageId,
-                    },
-                  },
-                  create: {
-                    accountId,
-                    messageId,
-                    threadId,
-                    subject,
-                    fromEmail: sender?.email ?? null,
-                    fromName: sender?.name ?? null,
-                    emailCategory: "PENDING_AI",
-                    emailDate,
-                    snippet: sanitizeEmailBody(cleanedText).slice(0, 500),
-                  },
-                  update: {
-                    emailCategory: "PENDING_AI",
-                  },
-                });
-              }
-              return 0;
-            }
-
-            const threadId = message.data.threadId ?? messageId;
-            const emailDate = message.data.internalDate
-              ? new Date(Number(message.data.internalDate))
-              : new Date();
-
-            const result = await persistClassifiedEmail({
-              gmail,
-              account,
-              messageId,
-              threadId,
-              subject,
-              body: cleanedText,
-              sender,
-              emailDate,
-              classification,
-              rules,
-            });
-
-            return result.opportunitiesUpserted + (result.applicationTouched ? 1 : 0);
-          } catch (error) {
-            console.error(`Opportunity sync failed for ${messageId}`, error);
-            if (isRateLimited(error)) {
-              await sleep(RATE_LIMIT_BASE_MS * 2);
-            }
-            return 0;
-          }
-        })
-      );
-
-      opportunitiesUpserted += results.reduce((sum, n) => sum + n, 0);
-    }
-
-    return {
-      processed: targetIds.length,
-      opportunitiesUpserted,
-      skipped: combinedCandidateIds.length - targetIds.length,
-    };
-  } catch (error) {
-    if (
-      error instanceof InsufficientScopeError ||
-      isInsufficientScopeError(error)
-    ) {
-      throw new InsufficientScopeError(REAUTH_REQUIRED_MESSAGE);
-    }
-    throw error;
-  }
-}
-</file>
-
 <file path="app/actions/profile.ts">
 "use server";
 
@@ -11291,6 +10962,392 @@ async function scanJobCandidates(
 }
 </file>
 
+<file path="lib/opportunity-sync.ts">
+import { GaxiosError } from "gaxios";
+import type { gmail_v1 } from "googleapis";
+
+import {
+  getGmailClientForAccount,
+  InsufficientScopeError,
+  REAUTH_REQUIRED_MESSAGE,
+  isInsufficientScopeError,
+} from "@/lib/google";
+import { cleanEmailPayload } from "@/lib/email/cleaner";
+import {
+  classifyEmail,
+  extractMessageBody,
+  loadCandidateProfileSummary,
+  sanitizeEmailBody,
+  shouldClassifyEmail,
+  type LlmProvider,
+} from "@/lib/llm";
+import { prisma } from "@/lib/prisma";
+import { parseFromHeader, persistClassifiedEmail } from "@/lib/sync";
+import { parseAccountRules } from "@/lib/validations/rules";
+
+export type OpportunitySyncOptions = {
+  forceRescan?: boolean;
+  lookbackDays?: number;
+  /** Cap Gmail list size (Hobby / free-tier friendly). */
+  maxMessages?: number;
+};
+
+export type OpportunitySyncResult = {
+  processed: number;
+  opportunitiesUpserted: number;
+  skipped: number;
+};
+
+const JOB_QUERY_BASE =
+  "(" +
+  'subject:(job OR career OR role OR hiring OR interview OR opportunity OR opportunities OR application OR applied OR alert OR "thank you for applying" OR "application received" OR "application was sent" OR offer)' +
+  " OR from:(glassdoor OR linkedin OR indeed OR lever OR greenhouse OR dice OR workday OR ashbyhq OR smartrecruiters OR icims OR myworkdayjobs)" +
+  ") -in:trash -in:spam";
+
+const BATCH_SIZE = 4;
+const RATE_LIMIT_BASE_MS = 800;
+/** Overlap buffer so boundary emails are not dropped between incremental runs. */
+const INCREMENTAL_OVERLAP_SECONDS = 10 * 60;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRateLimited(error: unknown): boolean {
+  if (error instanceof GaxiosError) {
+    return error.response?.status === 429;
+  }
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: number | string }).code === 429
+  ) {
+    return true;
+  }
+  return false;
+}
+
+async function withRateLimitRetry<T>(
+  operation: () => Promise<T>,
+  attempt = 0
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (isRateLimited(error) && attempt < 4) {
+      await sleep(RATE_LIMIT_BASE_MS * 2 ** attempt);
+      return withRateLimitRetry(operation, attempt + 1);
+    }
+    throw error;
+  }
+}
+
+function normalizeProvider(value: string | null | undefined): LlmProvider {
+  return value === "LOCAL_OLLAMA" ? "LOCAL_OLLAMA" : "OPENROUTER";
+}
+
+function getHeader(
+  headers: gmail_v1.Schema$MessagePartHeader[] | undefined,
+  name: string
+): string | undefined {
+  return (
+    headers?.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ??
+    undefined
+  );
+}
+
+async function listGmailMessageIds(
+  gmail: gmail_v1.Gmail,
+  query: string,
+  maxResults: number
+): Promise<string[]> {
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const remaining = maxResults - ids.length;
+    if (remaining <= 0) break;
+
+    const listed = await withRateLimitRetry(() =>
+      gmail.users.messages.list({
+        userId: "me",
+        q: query,
+        maxResults: Math.min(100, remaining),
+        pageToken,
+      })
+    );
+
+    for (const message of listed.data.messages ?? []) {
+      if (message.id) ids.push(message.id);
+      if (ids.length >= maxResults) break;
+    }
+
+    pageToken =
+      ids.length >= maxResults
+        ? undefined
+        : (listed.data.nextPageToken ?? undefined);
+  } while (pageToken);
+
+  return ids;
+}
+
+function buildSyncQuery(input: {
+  forceRescan: boolean;
+  lookbackDays: number;
+  lastSyncedAt: Date | null;
+}): string {
+  let query = JOB_QUERY_BASE;
+
+  if (!input.forceRescan && input.lastSyncedAt) {
+    // Incremental: only mail newer than last sync (10-minute overlap buffer).
+    const afterTimestamp =
+      Math.floor(input.lastSyncedAt.getTime() / 1000) -
+      INCREMENTAL_OVERLAP_SECONDS;
+    query += ` after:${afterTimestamp}`;
+  } else {
+    query += ` newer_than:${input.lookbackDays}d`;
+  }
+
+  return query;
+}
+
+/**
+ * Fast incremental opportunity sync, or forced lookback rescan/backfill.
+ * Uses cleaned payloads + batched concurrency (4) to cut AI latency.
+ */
+export async function runOpportunitySync(
+  accountId: string,
+  options: OpportunitySyncOptions = {}
+): Promise<OpportunitySyncResult> {
+  const forceRescan = options.forceRescan === true;
+  const lookbackDays = options.lookbackDays ?? 14;
+  const maxMessages = options.maxMessages ?? 25;
+
+  try {
+    const account = await prisma.account.findUnique({
+      where: { id: accountId },
+      include: {
+        settings: true,
+        profile: {
+          include: {
+            experiences: { orderBy: { displayOrder: "asc" }, take: 4 },
+            education: true,
+            projects: { take: 4 },
+          },
+        },
+      },
+    });
+
+    if (!account || !account.isActive) {
+      throw new Error("Account not found or inactive");
+    }
+
+    if (!account.profile) {
+      console.warn(
+        "Sync warning: Account has no linked profile. Match scoring will use generic profile defaults."
+      );
+    }
+
+    const gmail = await getGmailClientForAccount(account);
+    const query = buildSyncQuery({
+      forceRescan,
+      lookbackDays,
+      lastSyncedAt: account.lastSyncedAt,
+    });
+
+    const gmailMessageIds = await listGmailMessageIds(gmail, query, maxMessages);
+
+    // Pull up to 10 backlogged PENDING_AI emails so Sync Inbox drains the queue.
+    const pendingRows = await prisma.emailMessage.findMany({
+      where: {
+        accountId,
+        emailCategory: "PENDING_AI",
+      },
+      select: { messageId: true },
+      take: 10,
+    });
+    const pendingIds = pendingRows.map((r) => r.messageId);
+
+    const combinedCandidateIds = Array.from(
+      new Set([...gmailMessageIds, ...pendingIds])
+    );
+
+    if (combinedCandidateIds.length === 0) {
+      return { processed: 0, opportunitiesUpserted: 0, skipped: 0 };
+    }
+
+    let targetIds = combinedCandidateIds;
+    if (!forceRescan) {
+      // Dedup against EmailMessage.messageId (Gmail ids), not JobOpportunity cuid FKs.
+      // Re-process PENDING_AI rows so offline-parked mail gets classified when AI returns.
+      const processed = await prisma.emailMessage.findMany({
+        where: {
+          accountId,
+          messageId: { in: combinedCandidateIds },
+          emailCategory: { not: "PENDING_AI" },
+        },
+        select: { messageId: true },
+      });
+      const processedSet = new Set(processed.map((row) => row.messageId));
+      targetIds = combinedCandidateIds.filter((id) => !processedSet.has(id));
+    }
+
+    if (targetIds.length === 0) {
+      return {
+        processed: 0,
+        opportunitiesUpserted: 0,
+        skipped: combinedCandidateIds.length,
+      };
+    }
+
+    const rules = parseAccountRules(account.settings?.rules);
+    const llmProvider = normalizeProvider(account.settings?.llmProvider);
+    const candidateProfile = await loadCandidateProfileSummary(accountId);
+
+    let opportunitiesUpserted = 0;
+
+    // Serialize local Ollama inference to avoid concurrent queue timeouts.
+    const effectiveBatchSize = llmProvider === "LOCAL_OLLAMA" ? 1 : BATCH_SIZE;
+    for (let i = 0; i < targetIds.length; i += effectiveBatchSize) {
+      const chunk = targetIds.slice(i, i + effectiveBatchSize);
+      const results = await Promise.all(
+        chunk.map(async (messageId) => {
+          try {
+            const message = await withRateLimitRetry(() =>
+              gmail.users.messages.get({
+                userId: "me",
+                id: messageId,
+                format: "full",
+              })
+            );
+
+            const headers = message.data.payload?.headers;
+            const subject = getHeader(headers, "Subject") ?? "";
+            const from = getHeader(headers, "From");
+            const sender = from ? parseFromHeader(from) : null;
+            const rawBody = extractMessageBody(message.data.payload);
+            const cleanedText = cleanEmailPayload(
+              rawBody.trim().length > 0
+                ? rawBody
+                : message.data.snippet ?? subject
+            );
+
+            const classification = await classifyEmail({
+              llmProvider,
+              localOllamaUrl: account.settings?.localOllamaUrl,
+              ollamaModel: account.settings?.ollamaModel,
+              subject,
+              body: cleanedText,
+              fromEmail: sender?.email ?? null,
+              candidateProfile,
+              allowCloudFallback: rules.allowCloudFallback,
+            });
+
+            if (
+              !classification ||
+              !classification.is_job_related ||
+              classification.email_category === "IRRELEVANT"
+            ) {
+              if (classification) {
+                // LLM successfully ran and determined it is not a job -> clear from PENDING_AI
+                await prisma.emailMessage.updateMany({
+                  where: { accountId, messageId },
+                  data: { emailCategory: "IRRELEVANT" },
+                });
+              } else if (
+                shouldClassifyEmail({
+                  subject,
+                  body: cleanedText,
+                  fromEmail: sender?.email ?? null,
+                })
+              ) {
+                // LLM was offline or failed -> park as PENDING_AI
+                const threadId = message.data.threadId ?? messageId;
+                const emailDate = message.data.internalDate
+                  ? new Date(Number(message.data.internalDate))
+                  : new Date();
+
+                await prisma.emailMessage.upsert({
+                  where: {
+                    accountId_messageId: {
+                      accountId,
+                      messageId,
+                    },
+                  },
+                  create: {
+                    accountId,
+                    messageId,
+                    threadId,
+                    subject,
+                    fromEmail: sender?.email ?? null,
+                    fromName: sender?.name ?? null,
+                    emailCategory: "PENDING_AI",
+                    emailDate,
+                    snippet: sanitizeEmailBody(cleanedText).slice(0, 500),
+                  },
+                  update: {
+                    emailCategory: "PENDING_AI",
+                  },
+                });
+              }
+              return 0;
+            }
+
+            const threadId = message.data.threadId ?? messageId;
+            const emailDate = message.data.internalDate
+              ? new Date(Number(message.data.internalDate))
+              : new Date();
+
+            const result = await persistClassifiedEmail({
+              gmail,
+              account,
+              messageId,
+              threadId,
+              subject,
+              body: cleanedText,
+              sender,
+              emailDate,
+              classification,
+              rules,
+            });
+
+            return result.opportunitiesUpserted + (result.applicationTouched ? 1 : 0);
+          } catch (error) {
+            console.error(`Opportunity sync failed for ${messageId}`, error);
+            if (isRateLimited(error)) {
+              await sleep(RATE_LIMIT_BASE_MS * 2);
+            }
+            return 0;
+          }
+        })
+      );
+
+      opportunitiesUpserted += results.reduce((sum, n) => sum + n, 0);
+
+      await prisma.account.update({
+        where: { id: accountId },
+        data: { syncHeartbeatAt: new Date() },
+      });
+    }
+
+    return {
+      processed: targetIds.length,
+      opportunitiesUpserted,
+      skipped: combinedCandidateIds.length - targetIds.length,
+    };
+  } catch (error) {
+    if (
+      error instanceof InsufficientScopeError ||
+      isInsufficientScopeError(error)
+    ) {
+      throw new InsufficientScopeError(REAUTH_REQUIRED_MESSAGE);
+    }
+    throw error;
+  }
+}
+</file>
+
 <file path="lib/resume-tailor.ts">
 import { z } from "zod";
 
@@ -12311,6 +12368,8 @@ model Account {
   syncError           String?
   /// Opportunities upserted on the most recent completed sync (for UI toast).
   lastSyncProcessed   Int?
+  /// Touched by the background worker each batch so hang detection uses liveness, not lock start.
+  syncHeartbeatAt     DateTime?
 
   settings        AccountSettings?
   subscriptions   Subscription[]
