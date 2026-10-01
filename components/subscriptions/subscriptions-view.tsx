@@ -149,18 +149,13 @@ export function SubscriptionsView({
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-          Subscriptions
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Active lists and an archive box for second-chance inbox cleanup.
-        </p>
-      </div>
+    <div>
+      <p className="pb-3 text-xs text-muted-foreground">
+        Active lists and an archive box for second-chance inbox cleanup.
+      </p>
 
       <Tabs defaultValue="active" className="w-full">
-        <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <TabsList className={segmentedTabsListClassName}>
             <TabsTrigger
               value="active"
@@ -178,7 +173,7 @@ export function SubscriptionsView({
             </TabsTrigger>
           </TabsList>
 
-          <div className="flex shrink-0 items-center gap-2.5 self-start sm:self-auto">
+          <div className="flex shrink-0 items-center gap-2 self-start sm:self-auto">
             <SyncControls accountId={accountId} />
           </div>
         </div>
