@@ -21,7 +21,8 @@ export function ToolbarRoot({
   return (
     <div
       className={cn(
-        "inline-flex w-fit max-w-full flex-wrap items-center gap-3 rounded-lg border bg-card px-3 py-2 shadow-sm",
+        // 50px = border(2) + py-2(16) + h-8 wavy slider(32); keeps all tabs the same height
+        "inline-flex min-h-[50px] w-fit max-w-full flex-wrap items-center gap-3 rounded-lg border bg-card px-3 py-2 shadow-sm",
         className
       )}
     >
