@@ -28,12 +28,12 @@ export default async function SettingsPage({
     profileResult.ok && profileResult.data ? profileResult.data : null;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+    <div className="space-y-4">
+      <div className="pb-3">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
           Settings
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-0.5 text-xs text-muted-foreground">
           Accounts, automation, AI routing, and your master resume profile.
         </p>
       </div>

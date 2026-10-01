@@ -281,18 +281,13 @@ export function JobsRadar({
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-          Job Radar
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Leads, applications, action items, and history in one pipeline.
-        </p>
-      </div>
+    <div>
+      <p className="pb-3 text-xs text-muted-foreground">
+        Leads, applications, action items, and history in one pipeline.
+      </p>
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <TabsList className={segmentedTabsListClassName}>
             <TabsTrigger value="leads" className={segmentedTabsTriggerClassName}>
               <span>Leads</span>
@@ -321,7 +316,7 @@ export function JobsRadar({
             </TabsTrigger>
           </TabsList>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2.5 self-start sm:self-auto">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-auto">
             <Button
               type="button"
               size="sm"
