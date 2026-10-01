@@ -19,6 +19,7 @@ import {
   RotateCcw,
   Send,
   Sparkles,
+  WandSparkles,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -54,6 +55,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   abortablePromise,
   isAbortError,
@@ -365,7 +372,11 @@ export function OpportunityDraftDialog({
 
   function persistThen(action: "gmail-draft" | "send") {
     if (!opportunity) return;
-    if (attachResume && !resume) {
+    if (
+      action === "send" &&
+      attachResume &&
+      !resume?.pdfBase64
+    ) {
       toast.error("Generate a tailored resume first, or turn off attach.");
       return;
     }
@@ -391,6 +402,8 @@ export function OpportunityDraftDialog({
         return;
       }
 
+      const shouldAttachResume =
+        attachResume && Boolean(resume?.pdfBase64);
       const result = await sendOpportunityApplication(
         opportunity.id,
         action === "gmail-draft",
@@ -403,7 +416,7 @@ export function OpportunityDraftDialog({
             : null,
           tailoredSkills: resume?.tailoredSkills,
           includeSummary,
-          attachResume,
+          attachResume: shouldAttachResume,
         }
       );
       if (!result.ok) {
@@ -538,6 +551,15 @@ export function OpportunityDraftDialog({
   }
 
   const effectiveRefineTarget = attachResume ? refineTarget : "email";
+  const hasTailoredResume = Boolean(resume?.pdfBase64);
+  const showGenerateResume =
+    effectiveRefineTarget === "resume" && !hasTailoredResume;
+  const primaryActionLabel = showGenerateResume ? "Generate" : "Regenerate";
+  const primaryActionTitle = showGenerateResume
+    ? "Generate a tailored resume"
+    : effectiveRefineTarget === "email"
+      ? "Generate a fresh draft"
+      : "Regenerate tailored resume";
 
   function handleUnifiedRegenerate() {
     if (effectiveRefineTarget === "email") {
@@ -570,7 +592,24 @@ export function OpportunityDraftDialog({
   const refineDisabled =
     busy ||
     !refinePrompt.trim() ||
-    (effectiveRefineTarget === "resume" && !resume);
+    (effectiveRefineTarget === "resume" && !hasTailoredResume);
+
+  const isGeneratingResume = resumeBusy;
+  const isGeneratingEmail = refining || retrying;
+  const isSending = pending;
+  const isAwaitingResume =
+    attachResume && !hasTailoredResume && !isGeneratingResume;
+  const isSendDisabled =
+    isSending || isGeneratingResume || isGeneratingEmail || isAwaitingResume;
+  const sendDisabledReason = isGeneratingResume
+    ? "Generating tailored resume..."
+    : isAwaitingResume
+      ? "Generate and review your tailored resume before sending, or uncheck 'Attach Auto-Tailored Resume'."
+      : isGeneratingEmail
+        ? "Finish the current email task before sending."
+        : null;
+  const isSaveDraftDisabled =
+    pending || loadingDraft || refining || retrying;
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
@@ -583,17 +622,19 @@ export function OpportunityDraftDialog({
         <DialogHeader className="shrink-0 space-y-0 border-b border-border/60 px-6 pb-3 pt-4 pr-12 text-left">
           <div className="flex items-start gap-3">
             {opportunity ? (
-              <CompanyLogo
-                company={opportunity.company}
-                logoUrl={opportunity.logoUrl}
-                domain={opportunity.companyDomain}
-              />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center">
+                <CompanyLogo
+                  company={opportunity.company}
+                  logoUrl={opportunity.logoUrl}
+                  domain={opportunity.companyDomain}
+                />
+              </div>
             ) : null}
-            <div className="min-w-0 flex flex-col gap-0.5 pt-0.5">
-              <DialogTitle className="text-lg font-semibold tracking-tight">
+            <div className="-mt-0.5 flex min-w-0 flex-col">
+              <DialogTitle className="text-lg font-semibold leading-tight tracking-tight">
                 Responding to:
               </DialogTitle>
-              <DialogDescription className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+              <DialogDescription className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
                 {opportunity ? (
                   <>
                     <span className="truncate">{opportunity.title}</span>
@@ -882,10 +923,11 @@ export function OpportunityDraftDialog({
                         <FileText className="h-10 w-10 text-muted-foreground/50" />
                         <div className="space-y-1">
                           <p className="text-sm font-medium text-foreground">
-                            No tailored resume yet
+                            No Auto-Tailored Resume Yet
                           </p>
                           <p className="max-w-sm text-xs text-muted-foreground">
-                            Use Regenerate below to tailor a PDF for this
+                            Select &apos;Resume&apos; in the toolbar below and
+                            click &apos;Generate&apos; to tailor a PDF for this
                             opportunity. Nothing runs until you ask.
                           </p>
                         </div>
@@ -963,13 +1005,13 @@ export function OpportunityDraftDialog({
                     disabled
                   >
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Regenerate
+                    {primaryActionLabel}
                   </Button>
                   <CancelTaskButton
                     title={
-                      effectiveRefineTarget === "email"
-                        ? "Cancel regeneration"
-                        : "Cancel generation"
+                      showGenerateResume
+                        ? "Cancel generation"
+                        : "Cancel regeneration"
                     }
                     onCancel={() =>
                       handleCancelTask(
@@ -988,14 +1030,14 @@ export function OpportunityDraftDialog({
                   className="h-8 shrink-0 gap-1 px-2.5 text-xs"
                   disabled={busy}
                   onClick={handleUnifiedRegenerate}
-                  title={
-                    effectiveRefineTarget === "email"
-                      ? "Generate a fresh draft"
-                      : "Generate a fresh tailored resume"
-                  }
+                  title={primaryActionTitle}
                 >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  Regenerate
+                  {showGenerateResume ? (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  ) : (
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  )}
+                  {primaryActionLabel}
                 </Button>
               )}
 
@@ -1031,7 +1073,7 @@ export function OpportunityDraftDialog({
                   disabled={refineDisabled}
                   onClick={handleUnifiedRefine}
                 >
-                  <Sparkles className="h-3.5 w-3.5" />
+                  <WandSparkles className="h-3.5 w-3.5" />
                   Refine
                 </Button>
               )}
@@ -1055,7 +1097,7 @@ export function OpportunityDraftDialog({
                     htmlFor="attach-resume"
                     className="cursor-pointer text-sm font-medium"
                   >
-                    Attach tailored resume
+                    Attach Auto-Tailored Resume
                   </Label>
                 </div>
                 {attachResume && resume ? (
@@ -1110,7 +1152,7 @@ export function OpportunityDraftDialog({
               <Button
                 type="button"
                 variant="outline"
-                disabled={busy}
+                disabled={isSaveDraftDisabled}
                 onClick={() => persistThen("gmail-draft")}
               >
                 {pending ? (
@@ -1120,18 +1162,31 @@ export function OpportunityDraftDialog({
                 )}
                 Save Draft
               </Button>
-              <Button
-                type="button"
-                disabled={busy}
-                onClick={() => persistThen("send")}
-              >
-                {pending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-                Send Email
-              </Button>
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <Button
+                        type="button"
+                        disabled={isSendDisabled}
+                        onClick={() => persistThen("send")}
+                      >
+                        {pending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                        Send Email
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {sendDisabledReason ? (
+                    <TooltipContent side="top" className="max-w-xs text-center">
+                      {sendDisabledReason}
+                    </TooltipContent>
+                  ) : null}
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         )}

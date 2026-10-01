@@ -295,7 +295,7 @@ export function JobsRadar({
         <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <TabsList className={segmentedTabsListClassName}>
             <TabsTrigger value="leads" className={segmentedTabsTriggerClassName}>
-              <span>Leads / Queue</span>
+              <span>Leads</span>
               <TabCountBadge count={leadCount} />
             </TabsTrigger>
             <TabsTrigger

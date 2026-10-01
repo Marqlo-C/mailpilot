@@ -198,11 +198,15 @@ export function OpportunityCard({
   const showOverflowMenu =
     variant === "leads" || variant === "applied" || variant === "action";
 
+  const statusPillClass =
+    "inline-flex h-[14px] shrink-0 items-center rounded-full border px-1.5 text-[9px] font-semibold leading-none";
+
   const statusTag =
     variant === "history" ? (
       <span
         className={cn(
-          "rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase",
+          statusPillClass,
+          "font-bold uppercase",
           opportunity.isArchived && !dismissed
             ? "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400"
             : "border-border bg-muted text-muted-foreground"
@@ -211,11 +215,21 @@ export function OpportunityCard({
         {opportunity.isArchived && !dismissed ? "Archived" : "Dismissed"}
       </span>
     ) : opportunity.status === "REVIEW_READY" ? (
-      <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+      <span
+        className={cn(
+          statusPillClass,
+          "border-border bg-muted text-muted-foreground"
+        )}
+      >
         Draft ready
       </span>
     ) : variant === "leads" && belowThreshold && !userArchived ? (
-      <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+      <span
+        className={cn(
+          statusPillClass,
+          "border-border bg-muted text-muted-foreground"
+        )}
+      >
         Below threshold
       </span>
     ) : null;
@@ -293,13 +307,13 @@ export function OpportunityCard({
           domain={opportunity.companyDomain}
         />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h4 className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="flex h-[14px] items-center gap-1.5">
+            <h4 className="truncate text-[11px] font-semibold uppercase leading-none tracking-wider text-muted-foreground">
               {opportunity.company}
             </h4>
             {statusTag}
           </div>
-          <h3 className="mt-0.5 truncate text-base font-semibold leading-snug text-foreground">
+          <h3 className="mt-1 truncate text-base font-semibold leading-snug text-foreground">
             {opportunity.title}
           </h3>
         </div>
