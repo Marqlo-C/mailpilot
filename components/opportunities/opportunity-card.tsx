@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { JobOpportunity } from "@prisma/client";
 import {
@@ -37,7 +37,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getCompanyLogoUrl } from "@/lib/company-logo";
+import { CompanyLogo } from "@/components/opportunities/company-logo";
 import { canDraftDirectEmail } from "@/lib/application-method";
 import { formatDistanceToNow } from "@/lib/format-distance";
 import {
@@ -79,43 +79,6 @@ function scoreTone(score: number): string {
     return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
   }
   return "bg-muted/60 text-muted-foreground";
-}
-
-function CompanyLogo({
-  company,
-  logoUrl,
-  domain,
-}: {
-  company: string;
-  logoUrl: string | null;
-  domain: string | null;
-}) {
-  const [failed, setFailed] = useState(false);
-  const src = logoUrl || getCompanyLogoUrl(company, domain);
-  const initial = company.trim().slice(0, 2).toUpperCase() || "?";
-
-  if (failed) {
-    return (
-      <div
-        className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/70 bg-muted/40 text-xs font-bold uppercase text-muted-foreground shadow-sm"
-        aria-hidden
-      >
-        {initial}
-      </div>
-    );
-  }
-
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt=""
-      width={40}
-      height={40}
-      className="h-10 w-10 shrink-0 rounded-xl border border-border/70 bg-muted/40 object-contain p-1 shadow-sm"
-      onError={() => setFailed(true)}
-    />
-  );
 }
 
 /**
