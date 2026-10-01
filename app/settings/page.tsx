@@ -5,6 +5,7 @@ import { ApplicationAutomationCard } from "@/components/settings/application-aut
 import { AutomationRulesCard } from "@/components/settings/automation-rules-card";
 import { ExcludedTitlesCard } from "@/components/settings/excluded-titles-card";
 import { MasterProfileCard } from "@/components/settings/master-profile-card";
+import { ResumeTailoringDefaultsCard } from "@/components/settings/resume-tailoring-defaults-card";
 import { DismissedRetentionSetting } from "@/components/settings/retention-setting";
 import { getActiveAccount, listAccounts } from "@/lib/data";
 import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
@@ -54,6 +55,10 @@ export default async function SettingsPage({
           activeAccountId={active?.id ?? null}
         />
         <MasterProfileCard accountId={active?.id ?? null} profile={profile} />
+        <ResumeTailoringDefaultsCard
+          accountId={active?.id ?? null}
+          rules={active?.rules ?? DEFAULT_ACCOUNT_RULES}
+        />
         <ApplicationAutomationCard
           accountId={active?.id ?? null}
           rules={active?.rules ?? DEFAULT_ACCOUNT_RULES}

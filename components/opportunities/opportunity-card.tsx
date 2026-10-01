@@ -447,7 +447,7 @@ export function OpportunityCard({
                   className={secondaryBtnClass}
                 >
                   <Send className="h-3.5 w-3.5" />
-                  <span>Send now</span>
+                  <span>Send Now</span>
                 </button>
               </>
             ) : (
@@ -481,7 +481,7 @@ export function OpportunityCard({
                 className={secondaryBtnClass}
               >
                 <Send className="h-3.5 w-3.5" />
-                <span>Send now</span>
+                <span>Send Now</span>
               </button>
             </>
           ) : null}

@@ -152,6 +152,7 @@ export async function dispatchApplicationEmail(
   const tailored = usePrepared
     ? {
         selectedExperience: profile.experiences,
+        selectedProjects: profile.projects,
         coverLetter: application.draftBody!,
         selectedBullets:
           existingTailored?.success
@@ -173,7 +174,10 @@ export async function dispatchApplicationEmail(
     profile,
     tailored.selectedExperience.length > 0
       ? tailored.selectedExperience
-      : profile.experiences
+      : profile.experiences,
+    tailored.selectedProjects,
+    "tailoredSummary" in tailored ? tailored.tailoredSummary : undefined,
+    "tailoredSkills" in tailored ? tailored.tailoredSkills : undefined
   );
 
   const subject =

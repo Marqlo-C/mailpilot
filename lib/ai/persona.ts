@@ -3,7 +3,7 @@ import type { MasterProfileInput } from "@/lib/validations/profile";
 export const SENIORITY_TIERS = [
   "Early Career / New Grad",
   "Mid-Level Professional",
-  "Senior Engineer / Tech Lead",
+  "Senior / Lead Professional",
   "Career Switcher",
 ] as const;
 
@@ -291,14 +291,14 @@ function toneForTier(
       return `${grounding} Write as a mid-level peer (${
         techYears > 0 ? formatHumanYears(techYears) : "a few years"
       } in-track): confident, practical, logistics-first. Reference recent shipping work casually when useful. Do not inflate into staff/lead voice.`;
-    case "Senior Engineer / Tech Lead":
-      return `${grounding} Write as a senior peer: terse, calm, and logistics-first with hiring managers/recruiters. Do not oversell or restate the resume. Keep replies short and match their formality.`;
+    case "Senior / Lead Professional":
+      return `${grounding} Write as an experienced peer: terse, calm, and logistics-first with hiring managers/recruiters. Do not oversell or restate the resume. Keep replies short and match their formality.`;
     case "Career Switcher":
       return `${grounding} Write as a career switcher with ${formatHumanYears(
         techYears
       )} in the technical track (not ${formatHumanYears(
         techYears + priorNonTechYears
-      )} total calendar time as engineering seniority). Be honest about the pivot. Highlight transferable strengths without inventing domain tenure. Stay humble about new-stack depth. Focus on motivation, learning velocity, and next steps — never fake senior alignment to a Staff/Principal/Lead role.`;
+      )} total calendar time as in-track seniority). Be honest about the pivot. Highlight transferable strengths without inventing domain tenure. Stay humble about new-stack depth. Focus on motivation, learning velocity, and next steps — never claim a higher seniority level than verified in-track tenure supports.`;
   }
 }
 
@@ -337,7 +337,7 @@ export function synthesizeCandidatePersona(
   ) {
     seniorityTier = "Early Career / New Grad";
   } else if (relevantYears >= 6) {
-    seniorityTier = "Senior Engineer / Tech Lead";
+    seniorityTier = "Senior / Lead Professional";
   } else {
     seniorityTier = "Mid-Level Professional";
   }

@@ -1,5 +1,8 @@
 import { randomBytes } from "crypto";
 
+import { Prisma } from "@prisma/client";
+import { z } from "zod";
+
 import { canDraftDirectEmail } from "@/lib/application-method";
 import { cleanEmailPayload } from "@/lib/email/cleaner";
 import {
@@ -18,8 +21,57 @@ import {
   buildSlimCandidate,
   draftContextualEmail,
   tailorResumeForJob,
+  type TailorResult,
 } from "@/lib/resume-tailor";
-import { parseAccountRules } from "@/lib/validations/rules";
+import {
+  projectInputSchema,
+  skillsSchema,
+  workExperienceInputSchema,
+  type MasterProfileInput,
+  type ProjectInput,
+  type WorkExperienceInput,
+} from "@/lib/validations/profile";
+import {
+  DEFAULT_RESUME_PREFERENCES,
+  parseAccountRules,
+} from "@/lib/validations/rules";
+
+export type OpportunityResumePreview = {
+  filename: string;
+  pdfBase64: string;
+  experiences: WorkExperienceInput[];
+  projects?: ProjectInput[];
+  tailoredSummary?: string | null;
+  tailoredSkills?: MasterProfileInput["skills"];
+  strategyRationale?: TailorResult["strategyRationale"];
+  includeSummary?: boolean;
+};
+
+export type OpportunityResumeState = {
+  resume: OpportunityResumePreview | null;
+  defaultIncludeSummary: boolean;
+  defaultAttachPdf: boolean;
+};
+
+const strategyRationaleCacheSchema = z.object({
+  roleFitAnalysis: z.string(),
+  selectedSkillsReasoning: z.string(),
+  featuredExperiencesReasoning: z.string(),
+  featuredProjectsReasoning: z.string(),
+});
+
+const tailoredResumeDataSchema = z.object({
+  filename: z.string().optional(),
+  tailoredSummary: z.string().nullable().optional(),
+  tailoredSkills: skillsSchema.optional(),
+  selectedExperience: z.array(workExperienceInputSchema).default([]),
+  selectedProjects: z.array(projectInputSchema).default([]),
+  strategyRationale: strategyRationaleCacheSchema.optional(),
+});
+
+const tailorConfigSchema = z.object({
+  includeSummary: z.boolean().default(false),
+});
 
 function normalizeProvider(value: string | null | undefined): LlmProvider {
   return value === "LOCAL_OLLAMA" ? "LOCAL_OLLAMA" : "OPENROUTER";
@@ -52,18 +104,25 @@ function encodeRaw(raw: string): string {
     .replace(/=+$/, "");
 }
 
+export type MimeAttachment = {
+  filename: string;
+  contentType: string;
+  content: Buffer;
+};
+
+function safeMimeFilename(name: string): string {
+  return name.replace(/[\r\n"/\\]/g, "_").slice(0, 180) || "attachment";
+}
+
 function buildMimeMessage(input: {
   from: string;
   to: string;
   subject: string;
   body: string;
-  pdf: Buffer;
-  filename: string;
+  attachments: MimeAttachment[];
 }): string {
   const boundary = `mailpilot_${randomBytes(12).toString("hex")}`;
-  const pdfBase64 = input.pdf.toString("base64").replace(/(.{76})/g, "$1\r\n");
-
-  return [
+  const lines: string[] = [
     `From: ${input.from}`,
     `To: ${input.to}`,
     `Subject: ${input.subject}`,
@@ -76,15 +135,28 @@ function buildMimeMessage(input: {
     "",
     input.body,
     "",
-    `--${boundary}`,
-    `Content-Type: application/pdf; name="${input.filename}"`,
-    "Content-Transfer-Encoding: base64",
-    `Content-Disposition: attachment; filename="${input.filename}"`,
-    "",
-    pdfBase64,
-    "",
-    `--${boundary}--`,
-  ].join("\r\n");
+  ];
+
+  for (const attachment of input.attachments) {
+    const filename = safeMimeFilename(attachment.filename);
+    const contentType =
+      attachment.contentType.trim() || "application/octet-stream";
+    const base64 = attachment.content
+      .toString("base64")
+      .replace(/(.{76})/g, "$1\r\n");
+    lines.push(
+      `--${boundary}`,
+      `Content-Type: ${contentType}; name="${filename}"`,
+      "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename="${filename}"`,
+      "",
+      base64,
+      ""
+    );
+  }
+
+  lines.push(`--${boundary}--`);
+  return lines.join("\r\n");
 }
 
 async function loadMasterProfile(accountId: string) {
@@ -278,6 +350,225 @@ export async function refineOpportunityDraft(
   return draft;
 }
 
+function previewFromCache(row: {
+  tailoredResumePdf: string | null;
+  tailoredResumeData: unknown;
+  tailorConfig: unknown;
+}): OpportunityResumePreview | null {
+  if (!row.tailoredResumePdf || !row.tailoredResumeData) return null;
+  const data = tailoredResumeDataSchema.safeParse(row.tailoredResumeData);
+  if (!data.success) return null;
+  const config = tailorConfigSchema.safeParse(row.tailorConfig ?? {});
+  const includeSummary = config.success
+    ? config.data.includeSummary
+    : false;
+  return {
+    filename: data.data.filename ?? "Resume.pdf",
+    pdfBase64: row.tailoredResumePdf,
+    experiences: data.data.selectedExperience,
+    projects: data.data.selectedProjects,
+    tailoredSummary: data.data.tailoredSummary ?? null,
+    tailoredSkills: data.data.tailoredSkills,
+    strategyRationale: data.data.strategyRationale,
+    includeSummary,
+  };
+}
+
+async function persistOpportunityResumeCache(
+  opportunityId: string,
+  preview: OpportunityResumePreview
+): Promise<void> {
+  const payload = {
+    filename: preview.filename,
+    tailoredSummary: preview.tailoredSummary ?? null,
+    tailoredSkills: preview.tailoredSkills,
+    selectedExperience: preview.experiences,
+    selectedProjects: preview.projects ?? [],
+    strategyRationale: preview.strategyRationale,
+  };
+  await prisma.jobOpportunity.update({
+    where: { id: opportunityId },
+    data: {
+      tailoredResumePdf: preview.pdfBase64,
+      tailoredResumeData: payload as Prisma.InputJsonValue,
+      tailoredAt: new Date(),
+      tailorConfig: {
+        includeSummary: preview.includeSummary === true,
+      } as Prisma.InputJsonValue,
+    },
+  });
+}
+
+async function buildOpportunityResumePreview(
+  accountId: string,
+  opportunityId: string,
+  options: {
+    customInstruction?: string | null;
+    previousSelectedBulletIds?: string[] | null;
+    includeSummary?: boolean;
+    forceRegenerate?: boolean;
+  } = {}
+): Promise<OpportunityResumePreview | null> {
+  const includeSummary = options.includeSummary === true;
+  const forceRegenerate = options.forceRegenerate === true;
+
+  const opportunity = await prisma.jobOpportunity.findFirst({
+    where: { id: opportunityId, accountId },
+    select: {
+      id: true,
+      title: true,
+      company: true,
+      description: true,
+      tailoredResumePdf: true,
+      tailoredResumeData: true,
+      tailorConfig: true,
+    },
+  });
+  if (!opportunity) {
+    throw new Error("Opportunity not found");
+  }
+
+  if (!forceRegenerate) {
+    const cached = previewFromCache(opportunity);
+    if (cached) {
+      return cached;
+    }
+    return null;
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { settings: true },
+  });
+  const profile = await loadMasterProfile(accountId);
+  const accountRules = parseAccountRules(account?.settings?.rules);
+
+  const tailored = await tailorResumeForJob(
+    [opportunity.title, opportunity.company, opportunity.description ?? ""],
+    profile,
+    {
+      companyName: opportunity.company,
+      roleTitle: opportunity.title,
+      jobText: opportunity.description ?? undefined,
+      llmProvider: normalizeProvider(account?.settings?.llmProvider),
+      localOllamaUrl: account?.settings?.localOllamaUrl,
+      ollamaModel: account?.settings?.ollamaModel,
+      allowCloudFallback: accountRules.allowCloudFallback,
+      customInstruction: options.customInstruction,
+      previousSelectedBulletIds: options.previousSelectedBulletIds,
+      dbClient: prisma,
+      includeSummary,
+    }
+  );
+
+  const experiences =
+    tailored.selectedExperience.length > 0
+      ? tailored.selectedExperience
+      : profile.experiences;
+
+  const pdf = await generateTailoredResumePdf(
+    profile,
+    experiences,
+    tailored.selectedProjects,
+    tailored.tailoredSummary,
+    tailored.tailoredSkills,
+    includeSummary
+  );
+  const filename = `${profile.fullName.replace(/\s+/g, "_")}_Resume.pdf`;
+
+  const preview: OpportunityResumePreview = {
+    filename,
+    pdfBase64: pdf.toString("base64"),
+    experiences: tailored.selectedExperience,
+    projects: tailored.selectedProjects,
+    tailoredSummary: tailored.tailoredSummary,
+    tailoredSkills: tailored.tailoredSkills,
+    strategyRationale: tailored.strategyRationale,
+    includeSummary,
+  };
+
+  await persistOpportunityResumeCache(opportunityId, preview);
+  return preview;
+}
+
+/** Load cached resume + account default includeSummary (never calls Ollama). */
+export async function getOpportunityResumeState(
+  accountId: string,
+  opportunityId: string
+): Promise<OpportunityResumeState> {
+  const [opportunity, account] = await Promise.all([
+    prisma.jobOpportunity.findFirst({
+      where: { id: opportunityId, accountId },
+      select: {
+        tailoredResumePdf: true,
+        tailoredResumeData: true,
+        tailorConfig: true,
+      },
+    }),
+    prisma.account.findUnique({
+      where: { id: accountId },
+      include: { settings: true },
+    }),
+  ]);
+  if (!opportunity) {
+    throw new Error("Opportunity not found");
+  }
+
+  const rules = parseAccountRules(account?.settings?.rules);
+  const prefs = rules.resumePreferences ?? DEFAULT_RESUME_PREFERENCES;
+  const defaultIncludeSummary = prefs.includeSummary;
+  const defaultAttachPdf = prefs.attachPdfByDefault;
+  const resume = previewFromCache(opportunity);
+
+  return { resume, defaultIncludeSummary, defaultAttachPdf };
+}
+
+/**
+ * Tailor + render the resume PDF for in-app review.
+ * Without forceRegenerate, returns the cached PDF or null (no Ollama call).
+ */
+export async function prepareOpportunityResume(
+  accountId: string,
+  opportunityId: string,
+  options: {
+    includeSummary?: boolean;
+    forceRegenerate?: boolean;
+  } = {}
+): Promise<OpportunityResumePreview | null> {
+  return buildOpportunityResumePreview(accountId, opportunityId, {
+    includeSummary: options.includeSummary === true,
+    forceRegenerate: options.forceRegenerate === true,
+  });
+}
+
+/** Re-tailor the resume using a free-form instruction and prior bullet selection. */
+export async function refineOpportunityResume(
+  accountId: string,
+  opportunityId: string,
+  instruction: string,
+  previousExperiences?: WorkExperienceInput[] | null,
+  includeSummary = false
+): Promise<OpportunityResumePreview> {
+  const trimmed = instruction.trim();
+  if (!trimmed) {
+    throw new Error("Refinement instruction is required");
+  }
+
+  const previousSelectedBulletIds =
+    previousExperiences?.flatMap((exp) => exp.bullets.map((b) => b.id)) ?? [];
+
+  const preview = await buildOpportunityResumePreview(accountId, opportunityId, {
+    customInstruction: trimmed,
+    previousSelectedBulletIds,
+    includeSummary,
+    forceRegenerate: true,
+  });
+  if (!preview) {
+    throw new Error("Failed to refine resume");
+  }
+  return preview;
+}
+
 export async function updateOpportunityRecipient(
   accountId: string,
   opportunityId: string,
@@ -351,7 +642,22 @@ export async function updateOpportunityDraft(
 export async function dispatchOpportunityEmail(
   accountId: string,
   opportunityId: string,
-  options: { createDraftOnly?: boolean } = {}
+  options: {
+    createDraftOnly?: boolean;
+    /** Extra user-selected files (never includes the tailored resume). */
+    extraAttachments?: MimeAttachment[];
+    /** When set, skip re-tailoring and use this reviewed experience selection. */
+    reviewedExperiences?: WorkExperienceInput[] | null;
+    reviewedProjects?: ProjectInput[] | null;
+    reviewedSummary?: string | null;
+    reviewedSkills?: MasterProfileInput["skills"] | null;
+    includeSummary?: boolean;
+    /**
+     * When false, outbound mail omits the tailored resume PDF.
+     * Defaults to account resumePreferences.attachPdfByDefault.
+     */
+    attachResume?: boolean;
+  } = {}
 ): Promise<{ mode: "draft" | "sent" }> {
   const account = await prisma.account.findUnique({
     where: { id: accountId },
@@ -383,6 +689,17 @@ export async function dispatchOpportunityEmail(
     opportunity.draftSubject?.trim() ||
     `Application: ${opportunity.title} at ${opportunity.company}`;
   const accountRules = parseAccountRules(account.settings?.rules);
+  const resumePrefs =
+    accountRules.resumePreferences ?? DEFAULT_RESUME_PREFERENCES;
+  const attachResume =
+    typeof options.attachResume === "boolean"
+      ? options.attachResume
+      : resumePrefs.attachPdfByDefault;
+  const includeSummary =
+    typeof options.includeSummary === "boolean"
+      ? options.includeSummary
+      : resumePrefs.includeSummary;
+
   let body = opportunity.draftBody?.trim() ?? "";
   if (!body) {
     const slim = await buildSlimCandidate(profile, prisma);
@@ -418,35 +735,69 @@ export async function dispatchOpportunityEmail(
     body = draft.body;
   }
 
-  // PDF still needs bullet selection — separate from the fast email path
-  const tailored = await tailorResumeForJob(
-    [opportunity.title, opportunity.company],
-    profile,
-    {
-      companyName: opportunity.company,
-      roleTitle: opportunity.title,
-      llmProvider: normalizeProvider(account.settings?.llmProvider),
-      localOllamaUrl: account.settings?.localOllamaUrl,
-      ollamaModel: account.settings?.ollamaModel,
-      allowCloudFallback: accountRules.allowCloudFallback,
+  const attachments: MimeAttachment[] = [...(options.extraAttachments ?? [])];
+
+  if (attachResume) {
+    const cachedPreview = previewFromCache({
+      tailoredResumePdf: opportunity.tailoredResumePdf,
+      tailoredResumeData: opportunity.tailoredResumeData,
+      tailorConfig: opportunity.tailorConfig,
+    });
+
+    // Prefer reviewed selection, then persisted cache, then live tailor.
+    let pdf: Buffer;
+    let filename = `${profile.fullName.replace(/\s+/g, "_")}_Resume.pdf`;
+    if (options.reviewedExperiences && options.reviewedExperiences.length > 0) {
+      pdf = await generateTailoredResumePdf(
+        profile,
+        options.reviewedExperiences,
+        options.reviewedProjects ?? undefined,
+        includeSummary ? options.reviewedSummary : null,
+        options.reviewedSkills,
+        includeSummary
+      );
+    } else if (cachedPreview) {
+      pdf = Buffer.from(cachedPreview.pdfBase64, "base64");
+      filename = cachedPreview.filename || filename;
+    } else {
+      const tailored = await tailorResumeForJob(
+        [opportunity.title, opportunity.company],
+        profile,
+        {
+          companyName: opportunity.company,
+          roleTitle: opportunity.title,
+          llmProvider: normalizeProvider(account.settings?.llmProvider),
+          localOllamaUrl: account.settings?.localOllamaUrl,
+          ollamaModel: account.settings?.ollamaModel,
+          allowCloudFallback: accountRules.allowCloudFallback,
+          dbClient: prisma,
+          includeSummary,
+        }
+      );
+      pdf = await generateTailoredResumePdf(
+        profile,
+        tailored.selectedExperience.length > 0
+          ? tailored.selectedExperience
+          : profile.experiences,
+        tailored.selectedProjects,
+        tailored.tailoredSummary,
+        tailored.tailoredSkills,
+        includeSummary
+      );
     }
-  );
+    attachments.unshift({
+      filename,
+      contentType: "application/pdf",
+      content: pdf,
+    });
+  }
 
-  const pdf = await generateTailoredResumePdf(
-    profile,
-    tailored.selectedExperience.length > 0
-      ? tailored.selectedExperience
-      : profile.experiences
-  );
-
-  const filename = `${profile.fullName.replace(/\s+/g, "_")}_Resume.pdf`;
   const raw = buildMimeMessage({
     from: account.email,
     to: opportunity.recipientEmail!,
     subject,
     body,
-    pdf,
-    filename,
+    attachments,
   });
 
   const gmail = await getGmailClientForAccount(account);

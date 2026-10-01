@@ -4,14 +4,21 @@ import { revalidatePath } from "next/cache";
 
 import { addExcludedTitle } from "@/app/actions/settings";
 import { canDraftDirectEmail } from "@/lib/application-method";
+import { cleanEmailPayload } from "@/lib/email/cleaner";
 import {
   countSendsToday,
   dispatchOpportunityEmail,
   getDailySendLimit,
+  getOpportunityResumeState,
   prepareOpportunityDraft,
+  prepareOpportunityResume,
   refineOpportunityDraft,
+  refineOpportunityResume,
   updateOpportunityDraft,
   updateOpportunityRecipient,
+  type MimeAttachment,
+  type OpportunityResumePreview,
+  type OpportunityResumeState,
 } from "@/lib/opportunity-dispatch";
 import {
   InsufficientScopeError,
@@ -19,25 +26,128 @@ import {
   isInsufficientScopeError,
 } from "@/lib/google";
 import { prisma } from "@/lib/prisma";
+import {
+  projectInputSchema,
+  skillsSchema,
+  workExperienceInputSchema,
+  type MasterProfileInput,
+  type ProjectInput,
+  type WorkExperienceInput,
+} from "@/lib/validations/profile";
 import { z } from "zod";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
 
+export type OriginalEmailPreview = {
+  subject: string | null;
+  fromName: string | null;
+  fromEmail: string | null;
+  date: Date | null;
+  body: string;
+};
+
+export type DraftAttachmentInput = {
+  filename: string;
+  contentType: string;
+  base64: string;
+};
+
+export type { OpportunityResumePreview, OpportunityResumeState };
+
 const recipientEmailSchema = z.string().trim().email();
+
+const draftAttachmentSchema = z.object({
+  filename: z.string().trim().min(1).max(255),
+  contentType: z.string().trim().min(1).max(200),
+  /** Raw base64 (no data: URL prefix); ~10MB decoded ceiling. */
+  base64: z.string().min(1).max(14_000_000),
+});
+
+const draftAttachmentsSchema = z.array(draftAttachmentSchema).max(10);
+
+const reviewedExperiencesSchema = z.array(workExperienceInputSchema).max(30);
+const reviewedProjectsSchema = z.array(projectInputSchema).max(30);
+
+export type ReviewedResumeInput = {
+  experiences: WorkExperienceInput[];
+  projects?: ProjectInput[];
+  tailoredSummary?: string | null;
+  tailoredSkills?: MasterProfileInput["skills"];
+  includeSummary?: boolean;
+  attachResume?: boolean;
+};
+
+const originalEmailSelect = {
+  subject: true,
+  fromName: true,
+  fromEmail: true,
+  emailDate: true,
+  rawBody: true,
+  snippet: true,
+} as const;
+
+function mapOriginalEmail(
+  emailMessage: {
+    subject: string | null;
+    fromName: string | null;
+    fromEmail: string | null;
+    emailDate: Date;
+    rawBody: string | null;
+    snippet: string | null;
+  } | null
+): OriginalEmailPreview | null {
+  if (!emailMessage) return null;
+  const raw = emailMessage.rawBody?.trim();
+  const body = raw
+    ? cleanEmailPayload(raw)
+    : emailMessage.snippet?.trim() || "";
+  return {
+    subject: emailMessage.subject,
+    fromName: emailMessage.fromName,
+    fromEmail: emailMessage.fromEmail,
+    date: emailMessage.emailDate,
+    body,
+  };
+}
+
+function decodeDraftAttachments(
+  attachments: DraftAttachmentInput[] | undefined
+): MimeAttachment[] {
+  if (!attachments?.length) return [];
+  const parsed = draftAttachmentsSchema.safeParse(attachments);
+  if (!parsed.success) {
+    throw new Error("Invalid attachment payload");
+  }
+  return parsed.data.map((item) => ({
+    filename: item.filename,
+    contentType: item.contentType || "application/octet-stream",
+    content: Buffer.from(item.base64, "base64"),
+  }));
+}
 
 export async function prepareOpportunityDraftForReview(
   opportunityId: string
 ): Promise<
-  ActionResult<{ subject: string; body: string; recipient: string | null }>
+  ActionResult<{
+    subject: string;
+    body: string;
+    recipient: string | null;
+    originalEmail: OriginalEmailPreview | null;
+  }>
 > {
   const opportunity = await prisma.jobOpportunity.findUnique({
     where: { id: opportunityId },
+    include: {
+      emailMessage: { select: originalEmailSelect },
+    },
   });
   if (!opportunity) {
     return { ok: false, error: "Opportunity not found" };
   }
+
+  const originalEmail = mapOriginalEmail(opportunity.emailMessage);
 
   try {
     if (
@@ -52,6 +162,7 @@ export async function prepareOpportunityDraftForReview(
           subject: opportunity.draftSubject,
           body: opportunity.draftBody,
           recipient: opportunity.recipientEmail,
+          originalEmail,
         },
       };
     }
@@ -61,7 +172,7 @@ export async function prepareOpportunityDraftForReview(
       opportunityId
     );
     revalidatePath("/jobs");
-    return { ok: true, data: draft };
+    return { ok: true, data: { ...draft, originalEmail } };
   } catch (error) {
     return {
       ok: false,
@@ -212,9 +323,144 @@ export async function saveOpportunityDraftEdits(
   }
 }
 
+/** Load cached tailored resume (if any) + settings default for Include Summary. */
+export async function getOpportunityResumeStateAction(
+  opportunityId: string
+): Promise<ActionResult<OpportunityResumeState>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+
+  try {
+    const data = await getOpportunityResumeState(
+      opportunity.accountId,
+      opportunityId
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to load resume state",
+    };
+  }
+}
+
+/**
+ * Read-only resume load: returns cached PDF or null.
+ * Does not call Ollama — use generateOpportunityResumeAction to create one.
+ */
+export async function prepareOpportunityResumeForReview(
+  opportunityId: string,
+  includeSummary = false
+): Promise<ActionResult<OpportunityResumePreview | null>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+
+  try {
+    const data = await prepareOpportunityResume(
+      opportunity.accountId,
+      opportunityId,
+      { includeSummary, forceRegenerate: false }
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to prepare resume",
+    };
+  }
+}
+
+/** Explicit Generate / Regenerate — always runs tailor and persists cache. */
+export async function generateOpportunityResumeAction(
+  opportunityId: string,
+  includeSummary = false
+): Promise<ActionResult<OpportunityResumePreview>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+
+  try {
+    const data = await prepareOpportunityResume(
+      opportunity.accountId,
+      opportunityId,
+      { includeSummary, forceRegenerate: true }
+    );
+    if (!data) {
+      return { ok: false, error: "Failed to generate resume" };
+    }
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to generate resume",
+    };
+  }
+}
+
+export async function regenerateOpportunityResumeAction(
+  opportunityId: string,
+  includeSummary = false
+): Promise<ActionResult<OpportunityResumePreview>> {
+  return generateOpportunityResumeAction(opportunityId, includeSummary);
+}
+
+export async function refineOpportunityResumeAction(
+  opportunityId: string,
+  instruction: string,
+  previousExperiences?: WorkExperienceInput[] | null,
+  includeSummary = false
+): Promise<ActionResult<OpportunityResumePreview>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+
+  try {
+    const previous = previousExperiences
+      ? reviewedExperiencesSchema.parse(previousExperiences)
+      : null;
+    const data = await refineOpportunityResume(
+      opportunity.accountId,
+      opportunityId,
+      instruction,
+      previous,
+      includeSummary
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to refine resume",
+    };
+  }
+}
+
 export async function sendOpportunityApplication(
   opportunityId: string,
-  asDraft = false
+  asDraft = false,
+  attachments?: DraftAttachmentInput[],
+  reviewedResume?: ReviewedResumeInput | WorkExperienceInput[] | null
 ): Promise<ActionResult<{ mode: "draft" | "sent" }>> {
   const opportunity = await prisma.jobOpportunity.findUnique({
     where: { id: opportunityId },
@@ -242,10 +488,39 @@ export async function sendOpportunityApplication(
       }
     }
 
+    const extraAttachments = decodeDraftAttachments(attachments);
+    const normalizedResume: ReviewedResumeInput | null = Array.isArray(
+      reviewedResume
+    )
+      ? { experiences: reviewedResume }
+      : reviewedResume ?? null;
+    const experiences = normalizedResume
+      ? reviewedExperiencesSchema.parse(normalizedResume.experiences)
+      : null;
+    const projects = normalizedResume?.projects
+      ? reviewedProjectsSchema.parse(normalizedResume.projects)
+      : null;
+    const skills = normalizedResume?.tailoredSkills
+      ? skillsSchema.parse(normalizedResume.tailoredSkills)
+      : null;
+    const includeSummary = normalizedResume?.includeSummary === true;
+    const attachResume =
+      typeof normalizedResume?.attachResume === "boolean"
+        ? normalizedResume.attachResume
+        : undefined;
     const result = await dispatchOpportunityEmail(
       opportunity.accountId,
       opportunityId,
-      { createDraftOnly: asDraft }
+      {
+        createDraftOnly: asDraft,
+        extraAttachments,
+        reviewedExperiences: experiences,
+        reviewedProjects: projects,
+        reviewedSummary: normalizedResume?.tailoredSummary ?? null,
+        reviewedSkills: skills,
+        includeSummary,
+        attachResume,
+      }
     );
     revalidatePath("/jobs");
     revalidatePath("/");

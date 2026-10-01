@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { JobOpportunity } from "@prisma/client";
 import { Archive, Trash2, Undo2, XCircle } from "lucide-react";

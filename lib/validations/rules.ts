@@ -2,6 +2,32 @@ import { z } from "zod";
 
 export const DISMISSED_RETENTION_OPTIONS = [10, 15, 30, 45, 60] as const;
 
+export const resumePageBudgetSchema = z.union([
+  z.literal("auto"),
+  z.literal(1),
+  z.literal(2),
+]);
+
+export const resumePreferencesSchema = z.object({
+  /** When false, tailored resumes omit the professional summary by default. */
+  includeSummary: z.boolean().default(false),
+  /**
+   * When true, outbound opportunity drafts/sends attach the tailored resume PDF
+   * unless the reviewer toggles it off for that send.
+   */
+  attachPdfByDefault: z.boolean().default(true),
+  /** Soft page target for resume layout (`auto` leaves budgeting to the tailor). */
+  maxPages: resumePageBudgetSchema.default("auto"),
+});
+
+export type ResumePreferences = z.infer<typeof resumePreferencesSchema>;
+
+export const DEFAULT_RESUME_PREFERENCES: ResumePreferences = {
+  includeSummary: false,
+  attachPdfByDefault: true,
+  maxPages: "auto",
+};
+
 export const accountRulesSchema = z.object({
   rejectionMode: z.enum(["LABEL_ONLY", "AUTO_TRASH"]).default("LABEL_ONLY"),
   rejectionLabelName: z.string().default("Job Search/Rejections"),
@@ -48,6 +74,8 @@ export const accountRulesSchema = z.object({
    * may fall back to OpenRouter. Default false — no silent cloud fallback.
    */
   allowCloudFallback: z.boolean().default(false),
+  /** Defaults for on-demand tailored resume generation. */
+  resumePreferences: resumePreferencesSchema.default(DEFAULT_RESUME_PREFERENCES),
 });
 
 export type AccountRules = Omit<
