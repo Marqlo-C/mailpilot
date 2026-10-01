@@ -292,7 +292,7 @@ export function DraftReviewDialog({
             ) : (
               <Send className="h-4 w-4" />
             )}
-            Send now
+            Send Now
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -6324,14 +6324,19 @@ import { revalidatePath } from "next/cache";
 
 import { addExcludedTitle } from "@/app/actions/settings";
 import { canDraftDirectEmail } from "@/lib/application-method";
+import { cleanEmailPayload } from "@/lib/email/cleaner";
 import {
   countSendsToday,
   dispatchOpportunityEmail,
   getDailySendLimit,
   prepareOpportunityDraft,
+  prepareOpportunityResume,
   refineOpportunityDraft,
+  refineOpportunityResume,
   updateOpportunityDraft,
   updateOpportunityRecipient,
+  type MimeAttachment,
+  type OpportunityResumePreview,
 } from "@/lib/opportunity-dispatch";
 import {
   InsufficientScopeError,
@@ -6339,25 +6344,114 @@ import {
   isInsufficientScopeError,
 } from "@/lib/google";
 import { prisma } from "@/lib/prisma";
+import {
+  workExperienceInputSchema,
+  type WorkExperienceInput,
+} from "@/lib/validations/profile";
 import { z } from "zod";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
 
+export type OriginalEmailPreview = {
+  subject: string | null;
+  fromName: string | null;
+  fromEmail: string | null;
+  date: Date | null;
+  body: string;
+};
+
+export type DraftAttachmentInput = {
+  filename: string;
+  contentType: string;
+  base64: string;
+};
+
+export type { OpportunityResumePreview };
+
 const recipientEmailSchema = z.string().trim().email();
+
+const draftAttachmentSchema = z.object({
+  filename: z.string().trim().min(1).max(255),
+  contentType: z.string().trim().min(1).max(200),
+  /** Raw base64 (no data: URL prefix); ~10MB decoded ceiling. */
+  base64: z.string().min(1).max(14_000_000),
+});
+
+const draftAttachmentsSchema = z.array(draftAttachmentSchema).max(10);
+
+const reviewedExperiencesSchema = z.array(workExperienceInputSchema).max(30);
+
+const originalEmailSelect = {
+  subject: true,
+  fromName: true,
+  fromEmail: true,
+  emailDate: true,
+  rawBody: true,
+  snippet: true,
+} as const;
+
+function mapOriginalEmail(
+  emailMessage: {
+    subject: string | null;
+    fromName: string | null;
+    fromEmail: string | null;
+    emailDate: Date;
+    rawBody: string | null;
+    snippet: string | null;
+  } | null
+): OriginalEmailPreview | null {
+  if (!emailMessage) return null;
+  const raw = emailMessage.rawBody?.trim();
+  const body = raw
+    ? cleanEmailPayload(raw)
+    : emailMessage.snippet?.trim() || "";
+  return {
+    subject: emailMessage.subject,
+    fromName: emailMessage.fromName,
+    fromEmail: emailMessage.fromEmail,
+    date: emailMessage.emailDate,
+    body,
+  };
+}
+
+function decodeDraftAttachments(
+  attachments: DraftAttachmentInput[] | undefined
+): MimeAttachment[] {
+  if (!attachments?.length) return [];
+  const parsed = draftAttachmentsSchema.safeParse(attachments);
+  if (!parsed.success) {
+    throw new Error("Invalid attachment payload");
+  }
+  return parsed.data.map((item) => ({
+    filename: item.filename,
+    contentType: item.contentType || "application/octet-stream",
+    content: Buffer.from(item.base64, "base64"),
+  }));
+}
 
 export async function prepareOpportunityDraftForReview(
   opportunityId: string
 ): Promise<
-  ActionResult<{ subject: string; body: string; recipient: string | null }>
+  ActionResult<{
+    subject: string;
+    body: string;
+    recipient: string | null;
+    originalEmail: OriginalEmailPreview | null;
+  }>
 > {
   const opportunity = await prisma.jobOpportunity.findUnique({
     where: { id: opportunityId },
+    include: {
+      emailMessage: { select: originalEmailSelect },
+    },
   });
   if (!opportunity) {
     return { ok: false, error: "Opportunity not found" };
   }
+
+  const originalEmail = mapOriginalEmail(opportunity.emailMessage);
 
   try {
     if (
@@ -6372,6 +6466,7 @@ export async function prepareOpportunityDraftForReview(
           subject: opportunity.draftSubject,
           body: opportunity.draftBody,
           recipient: opportunity.recipientEmail,
+          originalEmail,
         },
       };
     }
@@ -6381,7 +6476,7 @@ export async function prepareOpportunityDraftForReview(
       opportunityId
     );
     revalidatePath("/jobs");
-    return { ok: true, data: draft };
+    return { ok: true, data: { ...draft, originalEmail } };
   } catch (error) {
     return {
       ok: false,
@@ -6532,9 +6627,76 @@ export async function saveOpportunityDraftEdits(
   }
 }
 
+export async function prepareOpportunityResumeForReview(
+  opportunityId: string
+): Promise<ActionResult<OpportunityResumePreview>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+
+  try {
+    const data = await prepareOpportunityResume(
+      opportunity.accountId,
+      opportunityId
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to prepare resume",
+    };
+  }
+}
+
+export async function regenerateOpportunityResumeAction(
+  opportunityId: string
+): Promise<ActionResult<OpportunityResumePreview>> {
+  return prepareOpportunityResumeForReview(opportunityId);
+}
+
+export async function refineOpportunityResumeAction(
+  opportunityId: string,
+  instruction: string,
+  previousExperiences?: WorkExperienceInput[] | null
+): Promise<ActionResult<OpportunityResumePreview>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+
+  try {
+    const previous = previousExperiences
+      ? reviewedExperiencesSchema.parse(previousExperiences)
+      : null;
+    const data = await refineOpportunityResume(
+      opportunity.accountId,
+      opportunityId,
+      instruction,
+      previous
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to refine resume",
+    };
+  }
+}
+
 export async function sendOpportunityApplication(
   opportunityId: string,
-  asDraft = false
+  asDraft = false,
+  attachments?: DraftAttachmentInput[],
+  reviewedExperiences?: WorkExperienceInput[] | null
 ): Promise<ActionResult<{ mode: "draft" | "sent" }>> {
   const opportunity = await prisma.jobOpportunity.findUnique({
     where: { id: opportunityId },
@@ -6562,10 +6724,18 @@ export async function sendOpportunityApplication(
       }
     }
 
+    const extraAttachments = decodeDraftAttachments(attachments);
+    const experiences = reviewedExperiences
+      ? reviewedExperiencesSchema.parse(reviewedExperiences)
+      : null;
     const result = await dispatchOpportunityEmail(
       opportunity.accountId,
       opportunityId,
-      { createDraftOnly: asDraft }
+      {
+        createDraftOnly: asDraft,
+        extraAttachments,
+        reviewedExperiences: experiences,
+      }
     );
     revalidatePath("/jobs");
     revalidatePath("/");
@@ -8047,7 +8217,14 @@ import {
   draftContextualEmail,
   tailorResumeForJob,
 } from "@/lib/resume-tailor";
+import type { WorkExperienceInput } from "@/lib/validations/profile";
 import { parseAccountRules } from "@/lib/validations/rules";
+
+export type OpportunityResumePreview = {
+  filename: string;
+  pdfBase64: string;
+  experiences: WorkExperienceInput[];
+};
 
 function normalizeProvider(value: string | null | undefined): LlmProvider {
   return value === "LOCAL_OLLAMA" ? "LOCAL_OLLAMA" : "OPENROUTER";
@@ -8080,18 +8257,25 @@ function encodeRaw(raw: string): string {
     .replace(/=+$/, "");
 }
 
+export type MimeAttachment = {
+  filename: string;
+  contentType: string;
+  content: Buffer;
+};
+
+function safeMimeFilename(name: string): string {
+  return name.replace(/[\r\n"/\\]/g, "_").slice(0, 180) || "attachment";
+}
+
 function buildMimeMessage(input: {
   from: string;
   to: string;
   subject: string;
   body: string;
-  pdf: Buffer;
-  filename: string;
+  attachments: MimeAttachment[];
 }): string {
   const boundary = `mailpilot_${randomBytes(12).toString("hex")}`;
-  const pdfBase64 = input.pdf.toString("base64").replace(/(.{76})/g, "$1\r\n");
-
-  return [
+  const lines: string[] = [
     `From: ${input.from}`,
     `To: ${input.to}`,
     `Subject: ${input.subject}`,
@@ -8104,15 +8288,28 @@ function buildMimeMessage(input: {
     "",
     input.body,
     "",
-    `--${boundary}`,
-    `Content-Type: application/pdf; name="${input.filename}"`,
-    "Content-Transfer-Encoding: base64",
-    `Content-Disposition: attachment; filename="${input.filename}"`,
-    "",
-    pdfBase64,
-    "",
-    `--${boundary}--`,
-  ].join("\r\n");
+  ];
+
+  for (const attachment of input.attachments) {
+    const filename = safeMimeFilename(attachment.filename);
+    const contentType =
+      attachment.contentType.trim() || "application/octet-stream";
+    const base64 = attachment.content
+      .toString("base64")
+      .replace(/(.{76})/g, "$1\r\n");
+    lines.push(
+      `--${boundary}`,
+      `Content-Type: ${contentType}; name="${filename}"`,
+      "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename="${filename}"`,
+      "",
+      base64,
+      ""
+    );
+  }
+
+  lines.push(`--${boundary}--`);
+  return lines.join("\r\n");
 }
 
 async function loadMasterProfile(accountId: string) {
@@ -8306,6 +8503,94 @@ export async function refineOpportunityDraft(
   return draft;
 }
 
+async function buildOpportunityResumePreview(
+  accountId: string,
+  opportunityId: string,
+  options: {
+    customInstruction?: string | null;
+    previousSelectedBulletIds?: string[] | null;
+  } = {}
+): Promise<OpportunityResumePreview> {
+  const opportunity = await prisma.jobOpportunity.findFirst({
+    where: { id: opportunityId, accountId },
+    select: {
+      id: true,
+      title: true,
+      company: true,
+      description: true,
+    },
+  });
+  if (!opportunity) {
+    throw new Error("Opportunity not found");
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { settings: true },
+  });
+  const profile = await loadMasterProfile(accountId);
+  const accountRules = parseAccountRules(account?.settings?.rules);
+
+  const tailored = await tailorResumeForJob(
+    [opportunity.title, opportunity.company, opportunity.description ?? ""],
+    profile,
+    {
+      companyName: opportunity.company,
+      roleTitle: opportunity.title,
+      jobText: opportunity.description ?? undefined,
+      llmProvider: normalizeProvider(account?.settings?.llmProvider),
+      localOllamaUrl: account?.settings?.localOllamaUrl,
+      ollamaModel: account?.settings?.ollamaModel,
+      allowCloudFallback: accountRules.allowCloudFallback,
+      customInstruction: options.customInstruction,
+      previousSelectedBulletIds: options.previousSelectedBulletIds,
+    }
+  );
+
+  const experiences =
+    tailored.selectedExperience.length > 0
+      ? tailored.selectedExperience
+      : profile.experiences;
+
+  const pdf = await generateTailoredResumePdf(profile, experiences);
+  const filename = `${profile.fullName.replace(/\s+/g, "_")}_Resume.pdf`;
+
+  return {
+    filename,
+    pdfBase64: pdf.toString("base64"),
+    experiences,
+  };
+}
+
+/** Tailor + render the resume PDF for in-app review before send. */
+export async function prepareOpportunityResume(
+  accountId: string,
+  opportunityId: string
+): Promise<OpportunityResumePreview> {
+  return buildOpportunityResumePreview(accountId, opportunityId);
+}
+
+/** Re-tailor the resume using a free-form instruction and prior bullet selection. */
+export async function refineOpportunityResume(
+  accountId: string,
+  opportunityId: string,
+  instruction: string,
+  previousExperiences?: WorkExperienceInput[] | null
+): Promise<OpportunityResumePreview> {
+  const trimmed = instruction.trim();
+  if (!trimmed) {
+    throw new Error("Refinement instruction is required");
+  }
+
+  const previousSelectedBulletIds =
+    previousExperiences?.flatMap((exp) => exp.bullets.map((b) => b.id)) ?? [];
+
+  return buildOpportunityResumePreview(accountId, opportunityId, {
+    customInstruction: trimmed,
+    previousSelectedBulletIds,
+  });
+}
+
 export async function updateOpportunityRecipient(
   accountId: string,
   opportunityId: string,
@@ -8379,7 +8664,13 @@ export async function updateOpportunityDraft(
 export async function dispatchOpportunityEmail(
   accountId: string,
   opportunityId: string,
-  options: { createDraftOnly?: boolean } = {}
+  options: {
+    createDraftOnly?: boolean;
+    /** Extra user-selected files (resume PDF is always attached). */
+    extraAttachments?: MimeAttachment[];
+    /** When set, skip re-tailoring and use this reviewed experience selection. */
+    reviewedExperiences?: WorkExperienceInput[] | null;
+  } = {}
 ): Promise<{ mode: "draft" | "sent" }> {
   const account = await prisma.account.findUnique({
     where: { id: accountId },
@@ -8446,35 +8737,46 @@ export async function dispatchOpportunityEmail(
     body = draft.body;
   }
 
-  // PDF still needs bullet selection — separate from the fast email path
-  const tailored = await tailorResumeForJob(
-    [opportunity.title, opportunity.company],
-    profile,
-    {
-      companyName: opportunity.company,
-      roleTitle: opportunity.title,
-      llmProvider: normalizeProvider(account.settings?.llmProvider),
-      localOllamaUrl: account.settings?.localOllamaUrl,
-      ollamaModel: account.settings?.ollamaModel,
-      allowCloudFallback: accountRules.allowCloudFallback,
-    }
-  );
+  // Prefer the resume the user already reviewed; otherwise tailor now.
+  let experiences: WorkExperienceInput[];
+  if (options.reviewedExperiences && options.reviewedExperiences.length > 0) {
+    experiences = options.reviewedExperiences;
+  } else {
+    const tailored = await tailorResumeForJob(
+      [opportunity.title, opportunity.company],
+      profile,
+      {
+        companyName: opportunity.company,
+        roleTitle: opportunity.title,
+        llmProvider: normalizeProvider(account.settings?.llmProvider),
+        localOllamaUrl: account.settings?.localOllamaUrl,
+        ollamaModel: account.settings?.ollamaModel,
+        allowCloudFallback: accountRules.allowCloudFallback,
+      }
+    );
+    experiences =
+      tailored.selectedExperience.length > 0
+        ? tailored.selectedExperience
+        : profile.experiences;
+  }
 
-  const pdf = await generateTailoredResumePdf(
-    profile,
-    tailored.selectedExperience.length > 0
-      ? tailored.selectedExperience
-      : profile.experiences
-  );
+  const pdf = await generateTailoredResumePdf(profile, experiences);
 
   const filename = `${profile.fullName.replace(/\s+/g, "_")}_Resume.pdf`;
+  const attachments: MimeAttachment[] = [
+    {
+      filename,
+      contentType: "application/pdf",
+      content: pdf,
+    },
+    ...(options.extraAttachments ?? []),
+  ];
   const raw = buildMimeMessage({
     from: account.email,
     to: opportunity.recipientEmail!,
     subject,
     body,
-    pdf,
-    filename,
+    attachments,
   });
 
   const gmail = await getGmailClientForAccount(account);
@@ -11170,6 +11472,10 @@ export async function tailorResumeForJob(
     jobText?: string;
     companyName?: string | null;
     roleTitle?: string | null;
+    /** Free-form guidance for bullet reselection (e.g. emphasize Python). */
+    customInstruction?: string | null;
+    /** Prior selection so refine can adjust instead of starting from scratch. */
+    previousSelectedBulletIds?: string[] | null;
   } = {}
 ): Promise<TailorResult> {
   const bulletLibrary = profile.experiences.flatMap((exp) =>
@@ -11182,6 +11488,10 @@ export async function tailorResumeForJob(
       hasMetric: b.hasMetric,
     }))
   );
+
+  const customInstruction = options.customInstruction?.trim() || null;
+  const previousSelectedBulletIds =
+    options.previousSelectedBulletIds?.filter(Boolean) ?? [];
 
   const result = await callLLMWithFallback({
     systemPrompt: buildSystemPrompt(profile.fullName, options.companyName),
@@ -11199,6 +11509,16 @@ export async function tailorResumeForJob(
       jobRequirements,
       jobText: options.jobText?.slice(0, 6000) ?? null,
       bulletLibrary,
+      ...(previousSelectedBulletIds.length > 0
+        ? { previousSelectedBulletIds }
+        : {}),
+      ...(customInstruction
+        ? {
+            refineInstruction: customInstruction,
+            refineNote:
+              "Adjust selectedBulletIds to satisfy refineInstruction. Only use ids from bulletLibrary.",
+          }
+        : {}),
     }),
     llmProvider: options.llmProvider ?? "OPENROUTER",
     localOllamaUrl: options.localOllamaUrl,

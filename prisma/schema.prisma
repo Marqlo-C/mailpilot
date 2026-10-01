@@ -206,6 +206,15 @@ model JobOpportunity {
   /// Set when status becomes DISMISSED; auto-purged after retention window.
   dismissedAt     DateTime?
 
+  /// Cached tailored resume PDF (base64). Null until the user generates one.
+  tailoredResumePdf  String?   @db.Text
+  /// Cached tailor payload (summary, skills, experience, projects, rationale).
+  tailoredResumeData Json?
+  /// When the tailored resume was last generated or refined.
+  tailoredAt         DateTime?
+  /// Config used for the cached resume (e.g. `{ includeSummary: boolean }`).
+  tailorConfig       Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

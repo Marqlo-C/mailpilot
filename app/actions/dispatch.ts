@@ -442,7 +442,8 @@ export async function updateApplicationStatus(
 }
 
 export async function downloadTailoredPdfAction(
-  applicationId: string
+  applicationId: string,
+  includeSummary = false
 ): Promise<ActionResult<{ base64: string; filename: string }>> {
   // Lazy import to keep action surface thin
   const { generateTailoredResumePdf } = await import("@/lib/pdf-generator");
@@ -491,12 +492,19 @@ export async function downloadTailoredPdfAction(
       companyName: application.companyName,
       roleTitle: application.roleTitle,
       jobText: application.actionSummary ?? undefined,
+      includeSummary,
     }
   );
 
   const pdf = await generateTailoredResumePdf(
     profile,
-    tailored.selectedExperience
+    tailored.selectedExperience.length > 0
+      ? tailored.selectedExperience
+      : profile.experiences,
+    tailored.selectedProjects,
+    tailored.tailoredSummary,
+    tailored.tailoredSkills,
+    includeSummary
   );
 
   return {

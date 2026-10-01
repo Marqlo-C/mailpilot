@@ -262,7 +262,14 @@ export async function syncGitHubProjects(
   }
 
   const repos = (await response.json()) as GitHubRepo[];
-  const publicRepos = repos.filter((r) => !r.fork && !r.archived);
+  const cleanUser = username.trim().toLowerCase();
+  const publicRepos = repos.filter((r) => {
+    if (r.fork || r.archived) return false;
+    const repoName = r.name.trim().toLowerCase();
+    const isProfileReadme = repoName === cleanUser;
+    const isGithubPagesRoot = repoName === `${cleanUser}.github.io`;
+    return !isProfileReadme && !isGithubPagesRoot;
+  });
 
   const projects: ProjectItem[] = [];
 

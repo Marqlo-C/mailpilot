@@ -12,13 +12,18 @@ import {
 
 import type {
   MasterProfileInput,
+  ProjectInput,
   WorkExperienceInput,
 } from "@/lib/validations/profile";
+import { cleanDisplayUrl, dedupeContactItems } from "@/lib/utils/format";
+
+/** @deprecated Prefer cleanDisplayUrl from @/lib/utils/format */
+export const cleanContactUrl = cleanDisplayUrl;
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 36,
-    paddingBottom: 36,
+    paddingTop: 32,
+    paddingBottom: 32,
     paddingHorizontal: 40,
     fontSize: 10,
     fontFamily: "Helvetica",
@@ -83,6 +88,10 @@ const styles = StyleSheet.create({
 type PdfInput = {
   profile: MasterProfileInput;
   experiences: WorkExperienceInput[];
+  projects?: ProjectInput[];
+  tailoredSummary?: string | null;
+  tailoredSkills?: MasterProfileInput["skills"] | null;
+  includeSummary?: boolean;
 };
 
 const INVERTED_LOGO_PATH = path.join(
@@ -90,18 +99,68 @@ const INVERTED_LOGO_PATH = path.join(
   "public/logos/transparent-logo.png"
 );
 
-function ResumeDocument({ profile, experiences }: PdfInput) {
-  const links = profile.links.map((l) => l.url).filter(Boolean).join(" · ");
-  const contact = [profile.email, profile.phone, profile.location, links]
-    .filter(Boolean)
-    .join(" · ");
+type ProfileContactExtras = {
+  linkedinUrl?: string | null;
+  githubUrl?: string | null;
+  portfolioUrl?: string | null;
+  websiteUrl?: string | null;
+  linkedWebsite?: string | null;
+  linkedGithub?: string | null;
+  linkedLinkedin?: string | null;
+};
 
-  const skills = [
+/**
+ * Builds a single contact header line from profile fields.
+ * URL-like values are sanitized; duplicates are removed case-insensitively.
+ */
+export function buildResumeContactLine(profile: MasterProfileInput): string {
+  const extras = profile as MasterProfileInput & ProfileContactExtras;
+  const linkUrls = (profile.links ?? []).map((link) => link.url);
+  const contactElements = dedupeContactItems([
+    profile.email,
+    profile.phone,
+    profile.location,
+    cleanDisplayUrl(extras.linkedinUrl ?? extras.linkedLinkedin),
+    cleanDisplayUrl(extras.githubUrl ?? extras.linkedGithub),
+    cleanDisplayUrl(
+      extras.portfolioUrl || extras.websiteUrl || extras.linkedWebsite
+    ),
+    ...linkUrls.map((url) => cleanDisplayUrl(url)),
+  ]);
+  return contactElements.join(" • ");
+}
+
+function ResumeDocument({
+  profile,
+  experiences,
+  projects,
+  tailoredSummary,
+  tailoredSkills,
+  includeSummary = true,
+}: PdfInput) {
+  const contact = buildResumeContactLine(profile);
+
+  const showSummary =
+    includeSummary !== false &&
+    Boolean((tailoredSummary ?? profile.summary)?.trim());
+  const activeSkills = tailoredSkills;
+  const tailoredSkillList = activeSkills
+    ? [
+        ...activeSkills.languages,
+        ...activeSkills.frameworks,
+        ...activeSkills.tools,
+        ...activeSkills.concepts,
+      ].filter(Boolean)
+    : [];
+  const fallbackSkills = [
     ...profile.skills.languages,
     ...profile.skills.frameworks,
     ...profile.skills.tools,
     ...profile.skills.concepts,
-  ].join(", ");
+  ].filter(Boolean);
+  const skills = (
+    tailoredSkillList.length > 0 ? tailoredSkillList : fallbackSkills
+  ).join(", ");
 
   return (
     <Document>
@@ -111,12 +170,12 @@ function ResumeDocument({ profile, experiences }: PdfInput) {
           {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image */}
           <Image src={INVERTED_LOGO_PATH} style={styles.brandMark} />
         </View>
-        <Text style={styles.contact}>{contact}</Text>
+        {contact ? <Text style={styles.contact}>{contact}</Text> : null}
 
-        {profile.summary ? (
+        {showSummary ? (
           <View style={styles.section}>
             <Text style={styles.heading}>Summary</Text>
-            <Text>{profile.summary}</Text>
+            <Text>{tailoredSummary || profile.summary}</Text>
           </View>
         ) : null}
 
@@ -148,20 +207,53 @@ function ResumeDocument({ profile, experiences }: PdfInput) {
           ))}
         </View>
 
+        {projects && projects.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.heading}>Projects</Text>
+            {projects.map((proj) => (
+              <View key={proj.name} style={{ marginBottom: 6 }}>
+                <View style={styles.roleHeader}>
+                  <Text style={styles.roleTitle}>
+                    {proj.name}
+                    {proj.link
+                      ? ` · ${cleanDisplayUrl(proj.link) || proj.link}`
+                      : ""}
+                  </Text>
+                  {proj.technologies.length > 0 ? (
+                    <Text style={styles.muted}>
+                      {proj.technologies.slice(0, 4).join(", ")}
+                    </Text>
+                  ) : null}
+                </View>
+                {proj.bullets.map((bullet, idx) => (
+                  <Text key={idx} style={styles.bullet}>
+                    • {bullet}
+                  </Text>
+                ))}
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         {profile.education.length > 0 ? (
           <View style={styles.section}>
             <Text style={styles.heading}>Education</Text>
-            {profile.education.map((ed) => (
-              <Text
-                key={`${ed.institution}-${ed.degree}`}
-                style={{ marginBottom: 3 }}
-              >
-                {ed.degree}
-                {ed.fieldOfStudy ? ` in ${ed.fieldOfStudy}` : ""} —{" "}
-                {ed.institution}
-                {ed.graduationDate ? ` (${ed.graduationDate})` : ""}
-              </Text>
-            ))}
+            {profile.education.map((ed) => {
+              const degreeText =
+                ed.fieldOfStudy &&
+                !ed.degree.toLowerCase().includes(ed.fieldOfStudy.toLowerCase())
+                  ? `${ed.degree} in ${ed.fieldOfStudy}`
+                  : ed.degree;
+              return (
+                <Text
+                  key={`${ed.institution}-${ed.degree}`}
+                  style={{ marginBottom: 3 }}
+                >
+                  {degreeText} — {ed.institution}
+                  {ed.graduationDate ? ` (${ed.graduationDate})` : ""}
+                </Text>
+              );
+            })}
           </View>
         ) : null}
       </Page>
@@ -174,10 +266,21 @@ function ResumeDocument({ profile, experiences }: PdfInput) {
  */
 export async function generateTailoredResumePdf(
   profile: MasterProfileInput,
-  experiences: WorkExperienceInput[]
+  experiences: WorkExperienceInput[],
+  projects?: ProjectInput[],
+  tailoredSummary?: string | null,
+  tailoredSkills?: MasterProfileInput["skills"] | null,
+  includeSummary?: boolean
 ): Promise<Buffer> {
   const buffer = await renderToBuffer(
-    <ResumeDocument profile={profile} experiences={experiences} />
+    <ResumeDocument
+      profile={profile}
+      experiences={experiences}
+      projects={projects}
+      tailoredSummary={tailoredSummary}
+      tailoredSkills={tailoredSkills}
+      includeSummary={includeSummary}
+    />
   );
   return Buffer.from(buffer);
 }
