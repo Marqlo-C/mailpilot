@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Subscription, SubscriptionHistory } from "@prisma/client";
-import { Loader2, Trash2 } from "lucide-react";
+import { BadgeInfo, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -37,6 +37,12 @@ import {
   TabCountBadge,
 } from "@/components/ui/segmented-tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type ArchiveEntry = {
   key: string;
@@ -52,6 +58,14 @@ type SubscriptionsViewProps = {
   subscriptions: Subscription[];
   history: SubscriptionHistory[];
   defaultCleanup: CleanupAction;
+};
+
+type SubscriptionTab = "active" | "archive";
+
+const subscriptionTabDescriptions: Record<SubscriptionTab, string> = {
+  active:
+    "Detected newsletter and subscription lists eligible for one-click unsubscribe.",
+  archive: "Archived senders and second-chance message batch cleanup.",
 };
 
 function methodBadge(sub: Subscription): {
@@ -70,6 +84,7 @@ export function SubscriptionsView({
   defaultCleanup,
 }: SubscriptionsViewProps) {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<SubscriptionTab>("active");
   const [selected, setSelected] = useState<Subscription | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -150,30 +165,48 @@ export function SubscriptionsView({
 
   return (
     <div>
-      <p className="pb-3 text-xs text-muted-foreground">
-        Active lists and an archive box for second-chance inbox cleanup.
-      </p>
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as SubscriptionTab)}
+        className="w-full"
+      >
+        <div className="mb-3 flex flex-col justify-between gap-3 pt-2 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-1.5">
+            <TabsList className={segmentedTabsListClassName}>
+              <TabsTrigger
+                value="active"
+                className={segmentedTabsTriggerClassName}
+              >
+                <span>Active Subscriptions</span>
+                <TabCountBadge count={active.length} />
+              </TabsTrigger>
+              <TabsTrigger
+                value="archive"
+                className={segmentedTabsTriggerClassName}
+              >
+                <span>Unsubscribed</span>
+                <TabCountBadge count={archive.length} />
+              </TabsTrigger>
+            </TabsList>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex shrink-0 rounded-full p-0.5 text-muted-foreground/60 transition-colors hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    aria-label="Tab description"
+                  >
+                    <BadgeInfo className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs text-left">
+                  {subscriptionTabDescriptions[activeTab]}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
 
-      <Tabs defaultValue="active" className="w-full">
-        <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <TabsList className={segmentedTabsListClassName}>
-            <TabsTrigger
-              value="active"
-              className={segmentedTabsTriggerClassName}
-            >
-              <span>Active Subscriptions</span>
-              <TabCountBadge count={active.length} />
-            </TabsTrigger>
-            <TabsTrigger
-              value="archive"
-              className={segmentedTabsTriggerClassName}
-            >
-              <span>Unsubscribed</span>
-              <TabCountBadge count={archive.length} />
-            </TabsTrigger>
-          </TabsList>
-
-          <div className="flex shrink-0 items-center gap-2 self-start sm:self-auto">
+          <div className="flex shrink-0 items-center gap-2">
             <SyncControls accountId={accountId} />
           </div>
         </div>

@@ -17,12 +17,7 @@ export default async function SubscriptionsPage() {
 
   if (!active) {
     return (
-      <div className="space-y-4">
-        <div className="pb-3">
-          <p className="text-xs text-muted-foreground">
-            Active lists and an archive box for second-chance inbox cleanup.
-          </p>
-        </div>
+      <div className="space-y-4 pt-2">
         <EmptyAccount />
       </div>
     );

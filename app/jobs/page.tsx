@@ -33,14 +33,10 @@ export default async function JobsPage() {
 
   if (!active) {
     return (
-      <div className="space-y-4">
-        <p className="pb-3 text-xs text-muted-foreground">
-          Leads, applications, action items, and history in one pipeline.
-        </p>
+      <div className="space-y-3 pt-2">
         <div className="mb-3 flex justify-end">
           <ScanInboxDialog accountId={null} />
         </div>
-
         <div className="rounded-lg border border-dashed border-border px-6 py-16 text-center">
           <p className="font-medium">Connect a Gmail account first</p>
           <p className="mt-1 text-sm text-muted-foreground">
