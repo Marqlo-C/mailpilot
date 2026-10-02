@@ -184,7 +184,7 @@ export function OpportunitiesView({
   const totalCount = opportunities.length + hiddenCount;
 
   return (
-    <div className="space-y-3">
+    <div className="mt-0 space-y-3">
       <PipelineToolbar
         activeTab={activeTab}
         totalCount={totalCount}

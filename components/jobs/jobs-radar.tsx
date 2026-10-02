@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { JobApplication, JobOpportunity } from "@prisma/client";
 import {
   Archive,
+  BadgeInfo,
   ExternalLink,
   Loader2,
   Mail,
@@ -64,6 +65,12 @@ import {
   TabCountBadge,
 } from "@/components/ui/segmented-tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type JobsRadarProps = {
   accountId: string;
@@ -72,6 +79,15 @@ type JobsRadarProps = {
   profile: MasterProfileInput | null;
   matchThreshold: number;
   retentionDays?: number;
+};
+
+const tabDescriptions: Record<string, string> = {
+  leads:
+    "Sourced opportunities and recruiter outreach matching your profile preferences.",
+  applied: "Submitted applications and confirmation tracking records.",
+  action:
+    "Upcoming assessment links, interview requests, and urgent recruiter actions.",
+  history: "Archived and dismissed opportunities stored for reference.",
 };
 
 function daysAgo(date: Date | string | null | undefined): string {
@@ -282,41 +298,58 @@ export function JobsRadar({
 
   return (
     <div>
-      <p className="pb-3 text-xs text-muted-foreground">
-        Leads, applications, action items, and history in one pipeline.
-      </p>
-
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <TabsList className={segmentedTabsListClassName}>
-            <TabsTrigger value="leads" className={segmentedTabsTriggerClassName}>
-              <span>Leads</span>
-              <TabCountBadge count={leadCount} />
-            </TabsTrigger>
-            <TabsTrigger
-              value="applied"
-              className={segmentedTabsTriggerClassName}
-            >
-              <span>Applied</span>
-              <TabCountBadge count={appliedCount} />
-            </TabsTrigger>
-            <TabsTrigger
-              value="action"
-              className={segmentedTabsTriggerClassName}
-            >
-              <span>Action Required</span>
-              <TabCountBadge count={actionCount} />
-            </TabsTrigger>
-            <TabsTrigger
-              value="history"
-              className={segmentedTabsTriggerClassName}
-            >
-              <span>History</span>
-              <TabCountBadge count={historyCount} />
-            </TabsTrigger>
-          </TabsList>
+        <div className="mb-3 flex flex-col justify-between gap-3 pt-2 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-1.5">
+            <TabsList className={segmentedTabsListClassName}>
+              <TabsTrigger
+                value="leads"
+                className={segmentedTabsTriggerClassName}
+              >
+                <span>Leads</span>
+                <TabCountBadge count={leadCount} />
+              </TabsTrigger>
+              <TabsTrigger
+                value="applied"
+                className={segmentedTabsTriggerClassName}
+              >
+                <span>Applied</span>
+                <TabCountBadge count={appliedCount} />
+              </TabsTrigger>
+              <TabsTrigger
+                value="action"
+                className={segmentedTabsTriggerClassName}
+              >
+                <span>Action Required</span>
+                <TabCountBadge count={actionCount} />
+              </TabsTrigger>
+              <TabsTrigger
+                value="history"
+                className={segmentedTabsTriggerClassName}
+              >
+                <span>History</span>
+                <TabCountBadge count={historyCount} />
+              </TabsTrigger>
+            </TabsList>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex shrink-0 rounded-full p-0.5 text-muted-foreground/60 transition-colors hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    aria-label="Tab description"
+                  >
+                    <BadgeInfo className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs text-left">
+                  {tabDescriptions[activeTab] ?? tabDescriptions.leads}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-auto">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Button
               type="button"
               size="sm"
@@ -353,7 +386,7 @@ export function JobsRadar({
           </div>
         </div>
 
-        <TabsContent value="leads" className="space-y-3">
+        <TabsContent value="leads" className="mt-0 space-y-3">
           {leadCount === 0 && !hasOpportunityLeads ? (
             <EmptyState text="No leads in the queue yet." />
           ) : (
@@ -518,7 +551,7 @@ export function JobsRadar({
           )}
         </TabsContent>
 
-        <TabsContent value="applied" className="space-y-4">
+        <TabsContent value="applied" className="mt-0 space-y-4">
           {appliedCount === 0 ? (
             <EmptyState text="No active applications waiting for a response." />
           ) : (
@@ -590,7 +623,7 @@ export function JobsRadar({
           )}
         </TabsContent>
 
-        <TabsContent value="action" className="space-y-4">
+        <TabsContent value="action" className="mt-0 space-y-4">
           {actionCount === 0 ? (
             <EmptyState text="Nothing needs your attention right now." />
           ) : (
@@ -684,7 +717,7 @@ export function JobsRadar({
           )}
         </TabsContent>
 
-        <TabsContent value="history" className="space-y-4">
+        <TabsContent value="history" className="mt-0 space-y-4">
           <div className="flex justify-end">
             <Button
               variant="destructive"
