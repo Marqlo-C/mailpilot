@@ -10,13 +10,14 @@ MailPilot is a Next.js dashboard that connects to Gmail, detects newsletter subs
 - **AI-assisted processing** with provider routing (OpenRouter and optional local Ollama)
 - **Persistent profile + automation settings** for account-level and profile-level behavior
 - **Background inbox sync** through Gmail watch notifications and webhook processing
+- **Object storage via Vercel Blob** for serving login background media
 
 ## Tech Stack
 
 - **Framework:** Next.js 15 (App Router), React 19, TypeScript
 - **Database:** PostgreSQL + Prisma
 - **UI:** Tailwind CSS + Radix UI
-- **Integrations:** Gmail API, Google Pub/Sub, OpenRouter, optional Ollama
+- **Integrations:** Gmail API, Google Pub/Sub, Vercel Blob, OpenRouter, optional Ollama
 
 ## Project Structure
 
@@ -74,6 +75,7 @@ Use `.env.example` as the source of truth. Key variables:
 - `GMAIL_PUBSUB_TOPIC` – Gmail watch topic (`projects/{project}/topics/{topic}`)
 - `GMAIL_WEBHOOK_SECRET` – shared secret for `/api/webhooks/gmail`
 - `OPENROUTER_API_KEY` – cloud LLM fallback key
+- `BLOB_READ_WRITE_TOKEN` – Vercel Blob token used by server routes for private object access
 - `CRON_SECRET` – bearer token for protected cron endpoints
 - `GITHUB_TOKEN` – optional (higher API limits for sync flows)
 
