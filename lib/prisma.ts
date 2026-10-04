@@ -6,12 +6,18 @@ const globalForPrisma = globalThis as unknown as {
 
 /**
  * Returns true when the cached client predates newer schema models
- * (e.g. PersistentProfile) and must be replaced after `prisma generate`.
+ * and must be replaced after `prisma generate`.
  */
 function isStalePrismaClient(client: PrismaClient | undefined): boolean {
   if (!client) return true;
-  return typeof (client as { persistentProfile?: unknown }).persistentProfile ===
-    "undefined";
+  const c = client as {
+    persistentProfile?: unknown;
+    subscriptionBriefing?: unknown;
+  };
+  return (
+    typeof c.persistentProfile === "undefined" ||
+    typeof c.subscriptionBriefing === "undefined"
+  );
 }
 
 function createPrismaClient(): PrismaClient {

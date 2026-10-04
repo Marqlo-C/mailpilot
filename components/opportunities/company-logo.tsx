@@ -1,9 +1,7 @@
 "use client";
 
-import { useState } from "react";
-
+import { CompanyLogo as UiCompanyLogo } from "@/components/ui/company-logo";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
-import { cn } from "@/lib/utils";
 
 type CompanyLogoProps = {
   company: string;
@@ -13,7 +11,8 @@ type CompanyLogoProps = {
 };
 
 /**
- * Job Radar company mark: favicon / unavatar with initials fallback.
+ * Job Radar adapter: resolves favicon URL then renders the shared squircle mark.
+ * Prefer importing `@/components/ui/company-logo` directly for new call sites.
  */
 export function CompanyLogo({
   company,
@@ -21,36 +20,13 @@ export function CompanyLogo({
   domain = null,
   className,
 }: CompanyLogoProps) {
-  const [failed, setFailed] = useState(false);
   const src = logoUrl || getCompanyLogoUrl(company, domain);
-  const initial = company.trim().slice(0, 2).toUpperCase() || "?";
-
-  if (failed) {
-    return (
-      <div
-        className={cn(
-          "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/70 bg-muted/40 text-xs font-bold uppercase text-muted-foreground shadow-sm",
-          className
-        )}
-        aria-hidden
-      >
-        {initial}
-      </div>
-    );
-  }
-
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
+    <UiCompanyLogo
       src={src}
-      alt=""
-      width={40}
-      height={40}
-      className={cn(
-        "h-10 w-10 shrink-0 rounded-xl border border-border/70 bg-muted/40 object-contain p-1 shadow-sm",
-        className
-      )}
-      onError={() => setFailed(true)}
+      name={company}
+      size="lg"
+      className={className}
     />
   );
 }

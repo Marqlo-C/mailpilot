@@ -18,6 +18,10 @@ import {
   type OpportunityCardVariant,
 } from "@/components/opportunities/opportunity-card";
 import { PipelineToolbar } from "@/components/jobs/pipeline-toolbar";
+import {
+  PipelinePaginationFooter,
+} from "@/components/ui/pipeline-pagination";
+import { usePagination } from "@/hooks/use-pagination";
 import { isUserArchived } from "@/lib/opportunities/lifecycle";
 import {
   matchesHistoryStatusFilter,
@@ -27,6 +31,9 @@ import {
   type PipelineTab,
   type SourceFilter,
 } from "@/lib/opportunities/pipeline-filters";
+import { TAB_SORT_CONFIG } from "@/lib/opportunities/sorting";
+
+const JOBS_PAGE_SIZE_KEY = "mailpilot_jobs_per_page";
 
 type OpportunitiesViewProps = {
   opportunities: JobOpportunity[];
@@ -182,9 +189,46 @@ export function OpportunitiesView({
 
   const visibleCount = filteredOpportunities.length;
   const totalCount = opportunities.length + hiddenCount;
+  const defaultSort = TAB_SORT_CONFIG[activeTab].defaultSort;
+
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    slice,
+  } = usePagination({
+    storageKey: JOBS_PAGE_SIZE_KEY,
+    totalItems: visibleCount,
+    resetDeps: [
+      activeTab,
+      searchQuery,
+      sourceFilter,
+      historyStatusFilter,
+      sortOption,
+      matchThreshold,
+    ],
+  });
+
+  const hasActiveTransientFilters =
+    searchQuery.trim().length > 0 ||
+    sourceFilter !== "all" ||
+    historyStatusFilter !== "all" ||
+    sortOption !== defaultSort;
+
+  function handleResetTransientFilters() {
+    setSearchQuery("");
+    setSourceFilter("all");
+    setHistoryStatusFilter("all");
+    onSortOptionChange(defaultSort);
+    setCurrentPage(1);
+  }
+
+  const paginatedJobs = slice(filteredOpportunities);
 
   return (
-    <div className="mt-0 space-y-3">
+    <div className="mt-0">
       <PipelineToolbar
         activeTab={activeTab}
         totalCount={totalCount}
@@ -215,6 +259,10 @@ export function OpportunitiesView({
         sortOption={sortOption}
         onSortOptionChange={onSortOptionChange}
         showTelemetry={showListingCount}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+        hasActiveTransientFilters={hasActiveTransientFilters}
+        onResetTransientFilters={handleResetTransientFilters}
       />
 
       {filteredOpportunities.length === 0 ? (
@@ -223,7 +271,7 @@ export function OpportunitiesView({
         </div>
       ) : (
         <div className="grid min-w-0 gap-3 md:grid-cols-2">
-          {filteredOpportunities.map((opp) => (
+          {paginatedJobs.map((opp) => (
             <OpportunityCard
               key={opp.id}
               opportunity={opp}
@@ -246,6 +294,14 @@ export function OpportunitiesView({
           ))}
         </div>
       )}
+
+      <PipelinePaginationFooter
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalItems={visibleCount}
+        onPageChange={setCurrentPage}
+      />
 
       {selectedIds.length > 0 ? (
         <aside

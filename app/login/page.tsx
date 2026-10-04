@@ -49,11 +49,11 @@ export default async function LoginPage({
               <h1 className="mt-3 text-xl font-semibold tracking-tight">
                 We&apos;re so glad you made it! But...
               </h1>
-              <p className="mx-auto mt-3 w-[100%] rounded-lg border border-dashed border-[#ffab72] bg-amber-500/8 px-3 py-2 text-left text-[11px] leading-relaxed text-muted-foreground">
-                <span className="font-medium text-foreground">
-                  NOTICE: Early-Access Only.
+              <p className="mx-auto mt-3 w-[100%] rounded-lg border border-dashed border-[#ffab72] bg-[#ffab72]/9 px-3 py-2 text-justify text-[10px] leading-relaxed text-muted-foreground">
+                <span className="block text-center text-[sm] font-medium text-foreground mb-0.5">
+                  NOTICE (Early-Access Build) :
                 </span>{" "}
-                Mail Pilot is currently restricted to authorized accounts only. Please contact the{" "}
+                At this time, Mail Pilot is restricted to authorized accounts only. Please contact the{" "}
                 <a
                   href="https://github.com/marqlo-c"
                   target="_blank"
@@ -86,7 +86,7 @@ export default async function LoginPage({
                 href="https://github.com/Marqlo-C/mailpilot"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group relative flex h-11 w-full items-center justify-center overflow-hidden rounded-lg border border-[#24292f]/15 bg-[#24292f] text-sm font-medium text-white shadow-sm"
+                className="group relative flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-[#24292f] text-sm font-medium text-white shadow-sm"
               >
                 <span
                   aria-hidden

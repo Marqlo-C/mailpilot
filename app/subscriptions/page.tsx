@@ -1,6 +1,7 @@
 import { SubscriptionsView } from "@/components/subscriptions/subscriptions-view";
 import {
   getActiveAccount,
+  getLatestBriefingForAccount,
   getSubscriptionHistoryForProfile,
   getSubscriptionsForAccount,
 } from "@/lib/data";
@@ -14,6 +15,9 @@ export default async function SubscriptionsPage() {
     active?.persistentProfileId
       ? await getSubscriptionHistoryForProfile(active.persistentProfileId)
       : [];
+  const latestBriefing = active
+    ? await getLatestBriefingForAccount(active.id)
+    : null;
 
   if (!active) {
     return (
@@ -29,6 +33,17 @@ export default async function SubscriptionsPage() {
       subscriptions={subscriptions}
       history={history}
       defaultCleanup={active.rules.autoCleanAfterUnsub}
+      latestBriefing={
+        latestBriefing
+          ? {
+              id: latestBriefing.id,
+              htmlPreview: latestBriefing.htmlPreview,
+              generatedAt: latestBriefing.generatedAt.toISOString(),
+              senderEmails: latestBriefing.senderEmails,
+              subscriptionIds: latestBriefing.subscriptionIds,
+            }
+          : null
+      }
     />
   );
 }
