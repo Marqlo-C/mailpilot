@@ -11,13 +11,13 @@ import { useRouter } from "next/navigation";
 import type { Subscription, SubscriptionHistory } from "@prisma/client";
 import {
   BadgeInfo,
-  Clock,
   Eye,
   Loader2,
   Mail,
   MailX,
   MoreVertical,
   Newspaper,
+  Send,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -964,47 +964,46 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   );
 }
 
-function StackedStatBadge({
-  label,
+function IconStatBadge({
+  icon,
   value,
   valueClassName,
   className,
-  valuePrefix,
   width,
   wrapValue = false,
+  title,
 }: {
-  label: string;
+  icon: ReactNode;
   value: string;
   valueClassName?: string;
   className?: string;
-  valuePrefix?: ReactNode;
   /** Fixed width so the same badge type aligns across rows. */
   width?: string;
   /** Allow the value line to wrap (used by Last received). */
   wrapValue?: boolean;
+  title?: string;
 }) {
-  return (
+  const badge = (
     <div
       className={cn(
-        "inline-flex shrink-0 flex-col overflow-hidden rounded-md border border-border/60 shadow-sm",
+        "inline-flex shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/60 shadow-sm",
         wrapValue ? "min-h-[30px]" : "h-[30px]",
-        width ? null : "w-[54px]",
+        width ? null : "min-w-[54px]",
         className
       )}
       style={width ? { width } : undefined}
     >
-      <div className="flex h-[12px] items-center justify-center border-b border-border/40 bg-muted/40 px-1 text-[8px] font-bold uppercase tracking-wider text-muted-foreground/75">
-        {label}
+      <div className="flex w-7 shrink-0 items-center justify-center border-r border-border/40 bg-muted/40 text-muted-foreground/75">
+        {icon}
       </div>
       <div
         className={cn(
-          "flex flex-1 items-center justify-center gap-1 px-1.5",
+          "flex min-w-0 flex-1 items-center justify-center px-1.5",
           wrapValue ? "py-0.5 leading-tight" : null,
           SCORE_PERCENT_CLASSNAME,
           valueClassName ?? "bg-background text-foreground"
         )}
       >
-        {valuePrefix}
         <span
           className={cn(
             wrapValue && "min-w-0 text-center whitespace-normal break-words"
@@ -1014,6 +1013,17 @@ function StackedStatBadge({
         </span>
       </div>
     </div>
+  );
+
+  if (!title) return badge;
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>{badge}</TooltipTrigger>
+        <TooltipContent side="top">{title}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -1038,10 +1048,10 @@ function computeMetricColumnWidths(
   for (const sub of subscriptions) {
     maxEmailChars = Math.max(maxEmailChars, String(sub.emailCount).length);
   }
-  // Labels: CLUTTER (7), EMAILS (6). Received capped ~8ch tighter — full times wrap.
-  const clutterCh = Math.max(7.5, 4.5);
-  const emailsCh = Math.max(6.5, maxEmailChars + 2);
-  const receivedCh = 10;
+  // Icon rail (~2.5ch) + value. Received capped so longer times wrap.
+  const clutterCh = Math.max(6.5, 5);
+  const emailsCh = Math.max(6.5, maxEmailChars + 3.5);
+  const receivedCh = 11;
   return {
     clutter: `${clutterCh}ch`,
     emails: `${emailsCh}ch`,
@@ -1058,8 +1068,24 @@ function ClutterStatBadge({
 }) {
   const tier = clutterScoreTier(score);
   return (
-    <StackedStatBadge
-      label="CLUTTER"
+    <IconStatBadge
+      title="Clutter score"
+      icon={
+        <span
+          aria-hidden
+          className="size-8 bg-muted-foreground/90"
+          style={{
+            maskImage: "url(/icons/clutter2.png)",
+            maskSize: "contain",
+            maskRepeat: "no-repeat",
+            maskPosition: "center",
+            WebkitMaskImage: "url(/icons/clutter2.png)",
+            WebkitMaskSize: "contain",
+            WebkitMaskRepeat: "no-repeat",
+            WebkitMaskPosition: "center",
+          }}
+        />
+      }
       value={`${score}%`}
       valueClassName={CLUTTER_VALUE_CLASSES[tier]}
       width={width}
@@ -1075,8 +1101,9 @@ function EmailsStatBadge({
   width?: string;
 }) {
   return (
-    <StackedStatBadge
-      label="EMAILS"
+    <IconStatBadge
+      title="Email volume"
+      icon={<Mail className="size-3.5" aria-hidden />}
       value={String(count)}
       valueClassName="bg-background text-muted-foreground"
       width={width}
@@ -1093,15 +1120,13 @@ function LastReceivedStatBadge({
 }) {
   const value = formatLastReceivedValue(date);
   return (
-    <StackedStatBadge
-      label="Last received"
+    <IconStatBadge
+      title="Last received"
+      icon={<Send className="size-3.5" aria-hidden />}
       value={value}
       valueClassName="bg-background font-medium tracking-normal text-muted-foreground/70"
-      width={width ?? "10ch"}
+      width={width ?? "11ch"}
       wrapValue
-      valuePrefix={
-        <Clock className="size-3 shrink-0 text-muted-foreground/50" aria-hidden />
-      }
     />
   );
 }
