@@ -970,7 +970,7 @@ function IconStatBadge({
   valueClassName,
   className,
   width,
-  wrapValue = false,
+  truncateValue = false,
   title,
 }: {
   icon: ReactNode;
@@ -979,15 +979,14 @@ function IconStatBadge({
   className?: string;
   /** Fixed width so the same badge type aligns across rows. */
   width?: string;
-  /** Allow the value line to wrap (used by Last received). */
-  wrapValue?: boolean;
+  /** Ellipsis overflow when the value exceeds the pill width (Last received). */
+  truncateValue?: boolean;
   title?: string;
 }) {
   const badge = (
     <div
       className={cn(
-        "inline-flex shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/60 shadow-sm",
-        wrapValue ? "min-h-[30px]" : "h-[30px]",
+        "inline-flex h-[30px] shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/60 shadow-sm",
         width ? null : "min-w-[54px]",
         className
       )}
@@ -999,15 +998,12 @@ function IconStatBadge({
       <div
         className={cn(
           "flex min-w-0 flex-1 items-center justify-center px-1.5",
-          wrapValue ? "py-0.5 leading-tight" : null,
           SCORE_PERCENT_CLASSNAME,
           valueClassName ?? "bg-background text-foreground"
         )}
       >
         <span
-          className={cn(
-            wrapValue && "min-w-0 text-center whitespace-normal break-words"
-          )}
+          className={cn(truncateValue && "w-full min-w-0 truncate text-center")}
         >
           {value}
         </span>
@@ -1048,10 +1044,10 @@ function computeMetricColumnWidths(
   for (const sub of subscriptions) {
     maxEmailChars = Math.max(maxEmailChars, String(sub.emailCount).length);
   }
-  // Icon rail (~2.5ch) + value. Received capped so longer times wrap.
+  // Icon rail (~2.5ch) + value. Received capped; longer times ellipsis.
   const clutterCh = Math.max(6.5, 5);
   const emailsCh = Math.max(6.5, maxEmailChars + 3.5);
-  const receivedCh = 11;
+  const receivedCh = 13;
   return {
     clutter: `${clutterCh}ch`,
     emails: `${emailsCh}ch`,
@@ -1125,8 +1121,8 @@ function LastReceivedStatBadge({
       icon={<Send className="size-3.5" aria-hidden />}
       value={value}
       valueClassName="bg-background font-medium tracking-normal text-muted-foreground/70"
-      width={width ?? "11ch"}
-      wrapValue
+      width={width ?? "13ch"}
+      truncateValue
     />
   );
 }
