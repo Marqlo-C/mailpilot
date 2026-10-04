@@ -31,11 +31,10 @@ import { DraftReviewDialog } from "@/components/jobs/draft-review-dialog";
 import { OpportunityDraftDialog } from "@/components/jobs/opportunity-draft-dialog";
 import { OpportunitiesView } from "@/components/opportunities/opportunities-view";
 import { SyncControls } from "@/components/opportunities/sync-controls";
-import {
-  SenderAvatar,
-  domainFromActionUrl,
-} from "@/components/sender-avatar";
+import { CompanyLogo } from "@/components/ui/company-logo";
+import { domainFromActionUrl } from "@/components/sender-avatar";
 import { extractRecruiterEmail } from "@/lib/application-method";
+import { faviconUrlForDomain } from "@/lib/domain";
 import {
   isInHistory,
   isUserArchived,
@@ -105,6 +104,13 @@ function formatCountdown(deadlineAt: Date | null): string {
   const hours = Math.floor(ms / (1000 * 60 * 60));
   if (hours < 24) return `${hours}h left`;
   return `${Math.floor(hours / 24)}d left`;
+}
+
+function jobApplicationLogoSrc(
+  actionUrl: string | null | undefined
+): string | null {
+  const domain = domainFromActionUrl(actionUrl);
+  return domain ? faviconUrlForDomain(domain) : null;
 }
 
 export function JobsRadar({
@@ -380,7 +386,7 @@ export function JobsRadar({
               ) : (
                 <Send className="h-3.5 w-3.5" />
               )}
-              Batch Send Approved ({batchIds.length})
+              Send Approved ({batchIds.length})
             </Button>
             <SyncControls accountId={accountId} />
           </div>
@@ -437,9 +443,10 @@ export function JobsRadar({
                       <Card key={job.id}>
                         <CardHeader className="pb-3">
                           <div className="flex items-start gap-3">
-                            <SenderAvatar
-                              name={job.companyName}
-                              domain={domainFromActionUrl(job.actionUrl)}
+                            <CompanyLogo
+                              src={jobApplicationLogoSrc(job.actionUrl)}
+                              name={job.companyName ?? "Company"}
+                              size="lg"
                             />
                             <div className="min-w-0 flex-1">
                               <CardTitle className="text-base">
@@ -583,9 +590,10 @@ export function JobsRadar({
                       className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <SenderAvatar
-                          name={job.companyName}
-                          domain={domainFromActionUrl(job.actionUrl)}
+                        <CompanyLogo
+                          src={jobApplicationLogoSrc(job.actionUrl)}
+                          name={job.companyName ?? "Company"}
+                          size="lg"
                         />
                         <div className="min-w-0">
                           <p className="truncate font-medium">
@@ -648,9 +656,10 @@ export function JobsRadar({
                     <Card key={job.id} className="border-primary/30">
                       <CardHeader className="pb-3">
                         <div className="flex items-start gap-3">
-                          <SenderAvatar
-                            name={job.companyName}
-                            domain={domainFromActionUrl(job.actionUrl)}
+                          <CompanyLogo
+                            src={jobApplicationLogoSrc(job.actionUrl)}
+                            name={job.companyName ?? "Company"}
+                            size="lg"
                           />
                           <div className="min-w-0 flex-1">
                             <CardTitle className="text-base">
@@ -766,9 +775,10 @@ export function JobsRadar({
                       className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <SenderAvatar
-                          name={job.companyName}
-                          domain={domainFromActionUrl(job.actionUrl)}
+                        <CompanyLogo
+                          src={jobApplicationLogoSrc(job.actionUrl)}
+                          name={job.companyName ?? "Company"}
+                          size="lg"
                         />
                         <div className="min-w-0">
                           <p className="truncate font-medium">

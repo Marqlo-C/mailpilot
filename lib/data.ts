@@ -197,6 +197,14 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
   }
 }
 
+export type LatestBriefingPreview = {
+  id: string;
+  htmlPreview: string;
+  generatedAt: Date;
+  senderEmails: string[];
+  subscriptionIds: string[];
+};
+
 export async function getSubscriptionsForAccount(
   accountId: string
 ): Promise<Subscription[]> {
@@ -208,6 +216,27 @@ export async function getSubscriptionsForAccount(
   } catch (error) {
     console.error("getSubscriptionsForAccount failed", error);
     return [];
+  }
+}
+
+export async function getLatestBriefingForAccount(
+  accountId: string
+): Promise<LatestBriefingPreview | null> {
+  try {
+    const row = await prisma.subscriptionBriefing.findUnique({
+      where: { accountId },
+      select: {
+        id: true,
+        htmlPreview: true,
+        generatedAt: true,
+        senderEmails: true,
+        subscriptionIds: true,
+      },
+    });
+    return row;
+  } catch (error) {
+    console.error("getLatestBriefingForAccount failed", error);
+    return null;
   }
 }
 

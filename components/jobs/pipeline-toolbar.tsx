@@ -3,6 +3,7 @@
 import {
   ToolbarDivider,
   ToolbarHistoryStatusFilter,
+  ToolbarMetaRow,
   ToolbarRoot,
   ToolbarScoreSlider,
   ToolbarSearch,
@@ -11,6 +12,7 @@ import {
   ToolbarSourceFilter,
   ToolbarTelemetry,
 } from "@/components/jobs/pipeline-toolbar-primitives";
+import { ToolbarPageSizeSelect } from "@/components/ui/pipeline-pagination";
 import type {
   HistoryStatusFilter,
   PipelineTab,
@@ -37,15 +39,16 @@ export type PipelineToolbarProps = {
   sortOption: string;
   onSortOptionChange: (sort: string) => void;
   showTelemetry?: boolean;
+  pageSize?: number;
+  onPageSizeChange?: (size: number) => void;
+  hasActiveTransientFilters?: boolean;
+  onResetTransientFilters?: () => void;
 };
 
 /**
- * Context-aware Job Radar filter toolbar.
- * Tab layouts:
- * - leads: SelectAll | Score | Search | Source | Sort → Telemetry
- * - applied: SelectAll | Search | Source | Sort → Telemetry
- * - action_required: SelectAll | Search | Sort → Telemetry
- * - history: SelectAll | Search | HistoryStatus | Sort → Telemetry
+ * Two-row Job Radar filter chrome:
+ * 1) Filter card — Select All, Score, Search, Source/History, Sort
+ * 2) Meta bar — result counts (left) + page size (right)
  */
 export function PipelineToolbar({
   activeTab,
@@ -67,6 +70,10 @@ export function PipelineToolbar({
   sortOption,
   onSortOptionChange,
   showTelemetry = true,
+  pageSize,
+  onPageSizeChange,
+  hasActiveTransientFilters = false,
+  onResetTransientFilters,
 }: PipelineToolbarProps) {
   const showScore = activeTab === "leads" && Boolean(onMinScoreChange);
   const showSource =
@@ -81,8 +88,8 @@ export function PipelineToolbar({
   const hiddenCount = Math.max(0, totalCount - visibleCount);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-      <ToolbarRoot>
+    <div className="mb-0">
+      <ToolbarRoot className="mb-1.5">
         <ToolbarSelectAll
           checked={isAllSelected}
           indeterminate={isIndeterminate}
@@ -131,13 +138,28 @@ export function PipelineToolbar({
         />
       </ToolbarRoot>
 
-      {showTelemetry ? (
-        <ToolbarTelemetry
-          visibleCount={visibleCount}
-          totalCount={totalCount}
-          hiddenCount={hiddenCount}
-        />
-      ) : null}
+      <ToolbarMetaRow>
+        <div className="min-w-0">
+          {showTelemetry ? (
+            <ToolbarTelemetry
+              visibleCount={visibleCount}
+              totalCount={totalCount}
+              hiddenCount={hiddenCount}
+              onResetFilters={
+                hasActiveTransientFilters
+                  ? onResetTransientFilters
+                  : undefined
+              }
+            />
+          ) : null}
+        </div>
+        {typeof pageSize === "number" && onPageSizeChange ? (
+          <ToolbarPageSizeSelect
+            value={pageSize}
+            onChange={onPageSizeChange}
+          />
+        ) : null}
+      </ToolbarMetaRow>
     </div>
   );
 }

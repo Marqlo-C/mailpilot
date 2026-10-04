@@ -85,9 +85,28 @@ model Account {
   emailMessages   EmailMessage[]
   jobOpportunities JobOpportunity[]
   profile         UserProfile?
+  /// Single most-recent briefing for this inbox (older digests live in client localStorage).
+  latestBriefing  SubscriptionBriefing?
 
   @@index([email])
   @@index([persistentProfileId])
+}
+
+/// Exactly one row per account: the most recently generated briefing digest.
+model SubscriptionBriefing {
+  id               String   @id @default(cuid())
+  accountId        String   @unique
+  account          Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  htmlPreview      String   @db.Text
+  generatedAt      DateTime
+  /// Lowercased sender emails included in this digest.
+  senderEmails     String[]
+  /// Subscription ids included (for badge matching + localStorage migration).
+  subscriptionIds  String[]
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model AccountSettings {
@@ -117,7 +136,10 @@ model Subscription {
   unsubPostBody  String?
   unsubMailto    String?
   status         String    @default("ACTIVE") // "ACTIVE" | "UNSUBSCRIBED" | "FAILED"
+  /// Tracked volume (newsletter message count) for this sender.
   emailCount     Int       @default(1)
+  /// Cached clutter 0–100 (recomputed when volume changes, e.g. after briefing trash).
+  clutterScore   Int       @default(0)
   lastReceivedAt DateTime?
   /// Last unsubscribe/cleanup error for UI hover (cleared on success).
   lastError      String?

@@ -38,7 +38,8 @@ import {
   type OriginalEmailPreview,
 } from "@/app/actions/opportunities";
 import { Button } from "@/components/ui/button";
-import { CompanyLogo } from "@/components/opportunities/company-logo";
+import { CompanyLogo } from "@/components/ui/company-logo";
+import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { CancelTaskButton } from "@/components/ui/cancel-task-button";
 import {
   Dialog,
@@ -622,13 +623,17 @@ export function OpportunityDraftDialog({
         <DialogHeader className="shrink-0 space-y-0 border-b border-border/60 px-6 pb-3 pt-4 pr-12 text-left">
           <div className="flex items-start gap-3">
             {opportunity ? (
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center">
-                <CompanyLogo
-                  company={opportunity.company}
-                  logoUrl={opportunity.logoUrl}
-                  domain={opportunity.companyDomain}
-                />
-              </div>
+              <CompanyLogo
+                src={
+                  opportunity.logoUrl ||
+                  getCompanyLogoUrl(
+                    opportunity.company,
+                    opportunity.companyDomain
+                  )
+                }
+                name={opportunity.company}
+                size="lg"
+              />
             ) : null}
             <div className="-mt-0.5 flex min-w-0 flex-col">
               <DialogTitle className="text-lg font-semibold leading-tight tracking-tight">

@@ -21,8 +21,27 @@ export function ToolbarRoot({
   return (
     <div
       className={cn(
-        // 50px = border(2) + py-2(16) + h-8 wavy slider(32); keeps all tabs the same height
-        "inline-flex min-h-[50px] w-fit max-w-full flex-wrap items-center gap-3 rounded-lg border bg-card px-3 py-2 shadow-sm",
+        "flex w-full flex-wrap items-center gap-3 rounded-xl border border-border/50 bg-card p-3 shadow-sm lg:flex-nowrap",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Secondary meta bar under the filter card (counts + page size). */
+export function ToolbarMetaRow({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "mb-2.5 flex items-center justify-between px-1 py-0.5 text-xs text-muted-foreground",
         className
       )}
     >
@@ -77,7 +96,7 @@ export function ToolbarSelectAll({
         disabled={disabled}
         onChange={onToggle}
         className={cn(
-          "h-3.5 w-3.5 shrink-0 rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30",
+          "m-0 h-3.5 w-3.5 shrink-0 rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30",
           disabled ? "cursor-not-allowed" : "cursor-pointer"
         )}
       />
@@ -91,23 +110,29 @@ export function ToolbarScoreSlider({
   disabled = false,
   onChange,
   onCommit,
+  label = "Minimum Score:",
+  inputId = "fit-score-threshold-input",
+  ariaLabel = "Minimum fit score",
 }: {
   value: number;
   disabled?: boolean;
   onChange?: (value: number) => void;
   onCommit?: (value: number) => void;
+  label?: string;
+  inputId?: string;
+  ariaLabel?: string;
 }) {
   return (
     <div className="flex items-center gap-2">
       <label
-        htmlFor="fit-score-threshold-input"
+        htmlFor={inputId}
         className="flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
-        Minimum Score:
+        {label}
       </label>
       <div className="relative inline-flex items-center">
         <input
-          id="fit-score-threshold-input"
+          id={inputId}
           type="number"
           min={0}
           max={100}
@@ -131,7 +156,7 @@ export function ToolbarScoreSlider({
             }
           }}
           className="h-7 w-14 rounded-md border border-input bg-background/50 pr-3 text-center text-xs font-medium transition-colors [appearance:textfield] hover:bg-background focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-          aria-label="Minimum fit score percent"
+          aria-label={`${ariaLabel} percent`}
         />
         <span className="pointer-events-none absolute right-1 text-[11px] text-muted-foreground">
           %
@@ -144,7 +169,7 @@ export function ToolbarScoreSlider({
         onCommit={(val) => onCommit?.(val)}
         widthClassName="w-28 sm:w-36"
         className="ml-2.5 sm:ml-3"
-        aria-label="Minimum fit score"
+        aria-label={ariaLabel}
       />
     </div>
   );
@@ -153,20 +178,24 @@ export function ToolbarScoreSlider({
 export function ToolbarSearch({
   searchQuery,
   onSearchChange,
+  placeholder = "Search roles, companies, or locations...",
+  ariaLabel = "Search roles, companies, or locations",
 }: {
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  placeholder?: string;
+  ariaLabel?: string;
 }) {
   return (
-    <div className="relative flex h-7 w-[7.2rem] items-center text-muted-foreground focus-within:text-foreground sm:w-[9.6rem]">
+    <div className="relative flex h-7 w-[7.2rem] items-center text-muted-foreground focus-within:text-foreground sm:w-[9.6rem] md:w-[12rem]">
       <Search className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
       <input
         type="text"
-        placeholder="Search roles..."
+        placeholder={placeholder}
         value={searchQuery}
         onChange={(e) => onSearchChange(e.target.value)}
         className="h-7 w-full rounded-md border border-input/60 bg-background/50 py-0 pr-2 pl-8 text-xs transition-colors placeholder:text-muted-foreground/60 hover:bg-background focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-        aria-label="Search roles, companies, or locations"
+        aria-label={ariaLabel}
       />
     </div>
   );
@@ -245,17 +274,22 @@ export function ToolbarTelemetry({
   visibleCount,
   totalCount,
   hiddenCount,
+  itemLabel = "listings",
+  onResetFilters,
 }: {
   visibleCount: number;
   totalCount: number;
   hiddenCount: number;
+  itemLabel?: string;
+  /** When set, renders a "Reset filters" action next to the count. */
+  onResetFilters?: () => void;
 }) {
   return (
     <div className="flex items-center gap-1.5 whitespace-nowrap text-[11px] font-medium text-muted-foreground">
       <Layers className="h-3 w-3 shrink-0 text-muted-foreground/60" />
       <span>
         <strong className="font-medium text-foreground">{visibleCount}</strong>{" "}
-        of {totalCount} listings
+        of {totalCount} {itemLabel}
       </span>
       {hiddenCount > 0 ? (
         <>
@@ -264,6 +298,15 @@ export function ToolbarTelemetry({
             {hiddenCount} filtered
           </span>
         </>
+      ) : null}
+      {onResetFilters ? (
+        <button
+          type="button"
+          onClick={onResetFilters}
+          className="ml-1.5 cursor-pointer text-xs font-medium text-teal-600 underline underline-offset-2 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300"
+        >
+          Reset filters
+        </button>
       ) : null}
     </div>
   );

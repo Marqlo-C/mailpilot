@@ -67,6 +67,10 @@ lib/
     sorting.ts
   parsers/
     application-parser.ts
+  subscriptions/
+    digest-constants.ts
+    digest.ts
+    filters.ts
   utils/
     format.ts
   validations/
@@ -113,6 +117,708 @@ prisma/
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="lib/subscriptions/digest-constants.ts">
+/** Client-safe briefing/digest constants (no Node / googleapis imports). */
+
+export const MAX_BRIEFING_DAYS = 10;
+
+export type DateRangeValue = {
+  from: Date | undefined;
+  to: Date | undefined;
+};
+
+/** Inclusive day span between two local calendar dates. */
+export function inclusiveDaySpan(from: Date, to: Date): number {
+  const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+  const ms = end.getTime() - start.getTime();
+  return Math.floor(ms / (1000 * 60 * 60 * 24)) + 1;
+}
+
+export function isValidBriefingRange(
+  from: Date | undefined,
+  to: Date | undefined
+): boolean {
+  if (!from || !to) return false;
+  const span = inclusiveDaySpan(from, to);
+  return span >= 1 && span <= MAX_BRIEFING_DAYS;
+}
+</file>
+
+<file path="lib/subscriptions/digest.ts">
+import type { gmail_v1 } from "googleapis";
+
+import { rethrowIfInsufficientScope } from "@/lib/google";
+import { extractMessageBody, sanitizeEmailBody } from "@/lib/llm";
+import { prisma } from "@/lib/prisma";
+import { MAX_BRIEFING_DAYS } from "@/lib/subscriptions/digest-constants";
+
+export const MAX_BRIEFING_MESSAGES = 40;
+
+export type DigestCard = {
+  id: string;
+  from: string;
+  fromEmail: string;
+  subject: string;
+  summary: string;
+  heroImageUrl: string | null;
+  primaryLink: string | null;
+  receivedAt: Date | null;
+};
+
+export type DigestResult = {
+  success: true;
+  processedCount: number;
+  digestSentTo: string;
+  briefingId: string;
+};
+
+function encodeRawMessage(raw: string): string {
+  return Buffer.from(raw)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+function getHeader(
+  headers: gmail_v1.Schema$MessagePartHeader[] | undefined,
+  name: string
+): string {
+  const lower = name.toLowerCase();
+  return (
+    headers?.find((h) => (h.name ?? "").toLowerCase() === lower)?.value ?? ""
+  );
+}
+
+function toGmailDate(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}/${m}/${day}`;
+}
+
+/** Normalize to UTC midnight for Gmail day queries. */
+function startOfUtcDay(d: Date): Date {
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  );
+}
+
+export function buildBriefingSearchQuery(
+  senderEmails: string[],
+  rangeStart: Date,
+  rangeEnd: Date
+): string {
+  const fromClause = senderEmails
+    .map((email) => `from:${email}`)
+    .join(" OR ");
+  const start = startOfUtcDay(rangeStart);
+  const endExclusive = startOfUtcDay(rangeEnd);
+  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+  return `(${fromClause}) after:${toGmailDate(start)} before:${toGmailDate(endExclusive)} -in:trash -in:spam`;
+}
+
+function decodeBase64Url(data: string): string {
+  const normalized = data.replace(/-/g, "+").replace(/_/g, "/");
+  return Buffer.from(normalized, "base64").toString("utf8");
+}
+
+function findHtmlPart(
+  payload: gmail_v1.Schema$MessagePart | null | undefined
+): string | null {
+  if (!payload) return null;
+  if (payload.mimeType === "text/html" && payload.body?.data) {
+    return decodeBase64Url(payload.body.data);
+  }
+  for (const part of payload.parts ?? []) {
+    const nested = findHtmlPart(part);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function isTrackingOrTinyImage(url: string, tag: string): boolean {
+  const lower = `${url} ${tag}`.toLowerCase();
+  if (
+    /width\s*=\s*["']?1["']?/.test(lower) ||
+    /height\s*=\s*["']?1["']?/.test(lower)
+  ) {
+    return true;
+  }
+  return /pixel|track|beacon|spacer|open\.|click\.|list-manage|doubleclick|facebook\.com\/tr|google-analytics|googletagmanager/.test(
+    lower
+  );
+}
+
+function extractHeroImageUrl(html: string): string | null {
+  const re = /<img\b([^>]*?)>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(html)) !== null) {
+    const attrs = match[1] ?? "";
+    const src =
+      attrs.match(/\bsrc=["'](https?:\/\/[^"']+)["']/i)?.[1] ??
+      attrs.match(/\bsrc=(https?:\/\/\S+)/i)?.[1];
+    if (!src || isTrackingOrTinyImage(src, attrs)) continue;
+    return src;
+  }
+  return null;
+}
+
+function extractPrimaryLink(html: string): string | null {
+  const re = /<a\b([^>]*?)>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(html)) !== null) {
+    const attrs = match[1] ?? "";
+    const href =
+      attrs.match(/\bhref=["'](https?:\/\/[^"']+)["']/i)?.[1] ?? null;
+    if (!href) continue;
+    const lower = href.toLowerCase();
+    if (
+      lower.includes("unsubscribe") ||
+      lower.includes("mailto:") ||
+      lower.includes("list-manage") ||
+      lower.endsWith("#")
+    ) {
+      continue;
+    }
+    return href;
+  }
+  return null;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function parseFromEmail(fromRaw: string): { name: string; email: string } {
+  const match = fromRaw.match(/^(?:"?([^"<]*)"?\s*)?<([^>]+)>$/);
+  if (match?.[2]) {
+    return {
+      name: (match[1] ?? "").trim() || match[2].trim(),
+      email: match[2].trim().toLowerCase(),
+    };
+  }
+  const email = fromRaw.replace(/[<>]/g, "").trim().toLowerCase();
+  return { name: email, email };
+}
+
+/**
+ * Clutter from remaining volume + unread share (higher unread = noisier).
+ */
+export function briefingClutterScore(
+  remainingTotal: number,
+  remainingUnread: number
+): number {
+  const total = Math.max(0, remainingTotal);
+  const unread = Math.max(0, Math.min(remainingUnread, total));
+  const volume = Math.min(
+    60,
+    Math.round((Math.log10(total + 1) / Math.log10(101)) * 60)
+  );
+  const unreadShare =
+    total === 0 ? 0 : Math.round((unread / total) * 40);
+  return Math.min(100, volume + unreadShare);
+}
+
+export function buildBriefingHtml(
+  cards: DigestCard[],
+  opts: { rangeLabel: string; recipientEmail: string }
+): string {
+  const cardHtml = cards
+    .map((card) => {
+      const imageBlock = card.heroImageUrl
+        ? `<img src="${escapeHtml(card.heroImageUrl)}" alt="" width="560" style="display:block;width:100%;max-width:560px;height:auto;border-radius:12px 12px 0 0;" />`
+        : `<div style="height:8px;border-radius:12px 12px 0 0;background:#134e4a;"></div>`;
+      const cta = card.primaryLink
+        ? `<a href="${escapeHtml(card.primaryLink)}" style="display:inline-block;margin-top:14px;padding:10px 16px;border-radius:8px;background:#0f766e;color:#f8fafc;font-size:13px;font-weight:600;text-decoration:none;">Read Article</a>`
+        : "";
+      return `
+      <tr>
+        <td style="padding:0 0 16px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;overflow:hidden;">
+            <tr><td>${imageBlock}</td></tr>
+            <tr>
+              <td style="padding:18px 20px 20px 20px;">
+                <p style="margin:0 0 4px 0;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;color:#5eead4;font-weight:600;">${escapeHtml(card.from)}</p>
+                <h2 style="margin:0 0 8px 0;font-size:17px;line-height:1.35;color:#f8fafc;font-weight:700;">${escapeHtml(card.subject)}</h2>
+                <p style="margin:0;font-size:13px;line-height:1.55;color:#94a3b8;">${escapeHtml(card.summary)}</p>
+                ${cta}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    })
+    .join("");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mail Pilot Briefing</title>
+</head>
+<body style="margin:0;padding:0;background:#020617;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#020617;">
+    <tr>
+      <td align="center" style="padding:28px 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;">
+          <tr>
+            <td style="padding:0 4px 22px 4px;">
+              <p style="margin:0 0 6px 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#2dd4bf;font-weight:700;">Mail Pilot</p>
+              <h1 style="margin:0 0 8px 0;font-size:26px;line-height:1.2;color:#f8fafc;font-weight:700;">Your Briefing</h1>
+              <p style="margin:0;font-size:13px;color:#94a3b8;">
+                ${cards.length} update${cards.length === 1 ? "" : "s"} · ${escapeHtml(opts.rangeLabel)} · delivered to ${escapeHtml(opts.recipientEmail)}
+              </p>
+            </td>
+          </tr>
+          ${cardHtml || `<tr><td style="color:#94a3b8;font-size:14px;">No messages found in this window.</td></tr>`}
+          <tr>
+            <td style="padding:12px 4px 0 4px;font-size:11px;color:#64748b;line-height:1.5;">
+              Original newsletter messages were moved to Trash after this briefing was sent.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+async function listMessageIds(
+  gmail: gmail_v1.Gmail,
+  query: string,
+  limit: number
+): Promise<string[]> {
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const listed = await gmail.users.messages.list({
+      userId: "me",
+      q: query,
+      maxResults: Math.min(50, limit - ids.length),
+      pageToken,
+    });
+    for (const message of listed.data.messages ?? []) {
+      if (message.id) ids.push(message.id);
+      if (ids.length >= limit) return ids;
+    }
+    pageToken = listed.data.nextPageToken ?? undefined;
+  } while (pageToken && ids.length < limit);
+
+  return ids;
+}
+
+async function estimateCount(
+  gmail: gmail_v1.Gmail,
+  query: string
+): Promise<number> {
+  const listed = await gmail.users.messages.list({
+    userId: "me",
+    q: query,
+    maxResults: 1,
+  });
+  return listed.data.resultSizeEstimate ?? 0;
+}
+
+async function fetchDigestCard(
+  gmail: gmail_v1.Gmail,
+  id: string
+): Promise<DigestCard | null> {
+  const message = await gmail.users.messages.get({
+    userId: "me",
+    id,
+    format: "full",
+  });
+  const headers = message.data.payload?.headers;
+  const subject = getHeader(headers, "Subject").trim() || "(No subject)";
+  const fromRaw = getHeader(headers, "From").trim() || "Unknown sender";
+  const parsed = parseFromEmail(fromRaw);
+
+  const plain = extractMessageBody(message.data.payload);
+  const html = findHtmlPart(message.data.payload) ?? "";
+  const summarySource =
+    sanitizeEmailBody(plain || html.replace(/<[^>]+>/g, " ")).trim() ||
+    message.data.snippet?.trim() ||
+    subject;
+  const summary =
+    summarySource.length > 240
+      ? `${summarySource.slice(0, 237).trim()}…`
+      : summarySource;
+
+  const internalDate = message.data.internalDate
+    ? new Date(Number(message.data.internalDate))
+    : null;
+
+  return {
+    id,
+    from: parsed.name,
+    fromEmail: parsed.email,
+    subject,
+    summary,
+    heroImageUrl: html ? extractHeroImageUrl(html) : null,
+    primaryLink: html ? extractPrimaryLink(html) : null,
+    receivedAt: internalDate,
+  };
+}
+
+async function trashMessageIds(
+  gmail: gmail_v1.Gmail,
+  ids: string[]
+): Promise<void> {
+  for (let i = 0; i < ids.length; i += 1000) {
+    const chunk = ids.slice(i, i + 1000);
+    try {
+      await gmail.users.messages.batchModify({
+        userId: "me",
+        requestBody: {
+          ids: chunk,
+          addLabelIds: ["TRASH"],
+          removeLabelIds: ["INBOX"],
+        },
+      });
+    } catch (error) {
+      rethrowIfInsufficientScope(error);
+    }
+  }
+}
+
+async function syncSenderStatsAfterTrash(
+  gmail: gmail_v1.Gmail,
+  accountId: string,
+  senderEmails: string[],
+  trashedBySender: Map<string, number>
+): Promise<void> {
+  for (const email of senderEmails) {
+    const key = email.toLowerCase();
+    const trashed = trashedBySender.get(key) ?? 0;
+    const sub = await prisma.subscription.findUnique({
+      where: {
+        accountId_senderEmail: { accountId, senderEmail: email },
+      },
+    });
+    if (!sub) continue;
+
+    let remainingTotal: number;
+    let remainingUnread: number;
+    try {
+      remainingTotal = await estimateCount(
+        gmail,
+        `from:${email} -in:trash -in:spam`
+      );
+      remainingUnread = await estimateCount(
+        gmail,
+        `from:${email} is:unread -in:trash -in:spam`
+      );
+    } catch {
+      remainingTotal = Math.max(0, sub.emailCount - trashed);
+      remainingUnread = 0;
+    }
+
+    const clutterScore = briefingClutterScore(
+      remainingTotal,
+      remainingUnread
+    );
+
+    await prisma.subscription.update({
+      where: { id: sub.id },
+      data: {
+        emailCount: remainingTotal,
+        clutterScore,
+      },
+    });
+  }
+}
+
+/**
+ * Build a branded briefing for the date range, send it, trash originals, update Neon stats.
+ */
+export async function createSubscriptionBriefing(options: {
+  gmail: gmail_v1.Gmail;
+  accountId: string;
+  senderEmails: string[];
+  rangeStart: Date;
+  rangeEnd: Date;
+  recipientEmail: string;
+}): Promise<DigestResult> {
+  const { gmail, accountId, recipientEmail } = options;
+  const rangeStart = startOfUtcDay(options.rangeStart);
+  const rangeEnd = startOfUtcDay(options.rangeEnd);
+  if (rangeEnd < rangeStart) {
+    throw new Error("End date must be on or after start date");
+  }
+  const spanDays =
+    Math.floor(
+      (rangeEnd.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1;
+  if (spanDays > MAX_BRIEFING_DAYS) {
+    throw new Error(`Maximum briefing range is ${MAX_BRIEFING_DAYS} days`);
+  }
+  const today = startOfUtcDay(new Date());
+  if (rangeEnd > today) {
+    throw new Error("Future dates are not allowed");
+  }
+
+  const senderEmails = Array.from(
+    new Set(
+      options.senderEmails
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes("@"))
+    )
+  );
+  if (senderEmails.length === 0) {
+    throw new Error("Select at least one sender email");
+  }
+
+  const query = buildBriefingSearchQuery(senderEmails, rangeStart, rangeEnd);
+  const ids = await listMessageIds(gmail, query, MAX_BRIEFING_MESSAGES);
+
+  const cards: DigestCard[] = [];
+  const concurrency = 5;
+  for (let i = 0; i < ids.length; i += concurrency) {
+    const slice = ids.slice(i, i + concurrency);
+    const batch = await Promise.all(
+      slice.map(async (id) => {
+        try {
+          return await fetchDigestCard(gmail, id);
+        } catch (error) {
+          rethrowIfInsufficientScope(error);
+          return null;
+        }
+      })
+    );
+    for (const card of batch) {
+      if (card) cards.push(card);
+    }
+  }
+
+  cards.sort(
+    (a, b) => (b.receivedAt?.getTime() ?? 0) - (a.receivedAt?.getTime() ?? 0)
+  );
+
+  const rangeLabel = `${rangeStart.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })} – ${rangeEnd.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })}`;
+
+  const html = buildBriefingHtml(cards, { rangeLabel, recipientEmail });
+  const subject = `Mail Pilot Briefing · ${cards.length} update${cards.length === 1 ? "" : "s"} · ${rangeLabel}`;
+  const raw = [
+    `To: ${recipientEmail}`,
+    `Subject: ${subject}`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/html; charset="UTF-8"',
+    "",
+    html,
+  ].join("\r\n");
+
+  try {
+    await gmail.users.messages.send({
+      userId: "me",
+      requestBody: { raw: encodeRawMessage(raw) },
+    });
+  } catch (error) {
+    rethrowIfInsufficientScope(error);
+  }
+
+  const processedIds = cards.map((c) => c.id);
+  const trashedBySender = new Map<string, number>();
+  for (const card of cards) {
+    const key = card.fromEmail.toLowerCase();
+    trashedBySender.set(key, (trashedBySender.get(key) ?? 0) + 1);
+  }
+
+  if (processedIds.length > 0) {
+    await trashMessageIds(gmail, processedIds);
+  }
+
+  await syncSenderStatsAfterTrash(
+    gmail,
+    accountId,
+    senderEmails,
+    trashedBySender
+  );
+
+  const generatedAt = new Date();
+  const briefing = await prisma.subscriptionBriefing.upsert({
+    where: { accountId },
+    create: {
+      accountId,
+      htmlPreview: html,
+      generatedAt,
+      senderEmails,
+    },
+    update: {
+      htmlPreview: html,
+      generatedAt,
+      senderEmails,
+    },
+  });
+
+  // #region agent log
+  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "3c315a",
+    },
+    body: JSON.stringify({
+      sessionId: "3c315a",
+      runId: "pre-fix",
+      hypothesisId: "H4",
+      location: "lib/subscriptions/digest.ts:createSubscriptionBriefing",
+      message: "briefing upserted after trash+stats",
+      data: {
+        processedCount: processedIds.length,
+        senderCount: senderEmails.length,
+        briefingId: briefing.id,
+        queryMessageCap: MAX_BRIEFING_MESSAGES,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
+  return {
+    success: true,
+    processedCount: processedIds.length,
+    digestSentTo: recipientEmail,
+    briefingId: briefing.id,
+  };
+}
+</file>
+
+<file path="lib/subscriptions/filters.ts">
+export type SubscriptionCategoryFilter =
+  | "all"
+  | "promotions"
+  | "newsletters"
+  | "alerts";
+
+export type SubscriptionSortOption =
+  | "clutter_desc"
+  | "freq_desc"
+  | "freq_asc"
+  | "alpha";
+
+type ClutterInput = {
+  emailCount: number;
+  lastReceivedAt?: Date | string | null;
+};
+
+type CategoryInput = {
+  senderName?: string | null;
+  senderEmail: string;
+};
+
+/**
+ * Derived clutter score (0–100) from tracked volume + recency.
+ * Higher emailCount / fresher lastReceivedAt → higher noise.
+ */
+export function subscriptionClutterScore(sub: ClutterInput): number {
+  const count = Math.max(0, sub.emailCount);
+  const volume = Math.min(
+    95,
+    Math.round((Math.log10(count + 1) / Math.log10(101)) * 95)
+  );
+
+  let recency = 0;
+  if (sub.lastReceivedAt) {
+    const days =
+      (Date.now() - new Date(sub.lastReceivedAt).getTime()) /
+      (1000 * 60 * 60 * 24);
+    if (days <= 2) recency = 5;
+    else if (days <= 7) recency = 3;
+    else if (days <= 30) recency = 1;
+  }
+
+  return Math.min(100, volume + recency);
+}
+
+/** Reverse of Job Radar match bands: high ≥80, mid ≥60, else low. */
+export type ClutterScoreTier = "high" | "mid" | "low";
+
+export function clutterScoreTier(score: number): ClutterScoreTier {
+  if (score >= 80) return "high";
+  if (score >= 60) return "mid";
+  return "low";
+}
+
+/**
+ * Lightweight category inference from sender identity (no static columns).
+ */
+export function inferSubscriptionCategory(
+  sub: CategoryInput
+): Exclude<SubscriptionCategoryFilter, "all"> {
+  const hay = `${sub.senderName ?? ""} ${sub.senderEmail}`.toLowerCase();
+  if (/\b(alert|notify|notification|security|otp|verify)\b/.test(hay)) {
+    return "alerts";
+  }
+  if (/\b(promo|deal|offer|sale|discount|coupon)\b/.test(hay)) {
+    return "promotions";
+  }
+  return "newsletters";
+}
+
+export function matchesSubscriptionSearch(
+  sub: CategoryInput,
+  query: string
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    sub.senderEmail.toLowerCase().includes(q) ||
+    (sub.senderName?.toLowerCase().includes(q) ?? false)
+  );
+}
+
+export function compareSubscriptionsBySort(
+  a: ClutterInput & CategoryInput,
+  b: ClutterInput & CategoryInput,
+  sort: SubscriptionSortOption
+): number {
+  switch (sort) {
+    case "clutter_desc": {
+      const diff =
+        subscriptionClutterScore(b) - subscriptionClutterScore(a);
+      return diff !== 0
+        ? diff
+        : a.senderEmail.localeCompare(b.senderEmail);
+    }
+    case "freq_desc": {
+      const diff = b.emailCount - a.emailCount;
+      return diff !== 0
+        ? diff
+        : a.senderEmail.localeCompare(b.senderEmail);
+    }
+    case "freq_asc": {
+      const diff = a.emailCount - b.emailCount;
+      return diff !== 0
+        ? diff
+        : a.senderEmail.localeCompare(b.senderEmail);
+    }
+    case "alpha":
+    default:
+      return (
+        (a.senderName ?? a.senderEmail).localeCompare(
+          b.senderName ?? b.senderEmail
+        ) || a.senderEmail.localeCompare(b.senderEmail)
+      );
+  }
+}
+</file>
 
 <file path="app/actions/auth.ts">
 "use server";
@@ -3221,12 +3927,18 @@ const globalForPrisma = globalThis as unknown as {
 
 /**
  * Returns true when the cached client predates newer schema models
- * (e.g. PersistentProfile) and must be replaced after `prisma generate`.
+ * and must be replaced after `prisma generate`.
  */
 function isStalePrismaClient(client: PrismaClient | undefined): boolean {
   if (!client) return true;
-  return typeof (client as { persistentProfile?: unknown }).persistentProfile ===
-    "undefined";
+  const c = client as {
+    persistentProfile?: unknown;
+    subscriptionBriefing?: unknown;
+  };
+  return (
+    typeof c.persistentProfile === "undefined" ||
+    typeof c.subscriptionBriefing === "undefined"
+  );
 }
 
 function createPrismaClient(): PrismaClient {
@@ -13569,6 +14281,98 @@ export async function getSubscriptionsForAccount(
   }
 }
 
+export type LatestBriefingPreview = {
+  id: string;
+  htmlPreview: string;
+  generatedAt: Date;
+  senderEmails: string[];
+};
+
+export async function getLatestBriefingForAccount(
+  accountId: string
+): Promise<LatestBriefingPreview | null> {
+  try {
+    // #region agent log
+    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "3c315a",
+      },
+      body: JSON.stringify({
+        sessionId: "3c315a",
+        runId: "pre-fix",
+        hypothesisId: "H1",
+        location: "lib/data.ts:getLatestBriefingForAccount",
+        message: "briefing delegate availability",
+        data: {
+          hasDelegate:
+            typeof (prisma as { subscriptionBriefing?: unknown })
+              .subscriptionBriefing !== "undefined",
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    const row = await prisma.subscriptionBriefing.findUnique({
+      where: { accountId },
+      select: {
+        id: true,
+        htmlPreview: true,
+        generatedAt: true,
+        senderEmails: true,
+      },
+    });
+    // #region agent log
+    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "3c315a",
+      },
+      body: JSON.stringify({
+        sessionId: "3c315a",
+        runId: "pre-fix",
+        hypothesisId: "H2",
+        location: "lib/data.ts:getLatestBriefingForAccount:ok",
+        message: "latest briefing lookup result",
+        data: {
+          found: Boolean(row),
+          senderCount: row?.senderEmails?.length ?? 0,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    return row;
+  } catch (error) {
+    // #region agent log
+    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "3c315a",
+      },
+      body: JSON.stringify({
+        sessionId: "3c315a",
+        runId: "pre-fix",
+        hypothesisId: "H1",
+        location: "lib/data.ts:getLatestBriefingForAccount:catch",
+        message: "latest briefing lookup failed",
+        data: {
+          errorName: error instanceof Error ? error.name : "unknown",
+          errorMessage:
+            error instanceof Error ? error.message.slice(0, 160) : "unknown",
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    console.error("getLatestBriefingForAccount failed", error);
+    return null;
+  }
+}
+
 export async function getSubscriptionHistoryForProfile(
   userProfileId: string
 ): Promise<SubscriptionHistory[]> {
@@ -13807,9 +14611,26 @@ model Account {
   emailMessages   EmailMessage[]
   jobOpportunities JobOpportunity[]
   profile         UserProfile?
+  /// Single most recent subscription briefing for this inbox.
+  latestBriefing  SubscriptionBriefing?
 
   @@index([email])
   @@index([persistentProfileId])
+}
+
+/// Most recent briefing digest emailed to the account (one row per account).
+model SubscriptionBriefing {
+  id           String   @id @default(cuid())
+  accountId    String   @unique
+  account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  htmlPreview  String   @db.Text
+  generatedAt  DateTime
+  /// Lowercased sender emails included in this briefing.
+  senderEmails String[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model AccountSettings {
@@ -13839,7 +14660,10 @@ model Subscription {
   unsubPostBody  String?
   unsubMailto    String?
   status         String    @default("ACTIVE") // "ACTIVE" | "UNSUBSCRIBED" | "FAILED"
+  /// Tracked volume (newsletter message count) for this sender.
   emailCount     Int       @default(1)
+  /// Cached clutter 0–100 (recomputed when volume changes, e.g. after briefing trash).
+  clutterScore   Int       @default(0)
   lastReceivedAt DateTime?
   /// Last unsubscribe/cleanup error for UI hover (cleared on success).
   lastError      String?

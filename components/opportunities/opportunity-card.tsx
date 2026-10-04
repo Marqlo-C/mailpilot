@@ -37,7 +37,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CompanyLogo } from "@/components/opportunities/company-logo";
+import { CompanyLogo } from "@/components/ui/company-logo";
+import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { canDraftDirectEmail } from "@/lib/application-method";
 import { formatDistanceToNow } from "@/lib/format-distance";
 import {
@@ -302,9 +303,12 @@ export function OpportunityCard({
       {/* Header: logo + role with clearance below corner pills */}
       <div className="flex items-start gap-3.5 px-4 pt-9 pb-3 sm:px-5">
         <CompanyLogo
-          company={opportunity.company}
-          logoUrl={opportunity.logoUrl}
-          domain={opportunity.companyDomain}
+          src={
+            opportunity.logoUrl ||
+            getCompanyLogoUrl(opportunity.company, opportunity.companyDomain)
+          }
+          name={opportunity.company}
+          size="lg"
         />
         <div className="min-w-0 flex-1">
           <div className="flex h-[14px] items-center gap-1.5">
