@@ -110,9 +110,9 @@ export function ToolbarScoreSlider({
   disabled = false,
   onChange,
   onCommit,
-  label = "Minimum Score:",
+  label = "Match Threshold:",
   inputId = "fit-score-threshold-input",
-  ariaLabel = "Minimum fit score",
+  ariaLabel = "Match score threshold",
 }: {
   value: number;
   disabled?: boolean;

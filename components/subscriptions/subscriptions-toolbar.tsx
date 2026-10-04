@@ -87,9 +87,9 @@ export function SubscriptionsToolbar({
               value={clutterThreshold}
               onChange={onClutterThresholdChange}
               onCommit={onClutterThresholdChange}
-              label="Minimum Clutter:"
+              label="Clutter Threshold:"
               inputId="clutter-score-threshold-input"
-              ariaLabel="Minimum clutter score"
+              ariaLabel="Clutter score threshold"
             />
           </>
         ) : null}

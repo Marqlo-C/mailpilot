@@ -1,9 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import type { Subscription, SubscriptionHistory } from "@prisma/client";
-import { BadgeInfo, Eye, Loader2, Trash2 } from "lucide-react";
+import {
+  BadgeInfo,
+  Clock,
+  Eye,
+  Loader2,
+  Mail,
+  MailX,
+  MoreVertical,
+  Newspaper,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -12,8 +28,8 @@ import {
 } from "@/app/actions/subscriptions";
 import { SyncControls } from "@/components/opportunities/sync-controls";
 import { BriefingDialog } from "@/components/subscriptions/briefing-dialog";
+import { EmailPreviewDialog } from "@/components/subscriptions/email-preview-dialog";
 import { SubscriptionsToolbar } from "@/components/subscriptions/subscriptions-toolbar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import {
@@ -24,20 +40,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PipelinePaginationFooter } from "@/components/ui/pipeline-pagination";
 import {
   segmentedTabsListClassName,
   segmentedTabsTriggerClassName,
   TabCountBadge,
 } from "@/components/ui/segmented-tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
+import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/score-percent";
+import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
@@ -47,6 +64,7 @@ import {
 } from "@/components/ui/tooltip";
 import { usePagination } from "@/hooks/use-pagination";
 import { faviconUrlForDomain, getCleanDomain } from "@/lib/domain";
+import { formatDistanceToNow } from "@/lib/format-distance";
 import {
   clearLocalBriefingsForSubscriptions,
   deleteLocalBriefings,
@@ -71,10 +89,11 @@ import type { CleanupAction } from "@/lib/unsubscribe";
  * Class literals must live in components/ so Tailwind content scan picks them up.
  * (lib/ is not in tailwind.config content — orange utilities were never emitted.)
  */
-const CLUTTER_TONE_CLASSES: Record<ClutterScoreTier, string> = {
-  high: "border-transparent bg-orange-600/15 text-orange-700 dark:bg-orange-500/25 dark:text-orange-400",
-  mid: "border-transparent bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  low: "border-transparent bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+/** Bottom-value tints for stacked CLUTTER badges. */
+const CLUTTER_VALUE_CLASSES: Record<ClutterScoreTier, string> = {
+  high: "bg-orange-600/15 text-orange-700 dark:bg-orange-500/25 dark:text-orange-400",
+  mid: "bg-amber-500/10 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
+  low: "border-transparent bg-emerald-500/10 text-emerald-600 dark:bg-teal-950/40 dark:text-emerald-400",
 };
 
 const SUBSCRIPTIONS_PAGE_SIZE_KEY = "mailpilot_subscriptions_per_page";
@@ -145,15 +164,6 @@ function persistClutterThreshold(value: number) {
   }
 }
 
-function methodBadge(sub: Subscription): {
-  label: string;
-  variant: "default" | "secondary" | "outline";
-} {
-  if (sub.unsubPostUrl) return { label: "One-Click", variant: "default" };
-  if (sub.unsubMailto) return { label: "Email", variant: "secondary" };
-  return { label: "Link", variant: "outline" };
-}
-
 export function SubscriptionsView({
   accountId,
   subscriptions,
@@ -170,6 +180,8 @@ export function SubscriptionsView({
   const [briefingPending, setBriefingPending] = useState(false);
   const [viewingBriefing, setViewingBriefing] =
     useState<ResolvedBriefing | null>(null);
+  const [selectedEmailSub, setSelectedEmailSub] =
+    useState<Subscription | null>(null);
   const [localBriefings, setLocalBriefings] = useState<
     Record<string, LocalBriefingRecord>
   >({});
@@ -726,6 +738,7 @@ export function SubscriptionsView({
                 onBriefing={(sub) => openBriefing([sub])}
                 resolveBriefing={resolveBriefingForSub}
                 onViewLastBriefing={setViewingBriefing}
+                onViewLastEmail={setSelectedEmailSub}
               />
               <ActiveMobileCards
                 subscriptions={paginatedActive}
@@ -735,6 +748,7 @@ export function SubscriptionsView({
                 onBriefing={(sub) => openBriefing([sub])}
                 resolveBriefing={resolveBriefingForSub}
                 onViewLastBriefing={setViewingBriefing}
+                onViewLastEmail={setSelectedEmailSub}
               />
               <PipelinePaginationFooter
                 currentPage={currentPage}
@@ -799,6 +813,15 @@ export function SubscriptionsView({
         senders={briefingTargets}
         pending={briefingPending}
         onGenerate={(range) => void runBriefingDigest(range)}
+      />
+
+      <EmailPreviewDialog
+        open={Boolean(selectedEmailSub)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedEmailSub(null);
+        }}
+        senderName={selectedEmailSub?.senderName ?? null}
+        senderEmail={selectedEmailSub?.senderEmail ?? ""}
       />
 
       <Dialog
@@ -941,19 +964,334 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   );
 }
 
-function ClutterScoreBadge({ score }: { score: number }) {
-  const tier = clutterScoreTier(score);
-  const tone = CLUTTER_TONE_CLASSES[tier];
+function StackedStatBadge({
+  label,
+  value,
+  valueClassName,
+  className,
+  valuePrefix,
+  width,
+  wrapValue = false,
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
+  className?: string;
+  valuePrefix?: ReactNode;
+  /** Fixed width so the same badge type aligns across rows. */
+  width?: string;
+  /** Allow the value line to wrap (used by Last received). */
+  wrapValue?: boolean;
+}) {
   return (
-    <Badge
-      variant="outline"
+    <div
       className={cn(
-        "font-bold tabular-nums tracking-tight shadow-none",
-        tone
+        "inline-flex shrink-0 flex-col overflow-hidden rounded-md border border-border/60 shadow-sm",
+        wrapValue ? "min-h-[30px]" : "h-[30px]",
+        width ? null : "w-[54px]",
+        className
       )}
+      style={width ? { width } : undefined}
     >
-      {score}%
-    </Badge>
+      <div className="flex h-[12px] items-center justify-center border-b border-border/40 bg-muted/40 px-1 text-[8px] font-bold uppercase tracking-wider text-muted-foreground/75">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "flex flex-1 items-center justify-center gap-1 px-1.5",
+          wrapValue ? "py-0.5 leading-tight" : null,
+          SCORE_PERCENT_CLASSNAME,
+          valueClassName ?? "bg-background text-foreground"
+        )}
+      >
+        {valuePrefix}
+        <span
+          className={cn(
+            wrapValue && "min-w-0 text-center whitespace-normal break-words"
+          )}
+        >
+          {value}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function formatLastReceivedValue(
+  date: Date | string | null | undefined
+): string {
+  if (!date || !Number.isFinite(new Date(date).getTime())) return "—";
+  return formatDistanceToNow(new Date(date), { addSuffix: true });
+}
+
+type MetricColumnWidths = {
+  clutter: string;
+  emails: string;
+  received: string;
+};
+
+/** Width each badge type to the widest value on the current page for vertical alignment. */
+function computeMetricColumnWidths(
+  subscriptions: Subscription[]
+): MetricColumnWidths {
+  let maxEmailChars = 1;
+  for (const sub of subscriptions) {
+    maxEmailChars = Math.max(maxEmailChars, String(sub.emailCount).length);
+  }
+  // Labels: CLUTTER (7), EMAILS (6). Received capped ~8ch tighter — full times wrap.
+  const clutterCh = Math.max(7.5, 4.5);
+  const emailsCh = Math.max(6.5, maxEmailChars + 2);
+  const receivedCh = 10;
+  return {
+    clutter: `${clutterCh}ch`,
+    emails: `${emailsCh}ch`,
+    received: `${receivedCh}ch`,
+  };
+}
+
+function ClutterStatBadge({
+  score,
+  width,
+}: {
+  score: number;
+  width?: string;
+}) {
+  const tier = clutterScoreTier(score);
+  return (
+    <StackedStatBadge
+      label="CLUTTER"
+      value={`${score}%`}
+      valueClassName={CLUTTER_VALUE_CLASSES[tier]}
+      width={width}
+    />
+  );
+}
+
+function EmailsStatBadge({
+  count,
+  width,
+}: {
+  count: number;
+  width?: string;
+}) {
+  return (
+    <StackedStatBadge
+      label="EMAILS"
+      value={String(count)}
+      valueClassName="bg-background text-muted-foreground"
+      width={width}
+    />
+  );
+}
+
+function LastReceivedStatBadge({
+  date,
+  width,
+}: {
+  date: Date | string | null | undefined;
+  width?: string;
+}) {
+  const value = formatLastReceivedValue(date);
+  return (
+    <StackedStatBadge
+      label="Last received"
+      value={value}
+      valueClassName="bg-background font-medium tracking-normal text-muted-foreground/70"
+      width={width ?? "10ch"}
+      wrapValue
+      valuePrefix={
+        <Clock className="size-3 shrink-0 text-muted-foreground/50" aria-hidden />
+      }
+    />
+  );
+}
+
+/** Same gap as Create Briefing ↔ Unsubscribe (`gap-2.5`). */
+const METRICS_GAP_CLASS = "gap-2.5";
+
+function AnalyticsMetrics({
+  clutter,
+  emailCount,
+  lastReceivedAt,
+  widths,
+}: {
+  clutter: number;
+  emailCount: number;
+  lastReceivedAt: Date | string | null | undefined;
+  widths?: MetricColumnWidths;
+}) {
+  return (
+    <div className={cn("flex items-center", METRICS_GAP_CLASS)}>
+      <ClutterStatBadge score={clutter} width={widths?.clutter} />
+      <EmailsStatBadge count={emailCount} width={widths?.emails} />
+      <LastReceivedStatBadge date={lastReceivedAt} width={widths?.received} />
+    </div>
+  );
+}
+
+function LastBriefingIconButton({
+  briefing,
+  onView,
+}: {
+  briefing: ResolvedBriefing;
+  onView: (briefing: ResolvedBriefing) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onView(briefing)}
+      title={
+        briefing.source === "db"
+          ? "View last briefing (cloud)"
+          : "View last briefing (this device)"
+      }
+      aria-label="View last briefing"
+      className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-teal-700 transition-colors hover:bg-teal-700/10 dark:text-teal-400"
+    >
+      <Eye className="size-3" />
+      Last Briefing
+    </button>
+  );
+}
+
+function SubscriptionRowActions({
+  sub,
+  onBriefing,
+  onUnsubscribe,
+  onViewLastEmail,
+}: {
+  sub: Subscription;
+  onBriefing: (sub: Subscription) => void;
+  onUnsubscribe: (sub: Subscription) => void;
+  onViewLastEmail: (sub: Subscription) => void;
+}) {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => onBriefing(sub)}
+        className={SECONDARY_ACTION_BTN_CLASSNAME}
+      >
+        <Newspaper className="h-3.5 w-3.5" />
+        <span>Create Briefing</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => onUnsubscribe(sub)}
+        className={PRIMARY_ACTION_BTN_CLASSNAME}
+      >
+        <MailX className="h-3.5 w-3.5" />
+        <span>Unsubscribe</span>
+      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 rounded-lg border-border/70 text-muted-foreground hover:bg-muted/50"
+            aria-label="More actions"
+          >
+            <MoreVertical className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            onClick={() => onViewLastEmail(sub)}
+          >
+            <Mail className="size-4 text-muted-foreground" />
+            <span>View last received email</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+}
+
+/** Desktop row: three zones separated by subtle vertical dividers. */
+function SubscriptionDesktopRow({
+  sub,
+  selected,
+  onToggleRow,
+  clutter,
+  briefing,
+  metricWidths,
+  onBriefing,
+  onUnsubscribe,
+  onViewLastBriefing,
+  onViewLastEmail,
+}: {
+  sub: Subscription;
+  selected: boolean;
+  onToggleRow: (id: string) => void;
+  clutter: number;
+  briefing: ResolvedBriefing | null;
+  metricWidths: MetricColumnWidths;
+  onBriefing: (sub: Subscription) => void;
+  onUnsubscribe: (sub: Subscription) => void;
+  onViewLastBriefing: (briefing: ResolvedBriefing) => void;
+  onViewLastEmail: (sub: Subscription) => void;
+}) {
+  return (
+    <div className="flex h-16 items-center border-b border-border/70 pl-3 pr-4 last:border-b-0">
+      {/* Zone 1: Contact & Identity — checkbox matches Select All size + left edge */}
+      <div className="flex w-[420px] shrink-0 items-center gap-3 border-r border-border/40 pr-5">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggleRow(sub.id)}
+          className="m-0 h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30"
+          aria-label={`Select ${sub.senderEmail}`}
+        />
+        <CompanyLogo
+          src={senderLogoSrc(sub.senderEmail)}
+          name={sub.senderName ?? sub.senderEmail}
+          size="md"
+        />
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p className="truncate text-sm font-medium text-foreground">
+              {sub.senderName ?? "—"}
+            </p>
+            {briefing ? (
+              <LastBriefingIconButton
+                briefing={briefing}
+                onView={onViewLastBriefing}
+              />
+            ) : null}
+          </div>
+          <p className="truncate text-xs text-muted-foreground">
+            {sub.senderEmail}
+          </p>
+        </div>
+      </div>
+
+      {/* Zone 2: Analytics & Metrics — centered; fixed per-type widths for column align */}
+      <div
+        className={cn(
+          "flex flex-1 items-center justify-center border-r border-border/40 px-5",
+          METRICS_GAP_CLASS
+        )}
+      >
+        <ClutterStatBadge score={clutter} width={metricWidths.clutter} />
+        <EmailsStatBadge count={sub.emailCount} width={metricWidths.emails} />
+        <LastReceivedStatBadge
+          date={sub.lastReceivedAt}
+          width={metricWidths.received}
+        />
+      </div>
+
+      {/* Zone 3: Actions */}
+      <div className="-mr-4 flex h-16 shrink-0 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-4 pr-4">
+        <SubscriptionRowActions
+          sub={sub}
+          onBriefing={onBriefing}
+          onUnsubscribe={onUnsubscribe}
+          onViewLastEmail={onViewLastEmail}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -972,6 +1310,7 @@ function ActiveDesktopTable({
   onBriefing,
   resolveBriefing,
   onViewLastBriefing,
+  onViewLastEmail,
 }: {
   subscriptions: Subscription[];
   selectedIds: string[];
@@ -980,118 +1319,34 @@ function ActiveDesktopTable({
   onBriefing: (sub: Subscription) => void;
   resolveBriefing: (sub: Subscription) => ResolvedBriefing | null;
   onViewLastBriefing: (briefing: ResolvedBriefing) => void;
+  onViewLastEmail: (sub: Subscription) => void;
 }) {
+  const metricWidths = useMemo(
+    () => computeMetricColumnWidths(subscriptions),
+    [subscriptions]
+  );
+
   return (
     <div className="hidden w-full overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm md:block">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-10 pl-3 pr-2" />
-            <TableHead>Sender</TableHead>
-            <TableHead>Clutter</TableHead>
-            <TableHead>Volume</TableHead>
-            <TableHead>Method</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Action</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {subscriptions.map((sub) => {
-            const method = methodBadge(sub);
-            const clutter = clutterForSub(sub);
-            const briefing = resolveBriefing(sub);
-            return (
-              <TableRow key={sub.id}>
-                <TableCell className="w-10 pl-3 pr-2 text-left">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(sub.id)}
-                    onChange={() => onToggleRow(sub.id)}
-                    className="m-0 h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-border text-[#3c837b] focus:ring-[#3c837b]/30"
-                    aria-label={`Select ${sub.senderEmail}`}
-                  />
-                </TableCell>
-                <TableCell>
-                  <div className="flex min-w-0 items-center gap-3">
-                    <CompanyLogo
-                      src={senderLogoSrc(sub.senderEmail)}
-                      name={sub.senderName ?? sub.senderEmail}
-                      size="md"
-                    />
-                    <div className="min-w-0">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <p className="truncate text-sm font-medium text-foreground">
-                          {sub.senderName ?? "—"}
-                        </p>
-                        {briefing ? (
-                          <button
-                            type="button"
-                            onClick={() => onViewLastBriefing(briefing)}
-                            className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-teal-700 transition-colors hover:bg-teal-700/10 dark:text-teal-400"
-                            title={
-                              briefing.source === "db"
-                                ? "View last briefing (cloud)"
-                                : "View last briefing (this device)"
-                            }
-                          >
-                            <Eye className="size-3" />
-                            Last Briefing
-                          </button>
-                        ) : null}
-                      </div>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {sub.senderEmail}
-                      </p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <ClutterScoreBadge score={clutter} />
-                </TableCell>
-                <TableCell>{sub.emailCount}</TableCell>
-                <TableCell>
-                  <Badge variant={method.variant}>{method.label}</Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant={
-                      sub.status === "FAILED" ? "destructive" : "secondary"
-                    }
-                    title={
-                      sub.status === "FAILED"
-                        ? sub.lastError ?? "Unknown failure"
-                        : undefined
-                    }
-                    className={
-                      sub.status === "FAILED" ? "cursor-help" : undefined
-                    }
-                  >
-                    {sub.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onBriefing(sub)}
-                    >
-                      Create Briefing
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onUnsubscribe(sub)}
-                    >
-                      Unsubscribe
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+      {subscriptions.map((sub) => {
+        const clutter = clutterForSub(sub);
+        const briefing = resolveBriefing(sub);
+        return (
+          <SubscriptionDesktopRow
+            key={sub.id}
+            sub={sub}
+            selected={selectedIds.includes(sub.id)}
+            onToggleRow={onToggleRow}
+            clutter={clutter}
+            briefing={briefing}
+            metricWidths={metricWidths}
+            onBriefing={onBriefing}
+            onUnsubscribe={onUnsubscribe}
+            onViewLastBriefing={onViewLastBriefing}
+            onViewLastEmail={onViewLastEmail}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -1104,6 +1359,7 @@ function ActiveMobileCards({
   onBriefing,
   resolveBriefing,
   onViewLastBriefing,
+  onViewLastEmail,
 }: {
   subscriptions: Subscription[];
   selectedIds: string[];
@@ -1112,11 +1368,16 @@ function ActiveMobileCards({
   onBriefing: (sub: Subscription) => void;
   resolveBriefing: (sub: Subscription) => ResolvedBriefing | null;
   onViewLastBriefing: (briefing: ResolvedBriefing) => void;
+  onViewLastEmail: (sub: Subscription) => void;
 }) {
+  const metricWidths = useMemo(
+    () => computeMetricColumnWidths(subscriptions),
+    [subscriptions]
+  );
+
   return (
     <ul className="space-y-3 md:hidden">
       {subscriptions.map((sub) => {
-        const method = methodBadge(sub);
         const clutter = clutterForSub(sub);
         const briefing = resolveBriefing(sub);
         return (
@@ -1124,15 +1385,15 @@ function ActiveMobileCards({
             key={sub.id}
             className="rounded-xl border border-border/50 bg-card p-4 shadow-sm"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.includes(sub.id)}
-                  onChange={() => onToggleRow(sub.id)}
-                  className="mt-1 h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-border text-[#3c837b] focus:ring-[#3c837b]/30"
-                  aria-label={`Select ${sub.senderEmail}`}
-                />
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(sub.id)}
+                onChange={() => onToggleRow(sub.id)}
+                className="m-0 h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30"
+                aria-label={`Select ${sub.senderEmail}`}
+              />
+              <div className="flex min-w-0 flex-1 items-center gap-3">
                 <CompanyLogo
                   src={senderLogoSrc(sub.senderEmail)}
                   name={sub.senderName ?? sub.senderEmail}
@@ -1144,14 +1405,10 @@ function ActiveMobileCards({
                       {sub.senderName ?? sub.senderEmail}
                     </p>
                     {briefing ? (
-                      <button
-                        type="button"
-                        onClick={() => onViewLastBriefing(briefing)}
-                        className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-teal-700 hover:bg-teal-700/10 dark:text-teal-400"
-                      >
-                        <Eye className="size-3" />
-                        Last Briefing
-                      </button>
+                      <LastBriefingIconButton
+                        briefing={briefing}
+                        onView={onViewLastBriefing}
+                      />
                     ) : null}
                   </div>
                   <p className="truncate text-xs text-muted-foreground">
@@ -1159,38 +1416,21 @@ function ActiveMobileCards({
                   </p>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1">
-                <ClutterScoreBadge score={clutter} />
-                <Badge variant={method.variant}>{method.label}</Badge>
-              </div>
             </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span
-                className="text-muted-foreground"
-                title={
-                  sub.status === "FAILED"
-                    ? sub.lastError ?? "Unknown failure"
-                    : undefined
-                }
-              >
-                {sub.emailCount} email{sub.emailCount === 1 ? "" : "s"} ·{" "}
-                {sub.status}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onBriefing(sub)}
-                >
-                  Create Briefing
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onUnsubscribe(sub)}
-                >
-                  Unsubscribe
-                </Button>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <AnalyticsMetrics
+                clutter={clutter}
+                emailCount={sub.emailCount}
+                lastReceivedAt={sub.lastReceivedAt}
+                widths={metricWidths}
+              />
+              <div className="flex shrink-0 items-center justify-end gap-2.5">
+                <SubscriptionRowActions
+                  sub={sub}
+                  onBriefing={onBriefing}
+                  onUnsubscribe={onUnsubscribe}
+                  onViewLastEmail={onViewLastEmail}
+                />
               </div>
             </div>
           </li>
@@ -1234,7 +1474,10 @@ function ArchiveCard({
           </p>
         </div>
         {entry.emailCount != null ? (
-          <ClutterScoreBadge score={clutter} />
+          <div className="flex shrink-0 items-center gap-4">
+            <ClutterStatBadge score={clutter} />
+            <EmailsStatBadge count={entry.emailCount} />
+          </div>
         ) : null}
       </div>
       <Button

@@ -12,7 +12,7 @@ import {
   ExternalLink,
   Mail,
   MapPin,
-  MoreHorizontal,
+  MoreVertical,
   RotateCcw,
   Send,
   Sparkles,
@@ -38,9 +38,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CompanyLogo } from "@/components/ui/company-logo";
+import { ReceivedMeta } from "@/components/ui/received-meta";
+import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/score-percent";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
+import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { canDraftDirectEmail } from "@/lib/application-method";
-import { formatDistanceToNow } from "@/lib/format-distance";
 import {
   daysRemainingUntilPurge,
   isUserArchived,
@@ -128,9 +131,6 @@ export function OpportunityCard({
     opportunity.dismissedAt,
     retentionDays
   );
-  const receivedLabel = formatDistanceToNow(new Date(opportunity.receivedAt), {
-    addSuffix: true,
-  });
   const salaryRaw = opportunity.salary?.trim() ?? "";
   const salaryLabel =
     !salaryRaw || /^\$?\s*tbd\b/i.test(salaryRaw) ? "$TBD" : salaryRaw;
@@ -193,8 +193,7 @@ export function OpportunityCard({
       ? "Easy Apply"
       : "External";
 
-  const secondaryBtnClass =
-    "inline-flex items-center gap-1.5 rounded-lg border border-[#3c837b]/40 px-3 py-1.5 text-xs font-medium text-[#3c837b] transition-colors hover:border-[#3c837b] hover:bg-[#3c837b]/10 disabled:opacity-50";
+  const secondaryBtnClass = SECONDARY_ACTION_BTN_CLASSNAME;
 
   const showOverflowMenu =
     variant === "leads" || variant === "applied" || variant === "action";
@@ -290,7 +289,8 @@ export function OpportunityCard({
         ) : (
           <div
             className={cn(
-              "inline-flex items-center px-2.5 text-xs font-bold tracking-tight tabular-nums",
+              "inline-flex items-center px-2.5",
+              SCORE_PERCENT_CLASSNAME,
               scoreTone(score)
             )}
             title={opportunity.matchReason ?? undefined}
@@ -362,13 +362,7 @@ export function OpportunityCard({
               </span>
             </>
           ) : null}
-          <span
-            className="inline-flex items-center gap-1.5"
-            title={`Received: ${receivedLabel}`}
-          >
-            <Send className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-            <span>{receivedLabel}</span>
-          </span>
+          <ReceivedMeta date={opportunity.receivedAt} />
         </div>
       </div>
 
@@ -398,7 +392,7 @@ export function OpportunityCard({
               href={opportunity.applyUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+              className={PRIMARY_ACTION_BTN_CLASSNAME}
             >
               View Posting
               <ExternalLink className="h-3.5 w-3.5" />
@@ -510,7 +504,7 @@ export function OpportunityCard({
                   disabled={busy}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/50 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
                 >
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreVertical className="h-4 w-4" />
                   <span className="sr-only">More actions</span>
                 </Button>
               </DropdownMenuTrigger>
@@ -555,7 +549,7 @@ export function OpportunityCard({
                   disabled={busy}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/50 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
                 >
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreVertical className="h-4 w-4" />
                   <span className="sr-only">More actions</span>
                 </Button>
               </DropdownMenuTrigger>
