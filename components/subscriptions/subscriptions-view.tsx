@@ -10,20 +10,22 @@ import {
 import { useRouter } from "next/navigation";
 import type { Subscription, SubscriptionHistory } from "@prisma/client";
 import {
+  Archive,
   BadgeInfo,
+  DatabaseX,
   Eye,
   Loader2,
   Mail,
-  MailX,
-  MoreVertical,
-  Newspaper,
   Send,
+  Summary,
   Trash2,
+  UserRoundMinus,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   batchCleanupSender,
+  deleteUnsubscribedRecord,
   unsubscribeSender,
 } from "@/app/actions/subscriptions";
 import { SyncControls } from "@/components/opportunities/sync-controls";
@@ -31,6 +33,8 @@ import { BriefingDialog } from "@/components/subscriptions/briefing-dialog";
 import { EmailPreviewDialog } from "@/components/subscriptions/email-preview-dialog";
 import { SubscriptionsToolbar } from "@/components/subscriptions/subscriptions-toolbar";
 import { Button } from "@/components/ui/button";
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
+import { RowMenuTrigger } from "@/components/ui/row-menu-trigger";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import {
   Dialog,
@@ -52,7 +56,6 @@ import {
   segmentedTabsTriggerClassName,
   TabCountBadge,
 } from "@/components/ui/segmented-tabs";
-import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
 import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/score-percent";
 import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -95,6 +98,36 @@ const CLUTTER_VALUE_CLASSES: Record<ClutterScoreTier, string> = {
   mid: "bg-amber-500/10 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
   low: "border-transparent bg-emerald-500/10 text-emerald-600 dark:bg-teal-950/40 dark:text-emerald-400",
 };
+
+/** Matches the row Unsubscribe CTA (dark shell + mint text). */
+const UNSUBSCRIBE_CTA_CLASSNAME =
+  "inline-flex items-center justify-center gap-1.5 rounded-md border border-[#e4f7f3] bg-[#181e26]/85 px-3 py-1.5 text-xs font-medium text-[#e4f7f3] transition-colors hover:bg-[#181e26] hover:text-[#e4f7f3] disabled:pointer-events-none disabled:opacity-50";
+
+const UNSUBSCRIBE_OPTIONS: {
+  value: CleanupAction;
+  label: string;
+  description: string;
+  icon: typeof UserRoundMinus;
+}[] = [
+  {
+    value: "NONE",
+    label: "Unsubscribe only",
+    description: "Leave the list. Past mail stays where it is.",
+    icon: UserRoundMinus,
+  },
+  {
+    value: "TRASH",
+    label: "Unsubscribe and delete emails",
+    description: "Also move past mail from this sender to Trash.",
+    icon: Trash2,
+  },
+  {
+    value: "ARCHIVE",
+    label: "Unsubscribe and archive emails",
+    description: "Also archive past mail from this sender in Gmail.",
+    icon: Archive,
+  },
+];
 
 const SUBSCRIPTIONS_PAGE_SIZE_KEY = "mailpilot_subscriptions_per_page";
 
@@ -188,7 +221,14 @@ export function SubscriptionsView({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [cleanupPending, setCleanupPending] = useState<string | null>(null);
+  const [cleanupChoice, setCleanupChoice] =
+    useState<CleanupAction>(defaultCleanup);
+  const [deleteRecordTarget, setDeleteRecordTarget] =
+    useState<ArchiveEntry | null>(null);
+  const [deleteRecordPending, setDeleteRecordPending] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
+
+  const unsubscribeDialogOpen = Boolean(selected) || batchConfirmOpen;
 
   const [clutterThreshold, setClutterThresholdState] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -206,6 +246,13 @@ export function SubscriptionsView({
       setClutterThresholdState(stored);
     }
   }, [accountId]);
+
+  useEffect(() => {
+    if (unsubscribeDialogOpen) {
+      setCleanupChoice(defaultCleanup);
+      setError(null);
+    }
+  }, [unsubscribeDialogOpen, defaultCleanup]);
 
   function setClutterThreshold(value: number) {
     const next = Math.max(0, Math.min(100, Math.round(value)));
@@ -551,6 +598,30 @@ export function SubscriptionsView({
     });
   }
 
+  function runDeleteUnsubscribedRecord() {
+    if (!deleteRecordTarget) return;
+    const entry = deleteRecordTarget;
+    setDeleteRecordPending(true);
+    startTransition(async () => {
+      const result = await deleteUnsubscribedRecord(
+        accountId,
+        entry.senderEmail
+      );
+      setDeleteRecordPending(false);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      if (entry.subscriptionId) {
+        deleteLocalBriefings(accountId, [entry.subscriptionId]);
+        setLocalBriefings(listLocalBriefings(accountId));
+      }
+      setDeleteRecordTarget(null);
+      toast.success("Record deleted");
+      router.refresh();
+    });
+  }
+
   const toolbarTotal =
     activeTab === "active" ? active.length : archive.length;
   const toolbarVisible =
@@ -774,27 +845,20 @@ export function SubscriptionsView({
             />
           ) : (
             <>
-              <div className="hidden space-y-3 md:block">
-                {paginatedArchive.map((entry) => (
-                  <ArchiveCard
-                    key={entry.key}
-                    entry={entry}
-                    pending={cleanupPending === entry.key || pending}
-                    onCleanup={() => runBatchCleanup(entry)}
-                  />
-                ))}
-              </div>
-              <ul className="space-y-3 md:hidden">
-                {paginatedArchive.map((entry) => (
-                  <li key={entry.key}>
-                    <ArchiveCard
-                      entry={entry}
-                      pending={cleanupPending === entry.key || pending}
-                      onCleanup={() => runBatchCleanup(entry)}
-                    />
-                  </li>
-                ))}
-              </ul>
+              <ArchiveDesktopTable
+                entries={paginatedArchive}
+                cleanupPendingKey={cleanupPending}
+                pending={pending || deleteRecordPending}
+                onCleanup={runBatchCleanup}
+                onDeleteRecord={setDeleteRecordTarget}
+              />
+              <ArchiveMobileCards
+                entries={paginatedArchive}
+                cleanupPendingKey={cleanupPending}
+                pending={pending || deleteRecordPending}
+                onCleanup={runBatchCleanup}
+                onDeleteRecord={setDeleteRecordTarget}
+              />
               <PipelinePaginationFooter
                 currentPage={currentPage}
                 totalPages={totalPages}
@@ -877,13 +941,17 @@ export function SubscriptionsView({
       </Dialog>
 
       <Dialog
-        open={Boolean(selected) || batchConfirmOpen}
-        onOpenChange={(open) => !open && closeUnsubscribeDialog()}
+        open={unsubscribeDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && !pending) closeUnsubscribeDialog();
+        }}
       >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Unsubscribe</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
+          <DialogHeader className="space-y-1 border-b border-border/60 px-6 pb-3 pt-5 pr-12 text-left">
+            <DialogTitle className="text-lg font-semibold leading-tight tracking-tight">
+              Unsubscribe
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
               {batchConfirmOpen ? (
                 <>
                   Choose how to leave{" "}
@@ -897,60 +965,118 @@ export function SubscriptionsView({
                 <>
                   Choose how to leave{" "}
                   <span className="font-medium text-foreground">
-                    {selected?.senderEmail}
+                    {selected?.senderName ?? selected?.senderEmail}
                   </span>
+                  {selected?.senderName ? (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · {selected.senderEmail}
+                    </span>
+                  ) : null}
                   .
                 </>
               )}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-2">
-            <Button
-              className="w-full justify-start"
-              variant={defaultCleanup === "NONE" ? "default" : "outline"}
-              disabled={pending}
-              onClick={() => runUnsubscribe("NONE")}
+          <div className="space-y-3 px-6 py-4">
+            <div
+              className="overflow-hidden rounded-lg border border-border/60 bg-muted/20"
+              role="radiogroup"
+              aria-label="Unsubscribe options"
             >
-              Unsubscribe Only
-            </Button>
-            <Button
-              className="w-full justify-start"
-              variant={defaultCleanup === "TRASH" ? "default" : "outline"}
-              disabled={pending}
-              onClick={() => runUnsubscribe("TRASH")}
-            >
-              Unsubscribe + Trash All Past
-            </Button>
-            <Button
-              className="w-full justify-start"
-              variant={defaultCleanup === "ARCHIVE" ? "default" : "outline"}
-              disabled={pending}
-              onClick={() => runUnsubscribe("ARCHIVE")}
-            >
-              Unsubscribe and archive past emails
-            </Button>
+              {UNSUBSCRIBE_OPTIONS.map((option, index) => {
+                const selectedOption = cleanupChoice === option.value;
+                const Icon = option.icon;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selectedOption}
+                    disabled={pending}
+                    onClick={() => setCleanupChoice(option.value)}
+                    className={cn(
+                      "flex w-full items-start gap-3 px-3.5 py-3 text-left transition-colors disabled:opacity-50",
+                      index > 0 && "border-t border-border/50",
+                      selectedOption
+                        ? "bg-background"
+                        : "hover:bg-background/70"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+                        selectedOption
+                          ? "border-[#1ab5af] bg-[#1ab5af]"
+                          : "border-muted-foreground/40"
+                      )}
+                      aria-hidden
+                    >
+                      {selectedOption ? (
+                        <span className="size-1.5 rounded-full bg-white" />
+                      ) : null}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                        <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+                        {option.label}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        {option.description}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {error ? (
+              <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
+            ) : null}
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <DialogFooter>
+          <DialogFooter className="gap-2 border-t border-border/60 bg-muted/20 px-6 py-3 sm:justify-end">
             <Button
+              type="button"
               variant="ghost"
+              size="sm"
+              className="h-9"
               disabled={pending}
               onClick={closeUnsubscribeDialog}
             >
               Cancel
             </Button>
-            {pending && (
-              <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Working…
-              </span>
-            )}
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => runUnsubscribe(cleanupChoice)}
+              className={cn(UNSUBSCRIBE_CTA_CLASSNAME, "h-9 px-3.5")}
+            >
+              {pending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <UserRoundMinus className="h-3.5 w-3.5" />
+              )}
+              <span>{pending ? "Working…" : "Unsubscribe"}</span>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={Boolean(deleteRecordTarget)}
+        onOpenChange={(open) => {
+          if (!open && !deleteRecordPending) setDeleteRecordTarget(null);
+        }}
+        title="Delete record"
+        description="Are you sure? This can't be undone."
+        confirmLabel="Delete Record"
+        pending={deleteRecordPending}
+        onConfirm={runDeleteUnsubscribedRecord}
+      />
     </div>
   );
 }
@@ -973,7 +1099,7 @@ function IconStatBadge({
   truncateValue = false,
   title,
 }: {
-  icon: ReactNode;
+  icon?: ReactNode;
   value: string;
   valueClassName?: string;
   className?: string;
@@ -986,15 +1112,17 @@ function IconStatBadge({
   const badge = (
     <div
       className={cn(
-        "inline-flex h-[30px] shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/60 shadow-sm",
+        "inline-flex h-[30px] shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/40",
         width ? null : "min-w-[54px]",
         className
       )}
       style={width ? { width } : undefined}
     >
-      <div className="flex w-7 shrink-0 items-center justify-center border-r border-border/40 bg-muted/40 text-muted-foreground/75">
-        {icon}
-      </div>
+      {icon ? (
+        <div className="flex w-7 shrink-0 items-center justify-center border-r border-border/40 bg-muted/40 text-muted-foreground/75">
+          {icon}
+        </div>
+      ) : null}
       <div
         className={cn(
           "flex min-w-0 flex-1 items-center justify-center px-1.5",
@@ -1038,16 +1166,17 @@ type MetricColumnWidths = {
 
 /** Width each badge type to the widest value on the current page for vertical alignment. */
 function computeMetricColumnWidths(
-  subscriptions: Subscription[]
+  items: { emailCount: number }[]
 ): MetricColumnWidths {
   let maxEmailChars = 1;
-  for (const sub of subscriptions) {
-    maxEmailChars = Math.max(maxEmailChars, String(sub.emailCount).length);
+  for (const item of items) {
+    maxEmailChars = Math.max(maxEmailChars, String(item.emailCount).length);
   }
-  // Icon rail (~2.5ch) + value. Received capped; longer times ellipsis.
-  const clutterCh = Math.max(6.5, 5);
+  // Value-only clutter; icon rail (~2.5ch) + value for the others. Received capped.
+  const clutterCh = 4.5;
   const emailsCh = Math.max(6.5, maxEmailChars + 3.5);
-  const receivedCh = 13;
+  // Fits short labels like "11mo ago" (+ icon rail); longer values ellipsis.
+  const receivedCh = 9.5;
   return {
     clutter: `${clutterCh}ch`,
     emails: `${emailsCh}ch`,
@@ -1066,22 +1195,6 @@ function ClutterStatBadge({
   return (
     <IconStatBadge
       title="Clutter score"
-      icon={
-        <span
-          aria-hidden
-          className="size-8 bg-muted-foreground/90"
-          style={{
-            maskImage: "url(/icons/clutter2.png)",
-            maskSize: "contain",
-            maskRepeat: "no-repeat",
-            maskPosition: "center",
-            WebkitMaskImage: "url(/icons/clutter2.png)",
-            WebkitMaskSize: "contain",
-            WebkitMaskRepeat: "no-repeat",
-            WebkitMaskPosition: "center",
-          }}
-        />
-      }
       value={`${score}%`}
       valueClassName={CLUTTER_VALUE_CLASSES[tier]}
       width={width}
@@ -1121,7 +1234,7 @@ function LastReceivedStatBadge({
       icon={<Send className="size-3.5" aria-hidden />}
       value={value}
       valueClassName="bg-background font-medium tracking-normal text-muted-foreground/70"
-      width={width ?? "13ch"}
+      width={width ?? "9.5ch"}
       truncateValue
     />
   );
@@ -1143,9 +1256,9 @@ function AnalyticsMetrics({
 }) {
   return (
     <div className={cn("flex items-center", METRICS_GAP_CLASS)}>
-      <ClutterStatBadge score={clutter} width={widths?.clutter} />
-      <EmailsStatBadge count={emailCount} width={widths?.emails} />
       <LastReceivedStatBadge date={lastReceivedAt} width={widths?.received} />
+      <EmailsStatBadge count={emailCount} width={widths?.emails} />
+      <ClutterStatBadge score={clutter} width={widths?.clutter} />
     </div>
   );
 }
@@ -1193,39 +1306,33 @@ function SubscriptionRowActions({
         onClick={() => onBriefing(sub)}
         className={SECONDARY_ACTION_BTN_CLASSNAME}
       >
-        <Newspaper className="h-3.5 w-3.5" />
+        <Summary className="h-3.5 w-3.5" />
         <span>Create Briefing</span>
       </button>
-      <button
-        type="button"
-        onClick={() => onUnsubscribe(sub)}
-        className={PRIMARY_ACTION_BTN_CLASSNAME}
-      >
-        <MailX className="h-3.5 w-3.5" />
-        <span>Unsubscribe</span>
-      </button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8 rounded-lg border-border/70 text-muted-foreground hover:bg-muted/50"
-            aria-label="More actions"
-          >
-            <MoreVertical className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem
-            className="cursor-pointer gap-2"
-            onClick={() => onViewLastEmail(sub)}
-          >
-            <Mail className="size-4 text-muted-foreground" />
-            <span>View last received email</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="flex items-center gap-0.5">
+        <button
+          type="button"
+          onClick={() => onUnsubscribe(sub)}
+          className={UNSUBSCRIBE_CTA_CLASSNAME}
+        >
+          <UserRoundMinus className="h-3.5 w-3.5" />
+          <span>Unsubscribe</span>
+        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <RowMenuTrigger label="Subscription actions" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem
+              className="cursor-pointer gap-2"
+              onClick={() => onViewLastEmail(sub)}
+            >
+              <Mail className="size-4 text-muted-foreground" />
+              <span>View last received email</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </>
   );
 }
@@ -1256,8 +1363,8 @@ function SubscriptionDesktopRow({
 }) {
   return (
     <div className="flex h-16 items-center border-b border-border/70 pl-3 pr-4 last:border-b-0">
-      {/* Zone 1: Contact & Identity — checkbox matches Select All size + left edge */}
-      <div className="flex w-[420px] shrink-0 items-center gap-3 border-r border-border/40 pr-5">
+      {/* Zone 1: Contact & Identity — grows so the first divider sits closer to metrics */}
+      <div className="flex min-w-0 flex-1 items-center gap-3 border-r border-border/40 pr-5">
         <input
           type="checkbox"
           checked={selected}
@@ -1288,23 +1395,23 @@ function SubscriptionDesktopRow({
         </div>
       </div>
 
-      {/* Zone 2: Analytics & Metrics — centered; fixed per-type widths for column align */}
+      {/* Zone 2: Analytics — shrink-wrapped to the pills (no flex grow) */}
       <div
         className={cn(
-          "flex flex-1 items-center justify-center border-r border-border/40 px-5",
+          "flex shrink-0 items-center border-r border-border/40 px-3",
           METRICS_GAP_CLASS
         )}
       >
-        <ClutterStatBadge score={clutter} width={metricWidths.clutter} />
-        <EmailsStatBadge count={sub.emailCount} width={metricWidths.emails} />
         <LastReceivedStatBadge
           date={sub.lastReceivedAt}
           width={metricWidths.received}
         />
+        <EmailsStatBadge count={sub.emailCount} width={metricWidths.emails} />
+        <ClutterStatBadge score={clutter} width={metricWidths.clutter} />
       </div>
 
       {/* Zone 3: Actions */}
-      <div className="-mr-4 flex h-16 shrink-0 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-4 pr-4">
+      <div className="-mr-4 flex h-16 shrink-0 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-4 pr-1">
         <SubscriptionRowActions
           sub={sub}
           onBriefing={onBriefing}
@@ -1445,7 +1552,7 @@ function ActiveMobileCards({
                 lastReceivedAt={sub.lastReceivedAt}
                 widths={metricWidths}
               />
-              <div className="flex shrink-0 items-center justify-end gap-2.5">
+              <div className="-mr-1.5 flex shrink-0 items-center justify-end gap-2.5">
                 <SubscriptionRowActions
                   sub={sub}
                   onBriefing={onBriefing}
@@ -1461,60 +1568,233 @@ function ActiveMobileCards({
   );
 }
 
-function ArchiveCard({
-  entry,
-  pending,
-  onCleanup,
-}: {
-  entry: ArchiveEntry;
-  pending: boolean;
-  onCleanup: () => void;
-}) {
-  const clutter = subscriptionClutterScore({
+function clutterForArchiveEntry(entry: ArchiveEntry): number {
+  return subscriptionClutterScore({
     emailCount: entry.emailCount ?? 0,
     lastReceivedAt: entry.lastReceivedAt,
   });
+}
+
+function ArchiveCleanupButton({
+  pending,
+  onCleanup,
+}: {
+  pending: boolean;
+  onCleanup: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={onCleanup}
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[#e4f7f3] bg-[#ed1d24] px-3 py-1.5 text-xs font-medium text-[#e4f7f3] transition-colors hover:bg-[#ef4444]/90 hover:text-[#e4f7f3] disabled:opacity-50"
+    >
+      {pending ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Trash2 className="h-3.5 w-3.5" />
+      )}
+      <span>Delete Emails</span>
+    </button>
+  );
+}
+
+function ArchiveRowActions({
+  entry,
+  pending,
+  onCleanup,
+  onDeleteRecord,
+}: {
+  entry: ArchiveEntry;
+  pending: boolean;
+  onCleanup: (entry: ArchiveEntry) => void;
+  onDeleteRecord: (entry: ArchiveEntry) => void;
+}) {
+  return (
+    <div className="flex items-center gap-0.5">
+      <ArchiveCleanupButton
+        pending={pending}
+        onCleanup={() => onCleanup(entry)}
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <RowMenuTrigger label="Archive actions" disabled={pending} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem
+            className="cursor-pointer gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+            onClick={() => onDeleteRecord(entry)}
+          >
+            <DatabaseX className="size-4" />
+            <span>Delete Record</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+function ArchiveDesktopRow({
+  entry,
+  pending,
+  metricWidths,
+  onCleanup,
+  onDeleteRecord,
+}: {
+  entry: ArchiveEntry;
+  pending: boolean;
+  metricWidths: MetricColumnWidths;
+  onCleanup: (entry: ArchiveEntry) => void;
+  onDeleteRecord: (entry: ArchiveEntry) => void;
+}) {
+  const clutter = clutterForArchiveEntry(entry);
+  const emailCount = entry.emailCount ?? 0;
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border/50 bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-center gap-3">
+    <div className="flex h-16 items-center border-b border-border/70 pl-3 pr-4 last:border-b-0">
+      <div className="flex min-w-0 flex-1 items-center gap-3 border-r border-border/40 pr-5">
         <CompanyLogo
           src={senderLogoSrc(entry.senderEmail)}
           name={entry.senderName ?? entry.senderEmail}
           size="md"
         />
         <div className="min-w-0">
-          <p className="truncate font-medium">
-            {entry.senderName ?? entry.senderEmail}
+          <p className="truncate text-sm font-medium text-foreground">
+            {entry.senderName ?? "—"}
           </p>
-          <p className="truncate text-sm text-muted-foreground">
+          <p className="truncate text-xs text-muted-foreground">
             {entry.senderEmail}
-            {entry.emailCount != null
-              ? ` · ${entry.emailCount} tracked`
-              : " · from history"}
           </p>
         </div>
-        {entry.emailCount != null ? (
-          <div className="flex shrink-0 items-center gap-4">
-            <ClutterStatBadge score={clutter} />
-            <EmailsStatBadge count={entry.emailCount} />
-          </div>
-        ) : null}
       </div>
-      <Button
-        variant="destructive"
-        size="sm"
-        disabled={pending}
-        onClick={onCleanup}
-        className="shrink-0"
-      >
-        {pending ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Trash2 className="h-4 w-4" />
+
+      <div
+        className={cn(
+          "flex shrink-0 items-center border-r border-border/40 px-3",
+          METRICS_GAP_CLASS
         )}
-        Delete All Emails
-      </Button>
+      >
+        <LastReceivedStatBadge
+          date={entry.lastReceivedAt}
+          width={metricWidths.received}
+        />
+        <EmailsStatBadge count={emailCount} width={metricWidths.emails} />
+        <ClutterStatBadge score={clutter} width={metricWidths.clutter} />
+      </div>
+
+      <div className="-mr-4 flex h-16 shrink-0 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-4 pr-1">
+        <ArchiveRowActions
+          entry={entry}
+          pending={pending}
+          onCleanup={onCleanup}
+          onDeleteRecord={onDeleteRecord}
+        />
+      </div>
     </div>
+  );
+}
+
+function ArchiveDesktopTable({
+  entries,
+  cleanupPendingKey,
+  pending,
+  onCleanup,
+  onDeleteRecord,
+}: {
+  entries: ArchiveEntry[];
+  cleanupPendingKey: string | null;
+  pending: boolean;
+  onCleanup: (entry: ArchiveEntry) => void;
+  onDeleteRecord: (entry: ArchiveEntry) => void;
+}) {
+  const metricWidths = useMemo(
+    () =>
+      computeMetricColumnWidths(
+        entries.map((entry) => ({ emailCount: entry.emailCount ?? 0 }))
+      ),
+    [entries]
+  );
+
+  return (
+    <div className="hidden w-full overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm md:block">
+      {entries.map((entry) => (
+        <ArchiveDesktopRow
+          key={entry.key}
+          entry={entry}
+          pending={cleanupPendingKey === entry.key || pending}
+          metricWidths={metricWidths}
+          onCleanup={onCleanup}
+          onDeleteRecord={onDeleteRecord}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ArchiveMobileCards({
+  entries,
+  cleanupPendingKey,
+  pending,
+  onCleanup,
+  onDeleteRecord,
+}: {
+  entries: ArchiveEntry[];
+  cleanupPendingKey: string | null;
+  pending: boolean;
+  onCleanup: (entry: ArchiveEntry) => void;
+  onDeleteRecord: (entry: ArchiveEntry) => void;
+}) {
+  const metricWidths = useMemo(
+    () =>
+      computeMetricColumnWidths(
+        entries.map((entry) => ({ emailCount: entry.emailCount ?? 0 }))
+      ),
+    [entries]
+  );
+
+  return (
+    <ul className="space-y-3 md:hidden">
+      {entries.map((entry) => {
+        const clutter = clutterForArchiveEntry(entry);
+        return (
+          <li
+            key={entry.key}
+            className="rounded-xl border border-border/50 bg-card p-4 shadow-sm"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <CompanyLogo
+                src={senderLogoSrc(entry.senderEmail)}
+                name={entry.senderName ?? entry.senderEmail}
+                size="md"
+              />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-foreground">
+                  {entry.senderName ?? entry.senderEmail}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {entry.senderEmail}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <AnalyticsMetrics
+                clutter={clutter}
+                emailCount={entry.emailCount ?? 0}
+                lastReceivedAt={entry.lastReceivedAt}
+                widths={metricWidths}
+              />
+              <div className="-mr-1.5">
+                <ArchiveRowActions
+                  entry={entry}
+                  pending={cleanupPendingKey === entry.key || pending}
+                  onCleanup={onCleanup}
+                  onDeleteRecord={onDeleteRecord}
+                />
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

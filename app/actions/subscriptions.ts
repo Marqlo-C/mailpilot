@@ -232,3 +232,92 @@ export async function batchCleanupSender(
     };
   }
 }
+
+/**
+ * Permanently removes an unsubscribed sender from Subscription + SubscriptionHistory
+ * so it no longer appears on the Unsubscribed tab. Does not touch Gmail mail.
+ */
+export async function deleteUnsubscribedRecord(
+  accountId: string,
+  senderEmail: string
+): Promise<ActionResult> {
+  const parsed = z
+    .object({
+      accountId: z.string().min(1),
+      senderEmail: z.string().email().or(z.string().min(3)),
+    })
+    .safeParse({ accountId, senderEmail });
+
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid account or sender email" };
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: parsed.data.accountId },
+  });
+
+  if (!account) {
+    return { ok: false, error: "Account not found" };
+  }
+
+  const normalizedSender = parsed.data.senderEmail.toLowerCase();
+
+  const subscription = await prisma.subscription.findUnique({
+    where: {
+      accountId_senderEmail: {
+        accountId: account.id,
+        senderEmail: normalizedSender,
+      },
+    },
+  });
+
+  if (subscription && subscription.status !== "UNSUBSCRIBED") {
+    return {
+      ok: false,
+      error: "Only unsubscribed records can be deleted from the archive.",
+    };
+  }
+
+  const profile = await ensurePersistentProfileForAccount(account);
+  const history = await prisma.subscriptionHistory.findUnique({
+    where: {
+      userProfileId_senderEmail: {
+        userProfileId: profile.id,
+        senderEmail: normalizedSender,
+      },
+    },
+  });
+
+  if (!subscription && !history) {
+    return { ok: false, error: "Record not found" };
+  }
+
+  if (history && history.status !== "UNSUBSCRIBED") {
+    return {
+      ok: false,
+      error: "Only unsubscribed records can be deleted from the archive.",
+    };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (subscription?.status === "UNSUBSCRIBED") {
+        await tx.subscription.delete({ where: { id: subscription.id } });
+      }
+      if (history?.status === "UNSUBSCRIBED") {
+        await tx.subscriptionHistory.delete({ where: { id: history.id } });
+      }
+    });
+
+    revalidatePath("/subscriptions");
+    revalidatePath("/");
+    return { ok: true };
+  } catch (error) {
+    console.error("deleteUnsubscribedRecord failed", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to delete record",
+    };
+  }
+}

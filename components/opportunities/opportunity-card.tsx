@@ -12,7 +12,6 @@ import {
   ExternalLink,
   Mail,
   MapPin,
-  MoreVertical,
   RotateCcw,
   Send,
   Sparkles,
@@ -29,7 +28,6 @@ import {
   dismissOpportunities,
   restoreOpportunities,
 } from "@/app/actions/opportunities";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +35,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { RowMenuTrigger } from "@/components/ui/row-menu-trigger";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { ReceivedMeta } from "@/components/ui/received-meta";
 import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/score-percent";
@@ -385,7 +384,7 @@ export function OpportunityCard({
       </div>
 
       {/* 5. Pinned bottom action bar — primary left, overflow menu right */}
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/[0.12] px-4 py-3 sm:px-5">
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/[0.12] py-3 pl-4 pr-2 sm:pl-5 sm:pr-2.5">
         <div className="flex flex-wrap items-center gap-2">
           {opportunity.applyUrl ? (
             <a
@@ -497,16 +496,7 @@ export function OpportunityCard({
           {showOverflowMenu ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={busy}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/50 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                  <span className="sr-only">More actions</span>
-                </Button>
+                <RowMenuTrigger label="Job actions" disabled={busy} />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {(variant === "leads" || variant === "applied") && (
@@ -542,16 +532,7 @@ export function OpportunityCard({
           {variant === "history" ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={busy}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/50 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                  <span className="sr-only">More actions</span>
-                </Button>
+                <RowMenuTrigger label="Job actions" disabled={busy} />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {opportunity.isArchived && !dismissed ? (
