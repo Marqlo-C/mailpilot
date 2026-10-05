@@ -323,6 +323,64 @@ export function SubscriptionsView({
       .sort((a, b) => compareSubscriptionsBySort(a, b, sortOption));
   }, [active, clutterThreshold, searchQuery, categoryFilter, sortOption]);
 
+  // #region agent log
+  useEffect(() => {
+    const excludedByClutter = active
+      .map((sub) => {
+        const clutter =
+          typeof sub.clutterScore === "number" && sub.clutterScore > 0
+            ? sub.clutterScore
+            : subscriptionClutterScore(sub);
+        return {
+          id: sub.id,
+          senderEmail: sub.senderEmail,
+          status: sub.status,
+          emailCount: sub.emailCount,
+          clutterScore: sub.clutterScore,
+          effectiveClutter: clutter,
+          excludedByClutter: clutter < clutterThreshold,
+        };
+      })
+      .filter((row) => row.excludedByClutter);
+
+    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "3c315a",
+      },
+      body: JSON.stringify({
+        sessionId: "3c315a",
+        runId: "pre-fix",
+        hypothesisId: "S1-S4",
+        location: "subscriptions-view.tsx:filteredActive",
+        message: "Active list filter snapshot",
+        data: {
+          clutterThreshold,
+          searchQuery: searchQuery.trim(),
+          categoryFilter,
+          activeCount: active.length,
+          filteredActiveCount: filteredActive.length,
+          zeroEmailCount: active.filter((s) => s.emailCount === 0).length,
+          excludedByClutterCount: excludedByClutter.length,
+          excludedByClutter: excludedByClutter.slice(0, 20),
+          statusCounts: {
+            ACTIVE: active.filter((s) => s.status === "ACTIVE").length,
+            FAILED: active.filter((s) => s.status === "FAILED").length,
+          },
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+  }, [
+    active,
+    filteredActive,
+    clutterThreshold,
+    searchQuery,
+    categoryFilter,
+  ]);
+  // #endregion
+
   const filteredArchive = useMemo(() => {
     return archive
       .filter((entry) => {
