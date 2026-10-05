@@ -255,12 +255,15 @@ function parseFromEmail(fromRaw: string): { name: string; email: string } {
   return { name: email, email };
 }
 
-/** Strip tracking chrome / bot boilerplate before summarizing. */
+/** Strip tracking chrome / bot boilerplate / leaked URLs before summarizing. */
 export function cleanDigestSummaryText(raw: string): string {
   let text = raw
     .replace(/data:[a-z0-9+.-]+\/[a-z0-9+.-]+;base64,[a-z0-9+/=\s]+/gi, " ")
     .replace(/\[[^\]]{0,12}\]:\s*#[0-9a-f]{6,}\b/gi, " ")
     .replace(/\{?\s*"?[a-f0-9]{32,}"?\s*\}?/gi, " ")
+    // Bare tracker / click / http(s) URLs must never leak into visible copy.
+    .replace(/https?:\/\/[^\s<>"')\]]+/gi, " ")
+    .replace(/\bwww\.[^\s<>"')\]]+/gi, " ")
     .replace(
       /reply to this email directly or view it on github:?\s*/gi,
       " "
@@ -310,39 +313,21 @@ function formatReceivedAt(date: Date | null): string {
   }
 }
 
-type SenderGroup = {
-  fromEmail: string;
-  from: string;
-  logoUrl: string | null;
-  cards: DigestCard[];
-};
-
-function groupCardsBySender(cards: DigestCard[]): SenderGroup[] {
-  const order: string[] = [];
-  const map = new Map<string, SenderGroup>();
+function formatSenderList(cards: DigestCard[]): string {
+  const names: string[] = [];
+  const seen = new Set<string>();
   for (const card of cards) {
     const key = card.fromEmail.toLowerCase();
-    let group = map.get(key);
-    if (!group) {
-      const domain = getCleanDomain(card.fromEmail);
-      group = {
-        fromEmail: card.fromEmail,
-        from: card.from,
-        logoUrl: domain ? faviconUrlForDomain(domain) : null,
-        cards: [],
-      };
-      map.set(key, group);
-      order.push(key);
-    } else if (
-      group.from.includes("@") &&
-      card.from &&
-      !card.from.includes("@")
-    ) {
-      group.from = card.from;
-    }
-    group.cards.push(card);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const label =
+      card.from && !card.from.includes("@") ? card.from : card.fromEmail;
+    names.push(label);
   }
-  return order.map((key) => map.get(key)!);
+  if (names.length === 0) return "your subscriptions";
+  if (names.length === 1) return names[0]!;
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
 function senderInitials(name: string): string {
@@ -353,57 +338,79 @@ function senderInitials(name: string): string {
   return name.trim().slice(0, 2).toUpperCase() || "MP";
 }
 
-function renderSenderSquircle(group: SenderGroup): string {
-  const inner = group.logoUrl
-    ? `<img src="${escapeHtml(group.logoUrl)}" alt="" width="56" height="56" style="display:block;width:56px;height:56px;object-fit:cover;border:0;" />`
-    : `<div style="width:56px;height:56px;line-height:56px;text-align:center;font-size:16px;font-weight:700;color:#0f766e;background:#f0fdfa;">${escapeHtml(senderInitials(group.from))}</div>`;
+function renderSenderChip(card: DigestCard): string {
+  const name =
+    card.from && !card.from.includes("@") ? card.from : card.fromEmail;
+  const domain = getCleanDomain(card.fromEmail);
+  const logoUrl = domain ? faviconUrlForDomain(domain) : null;
+  const mark = logoUrl
+    ? `<img src="${escapeHtml(logoUrl)}" alt="" width="36" height="36" style="display:block;width:36px;height:36px;border:0;border-radius:12px;object-fit:cover;" />`
+    : `<div style="width:36px;height:36px;line-height:36px;text-align:center;font-size:12px;font-weight:700;color:#0F766E;background:#CCFBF1;border-radius:12px;">${escapeHtml(senderInitials(name))}</div>`;
+
   return `
-    <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 14px auto;">
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 14px 0;">
       <tr>
-        <td align="center" valign="middle" width="56" height="56" style="width:56px;height:56px;border-radius:16px;background:#ffffff;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.08);">
-          ${inner}
+        <td valign="middle" width="36" height="36" style="width:36px;height:36px;border-radius:12px;overflow:hidden;background:#F0FDFA;border:1px solid #E2E8F0;">
+          ${mark}
+        </td>
+        <td valign="middle" style="padding-left:10px;">
+          <p style="margin:0;font-size:13px;line-height:1.25;font-weight:600;color:#0F172A;">${escapeHtml(name)}</p>
+          <p style="margin:2px 0 0 0;font-size:12px;line-height:1.25;color:#64748B;">${escapeHtml(card.fromEmail)}</p>
         </td>
       </tr>
-    </table>
-    <p style="margin:0 0 2px 0;text-align:center;font-size:18px;line-height:1.3;font-weight:700;color:#0f172a;">${escapeHtml(group.from)}</p>
-    <p style="margin:0 0 18px 0;text-align:center;font-size:12px;line-height:1.4;color:#64748b;">${escapeHtml(group.fromEmail)}</p>`;
+    </table>`;
 }
 
-function renderUpdateItem(card: DigestCard, index: number): string {
-  const received = formatReceivedAt(card.receivedAt);
+function renderCtaButton(href: string, label: string): string {
+  return `
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:18px 0 0 0;">
+      <tr>
+        <td bgcolor="#0F172A" style="background:#0F172A;border-radius:999px;">
+          <a href="${escapeHtml(href)}" style="display:inline-block;padding:11px 20px;font-size:13px;line-height:1.2;font-weight:600;text-decoration:none;color:#FFFFFF;border-radius:999px;">${escapeHtml(label)}</a>
+        </td>
+      </tr>
+    </table>`;
+}
+
+function renderUpdateItem(card: DigestCard): string {
   const ctaLabel = actionLinkLabel(card.primaryLink);
-  const meta = received
-    ? `<span style="font-weight:700;color:#0d9488;">#${index}</span> <span style="color:#94a3b8;">·</span> <span style="color:#64748b;">${escapeHtml(received)}</span>`
-    : `<span style="font-weight:700;color:#0d9488;">#${index}</span>`;
+  const received = formatReceivedAt(card.receivedAt);
   const cta = card.primaryLink
-    ? `<a href="${escapeHtml(card.primaryLink)}" style="display:inline-block;margin-top:12px;padding:7px 12px;border-radius:8px;border:1px solid #cbd5e1;background:#ffffff;color:#0f766e;font-size:12px;font-weight:600;text-decoration:none;">${escapeHtml(ctaLabel)}</a>`
+    ? renderCtaButton(card.primaryLink, ctaLabel)
     : "";
 
-  const textCol = `
-    <p style="margin:0 0 6px 0;font-size:12px;line-height:1.4;">${meta}</p>
-    <h3 style="margin:0 0 6px 0;font-size:15px;line-height:1.35;font-weight:600;color:#0f172a;">${escapeHtml(card.subject)}</h3>
-    <p style="margin:0;font-size:13px;line-height:1.55;color:#475569;">${escapeHtml(card.summary)}</p>
+  const body = `
+    ${renderSenderChip(card)}
+    <h3 style="margin:0 0 8px 0;font-family:Georgia,'Times New Roman',Times,serif;font-size:22px;line-height:1.28;font-weight:700;letter-spacing:-0.015em;color:#0F172A;">${escapeHtml(card.subject)}</h3>
+    ${
+      received
+        ? `<p style="margin:0 0 12px 0;font-size:12px;line-height:1.4;font-weight:500;letter-spacing:0.02em;color:#94A3B8;">${escapeHtml(received)}</p>`
+        : ""
+    }
+    <p style="margin:0;font-size:15px;line-height:1.65;color:#475569;">${escapeHtml(card.summary)}</p>
     ${cta}`;
 
   if (card.heroImageUrl) {
     return `
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px 0;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px 0;background:#FFFFFF;border:1px solid #E7E5E4;border-radius:22px;overflow:hidden;">
         <tr>
-          <td valign="top" style="padding:16px 14px 16px 16px;">
-            ${textCol}
+          <td style="padding:0;font-size:0;line-height:0;border-radius:22px 22px 0 0;">
+            <img src="${escapeHtml(card.heroImageUrl)}" alt="" width="544" style="display:block;width:100%;max-width:544px;height:auto;border:0;" />
           </td>
-          <td valign="top" width="150" style="width:150px;padding:16px 16px 16px 0;">
-            <img src="${escapeHtml(card.heroImageUrl)}" alt="" width="150" style="display:block;width:150px;max-width:150px;height:auto;border-radius:10px;object-fit:cover;border:1px solid #e2e8f0;" />
+        </tr>
+        <tr>
+          <td style="padding:22px 22px 24px 22px;">
+            ${body}
           </td>
         </tr>
       </table>`;
   }
 
   return `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px 0;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px 0;background:#FFFFFF;border:1px solid #E7E5E4;border-radius:22px;">
       <tr>
-        <td style="padding:16px 18px;">
-          ${textCol}
+        <td style="padding:22px 22px 24px 22px;">
+          ${body}
         </td>
       </tr>
     </table>`;
@@ -414,75 +421,187 @@ export function buildBriefingHtml(
   opts: { rangeLabel: string; recipientEmail: string; appUrl?: string }
 ): string {
   const appUrl = (opts.appUrl ?? resolveAppUrl()).replace(/\/+$/, "");
-  const logoSrc = `${appUrl}/logos/transparent-color-wordmark-inline.png`;
-  const groups = groupCardsBySender(cards);
-  const updateLabel = `${cards.length} update${cards.length === 1 ? "" : "s"}`;
+  const logoOnlySrc = `${appUrl}/logos/transparent-logo-only.png`;
+  const wordmarkSrc = `${appUrl}/logos/transparent-color-wordmark-inline.png`;
+  const subscriptionsUrl = `${appUrl}/subscriptions`;
+  const sendersLabel = formatSenderList(cards);
+  const updateCount = cards.length;
+  const updateLabel = `${updateCount} update${updateCount === 1 ? "" : "s"}`;
 
-  const groupsHtml = groups
-    .map((group) => {
-      const items = group.cards
-        .map((card, i) => renderUpdateItem(card, i + 1))
-        .join("");
-      return `
-      <tr>
-        <td style="padding:0 0 22px 0;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;">
-            <tr>
-              <td style="padding:22px 18px 10px 18px;">
-                ${renderSenderSquircle(group)}
-                ${items}
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>`;
-    })
-    .join("");
+  // #region agent log
+  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "3c315a",
+    },
+    body: JSON.stringify({
+      sessionId: "3c315a",
+      runId: "pre-fix",
+      hypothesisId: "G1-G3",
+      location: "lib/subscriptions/digest.ts:buildBriefingHtml",
+      message: "Footer brand markup strategy",
+      data: {
+        footerUsesOverflowHidden: true,
+        footerUsesNegativeMargin: true,
+        footerWordmarkCssHeightPx: 240,
+        footerClipHeightPx: 56,
+        cardCount: cards.length,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
+  const cardsHtml =
+    cards.length > 0
+      ? cards
+          .map(
+            (card) => `
+          <tr>
+            <td style="padding:0;">
+              ${renderUpdateItem(card)}
+            </td>
+          </tr>`
+          )
+          .join("")
+      : `
+          <tr>
+            <td style="padding:28px 24px;background:#FFFFFF;border:1px solid #E7E5E4;border-radius:22px;font-size:15px;line-height:1.6;color:#64748B;">
+              No messages found in this window.
+            </td>
+          </tr>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
   <title>Mail Pilot Briefing</title>
 </head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;">
+<body style="margin:0;padding:0;background:#F3F0EA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F172A;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3F0EA;">
     <tr>
-      <td align="center" style="padding:28px 16px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;">
+      <td align="center" style="padding:32px 16px 40px 16px;">
+        <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
+          Your Mail Pilot briefing · ${escapeHtml(updateLabel)} · ${escapeHtml(opts.rangeLabel)}
+        </div>
+
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;">
+          <!-- Masthead -->
           <tr>
-            <td style="padding:0 0 18px 0;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 1px 2px rgba(15,23,42,0.04);">
+            <td style="padding:0 0 22px 0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border:1px solid #E7E5E4;border-radius:28px;">
                 <tr>
-                  <td style="padding:18px 20px;">
-                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  <td align="center" style="padding:32px 28px 28px 28px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" align="center">
                       <tr>
-                        <td valign="middle" style="vertical-align:middle;">
-                          <img src="${escapeHtml(logoSrc)}" alt="Mail Pilot" height="28" style="display:block;height:28px;width:auto;border:0;" />
+                        <td align="center" style="padding:0;line-height:0;font-size:0;">
+                          <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="background:#F0FDFA;border-radius:18px;">
+                            <tr>
+                              <td style="padding:14px;border-radius:24px;line-height:0;font-size:0;">
+                                <img src="${escapeHtml(logoOnlySrc)}" alt="" width="79" height="79" style="display:block;width:79px;height:79px;border:0;" />
+                              </td>
+                            </tr>
+                          </table>
                         </td>
-                        <td align="right" valign="middle" style="vertical-align:middle;">
-                          <span style="display:inline-block;padding:5px 10px;border-radius:999px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;font-weight:600;color:#475569;white-space:nowrap;">${escapeHtml(opts.rangeLabel)}</span>
+                      </tr>
+                      <tr>
+                        <td align="center" style="padding:0 0 8px 0;line-height:0;font-size:0;">
+                          <!-- Wordmark PNG has large transparent canvas; pull up to optically sit under the mark. -->
+                          <img src="${escapeHtml(wordmarkSrc)}" alt="Mail Pilot" height="240" style="display:block;height:240px;width:auto;max-width:560px;margin:-72px auto 0 auto;border:0;" />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center">
+                          <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:999px;">
+                            <tr>
+                              <td style="padding:7px 14px;font-size:12px;line-height:1;font-weight:600;color:#475569;">
+                                <span style="color:#0F766E;">Briefing</span>
+                                <span style="color:#CBD5E1;">&nbsp;·&nbsp;</span>
+                                ${escapeHtml(opts.rangeLabel)}
+                                <span style="color:#CBD5E1;">&nbsp;·&nbsp;</span>
+                                ${escapeHtml(updateLabel)}
+                              </td>
+                            </tr>
+                          </table>
                         </td>
                       </tr>
                     </table>
-                    <p style="margin:12px 0 0 0;font-size:13px;line-height:1.45;color:#64748b;">
-                      <span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#ccfbf1;color:#0f766e;font-size:11px;font-weight:700;letter-spacing:0.02em;">${escapeHtml(updateLabel)}</span>
-                      <span style="color:#94a3b8;"> · </span>
-                      delivered to ${escapeHtml(opts.recipientEmail)}
-                    </p>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
-          ${
-            groupsHtml ||
-            `<tr><td style="padding:20px;border:1px solid #e2e8f0;border-radius:16px;background:#ffffff;color:#64748b;font-size:14px;">No messages found in this window.</td></tr>`
-          }
+
+          <!-- Greeting -->
           <tr>
-            <td style="padding:8px 4px 0 4px;font-size:11px;color:#94a3b8;line-height:1.55;">
-              Original emails included in this briefing were moved to Trash after delivery.
+            <td style="padding:0 8px 26px 8px;">
+              <p style="margin:0;font-size:16px;line-height:1.7;color:#334155;">
+                Thanks for trusting Mail Pilot! Here's a summary of your subscriptions from <span style="color:#0F172A;font-weight:600;">${escapeHtml(sendersLabel)}</span> between <span style="color:#0F172A;font-weight:600;">${escapeHtml(opts.rangeLabel)}</span>:
+              </p>
+            </td>
+          </tr>
+
+          <!-- Section rule -->
+          <tr>
+            <td style="padding:0 8px 14px 8px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td valign="middle" style="vertical-align:middle;padding-right:12px;">
+                    <span style="font-size:11px;line-height:1;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#94A3B8;">In this briefing</span>
+                  </td>
+                  <td width="100%" valign="middle" style="vertical-align:middle;border-top:1px solid #E7E5E4;font-size:0;line-height:0;">&nbsp;</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Cards -->
+          <tr>
+            <td style="padding:0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${cardsHtml}
+              </table>
+            </td>
+          </tr>
+
+          <!-- Sign-off -->
+          <tr>
+            <td style="padding:10px 8px 28px 8px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border:1px solid #E7E5E4;border-radius:22px;">
+                <tr>
+                  <td style="padding:24px 26px;">
+                    <p style="margin:0 0 6px 0;font-size:16px;line-height:1.6;color:#334155;">Have a great day!</p>
+                    <p style="margin:0;font-family:Georgia,'Times New Roman',Times,serif;font-size:17px;line-height:1.5;font-weight:700;color:#0F172A;">— The Mail Pilot Team</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:0 12px 8px 12px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 4px 0;">
+                <tr>
+                  <td valign="middle" style="vertical-align:middle;padding-right:10px;line-height:0;font-size:0;">
+                    <img src="${escapeHtml(logoOnlySrc)}" alt="" width="80" height="80" style="display:block;width:80px;height:80px;border:0;" />
+                  </td>
+                  <td valign="middle" height="56" style="vertical-align:middle;height:56px;max-height:56px;overflow:hidden;line-height:0;font-size:0;">
+                    <!-- Clip transparent canvas so glyph sits flush with the mark + text below -->
+                    <img src="${escapeHtml(wordmarkSrc)}" alt="Mail Pilot" height="240" style="display:block;height:240px;width:auto;max-width:560px;margin:-92px 0;border:0;" />
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;color:#94A3B8;">
+                Original emails included in this briefing were moved to Trash after delivery.
+              </p>
+              <p style="margin:0;font-size:12px;line-height:1.6;color:#94A3B8;">
+                Delivered to ${escapeHtml(opts.recipientEmail)}.
+                <a href="${escapeHtml(subscriptionsUrl)}" style="color:#64748B;text-decoration:underline;">Manage subscriptions</a>
+              </p>
             </td>
           </tr>
         </table>
@@ -611,6 +730,7 @@ async function syncSenderStatsAfterTrash(
     const localRemaining = Math.max(0, sub.emailCount - trashed);
     let remainingTotal = localRemaining;
     let gmailEstimate: number | null = null;
+    let usedGmailEstimate = false;
     try {
       gmailEstimate = await estimateCount(
         gmail,
@@ -620,6 +740,7 @@ async function syncSenderStatsAfterTrash(
       // (post-trash index lag usually overcounts, not undercounts).
       if (gmailEstimate >= 0 && gmailEstimate <= localRemaining) {
         remainingTotal = gmailEstimate;
+        usedGmailEstimate = true;
       }
     } catch {
       // Keep localRemaining.
@@ -629,6 +750,38 @@ async function syncSenderStatsAfterTrash(
       emailCount: remainingTotal,
       lastReceivedAt: sub.lastReceivedAt,
     });
+
+    // #region agent log
+    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "3c315a",
+      },
+      body: JSON.stringify({
+        sessionId: "3c315a",
+        runId: "pre-fix",
+        hypothesisId: "S1-S2",
+        location: "lib/subscriptions/digest.ts:syncSenderStatsAfterTrash",
+        message: "Post-briefing sender stats update",
+        data: {
+          accountId,
+          senderEmail: key,
+          status: sub.status,
+          prevEmailCount: sub.emailCount,
+          prevClutterScore: sub.clutterScore,
+          trashedInBriefing: trashed,
+          trashedMapKeys: [...trashedBySender.keys()],
+          localRemaining,
+          gmailEstimate,
+          usedGmailEstimate,
+          nextEmailCount: remainingTotal,
+          nextClutterScore: clutterScore,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
 
     await prisma.subscription.update({
       where: { id: sub.id },
@@ -746,6 +899,34 @@ export async function createSubscriptionBriefing(options: {
     const key = card.fromEmail.toLowerCase();
     trashedBySender.set(key, (trashedBySender.get(key) ?? 0) + 1);
   }
+
+  // #region agent log
+  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "3c315a",
+    },
+    body: JSON.stringify({
+      sessionId: "3c315a",
+      runId: "pre-fix",
+      hypothesisId: "S2",
+      location: "lib/subscriptions/digest.ts:createSubscriptionBriefing",
+      message: "Briefing trash summary before sync",
+      data: {
+        accountId,
+        selectedSenderEmails: senderEmails,
+        cardCount: cards.length,
+        processedIdCount: processedIds.length,
+        trashedBySender: Object.fromEntries(trashedBySender.entries()),
+        unmatchedCardSenders: [...trashedBySender.keys()].filter(
+          (k) => !senderEmails.includes(k)
+        ),
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   if (processedIds.length > 0) {
     await trashMessageIds(gmail, processedIds);
