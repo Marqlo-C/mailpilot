@@ -24,6 +24,7 @@ import {
   BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME,
   BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME,
   BulkActionCount,
+  BulkActionDot,
   BulkActionsFlyout,
 } from "@/components/ui/bulk-actions-flyout";
 import { PipelinePaginationFooter } from "@/components/ui/pipeline-pagination";
@@ -332,45 +333,51 @@ export function OpportunitiesView({
             </button>
 
             {archivedSelectedIds.length > 0 ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  startBatch(async () => {
-                    await dismissOpportunities(archivedSelectedIds);
-                    afterBatch("Dismissed — purge countdown started");
-                  })
-                }
-                className={BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME}
-              >
-                <XCircle className="h-3.5 w-3.5" />
-                Dismiss Archived
-                <BulkActionCount
-                  count={archivedSelectedIds.length}
-                  className={BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME}
-                />
-              </button>
+              <>
+                <BulkActionDot />
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    startBatch(async () => {
+                      await dismissOpportunities(archivedSelectedIds);
+                      afterBatch("Dismissed — purge countdown started");
+                    })
+                  }
+                  className={BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME}
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  Dismiss Archived
+                  <BulkActionCount
+                    count={archivedSelectedIds.length}
+                    className={BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME}
+                  />
+                </button>
+              </>
             ) : null}
 
             {dismissedSelectedIds.length > 0 ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  startBatch(async () => {
-                    await deleteDismissedPermanently(dismissedSelectedIds);
-                    afterBatch("Deleted permanently");
-                  })
-                }
-                className={BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete Permanently
-                <BulkActionCount
-                  count={dismissedSelectedIds.length}
-                  className={BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME}
-                />
-              </button>
+              <>
+                <BulkActionDot />
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    startBatch(async () => {
+                      await deleteDismissedPermanently(dismissedSelectedIds);
+                      afterBatch("Deleted permanently");
+                    })
+                  }
+                  className={BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete Permanently
+                  <BulkActionCount
+                    count={dismissedSelectedIds.length}
+                    className={BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME}
+                  />
+                </button>
+              </>
             ) : null}
           </>
         ) : (
@@ -394,23 +401,27 @@ export function OpportunitiesView({
             )}
 
             {variant === "leads" ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  startBatch(async () => {
-                    await markOpportunitiesExternalApplied(selectedIds);
-                    afterBatch("Marked as applied");
-                  })
-                }
-                className={BULK_ACTION_BTN_CLASSNAME}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Mark Applied
-                <BulkActionCount count={selectedIds.length} />
-              </button>
+              <>
+                <BulkActionDot />
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    startBatch(async () => {
+                      await markOpportunitiesExternalApplied(selectedIds);
+                      afterBatch("Marked as applied");
+                    })
+                  }
+                  className={BULK_ACTION_BTN_CLASSNAME}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Mark Applied
+                  <BulkActionCount count={selectedIds.length} />
+                </button>
+              </>
             ) : null}
 
+            <BulkActionDot />
             <button
               type="button"
               disabled={busy}

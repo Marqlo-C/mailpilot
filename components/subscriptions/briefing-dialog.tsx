@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Send } from "lucide-react";
+import { format } from "date-fns";
+import { CalendarDays, Loader2, Send } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 
 import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
@@ -49,15 +50,35 @@ function defaultRange(): DateRange {
   return { from, to };
 }
 
+function rangeEndingToday(inclusiveDays: number): DateRange {
+  const to = startOfLocalDay();
+  const from = new Date(to);
+  from.setDate(from.getDate() - (inclusiveDays - 1));
+  return { from, to };
+}
+
 function senderLogoSrc(email: string): string | null {
   const domain = getCleanDomain(email);
   return domain ? faviconUrlForDomain(domain) : null;
+}
+
+function formatRangeLabel(from: Date, to: Date): string {
+  const sameYear = from.getFullYear() === to.getFullYear();
+  const left = format(from, sameYear ? "MMM d" : "MMM d, yyyy");
+  const right = format(to, "MMM d, yyyy");
+  return `${left} – ${right}`;
 }
 
 /**
  * DayPicker `max` uses differenceInCalendarDays (nights): max=9 ⇒ 10 inclusive days.
  */
 const DAY_PICKER_MAX_NIGHTS = MAX_BRIEFING_DAYS - 1;
+
+const PRESETS: { label: string; days: number }[] = [
+  { label: "7 days", days: 7 },
+  { label: "3 days", days: 3 },
+  { label: "Today", days: 1 },
+];
 
 export function BriefingDialog({
   open,
@@ -78,6 +99,13 @@ export function BriefingDialog({
     setMonth(next.to ?? today);
     setRangeWarning(null);
   }, [open, today]);
+
+  function applyPreset(days: number) {
+    const next = rangeEndingToday(days);
+    setRange(next);
+    setMonth(next.to ?? today);
+    setRangeWarning(null);
+  }
 
   function handleSelect(
     next: DateRange | undefined,
@@ -103,6 +131,19 @@ export function BriefingDialog({
   }
 
   const canGenerate = isValidBriefingRange(range?.from, range?.to);
+  const daySpan =
+    range?.from && range?.to
+      ? inclusiveDaySpan(range.from, range.to)
+      : null;
+  const activePresetDays =
+    range?.from &&
+    range?.to &&
+    toYmd(range.to) === toYmd(today) &&
+    daySpan != null &&
+    PRESETS.some((p) => p.days === daySpan)
+      ? daySpan
+      : null;
+
   const primary = senders[0];
   const primaryName =
     primary?.senderName ?? primary?.senderEmail ?? "selected senders";
@@ -161,7 +202,7 @@ export function BriefingDialog({
       <div className="space-y-4">
         {senders.length > 1 ? (
           <div
-            className="max-h-28 overflow-y-auto rounded-lg border border-border/60 bg-muted/20"
+            className="max-h-28 overflow-y-auto rounded-xl border border-border/60 bg-card"
             aria-label="Selected senders"
           >
             <ul className="divide-y divide-border/50 text-sm">
@@ -192,11 +233,39 @@ export function BriefingDialog({
           </div>
         ) : null}
 
-        <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground">
-            Date range · max {MAX_BRIEFING_DAYS} days
-          </p>
-          <div className="flex justify-center overflow-hidden rounded-lg border border-border/60 bg-muted/20 p-2">
+        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 px-3.5 py-2.5">
+            <div className="flex items-center gap-2 text-xs font-medium text-foreground/80">
+              <CalendarDays className="size-3.5 text-[#1ab5af]" />
+              <span>Date range</span>
+              <span className="rounded-md bg-[hsl(var(--tab-rail-chip))] px-1.5 py-0.5 text-[10px] font-bold leading-none text-foreground/70">
+                max {MAX_BRIEFING_DAYS}d
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1">
+              {PRESETS.map((preset) => {
+                const active = activePresetDays === preset.days;
+                return (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    disabled={pending}
+                    onClick={() => applyPreset(preset.days)}
+                    className={cn(
+                      "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+                      active
+                        ? "bg-[#1ab5af] text-white"
+                        : "bg-muted/70 text-foreground/70 hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex justify-center px-2 py-3 sm:px-3">
             <Calendar
               mode="range"
               selected={range}
@@ -209,19 +278,30 @@ export function BriefingDialog({
               resetOnSelect
             />
           </div>
-          {rangeWarning ? (
-            <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-300">
-              {rangeWarning}
-            </p>
-          ) : null}
-          <p className="mt-2 text-xs text-muted-foreground">
-            {range?.from && range?.to
-              ? `${toYmd(range.from)} → ${toYmd(range.to)} · ${inclusiveDaySpan(range.from, range.to)} day${inclusiveDaySpan(range.from, range.to) === 1 ? "" : "s"}`
-              : "Select a start and end date."}
-          </p>
+
+          <div className="border-t border-border/60 bg-muted/25 px-3.5 py-2.5">
+            {rangeWarning ? (
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                {rangeWarning}
+              </p>
+            ) : range?.from && range?.to && daySpan != null ? (
+              <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs">
+                <span className="font-semibold text-foreground">
+                  {formatRangeLabel(range.from, range.to)}
+                </span>
+                <span className="text-muted-foreground">
+                  {daySpan} day{daySpan === 1 ? "" : "s"} selected
+                </span>
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Select a start and end date on the calendar.
+              </p>
+            )}
+          </div>
         </div>
 
-        <p className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+        <p className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
           Original emails in this range will be moved to Gmail Trash after the
           snapshot is delivered.
         </p>

@@ -81,7 +81,7 @@ export function SyncTelemetry({
       aria-live="polite"
     >
       {isSyncing ? (
-        <div className="flex items-center gap-1.5 rounded-full border border-sky-500/45 bg-sky-500/25 px-2.5 py-1 text-xs font-medium text-sky-700 dark:border-sky-400/45 dark:bg-sky-400/25 dark:text-sky-300">
+        <div className="flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-1 text-xs font-medium text-sky-700/80 dark:border-sky-400/40 dark:bg-sky-400/15 dark:text-sky-300/85">
           <span className="relative flex h-1.5 w-1.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-500 opacity-75" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
@@ -101,7 +101,7 @@ export function SyncTelemetry({
           type="button"
           onClick={handleTriggerSync}
           disabled={pending}
-          className="flex items-center gap-1.5 rounded-full border border-amber-500/45 bg-amber-500/25 px-2.5 py-1 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-500/35 disabled:opacity-60 dark:border-amber-400/45 dark:bg-amber-400/25 dark:text-amber-300 dark:hover:bg-amber-400/35"
+          className="flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-700/80 transition-colors hover:bg-amber-500/25 disabled:opacity-60 dark:border-amber-400/40 dark:bg-amber-400/15 dark:text-amber-300/85 dark:hover:bg-amber-400/25"
         >
           <span className="relative flex h-1.5 w-1.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-75" />
@@ -113,7 +113,7 @@ export function SyncTelemetry({
           </span>
         </button>
       ) : (
-        <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/45 bg-emerald-500/25 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-400/45 dark:bg-emerald-400/25 dark:text-emerald-300">
+        <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-700/80 dark:border-emerald-400/40 dark:bg-emerald-400/15 dark:text-emerald-300/85">
           <span className="relative flex h-1.5 w-1.5">
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
           </span>
