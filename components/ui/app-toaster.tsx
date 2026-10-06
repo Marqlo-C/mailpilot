@@ -2,6 +2,8 @@
 
 import { Toaster } from "sonner";
 
+import { appContentCenterXStyle } from "@/lib/app-content-center";
+
 /** Centers toasts in the main column; clears the mobile bottom nav. */
 export function AppToaster() {
   return (
@@ -13,11 +15,7 @@ export function AppToaster() {
         top: 16,
         bottom: "calc(16px + var(--app-mobile-bottom-inset, 0px))",
       }}
-      style={{
-        left: "calc(var(--app-sidebar-width, 0px) + (100vw - var(--app-sidebar-width, 0px)) / 2)",
-        right: "auto",
-        transform: "translateX(-50%)",
-      }}
+      style={appContentCenterXStyle}
     />
   );
 }

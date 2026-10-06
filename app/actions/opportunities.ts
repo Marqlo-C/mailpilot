@@ -547,20 +547,30 @@ export async function dismissOpportunity(
   return result.ok ? { ok: true } : result;
 }
 
-export async function markOpportunityExternalApplied(
-  opportunityId: string
-): Promise<ActionResult> {
-  await prisma.jobOpportunity.update({
-    where: { id: opportunityId },
+export async function markOpportunitiesExternalApplied(
+  ids: string[]
+): Promise<ActionResult<{ count: number }>> {
+  if (!ids.length) return { ok: true, data: { count: 0 } };
+
+  const appliedAt = new Date();
+  const result = await prisma.jobOpportunity.updateMany({
+    where: { id: { in: ids } },
     data: {
       status: "APPLIED",
       isArchived: false,
       previousStatus: null,
-      appliedAt: new Date(),
+      appliedAt,
     },
   });
   revalidatePath("/jobs");
-  return { ok: true };
+  return { ok: true, data: { count: result.count } };
+}
+
+export async function markOpportunityExternalApplied(
+  opportunityId: string
+): Promise<ActionResult> {
+  const result = await markOpportunitiesExternalApplied([opportunityId]);
+  return result.ok ? { ok: true } : result;
 }
 
 /**

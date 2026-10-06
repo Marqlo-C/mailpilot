@@ -86,7 +86,7 @@ export async function POST(req: Request) {
     const message =
       error instanceof Error
         ? error.message
-        : "Failed to create briefing digest";
+        : "Failed to create snapshot";
     return NextResponse.json(
       { success: false, error: message },
       { status: 500 }

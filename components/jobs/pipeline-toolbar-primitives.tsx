@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
-import { Layers, Search } from "lucide-react";
+import {
+  useEffect,
+  useRef,
+  type ComponentPropsWithoutRef,
+  type ReactNode,
+} from "react";
+import { ChevronDown, Layers, Search } from "lucide-react";
 
+import { SELECT_CHECKBOX_CLASSNAME } from "@/components/ui/select-checkbox";
 import { WavySlider } from "@/components/ui/wavy-slider";
 import type {
   HistoryStatusFilter,
@@ -10,6 +16,34 @@ import type {
 } from "@/lib/opportunities/pipeline-filters";
 import { TAB_SORT_CONFIG, type JobsTabKey } from "@/lib/opportunities/sorting";
 import { cn } from "@/lib/utils";
+
+/**
+ * Native select with a custom chevron so left inset (to text) matches
+ * right inset (from arrow to edge). Browser arrows sit flush and look uneven.
+ */
+export function ToolbarNativeSelect({
+  className,
+  children,
+  ...props
+}: ComponentPropsWithoutRef<"select">) {
+  return (
+    <div className="relative inline-flex shrink-0">
+      <select
+        {...props}
+        className={cn(
+          "h-7 cursor-pointer appearance-none rounded-md border border-input/60 bg-card py-0 pl-2.5 pr-7 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-card focus:bg-card focus:outline-none focus:ring-1 focus:ring-ring",
+          className
+        )}
+      >
+        {children}
+      </select>
+      <ChevronDown
+        className="pointer-events-none absolute top-1/2 right-2.5 size-3 -translate-y-1/2 text-muted-foreground"
+        aria-hidden
+      />
+    </div>
+  );
+}
 
 export function ToolbarRoot({
   children,
@@ -21,7 +55,7 @@ export function ToolbarRoot({
   return (
     <div
       className={cn(
-        "flex w-full flex-wrap items-center gap-3 rounded-xl border border-border/50 bg-card p-3 shadow-sm lg:flex-nowrap",
+        "flex w-full flex-wrap items-center gap-3 rounded-xl border border-border/50 bg-card p-3 shadow-md lg:flex-nowrap",
         className
       )}
     >
@@ -41,7 +75,7 @@ export function ToolbarMetaRow({
   return (
     <div
       className={cn(
-        "mb-2.5 flex items-center justify-between px-1 py-0.5 text-xs text-muted-foreground",
+        "mb-2.5 flex items-center justify-between px-1 py-0.5 text-xs text-foreground/80",
         className
       )}
     >
@@ -85,8 +119,8 @@ export function ToolbarSelectAll({
       className={cn(
         "inline-flex items-center gap-2 text-xs font-medium transition-colors",
         disabled
-          ? "cursor-not-allowed text-muted-foreground/40"
-          : "cursor-pointer text-muted-foreground hover:text-foreground"
+          ? "cursor-not-allowed text-foreground/35"
+          : "cursor-pointer text-foreground/75 hover:text-foreground"
       )}
     >
       <input
@@ -96,7 +130,8 @@ export function ToolbarSelectAll({
         disabled={disabled}
         onChange={onToggle}
         className={cn(
-          "m-0 h-3.5 w-3.5 shrink-0 rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30",
+          SELECT_CHECKBOX_CLASSNAME,
+          "m-0 h-3.5 w-3.5 shrink-0",
           disabled ? "cursor-not-allowed" : "cursor-pointer"
         )}
       />
@@ -126,7 +161,7 @@ export function ToolbarScoreSlider({
     <div className="flex items-center gap-2">
       <label
         htmlFor={inputId}
-        className="flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        className="flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs font-medium text-foreground/75 transition-colors hover:text-foreground"
       >
         {label}
       </label>
@@ -155,10 +190,10 @@ export function ToolbarScoreSlider({
               e.currentTarget.blur();
             }
           }}
-          className="h-7 w-14 rounded-md border border-input bg-background/50 pr-3 text-center text-xs font-medium transition-colors [appearance:textfield] hover:bg-background focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          className="h-7 w-14 rounded-md border border-input bg-card pr-3 text-center text-xs font-medium shadow-sm transition-colors [appearance:textfield] hover:bg-card focus:bg-card focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           aria-label={`${ariaLabel} percent`}
         />
-        <span className="pointer-events-none absolute right-1 text-[11px] text-muted-foreground">
+        <span className="pointer-events-none absolute right-1 text-[11px] text-foreground/65">
           %
         </span>
       </div>
@@ -187,14 +222,14 @@ export function ToolbarSearch({
   ariaLabel?: string;
 }) {
   return (
-    <div className="relative flex h-7 w-[7.2rem] items-center text-muted-foreground focus-within:text-foreground sm:w-[9.6rem] md:w-[12rem]">
-      <Search className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
+    <div className="relative flex h-7 w-[7.2rem] items-center text-foreground/75 focus-within:text-foreground sm:w-[9.6rem] md:w-[12rem]">
+      <Search className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-foreground/60" />
       <input
         type="text"
         placeholder={placeholder}
         value={searchQuery}
         onChange={(e) => onSearchChange(e.target.value)}
-        className="h-7 w-full rounded-md border border-input/60 bg-background/50 py-0 pr-2 pl-8 text-xs transition-colors placeholder:text-muted-foreground/60 hover:bg-background focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+        className="h-7 w-full rounded-md border border-input/60 bg-card py-0 pr-2 pl-8 text-xs shadow-sm transition-colors placeholder:text-foreground/50 hover:bg-card focus:bg-card focus:outline-none focus:ring-1 focus:ring-ring"
         aria-label={ariaLabel}
       />
     </div>
@@ -209,17 +244,16 @@ export function ToolbarSourceFilter({
   onChange: (value: SourceFilter) => void;
 }) {
   return (
-    <select
+    <ToolbarNativeSelect
       value={value}
       onChange={(e) => onChange(e.target.value as SourceFilter)}
-      className="h-7 cursor-pointer rounded-md border border-input/60 bg-background/50 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-background focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring"
       aria-label="Filter by source"
     >
       <option value="all">All Sources</option>
       <option value="easy_apply">Easy Apply</option>
       <option value="external">External</option>
       <option value="email_lead">Email Lead</option>
-    </select>
+    </ToolbarNativeSelect>
   );
 }
 
@@ -231,16 +265,15 @@ export function ToolbarHistoryStatusFilter({
   onChange: (value: HistoryStatusFilter) => void;
 }) {
   return (
-    <select
+    <ToolbarNativeSelect
       value={value}
       onChange={(e) => onChange(e.target.value as HistoryStatusFilter)}
-      className="h-7 cursor-pointer rounded-md border border-input/60 bg-background/50 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-background focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring"
       aria-label="Filter by history status"
     >
       <option value="all">All Statuses</option>
       <option value="archived">Archived</option>
       <option value="dismissed">Dismissed</option>
-    </select>
+    </ToolbarNativeSelect>
   );
 }
 
@@ -255,10 +288,9 @@ export function ToolbarSortSelect({
 }) {
   const options = TAB_SORT_CONFIG[activeTab].options;
   return (
-    <select
+    <ToolbarNativeSelect
       value={sortOption}
       onChange={(e) => onSortOptionChange(e.target.value)}
-      className="h-7 cursor-pointer rounded-md border border-input/60 bg-background/50 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-background focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring"
       aria-label="Sort listings"
     >
       {options.map((option) => (
@@ -266,7 +298,7 @@ export function ToolbarSortSelect({
           {option.label}
         </option>
       ))}
-    </select>
+    </ToolbarNativeSelect>
   );
 }
 
@@ -285,16 +317,16 @@ export function ToolbarTelemetry({
   onResetFilters?: () => void;
 }) {
   return (
-    <div className="flex items-center gap-1.5 whitespace-nowrap text-[11px] font-medium text-muted-foreground">
-      <Layers className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+    <div className="flex items-center gap-1.5 whitespace-nowrap text-[11px] font-medium text-foreground/80">
+      <Layers className="h-3 w-3 shrink-0 text-foreground/70" />
       <span>
-        <strong className="font-medium text-foreground">{visibleCount}</strong>{" "}
+        <strong className="font-semibold text-foreground">{visibleCount}</strong>{" "}
         of {totalCount} {itemLabel}
       </span>
       {hiddenCount > 0 ? (
         <>
-          <span className="text-muted-foreground/30">·</span>
-          <span className="font-medium text-muted-foreground/70">
+          <span className="text-foreground/45">·</span>
+          <span className="font-medium text-foreground/75">
             {hiddenCount} filtered
           </span>
         </>

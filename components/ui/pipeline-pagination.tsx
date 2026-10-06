@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { PAGE_SIZE_OPTIONS } from "@/hooks/use-pagination";
 import { cn } from "@/lib/utils";
@@ -17,23 +17,29 @@ export function ToolbarPageSizeSelect({
   return (
     <label
       className={cn(
-        "inline-flex h-6 items-center gap-1.5 text-[11px] font-medium text-muted-foreground",
+        "inline-flex h-6 items-center gap-1.5 text-[11px] font-medium text-foreground/80",
         className
       )}
     >
       <span>Show:</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(Number.parseInt(e.target.value, 10))}
-        className="h-6 cursor-pointer rounded-md border border-border/50 bg-background px-2 text-[11px] text-foreground transition-colors hover:bg-muted/40 focus:outline-none focus:ring-1 focus:ring-ring"
-        aria-label="Rows per page"
-      >
-        {PAGE_SIZE_OPTIONS.map((size) => (
-          <option key={size} value={size}>
-            {size}
-          </option>
-        ))}
-      </select>
+      <span className="relative inline-flex">
+        <select
+          value={value}
+          onChange={(e) => onChange(Number.parseInt(e.target.value, 10))}
+          className="h-6 cursor-pointer appearance-none rounded-md border border-border/50 bg-card py-0 pl-2 pr-6 text-[11px] text-foreground shadow-md transition-colors hover:bg-card focus:outline-none focus:ring-1 focus:ring-ring"
+          aria-label="Rows per page"
+        >
+          {PAGE_SIZE_OPTIONS.map((size) => (
+            <option key={size} value={size}>
+              {size}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          className="pointer-events-none absolute top-1/2 right-2 size-2.5 -translate-y-1/2 text-foreground/70"
+          aria-hidden
+        />
+      </span>
     </label>
   );
 }
@@ -67,7 +73,7 @@ export function PipelinePaginationFooter({
           type="button"
           disabled={currentPage <= 1}
           onClick={() => onPageChange(currentPage - 1)}
-          className="inline-flex h-8 items-center gap-1 rounded-lg border border-border/50 bg-background px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+          className="inline-flex h-8 items-center gap-1 rounded-lg border border-border/50 bg-card px-3 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
           aria-label="Previous page"
         >
           <ChevronLeft className="size-3.5" />
@@ -80,7 +86,7 @@ export function PipelinePaginationFooter({
           type="button"
           disabled={currentPage >= pages || totalItems === 0}
           onClick={() => onPageChange(currentPage + 1)}
-          className="inline-flex h-8 items-center gap-1 rounded-lg border border-border/50 bg-background px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+          className="inline-flex h-8 items-center gap-1 rounded-lg border border-border/50 bg-card px-3 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
           aria-label="Next page"
         >
           Next

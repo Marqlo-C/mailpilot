@@ -10,8 +10,8 @@ import {
 import { useRouter } from "next/navigation";
 import type { Subscription, SubscriptionHistory } from "@prisma/client";
 import {
-  Archive,
   BadgeInfo,
+  CirclePlus,
   DatabaseX,
   Eye,
   Loader2,
@@ -31,19 +31,21 @@ import {
 import { SyncControls } from "@/components/opportunities/sync-controls";
 import { BriefingDialog } from "@/components/subscriptions/briefing-dialog";
 import { EmailPreviewDialog } from "@/components/subscriptions/email-preview-dialog";
+import {
+  formatPreviewDisplayDate,
+  PreviewLoadChrome,
+} from "@/components/subscriptions/preview-load-chrome";
 import { SubscriptionsToolbar } from "@/components/subscriptions/subscriptions-toolbar";
-import { Button } from "@/components/ui/button";
+import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
+import {
+  BULK_ACTION_PLAIN_BTN_CLASSNAME,
+  BulkActionCount,
+  BulkActionsFlyout,
+} from "@/components/ui/bulk-actions-flyout";
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
 import { RowMenuTrigger } from "@/components/ui/row-menu-trigger";
 import { CompanyLogo } from "@/components/ui/company-logo";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DialogIdentityLogoStack } from "@/components/ui/dialog-identity-header";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,7 +59,23 @@ import {
   TabCountBadge,
 } from "@/components/ui/segmented-tabs";
 import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/score-percent";
-import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
+import { SELECT_CHECKBOX_CLASSNAME } from "@/components/ui/select-checkbox";
+import {
+  SELECT_HIGHLIGHT_FILL_CLASSNAME,
+  SELECT_HIGHLIGHT_ROW_CLASSNAME,
+} from "@/components/ui/select-highlight";
+import {
+  PRIMARY_ACTION_BTN_CLASSNAME,
+  PRIMARY_ACTION_BTN_MUTED_CLASSNAME,
+  PRIMARY_ACTION_FLYOUT_BTN_CLASSNAME,
+  PRIMARY_ACTION_FLYOUT_COUNT_CLASSNAME,
+  PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME,
+} from "@/components/ui/primary-action-btn";
+import {
+  SECONDARY_ACTION_BTN_CLASSNAME,
+  SECONDARY_ACTION_BTN_MUTED_CLASSNAME,
+  SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME,
+} from "@/components/ui/secondary-action-btn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
@@ -75,6 +93,7 @@ import {
   migrateDisplacedBriefingToLocal,
   type LocalBriefingRecord,
 } from "@/lib/subscriptions/briefing-local";
+import { constrainBriefingPreviewHtml } from "@/lib/subscriptions/digest-constants";
 import {
   clutterScoreTier,
   compareSubscriptionsBySort,
@@ -106,33 +125,30 @@ const CLUTTER_OUTLINE_CLASSES: Record<ClutterScoreTier, string> = {
   low: "border-emerald-600/35 dark:border-emerald-400/35",
 };
 
-/** Matches the row Unsubscribe CTA (dark shell + mint text). */
-const UNSUBSCRIBE_CTA_CLASSNAME =
-  "inline-flex items-center justify-center gap-1.5 rounded-md border border-[#181e26] bg-[#181e26]/85 px-3 py-1.5 text-xs font-medium text-[#e4f7f3] transition-colors hover:bg-[#181e26] hover:text-[#e4f7f3] disabled:pointer-events-none disabled:opacity-50";
+/** Gray mute for metric pills when the parent row/card is selected. */
+const SELECT_MUTED_PILL_VALUE_CLASSNAME =
+  "bg-muted/50 text-muted-foreground";
+const SELECT_MUTED_PILL_OUTLINE_CLASSNAME = "border-border/40";
 
 const UNSUBSCRIBE_OPTIONS: {
   value: CleanupAction;
   label: string;
   description: string;
-  icon: typeof UserRoundMinus;
 }[] = [
   {
     value: "NONE",
-    label: "Unsubscribe only",
-    description: "Leave the list. Past mail stays where it is.",
-    icon: UserRoundMinus,
-  },
-  {
-    value: "TRASH",
-    label: "Unsubscribe and delete emails",
-    description: "Also move past mail from this sender to Trash.",
-    icon: Trash2,
+    label: "Keep",
+    description: "Leave your inbox alone.",
   },
   {
     value: "ARCHIVE",
-    label: "Unsubscribe and archive emails",
-    description: "Also archive past mail from this sender in Gmail.",
-    icon: Archive,
+    label: "Archive",
+    description: "Remove them from Inbox; they stay in All Mail / Archive.",
+  },
+  {
+    value: "TRASH",
+    label: "Delete",
+    description: "Move past mail from this sender to Trash.",
   },
 ];
 
@@ -155,6 +171,7 @@ type ArchiveEntry = {
 
 export type LatestBriefingProp = {
   id: string;
+  subject?: string | null;
   htmlPreview: string;
   generatedAt: string;
   senderEmails: string[];
@@ -220,6 +237,7 @@ export function SubscriptionsView({
   const [briefingPending, setBriefingPending] = useState(false);
   const [viewingBriefing, setViewingBriefing] =
     useState<ResolvedBriefing | null>(null);
+  const [briefingPreviewLoading, setBriefingPreviewLoading] = useState(false);
   const [selectedEmailSub, setSelectedEmailSub] =
     useState<Subscription | null>(null);
   const [localBriefings, setLocalBriefings] = useState<
@@ -412,6 +430,7 @@ export function SubscriptionsView({
     if (!local) return null;
     return {
       id: local.id,
+      subject: local.subject ?? null,
       htmlPreview: local.htmlPreview,
       generatedAt: local.generatedAt,
       senderEmails: local.senderEmails,
@@ -438,13 +457,50 @@ export function SubscriptionsView({
     setBriefingOpen(true);
   }
 
+  useEffect(() => {
+    if (!viewingBriefing) {
+      setBriefingPreviewLoading(false);
+      return;
+    }
+    setBriefingPreviewLoading(true);
+    // Fallback if iframe onLoad is skipped (e.g. empty/cached srcDoc edge cases).
+    const fallback = window.setTimeout(() => {
+      setBriefingPreviewLoading(false);
+    }, 2000);
+    return () => window.clearTimeout(fallback);
+  }, [viewingBriefing?.id]);
+
+  function openBriefingFromViewing() {
+    if (!viewingBriefing) return;
+    const idSet = new Set(viewingBriefing.subscriptionIds);
+    const emailSet = new Set(
+      viewingBriefing.senderEmails.map((e) => e.toLowerCase())
+    );
+    let targets = active.filter((s) => idSet.has(s.id));
+    if (targets.length === 0) {
+      targets = active.filter((s) =>
+        emailSet.has(s.senderEmail.toLowerCase())
+      );
+    }
+    if (targets.length === 0) {
+      const one = active.find((s) => s.id === viewingBriefing.subscriptionId);
+      if (one) targets = [one];
+    }
+    if (targets.length === 0) {
+      toast.error("Those senders are no longer in Active subscriptions");
+      return;
+    }
+    setViewingBriefing(null);
+    openBriefing(targets);
+  }
+
   async function runBriefingDigest(range: {
     startDate: string;
     endDate: string;
   }) {
     if (briefingTargets.length === 0 || briefingPending) return;
     setBriefingPending(true);
-    const toastId = toast.loading("Generating briefing…");
+    const toastId = toast.loading("Generating snapshot…");
     const newSubIds = briefingTargets.map((s) => s.id);
     try {
       const response = await fetch("/api/subscriptions/digest", {
@@ -465,7 +521,7 @@ export function SubscriptionsView({
         briefing?: LatestBriefingProp;
       };
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error ?? "Failed to create briefing");
+        throw new Error(payload.error ?? "Failed to create snapshot");
       }
 
       if (payload.displacedBriefing) {
@@ -479,7 +535,7 @@ export function SubscriptionsView({
       setLocalBriefings(listLocalBriefings(accountId));
 
       toast.success(
-        `Briefing sent to ${payload.digestSentTo ?? "your inbox"} · ${payload.processedCount ?? 0} cleaned`,
+        `Snapshot sent to ${payload.digestSentTo ?? "your inbox"} · ${payload.processedCount ?? 0} cleaned`,
         { id: toastId }
       );
       setBriefingOpen(false);
@@ -488,7 +544,7 @@ export function SubscriptionsView({
       router.refresh();
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to create briefing",
+        err instanceof Error ? err.message : "Failed to create snapshot",
         { id: toastId }
       );
     } finally {
@@ -501,8 +557,8 @@ export function SubscriptionsView({
     setDeletePending(true);
     const toastId = toast.loading(
       subscriptionIds.length === 1
-        ? "Deleting briefing…"
-        : `Deleting ${subscriptionIds.length} briefings…`
+        ? "Deleting snapshot…"
+        : `Deleting ${subscriptionIds.length} snapshots…`
     );
     try {
       const response = await fetch("/api/subscriptions/digest/delete", {
@@ -515,21 +571,21 @@ export function SubscriptionsView({
         error?: string;
       };
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error ?? "Failed to delete briefing");
+        throw new Error(payload.error ?? "Failed to delete snapshot");
       }
       deleteLocalBriefings(accountId, subscriptionIds);
       setLocalBriefings(listLocalBriefings(accountId));
       toast.success(
         subscriptionIds.length === 1
-          ? "Briefing deleted"
-          : `${subscriptionIds.length} briefings deleted`,
+          ? "Snapshot deleted"
+          : `${subscriptionIds.length} snapshots deleted`,
         { id: toastId }
       );
       setViewingBriefing(null);
       router.refresh();
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to delete briefing",
+        err instanceof Error ? err.message : "Failed to delete snapshot",
         { id: toastId }
       );
     } finally {
@@ -718,55 +774,6 @@ export function SubscriptionsView({
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {activeTab === "active" && selectedIds.length > 0 ? (
-              <>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={pending || briefingPending || deletePending}
-                  className="px-3 py-1.5 text-xs font-semibold"
-                  onClick={() => openBriefing(selectedSubscriptions)}
-                >
-                  Batch Briefing ({selectedIds.length})
-                </Button>
-                {selectedWithBriefingIds.length > 0 ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={pending || briefingPending || deletePending}
-                    className="px-3 py-1.5 text-xs font-semibold"
-                    onClick={() =>
-                      void deleteBriefingsForSubscriptions(
-                        selectedWithBriefingIds
-                      )
-                    }
-                  >
-                    {deletePending ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : null}
-                    Delete Briefings ({selectedWithBriefingIds.length})
-                  </Button>
-                ) : null}
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={pending || briefingPending || deletePending}
-                  className="bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-40"
-                  onClick={() => {
-                    setSelected(null);
-                    setError(null);
-                    setBatchConfirmOpen(true);
-                  }}
-                >
-                  {pending ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : null}
-                  Unsubscribe Selected ({selectedIds.length})
-                </Button>
-              </>
-            ) : null}
             <SyncControls accountId={accountId} />
           </div>
         </div>
@@ -880,6 +887,69 @@ export function SubscriptionsView({
         </TabsContent>
       </Tabs>
 
+      {activeTab === "active" ? (
+        <BulkActionsFlyout
+          selectedCount={selectedIds.length}
+          onCancel={() => setSelectedIds([])}
+        >
+          <button
+            type="button"
+            disabled={pending || briefingPending || deletePending}
+            onClick={() => openBriefing(selectedSubscriptions)}
+            className={BULK_ACTION_PLAIN_BTN_CLASSNAME}
+          >
+            {briefingPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Summary className="h-3.5 w-3.5" />
+            )}
+            Snapshot
+            <BulkActionCount count={selectedIds.length} />
+          </button>
+
+          {selectedWithBriefingIds.length > 0 ? (
+            <button
+              type="button"
+              disabled={pending || briefingPending || deletePending}
+              onClick={() =>
+                void deleteBriefingsForSubscriptions(selectedWithBriefingIds)
+              }
+              className={BULK_ACTION_PLAIN_BTN_CLASSNAME}
+            >
+              {deletePending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              Delete Snapshots
+              <BulkActionCount count={selectedWithBriefingIds.length} />
+            </button>
+          ) : null}
+
+          <button
+            type="button"
+            disabled={pending || briefingPending || deletePending}
+            onClick={() => {
+              setSelected(null);
+              setError(null);
+              setBatchConfirmOpen(true);
+            }}
+            className={PRIMARY_ACTION_FLYOUT_BTN_CLASSNAME}
+          >
+            {pending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <UserRoundMinus className="h-3.5 w-3.5" />
+            )}
+            Unsubscribe
+            <BulkActionCount
+              count={selectedIds.length}
+              className={PRIMARY_ACTION_FLYOUT_COUNT_CLASSNAME}
+            />
+          </button>
+        </BulkActionsFlyout>
+      ) : null}
+
       <BriefingDialog
         open={briefingOpen}
         onOpenChange={setBriefingOpen}
@@ -897,107 +967,178 @@ export function SubscriptionsView({
         senderEmail={selectedEmailSub?.senderEmail ?? ""}
       />
 
-      <Dialog
+      <ActionDialogShell
         open={Boolean(viewingBriefing)}
         onOpenChange={(open) => {
           if (!open) setViewingBriefing(null);
         }}
+        pending={deletePending}
+        size="xl"
+        identity={(() => {
+          if (!viewingBriefing) {
+            return {
+              title: "Viewing snap for:",
+              primary: "No snapshot available",
+            };
+          }
+          const emails = viewingBriefing.senderEmails;
+          const firstEmail = emails[0] ?? "";
+          const firstName =
+            active.find(
+              (s) =>
+                s.senderEmail.toLowerCase() === firstEmail.toLowerCase()
+            )?.senderName ?? null;
+          const multi = emails.length > 1;
+          return {
+            title: "Viewing snap for:",
+            primary: multi ? `${emails.length} senders` : firstEmail,
+            secondary: multi
+              ? new Date(viewingBriefing.generatedAt).toLocaleString()
+              : firstName,
+            logo: (
+              <DialogIdentityLogoStack
+                size="lg"
+                items={emails.map((email) => ({
+                  key: email,
+                  src: senderLogoSrc(email),
+                  name:
+                    active.find(
+                      (s) =>
+                        s.senderEmail.toLowerCase() === email.toLowerCase()
+                    )?.senderName ?? email,
+                }))}
+              />
+            ),
+          };
+        })()}
+        cancelLabel="Close"
+        secondaryAction={
+          <button
+            type="button"
+            disabled={deletePending || !viewingBriefing}
+            onClick={() => {
+              if (!viewingBriefing) return;
+              void deleteBriefingsForSubscriptions([
+                viewingBriefing.subscriptionId,
+              ]);
+            }}
+            className={cn(
+              SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME,
+              "h-9 px-3.5"
+            )}
+          >
+            {deletePending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="h-3.5 w-3.5" />
+            )}
+            <span>Delete</span>
+          </button>
+        }
+        primaryAction={
+          <button
+            type="button"
+            disabled={!viewingBriefing || briefingPending}
+            onClick={openBriefingFromViewing}
+            className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+          >
+            <CirclePlus className="h-3.5 w-3.5" />
+            <span>New</span>
+          </button>
+        }
       >
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Last Briefing</DialogTitle>
-            <DialogDescription>
-              {viewingBriefing
-                ? `Generated ${new Date(viewingBriefing.generatedAt).toLocaleString()}${
-                    viewingBriefing.senderEmails.length > 1
-                      ? ` · ${viewingBriefing.senderEmails.length} senders`
-                      : ""
-                  } · stored ${viewingBriefing.source === "db" ? "in cloud" : "on this device"}`
-                : "No briefing available"}
-            </DialogDescription>
-          </DialogHeader>
-          {viewingBriefing ? (
-            <div className="max-h-[70vh] overflow-auto rounded-lg border border-border/60 bg-slate-950">
+        {viewingBriefing ? (
+          <PreviewLoadChrome
+            loading={briefingPreviewLoading}
+            subject={
+              viewingBriefing.subject?.trim() ||
+              (viewingBriefing.senderEmails.length > 1
+                ? `Snapshot · ${viewingBriefing.senderEmails.length} senders`
+                : `Snapshot · ${viewingBriefing.senderEmails[0] ?? "sender"}`)
+            }
+            dateLabel={formatPreviewDisplayDate(viewingBriefing.generatedAt)}
+            loadingMessage="Loading snapshot…"
+          >
+            <div className="max-w-full overflow-x-hidden rounded-lg border border-border/60 bg-muted/20">
               <iframe
-                title="Last briefing preview"
-                className="h-[65vh] w-full border-0"
-                srcDoc={viewingBriefing.htmlPreview}
+                key={viewingBriefing.id}
+                title="Snapshot preview"
+                className="h-[65vh] max-h-[70vh] w-full max-w-full border-0 bg-slate-950"
+                srcDoc={constrainBriefingPreviewHtml(viewingBriefing.htmlPreview)}
                 // allow-same-origin so inlined @font-face / relative assets can apply
                 sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                onLoad={() => setBriefingPreviewLoading(false)}
               />
             </div>
-          ) : null}
-          <DialogFooter className="gap-2 sm:justify-between">
-            <Button
-              variant="destructive"
-              disabled={deletePending || !viewingBriefing}
-              onClick={() => {
-                if (!viewingBriefing) return;
-                void deleteBriefingsForSubscriptions([
-                  viewingBriefing.subscriptionId,
-                ]);
-              }}
-            >
-              {deletePending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : null}
-              Delete Briefing
-            </Button>
-            <Button variant="ghost" onClick={() => setViewingBriefing(null)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </PreviewLoadChrome>
+        ) : null}
+      </ActionDialogShell>
 
-      <Dialog
+      <ActionDialogShell
         open={unsubscribeDialogOpen}
         onOpenChange={(open) => {
-          if (!open && !pending) closeUnsubscribeDialog();
+          if (!open) closeUnsubscribeDialog();
         }}
+        pending={pending}
+        size="md"
+        identity={{
+          title: "Unsubscribing from:",
+          primary: batchConfirmOpen
+            ? `${selectedIds.length} selected sender${selectedIds.length === 1 ? "" : "s"}`
+            : (selected?.senderEmail ?? "sender"),
+          secondary: batchConfirmOpen ? null : (selected?.senderName ?? null),
+          logo: batchConfirmOpen ? (
+            <DialogIdentityLogoStack
+              size="lg"
+              items={selectedSubscriptions.map((sub) => ({
+                key: sub.id,
+                src: senderLogoSrc(sub.senderEmail),
+                name: sub.senderName ?? sub.senderEmail,
+              }))}
+            />
+          ) : selected ? (
+            <CompanyLogo
+              src={senderLogoSrc(selected.senderEmail)}
+              name={selected.senderName ?? selected.senderEmail}
+              size="lg"
+            />
+          ) : undefined,
+        }}
+        onCancel={closeUnsubscribeDialog}
+        primaryAction={
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => runUnsubscribe(cleanupChoice)}
+            className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+          >
+            {pending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <UserRoundMinus className="h-3.5 w-3.5" />
+            )}
+            <span>{pending ? "Working…" : "Unsubscribe"}</span>
+          </button>
+        }
       >
-        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
-          <DialogHeader className="space-y-1 border-b border-border/60 px-6 pb-3 pt-5 pr-12 text-left">
-            <DialogTitle className="text-lg font-semibold leading-tight tracking-tight">
-              Unsubscribe
-            </DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground">
-              {batchConfirmOpen ? (
-                <>
-                  Choose how to leave{" "}
-                  <span className="font-medium text-foreground">
-                    {selectedIds.length} selected sender
-                    {selectedIds.length === 1 ? "" : "s"}
-                  </span>
-                  .
-                </>
-              ) : (
-                <>
-                  Choose how to leave{" "}
-                  <span className="font-medium text-foreground">
-                    {selected?.senderName ?? selected?.senderEmail}
-                  </span>
-                  {selected?.senderName ? (
-                    <span className="text-muted-foreground">
-                      {" "}
-                      · {selected.senderEmail}
-                    </span>
-                  ) : null}
-                  .
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {batchConfirmOpen
+              ? "Future emails from these senders will be blocked."
+              : "Future emails from this sender will be blocked."}
+          </p>
 
-          <div className="space-y-3 px-6 py-4">
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-foreground">
+              What would you like to do with past emails?
+            </p>
             <div
               className="overflow-hidden rounded-lg border border-border/60 bg-muted/20"
               role="radiogroup"
-              aria-label="Unsubscribe options"
+              aria-label="Past email cleanup"
             >
               {UNSUBSCRIBE_OPTIONS.map((option, index) => {
                 const selectedOption = cleanupChoice === option.value;
-                const Icon = option.icon;
                 return (
                   <button
                     key={option.value}
@@ -1028,62 +1169,50 @@ export function SubscriptionsView({
                       ) : null}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                        <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+                      <span className="block text-sm font-medium text-foreground">
                         {option.label}
                       </span>
-                      <span className="mt-0.5 block text-xs text-muted-foreground">
-                        {option.description}
-                      </span>
+                      {option.description ? (
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {option.description}
+                        </span>
+                      ) : null}
                     </span>
                   </button>
                 );
               })}
             </div>
-
-            {error ? (
-              <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            ) : null}
           </div>
 
-          <DialogFooter className="gap-2 border-t border-border/60 bg-muted/20 px-6 py-3 sm:justify-end">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-9"
-              disabled={pending}
-              onClick={closeUnsubscribeDialog}
-            >
-              Cancel
-            </Button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => runUnsubscribe(cleanupChoice)}
-              className={cn(UNSUBSCRIBE_CTA_CLASSNAME, "h-9 px-3.5")}
-            >
-              {pending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <UserRoundMinus className="h-3.5 w-3.5" />
-              )}
-              <span>{pending ? "Working…" : "Unsubscribe"}</span>
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {error ? (
+            <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
+        </div>
+      </ActionDialogShell>
 
       <ConfirmActionDialog
         open={Boolean(deleteRecordTarget)}
         onOpenChange={(open) => {
           if (!open && !deleteRecordPending) setDeleteRecordTarget(null);
         }}
-        title="Delete record"
-        description="Are you sure? This can't be undone."
-        confirmLabel="Delete Record"
+        title="Deleting record for:"
+        primary={deleteRecordTarget?.senderEmail ?? "sender"}
+        secondary={deleteRecordTarget?.senderName ?? null}
+        logoSrc={
+          deleteRecordTarget
+            ? senderLogoSrc(deleteRecordTarget.senderEmail)
+            : null
+        }
+        logoName={
+          deleteRecordTarget?.senderName ??
+          deleteRecordTarget?.senderEmail ??
+          "sender"
+        }
+        description="Past history for this sender will be deleted."
+        emphasis="Are you sure? This can't be undone."
+        confirmLabel="Delete"
         pending={deleteRecordPending}
         onConfirm={runDeleteUnsubscribedRecord}
       />
@@ -1108,6 +1237,7 @@ function IconStatBadge({
   width,
   truncateValue = false,
   title,
+  selected = false,
 }: {
   icon?: ReactNode;
   value: string;
@@ -1118,6 +1248,8 @@ function IconStatBadge({
   /** Ellipsis overflow when the value exceeds the pill width (Last received). */
   truncateValue?: boolean;
   title?: string;
+  /** Let row/card select fill show through opaque pill surfaces. */
+  selected?: boolean;
 }) {
   const badge = (
     <div
@@ -1129,7 +1261,12 @@ function IconStatBadge({
       style={width ? { width } : undefined}
     >
       {icon ? (
-        <div className="flex w-7 shrink-0 items-center justify-center border-r border-border/40 bg-muted/40 text-muted-foreground/75">
+        <div
+          className={cn(
+            "flex w-7 shrink-0 items-center justify-center border-r border-border/40 text-muted-foreground/75",
+            selected ? "bg-muted/50" : "bg-muted/40"
+          )}
+        >
           {icon}
         </div>
       ) : null}
@@ -1137,7 +1274,8 @@ function IconStatBadge({
         className={cn(
           "flex min-w-0 flex-1 items-center justify-center px-1.5",
           SCORE_PERCENT_CLASSNAME,
-          valueClassName ?? "bg-background text-foreground"
+          valueClassName ?? "bg-card text-foreground",
+          selected && SELECT_MUTED_PILL_VALUE_CLASSNAME
         )}
       >
         <span
@@ -1197,18 +1335,29 @@ function computeMetricColumnWidths(
 function ClutterStatBadge({
   score,
   width,
+  selected = false,
 }: {
   score: number;
   width?: string;
+  selected?: boolean;
 }) {
   const tier = clutterScoreTier(score);
   return (
     <IconStatBadge
       title="Clutter score"
       value={`${score}%`}
-      valueClassName={CLUTTER_VALUE_CLASSES[tier]}
-      className={CLUTTER_OUTLINE_CLASSES[tier]}
+      valueClassName={
+        selected
+          ? SELECT_MUTED_PILL_VALUE_CLASSNAME
+          : CLUTTER_VALUE_CLASSES[tier]
+      }
+      className={
+        selected
+          ? SELECT_MUTED_PILL_OUTLINE_CLASSNAME
+          : CLUTTER_OUTLINE_CLASSES[tier]
+      }
       width={width}
+      selected={selected}
     />
   );
 }
@@ -1216,17 +1365,20 @@ function ClutterStatBadge({
 function EmailsStatBadge({
   count,
   width,
+  selected = false,
 }: {
   count: number;
   width?: string;
+  selected?: boolean;
 }) {
   return (
     <IconStatBadge
       title="Email volume"
       icon={<Mail className="size-3.5" aria-hidden />}
       value={String(count)}
-      valueClassName="bg-background text-muted-foreground"
+      valueClassName="bg-card text-muted-foreground"
       width={width}
+      selected={selected}
     />
   );
 }
@@ -1234,9 +1386,11 @@ function EmailsStatBadge({
 function LastReceivedStatBadge({
   date,
   width,
+  selected = false,
 }: {
   date: Date | string | null | undefined;
   width?: string;
+  selected?: boolean;
 }) {
   const value = formatLastReceivedValue(date);
   return (
@@ -1244,32 +1398,55 @@ function LastReceivedStatBadge({
       title="Last received"
       icon={<Send className="size-3.5" aria-hidden />}
       value={value}
-      valueClassName="bg-background font-medium tracking-normal text-muted-foreground/70"
+      valueClassName="bg-card font-medium tracking-normal text-muted-foreground/70"
       width={width ?? "9.5ch"}
       truncateValue
+      selected={selected}
     />
   );
 }
 
-/** Same gap as Create Briefing ↔ Unsubscribe (`gap-2.5`). */
+/** Same gap as Create Snapshot ↔ Unsubscribe (`gap-2.5`). */
 const METRICS_GAP_CLASS = "gap-2.5";
+
+/** Job Radar card hover — border lift + shadow (mobile cards). */
+const SUBSCRIPTION_CARD_SURFACE_CLASS =
+  "rounded-xl border border-border/80 bg-card p-4 shadow-md transition-all duration-200 hover:border-border hover:shadow-lg";
+
+/** Desktop table row hover — same family, background tint instead of shadow. */
+const SUBSCRIPTION_ROW_HOVER_CLASS =
+  "transition-colors duration-200 hover:bg-muted/30";
 
 function AnalyticsMetrics({
   clutter,
   emailCount,
   lastReceivedAt,
   widths,
+  selected = false,
 }: {
   clutter: number;
   emailCount: number;
   lastReceivedAt: Date | string | null | undefined;
   widths?: MetricColumnWidths;
+  selected?: boolean;
 }) {
   return (
     <div className={cn("flex items-center", METRICS_GAP_CLASS)}>
-      <LastReceivedStatBadge date={lastReceivedAt} width={widths?.received} />
-      <EmailsStatBadge count={emailCount} width={widths?.emails} />
-      <ClutterStatBadge score={clutter} width={widths?.clutter} />
+      <LastReceivedStatBadge
+        date={lastReceivedAt}
+        width={widths?.received}
+        selected={selected}
+      />
+      <EmailsStatBadge
+        count={emailCount}
+        width={widths?.emails}
+        selected={selected}
+      />
+      <ClutterStatBadge
+        score={clutter}
+        width={widths?.clutter}
+        selected={selected}
+      />
     </div>
   );
 }
@@ -1277,24 +1454,32 @@ function AnalyticsMetrics({
 function LastBriefingIconButton({
   briefing,
   onView,
+  disabled = false,
 }: {
   briefing: ResolvedBriefing;
   onView: (briefing: ResolvedBriefing) => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={() => onView(briefing)}
       title={
         briefing.source === "db"
-          ? "View last briefing (cloud)"
-          : "View last briefing (this device)"
+          ? "View snap (cloud)"
+          : "View snap (this device)"
       }
-      aria-label="View last briefing"
-      className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-teal-700 transition-colors hover:bg-teal-700/10 dark:text-teal-400"
+      aria-label="View snap"
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold transition-colors",
+        disabled
+          ? "pointer-events-none text-muted-foreground"
+          : "text-teal-700 hover:bg-teal-700/10 dark:text-teal-400"
+      )}
     >
       <Eye className="size-3" />
-      Last Briefing
+      View Snapshot
     </button>
   );
 }
@@ -1304,46 +1489,65 @@ function SubscriptionRowActions({
   onBriefing,
   onUnsubscribe,
   onViewLastEmail,
+  disabled = false,
 }: {
   sub: Subscription;
   onBriefing: (sub: Subscription) => void;
   onUnsubscribe: (sub: Subscription) => void;
   onViewLastEmail: (sub: Subscription) => void;
+  disabled?: boolean;
 }) {
   return (
     <>
       <button
         type="button"
+        disabled={disabled}
         onClick={() => onBriefing(sub)}
-        className={SECONDARY_ACTION_BTN_CLASSNAME}
+        className={
+          disabled
+            ? SECONDARY_ACTION_BTN_MUTED_CLASSNAME
+            : SECONDARY_ACTION_BTN_CLASSNAME
+        }
       >
         <Summary className="h-3.5 w-3.5" />
-        <span>Create Briefing</span>
+        <span>Create Snapshot</span>
       </button>
-      <div className="flex items-center gap-0.5">
-        <button
-          type="button"
-          onClick={() => onUnsubscribe(sub)}
-          className={UNSUBSCRIBE_CTA_CLASSNAME}
-        >
-          <UserRoundMinus className="h-3.5 w-3.5" />
-          <span>Unsubscribe</span>
-        </button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <RowMenuTrigger label="Subscription actions" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem
-              className="cursor-pointer gap-2"
-              onClick={() => onViewLastEmail(sub)}
-            >
-              <Mail className="size-4 text-muted-foreground" />
-              <span>View last received email</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onUnsubscribe(sub)}
+        className={
+          disabled
+            ? PRIMARY_ACTION_BTN_MUTED_CLASSNAME
+            : PRIMARY_ACTION_BTN_CLASSNAME
+        }
+      >
+        <UserRoundMinus className="h-3.5 w-3.5" />
+        <span>Unsubscribe</span>
+      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <RowMenuTrigger
+            label="Subscription actions"
+            disabled={disabled}
+            className={
+              disabled
+                ? "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground"
+                : undefined
+            }
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            disabled={disabled}
+            onClick={() => onViewLastEmail(sub)}
+          >
+            <Mail className="size-4 text-muted-foreground" />
+            <span>View last received email</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </>
   );
 }
@@ -1373,14 +1577,24 @@ function SubscriptionDesktopRow({
   onViewLastEmail: (sub: Subscription) => void;
 }) {
   return (
-    <div className="flex h-16 items-center border-b border-border/70 pl-3 pr-4 last:border-b-0">
+    <div
+      className={cn(
+        "flex h-16 items-center border-b border-[hsl(220_16%_88%)] pl-3 pr-4 last:border-b-0",
+        SUBSCRIPTION_ROW_HOVER_CLASS,
+        selected &&
+          cn(SELECT_HIGHLIGHT_FILL_CLASSNAME, SELECT_HIGHLIGHT_ROW_CLASSNAME)
+      )}
+    >
       {/* Zone 1: Contact & Identity — grows so the first divider sits closer to metrics */}
       <div className="flex min-w-0 flex-1 items-center gap-3 border-r border-border/40 pr-5">
         <input
           type="checkbox"
           checked={selected}
           onChange={() => onToggleRow(sub.id)}
-          className="m-0 h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30"
+          className={cn(
+            SELECT_CHECKBOX_CLASSNAME,
+            "m-0 h-3.5 w-3.5 shrink-0 cursor-pointer"
+          )}
           aria-label={`Select ${sub.senderEmail}`}
         />
         <CompanyLogo
@@ -1388,15 +1602,23 @@ function SubscriptionDesktopRow({
           name={sub.senderName ?? sub.senderEmail}
           size="md"
         />
-        <div className="min-w-0">
+        <div
+          className={cn("min-w-0", selected && "text-muted-foreground")}
+        >
           <div className="flex min-w-0 items-center gap-1.5">
-            <p className="truncate text-sm font-medium text-foreground">
+            <p
+              className={cn(
+                "truncate text-sm font-medium",
+                selected ? "text-muted-foreground" : "text-foreground"
+              )}
+            >
               {sub.senderName ?? "—"}
             </p>
             {briefing ? (
               <LastBriefingIconButton
                 briefing={briefing}
                 onView={onViewLastBriefing}
+                disabled={selected}
               />
             ) : null}
           </div>
@@ -1416,9 +1638,18 @@ function SubscriptionDesktopRow({
         <LastReceivedStatBadge
           date={sub.lastReceivedAt}
           width={metricWidths.received}
+          selected={selected}
         />
-        <EmailsStatBadge count={sub.emailCount} width={metricWidths.emails} />
-        <ClutterStatBadge score={clutter} width={metricWidths.clutter} />
+        <EmailsStatBadge
+          count={sub.emailCount}
+          width={metricWidths.emails}
+          selected={selected}
+        />
+        <ClutterStatBadge
+          score={clutter}
+          width={metricWidths.clutter}
+          selected={selected}
+        />
       </div>
 
       {/* Zone 3: Actions */}
@@ -1428,6 +1659,7 @@ function SubscriptionDesktopRow({
           onBriefing={onBriefing}
           onUnsubscribe={onUnsubscribe}
           onViewLastEmail={onViewLastEmail}
+          disabled={selected}
         />
       </div>
     </div>
@@ -1466,7 +1698,7 @@ function ActiveDesktopTable({
   );
 
   return (
-    <div className="hidden w-full overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm md:block">
+    <div className="hidden w-full overflow-visible rounded-xl border border-border/80 bg-card shadow-md transition-shadow duration-200 hover:shadow-lg md:block [&>div:first-child]:rounded-t-[0.7rem] [&>div:last-child]:rounded-b-[0.7rem]">
       {subscriptions.map((sub) => {
         const clutter = clutterForSub(sub);
         const briefing = resolveBriefing(sub);
@@ -1519,17 +1751,24 @@ function ActiveMobileCards({
       {subscriptions.map((sub) => {
         const clutter = clutterForSub(sub);
         const briefing = resolveBriefing(sub);
+        const selected = selectedIds.includes(sub.id);
         return (
           <li
             key={sub.id}
-            className="rounded-xl border border-border/50 bg-card p-4 shadow-sm"
+            className={cn(
+              SUBSCRIPTION_CARD_SURFACE_CLASS,
+              selected && SELECT_HIGHLIGHT_FILL_CLASSNAME
+            )}
           >
             <div className="flex items-center gap-3">
               <input
                 type="checkbox"
-                checked={selectedIds.includes(sub.id)}
+                checked={selected}
                 onChange={() => onToggleRow(sub.id)}
-                className="m-0 h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30"
+                className={cn(
+                  SELECT_CHECKBOX_CLASSNAME,
+                  "m-0 h-3.5 w-3.5 shrink-0 cursor-pointer"
+                )}
                 aria-label={`Select ${sub.senderEmail}`}
               />
               <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -1540,13 +1779,19 @@ function ActiveMobileCards({
                 />
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <p className="truncate text-sm font-medium text-foreground">
+                    <p
+                      className={cn(
+                        "truncate text-sm font-medium",
+                        selected ? "text-muted-foreground" : "text-foreground"
+                      )}
+                    >
                       {sub.senderName ?? sub.senderEmail}
                     </p>
                     {briefing ? (
                       <LastBriefingIconButton
                         briefing={briefing}
                         onView={onViewLastBriefing}
+                        disabled={selected}
                       />
                     ) : null}
                   </div>
@@ -1562,6 +1807,7 @@ function ActiveMobileCards({
                 emailCount={sub.emailCount}
                 lastReceivedAt={sub.lastReceivedAt}
                 widths={metricWidths}
+                selected={selected}
               />
               <div className="-mr-1.5 flex shrink-0 items-center justify-end gap-2.5">
                 <SubscriptionRowActions
@@ -1569,6 +1815,7 @@ function ActiveMobileCards({
                   onBriefing={onBriefing}
                   onUnsubscribe={onUnsubscribe}
                   onViewLastEmail={onViewLastEmail}
+                  disabled={selected}
                 />
               </div>
             </div>
@@ -1598,7 +1845,7 @@ function ArchiveCleanupButton({
       type="button"
       disabled={pending}
       onClick={onCleanup}
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[#e4f7f3] bg-[#ed1d24] px-3 py-1.5 text-xs font-medium text-[#e4f7f3] transition-colors hover:bg-[#ef4444]/90 hover:text-[#e4f7f3] disabled:opacity-50"
+      className={PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME}
     >
       {pending ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1633,7 +1880,7 @@ function ArchiveRowActions({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuItem
-            className="cursor-pointer gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+            className="cursor-pointer gap-2 text-[#c21f10] focus:bg-[#c21f10]/10 focus:text-[#c21f10] dark:text-[#fb6230] dark:focus:bg-[#fb6230]/10 dark:focus:text-[#fb6230]"
             onClick={() => onDeleteRecord(entry)}
           >
             <DatabaseX className="size-4" />
@@ -1662,7 +1909,12 @@ function ArchiveDesktopRow({
   const emailCount = entry.emailCount ?? 0;
 
   return (
-    <div className="flex h-16 items-center border-b border-border/70 pl-3 pr-4 last:border-b-0">
+    <div
+      className={cn(
+        "flex h-16 items-center border-b border-[hsl(220_16%_88%)] pl-3 pr-4 last:border-b-0",
+        SUBSCRIPTION_ROW_HOVER_CLASS
+      )}
+    >
       <div className="flex min-w-0 flex-1 items-center gap-3 border-r border-border/40 pr-5">
         <CompanyLogo
           src={senderLogoSrc(entry.senderEmail)}
@@ -1727,7 +1979,7 @@ function ArchiveDesktopTable({
   );
 
   return (
-    <div className="hidden w-full overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm md:block">
+    <div className="hidden w-full overflow-hidden rounded-xl border border-border/80 bg-card shadow-md transition-shadow duration-200 hover:shadow-lg md:block">
       {entries.map((entry) => (
         <ArchiveDesktopRow
           key={entry.key}
@@ -1768,10 +2020,7 @@ function ArchiveMobileCards({
       {entries.map((entry) => {
         const clutter = clutterForArchiveEntry(entry);
         return (
-          <li
-            key={entry.key}
-            className="rounded-xl border border-border/50 bg-card p-4 shadow-sm"
-          >
+          <li key={entry.key} className={SUBSCRIPTION_CARD_SURFACE_CLASS}>
             <div className="flex min-w-0 items-center gap-3">
               <CompanyLogo
                 src={senderLogoSrc(entry.senderEmail)}

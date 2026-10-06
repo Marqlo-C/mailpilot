@@ -98,6 +98,8 @@ model SubscriptionBriefing {
   accountId        String   @unique
   account          Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
+  /// Gmail subject, e.g. "Mail Pilot Snapshot · 8 updates · Jul 31 – Aug 7, 2026".
+  subject          String?
   htmlPreview      String   @db.Text
   generatedAt      DateTime
   /// Lowercased sender emails included in this digest.

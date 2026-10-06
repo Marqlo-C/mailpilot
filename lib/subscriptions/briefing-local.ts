@@ -5,6 +5,8 @@
 
 export type LocalBriefingRecord = {
   id: string;
+  /** Present on briefings created after subject persistence landed. */
+  subject?: string | null;
   htmlPreview: string;
   generatedAt: string;
   senderEmails: string[];
@@ -71,6 +73,7 @@ export function migrateDisplacedBriefingToLocal(
     if (skip.has(subId)) continue;
     map[subId] = {
       id: briefing.id,
+      subject: briefing.subject ?? null,
       htmlPreview: briefing.htmlPreview,
       generatedAt: briefing.generatedAt,
       senderEmails: briefing.senderEmails,

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { JobOpportunity } from "@prisma/client";
-import { Archive, Trash2, Undo2, XCircle } from "lucide-react";
+import { Archive, CheckCircle2, Trash2, Undo2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -11,6 +11,7 @@ import {
   deleteDismissedPermanently,
   dismissOpportunities,
   markLessLikeThis,
+  markOpportunitiesExternalApplied,
   restoreOpportunities,
 } from "@/app/actions/opportunities";
 import {
@@ -19,8 +20,13 @@ import {
 } from "@/components/opportunities/opportunity-card";
 import { PipelineToolbar } from "@/components/jobs/pipeline-toolbar";
 import {
-  PipelinePaginationFooter,
-} from "@/components/ui/pipeline-pagination";
+  BULK_ACTION_BTN_CLASSNAME,
+  BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME,
+  BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME,
+  BulkActionCount,
+  BulkActionsFlyout,
+} from "@/components/ui/bulk-actions-flyout";
+import { PipelinePaginationFooter } from "@/components/ui/pipeline-pagination";
 import { usePagination } from "@/hooks/use-pagination";
 import { isUserArchived } from "@/lib/opportunities/lifecycle";
 import {
@@ -303,118 +309,129 @@ export function OpportunitiesView({
         onPageChange={setCurrentPage}
       />
 
-      {selectedIds.length > 0 ? (
-        <aside
-          role="region"
-          aria-label="Bulk actions toolbar"
-          data-bulk-actions
-          className="fixed z-40 flex max-w-[min(96vw,40rem)] -translate-x-1/2 flex-wrap items-center gap-2 rounded-2xl border border-border bg-background/95 px-4 py-2.5 shadow-2xl backdrop-blur animate-in fade-in slide-in-from-bottom-3"
-          style={{
-            left: "calc(var(--app-sidebar-width, 0px) + (100vw - var(--app-sidebar-width, 0px)) / 2)",
-            bottom:
-              "calc(1.5rem + var(--app-mobile-bottom-inset, 0px))",
-          }}
-        >
-          <span className="mr-1 border-r border-border pr-3 text-xs font-semibold text-muted-foreground">
-            {selectedIds.length} Selected
-          </span>
+      <BulkActionsFlyout
+        selectedCount={selectedIds.length}
+        onCancel={clearSelection}
+      >
+        {variant === "history" ? (
+          <>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                startBatch(async () => {
+                  await restoreOpportunities(selectedIds);
+                  afterBatch("Restored");
+                })
+              }
+              className={BULK_ACTION_BTN_CLASSNAME}
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              Restore
+              <BulkActionCount count={selectedIds.length} />
+            </button>
 
-          {variant === "history" ? (
-            <>
+            {archivedSelectedIds.length > 0 ? (
               <button
                 type="button"
                 disabled={busy}
                 onClick={() =>
                   startBatch(async () => {
-                    await restoreOpportunities(selectedIds);
-                    afterBatch("Restored");
+                    await dismissOpportunities(archivedSelectedIds);
+                    afterBatch("Dismissed — purge countdown started");
                   })
                 }
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-              >
-                <Undo2 className="h-3.5 w-3.5" />
-                Restore ({selectedIds.length})
-              </button>
-
-              {archivedSelectedIds.length > 0 ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    startBatch(async () => {
-                      await dismissOpportunities(archivedSelectedIds);
-                      afterBatch("Dismissed — purge countdown started");
-                    })
-                  }
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                  Dismiss Archived ({archivedSelectedIds.length})
-                </button>
-              ) : null}
-
-              {dismissedSelectedIds.length > 0 ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    startBatch(async () => {
-                      await deleteDismissedPermanently(dismissedSelectedIds);
-                      afterBatch("Deleted permanently");
-                    })
-                  }
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete Permanently ({dismissedSelectedIds.length})
-                </button>
-              ) : null}
-            </>
-          ) : (
-            <>
-              {(variant === "leads" || variant === "applied") && (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    startBatch(async () => {
-                      await archiveOpportunities(selectedIds);
-                      afterBatch("Archived");
-                    })
-                  }
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-                >
-                  <Archive className="h-3.5 w-3.5" />
-                  Archive ({selectedIds.length})
-                </button>
-              )}
-
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  startBatch(async () => {
-                    await dismissOpportunities(selectedIds);
-                    afterBatch("Dismissed");
-                  })
-                }
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+                className={BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME}
               >
                 <XCircle className="h-3.5 w-3.5" />
-                Dismiss ({selectedIds.length})
+                Dismiss Archived
+                <BulkActionCount
+                  count={archivedSelectedIds.length}
+                  className={BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME}
+                />
               </button>
-            </>
-          )}
+            ) : null}
 
-          <button
-            type="button"
-            onClick={clearSelection}
-            className="ml-1 text-xs text-muted-foreground underline hover:text-foreground"
-          >
-            Cancel
-          </button>
-        </aside>
-      ) : null}
+            {dismissedSelectedIds.length > 0 ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  startBatch(async () => {
+                    await deleteDismissedPermanently(dismissedSelectedIds);
+                    afterBatch("Deleted permanently");
+                  })
+                }
+                className={BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete Permanently
+                <BulkActionCount
+                  count={dismissedSelectedIds.length}
+                  className={BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME}
+                />
+              </button>
+            ) : null}
+          </>
+        ) : (
+          <>
+            {(variant === "leads" || variant === "applied") && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  startBatch(async () => {
+                    await archiveOpportunities(selectedIds);
+                    afterBatch("Archived");
+                  })
+                }
+                className={BULK_ACTION_BTN_CLASSNAME}
+              >
+                <Archive className="h-3.5 w-3.5" />
+                Archive
+                <BulkActionCount count={selectedIds.length} />
+              </button>
+            )}
+
+            {variant === "leads" ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  startBatch(async () => {
+                    await markOpportunitiesExternalApplied(selectedIds);
+                    afterBatch("Marked as applied");
+                  })
+                }
+                className={BULK_ACTION_BTN_CLASSNAME}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Mark Applied
+                <BulkActionCount count={selectedIds.length} />
+              </button>
+            ) : null}
+
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                startBatch(async () => {
+                  await dismissOpportunities(selectedIds);
+                  afterBatch("Dismissed");
+                })
+              }
+              className={BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME}
+            >
+              <XCircle className="h-3.5 w-3.5" />
+              Dismiss
+              <BulkActionCount
+                count={selectedIds.length}
+                className={BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME}
+              />
+            </button>
+          </>
+        )}
+      </BulkActionsFlyout>
     </div>
   );
 }

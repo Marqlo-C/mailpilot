@@ -43,8 +43,8 @@ export const RowMenuTrigger = React.forwardRef<
       variant="ghost"
       size="icon"
       className={cn(
-        // Color matches wavy slider BRAND_TEAL (#1ab5af).
-        "h-8 w-8 rounded-lg border-0 text-[#1ab5af] shadow-none hover:bg-muted/70 hover:text-[#1ab5af]",
+        // Rest: muted ghost + teal dots. Hover: teal fill + dots flip to rest bg.
+        "h-8 w-8 rounded-lg border-0 bg-muted/70 text-[#1ab5af] shadow-none hover:bg-[#1ab5af] hover:text-background",
         className
       )}
       {...props}
