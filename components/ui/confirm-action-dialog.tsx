@@ -1,40 +1,52 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  PRIMARY_ACTION_BTN_CLASSNAME,
+  PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME,
+} from "@/components/ui/primary-action-btn";
+import { cn } from "@/lib/utils";
 
 type ConfirmActionDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Present-progressive identity title, e.g. "Deleting record for:".
+   * See DialogIdentityHeader title syntax.
+   */
   title: string;
-  /** Defaults to a universal irreversible warning. */
+  primary: string;
+  secondary?: string | null;
+  logoSrc?: string | null;
+  logoName?: string;
+  /** Muted lead copy (unsubscribe-style info line). */
   description?: string;
+  /** Emphasized follow-up under the lead. */
+  emphasis?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   pending?: boolean;
-  /** When true, confirm uses destructive styling. */
+  /** When true, filled red primary CTA + trash icon; otherwise dark primary. */
   destructive?: boolean;
   onConfirm: () => void;
 };
 
 /**
  * Shared confirm dialog for irreversible actions.
- * Universal copy: “Are you sure? This can't be undone.”
+ * Built on ActionDialogShell; default body mirrors the unsubscribe info pattern.
  */
 export function ConfirmActionDialog({
   open,
   onOpenChange,
   title,
-  description = "Are you sure? This can't be undone.",
+  primary,
+  secondary = null,
+  logoSrc = null,
+  logoName,
+  description = "This action cannot be reversed.",
+  emphasis = "Are you sure? This can't be undone.",
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   pending = false,
@@ -42,40 +54,47 @@ export function ConfirmActionDialog({
   onConfirm,
 }: ConfirmActionDialogProps) {
   return (
-    <Dialog
+    <ActionDialogShell
       open={open}
-      onOpenChange={(next) => {
-        if (pending) return;
-        onOpenChange(next);
+      onOpenChange={onOpenChange}
+      pending={pending}
+      size="lg"
+      identity={{
+        title,
+        primary,
+        secondary,
+        logoSrc,
+        logoName: logoName ?? primary,
+        logoSize: "lg",
       }}
+      cancelLabel={cancelLabel}
+      primaryAction={
+        <button
+          type="button"
+          disabled={pending}
+          onClick={onConfirm}
+          className={cn(
+            destructive
+              ? PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME
+              : PRIMARY_ACTION_BTN_CLASSNAME,
+            "h-9 px-3.5"
+          )}
+        >
+          {pending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : destructive ? (
+            <Trash2 className="h-3.5 w-3.5" />
+          ) : null}
+          <span>{confirmLabel}</span>
+        </button>
+      }
     >
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter className="gap-2 sm:justify-end">
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={pending}
-            onClick={() => onOpenChange(false)}
-          >
-            {cancelLabel}
-          </Button>
-          <Button
-            type="button"
-            variant={destructive ? "destructive" : "default"}
-            disabled={pending}
-            onClick={onConfirm}
-          >
-            {pending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : null}
-            {confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <div className="space-y-2">
+        <p className="text-sm text-muted-foreground">{description}</p>
+        {emphasis ? (
+          <p className="text-sm font-semibold text-foreground">{emphasis}</p>
+        ) : null}
+      </div>
+    </ActionDialogShell>
   );
 }

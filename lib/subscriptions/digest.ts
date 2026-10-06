@@ -50,6 +50,7 @@ export type DigestCard = {
 
 export type DigestBriefingSnapshot = {
   id: string;
+  subject: string | null;
   htmlPreview: string;
   generatedAt: string;
   senderEmails: string[];
@@ -380,14 +381,14 @@ function renderSenderChip(card: DigestCard): string {
     : `<div style="width:36px;height:36px;line-height:36px;text-align:center;font-size:12px;font-weight:700;color:#0F766E;background:#CCFBF1;border-radius:12px;">${escapeHtml(senderInitials(name))}</div>`;
 
   return `
-    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 14px 0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:100%;margin:0 0 14px 0;table-layout:fixed;">
       <tr>
         <td valign="middle" width="36" height="36" style="width:36px;height:36px;border-radius:12px;overflow:hidden;background:#F0FDFA;border:1px solid #E2E8F0;">
           ${mark}
         </td>
-        <td valign="middle" style="padding-left:10px;">
-          <p style="margin:0;font-size:13px;line-height:1.25;font-weight:600;color:#0F172A;">${escapeHtml(name)}</p>
-          <p style="margin:2px 0 0 0;font-size:12px;line-height:1.25;color:#64748B;">${escapeHtml(card.fromEmail)}</p>
+        <td valign="middle" class="mp-break" style="padding-left:10px;min-width:0;">
+          <p class="mp-break" style="margin:0;font-size:13px;line-height:1.25;font-weight:600;color:#0F172A;">${escapeHtml(name)}</p>
+          <p class="mp-break" style="margin:2px 0 0 0;font-size:12px;line-height:1.25;color:#64748B;">${escapeHtml(card.fromEmail)}</p>
         </td>
       </tr>
     </table>`;
@@ -413,25 +414,25 @@ function renderUpdateItem(card: DigestCard): string {
 
   const body = `
     ${renderSenderChip(card)}
-    <h3 style="margin:0 0 8px 0;font-family:Georgia,'Times New Roman',Times,serif;font-size:22px;line-height:1.28;font-weight:700;letter-spacing:-0.015em;color:#0F172A;">${escapeHtml(card.subject)}</h3>
+    <h3 class="mp-break" style="margin:0 0 8px 0;font-family:Georgia,'Times New Roman',Times,serif;font-size:22px;line-height:1.28;font-weight:700;letter-spacing:-0.015em;color:#0F172A;">${escapeHtml(card.subject)}</h3>
     ${
       received
         ? `<p style="margin:0 0 12px 0;font-size:12px;line-height:1.4;font-weight:500;letter-spacing:0.02em;color:#94A3B8;">${escapeHtml(received)}</p>`
         : ""
     }
-    <p style="margin:0;font-size:15px;line-height:1.65;color:#475569;">${escapeHtml(card.summary)}</p>
+    <p class="mp-break" style="margin:0;font-size:15px;line-height:1.65;color:#475569;">${escapeHtml(card.summary)}</p>
     ${cta}`;
 
   if (card.heroImageUrl) {
     return `
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px 0;background:#FFFFFF;border:1px solid #E7E5E4;border-radius:22px;overflow:hidden;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:100%;margin:0 0 18px 0;background:#FFFFFF;border:1px solid #E7E5E4;border-radius:22px;overflow:hidden;">
         <tr>
           <td style="padding:0;font-size:0;line-height:0;border-radius:22px 22px 0 0;">
-            <img src="${escapeHtml(card.heroImageUrl)}" alt="" width="544" style="display:block;width:100%;max-width:544px;height:auto;border:0;" />
+            <img src="${escapeHtml(card.heroImageUrl)}" alt="" width="544" style="display:block;width:100%;max-width:100%;height:auto;border:0;" />
           </td>
         </tr>
         <tr>
-          <td style="padding:22px 22px 24px 22px;">
+          <td style="padding:22px 22px 24px 22px;min-width:0;">
             ${body}
           </td>
         </tr>
@@ -439,9 +440,9 @@ function renderUpdateItem(card: DigestCard): string {
   }
 
   return `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px 0;background:#FFFFFF;border:1px solid #E7E5E4;border-radius:22px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:100%;margin:0 0 18px 0;background:#FFFFFF;border:1px solid #E7E5E4;border-radius:22px;">
       <tr>
-        <td style="padding:22px 22px 24px 22px;">
+        <td style="padding:22px 22px 24px 22px;min-width:0;">
           ${body}
         </td>
       </tr>
@@ -489,7 +490,7 @@ export function buildBriefingHtml(
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light" />
-  <title>Mail Pilot Briefing</title>
+  <title>Mail Pilot Snapshot</title>
   <style type="text/css">
     @font-face {
       font-family: 'Duplet Rounded';
@@ -498,6 +499,18 @@ export function buildBriefingHtml(
       font-display: swap;
       src: url('${brandFontDataUri}') format('woff2');
     }
+    html, body {
+      max-width: 100% !important;
+      overflow-x: hidden !important;
+    }
+    img, table {
+      max-width: 100% !important;
+    }
+    /* Break long URLs/subjects in content — not table chrome / labels. */
+    .mp-break {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
   </style>
   <!--[if mso]>
   <style type="text/css">
@@ -505,15 +518,15 @@ export function buildBriefingHtml(
   </style>
   <![endif]-->
 </head>
-<body style="margin:0;padding:0;background:#F3F0EA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F172A;-webkit-font-smoothing:antialiased;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3F0EA;">
+<body style="margin:0;padding:0;width:100%;max-width:100%;overflow-x:hidden;background:#F3F0EA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F172A;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:100%;background:#F3F0EA;">
     <tr>
       <td align="center" style="padding:32px 16px 40px 16px;">
         <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
-          Your Mail Pilot briefing · ${escapeHtml(updateLabel)} · ${escapeHtml(opts.rangeLabel)}
+          Your Mail Pilot snapshot · ${escapeHtml(updateLabel)} · ${escapeHtml(opts.rangeLabel)}
         </div>
 
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;margin:0 auto;table-layout:fixed;">
           <!-- Masthead -->
           <tr>
             <td style="padding:0 0 22px 0;">
@@ -539,10 +552,10 @@ export function buildBriefingHtml(
                       </tr>
                       <tr>
                         <td align="center">
-                          <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:999px;">
+                          <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="max-width:100%;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:999px;">
                             <tr>
-                              <td style="padding:7px 14px;font-size:12px;line-height:1;font-weight:600;color:#475569;">
-                                <span style="color:#0F766E;">Briefing</span>
+                              <td style="padding:7px 14px;font-size:12px;line-height:1.35;font-weight:600;color:#475569;text-align:center;overflow-wrap:anywhere;word-break:break-word;">
+                                <span style="color:#0F766E;">Snapshot</span>
                                 <span style="color:#CBD5E1;">&nbsp;·&nbsp;</span>
                                 ${escapeHtml(opts.rangeLabel)}
                                 <span style="color:#CBD5E1;">&nbsp;·&nbsp;</span>
@@ -562,7 +575,7 @@ export function buildBriefingHtml(
           <!-- Greeting -->
           <tr>
             <td style="padding:0 8px 26px 8px;">
-              <p style="margin:0;font-size:16px;line-height:1.7;color:#334155;">
+              <p class="mp-break" style="margin:0;font-size:16px;line-height:1.7;color:#334155;">
                 Thanks for trusting Mail Pilot! Here's a summary of your subscriptions from <span style="color:#0F172A;font-weight:600;">${escapeHtml(sendersLabel)}</span> between <span style="color:#0F172A;font-weight:600;">${escapeHtml(opts.rangeLabel)}</span>:
               </p>
             </td>
@@ -571,12 +584,12 @@ export function buildBriefingHtml(
           <!-- Section rule -->
           <tr>
             <td style="padding:0 8px 14px 8px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;">
                 <tr>
-                  <td valign="middle" style="vertical-align:middle;padding-right:12px;">
-                    <span style="font-size:11px;line-height:1;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#94A3B8;">In this briefing</span>
+                  <td valign="middle" width="1" style="vertical-align:middle;padding-right:12px;white-space:nowrap;">
+                    <span style="font-size:11px;line-height:1;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#94A3B8;white-space:nowrap;">In this snapshot</span>
                   </td>
-                  <td width="100%" valign="middle" style="vertical-align:middle;border-top:1px solid #E7E5E4;font-size:0;line-height:0;">&nbsp;</td>
+                  <td valign="middle" style="vertical-align:middle;width:100%;border-top:1px solid #E7E5E4;font-size:0;line-height:0;">&nbsp;</td>
                 </tr>
               </table>
             </td>
@@ -618,8 +631,8 @@ export function buildBriefingHtml(
                   </td>
                 </tr>
               </table>
-              <div style="font-size:12px;line-height:1.6;color:#94A3B8;">
-                Original emails included in this briefing were moved to Trash after delivery.<br />
+              <div class="mp-break" style="font-size:12px;line-height:1.6;color:#94A3B8;">
+                Original emails included in this snapshot were moved to Trash after delivery.<br />
                 Delivered to ${escapeHtml(opts.recipientEmail)}.
                 <a href="${escapeHtml(subscriptionsUrl)}" style="color:#64748B;text-decoration:underline;">Manage subscriptions</a>
               </div>
@@ -812,7 +825,7 @@ export async function createSubscriptionBriefing(options: {
       (rangeEnd.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24)
     ) + 1;
   if (spanDays > MAX_BRIEFING_DAYS) {
-    throw new Error(`Maximum briefing range is ${MAX_BRIEFING_DAYS} days`);
+    throw new Error(`Maximum snapshot range is ${MAX_BRIEFING_DAYS} days`);
   }
   const today = startOfUtcDay(new Date());
   if (rangeEnd > today) {
@@ -871,7 +884,7 @@ export async function createSubscriptionBriefing(options: {
     recipientEmail,
     appUrl,
   });
-  const subject = `Mail Pilot Briefing · ${cards.length} update${cards.length === 1 ? "" : "s"} · ${rangeLabel}`;
+  const subject = `Mail Pilot Snapshot · ${cards.length} update${cards.length === 1 ? "" : "s"} · ${rangeLabel}`;
   const raw = [
     `To: ${recipientEmail}`,
     `Subject: ${encodeMimeSubject(subject)}`,
@@ -922,6 +935,7 @@ export async function createSubscriptionBriefing(options: {
     where: { accountId },
     select: {
       id: true,
+      subject: true,
       htmlPreview: true,
       generatedAt: true,
       senderEmails: true,
@@ -933,12 +947,14 @@ export async function createSubscriptionBriefing(options: {
     where: { accountId },
     create: {
       accountId,
+      subject,
       htmlPreview: html,
       generatedAt,
       senderEmails,
       subscriptionIds,
     },
     update: {
+      subject,
       htmlPreview: html,
       generatedAt,
       senderEmails,
@@ -948,12 +964,14 @@ export async function createSubscriptionBriefing(options: {
 
   const toSnapshot = (row: {
     id: string;
+    subject: string | null;
     htmlPreview: string;
     generatedAt: Date;
     senderEmails: string[];
     subscriptionIds: string[];
   }): DigestBriefingSnapshot => ({
     id: row.id,
+    subject: row.subject,
     htmlPreview: row.htmlPreview,
     generatedAt: row.generatedAt.toISOString(),
     senderEmails: row.senderEmails,

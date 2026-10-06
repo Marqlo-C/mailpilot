@@ -12,22 +12,38 @@ const WAVE_HALF_PX = 7;
 const WAVE_MID_Y = 6;
 const WAVE_AMP_Y = 3;
 const WAVE_VB_H = 12;
+/** One T-segment length (peak → trough). */
+const WAVE_SEGMENT_PX = WAVE_HALF_PX * 2;
+/**
+ * Full visual period (peak → trough → peak). Animating by only one segment
+ * caused a harsh phase snap every loop.
+ */
+const WAVE_PERIOD_PX = WAVE_SEGMENT_PX * 2;
+/** Idle crawl speed — slow enough to read as one continuous ribbon. */
+const WAVE_CYCLE_MS = 1900;
 
 /**
  * Build a squiggle path for an exact pixel width without stretching.
  * Longer tracks get more cycles; amplitude stays fixed.
+ * Extends one full period left so a phase translate never shows a gap.
  */
 function buildWavePath(widthPx: number): string {
-  const width = Math.max(WAVE_HALF_PX * 2, Math.ceil(widthPx));
-  let d = `M 0 ${WAVE_MID_Y} Q ${WAVE_HALF_PX} ${WAVE_MID_Y - WAVE_AMP_Y}, ${WAVE_HALF_PX * 2} ${WAVE_MID_Y}`;
+  const width = Math.max(WAVE_SEGMENT_PX, Math.ceil(widthPx));
+  const startX = -WAVE_PERIOD_PX;
+  let d = `M ${startX} ${WAVE_MID_Y} Q ${startX + WAVE_HALF_PX} ${WAVE_MID_Y - WAVE_AMP_Y}, ${startX + WAVE_SEGMENT_PX} ${WAVE_MID_Y}`;
   for (
-    let x = WAVE_HALF_PX * 4;
-    x <= width + WAVE_HALF_PX * 2;
-    x += WAVE_HALF_PX * 2
+    let x = startX + WAVE_SEGMENT_PX * 2;
+    x <= width + WAVE_PERIOD_PX;
+    x += WAVE_SEGMENT_PX
   ) {
     d += ` T ${x} ${WAVE_MID_Y}`;
   }
   return d;
+}
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 export type WavySliderProps = {
@@ -53,6 +69,7 @@ export type WavySliderProps = {
  * Shared Material You–style squiggly slider.
  * Reuse anywhere; customize length via `widthClassName`.
  * Wave frequency and amplitude stay constant in CSS pixels.
+ * After place, the active wave crawls until the slider is touched again.
  */
 export function WavySlider({
   value,
@@ -67,7 +84,11 @@ export function WavySlider({
   "aria-label": ariaLabel,
 }: WavySliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const waveGroupRef = useRef<SVGGElement>(null);
+  const waveRafRef = useRef<number | null>(null);
+  const interactingRef = useRef(false);
   const [trackWidth, setTrackWidth] = useState(0);
+  const [waving, setWaving] = useState(false);
 
   useEffect(() => {
     const el = trackRef.current;
@@ -84,18 +105,91 @@ export function WavySlider({
     return () => ro.disconnect();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (waveRafRef.current != null) {
+        cancelAnimationFrame(waveRafRef.current);
+      }
+    };
+  }, []);
+
   const wavePath = useMemo(
     () => buildWavePath(trackWidth || WAVE_HALF_PX * 12),
     [trackWidth]
   );
-  const waveVbW = Math.max(WAVE_HALF_PX * 2, trackWidth || WAVE_HALF_PX * 12);
+  const waveVbW = Math.max(WAVE_SEGMENT_PX, trackWidth || WAVE_HALF_PX * 12);
 
   const clamped = Math.min(max, Math.max(min, value));
   const pct = max === min ? 0 : ((clamped - min) / (max - min)) * 100;
 
+  function stopWave() {
+    if (waveRafRef.current != null) {
+      cancelAnimationFrame(waveRafRef.current);
+      waveRafRef.current = null;
+    }
+    const g = waveGroupRef.current;
+    if (g) g.setAttribute("transform", "translate(0 0)");
+    setWaving(false);
+  }
+
+  function startWave(currentValue: number) {
+    if (disabled) return;
+    if (prefersReducedMotion()) return;
+    if (currentValue <= min) {
+      stopWave();
+      return;
+    }
+
+    if (waveRafRef.current != null) {
+      cancelAnimationFrame(waveRafRef.current);
+      waveRafRef.current = null;
+    }
+
+    setWaving(true);
+    const start = performance.now();
+    const tick = (now: number) => {
+      const g = waveGroupRef.current;
+      if (g) {
+        // Linear phase; full period so the loop seams invisibly.
+        const phase =
+          (((now - start) / WAVE_CYCLE_MS) % 1) * WAVE_PERIOD_PX;
+        g.setAttribute("transform", `translate(${-phase} 0)`);
+      }
+      waveRafRef.current = requestAnimationFrame(tick);
+    };
+    waveRafRef.current = requestAnimationFrame(tick);
+  }
+
+  // Start on mount / refresh (and after async threshold hydration), not mid-drag.
+  const waveVisible = clamped > min;
+  useEffect(() => {
+    if (disabled) {
+      stopWave();
+      return;
+    }
+    if (interactingRef.current) return;
+    if (waveVisible) startWave(clamped);
+    else stopWave();
+    return () => {
+      if (waveRafRef.current != null) {
+        cancelAnimationFrame(waveRafRef.current);
+        waveRafRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when wave presence changes
+  }, [disabled, waveVisible]);
+
+  function beginInteract() {
+    interactingRef.current = true;
+    stopWave();
+  }
+
   function commitFromEvent(target: EventTarget | null) {
-    if (!(target instanceof HTMLInputElement) || !onCommit) return;
-    onCommit(Number(target.value));
+    if (!(target instanceof HTMLInputElement)) return;
+    const next = Number(target.value);
+    interactingRef.current = false;
+    startWave(next);
+    onCommit?.(next);
   }
 
   return (
@@ -107,6 +201,7 @@ export function WavySlider({
         disabled && "pointer-events-none opacity-50",
         className
       )}
+      data-waving={waving ? "true" : undefined}
     >
       {/* Finish end cap — centered on track end; no geometric overlap with the bar */}
       <div
@@ -129,13 +224,15 @@ export function WavySlider({
           fill="none"
           aria-hidden
         >
-          <path
-            d={wavePath}
-            stroke={BRAND_TEAL}
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-          />
+          <g ref={waveGroupRef}>
+            <path
+              d={wavePath}
+              stroke={BRAND_TEAL}
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
         </svg>
       </div>
 
@@ -174,6 +271,21 @@ export function WavySlider({
         value={clamped}
         disabled={disabled}
         aria-label={ariaLabel}
+        onPointerDown={beginInteract}
+        onKeyDown={(e) => {
+          if (
+            e.key === "ArrowLeft" ||
+            e.key === "ArrowRight" ||
+            e.key === "ArrowUp" ||
+            e.key === "ArrowDown" ||
+            e.key === "Home" ||
+            e.key === "End" ||
+            e.key === "PageUp" ||
+            e.key === "PageDown"
+          ) {
+            beginInteract();
+          }
+        }}
         onChange={(e) => onChange(Number(e.target.value))}
         onMouseUp={(e) => commitFromEvent(e.currentTarget)}
         onTouchEnd={(e) => commitFromEvent(e.currentTarget)}

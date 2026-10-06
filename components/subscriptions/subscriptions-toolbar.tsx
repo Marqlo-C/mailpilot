@@ -3,6 +3,7 @@
 import {
   ToolbarDivider,
   ToolbarMetaRow,
+  ToolbarNativeSelect,
   ToolbarRoot,
   ToolbarScoreSlider,
   ToolbarSearch,
@@ -103,35 +104,33 @@ export function SubscriptionsToolbar({
           ariaLabel="Search senders or newsletters"
         />
 
-        <select
+        <ToolbarNativeSelect
           value={categoryFilter}
           onChange={(e) =>
             onCategoryFilterChange(
               e.target.value as SubscriptionCategoryFilter
             )
           }
-          className="h-7 cursor-pointer rounded-md border border-input/60 bg-background/50 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-background focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring"
           aria-label="Filter by category"
         >
           <option value="all">All Categories</option>
           <option value="promotions">Promotions</option>
           <option value="newsletters">Newsletters</option>
           <option value="alerts">Alerts</option>
-        </select>
+        </ToolbarNativeSelect>
 
-        <select
+        <ToolbarNativeSelect
           value={sortOption}
           onChange={(e) =>
             onSortOptionChange(e.target.value as SubscriptionSortOption)
           }
-          className="h-7 cursor-pointer rounded-md border border-input/60 bg-background/50 px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-background focus:bg-background focus:outline-none focus:ring-1 focus:ring-ring"
           aria-label="Sort subscriptions"
         >
           <option value="clutter_desc">Highest Clutter</option>
           <option value="freq_desc">Most Frequent</option>
           <option value="freq_asc">Least Frequent</option>
           <option value="alpha">Alphabetical</option>
-        </select>
+        </ToolbarNativeSelect>
       </ToolbarRoot>
 
       <ToolbarMetaRow>

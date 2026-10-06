@@ -24,7 +24,7 @@ type SyncControlsProps = {
 };
 
 /**
- * Dual-mode inbox sync with granular force-rescan lookbacks (5 / 10 / 14 days).
+ * Dual-mode inbox sync with granular force-rescan lookbacks (today / 5 / 10 / 14 days).
  */
 export function SyncControls({ accountId, className }: SyncControlsProps) {
   const router = useRouter();
@@ -55,7 +55,9 @@ export function SyncControls({ accountId, className }: SyncControlsProps) {
       toast.success(
         result.data?.message ??
           (forceRescan
-            ? `Force rescan (${lookbackDays}d) started`
+            ? lookbackDays === 1
+              ? "Force rescan (today) started"
+              : `Force rescan (${lookbackDays}d) started`
             : "Sync started in background")
       );
       router.refresh();
@@ -69,7 +71,7 @@ export function SyncControls({ accountId, className }: SyncControlsProps) {
         variant="outline"
         size="sm"
         disabled={disabled}
-        className="rounded-r-none border-r-0"
+        className="rounded-r-none border-r-0 shadow-md"
         onClick={() => runSync(false)}
       >
         <RefreshCw className={cn("h-4 w-4", pending && "animate-spin")} />
@@ -82,7 +84,7 @@ export function SyncControls({ accountId, className }: SyncControlsProps) {
             variant="outline"
             size="sm"
             disabled={disabled}
-            className="rounded-l-none px-2"
+            className="rounded-l-none px-2 shadow-md"
             aria-label="More sync options"
           >
             <ChevronDown className="h-4 w-4" />
@@ -104,6 +106,15 @@ export function SyncControls({ accountId, className }: SyncControlsProps) {
           <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
             Force rescan &amp; backfill
           </DropdownMenuLabel>
+          <DropdownMenuItem
+            disabled={disabled}
+            onSelect={() => runSync(true, 1)}
+          >
+            Today
+            <span className="ml-auto text-xs text-muted-foreground">
+              last 24h
+            </span>
+          </DropdownMenuItem>
           <DropdownMenuItem
             disabled={disabled}
             onSelect={() => runSync(true, 5)}

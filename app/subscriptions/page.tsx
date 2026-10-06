@@ -37,6 +37,7 @@ export default async function SubscriptionsPage() {
         latestBriefing
           ? {
               id: latestBriefing.id,
+              subject: latestBriefing.subject,
               htmlPreview: latestBriefing.htmlPreview,
               generatedAt: latestBriefing.generatedAt.toISOString(),
               senderEmails: latestBriefing.senderEmails,

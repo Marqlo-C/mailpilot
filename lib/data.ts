@@ -199,6 +199,7 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
 
 export type LatestBriefingPreview = {
   id: string;
+  subject: string | null;
   htmlPreview: string;
   generatedAt: Date;
   senderEmails: string[];
@@ -227,6 +228,7 @@ export async function getLatestBriefingForAccount(
       where: { accountId },
       select: {
         id: true,
+        subject: true,
         htmlPreview: true,
         generatedAt: true,
         senderEmails: true,

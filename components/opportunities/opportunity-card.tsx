@@ -39,8 +39,19 @@ import { RowMenuTrigger } from "@/components/ui/row-menu-trigger";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { ReceivedMeta } from "@/components/ui/received-meta";
 import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/score-percent";
-import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
-import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
+import {
+  PRIMARY_ACTION_BTN_CLASSNAME,
+  PRIMARY_ACTION_BTN_MUTED_CLASSNAME,
+} from "@/components/ui/primary-action-btn";
+import { SELECT_CHECKBOX_CLASSNAME } from "@/components/ui/select-checkbox";
+import {
+  SELECT_HIGHLIGHT_CLASSNAME,
+  SELECT_HIGHLIGHT_FILL_CLASSNAME,
+} from "@/components/ui/select-highlight";
+import {
+  SECONDARY_ACTION_BTN_CLASSNAME,
+  SECONDARY_ACTION_BTN_MUTED_CLASSNAME,
+} from "@/components/ui/secondary-action-btn";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { canDraftDirectEmail } from "@/lib/application-method";
 import {
@@ -86,7 +97,7 @@ function scoreTone(score: number): string {
 
 /**
  * Opportunity card with corner classification badge, full-width header,
- * liquid metadata pills, and split primary/safety action bar.
+ * liquid metadata pills, and secondary · primary · ⋮ action bar.
  */
 export function OpportunityCard({
   opportunity,
@@ -109,6 +120,7 @@ export function OpportunityCard({
   const router = useRouter();
   const [actionPending, startTransition] = useTransition();
   const busy = pending || actionPending;
+  const actionsLocked = busy || isSelected;
 
   const canEmail = canDraftDirectEmail(opportunity.recipientEmail);
   const score = opportunity.matchScore ?? 0;
@@ -192,7 +204,12 @@ export function OpportunityCard({
       ? "Easy Apply"
       : "External";
 
-  const secondaryBtnClass = SECONDARY_ACTION_BTN_CLASSNAME;
+  const primaryBtnClass = isSelected
+    ? PRIMARY_ACTION_BTN_MUTED_CLASSNAME
+    : PRIMARY_ACTION_BTN_CLASSNAME;
+  const secondaryBtnClass = isSelected
+    ? SECONDARY_ACTION_BTN_MUTED_CLASSNAME
+    : SECONDARY_ACTION_BTN_CLASSNAME;
 
   const showOverflowMenu =
     variant === "leads" || variant === "applied" || variant === "action";
@@ -236,30 +253,33 @@ export function OpportunityCard({
   return (
     <article
       className={cn(
-        "group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition-all duration-200",
+        "group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-md transition-all duration-200",
         belowThreshold && !userArchived && "opacity-90",
         isSelected
-          ? "border-[#3c837b]/70 bg-primary/[0.015] ring-2 ring-[#3c837b]/20"
-          : "border-border/80 hover:border-border hover:shadow-md"
+          ? cn(SELECT_HIGHLIGHT_CLASSNAME, SELECT_HIGHLIGHT_FILL_CLASSNAME)
+          : "border-border/80 hover:border-border hover:shadow-lg"
       )}
     >
-      {/* Top-left: checkbox pill — px-3 matches ToolbarRoot Select All padding */}
+      {/* Top-left: bare select checkbox */}
       {onToggleSelect ? (
-        <div className="absolute top-0 left-0 z-10 inline-flex h-[27px] select-none items-center justify-center rounded-br-xl border-b border-r border-border/70 bg-secondary/35 px-3 backdrop-blur-sm">
-          <label className="m-0 flex cursor-pointer items-center p-0">
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={() => onToggleSelect(opportunity.id)}
-              className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-border text-[#3c837b] transition-colors focus:ring-[#3c837b]/30"
-              aria-label={`Select ${opportunity.title}`}
-            />
-          </label>
-        </div>
+        <label className="absolute top-2.5 left-3 z-10 m-0 flex cursor-pointer items-center p-0">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelect(opportunity.id)}
+            className={cn(SELECT_CHECKBOX_CLASSNAME, "h-3.5 w-3.5 shrink-0 cursor-pointer")}
+            aria-label={`Select ${opportunity.title}`}
+          />
+        </label>
       ) : null}
 
       {/* Top-right: classification + match score / applied date corner pill */}
-      <div className="absolute top-0 right-0 z-10 inline-flex h-[27px] select-none items-stretch overflow-hidden rounded-bl-xl border-b border-l border-border/70 bg-secondary/35 backdrop-blur-sm">
+      <div
+        className={cn(
+          "absolute top-0 right-0 z-10 inline-flex h-[27px] select-none items-stretch overflow-hidden rounded-bl-xl border-b border-l border-border/70 bg-secondary/35 backdrop-blur-sm",
+          isSelected && "opacity-55"
+        )}
+      >
         <div
           className="inline-flex items-center gap-1 px-2.5 text-[11px] font-medium text-muted-foreground"
           title={classifyLabel}
@@ -290,7 +310,9 @@ export function OpportunityCard({
             className={cn(
               "inline-flex items-center px-2.5",
               SCORE_PERCENT_CLASSNAME,
-              scoreTone(score)
+              isSelected
+                ? "bg-muted/50 text-muted-foreground"
+                : scoreTone(score)
             )}
             title={opportunity.matchReason ?? undefined}
           >
@@ -300,7 +322,7 @@ export function OpportunityCard({
       </div>
 
       {/* Header: logo + role with clearance below corner pills */}
-      <div className="flex items-start gap-3.5 px-4 pt-9 pb-3 sm:px-5">
+      <div className="flex items-start gap-3.5 px-6 pt-9 pb-3 sm:px-7">
         <CompanyLogo
           src={
             opportunity.logoUrl ||
@@ -309,21 +331,33 @@ export function OpportunityCard({
           name={opportunity.company}
           size="lg"
         />
-        <div className="min-w-0 flex-1">
+        <div
+          className={cn("min-w-0 flex-1", isSelected && "text-muted-foreground")}
+        >
           <div className="flex h-[14px] items-center gap-1.5">
             <h4 className="truncate text-[11px] font-semibold uppercase leading-none tracking-wider text-muted-foreground">
               {opportunity.company}
             </h4>
             {statusTag}
           </div>
-          <h3 className="mt-1 truncate text-base font-semibold leading-snug text-foreground">
+          <h3
+            className={cn(
+              "mt-1 truncate text-base font-semibold leading-snug",
+              isSelected ? "text-muted-foreground" : "text-foreground"
+            )}
+          >
             {opportunity.title}
           </h3>
         </div>
       </div>
 
       {/* Metadata — left: location + salary badges; right: unboxed telemetry */}
-      <div className="flex w-full min-w-0 items-center justify-between gap-2 px-4 py-1 text-xs select-none sm:px-5">
+      <div
+        className={cn(
+          "flex w-full min-w-0 items-center justify-between gap-2 px-6 py-1 text-xs select-none sm:px-7",
+          isSelected && "opacity-55"
+        )}
+      >
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span
             className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/40 bg-muted/60 px-2.5 py-1 text-xs font-medium text-foreground/80"
@@ -335,9 +369,11 @@ export function OpportunityCard({
           <span
             className={cn(
               "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium",
-              salaryRaw && !/^\$?\s*tbd\b/i.test(salaryRaw)
-                ? "border-emerald-200/60 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-400"
-                : "border-border/30 bg-muted/40 text-muted-foreground"
+              isSelected
+                ? "border-border/40 bg-muted/50 text-muted-foreground"
+                : salaryRaw && !/^\$?\s*tbd\b/i.test(salaryRaw)
+                  ? "border-emerald-200/60 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-400"
+                  : "border-border/30 bg-muted/40 text-muted-foreground"
             )}
             title={`Salary: ${salaryRaw || "Not specified"}`}
           >
@@ -365,150 +401,227 @@ export function OpportunityCard({
         </div>
       </div>
 
-      {/* 4. Content body */}
-      <div className="flex flex-1 flex-col justify-start space-y-3 px-4 py-3.5 sm:px-5">
+      {/* 4. Content body — description shares logo indent; AI row keeps tighter inset */}
+      <div
+        className={cn(
+          "flex flex-1 flex-col justify-start py-3.5",
+          isSelected && "opacity-55"
+        )}
+      >
         {opportunity.description ? (
-          <p className="min-h-[2.5rem] line-clamp-2 text-xs leading-relaxed text-foreground/80 dark:text-foreground/85">
+          <p className="min-h-[2.5rem] line-clamp-2 px-6 text-xs leading-relaxed text-foreground/80 sm:px-7 dark:text-foreground/85">
             {opportunity.description}
           </p>
         ) : null}
 
         {opportunity.matchReason ? (
-          <div className="mt-auto flex items-start gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 p-2.5 dark:bg-muted/10">
-            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              {opportunity.matchReason}
-            </p>
+          <div className="mt-auto flex items-start gap-2 px-4 pt-3 sm:px-5">
+            <div className="flex w-full items-start gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 p-2.5 dark:bg-muted/10">
+              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {opportunity.matchReason}
+              </p>
+            </div>
           </div>
         ) : null}
       </div>
 
-      {/* 5. Pinned bottom action bar — primary left, overflow menu right */}
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/[0.12] py-3 pl-4 pr-2 sm:pl-5 sm:pr-2.5">
-        <div className="flex flex-wrap items-center gap-2">
-          {opportunity.applyUrl ? (
-            <a
-              href={opportunity.applyUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={PRIMARY_ACTION_BTN_CLASSNAME}
-            >
-              View Posting
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
-          ) : (
-            <span className="inline-flex items-center rounded-lg border border-border/40 bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground/60">
-              No apply link detected
-            </span>
-          )}
-
-          {variant === "leads" ? (
-            canEmail ? (
-              <>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={onReviewDraft}
-                  className={secondaryBtnClass}
-                >
-                  <Mail className="h-3.5 w-3.5" />
-                  <span>Review Draft</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={onSendNow}
-                  className={secondaryBtnClass}
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  <span>Send Now</span>
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onMarkApplied}
-                className={secondaryBtnClass}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>Mark Applied</span>
-              </button>
-            )
-          ) : null}
-
-          {variant === "action" && canEmail ? (
-            <>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onReviewDraft}
-                className={secondaryBtnClass}
-              >
-                <Mail className="h-3.5 w-3.5" />
-                <span>Review Draft</span>
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onSendNow}
-                className={secondaryBtnClass}
-              >
-                <Send className="h-3.5 w-3.5" />
-                <span>Send Now</span>
-              </button>
-            </>
-          ) : null}
-
-          {variant === "applied" ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onUnmarkApplied}
-              className={secondaryBtnClass}
-            >
-              <Undo2 className="h-3.5 w-3.5" />
-              <span>Unmark Applied</span>
-            </button>
-          ) : null}
-
-          {variant === "history" ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={runRestore}
-              className={secondaryBtnClass}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span>{restoreLabel}</span>
-            </button>
-          ) : null}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1">
+      {/* 5. Pinned bottom action bar — secondary · primary · ⋮ */}
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/[0.12] py-3 pl-4 pr-1 sm:pl-5">
+        <div className="flex min-w-0 items-center">
           {variant === "history" && dismissed ? (
             <span className="inline-flex items-center gap-1 px-1 text-[11px] text-muted-foreground">
               <Clock className="h-3 w-3" />
               {daysLeft}d left
             </span>
           ) : null}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {/* Secondary (left of primary) */}
+          {variant === "leads" ? (
+            <button
+              type="button"
+              disabled={actionsLocked}
+              onClick={onMarkApplied}
+              className={secondaryBtnClass}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>Mark Applied</span>
+            </button>
+          ) : null}
+
+          {variant === "action" && canEmail ? (
+            <button
+              type="button"
+              disabled={actionsLocked}
+              onClick={onReviewDraft}
+              className={secondaryBtnClass}
+            >
+              <Mail className="h-3.5 w-3.5" />
+              <span>Review Draft</span>
+            </button>
+          ) : null}
+
+          {variant === "history" && opportunity.applyUrl ? (
+            actionsLocked ? (
+              <span className={secondaryBtnClass} aria-disabled>
+                <span>View Posting</span>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </span>
+            ) : (
+              <a
+                href={opportunity.applyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={secondaryBtnClass}
+              >
+                <span>View Posting</span>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )
+          ) : null}
+
+          {/* Primary (just left of ⋮) */}
+          {variant === "leads" ? (
+            opportunity.applyUrl ? (
+              actionsLocked ? (
+                <span className={primaryBtnClass} aria-disabled>
+                  <span>View Posting</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </span>
+              ) : (
+                <a
+                  href={opportunity.applyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={primaryBtnClass}
+                >
+                  <span>View Posting</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )
+            ) : (
+              <span className="inline-flex items-center rounded-lg border border-border/40 bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground/60">
+                No apply link detected
+              </span>
+            )
+          ) : null}
+
+          {variant === "applied" ? (
+            <button
+              type="button"
+              disabled={actionsLocked}
+              onClick={onUnmarkApplied}
+              className={primaryBtnClass}
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              <span>Mark Unapplied</span>
+            </button>
+          ) : null}
+
+          {variant === "action" ? (
+            canEmail ? (
+              <button
+                type="button"
+                disabled={actionsLocked}
+                onClick={onSendNow}
+                className={primaryBtnClass}
+              >
+                <Send className="h-3.5 w-3.5" />
+                <span>Send Now</span>
+              </button>
+            ) : opportunity.applyUrl ? (
+              actionsLocked ? (
+                <span className={primaryBtnClass} aria-disabled>
+                  <span>View Posting</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </span>
+              ) : (
+                <a
+                  href={opportunity.applyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={primaryBtnClass}
+                >
+                  <span>View Posting</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )
+            ) : null
+          ) : null}
+
+          {variant === "history" ? (
+            <button
+              type="button"
+              disabled={actionsLocked}
+              onClick={runRestore}
+              className={primaryBtnClass}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>{restoreLabel}</span>
+            </button>
+          ) : null}
 
           {showOverflowMenu ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <RowMenuTrigger label="Job actions" disabled={busy} />
+                <RowMenuTrigger
+                  label="Job actions"
+                  disabled={actionsLocked}
+                  className={
+                    isSelected
+                      ? "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground"
+                      : undefined
+                  }
+                />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {variant === "leads" && canEmail ? (
+                  <>
+                    <DropdownMenuItem
+                      disabled={actionsLocked}
+                      onClick={onReviewDraft}
+                    >
+                      <Mail className="mr-2 h-4 w-4" />
+                      Review Draft
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={actionsLocked}
+                      onClick={onSendNow}
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      Send Now
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
+                {(variant === "applied" || variant === "action") &&
+                opportunity.applyUrl ? (
+                  <DropdownMenuItem asChild disabled={actionsLocked}>
+                    <a
+                      href={opportunity.applyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      View Posting
+                    </a>
+                  </DropdownMenuItem>
+                ) : null}
                 {(variant === "leads" || variant === "applied") && (
                   <DropdownMenuItem
-                    disabled={busy}
+                    disabled={actionsLocked}
                     onClick={runArchive}
                   >
                     <Archive className="mr-2 h-4 w-4" />
                     Archive
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem disabled={busy} onClick={runDismiss}>
+                <DropdownMenuItem
+                  disabled={actionsLocked}
+                  onClick={runDismiss}
+                >
                   <XCircle className="mr-2 h-4 w-4" />
                   Dismiss
                 </DropdownMenuItem>
@@ -516,7 +629,7 @@ export function OpportunityCard({
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      disabled={busy}
+                      disabled={actionsLocked}
                       onClick={onLessLikeThis}
                       className="text-amber-600 focus:bg-amber-50 focus:text-amber-600 dark:text-amber-400 dark:focus:bg-amber-950/50 dark:focus:text-amber-400"
                     >
@@ -532,18 +645,29 @@ export function OpportunityCard({
           {variant === "history" ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <RowMenuTrigger label="Job actions" disabled={busy} />
+                <RowMenuTrigger
+                  label="Job actions"
+                  disabled={actionsLocked}
+                  className={
+                    isSelected
+                      ? "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground"
+                      : undefined
+                  }
+                />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {opportunity.isArchived && !dismissed ? (
-                  <DropdownMenuItem disabled={busy} onClick={runDismiss}>
+                  <DropdownMenuItem
+                    disabled={actionsLocked}
+                    onClick={runDismiss}
+                  >
                     <XCircle className="mr-2 h-4 w-4" />
                     Dismiss
                   </DropdownMenuItem>
                 ) : null}
                 {dismissed ? (
                   <DropdownMenuItem
-                    disabled={busy}
+                    disabled={actionsLocked}
                     onClick={runDelete}
                     className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                   >

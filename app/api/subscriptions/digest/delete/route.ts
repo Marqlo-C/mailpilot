@@ -100,7 +100,7 @@ export async function POST(req: Request) {
       {
         success: false,
         error:
-          error instanceof Error ? error.message : "Failed to delete briefing",
+          error instanceof Error ? error.message : "Failed to delete snapshot",
       },
       { status: 500 }
     );

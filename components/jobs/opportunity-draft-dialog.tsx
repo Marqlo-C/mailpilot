@@ -38,16 +38,13 @@ import {
   type OriginalEmailPreview,
 } from "@/app/actions/opportunities";
 import { Button } from "@/components/ui/button";
-import { CompanyLogo } from "@/components/ui/company-logo";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { CancelTaskButton } from "@/components/ui/cancel-task-button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
+import { DialogIdentityHeader } from "@/components/ui/dialog-identity-header";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -620,41 +617,23 @@ export function OpportunityDraftDialog({
           attachResume ? "w-[94vw] max-w-6xl" : "w-full max-w-2xl"
         )}
       >
-        <DialogHeader className="shrink-0 space-y-0 border-b border-border/60 px-6 pb-3 pt-4 pr-12 text-left">
-          <div className="flex items-start gap-3">
-            {opportunity ? (
-              <CompanyLogo
-                src={
-                  opportunity.logoUrl ||
-                  getCompanyLogoUrl(
-                    opportunity.company,
-                    opportunity.companyDomain
-                  )
-                }
-                name={opportunity.company}
-                size="lg"
-              />
-            ) : null}
-            <div className="-mt-0.5 flex min-w-0 flex-col">
-              <DialogTitle className="text-lg font-semibold leading-tight tracking-tight">
-                Responding to:
-              </DialogTitle>
-              <DialogDescription className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-                {opportunity ? (
-                  <>
-                    <span className="truncate">{opportunity.title}</span>
-                    <span className="text-muted-foreground/60">•</span>
-                    <span className="truncate text-foreground">
-                      {opportunity.company}
-                    </span>
-                  </>
-                ) : (
-                  "Draft"
-                )}
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
+        <DialogIdentityHeader
+          title="Responding to:"
+          primary={opportunity?.title ?? "Draft"}
+          secondary={opportunity?.company ?? null}
+          emphasize="secondary"
+          logoSrc={
+            opportunity
+              ? opportunity.logoUrl ||
+                getCompanyLogoUrl(
+                  opportunity.company,
+                  opportunity.companyDomain
+                )
+              : null
+          }
+          logoName={opportunity?.company}
+          logoSize="lg"
+        />
 
         {loadingDraft ? (
           <div className="flex flex-1 items-center justify-center gap-2 py-16 text-sm text-muted-foreground">

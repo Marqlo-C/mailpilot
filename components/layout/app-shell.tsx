@@ -28,6 +28,15 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
+/** Shared height so sidebar brand divider meets the main top-bar bottom edge. */
+const SHELL_TOP_BAND_CLASS = "flex h-[4.25rem] shrink-0 items-center";
+
+/**
+ * First nav item (Overview) aligns with Job Radar / Subscriptions tab rails:
+ * main `md:pt-6` (24px) + tab row `pt-2` (8px) = 32px → `pt-8`.
+ */
+const SHELL_NAV_CLASS = "flex flex-1 flex-col gap-1 px-3 pb-3 pt-8";
+
 type AppShellProps = {
   accounts: AccountSummary[];
   activeAccountId: string | null;
@@ -92,14 +101,15 @@ export function AppShell({
       >
         <div
           className={cn(
-            "flex items-center gap-2 border-b border-white/10 px-4 py-5",
+            SHELL_TOP_BAND_CLASS,
+            "gap-2 border-b border-white/10 px-4",
             collapsed && "justify-center px-2"
           )}
         >
           <NavLogo collapsed={collapsed} />
         </div>
 
-        <nav className="flex flex-1 flex-col gap-1 p-3">
+        <nav className={SHELL_NAV_CLASS}>
           {NAV.map((item) => {
             const active =
               item.href === "/"
@@ -148,7 +158,12 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
         {/* Top bar — account dropdown always available */}
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border/80 bg-background/80 px-4 py-3 backdrop-blur-md md:px-6">
+        <header
+          className={cn(
+            SHELL_TOP_BAND_CLASS,
+            "sticky top-0 z-30 justify-between gap-3 border-b border-border/80 bg-gradient-to-b from-card from-55% via-card/70 to-card/30 px-4 backdrop-blur-md md:px-6"
+          )}
+        >
           <div className="shrink-0 md:hidden">
             <span className="inline-flex items-center gap-2 text-foreground">
               <Logo variant="icon" size="sm" showWordmark={false} priority />
