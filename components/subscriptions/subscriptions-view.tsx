@@ -38,8 +38,12 @@ import {
 import { SubscriptionsToolbar } from "@/components/subscriptions/subscriptions-toolbar";
 import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
 import {
-  BULK_ACTION_PLAIN_BTN_CLASSNAME,
+  BULK_ACTION_BTN_CLASSNAME,
+  BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME,
+  BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME,
   BulkActionCount,
+  BulkActionDot,
+  BulkActionSection,
   BulkActionsFlyout,
 } from "@/components/ui/bulk-actions-flyout";
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
@@ -62,13 +66,11 @@ import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/score-percent";
 import { SELECT_CHECKBOX_CLASSNAME } from "@/components/ui/select-checkbox";
 import {
   SELECT_HIGHLIGHT_FILL_CLASSNAME,
-  SELECT_HIGHLIGHT_ROW_CLASSNAME,
+  selectHighlightRowClassName,
 } from "@/components/ui/select-highlight";
 import {
   PRIMARY_ACTION_BTN_CLASSNAME,
   PRIMARY_ACTION_BTN_MUTED_CLASSNAME,
-  PRIMARY_ACTION_FLYOUT_BTN_CLASSNAME,
-  PRIMARY_ACTION_FLYOUT_COUNT_CLASSNAME,
   PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME,
 } from "@/components/ui/primary-action-btn";
 import {
@@ -891,62 +893,74 @@ export function SubscriptionsView({
         <BulkActionsFlyout
           selectedCount={selectedIds.length}
           onCancel={() => setSelectedIds([])}
-        >
-          <button
-            type="button"
-            disabled={pending || briefingPending || deletePending}
-            onClick={() => openBriefing(selectedSubscriptions)}
-            className={BULK_ACTION_PLAIN_BTN_CLASSNAME}
-          >
-            {briefingPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Summary className="h-3.5 w-3.5" />
-            )}
-            Snapshot
-            <BulkActionCount count={selectedIds.length} />
-          </button>
-
-          {selectedWithBriefingIds.length > 0 ? (
+          trailing={
             <button
               type="button"
               disabled={pending || briefingPending || deletePending}
-              onClick={() =>
-                void deleteBriefingsForSubscriptions(selectedWithBriefingIds)
-              }
-              className={BULK_ACTION_PLAIN_BTN_CLASSNAME}
+              onClick={() => {
+                setSelected(null);
+                setError(null);
+                setBatchConfirmOpen(true);
+              }}
+              className={BULK_ACTION_BTN_CLASSNAME}
             >
-              {deletePending ? (
+              {pending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <Trash2 className="h-3.5 w-3.5" />
+                <UserRoundMinus className="h-3.5 w-3.5" />
               )}
-              Delete Snapshots
-              <BulkActionCount count={selectedWithBriefingIds.length} />
+              Unsubscribe
+              <BulkActionCount count={selectedIds.length} />
             </button>
-          ) : null}
-
-          <button
-            type="button"
-            disabled={pending || briefingPending || deletePending}
-            onClick={() => {
-              setSelected(null);
-              setError(null);
-              setBatchConfirmOpen(true);
-            }}
-            className={PRIMARY_ACTION_FLYOUT_BTN_CLASSNAME}
+          }
+        >
+          <BulkActionSection
+            labelText="Snapshot"
+            label={
+              <Summary
+                className="h-4 w-4 text-[hsl(var(--sidebar-foreground))]/65"
+                aria-hidden
+              />
+            }
           >
-            {pending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <UserRoundMinus className="h-3.5 w-3.5" />
-            )}
-            Unsubscribe
-            <BulkActionCount
-              count={selectedIds.length}
-              className={PRIMARY_ACTION_FLYOUT_COUNT_CLASSNAME}
-            />
-          </button>
+            <button
+              type="button"
+              disabled={pending || briefingPending || deletePending}
+              onClick={() => openBriefing(selectedSubscriptions)}
+              className={BULK_ACTION_BTN_CLASSNAME}
+            >
+              {briefingPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : null}
+              Create
+              <BulkActionCount count={selectedIds.length} />
+            </button>
+
+            {selectedWithBriefingIds.length > 0 ? (
+              <>
+                <BulkActionDot />
+                <button
+                  type="button"
+                  disabled={pending || briefingPending || deletePending}
+                  onClick={() =>
+                    void deleteBriefingsForSubscriptions(
+                      selectedWithBriefingIds
+                    )
+                  }
+                  className={BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME}
+                >
+                  {deletePending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : null}
+                  Delete
+                  <BulkActionCount
+                    count={selectedWithBriefingIds.length}
+                    className={BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME}
+                  />
+                </button>
+              </>
+            ) : null}
+          </BulkActionSection>
         </BulkActionsFlyout>
       ) : null}
 
@@ -1582,7 +1596,10 @@ function SubscriptionDesktopRow({
         "flex h-16 items-center border-b border-[hsl(220_16%_88%)] pl-3 pr-4 last:border-b-0",
         SUBSCRIPTION_ROW_HOVER_CLASS,
         selected &&
-          cn(SELECT_HIGHLIGHT_FILL_CLASSNAME, SELECT_HIGHLIGHT_ROW_CLASSNAME)
+          cn(
+            SELECT_HIGHLIGHT_FILL_CLASSNAME,
+            selectHighlightRowClassName({ border: false })
+          )
       )}
     >
       {/* Zone 1: Contact & Identity — grows so the first divider sits closer to metrics */}

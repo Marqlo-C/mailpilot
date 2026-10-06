@@ -9,12 +9,34 @@ export const SELECT_HIGHLIGHT_CLASSNAME =
  * Soft fill from the same blue→teal glow palette (Subscriptions rows/cards).
  */
 export const SELECT_HIGHLIGHT_FILL_CLASSNAME =
-  "bg-[linear-gradient(135deg,hsla(238,55%,94%,0.95),hsla(174,45%,93%,0.9))]";
+  "bg-[linear-gradient(135deg,hsla(238,72%,90%,0.96)_0%,hsla(238,68%,91%,0.95)_50%,hsla(174,45%,93%,0.9)_100%)]";
 
 /**
- * Outer glow for densetabled rows — pair with overflow-visible + z-index so
- * the halo can paint over neighbors (overflow-hidden shells clip this).
- * Soft radius is subscription-row only (not Job Radar cards).
+ * Row stacking + soft radius — pair with overflow-visible so a border glow
+ * can paint over neighbors when enabled.
  */
-export const SELECT_HIGHLIGHT_ROW_CLASSNAME =
-  "relative z-10 rounded-sm shadow-[0_0_0_1px_hsla(238,90%,32%,0.35),0_0_18px_hsla(174,85%,42%,0.4)]";
+export const SELECT_HIGHLIGHT_ROW_LAYOUT_CLASSNAME =
+  "relative z-10 rounded-sm";
+
+/**
+ * Outer border glow for densetabled rows. Toggle off per surface
+ * (e.g. Subscriptions) via {@link selectHighlightRowClassName}.
+ */
+export const SELECT_HIGHLIGHT_BORDER_CLASSNAME =
+  "shadow-[0_0_0_1px_hsla(238,90%,32%,0.26),0_0_16px_hsla(174,85%,42%,0.28)]";
+
+/**
+ * Dense-table row highlight. Border glow on by default; pass `{ border: false }`
+ * to keep layout/fill pairing without the halo.
+ */
+export function selectHighlightRowClassName(
+  options: { border?: boolean } = {}
+): string {
+  const { border = true } = options;
+  return [
+    SELECT_HIGHLIGHT_ROW_LAYOUT_CLASSNAME,
+    border ? SELECT_HIGHLIGHT_BORDER_CLASSNAME : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}

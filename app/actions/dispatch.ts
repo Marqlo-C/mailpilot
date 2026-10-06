@@ -332,56 +332,6 @@ export async function saveDraftEdits(
   }
 }
 
-export async function batchSendApplications(
-  applicationIds: string[]
-): Promise<ActionResult<{ sent: number; skipped: number; errors: string[] }>> {
-  if (applicationIds.length === 0) {
-    return { ok: false, error: "No applications selected" };
-  }
-
-  const first = await prisma.jobApplication.findUnique({
-    where: { id: applicationIds[0] },
-  });
-  if (!first) {
-    return { ok: false, error: "Application not found" };
-  }
-  if (!first.accountId) {
-    return {
-      ok: false,
-      error: "Gmail account is unlinked. Reconnect to continue.",
-    };
-  }
-  const accountId = first.accountId;
-
-  const limit = await getDailySendLimit(accountId);
-  let sentToday = await countSendsToday(accountId);
-  let sent = 0;
-  let skipped = 0;
-  const errors: string[] = [];
-
-  for (const id of applicationIds) {
-    if (sentToday >= limit) {
-      skipped += 1;
-      continue;
-    }
-    try {
-      await dispatchApplicationEmail(accountId, id, {
-        createDraftOnly: false,
-      });
-      sent += 1;
-      sentToday += 1;
-    } catch (error) {
-      errors.push(
-        error instanceof Error ? `${id}: ${error.message}` : `${id}: failed`
-      );
-    }
-  }
-
-  revalidatePath("/jobs");
-  revalidatePath("/");
-  return { ok: true, data: { sent, skipped, errors } };
-}
-
 export async function markPortalAsApplied(
   applicationId: string
 ): Promise<ActionResult> {

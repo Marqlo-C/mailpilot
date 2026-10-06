@@ -117,7 +117,9 @@ export function ToolbarSelectAll({
   return (
     <label
       className={cn(
-        "inline-flex items-center gap-2 text-xs font-medium transition-colors",
+        // Negative trailing margin pulls the next divider closer; width is still
+        // reserved for "Deselect All" so the rest of the toolbar never shifts.
+        "-mr-2 inline-flex items-center gap-2 text-xs font-medium transition-colors",
         disabled
           ? "cursor-not-allowed text-foreground/35"
           : "cursor-pointer text-foreground/75 hover:text-foreground"
@@ -135,7 +137,13 @@ export function ToolbarSelectAll({
           disabled ? "cursor-not-allowed" : "cursor-pointer"
         )}
       />
-      <span>{label}</span>
+      {/* Size to the longer label so Select All ↔ Deselect All never shifts the toolbar. */}
+      <span className="inline-grid">
+        <span className="invisible col-start-1 row-start-1" aria-hidden>
+          Deselect All
+        </span>
+        <span className="col-start-1 row-start-1">{label}</span>
+      </span>
     </label>
   );
 }

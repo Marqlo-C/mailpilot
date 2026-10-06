@@ -7,7 +7,6 @@ import {
   Archive,
   BadgeInfo,
   ExternalLink,
-  Loader2,
   Mail,
   Send,
   Trash2,
@@ -15,7 +14,6 @@ import {
 import { toast } from "sonner";
 
 import {
-  batchSendApplications,
   sendSingleApplication,
   updateApplicationStatus,
 } from "@/app/actions/dispatch";
@@ -275,21 +273,6 @@ export function JobsRadar({
   const actionCount = opportunityAction.length + actionRequired.length;
   const historyCount = opportunityHistory.length + history.length;
 
-  const batchIds = leads
-    .filter(
-      (j) =>
-        j.dispatchType === "EMAIL" &&
-        meetsMatchThreshold(j.matchScore, threshold) &&
-        Boolean(
-          extractRecruiterEmail({
-            actionSummary: j.actionSummary,
-            actionUrl: j.actionUrl,
-            applyUrl: j.applyUrl,
-          })
-        )
-    )
-    .map((j) => j.id);
-
   function handleOpportunitySend(opp: JobOpportunity) {
     startTransition(async () => {
       const result = await sendOpportunityApplication(opp.id, false);
@@ -356,38 +339,6 @@ export function JobsRadar({
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              disabled={pending || batchIds.length === 0}
-              className="bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-40"
-              onClick={() => {
-                startTransition(async () => {
-                  const toastId = toast.loading(
-                    `Batch sending ${batchIds.length} applications…`
-                  );
-                  const result = await batchSendApplications(batchIds);
-                  if (!result.ok || !result.data) {
-                    toast.error(result.ok ? "Batch failed" : result.error, {
-                      id: toastId,
-                    });
-                    return;
-                  }
-                  toast.success(
-                    `Sent ${result.data.sent}, skipped ${result.data.skipped}`,
-                    { id: toastId }
-                  );
-                  router.refresh();
-                });
-              }}
-            >
-              {pending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Send className="h-3.5 w-3.5" />
-              )}
-              Send Approved ({batchIds.length})
-            </Button>
             <SyncControls accountId={accountId} />
           </div>
         </div>

@@ -82,3 +82,90 @@
   outline: none;
   box-shadow: 0 0 0 1px hsl(var(--background)), 0 0 0 3px rgb(26 181 175 / 0.3);
 }
+
+/* Bulk flyout enter/exit (see BulkActionsFlyout). */
+@keyframes mp-flyout-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.15) translateY(5px);
+  }
+  44% {
+    opacity: 1;
+    transform: scale(1.12) translateY(-3px);
+  }
+  88% {
+    opacity: 1;
+    transform: scale(0.98) translateY(1px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes mp-flyout-retract {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    gap: 0.625rem;
+  }
+  /* Pills meet (~945ms); fold after is snappier (~380ms). */
+  71% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    gap: 0;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.86) translateY(16px);
+    gap: 0;
+  }
+}
+
+@keyframes mp-flyout-chunk-inward {
+  0% {
+    transform: translateX(0);
+  }
+  71% {
+    transform: translateX(var(--mp-inward, 0px));
+  }
+  100% {
+    transform: translateX(var(--mp-inward, 0px));
+  }
+}
+
+.mp-flyout-pop {
+  animation: mp-flyout-pop 589ms cubic-bezier(0.22, 1.2, 0.36, 1) both;
+}
+
+.mp-flyout-retract {
+  animation: mp-flyout-retract 1330ms cubic-bezier(0.33, 0.1, 0.2, 1) both;
+}
+
+.mp-flyout-retract > .mp-flyout-chunk {
+  animation: mp-flyout-chunk-inward 1330ms cubic-bezier(0.33, 0.1, 0.2, 1) both;
+}
+
+.mp-flyout-retract > .mp-flyout-chunk:first-child {
+  --mp-inward: 22px;
+}
+
+.mp-flyout-retract > .mp-flyout-chunk:last-child {
+  --mp-inward: -22px;
+}
+
+.mp-flyout-retract > .mp-flyout-chunk:only-child {
+  --mp-inward: 0px;
+}
+
+.mp-flyout-retract > .mp-flyout-chunk:not(:first-child):not(:last-child) {
+  --mp-inward: 0px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-flyout-pop,
+  .mp-flyout-retract,
+  .mp-flyout-retract > .mp-flyout-chunk {
+    animation-duration: 1ms;
+  }
+}

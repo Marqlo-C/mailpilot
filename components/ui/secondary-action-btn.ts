@@ -1,20 +1,25 @@
 /**
  * Shared secondary CTA treatments (outline + tint).
  * Teal: Create Snapshot and other non-destructive secondaries.
- * Orange-red: Snapshot popup Delete — solid hover-weight tone,
- * slightly redder than high-clutter (#c2410c → #c21f10).
- * Keep as the single source of truth.
+ * Red outline: row Delete Snapshot — same #c21f10 as Delete Emails fill.
+ * Flyout Delete Snapshots uses BULK_ACTION_DESTRUCTIVE_* text chips.
  */
 
-/** Teal secondary tone — outline CTAs. */
+/** Teal secondary tone — outline CTAs + flyout text/hover. */
 const SECONDARY_ACTION_TONE = {
   text: "text-[#3c837b]",
   borderSoft: "border-[#3c837b]/40",
   hoverBorder: "hover:border-[#3c837b]",
   hoverBg: "hover:bg-[#3c837b]/10",
+  flyoutCountBg: "bg-[#3c837b]/20",
+  flyoutCountActive:
+    "group-data-[state=active]:bg-[#3c837b]/20 group-data-[state=active]:text-[#3c837b]",
 } as const;
 
-/** Destructive secondary tone — outline CTAs. */
+const FLYOUT_TEXT_LAYOUT =
+  "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50";
+
+/** Destructive secondary tone — outline CTAs (row Delete Snapshot). */
 const SECONDARY_DESTRUCTIVE_ACTION_TONE = {
   text: "text-[#c21f10]",
   borderSoft: "border-[#c21f10]/45",
@@ -35,6 +40,21 @@ export const SECONDARY_ACTION_BTN_CLASSNAME = [
   SECONDARY_ACTION_TONE.text,
   SECONDARY_ACTION_TONE.hoverBorder,
   SECONDARY_ACTION_TONE.hoverBg,
+].join(" ");
+
+/** Teal text chip for bulk flyout — linked to Create Snapshot CTA. */
+export const SECONDARY_ACTION_FLYOUT_BTN_CLASSNAME = [
+  FLYOUT_TEXT_LAYOUT,
+  SECONDARY_ACTION_TONE.text,
+  SECONDARY_ACTION_TONE.hoverBg,
+  "hover:text-[#3c837b]",
+].join(" ");
+
+/** Count pill tint matching {@link SECONDARY_ACTION_FLYOUT_BTN_CLASSNAME}. */
+export const SECONDARY_ACTION_FLYOUT_COUNT_CLASSNAME = [
+  SECONDARY_ACTION_TONE.flyoutCountBg,
+  SECONDARY_ACTION_TONE.text,
+  SECONDARY_ACTION_TONE.flyoutCountActive,
 ].join(" ");
 
 /** Gray outline secondary — selected/locked row CTAs. */
