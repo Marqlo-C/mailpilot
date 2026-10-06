@@ -209,45 +209,10 @@ export async function getSubscriptionsForAccount(
   accountId: string
 ): Promise<Subscription[]> {
   try {
-    const rows = await prisma.subscription.findMany({
+    return await prisma.subscription.findMany({
       where: { accountId },
       orderBy: [{ status: "asc" }, { lastReceivedAt: "desc" }],
     });
-    // #region agent log
-    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "3c315a",
-      },
-      body: JSON.stringify({
-        sessionId: "3c315a",
-        runId: "pre-fix",
-        hypothesisId: "S3",
-        location: "lib/data.ts:getSubscriptionsForAccount",
-        message: "DB subscription load",
-        data: {
-          accountId,
-          total: rows.length,
-          byStatus: {
-            ACTIVE: rows.filter((r) => r.status === "ACTIVE").length,
-            FAILED: rows.filter((r) => r.status === "FAILED").length,
-            UNSUBSCRIBED: rows.filter((r) => r.status === "UNSUBSCRIBED")
-              .length,
-          },
-          zeroEmailCount: rows.filter((r) => r.emailCount === 0).length,
-          sample: rows.slice(0, 12).map((r) => ({
-            senderEmail: r.senderEmail,
-            status: r.status,
-            emailCount: r.emailCount,
-            clutterScore: r.clutterScore,
-          })),
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-    return rows;
   } catch (error) {
     console.error("getSubscriptionsForAccount failed", error);
     return [];

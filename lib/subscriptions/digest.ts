@@ -1,3 +1,6 @@
+import { readFileSync } from "fs";
+import { join } from "path";
+
 import type { gmail_v1 } from "googleapis";
 
 import { faviconUrlForDomain, getCleanDomain } from "@/lib/domain";
@@ -6,6 +9,31 @@ import { extractMessageBody, sanitizeEmailBody } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
 import { MAX_BRIEFING_DAYS } from "@/lib/subscriptions/digest-constants";
 import { subscriptionClutterScore } from "@/lib/subscriptions/filters";
+
+const BRAND_FONT_FILE =
+  "fonts/DupletRounded-Bold-BF6606345a47d2e.woff2";
+const BRAND_LOGO_FILE = "logos/transparent-logo-only.png";
+
+let cachedBrandFontDataUri: string | null = null;
+let cachedBrandLogoDataUri: string | null = null;
+
+/** Inline woff2 so preview iframes / undeployed prod URLs still render Duplet. */
+function getBrandFontDataUri(): string {
+  if (cachedBrandFontDataUri) return cachedBrandFontDataUri;
+  const abs = join(process.cwd(), "public", BRAND_FONT_FILE);
+  const buf = readFileSync(abs);
+  cachedBrandFontDataUri = `data:font/woff2;base64,${buf.toString("base64")}`;
+  return cachedBrandFontDataUri;
+}
+
+/** Inline local mark so briefing HTML always uses public/logos/transparent-logo-only.png. */
+function getBrandLogoDataUri(): string {
+  if (cachedBrandLogoDataUri) return cachedBrandLogoDataUri;
+  const abs = join(process.cwd(), "public", BRAND_LOGO_FILE);
+  const buf = readFileSync(abs);
+  cachedBrandLogoDataUri = `data:image/png;base64,${buf.toString("base64")}`;
+  return cachedBrandLogoDataUri;
+}
 
 export const MAX_BRIEFING_MESSAGES = 40;
 
@@ -69,14 +97,18 @@ function startOfUtcDay(d: Date): Date {
   );
 }
 
+function gmailFromClause(email: string): string {
+  // Quote addresses so +aliases / dots are matched literally.
+  const safe = email.replace(/"/g, "");
+  return `from:"${safe}"`;
+}
+
 export function buildBriefingSearchQuery(
   senderEmails: string[],
   rangeStart: Date,
   rangeEnd: Date
 ): string {
-  const fromClause = senderEmails
-    .map((email) => `from:${email}`)
-    .join(" OR ");
+  const fromClause = senderEmails.map(gmailFromClause).join(" OR ");
   const start = startOfUtcDay(rangeStart);
   const endExclusive = startOfUtcDay(rangeEnd);
   endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
@@ -421,37 +453,16 @@ export function buildBriefingHtml(
   opts: { rangeLabel: string; recipientEmail: string; appUrl?: string }
 ): string {
   const appUrl = (opts.appUrl ?? resolveAppUrl()).replace(/\/+$/, "");
-  const logoOnlySrc = `${appUrl}/logos/transparent-logo-only.png`;
-  const wordmarkSrc = `${appUrl}/logos/transparent-color-wordmark-inline.png`;
+  const logoOnlySrc = getBrandLogoDataUri();
+  const brandFontDataUri = getBrandFontDataUri();
+  const brandFontStack =
+    "'Duplet Rounded',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const brandMarkPx = 79;
+  const brandWordmarkPx = 50;
   const subscriptionsUrl = `${appUrl}/subscriptions`;
   const sendersLabel = formatSenderList(cards);
   const updateCount = cards.length;
   const updateLabel = `${updateCount} update${updateCount === 1 ? "" : "s"}`;
-
-  // #region agent log
-  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "3c315a",
-    },
-    body: JSON.stringify({
-      sessionId: "3c315a",
-      runId: "pre-fix",
-      hypothesisId: "G1-G3",
-      location: "lib/subscriptions/digest.ts:buildBriefingHtml",
-      message: "Footer brand markup strategy",
-      data: {
-        footerUsesOverflowHidden: true,
-        footerUsesNegativeMargin: true,
-        footerWordmarkCssHeightPx: 240,
-        footerClipHeightPx: 56,
-        cardCount: cards.length,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   const cardsHtml =
     cards.length > 0
@@ -479,6 +490,20 @@ export function buildBriefingHtml(
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light" />
   <title>Mail Pilot Briefing</title>
+  <style type="text/css">
+    @font-face {
+      font-family: 'Duplet Rounded';
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src: url('${brandFontDataUri}') format('woff2');
+    }
+  </style>
+  <!--[if mso]>
+  <style type="text/css">
+    .mp-brand-wordmark { font-family: Arial, sans-serif !important; }
+  </style>
+  <![endif]-->
 </head>
 <body style="margin:0;padding:0;background:#F3F0EA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F172A;-webkit-font-smoothing:antialiased;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3F0EA;">
@@ -497,20 +522,19 @@ export function buildBriefingHtml(
                   <td align="center" style="padding:32px 28px 28px 28px;">
                     <table role="presentation" cellpadding="0" cellspacing="0" align="center">
                       <tr>
-                        <td align="center" style="padding:0;line-height:0;font-size:0;">
+                        <td align="center" style="padding:0 0 10px 0;line-height:0;font-size:0;">
                           <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="background:#F0FDFA;border-radius:18px;">
                             <tr>
                               <td style="padding:14px;border-radius:24px;line-height:0;font-size:0;">
-                                <img src="${escapeHtml(logoOnlySrc)}" alt="" width="79" height="79" style="display:block;width:79px;height:79px;border:0;" />
+                                <img src="${escapeHtml(logoOnlySrc)}" alt="" width="${brandMarkPx}" height="${brandMarkPx}" style="display:block;width:${brandMarkPx}px;height:${brandMarkPx}px;border:0;" />
                               </td>
                             </tr>
                           </table>
                         </td>
                       </tr>
                       <tr>
-                        <td align="center" style="padding:0 0 8px 0;line-height:0;font-size:0;">
-                          <!-- Wordmark PNG has large transparent canvas; pull up to optically sit under the mark. -->
-                          <img src="${escapeHtml(wordmarkSrc)}" alt="Mail Pilot" height="240" style="display:block;height:240px;width:auto;max-width:560px;margin:-72px auto 0 auto;border:0;" />
+                        <td align="center" class="mp-brand-wordmark" style="padding:0 0 16px 0;font-family:${brandFontStack};font-size:${brandWordmarkPx}px;line-height:1.05;font-weight:700;letter-spacing:-0.03em;color:#0F172A;">
+                          Mail Pilot
                         </td>
                       </tr>
                       <tr>
@@ -581,27 +605,24 @@ export function buildBriefingHtml(
             </td>
           </tr>
 
-          <!-- Footer -->
+          <!-- Footer: mark height matches wordmark font-size -->
           <tr>
             <td style="padding:0 12px 8px 12px;">
-              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 4px 0;">
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 10px 0;">
                 <tr>
                   <td valign="middle" style="vertical-align:middle;padding-right:10px;line-height:0;font-size:0;">
-                    <img src="${escapeHtml(logoOnlySrc)}" alt="" width="80" height="80" style="display:block;width:80px;height:80px;border:0;" />
+                    <img src="${escapeHtml(logoOnlySrc)}" alt="" width="${brandWordmarkPx}" height="${brandWordmarkPx}" style="display:block;width:${brandWordmarkPx}px;height:${brandWordmarkPx}px;border:0;" />
                   </td>
-                  <td valign="middle" height="56" style="vertical-align:middle;height:56px;max-height:56px;overflow:hidden;line-height:0;font-size:0;">
-                    <!-- Clip transparent canvas so glyph sits flush with the mark + text below -->
-                    <img src="${escapeHtml(wordmarkSrc)}" alt="Mail Pilot" height="240" style="display:block;height:240px;width:auto;max-width:560px;margin:-92px 0;border:0;" />
+                  <td valign="middle" class="mp-brand-wordmark" style="vertical-align:middle;font-family:${brandFontStack};font-size:${brandWordmarkPx}px;line-height:1.05;font-weight:700;letter-spacing:-0.03em;color:#0F172A;">
+                    Mail Pilot
                   </td>
                 </tr>
               </table>
-              <p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;color:#94A3B8;">
-                Original emails included in this briefing were moved to Trash after delivery.
-              </p>
-              <p style="margin:0;font-size:12px;line-height:1.6;color:#94A3B8;">
+              <div style="font-size:12px;line-height:1.6;color:#94A3B8;">
+                Original emails included in this briefing were moved to Trash after delivery.<br />
                 Delivered to ${escapeHtml(opts.recipientEmail)}.
                 <a href="${escapeHtml(subscriptionsUrl)}" style="color:#64748B;text-decoration:underline;">Manage subscriptions</a>
-              </p>
+              </div>
             </td>
           </tr>
         </table>
@@ -714,7 +735,14 @@ async function syncSenderStatsAfterTrash(
   senderEmails: string[],
   trashedBySender: Map<string, number>
 ): Promise<void> {
-  for (const email of senderEmails) {
+  const emailsToSync = Array.from(
+    new Set([
+      ...senderEmails.map((e) => e.toLowerCase()),
+      ...trashedBySender.keys(),
+    ])
+  );
+
+  for (const email of emailsToSync) {
     const key = email.toLowerCase();
     const trashed = trashedBySender.get(key) ?? 0;
     const sub = await prisma.subscription.findFirst({
@@ -729,18 +757,19 @@ async function syncSenderStatsAfterTrash(
     // inflates remaining totals (which pushed clutter to 100 via unread share).
     const localRemaining = Math.max(0, sub.emailCount - trashed);
     let remainingTotal = localRemaining;
-    let gmailEstimate: number | null = null;
-    let usedGmailEstimate = false;
     try {
-      gmailEstimate = await estimateCount(
+      const gmailEstimate = await estimateCount(
         gmail,
-        `from:${email} -in:trash -in:spam`
+        `${gmailFromClause(email)} -in:trash -in:spam`
       );
-      // Only trust the estimate when it is at or below our local remaining
-      // (post-trash index lag usually overcounts, not undercounts).
-      if (gmailEstimate >= 0 && gmailEstimate <= localRemaining) {
-        remainingTotal = gmailEstimate;
-        usedGmailEstimate = true;
+      if (gmailEstimate != null && gmailEstimate >= 0) {
+        if (gmailEstimate <= localRemaining) {
+          // Estimate agrees or is lower — safe to adopt (avoids lag overcount).
+          remainingTotal = gmailEstimate;
+        } else if (localRemaining === 0 && gmailEstimate > 0) {
+          // Local math wiped the sender but Gmail still has mail — keep visible.
+          remainingTotal = gmailEstimate;
+        }
       }
     } catch {
       // Keep localRemaining.
@@ -750,38 +779,6 @@ async function syncSenderStatsAfterTrash(
       emailCount: remainingTotal,
       lastReceivedAt: sub.lastReceivedAt,
     });
-
-    // #region agent log
-    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "3c315a",
-      },
-      body: JSON.stringify({
-        sessionId: "3c315a",
-        runId: "pre-fix",
-        hypothesisId: "S1-S2",
-        location: "lib/subscriptions/digest.ts:syncSenderStatsAfterTrash",
-        message: "Post-briefing sender stats update",
-        data: {
-          accountId,
-          senderEmail: key,
-          status: sub.status,
-          prevEmailCount: sub.emailCount,
-          prevClutterScore: sub.clutterScore,
-          trashedInBriefing: trashed,
-          trashedMapKeys: [...trashedBySender.keys()],
-          localRemaining,
-          gmailEstimate,
-          usedGmailEstimate,
-          nextEmailCount: remainingTotal,
-          nextClutterScore: clutterScore,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
 
     await prisma.subscription.update({
       where: { id: sub.id },
@@ -899,34 +896,6 @@ export async function createSubscriptionBriefing(options: {
     const key = card.fromEmail.toLowerCase();
     trashedBySender.set(key, (trashedBySender.get(key) ?? 0) + 1);
   }
-
-  // #region agent log
-  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "3c315a",
-    },
-    body: JSON.stringify({
-      sessionId: "3c315a",
-      runId: "pre-fix",
-      hypothesisId: "S2",
-      location: "lib/subscriptions/digest.ts:createSubscriptionBriefing",
-      message: "Briefing trash summary before sync",
-      data: {
-        accountId,
-        selectedSenderEmails: senderEmails,
-        cardCount: cards.length,
-        processedIdCount: processedIds.length,
-        trashedBySender: Object.fromEntries(trashedBySender.entries()),
-        unmatchedCardSenders: [...trashedBySender.keys()].filter(
-          (k) => !senderEmails.includes(k)
-        ),
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   if (processedIds.length > 0) {
     await trashMessageIds(gmail, processedIds);

@@ -96,12 +96,19 @@ import type { CleanupAction } from "@/lib/unsubscribe";
 const CLUTTER_VALUE_CLASSES: Record<ClutterScoreTier, string> = {
   high: "bg-orange-600/15 text-orange-700 dark:bg-orange-500/25 dark:text-orange-400",
   mid: "bg-amber-500/10 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
-  low: "border-transparent bg-emerald-500/10 text-emerald-600 dark:bg-teal-950/40 dark:text-emerald-400",
+  low: "bg-emerald-500/10 text-emerald-600 dark:bg-teal-950/40 dark:text-emerald-400",
+};
+
+/** Outer pill outline matches the tier text color (softened). */
+const CLUTTER_OUTLINE_CLASSES: Record<ClutterScoreTier, string> = {
+  high: "border-orange-700/35 dark:border-orange-400/35",
+  mid: "border-amber-600/35 dark:border-amber-400/35",
+  low: "border-emerald-600/35 dark:border-emerald-400/35",
 };
 
 /** Matches the row Unsubscribe CTA (dark shell + mint text). */
 const UNSUBSCRIBE_CTA_CLASSNAME =
-  "inline-flex items-center justify-center gap-1.5 rounded-md border border-[#e4f7f3] bg-[#181e26]/85 px-3 py-1.5 text-xs font-medium text-[#e4f7f3] transition-colors hover:bg-[#181e26] hover:text-[#e4f7f3] disabled:pointer-events-none disabled:opacity-50";
+  "inline-flex items-center justify-center gap-1.5 rounded-md border border-[#181e26] bg-[#181e26]/85 px-3 py-1.5 text-xs font-medium text-[#e4f7f3] transition-colors hover:bg-[#181e26] hover:text-[#e4f7f3] disabled:pointer-events-none disabled:opacity-50";
 
 const UNSUBSCRIBE_OPTIONS: {
   value: CleanupAction;
@@ -322,64 +329,6 @@ export function SubscriptionsView({
       })
       .sort((a, b) => compareSubscriptionsBySort(a, b, sortOption));
   }, [active, clutterThreshold, searchQuery, categoryFilter, sortOption]);
-
-  // #region agent log
-  useEffect(() => {
-    const excludedByClutter = active
-      .map((sub) => {
-        const clutter =
-          typeof sub.clutterScore === "number" && sub.clutterScore > 0
-            ? sub.clutterScore
-            : subscriptionClutterScore(sub);
-        return {
-          id: sub.id,
-          senderEmail: sub.senderEmail,
-          status: sub.status,
-          emailCount: sub.emailCount,
-          clutterScore: sub.clutterScore,
-          effectiveClutter: clutter,
-          excludedByClutter: clutter < clutterThreshold,
-        };
-      })
-      .filter((row) => row.excludedByClutter);
-
-    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "3c315a",
-      },
-      body: JSON.stringify({
-        sessionId: "3c315a",
-        runId: "pre-fix",
-        hypothesisId: "S1-S4",
-        location: "subscriptions-view.tsx:filteredActive",
-        message: "Active list filter snapshot",
-        data: {
-          clutterThreshold,
-          searchQuery: searchQuery.trim(),
-          categoryFilter,
-          activeCount: active.length,
-          filteredActiveCount: filteredActive.length,
-          zeroEmailCount: active.filter((s) => s.emailCount === 0).length,
-          excludedByClutterCount: excludedByClutter.length,
-          excludedByClutter: excludedByClutter.slice(0, 20),
-          statusCounts: {
-            ACTIVE: active.filter((s) => s.status === "ACTIVE").length,
-            FAILED: active.filter((s) => s.status === "FAILED").length,
-          },
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  }, [
-    active,
-    filteredActive,
-    clutterThreshold,
-    searchQuery,
-    categoryFilter,
-  ]);
-  // #endregion
 
   const filteredArchive = useMemo(() => {
     return archive
@@ -709,11 +658,13 @@ export function SubscriptionsView({
 
   const defaultSort: SubscriptionSortOption = "clutter_desc";
   const hasActiveTransientFilters =
+    clutterThreshold > 0 ||
     searchQuery.trim().length > 0 ||
     categoryFilter !== "all" ||
     sortOption !== defaultSort;
 
   function handleResetTransientFilters() {
+    setClutterThreshold(0);
     setSearchQuery("");
     setCategoryFilter("all");
     setSortOption(defaultSort);
@@ -971,7 +922,8 @@ export function SubscriptionsView({
                 title="Last briefing preview"
                 className="h-[65vh] w-full border-0"
                 srcDoc={viewingBriefing.htmlPreview}
-                sandbox=""
+                // allow-same-origin so inlined @font-face / relative assets can apply
+                sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
               />
             </div>
           ) : null}
@@ -1213,7 +1165,7 @@ function formatLastReceivedValue(
   date: Date | string | null | undefined
 ): string {
   if (!date || !Number.isFinite(new Date(date).getTime())) return "—";
-  return formatDistanceToNow(new Date(date), { addSuffix: true });
+  return formatDistanceToNow(new Date(date), { addSuffix: false });
 }
 
 type MetricColumnWidths = {
@@ -1233,8 +1185,8 @@ function computeMetricColumnWidths(
   // Value-only clutter; icon rail (~2.5ch) + value for the others. Received capped.
   const clutterCh = 4.5;
   const emailsCh = Math.max(6.5, maxEmailChars + 3.5);
-  // Fits short labels like "11mo ago" (+ icon rail); longer values ellipsis.
-  const receivedCh = 9.5;
+  // Fits short labels like "11mo" (+ icon rail); no "ago" suffix. Longer values ellipsis.
+  const receivedCh = 7.5;
   return {
     clutter: `${clutterCh}ch`,
     emails: `${emailsCh}ch`,
@@ -1255,6 +1207,7 @@ function ClutterStatBadge({
       title="Clutter score"
       value={`${score}%`}
       valueClassName={CLUTTER_VALUE_CLASSES[tier]}
+      className={CLUTTER_OUTLINE_CLASSES[tier]}
       width={width}
     />
   );
