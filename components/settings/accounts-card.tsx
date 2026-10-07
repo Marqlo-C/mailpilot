@@ -9,6 +9,7 @@ import {
   unlinkAccountCredentials,
 } from "@/app/actions/accounts";
 import { logoutSession } from "@/app/actions/auth";
+import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +19,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  PRIMARY_ACTION_BTN_CLASSNAME,
+  PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME,
+} from "@/components/ui/primary-action-btn";
+import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
 import type { AccountSummary } from "@/lib/data";
+import { cn } from "@/lib/utils";
 
 type AccountsCardProps = {
   accounts: AccountSummary[];
@@ -32,7 +39,7 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
   const [pending, startTransition] = useTransition();
 
   return (
-    <Card>
+    <Card className={SETTINGS_CARD_CLASSNAME}>
       <CardHeader>
         <CardTitle>Connected Accounts</CardTitle>
         <CardDescription>
@@ -54,7 +61,7 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
             {accounts.map((account) => (
               <li
                 key={account.id}
-                className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-3 rounded-lg border border-border/50 bg-card/70 p-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -132,28 +139,32 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
 
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-2">
-            <Button asChild>
-              <a href="/api/auth/google?intent=link">Link Gmail account</a>
-            </Button>
-            <Button asChild variant="outline">
-              <a href="/api/auth/google?intent=link&forceConsent=true">
-                Re-authorize Scopes
-              </a>
-            </Button>
+            <a
+              href="/api/auth/google?intent=link"
+              className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+            >
+              Link Gmail account
+            </a>
+            <a
+              href="/api/auth/google?intent=link&forceConsent=true"
+              className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+            >
+              Re-authorize Scopes
+            </a>
           </div>
-          <Button
+          <button
             type="button"
-            variant="secondary"
             disabled={pending}
             onClick={() => {
               startTransition(async () => {
                 await logoutSession();
               });
             }}
+            className={cn(PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
           >
-            <LogOut className="h-4 w-4" />
-            Log Out MailPilot Session
-          </Button>
+            <LogOut className="h-3.5 w-3.5" />
+            Log Out Session
+          </button>
         </div>
 
         <p className="text-xs text-muted-foreground">
@@ -161,8 +172,8 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
           OAuth tokens but keeps subscriptions, jobs, and profile history.{" "}
           <strong className="font-medium text-foreground">Re-authorize Scopes</strong>{" "}
           forces Google&apos;s consent screen when permissions change.{" "}
-          <strong className="font-medium text-foreground">Log Out</strong> only
-          ends this browser session.
+          <strong className="font-medium text-foreground">Log Out Session</strong>{" "}
+          only ends this browser session.
         </p>
 
         {message && (

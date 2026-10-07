@@ -18,6 +18,7 @@ import {
   updateOllamaUrl,
   updateRule,
 } from "@/app/actions/settings";
+import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -401,8 +402,8 @@ export function AiModelsCard({
     '$cf="$env:TEMP\\cloudflared.exe"; if (-not (Test-Path $cf)) { Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile $cf -UseBasicParsing }; & $cf tunnel --url http://127.0.0.1:11434 --http-host-header localhost:11434';
 
   return (
-    <Card className="overflow-hidden border-border/80 shadow-sm">
-      <CardHeader className="border-b border-border/60 bg-muted/20 pb-5">
+    <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
+      <CardHeader className="border-b border-border/50 pb-5">
         <CardTitle className="text-lg tracking-tight">AI & Models</CardTitle>
         <CardDescription>
           Route inference through local Ollama or fall back to OpenRouter.

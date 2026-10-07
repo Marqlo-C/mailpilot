@@ -10,6 +10,7 @@ import {
   removeExcludedTitle,
 } from "@/app/actions/settings";
 import { Button } from "@/components/ui/button";
+import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
 import {
   Card,
   CardContent,
@@ -67,7 +68,7 @@ export function ExcludedTitlesCard({
   }
 
   return (
-    <Card>
+    <Card className={SETTINGS_CARD_CLASSNAME}>
       <CardHeader>
         <CardTitle>Excluded Job Titles</CardTitle>
         <CardDescription>
