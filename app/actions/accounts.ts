@@ -120,6 +120,11 @@ export async function logoutMailPilotSession(): Promise<never> {
   return logoutSession();
 }
 
+/**
+ * Settings → Sync: runs History API delta only (`processInboxDelta`).
+ * Advances `historyId`; does not stamp `lastSyncedAt` (Sync Inbox owns that).
+ * Kept for isolated delta testing — prefer Job Radar → Sync Inbox day-to-day.
+ */
 export async function triggerManualSync(
   accountId: string
 ): Promise<ActionResult> {

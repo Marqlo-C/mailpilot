@@ -12,6 +12,44 @@ MailPilot is a Next.js dashboard that connects to Gmail, detects newsletter subs
 - **Background inbox sync** through Gmail watch notifications and webhook processing
 - **Object storage via Vercel Blob** for serving login background media
 
+## Inbox sync pipeline
+
+MailPilot uses **two Gmail bookmarks** for different jobs:
+
+| Watermark | Owner | Purpose |
+| --- | --- | --- |
+| `Account.historyId` | Gmail History API (`processInboxDelta`) | “What changed in the mailbox since this tip?” — subscriptions + classification on added messages |
+| `Account.lastSyncedAt` | Sync Inbox (`syncInboxOpportunities`) | Time cursor for the job-oriented search query (`after:…` + 10‑minute overlap) |
+
+### Automatic path (Pub/Sub)
+
+1. Gmail watch → Pub/Sub → `POST /api/webhooks/gmail`
+2. `processInboxDelta(email, notificationHistoryId)` digests `messageAdded` history, upserts subscriptions, classifies job mail, advances **`historyId` only**
+3. Does **not** stamp `lastSyncedAt` (avoids shrinking the Sync Inbox window when a webhook finishes mid-flight)
+
+### Sync Inbox path (Job Radar → Sync Inbox)
+
+Runs in `after()` from `syncInboxOpportunities` (**delta-first**):
+
+1. Snapshot `runStartedAt = new Date()` (not written yet)
+2. **`processInboxDelta`** — catch missed Pub/Sub, update subscriptions / `historyId`
+   - If History API returns **404** (expired `historyId`), renew the watch and set `historyExpired` so the job query uses a **lookback** window (default 14 days) instead of a thin incremental `after:`
+3. **Job Gmail search** + ≤10 `PENDING_AI` drain — dedupe against delta ids, `EmailMessage` (keep `PENDING_AI`), and `JobApplication`
+4. Classify / persist (heartbeat renewed per AI chunk; stale-lock constants unchanged)
+5. On **success only**, commit `lastSyncedAt = runStartedAt` so mail that arrived during the run stays inside the next incremental window (+ overlap)
+
+Settings → **Sync** still calls `triggerManualSync` → `processInboxDelta` alone (kept for isolated delta testing). Prefer Sync Inbox for day-to-day recovery.
+
+### Opportunity dedupe (ingest)
+
+`persistClassifiedEmail` (used by delta, Sync Inbox, and historical scan) matches jobs in order:
+
+1. **Same email** (`emailMessageId`) — `applyUrl` match, else title + `isLocationCompatible`
+2. **Cross-email** — same company + title + compatible location; **suppress** (no update/create) if DISMISSED or user-archived
+3. **Insert** — only when neither tier matches
+
+Location helpers live in `lib/utils/location.ts` (`parseLocation`, `isLocationCompatible`).
+
 ## Tech Stack
 
 - **Framework:** Next.js 15 (App Router), React 19, TypeScript
@@ -24,6 +62,7 @@ MailPilot is a Next.js dashboard that connects to Gmail, detects newsletter subs
 - `/app` – pages, API routes, and server actions
 - `/components` – UI components and feature views
 - `/lib` – core domain logic (sync, Gmail, LLM routing, validations)
+- `/lib/logging` – Pino logger + scoped helpers (`syncLog`, `dedupeLog`, `syncLockLog`, `logStory`)
 - `/prisma` – Prisma schema
 - `/scripts` – maintenance scripts
 
@@ -64,6 +103,18 @@ MailPilot is a Next.js dashboard that connects to Gmail, detects newsletter subs
    ```
 
 6. Open `http://localhost:3000`.
+
+## Logging
+
+Server logs use **Pino** (`lib/logging/`).
+
+| Environment | Default level | Sync / Dedupe stories |
+| --- | --- | --- |
+| `production` (`VERCEL_ENV=production`) | `warn` | hidden |
+| `preview` | `debug` | shown |
+| local `next dev` | `debug` (+ pretty) | shown |
+
+Override with `LOG_LEVEL`. Scoped helpers: `syncLog`, `dedupeLog`, `syncLockLog`, plus `logStory()` for plain-English multi-line lines.
 
 ## Environment Variables
 

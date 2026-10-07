@@ -68,13 +68,25 @@ export async function GET(request: Request) {
         processed: number;
         opportunitiesUpserted: number;
         skipped: number;
+        historyExpired: boolean;
       };
       error?: string;
     }> = [];
 
     // Sequential to stay under memory / duration limits on Hobby.
+    // Same delta-first pipeline as Sync Inbox; stamp lastSyncedAt with runStartedAt.
     for (const account of accounts) {
+      const runStartedAt = new Date();
       try {
+        await prisma.account.update({
+          where: { id: account.id },
+          data: {
+            isSyncing: true,
+            syncError: null,
+            syncHeartbeatAt: runStartedAt,
+          },
+        });
+
         const syncResult = await runOpportunitySync(account.id, {
           forceRescan: false,
           maxMessages: 10,
@@ -92,7 +104,7 @@ export async function GET(request: Request) {
         await prisma.account.update({
           where: { id: account.id },
           data: {
-            lastSyncedAt: new Date(),
+            lastSyncedAt: runStartedAt,
             isSyncing: false,
             syncError: null,
             lastSyncProcessed: syncResult.opportunitiesUpserted,
@@ -106,6 +118,18 @@ export async function GET(request: Request) {
         });
       } catch (err) {
         console.error(`Cron sync failed for account ${account.email}:`, err);
+        try {
+          await prisma.account.update({
+            where: { id: account.id },
+            data: {
+              isSyncing: false,
+              syncError:
+                err instanceof Error ? err.message : "Unknown error",
+            },
+          });
+        } catch {
+          /* ignore finalize failure */
+        }
         results.push({
           account: account.email,
           status: "failed",

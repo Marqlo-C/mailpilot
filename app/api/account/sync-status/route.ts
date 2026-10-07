@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { SYNC_HEARTBEAT_STALE_MS } from "@/lib/constants";
 import { getActiveAccount } from "@/lib/data";
+import { syncLockLog } from "@/lib/logging";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -67,8 +68,12 @@ export async function GET() {
       if (heartbeatAgeMs > SYNC_HEARTBEAT_STALE_MS) {
         const syncError =
           "Background sync interrupted. Auto-reset complete.";
-        console.warn(
-          `[SyncLock:AutoReset] Clearing stale sync lock for ${account.id} (heartbeatAge=${Math.round(heartbeatAgeMs / 1000)}s)`
+        syncLockLog.warn(
+          {
+            accountId: account.id,
+            heartbeatAgeSec: Math.round(heartbeatAgeMs / 1000),
+          },
+          "Clearing stale sync lock (heartbeat silent too long)"
         );
         await prisma.account.update({
           where: { id: account.id },

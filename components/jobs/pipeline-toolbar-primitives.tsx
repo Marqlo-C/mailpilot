@@ -394,7 +394,11 @@ export function ToolbarSearch({
   return (
     <div
       ref={rootRef}
-      className={cn("relative min-w-0 max-w-full flex-1", className)}
+      className={cn(
+        "relative min-w-0 max-w-full flex-1",
+        filtersOpen && "z-50",
+        className
+      )}
       style={{ flexBasis: preferredInputBasis }}
     >
       <div className="flex h-8 w-full items-center gap-1.5 rounded-lg border border-border/50 bg-card/75 pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow">
@@ -458,8 +462,8 @@ export function ToolbarSearch({
       {hasFilters && filtersOpen ? (
         <div
           role="region"
-          aria-label="Search filters"
-          className="absolute inset-x-0 top-[calc(100%+0.35rem)] z-50 flex flex-col gap-2 rounded-lg border border-border/50 bg-card p-2.5 shadow-md sm:flex-row sm:flex-wrap"
+          aria-label="Filter and sort"
+          className="absolute inset-x-0 top-[calc(100%+0.35rem)] z-50 flex flex-col gap-2.5 rounded-lg border border-border/50 bg-card p-2.5 shadow-md sm:flex-row sm:flex-wrap sm:items-end"
         >
           {children}
         </div>
@@ -472,17 +476,25 @@ export function ToolbarSearch({
 export function ToolbarSearchAddon({
   children,
   className,
+  label,
 }: {
   children: ReactNode;
   className?: string;
+  /** Visible role label — use "Filter" or "Sort" so the panel reads clearly. */
+  label?: "Filter" | "Sort" | (string & {});
 }) {
   return (
     <div
       className={cn(
-        "flex w-full min-w-0 items-center sm:w-auto [&>div]:w-full sm:[&>div]:w-auto [&_select]:w-full sm:[&_select]:w-auto",
+        "flex w-full min-w-0 flex-col gap-1 sm:w-auto [&>div]:w-full sm:[&>div]:w-auto [&_select]:w-full sm:[&_select]:w-auto",
         className
       )}
     >
+      {label ? (
+        <span className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </span>
+      ) : null}
       {children}
     </div>
   );

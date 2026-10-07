@@ -17,8 +17,13 @@ import {
   type LlmProvider,
 } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
-import { parseFromHeader, persistClassifiedEmail } from "@/lib/sync";
-import { resolveIngestionRules } from "@/lib/sync";
+import { logStory, syncLog } from "@/lib/logging";
+import {
+  parseFromHeader,
+  persistClassifiedEmail,
+  processInboxDelta,
+  resolveIngestionRules,
+} from "@/lib/sync";
 
 export type OpportunitySyncOptions = {
   forceRescan?: boolean;
@@ -31,6 +36,8 @@ export type OpportunitySyncResult = {
   processed: number;
   opportunitiesUpserted: number;
   skipped: number;
+  /** True when Gmail History API returned expired startHistoryId (404). */
+  historyExpired: boolean;
 };
 
 const JOB_QUERY_BASE =
@@ -129,27 +136,74 @@ async function listGmailMessageIds(
 
 function buildSyncQuery(input: {
   forceRescan: boolean;
+  historyExpired: boolean;
   lookbackDays: number;
   lastSyncedAt: Date | null;
-}): string {
+}): { query: string; windowLabel: string } {
   let query = JOB_QUERY_BASE;
 
-  if (!input.forceRescan && input.lastSyncedAt) {
-    // Incremental: only mail newer than last sync (10-minute overlap buffer).
-    const afterTimestamp =
-      Math.floor(input.lastSyncedAt.getTime() / 1000) -
-      INCREMENTAL_OVERLAP_SECONDS;
-    query += ` after:${afterTimestamp}`;
-  } else {
+  // Wide lookback when force-rescanning or after History API expiry (gap cannot
+  // be replayed via historyId — fall back to time search).
+  if (input.forceRescan || input.historyExpired || !input.lastSyncedAt) {
+    const reason = input.forceRescan
+      ? "force rescan"
+      : input.historyExpired
+        ? "history tip expired"
+        : "no lastSyncedAt yet";
     query += ` newer_than:${input.lookbackDays}d`;
+    return {
+      query,
+      windowLabel: `lookback newer_than:${input.lookbackDays}d (${reason})`,
+    };
   }
 
-  return query;
+  // Incremental: only mail newer than last sync (10-minute overlap buffer).
+  const afterTimestamp =
+    Math.floor(input.lastSyncedAt.getTime() / 1000) -
+    INCREMENTAL_OVERLAP_SECONDS;
+  query += ` after:${afterTimestamp}`;
+  return {
+    query,
+    windowLabel: `incremental after:${afterTimestamp} (lastSyncedAt − 10m overlap)`,
+  };
 }
 
+// #region agent log
+function debugSyncLog(
+  hypothesisId: string,
+  location: string,
+  message: string,
+  data: Record<string, unknown>
+) {
+  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "3c315a",
+    },
+    body: JSON.stringify({
+      sessionId: "3c315a",
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+}
+// #endregion
+
 /**
- * Fast incremental opportunity sync, or forced lookback rescan/backfill.
- * Uses cleaned payloads + batched concurrency (4) to cut AI latency.
+ * Delta-first inbox opportunity sync.
+ *
+ * Pipeline (owned by Sync Inbox / `syncInboxOpportunities`):
+ * 1. `processInboxDelta` — subscriptions + history catch-up; advances `historyId`
+ *    only (never `lastSyncedAt`).
+ * 2. Job Gmail search (`after:lastSyncedAt` or lookback) + ≤10 `PENDING_AI` drain.
+ * 3. Classify / persist job candidates (heartbeat renewed per chunk; unchanged).
+ *
+ * `lastSyncedAt` is stamped by the caller with the pre-run `runStartedAt` snapshot
+ * after this function returns successfully — not here, not inside the delta.
  */
 export async function runOpportunitySync(
   accountId: string,
@@ -179,19 +233,67 @@ export async function runOpportunitySync(
     }
 
     if (!account.profile) {
-      console.warn(
-        "Sync warning: Account has no linked profile. Match scoring will use generic profile defaults."
+      logStory(
+        syncLog,
+        "Account has no linked profile. Match scoring will use generic defaults.",
+        { mailbox: account.email },
+        "warn"
       );
     }
 
-    const gmail = await getGmailClientForAccount(account);
-    const query = buildSyncQuery({
+    logStory(syncLog, "Sync Inbox starting", {
+      mailbox: account.email,
+      mode: forceRescan ? "force rescan" : "incremental",
+      "max job-query messages": maxMessages,
+      "previous lastSyncedAt":
+        account.lastSyncedAt?.toISOString() ?? "(never)",
+    });
+
+    // #region agent log
+    debugSyncLog("A", "opportunity-sync.ts:start", "Sync Inbox pipeline start", {
+      accountId,
       forceRescan,
+      lookbackDays,
+      maxMessages,
+      lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
+      historyId: account.historyId,
+    });
+    // #endregion
+
+    // ── Step 1: History delta first (Pub/Sub catch-up + subscriptions) ─────
+    const delta = await processInboxDelta(
+      account.email,
+      account.historyId ?? "1"
+    );
+    const historyExpired = delta.historyExpired;
+    const deltaIdSet = new Set(delta.messageIds);
+
+    // #region agent log
+    debugSyncLog("A", "opportunity-sync.ts:delta", "Delta step finished", {
+      deltaCount: delta.messageIds.length,
+      historyExpired,
+      historyId: delta.historyId,
+    });
+    // #endregion
+
+    const gmail = await getGmailClientForAccount(account);
+    const { query, windowLabel } = buildSyncQuery({
+      forceRescan,
+      historyExpired,
       lookbackDays,
       lastSyncedAt: account.lastSyncedAt,
     });
 
-    const gmailMessageIds = await listGmailMessageIds(gmail, query, maxMessages);
+    logStory(syncLog, "Step 2/4 — Job search + PENDING_AI drain", {
+      window: windowLabel,
+      "skipping delta ids": deltaIdSet.size,
+    });
+
+    // ── Step 2: Job search + PENDING_AI; dedupe vs delta + known rows ───────
+    const listedIds = await listGmailMessageIds(gmail, query, maxMessages);
+    // Delta already digested these; skip re-fetch (PENDING_AI still drained below).
+    const gmailMessageIds = listedIds.filter((id) => !deltaIdSet.has(id));
+    const skippedAsDeltaDupes = listedIds.length - gmailMessageIds.length;
 
     // Pull up to 10 backlogged PENDING_AI emails so Sync Inbox drains the queue.
     const pendingRows = await prisma.emailMessage.findMany({
@@ -208,31 +310,89 @@ export async function runOpportunitySync(
       new Set([...gmailMessageIds, ...pendingIds])
     );
 
+    logStory(syncLog, "Candidate scoop", {
+      "Gmail job search hits": listedIds.length,
+      "already digested in delta (skipped)": skippedAsDeltaDupes,
+      "fresh from search": gmailMessageIds.length,
+      "PENDING_AI backlog pulled": pendingIds.length,
+      "combined unique": combinedCandidateIds.length,
+    });
+
+    // #region agent log
+    debugSyncLog("B", "opportunity-sync.ts:candidates", "Query + pending merge", {
+      listedIds: listedIds.length,
+      skippedAsDeltaDupes,
+      gmailMessageIds: gmailMessageIds.length,
+      pendingIds: pendingIds.length,
+      combined: combinedCandidateIds.length,
+      windowLabel,
+    });
+    // #endregion
+
     if (combinedCandidateIds.length === 0) {
-      return { processed: 0, opportunitiesUpserted: 0, skipped: 0 };
+      logStory(
+        syncLog,
+        "Nothing left to classify — inbox already caught up. Step 3/4 skipped; Step 4 will stamp lastSyncedAt on success."
+      );
+      return {
+        processed: 0,
+        opportunitiesUpserted: 0,
+        skipped: 0,
+        historyExpired,
+      };
     }
 
     let targetIds = combinedCandidateIds;
     if (!forceRescan) {
-      // Dedup against EmailMessage.messageId (Gmail ids), not JobOpportunity cuid FKs.
-      // Re-process PENDING_AI rows so offline-parked mail gets classified when AI returns.
-      const processed = await prisma.emailMessage.findMany({
-        where: {
-          accountId,
-          messageId: { in: combinedCandidateIds },
-          emailCategory: { not: "PENDING_AI" },
-        },
-        select: { messageId: true },
-      });
-      const processedSet = new Set(processed.map((row) => row.messageId));
-      targetIds = combinedCandidateIds.filter((id) => !processedSet.has(id));
+      // Dedup against EmailMessage + JobApplication (Gmail ids).
+      // Keep PENDING_AI so offline-parked mail gets classified when AI returns.
+      const [processedEmail, processedApps] = await Promise.all([
+        prisma.emailMessage.findMany({
+          where: {
+            accountId,
+            messageId: { in: combinedCandidateIds },
+            emailCategory: { not: "PENDING_AI" },
+          },
+          select: { messageId: true },
+        }),
+        prisma.jobApplication.findMany({
+          where: {
+            accountId,
+            messageId: { in: combinedCandidateIds },
+          },
+          select: { messageId: true },
+        }),
+      ]);
+      const processedSet = new Set([
+        ...processedEmail.map((row) => row.messageId),
+        ...processedApps.map((row) => row.messageId),
+      ]);
+      // PENDING_AI rows must still run even if a JobApplication row exists.
+      const pendingSet = new Set(pendingIds);
+      targetIds = combinedCandidateIds.filter(
+        (id) => pendingSet.has(id) || !processedSet.has(id)
+      );
+      logStory(
+        syncLog,
+        "After DB dedupe (keep PENDING_AI, skip known EmailMessage/JobApplication)",
+        {
+          "still to classify": targetIds.length,
+          "skipped as already known":
+            combinedCandidateIds.length - targetIds.length,
+        }
+      );
     }
 
     if (targetIds.length === 0) {
+      logStory(
+        syncLog,
+        "All candidates were already known — nothing to classify."
+      );
       return {
         processed: 0,
         opportunitiesUpserted: 0,
         skipped: combinedCandidateIds.length,
+        historyExpired,
       };
     }
 
@@ -245,6 +405,18 @@ export async function runOpportunitySync(
 
     let opportunitiesUpserted = 0;
 
+    logStory(syncLog, `Step 3/4 — Classifying ${targetIds.length} message(s)`, {
+      "AI provider": llmProvider,
+      "batch size": llmProvider === "LOCAL_OLLAMA" ? 1 : BATCH_SIZE,
+    });
+
+    // #region agent log
+    debugSyncLog("C", "opportunity-sync.ts:classify", "Starting classify loop", {
+      targetCount: targetIds.length,
+      llmProvider,
+    });
+    // #endregion
+
     // Serialize local Ollama inference to avoid concurrent queue timeouts.
     const effectiveBatchSize = llmProvider === "LOCAL_OLLAMA" ? 1 : BATCH_SIZE;
     for (let i = 0; i < targetIds.length; i += effectiveBatchSize) {
@@ -255,11 +427,17 @@ export async function runOpportunitySync(
 
       // If the user clicked Cancel, isSyncing will be false. Abort the loop safely.
       if (!currentState?.isSyncing) {
-        console.log(
-          `[Sync] Aborting sync loop for account ${accountId} (cancelled by user).`
+        logStory(
+          syncLog,
+          "Stopped early — sync was cancelled (isSyncing cleared).",
+          { "classified so far": `${i} / ${targetIds.length}` },
+          "warn"
         );
         break;
       }
+
+      const chunkLabel = `${Math.min(i + effectiveBatchSize, targetIds.length)} / ${targetIds.length}`;
+      logStory(syncLog, `Classifying chunk … ${chunkLabel}`);
 
       const chunk = targetIds.slice(i, i + effectiveBatchSize);
       const results = await Promise.all(
@@ -374,7 +552,10 @@ export async function runOpportunitySync(
 
             return result.opportunitiesUpserted + (result.applicationTouched ? 1 : 0);
           } catch (error) {
-            console.error(`Opportunity sync failed for ${messageId}`, error);
+            syncLog.error(
+              { err: error, messageId },
+              "Opportunity sync failed for message"
+            );
             if (isRateLimited(error)) {
               await sleep(RATE_LIMIT_BASE_MS * 2);
             }
@@ -391,10 +572,27 @@ export async function runOpportunitySync(
       });
     }
 
+    logStory(syncLog, "Step 3/4 done — classification finished", {
+      "messages attempted": targetIds.length,
+      "opportunities touched": opportunitiesUpserted,
+      "skipped earlier as known":
+        combinedCandidateIds.length - targetIds.length,
+    });
+
+    // #region agent log
+    debugSyncLog("C", "opportunity-sync.ts:done", "Classify loop finished", {
+      processed: targetIds.length,
+      opportunitiesUpserted,
+      skipped: combinedCandidateIds.length - targetIds.length,
+      historyExpired,
+    });
+    // #endregion
+
     return {
       processed: targetIds.length,
       opportunitiesUpserted,
       skipped: combinedCandidateIds.length - targetIds.length,
+      historyExpired,
     };
   } catch (error) {
     if (

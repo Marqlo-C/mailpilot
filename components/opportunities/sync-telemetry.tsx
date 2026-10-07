@@ -101,11 +101,11 @@ export function SyncTelemetry({
           type="button"
           onClick={handleTriggerSync}
           disabled={pending}
-          className="flex items-center gap-1.5 rounded-full border border-[hsl(28_62%_40%/0.35)] bg-[hsl(28_70%_48%/0.14)] px-2.5 py-1 text-xs font-medium text-[hsl(28_62%_36%)] transition-colors hover:bg-[hsl(28_70%_48%/0.25)] disabled:opacity-60 dark:border-[hsl(28_75%_60%/0.4)] dark:bg-[hsl(28_70%_48%/0.2)] dark:text-[hsl(28_75%_68%)] dark:hover:bg-[hsl(28_70%_48%/0.3)]"
+          className="flex items-center gap-1.5 rounded-full border border-[#c21f10]/35 bg-[#c21f10]/10 px-2.5 py-1 text-xs font-medium text-[#c21f10] transition-colors hover:bg-[#c21f10]/18 disabled:opacity-60 dark:border-[#fb6230]/40 dark:bg-[#fb6230]/18 dark:text-[#fb6230] dark:hover:bg-[#fb6230]/28"
         >
           <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[hsl(28_70%_48%)] opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[hsl(28_70%_48%)]" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#c21f10] opacity-75 dark:bg-[#fb6230]" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#c21f10] dark:bg-[#fb6230]" />
           </span>
           <span>
             <span className="font-bold tabular-nums">{pendingCount}</span>{" "}
