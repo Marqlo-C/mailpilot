@@ -48,6 +48,7 @@ import {
   isInteractiveTarget,
   isMultiColumnDndList,
   isOverlayTarget,
+  isPointerOutsideDndList,
   offsetFrozenGeometryByScroll,
   type FrozenItemRect,
   type SelectionDragGeometry,
@@ -76,6 +77,16 @@ export type CardListDragState = {
   /** False on multi-column grids — DOM live-reorder is unstable there. */
   livePreview: boolean;
   dropZone: string | null;
+  /**
+   * Armed cross-page flip while hovering a viewport edge (−1 prev / +1 next).
+   * Flip still fires after the edge delay.
+   */
+  pageFlipDir: -1 | 1 | null;
+  /**
+   * Pointer is outside the visible `[data-dnd-list]` triage rect — ghost shows
+   * the transport stack; inside the list, live entry reorder preview takes over.
+   */
+  outsideList: boolean;
   pointerX: number;
   pointerY: number;
   /** Union bbox + grab offsets for ghost deadzone / lerp (fixed for the drag). */
@@ -170,6 +181,9 @@ export function useCardListGestures({
   const frozenRectsRef = useRef<Map<string, FrozenItemRect> | null>(null);
   const selectionGeometryRef = useRef<SelectionDragGeometry | null>(null);
   const livePreviewRef = useRef(true);
+  const dragPageRef = useRef<number | null>(null);
+  /** Clear sticky insert once after an edge page flip. */
+  const ignorePrevInsertRef = useRef(false);
 
   dragRef.current = drag;
 
@@ -238,6 +252,14 @@ export function useCardListGestures({
       const livePreview = livePreviewRef.current;
       if (!zone && rulesRef.current.canReorder) {
         const prev = dragRef.current;
+        // After a page flip, ignore sticky prev insert so targeting can land
+        // on the new page’s visible rows (logs kept insertIndex=3 post-flip).
+        const prevInsert = ignorePrevInsertRef.current
+          ? null
+          : (prev?.insertIndex ?? null);
+        if (ignorePrevInsertRef.current) {
+          ignorePrevInsertRef.current = false;
+        }
         const nextInsert = findReorderInsertIndex(
           clientX,
           clientY,
@@ -246,9 +268,9 @@ export function useCardListGestures({
           frozenRectsRef.current,
           livePreview,
           selectionGeometryRef.current,
-          prev?.insertIndex
+          prevInsert
         );
-        insertIndex = nextInsert ?? prev?.insertIndex ?? null;
+        insertIndex = nextInsert ?? prevInsert ?? null;
         previewFullIds = livePreview
           ? previewReorderFullIds(
               fullIdsRef.current,
@@ -258,39 +280,27 @@ export function useCardListGestures({
           : null;
       }
 
-      setDrag({
-        active: true,
-        movedIds: pending.movedIds,
-        originId: pending.originId,
-        insertIndex,
-        previewFullIds,
-        livePreview,
-        dropZone: zone,
-        pointerX: clientX,
-        pointerY: clientY,
-        grab: dragRef.current?.grab ?? null,
-      });
-
       // Cross-page edge flip (same tab only; not while over a drop zone).
+      let pageFlipDir: -1 | 1 | null = null;
       if (!zone && rulesRef.current.canReorder) {
         const { currentPage: page, totalPages: pages } = pageMetaRef.current;
-        let dir: -1 | 1 | null = null;
         const leftEdge = getPageFlipLeftEdgePx();
-        if (clientX <= leftEdge && page > 1) dir = -1;
+        if (clientX <= leftEdge && page > 1) pageFlipDir = -1;
         else if (
           clientX >= window.innerWidth - DND_PAGE_EDGE_PX &&
           page < pages
         ) {
-          dir = 1;
+          pageFlipDir = 1;
         }
 
-        if (dir !== pageFlipDirRef.current) {
+        if (pageFlipDir !== pageFlipDirRef.current) {
           clearPageFlip();
-          pageFlipDirRef.current = dir;
-          if (dir != null) {
+          pageFlipDirRef.current = pageFlipDir;
+          if (pageFlipDir != null) {
+            const dir = pageFlipDir;
             pageFlipTimerRef.current = setTimeout(() => {
               const meta = pageMetaRef.current;
-              const next = meta.currentPage + (dir as -1 | 1);
+              const next = meta.currentPage + dir;
               if (next >= 1 && next <= meta.totalPages) {
                 onPageChange(next);
               }
@@ -302,6 +312,25 @@ export function useCardListGestures({
       } else {
         clearPageFlip();
       }
+
+      const outsideList = isPointerOutsideDndList(clientX, clientY);
+      // Stack whenever leaving triage or hovering a tab drop zone.
+      const showStack = outsideList || Boolean(zone);
+
+      setDrag({
+        active: true,
+        movedIds: pending.movedIds,
+        originId: pending.originId,
+        insertIndex,
+        previewFullIds,
+        livePreview,
+        dropZone: zone,
+        pageFlipDir,
+        outsideList,
+        pointerX: clientX,
+        pointerY: clientY,
+        grab: dragRef.current?.grab ?? null,
+      });
 
       return zone;
     },
@@ -441,6 +470,8 @@ export function useCardListGestures({
         previewFullIds: null,
         livePreview,
         dropZone: null,
+        pageFlipDir: null,
+        outsideList: isPointerOutsideDndList(x, y),
         pointerX: x,
         pointerY: y,
         grab,
@@ -452,10 +483,10 @@ export function useCardListGestures({
   // Remeasure ONLY after a page-edge flip. Never remasure when drag starts
   // or while preview is live — that captured already-shifted DOM and caused
   // insertIndex thrashing on Subscriptions.
-  const dragPageRef = useRef<number | null>(null);
   useEffect(() => {
     if (!drag?.active) {
       dragPageRef.current = null;
+      ignorePrevInsertRef.current = false;
       return;
     }
     if (dragPageRef.current == null) {
@@ -464,6 +495,7 @@ export function useCardListGestures({
     }
     if (dragPageRef.current === currentPage) return;
     dragPageRef.current = currentPage;
+    ignorePrevInsertRef.current = true;
     const frame = window.requestAnimationFrame(() => {
       frozenRectsRef.current = captureReorderRects(fullIdsRef.current);
       const pending = pendingRef.current;
@@ -474,10 +506,13 @@ export function useCardListGestures({
           frozenRectsRef.current,
           pending.originId
         );
+        // Retarget against the new page’s visible rows immediately.
+        const { x, y } = lastPointerRef.current;
+        updateDragFromPointer(x, y);
       }
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [currentPage, drag?.active]);
+  }, [currentPage, drag?.active, updateDragFromPointer]);
 
   const onPointerDownItem = useCallback(
     (event: ReactPointerEvent, id: string) => {

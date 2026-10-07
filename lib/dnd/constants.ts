@@ -2,7 +2,7 @@
 export const DND_SELECT_LONG_PRESS_MS = 280;
 
 /** Hold duration to arm drag while already in multi-select (longer than select). */
-export const DND_DRAG_LONG_PRESS_MS = 400;
+export const DND_DRAG_LONG_PRESS_MS = 350;
 
 /** Pointer travel that cancels a pending long-press (px). */
 export const DND_MOVE_CANCEL_PX = 10;
@@ -37,6 +37,12 @@ export const DND_DEADZONE_BOTTOM_RATIO = 0.6;
  * Higher = snappier; keep in ~0.12–0.20 for smooth follow.
  */
 export const DND_LERP_ALPHA = 0.16;
+
+/**
+ * Extra px between the pointer and the ghost’s top-left lerp target
+ * (card sits slightly down/right of the cursor tip).
+ */
+export const DND_GHOST_POINTER_GRACE_PX = 12;
 
 /**
  * Left flip threshold: sidebar width (via --app-sidebar-width) plus the

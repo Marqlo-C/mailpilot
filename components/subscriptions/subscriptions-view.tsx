@@ -32,7 +32,10 @@ import {
   formatPreviewDisplayDate,
   PreviewLoadChrome,
 } from "@/components/subscriptions/preview-load-chrome";
-import { DragGhost } from "@/components/dnd/drag-ghost";
+import {
+  DragGhost,
+  type DragGhostStackItem,
+} from "@/components/dnd/drag-ghost";
 import { SubscriptionsToolbar } from "@/components/subscriptions/subscriptions-toolbar";
 import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
 import {
@@ -942,6 +945,35 @@ export function SubscriptionsView({
     return primary?.senderName ?? primary?.senderEmail ?? "Subscription";
   }, [drag, filteredActive, active]);
 
+  const dragStackItems = useMemo(() => {
+    if (!drag?.active) return [];
+    // Grabbed card first so front name + icon match; others fill the peek stack.
+    const orderedIds = [
+      drag.originId,
+      ...drag.movedIds.filter((id) => id !== drag.originId),
+    ].slice(0, 4);
+    return orderedIds.map((id) => {
+      const sub =
+        filteredActive.find((s) => s.id === id) ??
+        active.find((s) => s.id === id);
+      const name = sub?.senderName ?? sub?.senderEmail ?? "Subscription";
+      const email = sub?.senderEmail ?? null;
+      const item: DragGhostStackItem = {
+        name,
+        subtitle: email && name !== email ? email : null,
+        logoSrc: email ? senderLogoSrc(email) : null,
+        score: sub ? clutterForSub(sub) : null,
+        scoreKind: "clutter",
+        emailCount: sub?.emailCount ?? null,
+        lastReceivedLabel: sub
+          ? formatLastReceivedValue(sub.lastReceivedAt)
+          : null,
+        actions: ["snapshot", "unsubscribe"],
+      };
+      return item;
+    });
+  }, [drag, filteredActive, active]);
+
   const defaultSort: SubscriptionSortOption = "clutter_desc";
   const hasActiveTransientFilters =
     clutterThreshold > 0 ||
@@ -976,6 +1008,10 @@ export function SubscriptionsView({
         grab={drag?.grab ?? null}
         count={drag?.movedIds.length ?? 0}
         label={dragLabel}
+        dropZone={drag?.dropZone ?? null}
+        pageFlipDir={drag?.pageFlipDir ?? null}
+        outsideList={drag?.outsideList ?? false}
+        stackItems={dragStackItems}
       />
       <Tabs
         value={activeTab}

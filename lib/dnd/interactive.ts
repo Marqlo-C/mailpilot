@@ -204,6 +204,43 @@ export function getDndListTopPx(): number {
   return DND_AUTO_SCROLL_EDGE_PX;
 }
 
+/** Visible triage list bounds (`[data-dnd-list]`), or null if none. */
+export function getDndListBounds(): {
+  top: number;
+  left: number;
+  right: number;
+  bottom: number;
+} | null {
+  if (typeof document === "undefined") return null;
+  for (const node of document.querySelectorAll("[data-dnd-list]")) {
+    const r = node.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      return {
+        top: r.top,
+        left: r.left,
+        right: r.right,
+        bottom: r.bottom,
+      };
+    }
+  }
+  return null;
+}
+
+/** True when the pointer is outside the visible triage list rect. */
+export function isPointerOutsideDndList(
+  clientX: number,
+  clientY: number
+): boolean {
+  const bounds = getDndListBounds();
+  if (!bounds) return true;
+  return (
+    clientX < bounds.left ||
+    clientX > bounds.right ||
+    clientY < bounds.top ||
+    clientY > bounds.bottom
+  );
+}
+
 /** Nearest vertical scrollport for the active card list, else the document. */
 export function getDragScrollElement(): Element | null {
   if (typeof document === "undefined") return null;
@@ -335,29 +372,61 @@ export function measureIdsViewportBounds(
 }
 
 /**
+ * Without-row centers that are actually on-screen. Off-page ids have no DOM
+ * node — skipping them without remapping left insertIndex stuck on the origin
+ * page after an edge flip (logs: pageFlip→re-enter still insertIndex=3).
+ */
+function measureVisibleWithoutCenters(
+  without: string[],
+  rects: Map<string, FrozenItemRect>
+): { index: number; cy: number; cx: number; id: string }[] {
+  const live = captureReorderRects(without);
+  const measured: { index: number; cy: number; cx: number; id: string }[] = [];
+  for (let i = 0; i < without.length; i++) {
+    const id = without[i]!;
+    const rect = live.get(id) ?? rects.get(id);
+    if (!rect) continue;
+    if (typeof window !== "undefined" && rect.top >= window.innerHeight) {
+      break;
+    }
+    // Ignore rows fully above the viewport (other pages / scrolled away).
+    if (typeof window !== "undefined" && rect.bottom <= 0) continue;
+    measured.push({
+      index: i,
+      id,
+      cy: rect.top + rect.height / 2,
+      cx: rect.left + rect.width / 2,
+    });
+  }
+  return measured;
+}
+
+/**
  * Single-column list insert index.
- * - Chrome / above list → 0.
  * - Over live moved-card body → keep prev insert (no ±1 force — that looped).
- * - Still at home inside frozen grab footprint → homeIndex.
- * - Else midY from *live* without-row centers (matches live preview layout).
+ * - Still at home inside frozen grab footprint → homeIndex (origin page only).
+ * - Else midY among *visible* without-row centers (cross-page safe).
  */
 function findListInsertIndexFromFrozenY(
   clientY: number,
   without: string[],
   rects: Map<string, FrozenItemRect>,
-  selection: SelectionDragGeometry,
+  selection: SelectionDragGeometry | null,
   movedIds: readonly string[],
   prevInsertIndex?: number | null
 ): number {
   if (without.length === 0) return 0;
 
-  const { homeIndex, selectionTop, selectionBottom } = selection;
-  const home = Math.max(0, Math.min(homeIndex, without.length));
+  const measured = measureVisibleWithoutCenters(without, rects);
   const listTop = getDndListTopPx();
 
-  // Chrome / above the list → list start (clutter slider, tabs).
-  if (clientY <= listTop + 4 || clientY < DND_AUTO_SCROLL_EDGE_PX) {
-    return 0;
+  // Top of the visible triage page → insert before the first on-screen row
+  // (not full-list 0 — that pinned previews to page 1 after a flip).
+  if (
+    measured.length > 0 &&
+    (clientY <= listTop + 4 || clientY < DND_AUTO_SCROLL_EDGE_PX)
+  ) {
+    return measured[0]!.index;
   }
 
   // Pointer still over the live selection block after preview reflow —
@@ -372,36 +441,31 @@ function findListInsertIndexFromFrozenY(
     return prevInsertIndex;
   }
 
-  // Initial hold inside the *frozen* grab footprint (scroll-adjusted).
-  const stillAtHome =
-    prevInsertIndex == null || prevInsertIndex === home;
-  if (
-    stillAtHome &&
-    clientY >= selectionTop &&
-    clientY <= selectionBottom
-  ) {
-    return home;
+  // Initial hold inside the *frozen* grab footprint (origin page only).
+  if (selection) {
+    const home = Math.max(0, Math.min(selection.homeIndex, without.length));
+    const stillAtHome =
+      prevInsertIndex == null || prevInsertIndex === home;
+    if (
+      stillAtHome &&
+      clientY >= selection.selectionTop &&
+      clientY <= selection.selectionBottom
+    ) {
+      return home;
+    }
   }
 
-  // Live without-row centers track the preview layout; frozen alone desyncs
-  // after insert=0 (logs: clientY≈273 jumped insert 0→10 on stale midY).
-  const liveWithout = captureReorderRects(without);
-  let insertIndex = 0;
-  for (let i = 0; i < without.length; i++) {
-    const rect = liveWithout.get(without[i]!) ?? rects.get(without[i]!);
-    if (!rect) continue;
-    if (
-      typeof window !== "undefined" &&
-      rect.top >= window.innerHeight
-    ) {
+  if (measured.length === 0) {
+    return prevInsertIndex ?? 0;
+  }
+
+  let insertIndex = measured[0]!.index;
+  for (const row of measured) {
+    if (clientY < row.cy) {
+      insertIndex = row.index;
       break;
     }
-    const cy = rect.top + rect.height / 2;
-    if (clientY < cy) {
-      insertIndex = i;
-      break;
-    }
-    insertIndex = i + 1;
+    insertIndex = row.index + 1;
   }
 
   // Hysteresis: ignore single-slot flicker around the active boundary.
@@ -411,20 +475,16 @@ function findListInsertIndexFromFrozenY(
     Math.abs(insertIndex - prevInsertIndex) === 1
   ) {
     const boundary = Math.min(insertIndex, prevInsertIndex);
-    const rect =
-      liveWithout.get(without[boundary]!) ?? rects.get(without[boundary]!);
-    if (rect) {
-      const cy = rect.top + rect.height / 2;
-      if (Math.abs(clientY - cy) < 10) return prevInsertIndex;
-    }
+    const row = measured.find((m) => m.index === boundary);
+    if (row && Math.abs(clientY - row.cy) < 10) return prevInsertIndex;
   }
 
   return insertIndex;
 }
 
 /**
- * Multi-column grid (marker mode): nearest frozen cell, then before/after
- * from pointer vs that cell’s center (stable — rects never move).
+ * Multi-column grid (marker mode): nearest *visible* cell, then before/after
+ * from pointer vs that cell’s center.
  */
 function findGridInsertIndexFromFrozen(
   clientX: number,
@@ -432,30 +492,26 @@ function findGridInsertIndexFromFrozen(
   without: string[],
   rects: Map<string, FrozenItemRect>
 ): number {
-  let bestId: string | null = null;
+  const measured = measureVisibleWithoutCenters(without, rects);
+  if (measured.length === 0) return 0;
+
+  let best = measured[0]!;
   let bestDist = Infinity;
-  for (const id of without) {
-    const rect = rects.get(id);
-    if (!rect) continue;
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const dist = (clientX - cx) ** 2 + (clientY - cy) ** 2;
+  for (const row of measured) {
+    const dist = (clientX - row.cx) ** 2 + (clientY - row.cy) ** 2;
     if (dist < bestDist) {
       bestDist = dist;
-      bestId = id;
+      best = row;
     }
   }
-  if (!bestId) return 0;
-  const index = without.indexOf(bestId);
-  if (index < 0) return 0;
-  const rect = rects.get(bestId)!;
+  const rect = rects.get(best.id) ?? captureReorderRects([best.id]).get(best.id);
+  if (!rect) return best.index;
   const cx = rect.left + rect.width / 2;
   const cy = rect.top + rect.height / 2;
-  // Reading-order “past” this cell: below center, or same band and to the right.
   const past =
     clientY > cy + 4 ||
     (Math.abs(clientY - cy) <= rect.height / 2 && clientX > cx);
-  return past ? index + 1 : index;
+  return past ? best.index + 1 : best.index;
 }
 
 /**
@@ -484,7 +540,8 @@ export function findReorderInsertIndex(
     const selection =
       selectionGeometry ??
       captureSelectionDragGeometry(fullIds, movedIds, frozenRects);
-    if (!selection) return null;
+    // Selection may be null after a page flip (moved cards not on this page).
+    // Still target from visible without-rows so triage rearrange can resume.
     return findListInsertIndexFromFrozenY(
       clientY,
       without,
