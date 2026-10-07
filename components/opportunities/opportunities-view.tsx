@@ -490,8 +490,9 @@ export function OpportunitiesView({
     <div className="mt-0" onPointerDown={onBackgroundPointerDown}>
       <DragGhost
         active={Boolean(drag?.active)}
-        x={drag?.pointerX ?? 0}
-        y={drag?.pointerY ?? 0}
+        pointerX={drag?.pointerX ?? 0}
+        pointerY={drag?.pointerY ?? 0}
+        grab={drag?.grab ?? null}
         count={drag?.movedIds.length ?? 0}
         label={dragLabel}
       />

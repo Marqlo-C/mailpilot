@@ -26,6 +26,19 @@ export const DND_AUTO_SCROLL_EDGE_PX = 56;
 export const DND_AUTO_SCROLL_MAX_PX = 40;
 
 /**
+ * Vertical deadzone for the drag ghost: top/bottom bands of the grab bbox.
+ * Free zone is the middle strip between these ratios (20% when 0.4 / 0.6).
+ */
+export const DND_DEADZONE_TOP_RATIO = 0.4;
+export const DND_DEADZONE_BOTTOM_RATIO = 0.6;
+
+/**
+ * Per-frame lerp factor toward the deadzone target (≈60fps).
+ * Higher = snappier; keep in ~0.12–0.20 for smooth follow.
+ */
+export const DND_LERP_ALPHA = 0.16;
+
+/**
  * Left flip threshold: sidebar width (via --app-sidebar-width) plus the
  * edge band, so you only need to reach the sidebar — not the viewport edge.
  */

@@ -1,4 +1,7 @@
-import { DND_REORDER_EDGE_PX } from "@/lib/dnd/constants";
+import {
+  DND_AUTO_SCROLL_EDGE_PX,
+  DND_REORDER_EDGE_PX,
+} from "@/lib/dnd/constants";
 
 /** Targets that must not start long-press / paint-select / drag. */
 const INTERACTIVE_SELECTOR = [
@@ -191,6 +194,16 @@ export function offsetFrozenGeometryByScroll(
   }
 }
 
+/** Top edge of the visible `[data-dnd-list]` (toolbar/chrome sits above this). */
+export function getDndListTopPx(): number {
+  if (typeof document === "undefined") return DND_AUTO_SCROLL_EDGE_PX;
+  for (const node of document.querySelectorAll("[data-dnd-list]")) {
+    const r = node.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) return r.top;
+  }
+  return DND_AUTO_SCROLL_EDGE_PX;
+}
+
 /** Nearest vertical scrollport for the active card list, else the document. */
 export function getDragScrollElement(): Element | null {
   if (typeof document === "undefined") return null;
@@ -220,28 +233,71 @@ export function getDragScrollElement(): Element | null {
 }
 
 /**
+ * Contiguous selected run in list order that contains `anchorId`
+ * (falls back to the first moved id).
+ */
+export function contiguousMovedRunIds(
+  fullIds: readonly string[],
+  movedIds: readonly string[],
+  anchorId?: string
+): string[] {
+  const movedSet = new Set(movedIds);
+  const moving = fullIds.filter((id) => movedSet.has(id));
+  if (moving.length === 0) return [];
+
+  const anchor =
+    anchorId && movedSet.has(anchorId) ? anchorId : moving[0]!;
+  const anchorIdx = fullIds.indexOf(anchor);
+  if (anchorIdx < 0) return [anchor];
+
+  let runStart = anchorIdx;
+  let runEnd = anchorIdx;
+  while (runStart > 0 && movedSet.has(fullIds[runStart - 1]!)) runStart -= 1;
+  while (
+    runEnd < fullIds.length - 1 &&
+    movedSet.has(fullIds[runEnd + 1]!)
+  ) {
+    runEnd += 1;
+  }
+  return fullIds.slice(runStart, runEnd + 1);
+}
+
+/**
  * Geometry for “snap when the pointer leaves the selected block”.
  * Without this, insert only changed at the next *non-selected* center — a gap
  * as tall as the whole multi-select (logs: +240px to move one slot with 3 selected).
+ *
+ * `originId` (grabbed card) sets homeIndex so live preview gathers at the grab
+ * cluster — not at the first selected id in list order (which snapped bottom
+ * grabs to the top: debug snap-top homeIndex=1 while origin was at y≈570).
  */
 export function captureSelectionDragGeometry(
   fullIds: string[],
   movedIds: string[],
-  rects: Map<string, FrozenItemRect>
+  rects: Map<string, FrozenItemRect>,
+  originId?: string
 ): SelectionDragGeometry | null {
   const movedSet = new Set(movedIds);
   const moving = fullIds.filter((id) => movedSet.has(id));
   if (moving.length === 0) return null;
 
+  const anchorId =
+    originId && movedSet.has(originId) ? originId : moving[0]!;
+  const anchorIdx = fullIds.indexOf(anchorId);
+  if (anchorIdx < 0) return null;
+
+  // Home slot = without-moved index of the grabbed card (not the first selected).
   let homeIndex = 0;
-  const firstMovedIdx = fullIds.indexOf(moving[0]!);
-  for (let i = 0; i < firstMovedIdx; i++) {
+  for (let i = 0; i < anchorIdx; i++) {
     if (!movedSet.has(fullIds[i]!)) homeIndex += 1;
   }
 
+  // Edge bounds from the contiguous run under the pointer only — scattered
+  // off-screen selections must not create a viewport-tall “inside” dead zone.
+  const runIds = contiguousMovedRunIds(fullIds, movedIds, anchorId);
   let selectionTop = Infinity;
   let selectionBottom = -Infinity;
-  for (const id of moving) {
+  for (const id of runIds) {
     const rect = rects.get(id);
     if (!rect) continue;
     selectionTop = Math.min(selectionTop, rect.top);
@@ -254,53 +310,116 @@ export function captureSelectionDragGeometry(
   return { homeIndex, selectionTop, selectionBottom };
 }
 
+/** Live viewport bounds for a set of card ids (visible node only). */
+export function measureIdsViewportBounds(
+  ids: readonly string[]
+): { top: number; bottom: number } | null {
+  if (typeof document === "undefined" || ids.length === 0) return null;
+  let top = Infinity;
+  let bottom = -Infinity;
+  for (const id of ids) {
+    const nodes = document.querySelectorAll(
+      `[data-dnd-item-id="${CSS.escape(id)}"]`
+    );
+    for (const node of nodes) {
+      if (!(node instanceof HTMLElement)) continue;
+      const rect = node.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      top = Math.min(top, rect.top);
+      bottom = Math.max(bottom, rect.bottom);
+      break;
+    }
+  }
+  if (!Number.isFinite(top) || !Number.isFinite(bottom)) return null;
+  return { top, bottom };
+}
+
 /**
  * Single-column list insert index.
- * - Inside the frozen selection bounds → stay at homeIndex.
- * - Cross the selection edge → step at least one slot immediately, then
- *   advance per non-selected row center (no multi-row dead zone).
+ * - Chrome / above list → 0.
+ * - Over live moved-card body → keep prev insert (no ±1 force — that looped).
+ * - Still at home inside frozen grab footprint → homeIndex.
+ * - Else midY from *live* without-row centers (matches live preview layout).
  */
 function findListInsertIndexFromFrozenY(
   clientY: number,
   without: string[],
   rects: Map<string, FrozenItemRect>,
-  selection: SelectionDragGeometry
+  selection: SelectionDragGeometry,
+  movedIds: readonly string[],
+  prevInsertIndex?: number | null
 ): number {
   if (without.length === 0) return 0;
 
   const { homeIndex, selectionTop, selectionBottom } = selection;
   const home = Math.max(0, Math.min(homeIndex, without.length));
+  const listTop = getDndListTopPx();
 
-  // Still over the selected block → no move yet.
-  if (clientY >= selectionTop && clientY <= selectionBottom) {
+  // Chrome / above the list → list start (clutter slider, tabs).
+  if (clientY <= listTop + 4 || clientY < DND_AUTO_SCROLL_EDGE_PX) {
+    return 0;
+  }
+
+  // Pointer still over the live selection block after preview reflow —
+  // sticky only (never force sticky±1; that + live remasure oscillated).
+  const liveSel = measureIdsViewportBounds(movedIds);
+  if (
+    liveSel &&
+    clientY >= liveSel.top &&
+    clientY <= liveSel.bottom &&
+    prevInsertIndex != null
+  ) {
+    return prevInsertIndex;
+  }
+
+  // Initial hold inside the *frozen* grab footprint (scroll-adjusted).
+  const stillAtHome =
+    prevInsertIndex == null || prevInsertIndex === home;
+  if (
+    stillAtHome &&
+    clientY >= selectionTop &&
+    clientY <= selectionBottom
+  ) {
     return home;
   }
 
-  // Left upward past the selection → at least one slot up, then by centers.
-  if (clientY < selectionTop) {
-    if (home <= 0) return 0;
-    let insertIndex = 0;
-    for (let i = 0; i < home; i++) {
-      const rect = rects.get(without[i]!);
-      if (!rect) continue;
-      const cy = rect.top + rect.height / 2;
-      if (clientY > cy) insertIndex = i + 1;
-      else break;
+  // Live without-row centers track the preview layout; frozen alone desyncs
+  // after insert=0 (logs: clientY≈273 jumped insert 0→10 on stale midY).
+  const liveWithout = captureReorderRects(without);
+  let insertIndex = 0;
+  for (let i = 0; i < without.length; i++) {
+    const rect = liveWithout.get(without[i]!) ?? rects.get(without[i]!);
+    if (!rect) continue;
+    if (
+      typeof window !== "undefined" &&
+      rect.top >= window.innerHeight
+    ) {
+      break;
     }
-    return Math.min(insertIndex, home - 1);
+    const cy = rect.top + rect.height / 2;
+    if (clientY < cy) {
+      insertIndex = i;
+      break;
+    }
+    insertIndex = i + 1;
   }
 
-  // Left downward past the selection → at least one slot down, then by centers.
-  if (home >= without.length) return without.length;
-  let insertIndex = home;
-  for (let i = home; i < without.length; i++) {
-    const rect = rects.get(without[i]!);
-    if (!rect) continue;
-    const cy = rect.top + rect.height / 2;
-    if (clientY > cy) insertIndex = i + 1;
-    else break;
+  // Hysteresis: ignore single-slot flicker around the active boundary.
+  if (
+    prevInsertIndex != null &&
+    insertIndex !== prevInsertIndex &&
+    Math.abs(insertIndex - prevInsertIndex) === 1
+  ) {
+    const boundary = Math.min(insertIndex, prevInsertIndex);
+    const rect =
+      liveWithout.get(without[boundary]!) ?? rects.get(without[boundary]!);
+    if (rect) {
+      const cy = rect.top + rect.height / 2;
+      if (Math.abs(clientY - cy) < 10) return prevInsertIndex;
+    }
   }
-  return Math.max(insertIndex, home + 1);
+
+  return insertIndex;
 }
 
 /**
@@ -350,7 +469,8 @@ export function findReorderInsertIndex(
   movedIds: string[],
   frozenRects: Map<string, FrozenItemRect> | null | undefined,
   listMode = true,
-  selectionGeometry?: SelectionDragGeometry | null
+  selectionGeometry?: SelectionDragGeometry | null,
+  prevInsertIndex?: number | null
 ): number | null {
   if (fullIds.length === 0) return null;
 
@@ -369,7 +489,9 @@ export function findReorderInsertIndex(
       clientY,
       without,
       frozenRects,
-      selection
+      selection,
+      movedIds,
+      prevInsertIndex
     );
   }
   return findGridInsertIndexFromFrozen(
