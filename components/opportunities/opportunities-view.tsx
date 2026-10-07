@@ -35,6 +35,7 @@ import { PipelinePaginationFooter } from "@/components/ui/pipeline-pagination";
 import { useLastClickedId } from "@/components/ui/use-last-clicked-id";
 import { useCardListGestures } from "@/hooks/use-card-list-gestures";
 import { usePagination } from "@/hooks/use-pagination";
+import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { insertBeforeIdForIndex } from "@/lib/dnd/interactive";
 import {
   mergeFilteredOrderIntoCustom,
@@ -459,9 +460,33 @@ export function OpportunitiesView({
 
   const dragLabel = useMemo(() => {
     if (!drag?.active || drag.movedIds.length === 0) return null;
-    const first = orderedOpportunities.find((o) => o.id === drag.movedIds[0]);
-    if (!first) return `${drag.movedIds.length} job(s)`;
-    return `${first.company} — ${first.title}`;
+    const origin =
+      orderedOpportunities.find((o) => o.id === drag.originId) ??
+      orderedOpportunities.find((o) => o.id === drag.movedIds[0]);
+    if (!origin) return `${drag.movedIds.length} job(s)`;
+    return `${origin.company} — ${origin.title}`;
+  }, [drag, orderedOpportunities]);
+
+  const dragStackItems = useMemo(() => {
+    if (!drag?.active) return [];
+    // Grabbed card first so front name + icon match; others fill the peek stack.
+    const orderedIds = [
+      drag.originId,
+      ...drag.movedIds.filter((id) => id !== drag.originId),
+    ].slice(0, 4);
+    return orderedIds.map((id) => {
+      const o = orderedOpportunities.find((item) => item.id === id);
+      const name = o?.company ?? "Job";
+      return {
+        name,
+        subtitle: o?.title ?? null,
+        logoSrc: o
+          ? o.logoUrl || getCompanyLogoUrl(o.company, o.companyDomain)
+          : null,
+        score: o?.matchScore ?? null,
+        scoreKind: "match" as const,
+      };
+    });
   }, [drag, orderedOpportunities]);
 
   const displayOpportunities = useMemo(() => {
@@ -495,6 +520,10 @@ export function OpportunitiesView({
         grab={drag?.grab ?? null}
         count={drag?.movedIds.length ?? 0}
         label={dragLabel}
+        dropZone={drag?.dropZone ?? null}
+        pageFlipDir={drag?.pageFlipDir ?? null}
+        outsideList={drag?.outsideList ?? false}
+        stackItems={dragStackItems}
       />
 
       <PipelineToolbar
