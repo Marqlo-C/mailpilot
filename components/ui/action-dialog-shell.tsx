@@ -44,6 +44,8 @@ export type ActionDialogShellProps = {
   /** Optional ⋮ overflow trigger (right of primary). */
   overflowMenu?: ReactNode;
   contentClassName?: string;
+  /** Override the scrollable middle wrapper (e.g. flush custom layouts). */
+  bodyClassName?: string;
 };
 
 /**
@@ -67,6 +69,7 @@ export function ActionDialogShell({
   primaryAction,
   overflowMenu,
   contentClassName,
+  bodyClassName,
 }: ActionDialogShellProps) {
   function handleOpenChange(next: boolean) {
     if (pending) return;
@@ -84,7 +87,12 @@ export function ActionDialogShell({
       >
         <DialogIdentityHeader {...identity} />
 
-        <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-4">
+        <div
+          className={cn(
+            "min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-4",
+            bodyClassName
+          )}
+        >
           {children}
         </div>
 

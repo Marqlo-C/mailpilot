@@ -9,7 +9,6 @@ import {
   ExternalLink,
   Mail,
   Send,
-  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,7 +16,6 @@ import {
   sendSingleApplication,
   updateApplicationStatus,
 } from "@/app/actions/dispatch";
-import { emptyRejections } from "@/app/actions/jobs";
 import {
   markOpportunityExternalApplied,
   sendOpportunityApplication,
@@ -481,7 +479,7 @@ export function JobsRadar({
                                 }}
                               >
                                 <Send className="h-4 w-4" />
-                                Send Now
+                                Send
                               </Button>
                             </>
                           )}
@@ -678,30 +676,6 @@ export function JobsRadar({
         </TabsContent>
 
         <TabsContent value="history" className="mt-0 space-y-4">
-          <div className="flex justify-end">
-            <Button
-              variant="destructive"
-              size="sm"
-              disabled={pending}
-              onClick={() => {
-                if (
-                  !window.confirm(
-                    "Trash all rejection-labeled messages in Gmail?"
-                  )
-                ) {
-                  return;
-                }
-                startTransition(async () => {
-                  await emptyRejections(accountId);
-                  router.refresh();
-                });
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-              Cleanup Rejections in Gmail
-            </Button>
-          </div>
-
           {historyCount === 0 ? (
             <EmptyState text="No history yet." />
           ) : (

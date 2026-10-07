@@ -56,7 +56,9 @@ export function ToolbarRoot({
   return (
     <div
       className={cn(
-        "flex w-full flex-wrap items-center gap-3 rounded-xl border border-border/50 bg-card/80 p-3 shadow-md backdrop-blur-sm lg:flex-nowrap",
+        // Sit above ToolbarMetaRow so the search filters panel isn't covered
+        // by the page-size control (later sibling otherwise paints on top).
+        "relative z-10 flex w-full flex-wrap items-center gap-3 rounded-xl border border-border/50 bg-card/80 p-3 shadow-md backdrop-blur-sm lg:flex-nowrap",
         className
       )}
     >
@@ -76,7 +78,7 @@ export function ToolbarMetaRow({
   return (
     <div
       className={cn(
-        "mb-2.5 flex items-center justify-between px-1 py-0.5 text-xs text-foreground/80",
+        "relative z-0 mb-2.5 flex items-center justify-between px-1 py-0.5 text-xs text-foreground/80",
         className
       )}
     >

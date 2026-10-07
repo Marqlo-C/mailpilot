@@ -535,7 +535,7 @@ export function OpportunityCard({
                 className={primaryBtnClass}
               >
                 <Send className="h-3.5 w-3.5" />
-                <span>Send Now</span>
+                <span>Send</span>
               </button>
             ) : opportunity.applyUrl ? (
               actionsLocked ? (
