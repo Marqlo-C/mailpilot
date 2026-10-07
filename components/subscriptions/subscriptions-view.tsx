@@ -25,11 +25,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  batchCleanupSender,
-  deleteUnsubscribedRecord,
-  unsubscribeSender,
-} from "@/app/actions/subscriptions";
 import { SyncControls } from "@/components/opportunities/sync-controls";
 import { BriefingDialog } from "@/components/subscriptions/briefing-dialog";
 import { EmailPreviewDialog } from "@/components/subscriptions/email-preview-dialog";
@@ -92,7 +87,10 @@ import {
 } from "@/components/ui/tooltip";
 import { useCardListGestures } from "@/hooks/use-card-list-gestures";
 import { usePagination } from "@/hooks/use-pagination";
-import { mergeFilteredOrderIntoCustom } from "@/lib/dnd/reorder";
+import {
+  mergeFilteredOrderIntoCustom,
+  orderItemsByIds,
+} from "@/lib/dnd/reorder";
 import { faviconUrlForDomain, getCleanDomain } from "@/lib/domain";
 import { formatDistanceToNow } from "@/lib/format-distance";
 import {
@@ -114,12 +112,19 @@ import {
   type SubscriptionSortOption,
 } from "@/lib/subscriptions/filters";
 import {
+  getSubscriptionGestureRules,
+  resolveSubscriptionCardAction,
+  resolveSubscriptionMove,
+  type SubscriptionTab,
+} from "@/lib/subscriptions/movement-rules";
+import {
   applyCustomOrder,
   persistClutterThreshold,
   persistCustomOrder,
   readClutterThreshold,
   readCustomOrder,
 } from "@/lib/subscriptions/preferences";
+import { runSubscriptionMove } from "@/lib/subscriptions/run-subscription-move";
 import { cn } from "@/lib/utils";
 import type { CleanupAction } from "@/lib/unsubscribe";
 
@@ -134,17 +139,9 @@ const CLUTTER_VALUE_CLASSES: Record<ClutterScoreTier, string> = {
   low: "bg-[hsl(174_22%_92%)] text-[#147a76] dark:bg-[hsl(174_28%_22%/0.55)] dark:text-[#5eead4]",
 };
 
-/** Outer pill outline matches the tier text color (softened). */
-const CLUTTER_OUTLINE_CLASSES: Record<ClutterScoreTier, string> = {
-  high: "border-[#c21f10]/35 dark:border-[#fb6230]/40",
-  mid: "border-[hsl(28_62%_40%/0.35)] dark:border-[hsl(28_75%_60%/0.4)]",
-  low: "border-[#1ab5af]/50 dark:border-[#1ab5af]/50",
-};
-
 /** Gray mute for metric pills when the parent row/card is selected. */
 const SELECT_MUTED_PILL_VALUE_CLASSNAME =
   "bg-muted/50 text-muted-foreground";
-const SELECT_MUTED_PILL_OUTLINE_CLASSNAME = "border-border/40";
 
 const UNSUBSCRIBE_OPTIONS: {
   value: CleanupAction;
@@ -206,8 +203,6 @@ type SubscriptionsViewProps = {
   defaultCleanup: CleanupAction;
   latestBriefing?: LatestBriefingProp | null;
 };
-
-type SubscriptionTab = "active" | "archive";
 
 const subscriptionTabDescriptions: Record<SubscriptionTab, string> = {
   active:
@@ -284,50 +279,9 @@ export function SubscriptionsView({
   }
 
   const clearSelection = useCallback(() => {
-    // #region agent log
-    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "3c315a",
-      },
-      body: JSON.stringify({
-        sessionId: "3c315a",
-        hypothesisId: "B",
-        location: "subscriptions-view.tsx:clearSelection",
-        message: "clearSelection called",
-        data: { stack: new Error().stack?.split("\n").slice(0, 6) },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     setSelectedIds([]);
     setSelectionMode(false);
   }, []);
-
-  // #region agent log
-  useEffect(() => {
-    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "3c315a",
-      },
-      body: JSON.stringify({
-        sessionId: "3c315a",
-        hypothesisId: "C",
-        location: "subscriptions-view.tsx:selectionState",
-        message: "selection state changed",
-        data: {
-          selectedCount: selectedIds.length,
-          selectionMode,
-          activeTab,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  }, [selectedIds.length, selectionMode, activeTab]);
-  // #endregion
 
   /** User-driven view changes leave multi-select; drag page-flips use setCurrentPage directly. */
   const changeSortOption = useCallback(
@@ -744,46 +698,65 @@ export function SubscriptionsView({
     setError(null);
   }
 
-  function runUnsubscribe(cleanup: CleanupAction) {
-    if (batchConfirmOpen) {
-      runBatchUnsubscribe(cleanup);
+  /** Shared entry for card, bulk, and DnD → unsubscribe confirm. */
+  function requestUnsubscribe(ids: string[]) {
+    const resolved = resolveSubscriptionCardAction("active", "unsubscribe");
+    if (resolved.kind === "forbidden") {
+      toast.error(resolved.description);
       return;
     }
-    if (!selected) return;
-    setError(null);
-    startTransition(async () => {
-      const result = await unsubscribeSender(selected.id, cleanup);
-      if (!result.ok) {
-        setError(result.error);
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (unique.length === 0) return;
+
+    if (unique.length === 1) {
+      const sub = active.find((s) => s.id === unique[0]) ?? null;
+      if (sub) {
+        setSelected(sub);
+        setBatchConfirmOpen(false);
+        setError(null);
         return;
       }
-      clearSelection();
-      closeUnsubscribeDialog();
-      router.refresh();
-    });
+    }
+
+    setSelectionMode(true);
+    setSelectedIds(unique);
+    setSelected(null);
+    setError(null);
+    setBatchConfirmOpen(true);
   }
 
-  function runBatchUnsubscribe(cleanup: CleanupAction) {
-    if (selectedIds.length === 0) return;
+  function runUnsubscribe(cleanup: CleanupAction) {
+    const ids = batchConfirmOpen
+      ? selectedIds
+      : selected
+        ? [selected.id]
+        : [];
+    if (ids.length === 0) return;
     setError(null);
     startTransition(async () => {
-      const toastId = toast.loading(
-        `Unsubscribing ${selectedIds.length} sender(s)…`
-      );
-      let okCount = 0;
-      let failCount = 0;
-      for (const id of selectedIds) {
-        const result = await unsubscribeSender(id, cleanup);
-        if (result.ok) okCount += 1;
-        else failCount += 1;
+      const toastId =
+        ids.length > 1
+          ? toast.loading(`Unsubscribing ${ids.length} sender(s)…`)
+          : undefined;
+      const result = await runSubscriptionMove("unsubscribe", {
+        subscriptionIds: ids,
+        cleanup,
+      });
+      if (!result.ok) {
+        if (toastId) toast.error(result.error, { id: toastId });
+        else setError(result.error);
+        return;
       }
-      if (failCount === 0) {
-        toast.success(`Unsubscribed ${okCount} sender(s)`, { id: toastId });
-      } else {
-        toast.error(
-          `Unsubscribed ${okCount}, failed ${failCount}`,
-          { id: toastId }
-        );
+      const okCount = result.data?.count ?? 0;
+      const failCount = result.data?.failed ?? 0;
+      if (toastId) {
+        if (failCount === 0) {
+          toast.success(`Unsubscribed ${okCount} sender(s)`, { id: toastId });
+        } else {
+          toast.error(`Unsubscribed ${okCount}, failed ${failCount}`, {
+            id: toastId,
+          });
+        }
       }
       clearSelection();
       closeUnsubscribeDialog();
@@ -792,16 +765,24 @@ export function SubscriptionsView({
   }
 
   function runBatchCleanup(entry: ArchiveEntry) {
+    const resolved = resolveSubscriptionCardAction("archive", "cleanup");
+    if (resolved.kind === "forbidden") {
+      toast.error(resolved.description);
+      return;
+    }
     setCleanupPending(entry.key);
     startTransition(async () => {
-      const result = await batchCleanupSender(accountId, entry.senderEmail);
+      const result = await runSubscriptionMove("cleanup", {
+        accountId,
+        senderEmail: entry.senderEmail,
+      });
       setCleanupPending(null);
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
       toast.success(
-        `Moved ${result.data?.cleaned ?? 0} past email(s) to Trash`
+        `Moved ${result.data?.count ?? 0} past email(s) to Trash`
       );
       router.refresh();
     });
@@ -809,13 +790,18 @@ export function SubscriptionsView({
 
   function runDeleteUnsubscribedRecord() {
     if (!deleteRecordTarget) return;
+    const resolved = resolveSubscriptionCardAction("archive", "delete_record");
+    if (resolved.kind === "forbidden") {
+      toast.error(resolved.description);
+      return;
+    }
     const entry = deleteRecordTarget;
     setDeleteRecordPending(true);
     startTransition(async () => {
-      const result = await deleteUnsubscribedRecord(
+      const result = await runSubscriptionMove("delete_record", {
         accountId,
-        entry.senderEmail
-      );
+        senderEmail: entry.senderEmail,
+      });
       setDeleteRecordPending(false);
       if (!result.ok) {
         toast.error(result.error);
@@ -855,17 +841,19 @@ export function SubscriptionsView({
     ],
   });
 
-  const paginatedActive = slice(filteredActive);
+  const paginatedActiveCommitted = slice(filteredActive);
   const paginatedArchive = slice(filteredArchive);
 
   const paginatedActiveIds = useMemo(
-    () => paginatedActive.map((s) => s.id),
-    [paginatedActive]
+    () => paginatedActiveCommitted.map((s) => s.id),
+    [paginatedActiveCommitted]
   );
 
-  const canReorder =
-    activeTab === "active" &&
-    (sortOption === "custom" || customOrder.length === 0);
+  const gestureRules = getSubscriptionGestureRules({
+    activeTab,
+    sortIsCustom: sortOption === "custom",
+    hasSavedCustomOrder: customOrder.length > 0,
+  });
 
   const handleReorder = useCallback(
     (nextFullIds: string[], _movedIds: string[]) => {
@@ -886,19 +874,21 @@ export function SubscriptionsView({
 
   const handleDropZone = useCallback(
     (zoneId: string, movedIds: string[]) => {
-      if (zoneId !== "archive" || movedIds.length === 0) return;
+      const resolved = resolveSubscriptionMove(
+        "active",
+        zoneId as "active" | "archive"
+      );
+      if (resolved.kind !== "unsubscribe" || movedIds.length === 0) return;
       // Prevent the Unsubscribed tab trigger from stealing this pointer-up as a click.
       suppressTabChangeRef.current = true;
       window.setTimeout(() => {
         suppressTabChangeRef.current = false;
       }, 0);
-      setSelectionMode(true);
-      setSelectedIds(movedIds);
-      setSelected(null);
-      setError(null);
-      setBatchConfirmOpen(true);
+      requestUnsubscribe(movedIds);
     },
-    []
+    // requestUnsubscribe closes over `active` — refresh when list changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+    [active]
   );
 
   const { drag, bindItem, onBackgroundPointerDown } = useCardListGestures({
@@ -910,10 +900,7 @@ export function SubscriptionsView({
     onToggleSelect: toggleRow,
     onPaintSelect: paintSelect,
     onClearSelection: clearSelection,
-    rules: {
-      canReorder,
-      allowedDropZones: activeTab === "active" ? ["archive"] : [],
-    },
+    rules: gestureRules,
     currentPage,
     totalPages,
     pageSize,
@@ -970,6 +957,15 @@ export function SubscriptionsView({
     setSortOption(defaultSort);
     setCurrentPage(1);
   }
+
+  const displayActive = useMemo(() => {
+    if (drag?.previewFullIds) {
+      return orderItemsByIds(filteredActive, drag.previewFullIds);
+    }
+    return filteredActive;
+  }, [drag?.previewFullIds, filteredActive]);
+
+  const paginatedActive = slice(displayActive);
 
   return (
     <div onPointerDown={onBackgroundPointerDown}>
@@ -1080,22 +1076,9 @@ export function SubscriptionsView({
                 lastClickedId={lastClickedId}
                 onToggleRow={toggleRow}
                 bindItem={bindItem}
-                insertBeforeId={
-                  drag?.active &&
-                  drag.insertIndex != null &&
-                  drag.insertIndex < filteredActiveIds.length
-                    ? (filteredActiveIds[drag.insertIndex] ?? null)
-                    : null
-                }
-                insertAfterLast={
-                  Boolean(
-                    drag?.active &&
-                      drag.insertIndex != null &&
-                      drag.insertIndex >= filteredActiveIds.length &&
-                      currentPage === totalPages
-                  )
-                }
-                onUnsubscribe={setSelected}
+                insertBeforeId={null}
+                insertAfterLast={false}
+                onUnsubscribe={(sub) => requestUnsubscribe([sub.id])}
                 onBriefing={(sub) => openBriefing([sub])}
                 resolveBriefing={resolveBriefingForSub}
                 onViewLastBriefing={setViewingBriefing}
@@ -1107,22 +1090,9 @@ export function SubscriptionsView({
                 lastClickedId={lastClickedId}
                 onToggleRow={toggleRow}
                 bindItem={bindItem}
-                insertBeforeId={
-                  drag?.active &&
-                  drag.insertIndex != null &&
-                  drag.insertIndex < filteredActiveIds.length
-                    ? (filteredActiveIds[drag.insertIndex] ?? null)
-                    : null
-                }
-                insertAfterLast={
-                  Boolean(
-                    drag?.active &&
-                      drag.insertIndex != null &&
-                      drag.insertIndex >= filteredActiveIds.length &&
-                      currentPage === totalPages
-                  )
-                }
-                onUnsubscribe={setSelected}
+                insertBeforeId={null}
+                insertAfterLast={false}
+                onUnsubscribe={(sub) => requestUnsubscribe([sub.id])}
                 onBriefing={(sub) => openBriefing([sub])}
                 resolveBriefing={resolveBriefingForSub}
                 onViewLastBriefing={setViewingBriefing}
@@ -1186,11 +1156,7 @@ export function SubscriptionsView({
             <button
               type="button"
               disabled={pending || briefingPending || deletePending}
-              onClick={() => {
-                setSelected(null);
-                setError(null);
-                setBatchConfirmOpen(true);
-              }}
+              onClick={() => requestUnsubscribe(selectedIds)}
               className={BULK_ACTION_BTN_CLASSNAME}
             >
               {pending ? (
@@ -1654,11 +1620,7 @@ function ClutterStatBadge({
           ? SELECT_MUTED_PILL_VALUE_CLASSNAME
           : CLUTTER_VALUE_CLASSES[tier]
       }
-      className={
-        selected
-          ? SELECT_MUTED_PILL_OUTLINE_CLASSNAME
-          : CLUTTER_OUTLINE_CLASSES[tier]
-      }
+      className="border-transparent"
       width={width}
       selected={selected}
     />

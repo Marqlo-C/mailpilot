@@ -25,6 +25,7 @@ node_modules
 repomix-output.txt
 .cursorrules
 /.cursor
+SPEC.md
 
 # Debug
 npm-debug.log*
