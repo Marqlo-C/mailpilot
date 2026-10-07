@@ -23,6 +23,8 @@ node_modules
 .DS_Store
 *.pem
 repomix-output.txt
+.cursorrules
+/.cursor
 
 # Debug
 npm-debug.log*
