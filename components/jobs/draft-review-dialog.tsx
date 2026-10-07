@@ -12,17 +12,14 @@ import {
   saveDraftEdits,
   sendSingleApplication,
 } from "@/app/actions/dispatch";
+import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
+import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
+import { getCompanyLogoUrl } from "@/lib/company-logo";
+import { cn } from "@/lib/utils";
 
 type DraftReviewDialogProps = {
   open: boolean;
@@ -151,53 +148,113 @@ export function DraftReviewDialog({
   }
 
   const busy = pending || refining || retrying || loadingDraft;
+  const canPersist =
+    !busy &&
+    Boolean(subject.trim() && body.trim() && recipient.trim());
+  const showComposerActions = !loadingDraft;
+
+  const companyName = application?.companyName ?? "Company";
+  const roleTitle = application?.roleTitle ?? "Draft";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Review application email</DialogTitle>
-          <DialogDescription>
-            {application
-              ? `${application.roleTitle ?? "Role"} at ${
-                  application.companyName ?? "Company"
-                }`
-              : "Edit the draft before saving to Gmail or sending."}
-          </DialogDescription>
-        </DialogHeader>
-
-        {loadingDraft ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Preparing draft…
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="draft-to">To</Label>
-              <Input
+    <ActionDialogShell
+      open={open}
+      onOpenChange={onOpenChange}
+      pending={pending}
+      size="xl"
+      contentClassName="sm:max-w-2xl"
+      identity={{
+        title: "Responding to:",
+        primary: roleTitle,
+        secondary: companyName,
+        emphasize: "secondary",
+        logoSrc: getCompanyLogoUrl(companyName),
+        logoName: companyName,
+        logoSize: "lg",
+      }}
+      onCancel={() => onOpenChange(false)}
+      secondaryAction={
+        showComposerActions ? (
+          <button
+            type="button"
+            disabled={!canPersist}
+            onClick={() => persistThen("gmail-draft")}
+            className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+          >
+            {pending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Mail className="h-3.5 w-3.5" />
+            )}
+            <span>Save Draft</span>
+          </button>
+        ) : null
+      }
+      primaryAction={
+        showComposerActions ? (
+          <button
+            type="button"
+            disabled={!canPersist}
+            onClick={() => persistThen("send")}
+            className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+          >
+            {pending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Send className="h-3.5 w-3.5" />
+            )}
+            <span>Send</span>
+          </button>
+        ) : null
+      }
+    >
+      {loadingDraft ? (
+        <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Preparing draft…
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="overflow-hidden rounded-lg border bg-card">
+            <div className="flex items-center gap-2 border-b px-3 py-2">
+              <Label
+                htmlFor="draft-to"
+                className="w-16 shrink-0 select-none text-xs font-medium text-muted-foreground"
+              >
+                To:
+              </Label>
+              <input
                 id="draft-to"
                 type="email"
                 placeholder="recruiter@company.com"
                 value={recipient}
                 disabled={busy}
                 onChange={(e) => setRecipient(e.target.value)}
+                className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none focus:outline-none focus:ring-0 disabled:opacity-50"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="draft-subject">Subject</Label>
-              <Input
+            <div className="flex items-center gap-2 border-b px-3 py-2">
+              <Label
+                htmlFor="draft-subject"
+                className="w-16 shrink-0 select-none text-xs font-medium text-muted-foreground"
+              >
+                Subject:
+              </Label>
+              <input
                 id="draft-subject"
                 value={subject}
                 disabled={busy}
                 onChange={(e) => setSubject(e.target.value)}
+                className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none focus:outline-none focus:ring-0 disabled:opacity-50"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="draft-body">Message</Label>
+            <div className="space-y-2 p-3">
+              <Label htmlFor="draft-body" className="sr-only">
+                Message
+              </Label>
               <textarea
                 id="draft-body"
-                className="min-h-56 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="min-h-56 w-full resize-none border-0 bg-transparent p-0 text-sm leading-relaxed outline-none focus:outline-none focus-visible:ring-0 disabled:opacity-50"
                 value={body}
                 disabled={busy}
                 onChange={(e) => setBody(e.target.value)}
@@ -207,95 +264,63 @@ export function DraftReviewDialog({
                 short, human, and grounded in your real skills.
               </p>
             </div>
-            <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
-              <Label htmlFor="draft-refine" className="text-xs">
-                Refine with AI
-              </Label>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input
-                  id="draft-refine"
-                  placeholder="e.g., Make it punchier, mention FastAPI, sound more casual..."
-                  value={refineInstruction}
-                  onChange={(e) => setRefineInstruction(e.target.value)}
+          </div>
+          <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
+            <Label htmlFor="draft-refine" className="text-xs">
+              Refine with AI
+            </Label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                id="draft-refine"
+                placeholder="e.g., Make it punchier, mention FastAPI, sound more casual..."
+                value={refineInstruction}
+                onChange={(e) => setRefineInstruction(e.target.value)}
+                disabled={busy}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleRefine();
+                  }
+                }}
+              />
+              <div className="flex shrink-0 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   disabled={busy}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleRefine();
-                    }
-                  }}
-                />
-                <div className="flex shrink-0 gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={handleRetry}
-                    title="Generate a fresh draft"
-                  >
-                    {retrying ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                    Retry
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={busy || !refineInstruction.trim()}
-                    onClick={handleRefine}
-                  >
-                    {refining ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                    Refine
-                  </Button>
-                </div>
+                  onClick={handleRetry}
+                  title="Generate a fresh draft"
+                >
+                  {retrying ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Retry
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy || !refineInstruction.trim()}
+                  onClick={handleRefine}
+                >
+                  {refining ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  Refine
+                </Button>
               </div>
             </div>
-            {error ? (
-              <p className="text-sm text-destructive">{error}</p>
-            ) : null}
           </div>
-        )}
-
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={
-              busy || !subject.trim() || !body.trim() || !recipient.trim()
-            }
-            onClick={() => persistThen("gmail-draft")}
-          >
-            {pending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Mail className="h-4 w-4" />
-            )}
-            Save to Gmail Drafts
-          </Button>
-          <Button
-            type="button"
-            disabled={
-              busy || !subject.trim() || !body.trim() || !recipient.trim()
-            }
-            onClick={() => persistThen("send")}
-          >
-            {pending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-            Send Now
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          {error ? (
+            <p className="text-sm text-destructive">{error}</p>
+          ) : null}
+        </div>
+      )}
+    </ActionDialogShell>
   );
 }

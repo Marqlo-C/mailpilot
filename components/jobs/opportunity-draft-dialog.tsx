@@ -37,14 +37,10 @@ import {
   type OpportunityResumePreview,
   type OriginalEmailPreview,
 } from "@/app/actions/opportunities";
+import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
 import { Button } from "@/components/ui/button";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { CancelTaskButton } from "@/components/ui/cancel-task-button";
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
-import { DialogIdentityHeader } from "@/components/ui/dialog-identity-header";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +48,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
+import { selectCheckboxClassName } from "@/components/ui/select-checkbox";
+import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
 import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
@@ -609,32 +608,83 @@ export function OpportunityDraftDialog({
   const isSaveDraftDisabled =
     pending || loadingDraft || refining || retrying;
 
-  return (
-    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent
-        className={cn(
-          "flex h-[88vh] max-h-[900px] flex-col gap-0 overflow-hidden p-0 transition-all duration-300 ease-in-out",
-          attachResume ? "w-[94vw] max-w-6xl" : "w-full max-w-2xl"
-        )}
-      >
-        <DialogIdentityHeader
-          title="Responding to:"
-          primary={opportunity?.title ?? "Draft"}
-          secondary={opportunity?.company ?? null}
-          emphasize="secondary"
-          logoSrc={
-            opportunity
-              ? opportunity.logoUrl ||
-                getCompanyLogoUrl(
-                  opportunity.company,
-                  opportunity.companyDomain
-                )
-              : null
-          }
-          logoName={opportunity?.company}
-          logoSize="lg"
-        />
+  const showComposerActions = !loadingDraft && !error;
 
+  return (
+    <ActionDialogShell
+      open={open}
+      onOpenChange={handleDialogOpenChange}
+      pending={pending}
+      size="xl"
+      contentClassName={cn(
+        "h-[88vh] max-h-[900px] transition-all duration-300 ease-in-out sm:max-w-2xl",
+        attachResume && "w-[94vw] max-w-6xl sm:max-w-6xl"
+      )}
+      bodyClassName="flex flex-col overflow-hidden p-0"
+      identity={{
+        title: "Responding to:",
+        primary: opportunity?.title ?? "Draft",
+        secondary: opportunity?.company ?? null,
+        emphasize: "secondary",
+        logoSrc: opportunity
+          ? opportunity.logoUrl ||
+            getCompanyLogoUrl(
+              opportunity.company,
+              opportunity.companyDomain
+            )
+          : null,
+        logoName: opportunity?.company,
+        logoSize: "lg",
+      }}
+      onCancel={() => handleDialogOpenChange(false)}
+      secondaryAction={
+        showComposerActions ? (
+          <button
+            type="button"
+            disabled={isSaveDraftDisabled}
+            onClick={() => persistThen("gmail-draft")}
+            className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+          >
+            {pending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Mail className="h-3.5 w-3.5" />
+            )}
+            <span>Save Draft</span>
+          </button>
+        ) : null
+      }
+      primaryAction={
+        showComposerActions ? (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <button
+                    type="button"
+                    disabled={isSendDisabled}
+                    onClick={() => persistThen("send")}
+                    className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+                  >
+                    {pending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Send className="h-3.5 w-3.5" />
+                    )}
+                    <span>Send</span>
+                  </button>
+                </span>
+              </TooltipTrigger>
+              {sendDisabledReason ? (
+                <TooltipContent side="top" className="max-w-xs text-center">
+                  {sendDisabledReason}
+                </TooltipContent>
+              ) : null}
+            </Tooltip>
+          </TooltipProvider>
+        ) : null
+      }
+    >
         {loadingDraft ? (
           <div className="flex flex-1 items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -654,7 +704,7 @@ export function OpportunityDraftDialog({
               )}
             >
               {/* Left: seamless email composer */}
-              <div className="flex h-full min-h-0 flex-col divide-y overflow-hidden rounded-lg border bg-background text-sm focus-within:ring-1 focus-within:ring-ring">
+              <div className="flex h-full min-h-0 flex-col divide-y overflow-hidden rounded-lg border bg-card text-sm focus-within:ring-1 focus-within:ring-ring">
                 <div className="flex flex-none items-center px-3 py-2">
                   <Label
                     htmlFor="opp-draft-to"
@@ -842,10 +892,10 @@ export function OpportunityDraftDialog({
                         <iframe
                           title="Tailored resume preview"
                           src={resumePdfUrl}
-                          className="min-h-0 w-full flex-1 border-0 bg-background"
+                          className="min-h-0 w-full flex-1 border-0 bg-card"
                         />
                         {resume.strategyRationale ? (
-                          <div className="mx-2 mb-2 shrink-0 rounded-md border border-border/50 bg-background/80">
+                          <div className="mx-2 mb-2 shrink-0 rounded-md border border-border/50 bg-card">
                             <button
                               type="button"
                               className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-medium text-foreground/90"
@@ -931,7 +981,7 @@ export function OpportunityDraftDialog({
             <div className="flex flex-none items-center gap-3 border-t bg-muted/20 px-6 py-2">
               {attachResume ? (
                 <div
-                  className="inline-flex h-8 shrink-0 items-center rounded-md border border-border/60 bg-background p-0.5"
+                  className="inline-flex h-8 shrink-0 items-center rounded-md border border-border/60 bg-card p-0.5"
                   role="group"
                   aria-label="Ace AI target"
                 >
@@ -970,7 +1020,7 @@ export function OpportunityDraftDialog({
                 value={refinePrompt}
                 onChange={(e) => setRefinePrompt(e.target.value)}
                 disabled={busy}
-                className="h-8 flex-1 bg-background text-xs"
+                className="h-8 flex-1 bg-card text-xs"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -1064,7 +1114,7 @@ export function OpportunityDraftDialog({
             </div>
 
             {/* Tier 4: configuration strip */}
-            <div className="flex flex-none items-center justify-between gap-4 border-t bg-background px-6 py-2">
+            <div className="flex flex-none items-center justify-between gap-4 border-t bg-card px-6 py-2">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="flex items-center gap-2">
                   <input
@@ -1075,7 +1125,10 @@ export function OpportunityDraftDialog({
                       handleAttachResumeChange(e.target.checked)
                     }
                     disabled={busy}
-                    className="h-4 w-4 shrink-0 cursor-pointer rounded border border-input accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+                    className={selectCheckboxClassName({
+                      className:
+                        "h-3.5 w-3.5 shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+                    })}
                   />
                   <Label
                     htmlFor="attach-resume"
@@ -1123,58 +1176,8 @@ export function OpportunityDraftDialog({
               ) : null}
             </div>
 
-            {/* Tier 5: action footer */}
-            <div className="flex flex-none items-center justify-end gap-2 border-t bg-background px-6 py-3">
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={pending || loadingDraft}
-                onClick={() => handleDialogOpenChange(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isSaveDraftDisabled}
-                onClick={() => persistThen("gmail-draft")}
-              >
-                {pending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Mail className="h-4 w-4" />
-                )}
-                Save Draft
-              </Button>
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <Button
-                        type="button"
-                        disabled={isSendDisabled}
-                        onClick={() => persistThen("send")}
-                      >
-                        {pending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="h-4 w-4" />
-                        )}
-                        Send Email
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  {sendDisabledReason ? (
-                    <TooltipContent side="top" className="max-w-xs text-center">
-                      {sendDisabledReason}
-                    </TooltipContent>
-                  ) : null}
-                </Tooltip>
-              </TooltipProvider>
-            </div>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+    </ActionDialogShell>
   );
 }
