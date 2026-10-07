@@ -11,6 +11,7 @@ import {
   isInsufficientScopeError,
 } from "@/lib/google";
 import { scanHistoricalEmails } from "@/lib/historical-scan";
+import { syncLockLog } from "@/lib/logging";
 import { prisma } from "@/lib/prisma";
 import {
   SCAN_DAY_OPTIONS,
@@ -164,8 +165,9 @@ export async function getAccountSyncStatus(
         (account.syncHeartbeatAt?.getTime() ?? account.updatedAt.getTime());
 
       if (heartbeatAgeMs > SYNC_HEARTBEAT_STALE_MS) {
-        console.warn(
-          `[SyncLock:AutoReset] Clearing stale sync lock (heartbeatAge=${Math.round(heartbeatAgeMs / 1000)}s)`
+        syncLockLog.warn(
+          { heartbeatAgeSec: Math.round(heartbeatAgeMs / 1000) },
+          "Clearing stale sync lock (heartbeat silent too long)"
         );
 
         syncErrorMessage =

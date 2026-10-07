@@ -72,7 +72,8 @@ export function SubscriptionsToolbar({
   const hiddenCount = Math.max(0, totalCount - visibleCount);
 
   return (
-    <div className="mb-0">
+    // Above the listing grid so the search filters panel isn't painted under cards.
+    <div className="relative z-20 mb-0">
       <ToolbarRoot className="mb-1.5">
         <ToolbarSelectAll
           checked={isAllSelected}
@@ -104,7 +105,7 @@ export function SubscriptionsToolbar({
           placeholder="Looking for a sender or newsletter? Find it here..."
           ariaLabel="Search subscriptions by sender or newsletter"
         >
-          <ToolbarSearchAddon>
+          <ToolbarSearchAddon label="Filter · Category">
             <ToolbarNativeSelect
               value={categoryFilter}
               onChange={(e) =>
@@ -121,7 +122,7 @@ export function SubscriptionsToolbar({
             </ToolbarNativeSelect>
           </ToolbarSearchAddon>
 
-          <ToolbarSearchAddon>
+          <ToolbarSearchAddon label="Sort">
             <ToolbarNativeSelect
               value={sortOption}
               onChange={(e) =>
@@ -133,6 +134,7 @@ export function SubscriptionsToolbar({
               <option value="freq_desc">Most Frequent</option>
               <option value="freq_asc">Least Frequent</option>
               <option value="alpha">Alphabetical</option>
+              <option value="custom">Custom</option>
             </ToolbarNativeSelect>
           </ToolbarSearchAddon>
         </ToolbarSearch>

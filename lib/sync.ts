@@ -1,5 +1,5 @@
 import type { gmail_v1 } from "googleapis";
-import type { Account, AccountSettings } from "@prisma/client";
+import type { Account, AccountSettings, JobOpportunity } from "@prisma/client";
 import { GaxiosError } from "gaxios";
 
 import {
@@ -32,11 +32,201 @@ import {
 } from "@/lib/parsers/application-parser";
 import { prisma } from "@/lib/prisma";
 import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
+import { dedupeLog, logStory, syncLog } from "@/lib/logging";
+import { isLocationCompatible } from "@/lib/utils/location";
 import {
   parseAccountRules,
   titleMatchesExcluded,
   type AccountRules,
 } from "@/lib/validations/rules";
+
+/** Normalize role titles for fuzzy equality (strip Jr/Sr/II noise). */
+function normalizeOpportunityTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/\b(jr\.?|sr\.?|ii|iii|iv)\b/g, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function opportunityTitlesMatch(a: string, b: string): boolean {
+  const na = normalizeOpportunityTitle(a);
+  const nb = normalizeOpportunityTitle(b);
+  if (!na || !nb) return false;
+  return na === nb || na.includes(nb) || nb.includes(na);
+}
+
+function applyUrlsMatch(
+  a: string | null | undefined,
+  b: string | null | undefined
+): boolean {
+  if (!a?.trim() || !b?.trim()) return false;
+  const na = a.trim().replace(/\/+$/, "");
+  const nb = b.trim().replace(/\/+$/, "");
+  return na.length > 0 && na === nb;
+}
+
+function isSuppressedOpportunity(row: JobOpportunity): boolean {
+  if (row.status === "DISMISSED") return true;
+  // User-archived (history) — do not resurrect via ingest.
+  if (row.isArchived && row.previousStatus != null) return true;
+  return false;
+}
+
+function isActiveOpportunityStatus(status: string): boolean {
+  return (
+    status === "DISCOVERED" ||
+    status === "REVIEW_READY" ||
+    status === "APPLIED" ||
+    status === "LEAD"
+  );
+}
+
+/**
+ * Multi-tier opportunity dedupe before create:
+ * 1) Same emailMessageId — applyUrl, else title + location
+ * 2) Cross-email company + title + location (suppress dismissed/archived)
+ * 3) null → caller inserts
+ */
+async function findMatchingOpportunity(input: {
+  accountId: string;
+  emailMessageId: string;
+  company: string;
+  title: string;
+  location: string | null | undefined;
+  applyUrl: string | null | undefined;
+  isAlreadyApplied: boolean;
+}): Promise<
+  | { kind: "update"; row: JobOpportunity; upgradingPlaceholder: boolean }
+  | { kind: "suppress"; row: JobOpportunity }
+  | { kind: "none" }
+> {
+  const {
+    accountId,
+    emailMessageId,
+    company,
+    title,
+    location,
+    applyUrl,
+    isAlreadyApplied,
+  } = input;
+
+  // ── Tier 1: same-email origin ───────────────────────────────────────────
+  const sameEmailRows = await prisma.jobOpportunity.findMany({
+    where: { accountId, emailMessageId },
+  });
+
+  const tier1 =
+    sameEmailRows.find((row) => applyUrlsMatch(applyUrl, row.applyUrl)) ??
+    sameEmailRows.find(
+      (row) =>
+        opportunityTitlesMatch(title, row.title) &&
+        isLocationCompatible(location, row.location)
+    );
+
+  if (tier1) {
+    const viaUrl = applyUrlsMatch(applyUrl, tier1.applyUrl);
+    if (isSuppressedOpportunity(tier1)) {
+      logStory(dedupeLog, "Tier 1 — same email, but left alone (dismissed/archived)", {
+        company,
+        title,
+        "matched via": viaUrl ? "apply URL" : "title + location",
+        "existing id": tier1.id,
+      });
+      return { kind: "suppress", row: tier1 };
+    }
+    logStory(dedupeLog, "Tier 1 — same email → update existing row", {
+      company,
+      title,
+      "matched via": viaUrl ? "apply URL" : "title + location",
+      "existing id": tier1.id,
+    });
+    return { kind: "update", row: tier1, upgradingPlaceholder: false };
+  }
+
+  // ── Tier 2: cross-email company + role + location ───────────────────────
+  const companyRows = await prisma.jobOpportunity.findMany({
+    where: {
+      accountId,
+      company: { equals: company, mode: "insensitive" },
+    },
+    orderBy: { receivedAt: "desc" },
+  });
+
+  let upgradingPlaceholder = false;
+  let tier2 =
+    companyRows.find(
+      (row) =>
+        opportunityTitlesMatch(title, row.title) &&
+        isLocationCompatible(location, row.location)
+    ) ?? null;
+
+  // Upgrade generic placeholders when an applied confirmation carries a real title.
+  if (
+    !tier2 &&
+    isAlreadyApplied &&
+    !isGenericTitle(title, company)
+  ) {
+    const placeholder = companyRows.find(
+      (row) =>
+        isLocationCompatible(location, row.location) &&
+        (isGenericTitle(row.title, company) ||
+          row.title.toLowerCase() === "applied position" ||
+          row.title.toLowerCase() === "applicant" ||
+          row.title.toLowerCase() === genericRoleTitle(company).toLowerCase())
+    );
+    if (placeholder) {
+      tier2 = placeholder;
+      upgradingPlaceholder = true;
+    }
+  }
+
+  if (tier2) {
+    if (isSuppressedOpportunity(tier2)) {
+      logStory(
+        dedupeLog,
+        "Tier 2 — same company/role/location, but left alone (dismissed/archived)",
+        {
+          company,
+          title,
+          location: location ?? "(none)",
+          "existing id": tier2.id,
+          status: tier2.status,
+        }
+      );
+      return { kind: "suppress", row: tier2 };
+    }
+    if (isActiveOpportunityStatus(tier2.status) || !tier2.isArchived) {
+      logStory(
+        dedupeLog,
+        "Tier 2 — cross-email company + title + location → update",
+        {
+          company,
+          title,
+          location: location ?? "(none)",
+          "placeholder upgrade": upgradingPlaceholder ? "yes" : "no",
+          "existing id": tier2.id,
+        }
+      );
+      return { kind: "update", row: tier2, upgradingPlaceholder };
+    }
+    logStory(dedupeLog, "Tier 2 — matched but suppressed (not an active row)", {
+      company,
+      title,
+      "existing id": tier2.id,
+      status: tier2.status,
+    });
+    return { kind: "suppress", row: tier2 };
+  }
+
+  logStory(dedupeLog, "Tier 3 — no match → create new opportunity", {
+    company,
+    title,
+    location: location ?? "(none)",
+  });
+  return { kind: "none" };
+}
 
 /**
  * Resolve account rules for ingestion (automation knobs from PermanentSettings).
@@ -84,39 +274,77 @@ export type ClassifiableAccount = {
 };
 
 /**
+ * Result of a Gmail History API delta pass.
+ *
+ * NOTE: This advances `historyId` only. It does **not** stamp `lastSyncedAt`.
+ * Sync Inbox owns `lastSyncedAt` (snapshot `runStartedAt` committed after the
+ * full delta + job-query + PENDING_AI pass). See README "Inbox sync pipeline".
+ */
+export type InboxDeltaResult = {
+  /** Message ids digested during this delta (empty when history expired). */
+  messageIds: string[];
+  /** True when startHistoryId was too old (Gmail 404) and the watch was renewed. */
+  historyExpired: boolean;
+  /** Watermark written to Account.historyId, if any. */
+  historyId: string | null;
+};
+
+/**
  * Processes Gmail history deltas for an account:
  * fetches newly added messages, parses RFC 8058 headers, upserts Subscriptions,
- * runs job classification + rejection actions, and advances historyId.
+ * runs job classification + rejection actions, and advances `historyId`.
+ *
+ * Does not update `lastSyncedAt` — callers that own the job-query watermark
+ * (Sync Inbox) commit that after the full pipeline finishes.
  */
 export async function processInboxDelta(
   emailAddress: string,
   notificationHistoryId: string
-): Promise<void> {
+): Promise<InboxDeltaResult> {
   const account = await prisma.account.findUnique({
     where: { email: emailAddress },
     include: { settings: true },
   });
 
   if (!account || !account.isActive || !account.encryptedAccess) {
-    console.warn(`Ignoring delta for unknown/inactive account: ${emailAddress}`);
-    return;
+    logStory(
+      syncLog,
+      "Delta skipped — account inactive or credentials missing",
+      { mailbox: emailAddress },
+      "warn"
+    );
+    return { messageIds: [], historyExpired: false, historyId: null };
   }
 
   const gmail = await getGmailClientForAccount(account);
   const startHistoryId = account.historyId ?? notificationHistoryId;
 
+  logStory(syncLog, "Step 1/4 — History delta", {
+    mailbox: emailAddress,
+    "starting from historyId": startHistoryId,
+    note: "asking Gmail: what changed since this tip?",
+  });
+
   let latestHistoryId = notificationHistoryId;
+  let messageIds: string[] = [];
+  let historyExpired = false;
 
   try {
-    const messageIds = await collectAddedMessageIds(gmail, startHistoryId);
+    messageIds = await collectAddedMessageIds(gmail, startHistoryId);
+    logStory(
+      syncLog,
+      messageIds.length === 0
+        ? "Delta found 0 new message(s) to digest (inbox quiet since last tip)."
+        : `Delta found ${messageIds.length} new message(s) to digest — processing subscriptions + classification…`
+    );
 
     for (const messageId of messageIds) {
       try {
         await processMessage(gmail, account, messageId);
       } catch (error) {
-        console.error(
-          `Failed to process message ${messageId} for ${emailAddress}`,
-          error
+        syncLog.error(
+          { err: error, messageId, emailAddress },
+          "Failed to process message during delta"
         );
       }
     }
@@ -127,11 +355,18 @@ export async function processInboxDelta(
     }
   } catch (error) {
     if (isHistoryExpiredError(error)) {
-      console.warn(
-        `History ID expired for ${emailAddress}; re-registering watch`
+      // History store no longer has startHistoryId — renew watch and signal
+      // callers to use a wider lookback (gap cannot be replayed via History API).
+      logStory(
+        syncLog,
+        "History tip expired (Gmail 404). Renewing watch; Sync Inbox will use a wider time lookback. Gap cannot be replayed via History API.",
+        { mailbox: emailAddress },
+        "warn"
       );
       const watch = await registerInboxWatch(gmail);
       latestHistoryId = watch.historyId;
+      historyExpired = true;
+      messageIds = [];
     } else {
       throw error;
     }
@@ -141,9 +376,20 @@ export async function processInboxDelta(
     where: { id: account.id },
     data: {
       historyId: latestHistoryId,
-      lastSyncedAt: new Date(),
     },
   });
+
+  logStory(syncLog, "Delta done", {
+    digested: `${messageIds.length} message(s)`,
+    "historyId advanced to": latestHistoryId,
+    lastSyncedAt: "not touched (Sync Inbox owns that watermark)",
+  });
+
+  return {
+    messageIds,
+    historyExpired,
+    historyId: latestHistoryId,
+  };
 }
 
 async function collectAddedMessageIds(
@@ -321,7 +567,10 @@ async function processMessage(
 /**
  * Persists LLM classification: APPLICATION_STATUS → JobApplication;
  * DIRECT_RECRUITER / JOB_BOARD_DIGEST → EmailMessage + JobOpportunity rows.
- * Returns how many new opportunities were created (digests may yield many).
+ *
+ * Opportunity rows use 3-tier dedupe (see `findMatchingOpportunity`):
+ * same `emailMessageId` → company+title+location → create.
+ * Never unique-indexes `emailMessageId` alone (digests yield many roles).
  */
 export async function persistClassifiedEmail(input: {
   gmail: gmail_v1.Gmail;
@@ -682,43 +931,26 @@ export async function persistClassifiedEmail(input: {
     // Visibility vs threshold is evaluated at read time; do not persist soft-archive.
     const isAlreadyApplied = Boolean(job.isAlreadyApplied);
 
-    // Scoped dedupe: exact (company + title), else upgrade a placeholder
-    // for this company. Never overwrite a different real role at the company.
-    let existing = await prisma.jobOpportunity.findFirst({
-      where: {
-        accountId: account.id,
-        company: { equals: cleanCompany, mode: "insensitive" },
-        title: { equals: cleanTitle, mode: "insensitive" },
-      },
+    // Multi-tier dedupe: same-email → company+title+location → create.
+    // Shared by webhook delta, Sync Inbox, and historical scan (all call this).
+    const match = await findMatchingOpportunity({
+      accountId: account.id,
+      emailMessageId: emailMessage.id,
+      company: cleanCompany,
+      title: cleanTitle,
+      location: job.location,
+      applyUrl: job.applyUrl,
+      isAlreadyApplied,
     });
 
-    let upgradingPlaceholder = false;
-    if (!existing && isAlreadyApplied && !isGenericTitle(cleanTitle, cleanCompany)) {
-      existing = await prisma.jobOpportunity.findFirst({
-        where: {
-          accountId: account.id,
-          company: { equals: cleanCompany, mode: "insensitive" },
-          OR: [
-            { title: { equals: "Applied Position", mode: "insensitive" } },
-            { title: { equals: "Applicant", mode: "insensitive" } },
-            {
-              title: {
-                equals: genericRoleTitle(cleanCompany),
-                mode: "insensitive",
-              },
-            },
-          ],
-        },
-        orderBy: { receivedAt: "desc" },
-      });
-      upgradingPlaceholder = Boolean(existing);
+    if (match.kind === "suppress") {
+      // DISMISSED / user-archived — do not overwrite or re-create.
+      continue;
     }
 
-    if (existing) {
-      const userArchived =
-        existing.status !== "DISMISSED" &&
-        existing.isArchived &&
-        existing.previousStatus != null;
+    if (match.kind === "update") {
+      const existing = match.row;
+      const upgradingPlaceholder = match.upgradingPlaceholder;
 
       // Upgrade to APPLIED when email confirms application; never reset
       // APPLIED / DISMISSED / REVIEW_READY back to DISCOVERED.
@@ -740,7 +972,6 @@ export async function persistClassifiedEmail(input: {
         existing.status === "APPLIED" ||
         existing.status === "DISMISSED" ||
         existing.status === "REVIEW_READY" ||
-        userArchived ||
         resolvedStatus === "APPLIED";
 
       const appliedAt =
@@ -774,13 +1005,11 @@ export async function persistClassifiedEmail(input: {
           status: resolvedStatus,
           appliedAt,
           emailMessageId: emailMessage.id,
-          // Preserve user archives only; never persist below-threshold soft-hide.
           isArchived: preserveLifecycle
             ? resolvedStatus === "APPLIED"
               ? false
               : existing.isArchived
             : false,
-          // Clear user-archive markers once promoted to APPLIED.
           ...(resolvedStatus === "APPLIED"
             ? { previousStatus: null, dismissedAt: null }
             : {}),
@@ -791,6 +1020,7 @@ export async function persistClassifiedEmail(input: {
       continue;
     }
 
+    // ── Tier 3: insert ────────────────────────────────────────────────────
     const initialStatus = isAlreadyApplied ? "APPLIED" : "DISCOVERED";
 
     await prisma.jobOpportunity.create({

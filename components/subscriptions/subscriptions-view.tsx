@@ -1,8 +1,10 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
   type ReactNode,
@@ -35,6 +37,7 @@ import {
   formatPreviewDisplayDate,
   PreviewLoadChrome,
 } from "@/components/subscriptions/preview-load-chrome";
+import { DragGhost } from "@/components/dnd/drag-ghost";
 import { SubscriptionsToolbar } from "@/components/subscriptions/subscriptions-toolbar";
 import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
 import {
@@ -87,7 +90,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useCardListGestures } from "@/hooks/use-card-list-gestures";
 import { usePagination } from "@/hooks/use-pagination";
+import { mergeFilteredOrderIntoCustom } from "@/lib/dnd/reorder";
 import { faviconUrlForDomain, getCleanDomain } from "@/lib/domain";
 import { formatDistanceToNow } from "@/lib/format-distance";
 import {
@@ -108,6 +113,13 @@ import {
   type SubscriptionCategoryFilter,
   type SubscriptionSortOption,
 } from "@/lib/subscriptions/filters";
+import {
+  applyCustomOrder,
+  persistClutterThreshold,
+  persistCustomOrder,
+  readClutterThreshold,
+  readCustomOrder,
+} from "@/lib/subscriptions/preferences";
 import { cn } from "@/lib/utils";
 import type { CleanupAction } from "@/lib/unsubscribe";
 
@@ -197,33 +209,11 @@ type SubscriptionsViewProps = {
 
 type SubscriptionTab = "active" | "archive";
 
-const CLUTTER_STORAGE_KEY = "mailpilot_subscriptions_min_clutter";
-
 const subscriptionTabDescriptions: Record<SubscriptionTab, string> = {
   active:
     "Detected newsletter and subscription lists eligible for one-click unsubscribe.",
   archive: "Archived senders and second-chance message batch cleanup.",
 };
-
-function readStoredClutterThreshold(): number | null {
-  try {
-    const raw = localStorage.getItem(CLUTTER_STORAGE_KEY);
-    if (raw == null) return null;
-    const parsed = Number.parseInt(raw, 10);
-    if (!Number.isFinite(parsed)) return null;
-    return Math.max(0, Math.min(100, Math.round(parsed)));
-  } catch {
-    return null;
-  }
-}
-
-function persistClutterThreshold(value: number) {
-  try {
-    localStorage.setItem(CLUTTER_STORAGE_KEY, String(value));
-  } catch {
-    // Ignore quota / private-mode write failures.
-  }
-}
 
 export function SubscriptionsView({
   accountId,
@@ -265,15 +255,19 @@ export function SubscriptionsView({
     useState<SubscriptionCategoryFilter>("all");
   const [sortOption, setSortOption] =
     useState<SubscriptionSortOption>("clutter_desc");
+  const [customOrder, setCustomOrder] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const suppressTabChangeRef = useRef(false);
 
   // Hydrate after mount to avoid SSR/localStorage mismatches.
   useEffect(() => {
     setLocalBriefings(listLocalBriefings(accountId));
-    const stored = readStoredClutterThreshold();
+    const stored = readClutterThreshold(accountId);
     if (stored != null) {
       setClutterThresholdState(stored);
     }
+    setCustomOrder(readCustomOrder(accountId));
   }, [accountId]);
 
   useEffect(() => {
@@ -286,8 +280,87 @@ export function SubscriptionsView({
   function setClutterThreshold(value: number) {
     const next = Math.max(0, Math.min(100, Math.round(value)));
     setClutterThresholdState(next);
-    persistClutterThreshold(next);
+    persistClutterThreshold(accountId, next);
   }
+
+  const clearSelection = useCallback(() => {
+    // #region agent log
+    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "3c315a",
+      },
+      body: JSON.stringify({
+        sessionId: "3c315a",
+        hypothesisId: "B",
+        location: "subscriptions-view.tsx:clearSelection",
+        message: "clearSelection called",
+        data: { stack: new Error().stack?.split("\n").slice(0, 6) },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    setSelectedIds([]);
+    setSelectionMode(false);
+  }, []);
+
+  // #region agent log
+  useEffect(() => {
+    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "3c315a",
+      },
+      body: JSON.stringify({
+        sessionId: "3c315a",
+        hypothesisId: "C",
+        location: "subscriptions-view.tsx:selectionState",
+        message: "selection state changed",
+        data: {
+          selectedCount: selectedIds.length,
+          selectionMode,
+          activeTab,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+  }, [selectedIds.length, selectionMode, activeTab]);
+  // #endregion
+
+  /** User-driven view changes leave multi-select; drag page-flips use setCurrentPage directly. */
+  const changeSortOption = useCallback(
+    (sort: SubscriptionSortOption) => {
+      clearSelection();
+      setSortOption(sort);
+    },
+    [clearSelection]
+  );
+
+  const changeSearchQuery = useCallback(
+    (query: string) => {
+      clearSelection();
+      setSearchQuery(query);
+    },
+    [clearSelection]
+  );
+
+  const changeCategoryFilter = useCallback(
+    (filter: SubscriptionCategoryFilter) => {
+      clearSelection();
+      setCategoryFilter(filter);
+    },
+    [clearSelection]
+  );
+
+  const changeClutterThreshold = useCallback(
+    (value: number) => {
+      clearSelection();
+      setClutterThreshold(value);
+    },
+    [clearSelection]
+  );
 
   const active = useMemo(
     () =>
@@ -333,26 +406,43 @@ export function SubscriptionsView({
   }, [subscriptions, history]);
 
   const filteredActive = useMemo(() => {
-    return active
-      .filter((sub) => {
-        const clutter =
-          typeof sub.clutterScore === "number" && sub.clutterScore > 0
-            ? sub.clutterScore
-            : subscriptionClutterScore(sub);
-        if (clutter < clutterThreshold) return false;
-        if (!matchesSubscriptionSearch(sub, searchQuery)) return false;
-        if (
-          categoryFilter !== "all" &&
-          inferSubscriptionCategory(sub) !== categoryFilter
-        ) {
-          return false;
-        }
-        return true;
-      })
-      .sort((a, b) => compareSubscriptionsBySort(a, b, sortOption));
-  }, [active, clutterThreshold, searchQuery, categoryFilter, sortOption]);
+    const filtered = active.filter((sub) => {
+      const clutter =
+        typeof sub.clutterScore === "number" && sub.clutterScore > 0
+          ? sub.clutterScore
+          : subscriptionClutterScore(sub);
+      if (clutter < clutterThreshold) return false;
+      if (!matchesSubscriptionSearch(sub, searchQuery)) return false;
+      if (
+        categoryFilter !== "all" &&
+        inferSubscriptionCategory(sub) !== categoryFilter
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    if (sortOption === "custom") {
+      return applyCustomOrder(filtered, customOrder);
+    }
+
+    return [...filtered].sort((a, b) =>
+      compareSubscriptionsBySort(a, b, sortOption)
+    );
+  }, [
+    active,
+    clutterThreshold,
+    searchQuery,
+    categoryFilter,
+    sortOption,
+    customOrder,
+  ]);
 
   const filteredArchive = useMemo(() => {
+    // Custom order is Active-only; Unsubscribed falls back to clutter.
+    const archiveSort: SubscriptionSortOption =
+      sortOption === "custom" ? "clutter_desc" : sortOption;
+
     return archive
       .filter((entry) => {
         const score = subscriptionClutterScore({
@@ -383,7 +473,7 @@ export function SubscriptionsView({
             emailCount: b.emailCount ?? 0,
             lastReceivedAt: b.lastReceivedAt,
           },
-          sortOption
+          archiveSort
         )
       );
   }, [archive, clutterThreshold, searchQuery, categoryFilter, sortOption]);
@@ -412,18 +502,58 @@ export function SubscriptionsView({
   function toggleSelectAll() {
     markLastClicked(null);
     if (isAllSelected) {
-      setSelectedIds([]);
+      clearSelection();
       return;
     }
+    setSelectionMode(true);
     setSelectedIds(filteredActive.map((s) => s.id));
   }
 
   function toggleRow(id: string) {
     markLastClicked(id);
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
+    setSelectedIds((prev) => {
+      const next = prev.includes(id)
+        ? prev.filter((i) => i !== id)
+        : [...prev, id];
+      // Empty selection leaves multi-select entirely so the next long-press
+      // re-enters select mode instead of attempting a Custom-only drag.
+      setSelectionMode(next.length > 0);
+      return next;
+    });
   }
+
+  // Belt-and-suspenders: never stay in selectionMode with zero ids.
+  useEffect(() => {
+    if (selectedIds.length === 0 && selectionMode) {
+      setSelectionMode(false);
+    }
+  }, [selectedIds.length, selectionMode]);
+
+  const enterSelectionMode = useCallback(
+    (id: string) => {
+      markLastClicked(id);
+      setSelectionMode(true);
+      setSelectedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    },
+    [markLastClicked]
+  );
+
+  const paintSelect = useCallback(
+    (id: string, mode: "add" | "remove") => {
+      markLastClicked(id);
+      setSelectedIds((prev) => {
+        if (mode === "add") {
+          if (prev.includes(id)) return prev;
+          setSelectionMode(true);
+          return [...prev, id];
+        }
+        const next = prev.filter((i) => i !== id);
+        setSelectionMode(next.length > 0);
+        return next;
+      });
+    },
+    [markLastClicked]
+  );
 
   const selectedSubscriptions = useMemo(
     () => active.filter((s) => selectedIds.includes(s.id)),
@@ -627,6 +757,7 @@ export function SubscriptionsView({
         setError(result.error);
         return;
       }
+      clearSelection();
       closeUnsubscribeDialog();
       router.refresh();
     });
@@ -654,7 +785,7 @@ export function SubscriptionsView({
           { id: toastId }
         );
       }
-      setSelectedIds([]);
+      clearSelection();
       closeUnsubscribeDialog();
       router.refresh();
     });
@@ -727,6 +858,103 @@ export function SubscriptionsView({
   const paginatedActive = slice(filteredActive);
   const paginatedArchive = slice(filteredArchive);
 
+  const paginatedActiveIds = useMemo(
+    () => paginatedActive.map((s) => s.id),
+    [paginatedActive]
+  );
+
+  const canReorder =
+    activeTab === "active" &&
+    (sortOption === "custom" || customOrder.length === 0);
+
+  const handleReorder = useCallback(
+    (nextFullIds: string[], _movedIds: string[]) => {
+      const merged = mergeFilteredOrderIntoCustom(
+        customOrder,
+        filteredActiveIds,
+        nextFullIds
+      );
+      setCustomOrder(merged);
+      persistCustomOrder(accountId, merged);
+      // Keep multi-select after reorder; only flip the sort label.
+      if (sortOption !== "custom") {
+        setSortOption("custom");
+      }
+    },
+    [accountId, customOrder, filteredActiveIds, sortOption]
+  );
+
+  const handleDropZone = useCallback(
+    (zoneId: string, movedIds: string[]) => {
+      if (zoneId !== "archive" || movedIds.length === 0) return;
+      // Prevent the Unsubscribed tab trigger from stealing this pointer-up as a click.
+      suppressTabChangeRef.current = true;
+      window.setTimeout(() => {
+        suppressTabChangeRef.current = false;
+      }, 0);
+      setSelectionMode(true);
+      setSelectedIds(movedIds);
+      setSelected(null);
+      setError(null);
+      setBatchConfirmOpen(true);
+    },
+    []
+  );
+
+  const { drag, bindItem, onBackgroundPointerDown } = useCardListGestures({
+    pageItemIds: paginatedActiveIds,
+    fullItemIds: filteredActiveIds,
+    selectedIds,
+    selectionMode: selectionMode || selectedIds.length > 0,
+    onEnterSelectionMode: enterSelectionMode,
+    onToggleSelect: toggleRow,
+    onPaintSelect: paintSelect,
+    onClearSelection: clearSelection,
+    rules: {
+      canReorder,
+      allowedDropZones: activeTab === "active" ? ["archive"] : [],
+    },
+    currentPage,
+    totalPages,
+    pageSize,
+    // Edge flips keep multi-select; toolbar/footer page changes clear it.
+    onPageChange: setCurrentPage,
+    onReorder: handleReorder,
+    onDropZone: handleDropZone,
+    onReorderBlocked: () => {
+      toast.message("Switch to Custom sort to rearrange", {
+        action: {
+          label: "Custom",
+          onClick: () => changeSortOption("custom"),
+        },
+      });
+    },
+  });
+
+  const changePage = useCallback(
+    (page: number) => {
+      clearSelection();
+      setCurrentPage(page);
+    },
+    [clearSelection, setCurrentPage]
+  );
+
+  const changePageSize = useCallback(
+    (size: number) => {
+      clearSelection();
+      setPageSize(size);
+    },
+    [clearSelection, setPageSize]
+  );
+
+  const dragLabel = useMemo(() => {
+    if (!drag?.active) return null;
+    const primary =
+      filteredActive.find((s) => s.id === drag.originId) ??
+      active.find((s) => s.id === drag.originId);
+    return primary?.senderName ?? primary?.senderEmail ?? "Subscription";
+  }, [drag, filteredActive, active]);
+
   const defaultSort: SubscriptionSortOption = "clutter_desc";
   const hasActiveTransientFilters =
     clutterThreshold > 0 ||
@@ -735,6 +963,7 @@ export function SubscriptionsView({
     sortOption !== defaultSort;
 
   function handleResetTransientFilters() {
+    clearSelection();
     setClutterThreshold(0);
     setSearchQuery("");
     setCategoryFilter("all");
@@ -743,12 +972,20 @@ export function SubscriptionsView({
   }
 
   return (
-    <div>
+    <div onPointerDown={onBackgroundPointerDown}>
+      <DragGhost
+        active={Boolean(drag?.active)}
+        x={drag?.pointerX ?? 0}
+        y={drag?.pointerY ?? 0}
+        count={drag?.movedIds.length ?? 0}
+        label={dragLabel}
+      />
       <Tabs
         value={activeTab}
         onValueChange={(value) => {
+          if (suppressTabChangeRef.current) return;
           setActiveTab(value as SubscriptionTab);
-          setSelectedIds([]);
+          clearSelection();
         }}
         className="w-full"
       >
@@ -764,7 +1001,12 @@ export function SubscriptionsView({
               </TabsTrigger>
               <TabsTrigger
                 value="archive"
-                className={segmentedTabsTriggerClassName}
+                data-dnd-drop-zone="archive"
+                className={cn(
+                  segmentedTabsTriggerClassName,
+                  drag?.dropZone === "archive" &&
+                    "ring-2 ring-[#c21f10]/70 ring-offset-2 ring-offset-background"
+                )}
               >
                 <span>Unsubscribed</span>
                 <TabCountBadge count={archive.length} />
@@ -804,17 +1046,17 @@ export function SubscriptionsView({
             activeTab === "active" ? toggleSelectAll : () => undefined
           }
           clutterThreshold={clutterThreshold}
-          onClutterThresholdChange={setClutterThreshold}
+          onClutterThresholdChange={changeClutterThreshold}
           searchQuery={searchQuery}
-          onSearchQueryChange={setSearchQuery}
+          onSearchQueryChange={changeSearchQuery}
           categoryFilter={categoryFilter}
-          onCategoryFilterChange={setCategoryFilter}
+          onCategoryFilterChange={changeCategoryFilter}
           sortOption={sortOption}
-          onSortOptionChange={setSortOption}
+          onSortOptionChange={changeSortOption}
           showClutterSlider
           selectEnabled={activeTab === "active"}
           pageSize={pageSize}
-          onPageSizeChange={setPageSize}
+          onPageSizeChange={changePageSize}
           hasActiveTransientFilters={hasActiveTransientFilters}
           onResetTransientFilters={handleResetTransientFilters}
         />
@@ -837,6 +1079,22 @@ export function SubscriptionsView({
                 selectedIds={selectedIds}
                 lastClickedId={lastClickedId}
                 onToggleRow={toggleRow}
+                bindItem={bindItem}
+                insertBeforeId={
+                  drag?.active &&
+                  drag.insertIndex != null &&
+                  drag.insertIndex < filteredActiveIds.length
+                    ? (filteredActiveIds[drag.insertIndex] ?? null)
+                    : null
+                }
+                insertAfterLast={
+                  Boolean(
+                    drag?.active &&
+                      drag.insertIndex != null &&
+                      drag.insertIndex >= filteredActiveIds.length &&
+                      currentPage === totalPages
+                  )
+                }
                 onUnsubscribe={setSelected}
                 onBriefing={(sub) => openBriefing([sub])}
                 resolveBriefing={resolveBriefingForSub}
@@ -848,6 +1106,22 @@ export function SubscriptionsView({
                 selectedIds={selectedIds}
                 lastClickedId={lastClickedId}
                 onToggleRow={toggleRow}
+                bindItem={bindItem}
+                insertBeforeId={
+                  drag?.active &&
+                  drag.insertIndex != null &&
+                  drag.insertIndex < filteredActiveIds.length
+                    ? (filteredActiveIds[drag.insertIndex] ?? null)
+                    : null
+                }
+                insertAfterLast={
+                  Boolean(
+                    drag?.active &&
+                      drag.insertIndex != null &&
+                      drag.insertIndex >= filteredActiveIds.length &&
+                      currentPage === totalPages
+                  )
+                }
                 onUnsubscribe={setSelected}
                 onBriefing={(sub) => openBriefing([sub])}
                 resolveBriefing={resolveBriefingForSub}
@@ -859,7 +1133,7 @@ export function SubscriptionsView({
                 totalPages={totalPages}
                 pageSize={pageSize}
                 totalItems={filteredActive.length}
-                onPageChange={setCurrentPage}
+                onPageChange={changePage}
               />
             </>
           )}
@@ -897,7 +1171,7 @@ export function SubscriptionsView({
                 totalPages={totalPages}
                 pageSize={pageSize}
                 totalItems={filteredArchive.length}
-                onPageChange={setCurrentPage}
+                onPageChange={changePage}
               />
             </>
           )}
@@ -907,7 +1181,7 @@ export function SubscriptionsView({
       {activeTab === "active" ? (
         <BulkActionsFlyout
           selectedCount={selectedIds.length}
-          onCancel={() => setSelectedIds([])}
+          onCancel={clearSelection}
           trailing={
             <button
               type="button"
@@ -1582,6 +1856,17 @@ function SubscriptionRowActions({
 }
 
 /** Desktop row: three zones separated by subtle vertical dividers. */
+type BindItem = ReturnType<typeof useCardListGestures>["bindItem"];
+
+function InsertMarker({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn("pointer-events-none h-0.5 w-full bg-[#1ab5af]", className)}
+      aria-hidden
+    />
+  );
+}
+
 function SubscriptionDesktopRow({
   sub,
   selected,
@@ -1590,6 +1875,8 @@ function SubscriptionDesktopRow({
   selectionEndRadius,
   lastClicked,
   onToggleRow,
+  itemProps,
+  showInsertBefore,
   clutter,
   briefing,
   metricWidths,
@@ -1607,6 +1894,8 @@ function SubscriptionDesktopRow({
   selectionEndRadius: "sm" | "xl";
   lastClicked: boolean;
   onToggleRow: (id: string) => void;
+  itemProps: ReturnType<BindItem>;
+  showInsertBefore: boolean;
   clutter: number;
   briefing: ResolvedBriefing | null;
   metricWidths: MetricColumnWidths;
@@ -1615,10 +1904,13 @@ function SubscriptionDesktopRow({
   onViewLastBriefing: (briefing: ResolvedBriefing) => void;
   onViewLastEmail: (sub: Subscription) => void;
 }) {
+  const { style: itemStyle, ...itemRest } = itemProps;
   return (
     <div
+      {...itemRest}
+      style={itemStyle}
       className={cn(
-        "flex h-16 items-center pl-3 pr-4",
+        "relative flex h-16 cursor-default items-center pl-3 pr-4 select-none",
         SUBSCRIPTION_ROW_HOVER_CLASS,
         selected
           ? selectHighlightGroupClassName(selectionGroup, {
@@ -1628,6 +1920,11 @@ function SubscriptionDesktopRow({
           : "border-b border-[hsl(220_16%_88%)] last:border-b-0"
       )}
     >
+      {showInsertBefore ? (
+        <div className="absolute inset-x-0 top-0 z-10">
+          <InsertMarker />
+        </div>
+      ) : null}
       {/* Zone 1: Contact & Identity — grows so the first divider sits closer to metrics */}
       <div className="flex min-w-0 flex-1 items-center gap-3 border-r border-border/40 pr-5">
         <input
@@ -1721,6 +2018,9 @@ function ActiveDesktopTable({
   selectedIds,
   lastClickedId,
   onToggleRow,
+  bindItem,
+  insertBeforeId,
+  insertAfterLast,
   onUnsubscribe,
   onBriefing,
   resolveBriefing,
@@ -1731,6 +2031,9 @@ function ActiveDesktopTable({
   selectedIds: string[];
   lastClickedId: string | null;
   onToggleRow: (id: string) => void;
+  bindItem: BindItem;
+  insertBeforeId: string | null;
+  insertAfterLast: boolean;
   onUnsubscribe: (sub: Subscription) => void;
   onBriefing: (sub: Subscription) => void;
   resolveBriefing: (sub: Subscription) => ResolvedBriefing | null;
@@ -1755,8 +2058,9 @@ function ActiveDesktopTable({
 
   return (
     <div
+      data-dnd-list
       className={cn(
-        "hidden w-full overflow-hidden rounded-xl bg-card shadow-md transition-shadow duration-200 hover:shadow-lg md:block",
+        "relative hidden w-full overflow-hidden rounded-xl bg-card shadow-md transition-shadow duration-200 hover:shadow-lg md:block",
         // Drop the shell stroke when selection paints the list edge — avoids a
         // double border that makes the teal look inset/off at the corners.
         selectionTouchesShell ? "border-0" : "border border-border/80"
@@ -1782,6 +2086,8 @@ function ActiveDesktopTable({
             }
             lastClicked={lastClickedId === sub.id}
             onToggleRow={onToggleRow}
+            itemProps={bindItem(sub.id)}
+            showInsertBefore={insertBeforeId === sub.id}
             clutter={clutter}
             briefing={briefing}
             metricWidths={metricWidths}
@@ -1792,6 +2098,11 @@ function ActiveDesktopTable({
           />
         );
       })}
+      {insertAfterLast ? (
+        <div className="absolute inset-x-0 bottom-0 z-10">
+          <InsertMarker />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1801,6 +2112,9 @@ function ActiveMobileCards({
   selectedIds,
   lastClickedId,
   onToggleRow,
+  bindItem,
+  insertBeforeId,
+  insertAfterLast,
   onUnsubscribe,
   onBriefing,
   resolveBriefing,
@@ -1811,6 +2125,9 @@ function ActiveMobileCards({
   selectedIds: string[];
   lastClickedId: string | null;
   onToggleRow: (id: string) => void;
+  bindItem: BindItem;
+  insertBeforeId: string | null;
+  insertAfterLast: boolean;
   onUnsubscribe: (sub: Subscription) => void;
   onBriefing: (sub: Subscription) => void;
   resolveBriefing: (sub: Subscription) => ResolvedBriefing | null;
@@ -1828,7 +2145,7 @@ function ActiveMobileCards({
   );
 
   return (
-    <ul className="md:hidden">
+    <ul className="md:hidden" data-dnd-list>
       {subscriptions.map((sub, index) => {
         const clutter = clutterForSub(sub);
         const briefing = resolveBriefing(sub);
@@ -1840,10 +2157,15 @@ function ActiveMobileCards({
         const selected = selectionGroup.selected;
         const nextSelected =
           selected && !selectionGroup.isGroupEnd;
+        const itemProps = bindItem(sub.id);
+        const { style: itemStyle, ...itemRest } = itemProps;
         return (
           <li
             key={sub.id}
+            {...itemRest}
+            style={itemStyle}
             className={cn(
+              "relative select-none",
               selected
                 ? cn(
                     // No default `border` — highlight stroke owns the perimeter.
@@ -1857,6 +2179,11 @@ function ActiveMobileCards({
                 : cn(SUBSCRIPTION_CARD_SURFACE_CLASS, "mb-3")
             )}
           >
+            {insertBeforeId === sub.id ? (
+              <div className="absolute inset-x-2 top-0 z-10">
+                <InsertMarker />
+              </div>
+            ) : null}
             <div className="flex items-center gap-3">
               <input
                 type="checkbox"
@@ -1919,6 +2246,11 @@ function ActiveMobileCards({
           </li>
         );
       })}
+      {insertAfterLast ? (
+        <li className="list-none px-2" aria-hidden>
+          <InsertMarker />
+        </li>
+      ) : null}
     </ul>
   );
 }

@@ -43,6 +43,9 @@ function isValidWebhookToken(provided: string | null): boolean {
  * Google Pub/Sub push endpoint for Gmail watch notifications.
  * Authenticates via ?token=, acknowledges immediately with 200,
  * and processes the inbox delta in after().
+ *
+ * Advances `historyId` only — `lastSyncedAt` is owned by Sync Inbox
+ * (see README "Inbox sync pipeline").
  */
 export async function POST(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");

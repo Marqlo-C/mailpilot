@@ -89,7 +89,8 @@ export function PipelineToolbar({
   const hiddenCount = Math.max(0, totalCount - visibleCount);
 
   return (
-    <div className="mb-0">
+    // Above the listing grid so the search filters panel isn't painted under cards.
+    <div className="relative z-20 mb-0">
       <ToolbarRoot className="mb-1.5">
         <ToolbarSelectAll
           checked={isAllSelected}
@@ -120,7 +121,7 @@ export function PipelineToolbar({
           ariaLabel="Search jobs by role, company, or city"
         >
           {showSource ? (
-            <ToolbarSearchAddon>
+            <ToolbarSearchAddon label="Filter · Source">
               <ToolbarSourceFilter
                 value={sourceFilter}
                 onChange={onSourceFilterChange!}
@@ -129,7 +130,7 @@ export function PipelineToolbar({
           ) : null}
 
           {showHistoryStatus ? (
-            <ToolbarSearchAddon>
+            <ToolbarSearchAddon label="Filter · Status">
               <ToolbarHistoryStatusFilter
                 value={historyFilter}
                 onChange={onHistoryFilterChange!}
@@ -137,7 +138,7 @@ export function PipelineToolbar({
             </ToolbarSearchAddon>
           ) : null}
 
-          <ToolbarSearchAddon>
+          <ToolbarSearchAddon label="Sort">
             <ToolbarSortSelect
               activeTab={activeTab}
               sortOption={sortOption}

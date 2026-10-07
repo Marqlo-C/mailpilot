@@ -8,7 +8,8 @@ export type SubscriptionSortOption =
   | "clutter_desc"
   | "freq_desc"
   | "freq_asc"
-  | "alpha";
+  | "alpha"
+  | "custom";
 
 type ClutterInput = {
   emailCount: number;
@@ -87,6 +88,9 @@ export function compareSubscriptionsBySort(
   sort: SubscriptionSortOption
 ): number {
   switch (sort) {
+    case "custom":
+      // Order is applied separately via applyCustomOrder; keep a stable fallback.
+      return a.senderEmail.localeCompare(b.senderEmail);
     case "clutter_desc": {
       const diff =
         subscriptionClutterScore(b) - subscriptionClutterScore(a);

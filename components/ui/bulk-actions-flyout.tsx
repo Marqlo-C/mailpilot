@@ -125,14 +125,23 @@ export function BulkActionsFlyout({
   const [mounted, setMounted] = useState(false);
   const [phase, setPhase] = useState<FlyoutPhase>("prep");
   const phaseRef = useRef<FlyoutPhase>("prep");
+  const mountedRef = useRef(false);
   const cancelPendingRef = useRef(false);
   phaseRef.current = phase;
+  mountedRef.current = mounted;
 
   useEffect(() => {
     if (selectedCount > 0) {
-      // Only play enter when first appearing — not when the count changes.
-      if (mounted && phaseRef.current !== "out") return;
       cancelPendingRef.current = false;
+      // Already visible — don't restart enter when the count changes.
+      // (Do not depend on `mounted` state here: setMounted(true) used to
+      // re-run this effect, cancel the enter rAF, and leave opacity at 0.)
+      if (
+        mountedRef.current &&
+        (phaseRef.current === "in" || phaseRef.current === "idle")
+      ) {
+        return;
+      }
       setMounted(true);
       setPhase("prep");
       const reduced =
@@ -142,17 +151,13 @@ export function BulkActionsFlyout({
         setPhase("idle");
         return;
       }
-      let raf2 = 0;
-      const raf1 = window.requestAnimationFrame(() => {
-        raf2 = window.requestAnimationFrame(() => setPhase("in"));
-      });
-      return () => {
-        window.cancelAnimationFrame(raf1);
-        window.cancelAnimationFrame(raf2);
-      };
+      const timer = window.setTimeout(() => {
+        if (phaseRef.current === "prep") setPhase("in");
+      }, 16);
+      return () => window.clearTimeout(timer);
     }
-    if (mounted) setPhase("out");
-  }, [selectedCount, mounted]);
+    if (mountedRef.current) setPhase("out");
+  }, [selectedCount]);
 
   if (!mounted) return null;
 
@@ -161,6 +166,9 @@ export function BulkActionsFlyout({
       role="region"
       aria-label={label}
       data-bulk-actions
+      data-dnd-ignore
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
       className={cn(
         APP_CONTENT_CENTER_X_CLASS,
         "fixed bottom-[calc(1.5rem+var(--app-mobile-bottom-inset,0px))] z-40 w-max max-w-[min(96vw,calc(100vw-var(--app-sidebar-width,0px)-1.5rem))] -translate-x-1/2 md:bottom-2",
