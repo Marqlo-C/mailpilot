@@ -44,18 +44,23 @@ import {
   findDropZoneFromPoint,
   findItemIdFromPoint,
   findReorderInsertIndex,
-  isInteractiveTarget,
   getDragScrollElement,
+  isInteractiveTarget,
   isMultiColumnDndList,
   isOverlayTarget,
   offsetFrozenGeometryByScroll,
   type FrozenItemRect,
   type SelectionDragGeometry,
 } from "@/lib/dnd/interactive";
+import {
+  captureDragGrabGeometry,
+  type DragGrabGeometry,
+} from "@/lib/dnd/drag-smooth";
 import { previewReorderFullIds, reorderIds } from "@/lib/dnd/reorder";
 import type { CardListGestureRules } from "@/lib/dnd/types";
 
 export type { CardListGestureRules };
+export type { DragGrabGeometry };
 
 export type CardListDragState = {
   active: boolean;
@@ -73,6 +78,8 @@ export type CardListDragState = {
   dropZone: string | null;
   pointerX: number;
   pointerY: number;
+  /** Union bbox + grab offsets for ghost deadzone / lerp (fixed for the drag). */
+  grab: DragGrabGeometry | null;
 };
 
 type UseCardListGesturesOptions = {
@@ -238,7 +245,8 @@ export function useCardListGestures({
           pending.movedIds,
           frozenRectsRef.current,
           livePreview,
-          selectionGeometryRef.current
+          selectionGeometryRef.current,
+          prev?.insertIndex
         );
         insertIndex = nextInsert ?? prev?.insertIndex ?? null;
         previewFullIds = livePreview
@@ -260,6 +268,7 @@ export function useCardListGestures({
         dropZone: zone,
         pointerX: clientX,
         pointerY: clientY,
+        grab: dragRef.current?.grab ?? null,
       });
 
       // Cross-page edge flip (same tab only; not while over a drop zone).
@@ -409,21 +418,32 @@ export function useCardListGestures({
       selectionGeometryRef.current = captureSelectionDragGeometry(
         fullIdsRef.current,
         movedIds,
-        frozenRectsRef.current
+        frozenRectsRef.current,
+        originId
+      );
+      const grab = captureDragGrabGeometry(
+        movedIds,
+        x,
+        y,
+        frozenRectsRef.current,
+        originId,
+        fullIdsRef.current
       );
       const livePreview = !isMultiColumnDndList();
       livePreviewRef.current = livePreview;
       lastPointerRef.current = { x, y };
+      const homeIndex = selectionGeometryRef.current?.homeIndex ?? null;
       setDrag({
         active: true,
         movedIds,
         originId,
-        insertIndex: selectionGeometryRef.current?.homeIndex ?? null,
+        insertIndex: homeIndex,
         previewFullIds: null,
         livePreview,
         dropZone: null,
         pointerX: x,
         pointerY: y,
+        grab,
       });
     },
     []
@@ -451,7 +471,8 @@ export function useCardListGestures({
         selectionGeometryRef.current = captureSelectionDragGeometry(
           fullIdsRef.current,
           pending.movedIds,
-          frozenRectsRef.current
+          frozenRectsRef.current,
+          pending.originId
         );
       }
     });
@@ -625,7 +646,8 @@ export function useCardListGestures({
               pending.movedIds,
               frozenRectsRef.current,
               livePreviewRef.current,
-              selectionGeometryRef.current
+              selectionGeometryRef.current,
+              prev?.insertIndex
             ) ?? prev?.insertIndex;
           if (insertIndex != null) {
             const next = reorderIds(
