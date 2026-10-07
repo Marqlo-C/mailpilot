@@ -7,6 +7,7 @@ import {
   ToolbarRoot,
   ToolbarScoreSlider,
   ToolbarSearch,
+  ToolbarSearchAddon,
   ToolbarSelectAll,
   ToolbarTelemetry,
 } from "@/components/jobs/pipeline-toolbar-primitives";
@@ -40,7 +41,7 @@ export type SubscriptionsToolbarProps = {
 
 /**
  * Two-row Subscriptions filter chrome:
- * 1) Filter card — Select All, Clutter, Search, Category, Sort
+ * 1) Filter card — Select All, Clutter, Search (+ Category/Sort addons)
  * 2) Meta bar — result counts (left) + page size (right)
  */
 export function SubscriptionsToolbar({
@@ -100,37 +101,41 @@ export function SubscriptionsToolbar({
         <ToolbarSearch
           searchQuery={searchQuery}
           onSearchChange={onSearchQueryChange}
-          placeholder="Search senders or newsletters..."
-          ariaLabel="Search senders or newsletters"
-        />
-
-        <ToolbarNativeSelect
-          value={categoryFilter}
-          onChange={(e) =>
-            onCategoryFilterChange(
-              e.target.value as SubscriptionCategoryFilter
-            )
-          }
-          aria-label="Filter by category"
+          placeholder="Looking for a sender or newsletter? Find it here..."
+          ariaLabel="Search subscriptions by sender or newsletter"
         >
-          <option value="all">All Categories</option>
-          <option value="promotions">Promotions</option>
-          <option value="newsletters">Newsletters</option>
-          <option value="alerts">Alerts</option>
-        </ToolbarNativeSelect>
+          <ToolbarSearchAddon>
+            <ToolbarNativeSelect
+              value={categoryFilter}
+              onChange={(e) =>
+                onCategoryFilterChange(
+                  e.target.value as SubscriptionCategoryFilter
+                )
+              }
+              aria-label="Filter by category"
+            >
+              <option value="all">All Categories</option>
+              <option value="promotions">Promotions</option>
+              <option value="newsletters">Newsletters</option>
+              <option value="alerts">Alerts</option>
+            </ToolbarNativeSelect>
+          </ToolbarSearchAddon>
 
-        <ToolbarNativeSelect
-          value={sortOption}
-          onChange={(e) =>
-            onSortOptionChange(e.target.value as SubscriptionSortOption)
-          }
-          aria-label="Sort subscriptions"
-        >
-          <option value="clutter_desc">Highest Clutter</option>
-          <option value="freq_desc">Most Frequent</option>
-          <option value="freq_asc">Least Frequent</option>
-          <option value="alpha">Alphabetical</option>
-        </ToolbarNativeSelect>
+          <ToolbarSearchAddon>
+            <ToolbarNativeSelect
+              value={sortOption}
+              onChange={(e) =>
+                onSortOptionChange(e.target.value as SubscriptionSortOption)
+              }
+              aria-label="Sort subscriptions"
+            >
+              <option value="clutter_desc">Highest Clutter</option>
+              <option value="freq_desc">Most Frequent</option>
+              <option value="freq_asc">Least Frequent</option>
+              <option value="alpha">Alphabetical</option>
+            </ToolbarNativeSelect>
+          </ToolbarSearchAddon>
+        </ToolbarSearch>
       </ToolbarRoot>
 
       <ToolbarMetaRow>

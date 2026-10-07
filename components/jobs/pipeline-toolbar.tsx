@@ -7,6 +7,7 @@ import {
   ToolbarRoot,
   ToolbarScoreSlider,
   ToolbarSearch,
+  ToolbarSearchAddon,
   ToolbarSelectAll,
   ToolbarSortSelect,
   ToolbarSourceFilter,
@@ -47,7 +48,7 @@ export type PipelineToolbarProps = {
 
 /**
  * Two-row Job Radar filter chrome:
- * 1) Filter card — Select All, Score, Search, Source/History, Sort
+ * 1) Filter card — Select All, Score, Search (+ Source/History/Sort addons)
  * 2) Meta bar — result counts (left) + page size (right)
  */
 export function PipelineToolbar({
@@ -115,27 +116,35 @@ export function PipelineToolbar({
         <ToolbarSearch
           searchQuery={searchQuery}
           onSearchChange={onSearchQueryChange}
-        />
+          placeholder="Looking for a role, company, or city? Let's get started..."
+          ariaLabel="Search jobs by role, company, or city"
+        >
+          {showSource ? (
+            <ToolbarSearchAddon>
+              <ToolbarSourceFilter
+                value={sourceFilter}
+                onChange={onSourceFilterChange!}
+              />
+            </ToolbarSearchAddon>
+          ) : null}
 
-        {showSource ? (
-          <ToolbarSourceFilter
-            value={sourceFilter}
-            onChange={onSourceFilterChange!}
-          />
-        ) : null}
+          {showHistoryStatus ? (
+            <ToolbarSearchAddon>
+              <ToolbarHistoryStatusFilter
+                value={historyFilter}
+                onChange={onHistoryFilterChange!}
+              />
+            </ToolbarSearchAddon>
+          ) : null}
 
-        {showHistoryStatus ? (
-          <ToolbarHistoryStatusFilter
-            value={historyFilter}
-            onChange={onHistoryFilterChange!}
-          />
-        ) : null}
-
-        <ToolbarSortSelect
-          activeTab={activeTab}
-          sortOption={sortOption}
-          onSortOptionChange={onSortOptionChange}
-        />
+          <ToolbarSearchAddon>
+            <ToolbarSortSelect
+              activeTab={activeTab}
+              sortOption={sortOption}
+              onSortOptionChange={onSortOptionChange}
+            />
+          </ToolbarSearchAddon>
+        </ToolbarSearch>
       </ToolbarRoot>
 
       <ToolbarMetaRow>

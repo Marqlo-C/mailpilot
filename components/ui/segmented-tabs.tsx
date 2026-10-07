@@ -9,11 +9,14 @@ export const segmentedTabsTriggerClassName =
 
 /** Base pill chrome for tab counts and toolbar number fields. */
 export const TAB_COUNT_BADGE_CLASSNAME =
-  "rounded-md bg-[hsl(var(--tab-rail-chip))] px-1.5 py-0.5 text-[10px] font-bold leading-none text-foreground/80";
+  "rounded-md px-1.5 py-0.5 text-[10px] font-bold leading-none bg-[hsl(var(--tab-rail-chip))] text-foreground/80";
 
-/** Active-tab tint — parent trigger must include `group`. */
+/**
+ * Active-tab tint — #498E86 number on a soft teal pill of the same family.
+ * Parent trigger must include `group`.
+ */
 export const TAB_COUNT_BADGE_ACTIVE_CLASSNAME =
-  "group-data-[state=active]:bg-[#3c837b]/15 group-data-[state=active]:text-[#3c837b]";
+  "group-data-[state=active]:!bg-[#498E86]/15 group-data-[state=active]:!text-[#498E86]";
 
 type TabCountBadgeProps = {
   count: number;

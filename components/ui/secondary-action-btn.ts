@@ -1,19 +1,22 @@
 /**
  * Shared secondary CTA treatments (outline + tint).
- * Teal: Create Snapshot and other non-destructive secondaries.
+ * Muted slider-teal outline: Create Snapshot and other non-destructive secondaries.
  * Red outline: row Delete Snapshot — same #c21f10 as Delete Emails fill.
  * Flyout Delete Snapshots uses BULK_ACTION_DESTRUCTIVE_* text chips.
  */
 
-/** Teal secondary tone — outline CTAs + flyout text/hover. */
+/** Secondary outline — muted teal label + border; full slider teal on hover. */
 const SECONDARY_ACTION_TONE = {
-  text: "text-[#3c837b]",
-  borderSoft: "border-[#3c837b]/40",
-  hoverBorder: "hover:border-[#3c837b]",
-  hoverBg: "hover:bg-[#3c837b]/10",
-  flyoutCountBg: "bg-[#3c837b]/20",
+  text: "text-[hsl(174_32%_42%)]",
+  borderSoft: "border-[hsl(174_32%_42%)]",
+  hoverText: "hover:text-[#1ab5af]",
+  hoverBorder: "hover:border-[#1ab5af]",
+  hoverBg: "hover:bg-[#1ab5af]/10",
+  flyoutText: "text-[hsl(174_32%_48%)]",
+  flyoutHoverBg: "hover:bg-[#1ab5af]/15",
+  flyoutCountBg: "bg-[hsl(174_32%_42%/0.18)]",
   flyoutCountActive:
-    "group-data-[state=active]:bg-[#3c837b]/20 group-data-[state=active]:text-[#3c837b]",
+    "group-data-[state=active]:bg-[hsl(174_32%_42%/0.18)] group-data-[state=active]:text-[hsl(174_32%_48%)]",
 } as const;
 
 const FLYOUT_TEXT_LAYOUT =
@@ -38,22 +41,23 @@ export const SECONDARY_ACTION_BTN_CLASSNAME = [
   SECONDARY_OUTLINE_LAYOUT,
   SECONDARY_ACTION_TONE.borderSoft,
   SECONDARY_ACTION_TONE.text,
+  SECONDARY_ACTION_TONE.hoverText,
   SECONDARY_ACTION_TONE.hoverBorder,
   SECONDARY_ACTION_TONE.hoverBg,
 ].join(" ");
 
-/** Teal text chip for bulk flyout — linked to Create Snapshot CTA. */
+/** Text chip for bulk flyout — muted teal at rest; slider teal on hover. */
 export const SECONDARY_ACTION_FLYOUT_BTN_CLASSNAME = [
   FLYOUT_TEXT_LAYOUT,
-  SECONDARY_ACTION_TONE.text,
-  SECONDARY_ACTION_TONE.hoverBg,
-  "hover:text-[#3c837b]",
+  SECONDARY_ACTION_TONE.flyoutText,
+  SECONDARY_ACTION_TONE.flyoutHoverBg,
+  "hover:text-[#1ab5af]",
 ].join(" ");
 
 /** Count pill tint matching {@link SECONDARY_ACTION_FLYOUT_BTN_CLASSNAME}. */
 export const SECONDARY_ACTION_FLYOUT_COUNT_CLASSNAME = [
   SECONDARY_ACTION_TONE.flyoutCountBg,
-  SECONDARY_ACTION_TONE.text,
+  SECONDARY_ACTION_TONE.flyoutText,
   SECONDARY_ACTION_TONE.flyoutCountActive,
 ].join(" ");
 

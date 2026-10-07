@@ -101,11 +101,11 @@ export function SyncTelemetry({
           type="button"
           onClick={handleTriggerSync}
           disabled={pending}
-          className="flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-700/80 transition-colors hover:bg-amber-500/25 disabled:opacity-60 dark:border-amber-400/40 dark:bg-amber-400/15 dark:text-amber-300/85 dark:hover:bg-amber-400/25"
+          className="flex items-center gap-1.5 rounded-full border border-[hsl(28_62%_40%/0.35)] bg-[hsl(28_70%_48%/0.14)] px-2.5 py-1 text-xs font-medium text-[hsl(28_62%_36%)] transition-colors hover:bg-[hsl(28_70%_48%/0.25)] disabled:opacity-60 dark:border-[hsl(28_75%_60%/0.4)] dark:bg-[hsl(28_70%_48%/0.2)] dark:text-[hsl(28_75%_68%)] dark:hover:bg-[hsl(28_70%_48%/0.3)]"
         >
           <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-500" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[hsl(28_70%_48%)] opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[hsl(28_70%_48%)]" />
           </span>
           <span>
             <span className="font-bold tabular-nums">{pendingCount}</span>{" "}

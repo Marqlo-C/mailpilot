@@ -28,6 +28,7 @@ import {
   BulkActionsFlyout,
 } from "@/components/ui/bulk-actions-flyout";
 import { PipelinePaginationFooter } from "@/components/ui/pipeline-pagination";
+import { useLastClickedId } from "@/components/ui/use-last-clicked-id";
 import { usePagination } from "@/hooks/use-pagination";
 import { isUserArchived } from "@/lib/opportunities/lifecycle";
 import {
@@ -143,13 +144,22 @@ export function OpportunitiesView({
     ]
   );
 
+  const filteredOpportunityIds = useMemo(
+    () => filteredOpportunities.map((o) => o.id),
+    [filteredOpportunities]
+  );
+  const { lastClickedId, markLastClicked } = useLastClickedId(
+    selectedIds,
+    filteredOpportunityIds
+  );
+
   useEffect(() => {
-    const visibleIds = new Set(filteredOpportunities.map((o) => o.id));
+    const visibleIds = new Set(filteredOpportunityIds);
     setSelectedIds((prev) => {
       const next = prev.filter((id) => visibleIds.has(id));
       return next.length === prev.length ? prev : next;
     });
-  }, [filteredOpportunities]);
+  }, [filteredOpportunityIds]);
 
   const selectedRecords = useMemo(
     () => filteredOpportunities.filter((o) => selectedIds.includes(o.id)),
@@ -171,12 +181,14 @@ export function OpportunitiesView({
     filteredOpportunities.every((o) => selectedIds.includes(o.id));
 
   function toggleSelect(id: string) {
+    markLastClicked(id);
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
   }
 
   function handleSelectAll() {
+    markLastClicked(null);
     if (isAllSelected) {
       setSelectedIds([]);
     } else {
@@ -185,6 +197,7 @@ export function OpportunitiesView({
   }
 
   function clearSelection() {
+    markLastClicked(null);
     setSelectedIds([]);
   }
 
@@ -287,6 +300,7 @@ export function OpportunitiesView({
               pending={busy}
               retentionDays={retentionDays}
               isSelected={selectedIds.includes(opp.id)}
+              isLastClicked={lastClickedId === opp.id}
               onToggleSelect={toggleSelect}
               onReviewDraft={() => onReviewDraft?.(opp)}
               onSendNow={() => onSendNow?.(opp)}

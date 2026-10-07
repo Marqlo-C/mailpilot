@@ -3,10 +3,11 @@
 import {
   useEffect,
   useRef,
+  useState,
   type ComponentPropsWithoutRef,
   type ReactNode,
 } from "react";
-import { ChevronDown, Layers, Search } from "lucide-react";
+import { ChevronDown, Layers, ListFilter, Mic, Search, X } from "lucide-react";
 
 import { SELECT_CHECKBOX_CLASSNAME } from "@/components/ui/select-checkbox";
 import { WavySlider } from "@/components/ui/wavy-slider";
@@ -55,7 +56,7 @@ export function ToolbarRoot({
   return (
     <div
       className={cn(
-        "flex w-full flex-wrap items-center gap-3 rounded-xl border border-border/50 bg-card p-3 shadow-md lg:flex-nowrap",
+        "flex w-full flex-wrap items-center gap-3 rounded-xl border border-border/50 bg-card/80 p-3 shadow-md backdrop-blur-sm lg:flex-nowrap",
         className
       )}
     >
@@ -117,9 +118,7 @@ export function ToolbarSelectAll({
   return (
     <label
       className={cn(
-        // Negative trailing margin pulls the next divider closer; width is still
-        // reserved for "Deselect All" so the rest of the toolbar never shifts.
-        "-mr-2 inline-flex items-center gap-2 text-xs font-medium transition-colors",
+        "inline-flex shrink-0 items-center gap-2 text-xs font-medium transition-colors",
         disabled
           ? "cursor-not-allowed text-foreground/35"
           : "cursor-pointer text-foreground/75 hover:text-foreground"
@@ -139,10 +138,10 @@ export function ToolbarSelectAll({
       />
       {/* Size to the longer label so Select All ↔ Deselect All never shifts the toolbar. */}
       <span className="inline-grid">
-        <span className="invisible col-start-1 row-start-1" aria-hidden>
+        <span className="invisible col-start-1 row-start-1 whitespace-nowrap" aria-hidden>
           Deselect All
         </span>
-        <span className="col-start-1 row-start-1">{label}</span>
+        <span className="col-start-1 row-start-1 whitespace-nowrap">{label}</span>
       </span>
     </label>
   );
@@ -218,28 +217,271 @@ export function ToolbarScoreSlider({
   );
 }
 
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+};
+
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: ArrayLike<{
+    isFinal: boolean;
+    0: { transcript: string };
+  }>;
+};
+
+function getSpeechRecognitionCtor():
+  | (new () => SpeechRecognitionLike)
+  | null {
+  if (typeof window === "undefined") return null;
+  const win = window as Window & {
+    SpeechRecognition?: new () => SpeechRecognitionLike;
+    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+  };
+  return win.SpeechRecognition ?? win.webkitSpeechRecognition ?? null;
+}
+
+/**
+ * Search field that can host trailing filter/sort controls as children
+ * (wrap each in {@link ToolbarSearchAddon}). Filters open in a panel
+ * under the field so they stay usable on narrow screens.
+ */
 export function ToolbarSearch({
   searchQuery,
   onSearchChange,
-  placeholder = "Search roles, companies, or locations...",
-  ariaLabel = "Search roles, companies, or locations",
+  placeholder = "Looking for a role, company, or city? Let's get started...",
+  ariaLabel = "Search jobs by role, company, or city",
+  children,
+  className,
 }: {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   placeholder?: string;
   ariaLabel?: string;
+  /** Optional dropdown filters / sort controls rolled into the search chrome. */
+  children?: ReactNode;
+  className?: string;
+}) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [listening, setListening] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const onSearchChangeRef = useRef(onSearchChange);
+  const hasFilters = Boolean(children);
+
+  onSearchChangeRef.current = onSearchChange;
+
+  // Prefer a readable search width without hogging the toolbar (long
+  // conversational placeholders must not inflate flex-basis / crush Select All).
+  // Chrome allowance: leading icon + trailing mic/filter circles + padding.
+  const basisChars = Math.min(placeholder.length, 28);
+  const preferredInputBasis = `calc(${basisChars}ch + 6.5rem)`;
+
+  useEffect(() => {
+    setSpeechSupported(Boolean(getSpeechRecognitionCtor()));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.abort();
+      recognitionRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+
+    function onPointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setFiltersOpen(false);
+      }
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setFiltersOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [filtersOpen]);
+
+  function stopListening() {
+    const recognition = recognitionRef.current;
+    if (!recognition) {
+      setListening(false);
+      return;
+    }
+    recognition.onresult = null;
+    recognition.onerror = null;
+    recognition.onend = null;
+    try {
+      recognition.stop();
+    } catch {
+      // Already stopped.
+    }
+    recognitionRef.current = null;
+    setListening(false);
+  }
+
+  function toggleVoiceSearch() {
+    if (listening) {
+      stopListening();
+      return;
+    }
+
+    const Ctor = getSpeechRecognitionCtor();
+    if (!Ctor) return;
+
+    const recognition = new Ctor();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang =
+      typeof navigator !== "undefined" && navigator.language
+        ? navigator.language
+        : "en-US";
+
+    recognition.onresult = (event) => {
+      let transcript = "";
+      for (let i = 0; i < event.results.length; i += 1) {
+        transcript += event.results[i][0].transcript;
+      }
+      onSearchChangeRef.current(transcript.trim());
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error !== "aborted" && event.error !== "no-speech") {
+        console.warn("Speech recognition error:", event.error);
+      }
+      recognitionRef.current = null;
+      setListening(false);
+    };
+
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      setListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      setListening(true);
+    } catch {
+      recognitionRef.current = null;
+      setListening(false);
+    }
+  }
+
+  /** Clear / mic / filters — ellipsis-menu ghost fill, circular. */
+  const trailingGhostActionClassName =
+    "inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]";
+
+  return (
+    <div
+      ref={rootRef}
+      className={cn("relative min-w-0 max-w-full flex-1", className)}
+      style={{ flexBasis: preferredInputBasis }}
+    >
+      <div className="flex h-8 w-full items-center gap-1.5 rounded-lg border border-border/50 bg-card/75 pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow">
+        <Search
+          className="pointer-events-none size-4 shrink-0 text-foreground/45"
+          aria-hidden
+        />
+        <input
+          type="text"
+          placeholder={listening ? "Listening..." : placeholder}
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
+          aria-label={ariaLabel}
+        />
+        <div className="flex shrink-0 items-center gap-0.5">
+          {searchQuery ? (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => onSearchChange("")}
+              className={trailingGhostActionClassName}
+            >
+              <X className="size-4" aria-hidden />
+            </button>
+          ) : null}
+          {speechSupported ? (
+            <button
+              type="button"
+              aria-pressed={listening}
+              aria-label={
+                listening ? "Stop voice search" : "Start voice search"
+              }
+              onClick={toggleVoiceSearch}
+              className={cn(
+                trailingGhostActionClassName,
+                listening &&
+                  "bg-destructive/15 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              )}
+            >
+              <Mic className="size-4" aria-hidden />
+            </button>
+          ) : null}
+          {hasFilters ? (
+            <button
+              type="button"
+              aria-expanded={filtersOpen}
+              aria-label={filtersOpen ? "Hide filters" : "Show filters"}
+              onClick={() => setFiltersOpen((open) => !open)}
+              className={cn(
+                trailingGhostActionClassName,
+                filtersOpen &&
+                  "bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
+              )}
+            >
+              <ListFilter className="size-4" aria-hidden />
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {hasFilters && filtersOpen ? (
+        <div
+          role="region"
+          aria-label="Search filters"
+          className="absolute inset-x-0 top-[calc(100%+0.35rem)] z-50 flex flex-col gap-2 rounded-lg border border-border/50 bg-card p-2.5 shadow-md sm:flex-row sm:flex-wrap"
+        >
+          {children}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Slots a filter/sort control into the {@link ToolbarSearch} filters panel. */
+export function ToolbarSearchAddon({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="relative flex h-7 w-[7.2rem] items-center text-foreground/75 focus-within:text-foreground sm:w-[9.6rem] md:w-[12rem]">
-      <Search className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-foreground/60" />
-      <input
-        type="text"
-        placeholder={placeholder}
-        value={searchQuery}
-        onChange={(e) => onSearchChange(e.target.value)}
-        className="h-7 w-full rounded-md border border-input/60 bg-card py-0 pr-2 pl-8 text-xs shadow-sm transition-colors placeholder:text-foreground/50 hover:bg-card focus:bg-card focus:outline-none focus:ring-1 focus:ring-ring"
-        aria-label={ariaLabel}
-      />
+    <div
+      className={cn(
+        "flex w-full min-w-0 items-center sm:w-auto [&>div]:w-full sm:[&>div]:w-auto [&_select]:w-full sm:[&_select]:w-auto",
+        className
+      )}
+    >
+      {children}
     </div>
   );
 }
@@ -247,15 +489,18 @@ export function ToolbarSearch({
 export function ToolbarSourceFilter({
   value,
   onChange,
+  className,
 }: {
   value: SourceFilter;
   onChange: (value: SourceFilter) => void;
+  className?: string;
 }) {
   return (
     <ToolbarNativeSelect
       value={value}
       onChange={(e) => onChange(e.target.value as SourceFilter)}
       aria-label="Filter by source"
+      className={className}
     >
       <option value="all">All Sources</option>
       <option value="easy_apply">Easy Apply</option>
@@ -268,15 +513,18 @@ export function ToolbarSourceFilter({
 export function ToolbarHistoryStatusFilter({
   value,
   onChange,
+  className,
 }: {
   value: HistoryStatusFilter;
   onChange: (value: HistoryStatusFilter) => void;
+  className?: string;
 }) {
   return (
     <ToolbarNativeSelect
       value={value}
       onChange={(e) => onChange(e.target.value as HistoryStatusFilter)}
       aria-label="Filter by history status"
+      className={className}
     >
       <option value="all">All Statuses</option>
       <option value="archived">Archived</option>
@@ -289,10 +537,12 @@ export function ToolbarSortSelect({
   activeTab,
   sortOption,
   onSortOptionChange,
+  className,
 }: {
   activeTab: JobsTabKey;
   sortOption: string;
   onSortOptionChange: (sort: string) => void;
+  className?: string;
 }) {
   const options = TAB_SORT_CONFIG[activeTab].options;
   return (
@@ -300,6 +550,7 @@ export function ToolbarSortSelect({
       value={sortOption}
       onChange={(e) => onSortOptionChange(e.target.value)}
       aria-label="Sort listings"
+      className={className}
     >
       {options.map((option) => (
         <option key={option.value} value={option.value}>
