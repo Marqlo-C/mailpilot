@@ -3,6 +3,7 @@
 import { ResumeUploadDialog } from "@/components/profile/resume-upload-dialog";
 import { ManualProfileEditor } from "@/components/profile/manual-profile-editor";
 import { ProfileRevisionsMenu } from "@/components/profile/profile-revisions-menu";
+import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -12,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { MasterProfileInput } from "@/lib/validations/profile";
+import { cn } from "@/lib/utils";
 
 export type ProfileSnapshotData = MasterProfileInput & {
   updatedAt?: string;
@@ -58,8 +60,8 @@ export function MasterProfileCard({
   profile,
 }: MasterProfileCardProps) {
   return (
-    <Card className="border-border/80 bg-muted/20 shadow-none">
-      <CardHeader className="gap-4 border-b border-border/60 sm:flex-row sm:items-start sm:justify-between">
+    <Card className={cn(SETTINGS_CARD_CLASSNAME)}>
+      <CardHeader className="gap-4 border-b border-border/50 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-2">
           <CardTitle className="text-xl tracking-tight">Master Profile</CardTitle>
           {profile ? (

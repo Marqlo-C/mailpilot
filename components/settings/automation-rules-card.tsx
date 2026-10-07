@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 
 import { updateRule } from "@/app/actions/settings";
 import {
+  SETTINGS_CARD_CLASSNAME,
+  SETTINGS_ROW_CLASSNAME,
+  SETTINGS_SELECT_CLASSNAME,
+} from "@/components/settings/settings-chrome";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -14,6 +19,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { AccountRules } from "@/lib/validations/rules";
+import { cn } from "@/lib/utils";
 
 type AutomationRulesCardProps = {
   accountId: string | null;
@@ -38,7 +44,7 @@ export function AutomationRulesCard({
   }
 
   return (
-    <Card>
+    <Card className={SETTINGS_CARD_CLASSNAME}>
       <CardHeader>
         <CardTitle>Automation Rules</CardTitle>
         <CardDescription>
@@ -60,7 +66,7 @@ export function AutomationRulesCard({
             onValueChange={(value) => patch("rejectionMode", value)}
             className="space-y-2"
           >
-            <div className="flex items-start gap-3 rounded-md border border-border p-3">
+            <div className={cn("flex items-start gap-3", SETTINGS_ROW_CLASSNAME)}>
               <RadioGroupItem value="LABEL_ONLY" id="label-only" className="mt-0.5" />
               <div>
                 <Label htmlFor="label-only" className="font-medium">
@@ -71,7 +77,7 @@ export function AutomationRulesCard({
                 </p>
               </div>
             </div>
-            <div className="flex items-start gap-3 rounded-md border border-border p-3">
+            <div className={cn("flex items-start gap-3", SETTINGS_ROW_CLASSNAME)}>
               <RadioGroupItem value="AUTO_TRASH" id="auto-trash" className="mt-0.5" />
               <div>
                 <Label htmlFor="auto-trash" className="font-medium">
@@ -89,7 +95,7 @@ export function AutomationRulesCard({
           <Label htmlFor="cleanup-default">Post-unsubscribe default</Label>
           <select
             id="cleanup-default"
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+            className={cn(SETTINGS_SELECT_CLASSNAME, "w-full")}
             disabled={disabled}
             value={rules.autoCleanAfterUnsub}
             onChange={(e) => patch("autoCleanAfterUnsub", e.target.value)}

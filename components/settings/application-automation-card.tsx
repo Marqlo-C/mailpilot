@@ -6,6 +6,10 @@ import { useRouter } from "next/navigation";
 import { updateMatchThreshold } from "@/app/actions/profile";
 import { updateRule } from "@/app/actions/settings";
 import {
+  SETTINGS_CARD_CLASSNAME,
+  SETTINGS_ROW_CLASSNAME,
+} from "@/components/settings/settings-chrome";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -18,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { WavySlider } from "@/components/ui/wavy-slider";
 import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile";
 import type { AccountRules } from "@/lib/validations/rules";
+import { cn } from "@/lib/utils";
 
 type ApplicationAutomationCardProps = {
   accountId: string | null;
@@ -61,7 +66,7 @@ export function ApplicationAutomationCard({
   }
 
   return (
-    <Card>
+    <Card className={SETTINGS_CARD_CLASSNAME}>
       <CardHeader>
         <CardTitle>Job Radar Rules</CardTitle>
         <CardDescription>
@@ -75,7 +80,12 @@ export function ApplicationAutomationCard({
           </p>
         )}
 
-        <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+        <div
+          className={cn(
+            "flex items-center justify-between gap-4",
+            SETTINGS_ROW_CLASSNAME
+          )}
+        >
           <div>
             <p className="text-sm font-medium">
               {autoSend ? "Auto-Send" : "Manual Review"}

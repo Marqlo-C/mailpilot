@@ -6,6 +6,10 @@ import { toast } from "sonner";
 
 import { updateDismissedRetention } from "@/app/actions/settings";
 import {
+  SETTINGS_CARD_CLASSNAME,
+  SETTINGS_SELECT_CLASSNAME,
+} from "@/components/settings/settings-chrome";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -30,7 +34,7 @@ export function DismissedRetentionSetting({
   const [isPending, startTransition] = useTransition();
 
   return (
-    <Card>
+    <Card className={SETTINGS_CARD_CLASSNAME}>
       <CardHeader>
         <CardTitle>Dismissed Items Auto-Delete</CardTitle>
         <CardDescription>
@@ -59,7 +63,7 @@ export function DismissedRetentionSetting({
                 router.refresh();
               });
             }}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className={SETTINGS_SELECT_CLASSNAME}
           >
             {DISMISSED_RETENTION_OPTIONS.map((days) => (
               <option key={days} value={days}>

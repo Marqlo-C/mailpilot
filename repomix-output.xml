@@ -60,6 +60,8 @@ lib/
     prefilter.ts
   email/
     cleaner.ts
+  gmail/
+    message.ts
   opportunities/
     cleanup.ts
     lifecycle.ts
@@ -68,6 +70,7 @@ lib/
   parsers/
     application-parser.ts
   subscriptions/
+    briefing-local.ts
     digest-constants.ts
     digest.ts
     filters.ts
@@ -76,6 +79,7 @@ lib/
   validations/
     profile.ts
     rules.ts
+  app-content-center.ts
   application-method.ts
   auth.ts
   bridge-scripts.ts
@@ -117,708 +121,6 @@ prisma/
 
 <files>
 This section contains the contents of the repository's files.
-
-<file path="lib/subscriptions/digest-constants.ts">
-/** Client-safe briefing/digest constants (no Node / googleapis imports). */
-
-export const MAX_BRIEFING_DAYS = 10;
-
-export type DateRangeValue = {
-  from: Date | undefined;
-  to: Date | undefined;
-};
-
-/** Inclusive day span between two local calendar dates. */
-export function inclusiveDaySpan(from: Date, to: Date): number {
-  const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
-  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
-  const ms = end.getTime() - start.getTime();
-  return Math.floor(ms / (1000 * 60 * 60 * 24)) + 1;
-}
-
-export function isValidBriefingRange(
-  from: Date | undefined,
-  to: Date | undefined
-): boolean {
-  if (!from || !to) return false;
-  const span = inclusiveDaySpan(from, to);
-  return span >= 1 && span <= MAX_BRIEFING_DAYS;
-}
-</file>
-
-<file path="lib/subscriptions/digest.ts">
-import type { gmail_v1 } from "googleapis";
-
-import { rethrowIfInsufficientScope } from "@/lib/google";
-import { extractMessageBody, sanitizeEmailBody } from "@/lib/llm";
-import { prisma } from "@/lib/prisma";
-import { MAX_BRIEFING_DAYS } from "@/lib/subscriptions/digest-constants";
-
-export const MAX_BRIEFING_MESSAGES = 40;
-
-export type DigestCard = {
-  id: string;
-  from: string;
-  fromEmail: string;
-  subject: string;
-  summary: string;
-  heroImageUrl: string | null;
-  primaryLink: string | null;
-  receivedAt: Date | null;
-};
-
-export type DigestResult = {
-  success: true;
-  processedCount: number;
-  digestSentTo: string;
-  briefingId: string;
-};
-
-function encodeRawMessage(raw: string): string {
-  return Buffer.from(raw)
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
-
-function getHeader(
-  headers: gmail_v1.Schema$MessagePartHeader[] | undefined,
-  name: string
-): string {
-  const lower = name.toLowerCase();
-  return (
-    headers?.find((h) => (h.name ?? "").toLowerCase() === lower)?.value ?? ""
-  );
-}
-
-function toGmailDate(d: Date): string {
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}/${m}/${day}`;
-}
-
-/** Normalize to UTC midnight for Gmail day queries. */
-function startOfUtcDay(d: Date): Date {
-  return new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
-  );
-}
-
-export function buildBriefingSearchQuery(
-  senderEmails: string[],
-  rangeStart: Date,
-  rangeEnd: Date
-): string {
-  const fromClause = senderEmails
-    .map((email) => `from:${email}`)
-    .join(" OR ");
-  const start = startOfUtcDay(rangeStart);
-  const endExclusive = startOfUtcDay(rangeEnd);
-  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
-  return `(${fromClause}) after:${toGmailDate(start)} before:${toGmailDate(endExclusive)} -in:trash -in:spam`;
-}
-
-function decodeBase64Url(data: string): string {
-  const normalized = data.replace(/-/g, "+").replace(/_/g, "/");
-  return Buffer.from(normalized, "base64").toString("utf8");
-}
-
-function findHtmlPart(
-  payload: gmail_v1.Schema$MessagePart | null | undefined
-): string | null {
-  if (!payload) return null;
-  if (payload.mimeType === "text/html" && payload.body?.data) {
-    return decodeBase64Url(payload.body.data);
-  }
-  for (const part of payload.parts ?? []) {
-    const nested = findHtmlPart(part);
-    if (nested) return nested;
-  }
-  return null;
-}
-
-function isTrackingOrTinyImage(url: string, tag: string): boolean {
-  const lower = `${url} ${tag}`.toLowerCase();
-  if (
-    /width\s*=\s*["']?1["']?/.test(lower) ||
-    /height\s*=\s*["']?1["']?/.test(lower)
-  ) {
-    return true;
-  }
-  return /pixel|track|beacon|spacer|open\.|click\.|list-manage|doubleclick|facebook\.com\/tr|google-analytics|googletagmanager/.test(
-    lower
-  );
-}
-
-function extractHeroImageUrl(html: string): string | null {
-  const re = /<img\b([^>]*?)>/gi;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(html)) !== null) {
-    const attrs = match[1] ?? "";
-    const src =
-      attrs.match(/\bsrc=["'](https?:\/\/[^"']+)["']/i)?.[1] ??
-      attrs.match(/\bsrc=(https?:\/\/\S+)/i)?.[1];
-    if (!src || isTrackingOrTinyImage(src, attrs)) continue;
-    return src;
-  }
-  return null;
-}
-
-function extractPrimaryLink(html: string): string | null {
-  const re = /<a\b([^>]*?)>/gi;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(html)) !== null) {
-    const attrs = match[1] ?? "";
-    const href =
-      attrs.match(/\bhref=["'](https?:\/\/[^"']+)["']/i)?.[1] ?? null;
-    if (!href) continue;
-    const lower = href.toLowerCase();
-    if (
-      lower.includes("unsubscribe") ||
-      lower.includes("mailto:") ||
-      lower.includes("list-manage") ||
-      lower.endsWith("#")
-    ) {
-      continue;
-    }
-    return href;
-  }
-  return null;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function parseFromEmail(fromRaw: string): { name: string; email: string } {
-  const match = fromRaw.match(/^(?:"?([^"<]*)"?\s*)?<([^>]+)>$/);
-  if (match?.[2]) {
-    return {
-      name: (match[1] ?? "").trim() || match[2].trim(),
-      email: match[2].trim().toLowerCase(),
-    };
-  }
-  const email = fromRaw.replace(/[<>]/g, "").trim().toLowerCase();
-  return { name: email, email };
-}
-
-/**
- * Clutter from remaining volume + unread share (higher unread = noisier).
- */
-export function briefingClutterScore(
-  remainingTotal: number,
-  remainingUnread: number
-): number {
-  const total = Math.max(0, remainingTotal);
-  const unread = Math.max(0, Math.min(remainingUnread, total));
-  const volume = Math.min(
-    60,
-    Math.round((Math.log10(total + 1) / Math.log10(101)) * 60)
-  );
-  const unreadShare =
-    total === 0 ? 0 : Math.round((unread / total) * 40);
-  return Math.min(100, volume + unreadShare);
-}
-
-export function buildBriefingHtml(
-  cards: DigestCard[],
-  opts: { rangeLabel: string; recipientEmail: string }
-): string {
-  const cardHtml = cards
-    .map((card) => {
-      const imageBlock = card.heroImageUrl
-        ? `<img src="${escapeHtml(card.heroImageUrl)}" alt="" width="560" style="display:block;width:100%;max-width:560px;height:auto;border-radius:12px 12px 0 0;" />`
-        : `<div style="height:8px;border-radius:12px 12px 0 0;background:#134e4a;"></div>`;
-      const cta = card.primaryLink
-        ? `<a href="${escapeHtml(card.primaryLink)}" style="display:inline-block;margin-top:14px;padding:10px 16px;border-radius:8px;background:#0f766e;color:#f8fafc;font-size:13px;font-weight:600;text-decoration:none;">Read Article</a>`
-        : "";
-      return `
-      <tr>
-        <td style="padding:0 0 16px 0;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;overflow:hidden;">
-            <tr><td>${imageBlock}</td></tr>
-            <tr>
-              <td style="padding:18px 20px 20px 20px;">
-                <p style="margin:0 0 4px 0;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;color:#5eead4;font-weight:600;">${escapeHtml(card.from)}</p>
-                <h2 style="margin:0 0 8px 0;font-size:17px;line-height:1.35;color:#f8fafc;font-weight:700;">${escapeHtml(card.subject)}</h2>
-                <p style="margin:0;font-size:13px;line-height:1.55;color:#94a3b8;">${escapeHtml(card.summary)}</p>
-                ${cta}
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>`;
-    })
-    .join("");
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mail Pilot Briefing</title>
-</head>
-<body style="margin:0;padding:0;background:#020617;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#020617;">
-    <tr>
-      <td align="center" style="padding:28px 16px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;">
-          <tr>
-            <td style="padding:0 4px 22px 4px;">
-              <p style="margin:0 0 6px 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#2dd4bf;font-weight:700;">Mail Pilot</p>
-              <h1 style="margin:0 0 8px 0;font-size:26px;line-height:1.2;color:#f8fafc;font-weight:700;">Your Briefing</h1>
-              <p style="margin:0;font-size:13px;color:#94a3b8;">
-                ${cards.length} update${cards.length === 1 ? "" : "s"} · ${escapeHtml(opts.rangeLabel)} · delivered to ${escapeHtml(opts.recipientEmail)}
-              </p>
-            </td>
-          </tr>
-          ${cardHtml || `<tr><td style="color:#94a3b8;font-size:14px;">No messages found in this window.</td></tr>`}
-          <tr>
-            <td style="padding:12px 4px 0 4px;font-size:11px;color:#64748b;line-height:1.5;">
-              Original newsletter messages were moved to Trash after this briefing was sent.
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
-}
-
-async function listMessageIds(
-  gmail: gmail_v1.Gmail,
-  query: string,
-  limit: number
-): Promise<string[]> {
-  const ids: string[] = [];
-  let pageToken: string | undefined;
-
-  do {
-    const listed = await gmail.users.messages.list({
-      userId: "me",
-      q: query,
-      maxResults: Math.min(50, limit - ids.length),
-      pageToken,
-    });
-    for (const message of listed.data.messages ?? []) {
-      if (message.id) ids.push(message.id);
-      if (ids.length >= limit) return ids;
-    }
-    pageToken = listed.data.nextPageToken ?? undefined;
-  } while (pageToken && ids.length < limit);
-
-  return ids;
-}
-
-async function estimateCount(
-  gmail: gmail_v1.Gmail,
-  query: string
-): Promise<number> {
-  const listed = await gmail.users.messages.list({
-    userId: "me",
-    q: query,
-    maxResults: 1,
-  });
-  return listed.data.resultSizeEstimate ?? 0;
-}
-
-async function fetchDigestCard(
-  gmail: gmail_v1.Gmail,
-  id: string
-): Promise<DigestCard | null> {
-  const message = await gmail.users.messages.get({
-    userId: "me",
-    id,
-    format: "full",
-  });
-  const headers = message.data.payload?.headers;
-  const subject = getHeader(headers, "Subject").trim() || "(No subject)";
-  const fromRaw = getHeader(headers, "From").trim() || "Unknown sender";
-  const parsed = parseFromEmail(fromRaw);
-
-  const plain = extractMessageBody(message.data.payload);
-  const html = findHtmlPart(message.data.payload) ?? "";
-  const summarySource =
-    sanitizeEmailBody(plain || html.replace(/<[^>]+>/g, " ")).trim() ||
-    message.data.snippet?.trim() ||
-    subject;
-  const summary =
-    summarySource.length > 240
-      ? `${summarySource.slice(0, 237).trim()}…`
-      : summarySource;
-
-  const internalDate = message.data.internalDate
-    ? new Date(Number(message.data.internalDate))
-    : null;
-
-  return {
-    id,
-    from: parsed.name,
-    fromEmail: parsed.email,
-    subject,
-    summary,
-    heroImageUrl: html ? extractHeroImageUrl(html) : null,
-    primaryLink: html ? extractPrimaryLink(html) : null,
-    receivedAt: internalDate,
-  };
-}
-
-async function trashMessageIds(
-  gmail: gmail_v1.Gmail,
-  ids: string[]
-): Promise<void> {
-  for (let i = 0; i < ids.length; i += 1000) {
-    const chunk = ids.slice(i, i + 1000);
-    try {
-      await gmail.users.messages.batchModify({
-        userId: "me",
-        requestBody: {
-          ids: chunk,
-          addLabelIds: ["TRASH"],
-          removeLabelIds: ["INBOX"],
-        },
-      });
-    } catch (error) {
-      rethrowIfInsufficientScope(error);
-    }
-  }
-}
-
-async function syncSenderStatsAfterTrash(
-  gmail: gmail_v1.Gmail,
-  accountId: string,
-  senderEmails: string[],
-  trashedBySender: Map<string, number>
-): Promise<void> {
-  for (const email of senderEmails) {
-    const key = email.toLowerCase();
-    const trashed = trashedBySender.get(key) ?? 0;
-    const sub = await prisma.subscription.findUnique({
-      where: {
-        accountId_senderEmail: { accountId, senderEmail: email },
-      },
-    });
-    if (!sub) continue;
-
-    let remainingTotal: number;
-    let remainingUnread: number;
-    try {
-      remainingTotal = await estimateCount(
-        gmail,
-        `from:${email} -in:trash -in:spam`
-      );
-      remainingUnread = await estimateCount(
-        gmail,
-        `from:${email} is:unread -in:trash -in:spam`
-      );
-    } catch {
-      remainingTotal = Math.max(0, sub.emailCount - trashed);
-      remainingUnread = 0;
-    }
-
-    const clutterScore = briefingClutterScore(
-      remainingTotal,
-      remainingUnread
-    );
-
-    await prisma.subscription.update({
-      where: { id: sub.id },
-      data: {
-        emailCount: remainingTotal,
-        clutterScore,
-      },
-    });
-  }
-}
-
-/**
- * Build a branded briefing for the date range, send it, trash originals, update Neon stats.
- */
-export async function createSubscriptionBriefing(options: {
-  gmail: gmail_v1.Gmail;
-  accountId: string;
-  senderEmails: string[];
-  rangeStart: Date;
-  rangeEnd: Date;
-  recipientEmail: string;
-}): Promise<DigestResult> {
-  const { gmail, accountId, recipientEmail } = options;
-  const rangeStart = startOfUtcDay(options.rangeStart);
-  const rangeEnd = startOfUtcDay(options.rangeEnd);
-  if (rangeEnd < rangeStart) {
-    throw new Error("End date must be on or after start date");
-  }
-  const spanDays =
-    Math.floor(
-      (rangeEnd.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24)
-    ) + 1;
-  if (spanDays > MAX_BRIEFING_DAYS) {
-    throw new Error(`Maximum briefing range is ${MAX_BRIEFING_DAYS} days`);
-  }
-  const today = startOfUtcDay(new Date());
-  if (rangeEnd > today) {
-    throw new Error("Future dates are not allowed");
-  }
-
-  const senderEmails = Array.from(
-    new Set(
-      options.senderEmails
-        .map((e) => e.trim().toLowerCase())
-        .filter((e) => e.includes("@"))
-    )
-  );
-  if (senderEmails.length === 0) {
-    throw new Error("Select at least one sender email");
-  }
-
-  const query = buildBriefingSearchQuery(senderEmails, rangeStart, rangeEnd);
-  const ids = await listMessageIds(gmail, query, MAX_BRIEFING_MESSAGES);
-
-  const cards: DigestCard[] = [];
-  const concurrency = 5;
-  for (let i = 0; i < ids.length; i += concurrency) {
-    const slice = ids.slice(i, i + concurrency);
-    const batch = await Promise.all(
-      slice.map(async (id) => {
-        try {
-          return await fetchDigestCard(gmail, id);
-        } catch (error) {
-          rethrowIfInsufficientScope(error);
-          return null;
-        }
-      })
-    );
-    for (const card of batch) {
-      if (card) cards.push(card);
-    }
-  }
-
-  cards.sort(
-    (a, b) => (b.receivedAt?.getTime() ?? 0) - (a.receivedAt?.getTime() ?? 0)
-  );
-
-  const rangeLabel = `${rangeStart.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  })} – ${rangeEnd.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })}`;
-
-  const html = buildBriefingHtml(cards, { rangeLabel, recipientEmail });
-  const subject = `Mail Pilot Briefing · ${cards.length} update${cards.length === 1 ? "" : "s"} · ${rangeLabel}`;
-  const raw = [
-    `To: ${recipientEmail}`,
-    `Subject: ${subject}`,
-    "MIME-Version: 1.0",
-    'Content-Type: text/html; charset="UTF-8"',
-    "",
-    html,
-  ].join("\r\n");
-
-  try {
-    await gmail.users.messages.send({
-      userId: "me",
-      requestBody: { raw: encodeRawMessage(raw) },
-    });
-  } catch (error) {
-    rethrowIfInsufficientScope(error);
-  }
-
-  const processedIds = cards.map((c) => c.id);
-  const trashedBySender = new Map<string, number>();
-  for (const card of cards) {
-    const key = card.fromEmail.toLowerCase();
-    trashedBySender.set(key, (trashedBySender.get(key) ?? 0) + 1);
-  }
-
-  if (processedIds.length > 0) {
-    await trashMessageIds(gmail, processedIds);
-  }
-
-  await syncSenderStatsAfterTrash(
-    gmail,
-    accountId,
-    senderEmails,
-    trashedBySender
-  );
-
-  const generatedAt = new Date();
-  const briefing = await prisma.subscriptionBriefing.upsert({
-    where: { accountId },
-    create: {
-      accountId,
-      htmlPreview: html,
-      generatedAt,
-      senderEmails,
-    },
-    update: {
-      htmlPreview: html,
-      generatedAt,
-      senderEmails,
-    },
-  });
-
-  // #region agent log
-  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "3c315a",
-    },
-    body: JSON.stringify({
-      sessionId: "3c315a",
-      runId: "pre-fix",
-      hypothesisId: "H4",
-      location: "lib/subscriptions/digest.ts:createSubscriptionBriefing",
-      message: "briefing upserted after trash+stats",
-      data: {
-        processedCount: processedIds.length,
-        senderCount: senderEmails.length,
-        briefingId: briefing.id,
-        queryMessageCap: MAX_BRIEFING_MESSAGES,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-
-  return {
-    success: true,
-    processedCount: processedIds.length,
-    digestSentTo: recipientEmail,
-    briefingId: briefing.id,
-  };
-}
-</file>
-
-<file path="lib/subscriptions/filters.ts">
-export type SubscriptionCategoryFilter =
-  | "all"
-  | "promotions"
-  | "newsletters"
-  | "alerts";
-
-export type SubscriptionSortOption =
-  | "clutter_desc"
-  | "freq_desc"
-  | "freq_asc"
-  | "alpha";
-
-type ClutterInput = {
-  emailCount: number;
-  lastReceivedAt?: Date | string | null;
-};
-
-type CategoryInput = {
-  senderName?: string | null;
-  senderEmail: string;
-};
-
-/**
- * Derived clutter score (0–100) from tracked volume + recency.
- * Higher emailCount / fresher lastReceivedAt → higher noise.
- */
-export function subscriptionClutterScore(sub: ClutterInput): number {
-  const count = Math.max(0, sub.emailCount);
-  const volume = Math.min(
-    95,
-    Math.round((Math.log10(count + 1) / Math.log10(101)) * 95)
-  );
-
-  let recency = 0;
-  if (sub.lastReceivedAt) {
-    const days =
-      (Date.now() - new Date(sub.lastReceivedAt).getTime()) /
-      (1000 * 60 * 60 * 24);
-    if (days <= 2) recency = 5;
-    else if (days <= 7) recency = 3;
-    else if (days <= 30) recency = 1;
-  }
-
-  return Math.min(100, volume + recency);
-}
-
-/** Reverse of Job Radar match bands: high ≥80, mid ≥60, else low. */
-export type ClutterScoreTier = "high" | "mid" | "low";
-
-export function clutterScoreTier(score: number): ClutterScoreTier {
-  if (score >= 80) return "high";
-  if (score >= 60) return "mid";
-  return "low";
-}
-
-/**
- * Lightweight category inference from sender identity (no static columns).
- */
-export function inferSubscriptionCategory(
-  sub: CategoryInput
-): Exclude<SubscriptionCategoryFilter, "all"> {
-  const hay = `${sub.senderName ?? ""} ${sub.senderEmail}`.toLowerCase();
-  if (/\b(alert|notify|notification|security|otp|verify)\b/.test(hay)) {
-    return "alerts";
-  }
-  if (/\b(promo|deal|offer|sale|discount|coupon)\b/.test(hay)) {
-    return "promotions";
-  }
-  return "newsletters";
-}
-
-export function matchesSubscriptionSearch(
-  sub: CategoryInput,
-  query: string
-): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  return (
-    sub.senderEmail.toLowerCase().includes(q) ||
-    (sub.senderName?.toLowerCase().includes(q) ?? false)
-  );
-}
-
-export function compareSubscriptionsBySort(
-  a: ClutterInput & CategoryInput,
-  b: ClutterInput & CategoryInput,
-  sort: SubscriptionSortOption
-): number {
-  switch (sort) {
-    case "clutter_desc": {
-      const diff =
-        subscriptionClutterScore(b) - subscriptionClutterScore(a);
-      return diff !== 0
-        ? diff
-        : a.senderEmail.localeCompare(b.senderEmail);
-    }
-    case "freq_desc": {
-      const diff = b.emailCount - a.emailCount;
-      return diff !== 0
-        ? diff
-        : a.senderEmail.localeCompare(b.senderEmail);
-    }
-    case "freq_asc": {
-      const diff = a.emailCount - b.emailCount;
-      return diff !== 0
-        ? diff
-        : a.senderEmail.localeCompare(b.senderEmail);
-    }
-    case "alpha":
-    default:
-      return (
-        (a.senderName ?? a.senderEmail).localeCompare(
-          b.senderName ?? b.senderEmail
-        ) || a.senderEmail.localeCompare(b.senderEmail)
-      );
-  }
-}
-</file>
 
 <file path="app/actions/auth.ts">
 "use server";
@@ -1154,6 +456,121 @@ export function cleanEmailPayload(rawHtmlOrText: string): string {
 }
 </file>
 
+<file path="lib/gmail/message.ts">
+import type { gmail_v1 } from "googleapis";
+
+export type GmailMessagePreview = {
+  id: string;
+  subject: string;
+  from: string;
+  date: string;
+  htmlBody: string;
+  snippet: string;
+};
+
+function getHeader(
+  headers: gmail_v1.Schema$MessagePartHeader[] | undefined,
+  name: string
+): string {
+  const lower = name.toLowerCase();
+  return (
+    headers?.find((h) => (h.name ?? "").toLowerCase() === lower)?.value ?? ""
+  );
+}
+
+function decodeBase64Url(data: string): string {
+  const normalized = data.replace(/-/g, "+").replace(/_/g, "/");
+  return Buffer.from(normalized, "base64").toString("utf8");
+}
+
+function findPartByMime(
+  payload: gmail_v1.Schema$MessagePart | null | undefined,
+  mime: string
+): string | null {
+  if (!payload) return null;
+  if (payload.mimeType === mime && payload.body?.data) {
+    return decodeBase64Url(payload.body.data);
+  }
+  for (const part of payload.parts ?? []) {
+    const nested = findPartByMime(part, mime);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function plainTextToHtml(text: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8" /></head><body style="font-family:system-ui,sans-serif;font-size:14px;line-height:1.5;color:#111;padding:16px;white-space:pre-wrap;">${escapeHtml(text)}</body></html>`;
+}
+
+/**
+ * Fetch a full Gmail message and normalize preview fields for the UI.
+ */
+export async function fetchGmailMessagePreview(
+  gmail: gmail_v1.Gmail,
+  messageId: string
+): Promise<GmailMessagePreview> {
+  const message = await gmail.users.messages.get({
+    userId: "me",
+    id: messageId,
+    format: "full",
+  });
+
+  const headers = message.data.payload?.headers;
+  const subject = getHeader(headers, "Subject").trim() || "(No subject)";
+  const from = getHeader(headers, "From").trim() || "Unknown sender";
+  const dateHeader = getHeader(headers, "Date").trim();
+  const date =
+    dateHeader ||
+    (message.data.internalDate
+      ? new Date(Number(message.data.internalDate)).toISOString()
+      : "");
+
+  const html =
+    findPartByMime(message.data.payload, "text/html") ??
+    "";
+  const plain =
+    findPartByMime(message.data.payload, "text/plain") ??
+    "";
+  const snippet = message.data.snippet?.trim() ?? "";
+
+  const htmlBody =
+    html.trim() ||
+    (plain.trim() ? plainTextToHtml(plain) : plainTextToHtml(snippet || "(Empty message)"));
+
+  return {
+    id: messageId,
+    subject,
+    from,
+    date,
+    htmlBody,
+    snippet,
+  };
+}
+
+/**
+ * Resolve the most recent inbox message id from a sender email.
+ */
+export async function findLatestMessageIdFromSender(
+  gmail: gmail_v1.Gmail,
+  senderEmail: string
+): Promise<string | null> {
+  const listed = await gmail.users.messages.list({
+    userId: "me",
+    q: `from:${senderEmail} -in:trash -in:spam`,
+    maxResults: 1,
+  });
+  return listed.data.messages?.[0]?.id ?? null;
+}
+</file>
+
 <file path="lib/opportunities/cleanup.ts">
 import { prisma } from "@/lib/prisma";
 import { parseAccountRules } from "@/lib/validations/rules";
@@ -1447,6 +864,126 @@ export function sortJobApplications(
 }
 </file>
 
+<file path="lib/subscriptions/filters.ts">
+export type SubscriptionCategoryFilter =
+  | "all"
+  | "promotions"
+  | "newsletters"
+  | "alerts";
+
+export type SubscriptionSortOption =
+  | "clutter_desc"
+  | "freq_desc"
+  | "freq_asc"
+  | "alpha";
+
+type ClutterInput = {
+  emailCount: number;
+  lastReceivedAt?: Date | string | null;
+};
+
+type CategoryInput = {
+  senderName?: string | null;
+  senderEmail: string;
+};
+
+/**
+ * Derived clutter score (0–100) from tracked volume + recency.
+ * Higher emailCount / fresher lastReceivedAt → higher noise.
+ */
+export function subscriptionClutterScore(sub: ClutterInput): number {
+  const count = Math.max(0, sub.emailCount);
+  const volume = Math.min(
+    95,
+    Math.round((Math.log10(count + 1) / Math.log10(101)) * 95)
+  );
+
+  let recency = 0;
+  if (sub.lastReceivedAt) {
+    const days =
+      (Date.now() - new Date(sub.lastReceivedAt).getTime()) /
+      (1000 * 60 * 60 * 24);
+    if (days <= 2) recency = 5;
+    else if (days <= 7) recency = 3;
+    else if (days <= 30) recency = 1;
+  }
+
+  return Math.min(100, volume + recency);
+}
+
+/** Reverse of Job Radar match bands: high ≥80, mid ≥60, else low. */
+export type ClutterScoreTier = "high" | "mid" | "low";
+
+export function clutterScoreTier(score: number): ClutterScoreTier {
+  if (score >= 80) return "high";
+  if (score >= 60) return "mid";
+  return "low";
+}
+
+/**
+ * Lightweight category inference from sender identity (no static columns).
+ */
+export function inferSubscriptionCategory(
+  sub: CategoryInput
+): Exclude<SubscriptionCategoryFilter, "all"> {
+  const hay = `${sub.senderName ?? ""} ${sub.senderEmail}`.toLowerCase();
+  if (/\b(alert|notify|notification|security|otp|verify)\b/.test(hay)) {
+    return "alerts";
+  }
+  if (/\b(promo|deal|offer|sale|discount|coupon)\b/.test(hay)) {
+    return "promotions";
+  }
+  return "newsletters";
+}
+
+export function matchesSubscriptionSearch(
+  sub: CategoryInput,
+  query: string
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    sub.senderEmail.toLowerCase().includes(q) ||
+    (sub.senderName?.toLowerCase().includes(q) ?? false)
+  );
+}
+
+export function compareSubscriptionsBySort(
+  a: ClutterInput & CategoryInput,
+  b: ClutterInput & CategoryInput,
+  sort: SubscriptionSortOption
+): number {
+  switch (sort) {
+    case "clutter_desc": {
+      const diff =
+        subscriptionClutterScore(b) - subscriptionClutterScore(a);
+      return diff !== 0
+        ? diff
+        : a.senderEmail.localeCompare(b.senderEmail);
+    }
+    case "freq_desc": {
+      const diff = b.emailCount - a.emailCount;
+      return diff !== 0
+        ? diff
+        : a.senderEmail.localeCompare(b.senderEmail);
+    }
+    case "freq_asc": {
+      const diff = a.emailCount - b.emailCount;
+      return diff !== 0
+        ? diff
+        : a.senderEmail.localeCompare(b.senderEmail);
+    }
+    case "alpha":
+    default:
+      return (
+        (a.senderName ?? a.senderEmail).localeCompare(
+          b.senderName ?? b.senderEmail
+        ) || a.senderEmail.localeCompare(b.senderEmail)
+      );
+  }
+}
+</file>
+
 <file path="lib/utils/format.ts">
 /**
  * Shared display formatting for contact lines and URLs.
@@ -1484,6 +1021,36 @@ export function dedupeContactItems(
 
   return result;
 }
+</file>
+
+<file path="lib/app-content-center.ts">
+/**
+ * Shared horizontal centering for fixed overlays in the main column
+ * (between the desktop sidebar and the right viewport edge).
+ *
+ * `--app-sidebar-width` is set by AppShell (0 on mobile).
+ */
+
+/** CSS `left` calc for the content-column midpoint. */
+export const APP_CONTENT_CENTER_LEFT =
+  "calc(var(--app-sidebar-width, 0px) + (100vw - var(--app-sidebar-width, 0px)) / 2)";
+
+/**
+ * Global class (see `app/globals.css`) that sets `left` to
+ * {@link APP_CONTENT_CENTER_LEFT}. Pair with `-translate-x-1/2`.
+ */
+export const APP_CONTENT_CENTER_X_CLASS = "app-content-center-x";
+
+/**
+ * Inline styles for hosts that need specificity over injected CSS
+ * (e.g. Sonner). Sets left + translateX(-50%); do not use when you also
+ * need translateY.
+ */
+export const appContentCenterXStyle = {
+  left: APP_CONTENT_CENTER_LEFT,
+  right: "auto",
+  transform: "translateX(-50%)",
+} as const;
 </file>
 
 <file path="lib/auth.ts">
@@ -1815,42 +1382,6 @@ export function getCleanDomain(senderEmail: string): string | null {
  */
 export function faviconUrlForDomain(domain: string): string {
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
-}
-</file>
-
-<file path="lib/format-distance.ts">
-/**
- * Tiny relative-time formatter (no date-fns dependency).
- */
-export function formatDistanceToNow(
-  date: Date,
-  options?: { addSuffix?: boolean }
-): string {
-  const ms = Date.now() - date.getTime();
-  const seconds = Math.round(Math.abs(ms) / 1000);
-  const addSuffix = options?.addSuffix === true;
-  const future = ms < 0;
-
-  const format = (value: number, unit: string) => {
-    const label = `${value} ${unit}${value === 1 ? "" : "s"}`;
-    if (!addSuffix) return label;
-    return future ? `in ${label}` : `${label} ago`;
-  };
-
-  if (seconds < 45) return addSuffix ? (future ? "in moments" : "just now") : "0 seconds";
-  if (seconds < 90) return format(1, "minute");
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 45) return format(minutes, "minute");
-  if (minutes < 90) return format(1, "hour");
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return format(hours, "hour");
-  if (hours < 42) return format(1, "day");
-  const days = Math.round(hours / 24);
-  if (days < 30) return format(days, "day");
-  const months = Math.round(days / 30);
-  if (months < 12) return format(Math.max(1, months), "month");
-  const years = Math.round(days / 365);
-  return format(Math.max(1, years), "year");
 }
 </file>
 
@@ -3415,6 +2946,170 @@ export function parseApplicationEmail(
 }
 </file>
 
+<file path="lib/subscriptions/briefing-local.ts">
+/**
+ * Client-side archive of displaced briefings (DB keeps only the newest).
+ * Keyed per account → subscriptionId.
+ */
+
+export type LocalBriefingRecord = {
+  id: string;
+  /** Present on briefings created after subject persistence landed. */
+  subject?: string | null;
+  htmlPreview: string;
+  generatedAt: string;
+  senderEmails: string[];
+  subscriptionIds: string[];
+};
+
+function storageKey(accountId: string): string {
+  return `mailpilot_briefings_${accountId}`;
+}
+
+function readMap(accountId: string): Record<string, LocalBriefingRecord> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(storageKey(accountId));
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed as Record<string, LocalBriefingRecord>;
+  } catch {
+    return {};
+  }
+}
+
+function writeMap(
+  accountId: string,
+  map: Record<string, LocalBriefingRecord>
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (Object.keys(map).length === 0) {
+      localStorage.removeItem(storageKey(accountId));
+      return;
+    }
+    localStorage.setItem(storageKey(accountId), JSON.stringify(map));
+  } catch {
+    // Quota / private mode — ignore.
+  }
+}
+
+export function listLocalBriefings(
+  accountId: string
+): Record<string, LocalBriefingRecord> {
+  return readMap(accountId);
+}
+
+export function getLocalBriefing(
+  accountId: string,
+  subscriptionId: string
+): LocalBriefingRecord | null {
+  return readMap(accountId)[subscriptionId] ?? null;
+}
+
+/** Persist a displaced DB briefing onto each included subscription id. */
+export function migrateDisplacedBriefingToLocal(
+  accountId: string,
+  briefing: LocalBriefingRecord,
+  /** Subscription ids that should NOT keep a local copy (covered by the new DB row). */
+  skipSubscriptionIds: string[] = []
+): number {
+  const skip = new Set(skipSubscriptionIds);
+  const map = readMap(accountId);
+  let written = 0;
+  for (const subId of briefing.subscriptionIds) {
+    if (skip.has(subId)) continue;
+    map[subId] = {
+      id: briefing.id,
+      subject: briefing.subject ?? null,
+      htmlPreview: briefing.htmlPreview,
+      generatedAt: briefing.generatedAt,
+      senderEmails: briefing.senderEmails,
+      subscriptionIds: briefing.subscriptionIds,
+    };
+    written += 1;
+  }
+  writeMap(accountId, map);
+  return written;
+}
+
+/** Drop local copies for subscriptions now covered by the DB briefing. */
+export function clearLocalBriefingsForSubscriptions(
+  accountId: string,
+  subscriptionIds: string[]
+): number {
+  const map = readMap(accountId);
+  let removed = 0;
+  for (const id of subscriptionIds) {
+    if (map[id]) {
+      delete map[id];
+      removed += 1;
+    }
+  }
+  writeMap(accountId, map);
+  return removed;
+}
+
+export function deleteLocalBriefings(
+  accountId: string,
+  subscriptionIds: string[]
+): number {
+  return clearLocalBriefingsForSubscriptions(accountId, subscriptionIds);
+}
+</file>
+
+<file path="lib/subscriptions/digest-constants.ts">
+/** Client-safe briefing/digest constants (no Node / googleapis imports). */
+
+export const MAX_BRIEFING_DAYS = 10;
+
+export type DateRangeValue = {
+  from: Date | undefined;
+  to: Date | undefined;
+};
+
+/** Inclusive day span between two local calendar dates. */
+export function inclusiveDaySpan(from: Date, to: Date): number {
+  const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+  const ms = end.getTime() - start.getTime();
+  return Math.floor(ms / (1000 * 60 * 60 * 24)) + 1;
+}
+
+export function isValidBriefingRange(
+  from: Date | undefined,
+  to: Date | undefined
+): boolean {
+  if (!from || !to) return false;
+  const span = inclusiveDaySpan(from, to);
+  return span >= 1 && span <= MAX_BRIEFING_DAYS;
+}
+
+/**
+ * Inject overflow guards so stored briefing HTML fits the preview iframe
+ * without horizontal scroll (covers briefings created before layout fixes).
+ */
+export function constrainBriefingPreviewHtml(html: string): string {
+  // Avoid word-break on all td/span — that collapses "In this snapshot" to one
+  // letter per line when the hairline cell is width:100% in a fixed table.
+  const guard =
+    '<style id="mp-preview-fit">html,body{max-width:100%!important;overflow-x:hidden!important;width:100%!important;}img,table{max-width:100%!important;}.mp-break,h3,p{overflow-wrap:anywhere;word-break:break-word;}</style>';
+  // Always re-inject so older aggressive guards get replaced.
+  const withoutOld = html.replace(
+    /<style id="mp-preview-fit">[\s\S]*?<\/style>/gi,
+    ""
+  );
+  if (withoutOld.includes("</head>")) {
+    return withoutOld.replace("</head>", `${guard}</head>`);
+  }
+  if (/<body[\s>]/i.test(withoutOld)) {
+    return withoutOld.replace(/<body([^>]*)>/i, `<body$1>${guard}`);
+  }
+  return `${guard}${withoutOld}`;
+}
+</file>
+
 <file path="lib/application-method.ts">
 import type { ApplicationMethod } from "@/lib/validations/profile";
 
@@ -3735,6 +3430,43 @@ export function isEngineeringSenderTitle(title?: string | null): boolean {
 }
 </file>
 
+<file path="lib/format-distance.ts">
+/**
+ * Tiny relative-time formatter (no date-fns dependency).
+ * Short units: s, m, h, d, mo, y.
+ */
+export function formatDistanceToNow(
+  date: Date,
+  options?: { addSuffix?: boolean }
+): string {
+  const ms = Date.now() - date.getTime();
+  const seconds = Math.round(Math.abs(ms) / 1000);
+  const addSuffix = options?.addSuffix === true;
+  const future = ms < 0;
+
+  const format = (value: number, unit: string) => {
+    const label = `${value}${unit}`;
+    if (!addSuffix) return label;
+    return future ? `in ${label}` : `${label} ago`;
+  };
+
+  if (seconds < 45) return format(Math.max(1, seconds), "s");
+  if (seconds < 90) return format(1, "m");
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 45) return format(minutes, "m");
+  if (minutes < 90) return format(1, "h");
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return format(hours, "h");
+  if (hours < 42) return format(1, "d");
+  const days = Math.round(hours / 24);
+  if (days < 30) return format(days, "d");
+  const months = Math.round(days / 30);
+  if (months < 12) return format(Math.max(1, months), "mo");
+  const years = Math.round(days / 365);
+  return format(Math.max(1, years), "y");
+}
+</file>
+
 <file path="lib/persistent-profile.ts">
 import { createHash } from "crypto";
 import type { Account, PermanentSettings, PersistentProfile } from "@prisma/client";
@@ -3915,46 +3647,6 @@ export async function recordSubscriptionHistory(input: {
       status: input.status,
     },
   });
-}
-</file>
-
-<file path="lib/prisma.ts">
-import { PrismaClient } from "@prisma/client";
-
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-/**
- * Returns true when the cached client predates newer schema models
- * and must be replaced after `prisma generate`.
- */
-function isStalePrismaClient(client: PrismaClient | undefined): boolean {
-  if (!client) return true;
-  const c = client as {
-    persistentProfile?: unknown;
-    subscriptionBriefing?: unknown;
-  };
-  return (
-    typeof c.persistentProfile === "undefined" ||
-    typeof c.subscriptionBriefing === "undefined"
-  );
-}
-
-function createPrismaClient(): PrismaClient {
-  return new PrismaClient();
-}
-
-const cached = globalForPrisma.prisma;
-if (cached && isStalePrismaClient(cached)) {
-  void cached.$disconnect().catch(() => undefined);
-  globalForPrisma.prisma = undefined;
-}
-
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
 }
 </file>
 
@@ -4500,240 +4192,43 @@ export async function generateTailoredResumePdf(
 }
 </file>
 
-<file path="app/actions/subscriptions.ts">
-"use server";
+<file path="lib/prisma.ts">
+import { PrismaClient } from "@prisma/client";
 
-import { revalidatePath } from "next/cache";
-import { z } from "zod";
-
-import { getGmailClientForAccount } from "@/lib/google";
-import {
-  InsufficientScopeError,
-  REAUTH_REQUIRED_MESSAGE,
-  isInsufficientScopeError,
-} from "@/lib/google";
-import {
-  ensurePersistentProfileForAccount,
-  recordSubscriptionHistory,
-} from "@/lib/persistent-profile";
-import { prisma } from "@/lib/prisma";
-import {
-  cleanupSenderMessages,
-  executeUnsubscribe,
-  type CleanupAction,
-} from "@/lib/unsubscribe";
-
-export type ActionResult<T = undefined> =
-  | { ok: true; data?: T }
-  | { ok: false; error: string };
-
-const cleanupActionSchema = z.enum(["NONE", "TRASH", "ARCHIVE"]);
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
 
 /**
- * Runs the unsubscribe chain for a stored subscription and optional cleanup.
+ * Returns true when the cached client predates newer schema models
+ * and must be replaced after `prisma generate`.
  */
-export async function unsubscribeSender(
-  subscriptionId: string,
-  cleanupAction: CleanupAction
-): Promise<ActionResult<{ method: string; cleaned?: number }>> {
-  const parsedCleanup = cleanupActionSchema.safeParse(cleanupAction);
-  if (!parsedCleanup.success) {
-    return { ok: false, error: "Invalid cleanup action" };
-  }
-
-  const subscription = await prisma.subscription.findUnique({
-    where: { id: subscriptionId },
-    include: { account: true },
-  });
-
-  if (!subscription) {
-    return { ok: false, error: "Subscription not found" };
-  }
-
-  if (!subscription.account.isActive || !subscription.account.encryptedAccess) {
-    return { ok: false, error: "Account credentials are not linked" };
-  }
-
-  try {
-    const gmail = await getGmailClientForAccount(subscription.account);
-    const result = await executeUnsubscribe(
-      gmail,
-      subscription,
-      parsedCleanup.data
-    );
-
-    const unsubOk = result.unsub.ok;
-    const cleanupRequested = parsedCleanup.data !== "NONE";
-    const cleanupOk = !cleanupRequested || result.cleanupOk;
-
-    // Decoupled status: FAILED only when both sides fail (or unsub fails with no cleanup).
-    const bothFailed = !unsubOk && !cleanupOk;
-    const status = bothFailed ? "FAILED" : "UNSUBSCRIBED";
-    const lastError = bothFailed
-      ? [result.unsub.detail, result.cleanupError].filter(Boolean).join(" | ") ||
-        "Unsubscribe failed"
-      : !unsubOk
-        ? result.unsub.detail ?? "Unsubscribe link rejected (messages still cleaned)"
-        : !cleanupOk
-          ? result.cleanupError
-          : null;
-
-    await prisma.subscription.update({
-      where: { id: subscriptionId },
-      data: {
-        status,
-        lastError,
-      },
-    });
-
-    if (status === "UNSUBSCRIBED") {
-      const profile = await ensurePersistentProfileForAccount(
-        subscription.account
-      );
-      await recordSubscriptionHistory({
-        userProfileId: profile.id,
-        senderEmail: subscription.senderEmail,
-        senderName: subscription.senderName,
-        status: "UNSUBSCRIBED",
-      });
-    }
-
-    revalidatePath("/subscriptions");
-    revalidatePath("/");
-
-    if (bothFailed) {
-      return {
-        ok: false,
-        error: lastError ?? "Unsubscribe request failed",
-      };
-    }
-
-    return {
-      ok: true,
-      data: {
-        method: result.unsub.usedGetFallback
-          ? `${result.unsub.method}_FALLBACK`
-          : result.unsub.method,
-        cleaned: result.cleanedCount,
-      },
-    };
-  } catch (error) {
-    console.error("unsubscribeSender failed", error);
-
-    await prisma.subscription.update({
-      where: { id: subscriptionId },
-      data: {
-        status: "FAILED",
-        lastError:
-          error instanceof Error ? error.message : "Unsubscribe failed",
-      },
-    });
-
-    if (
-      error instanceof InsufficientScopeError ||
-      isInsufficientScopeError(error)
-    ) {
-      return { ok: false, error: REAUTH_REQUIRED_MESSAGE };
-    }
-
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Unsubscribe failed",
-    };
-  }
+function isStalePrismaClient(client: PrismaClient | undefined): boolean {
+  if (!client) return true;
+  const c = client as {
+    persistentProfile?: unknown;
+    subscriptionBriefing?: unknown;
+  };
+  return (
+    typeof c.persistentProfile === "undefined" ||
+    typeof c.subscriptionBriefing === "undefined"
+  );
 }
 
-/**
- * Second-chance cleanup: trash past emails from an already-unsubscribed sender.
- * Uses gmail.modify-compatible trash (batchModify TRASH label), not permanent batchDelete.
- */
-export async function batchCleanupSender(
-  accountId: string,
-  senderEmail: string
-): Promise<ActionResult<{ cleaned: number }>> {
-  const parsed = z
-    .object({
-      accountId: z.string().min(1),
-      senderEmail: z.string().email().or(z.string().min(3)),
-    })
-    .safeParse({ accountId, senderEmail });
+function createPrismaClient(): PrismaClient {
+  return new PrismaClient();
+}
 
-  if (!parsed.success) {
-    return { ok: false, error: "Invalid account or sender email" };
-  }
+const cached = globalForPrisma.prisma;
+if (cached && isStalePrismaClient(cached)) {
+  void cached.$disconnect().catch(() => undefined);
+  globalForPrisma.prisma = undefined;
+}
 
-  const account = await prisma.account.findUnique({
-    where: { id: parsed.data.accountId },
-  });
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
-  if (!account || !account.isActive || !account.encryptedAccess) {
-    return { ok: false, error: "Account credentials are not linked" };
-  }
-
-  const normalizedSender = parsed.data.senderEmail.toLowerCase();
-
-  const subscription = await prisma.subscription.findUnique({
-    where: {
-      accountId_senderEmail: {
-        accountId: account.id,
-        senderEmail: normalizedSender,
-      },
-    },
-  });
-
-  const profile = await ensurePersistentProfileForAccount(account);
-  const history = await prisma.subscriptionHistory.findUnique({
-    where: {
-      userProfileId_senderEmail: {
-        userProfileId: profile.id,
-        senderEmail: normalizedSender,
-      },
-    },
-  });
-
-  const isArchived =
-    subscription?.status === "UNSUBSCRIBED" ||
-    history?.status === "UNSUBSCRIBED";
-
-  if (!isArchived) {
-    return {
-      ok: false,
-      error:
-        "Sender is not in the Unsubscribed Archive. Unsubscribe first, then use second-chance cleanup.",
-    };
-  }
-
-  try {
-    const gmail = await getGmailClientForAccount(account);
-    const cleaned = await cleanupSenderMessages(
-      gmail,
-      normalizedSender,
-      "TRASH"
-    );
-
-    await recordSubscriptionHistory({
-      userProfileId: profile.id,
-      senderEmail: normalizedSender,
-      senderName: subscription?.senderName ?? history?.senderName,
-      status: "UNSUBSCRIBED",
-    });
-
-    revalidatePath("/subscriptions");
-    return { ok: true, data: { cleaned } };
-  } catch (error) {
-    console.error("batchCleanupSender failed", error);
-    if (
-      error instanceof InsufficientScopeError ||
-      isInsufficientScopeError(error)
-    ) {
-      return { ok: false, error: REAUTH_REQUIRED_MESSAGE };
-    }
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "Batch cleanup failed",
-    };
-  }
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
 }
 </file>
 
@@ -6765,6 +6260,1326 @@ export async function syncInboxOpportunities(
 }
 </file>
 
+<file path="app/actions/subscriptions.ts">
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+import { getGmailClientForAccount } from "@/lib/google";
+import {
+  InsufficientScopeError,
+  REAUTH_REQUIRED_MESSAGE,
+  isInsufficientScopeError,
+} from "@/lib/google";
+import {
+  ensurePersistentProfileForAccount,
+  recordSubscriptionHistory,
+} from "@/lib/persistent-profile";
+import { prisma } from "@/lib/prisma";
+import {
+  cleanupSenderMessages,
+  executeUnsubscribe,
+  type CleanupAction,
+} from "@/lib/unsubscribe";
+
+export type ActionResult<T = undefined> =
+  | { ok: true; data?: T }
+  | { ok: false; error: string };
+
+const cleanupActionSchema = z.enum(["NONE", "TRASH", "ARCHIVE"]);
+
+/**
+ * Runs the unsubscribe chain for a stored subscription and optional cleanup.
+ */
+export async function unsubscribeSender(
+  subscriptionId: string,
+  cleanupAction: CleanupAction
+): Promise<ActionResult<{ method: string; cleaned?: number }>> {
+  const parsedCleanup = cleanupActionSchema.safeParse(cleanupAction);
+  if (!parsedCleanup.success) {
+    return { ok: false, error: "Invalid cleanup action" };
+  }
+
+  const subscription = await prisma.subscription.findUnique({
+    where: { id: subscriptionId },
+    include: { account: true },
+  });
+
+  if (!subscription) {
+    return { ok: false, error: "Subscription not found" };
+  }
+
+  if (!subscription.account.isActive || !subscription.account.encryptedAccess) {
+    return { ok: false, error: "Account credentials are not linked" };
+  }
+
+  try {
+    const gmail = await getGmailClientForAccount(subscription.account);
+    const result = await executeUnsubscribe(
+      gmail,
+      subscription,
+      parsedCleanup.data
+    );
+
+    const unsubOk = result.unsub.ok;
+    const cleanupRequested = parsedCleanup.data !== "NONE";
+    const cleanupOk = !cleanupRequested || result.cleanupOk;
+
+    // Decoupled status: FAILED only when both sides fail (or unsub fails with no cleanup).
+    const bothFailed = !unsubOk && !cleanupOk;
+    const status = bothFailed ? "FAILED" : "UNSUBSCRIBED";
+    const lastError = bothFailed
+      ? [result.unsub.detail, result.cleanupError].filter(Boolean).join(" | ") ||
+        "Unsubscribe failed"
+      : !unsubOk
+        ? result.unsub.detail ?? "Unsubscribe link rejected (messages still cleaned)"
+        : !cleanupOk
+          ? result.cleanupError
+          : null;
+
+    await prisma.subscription.update({
+      where: { id: subscriptionId },
+      data: {
+        status,
+        lastError,
+      },
+    });
+
+    if (status === "UNSUBSCRIBED") {
+      const profile = await ensurePersistentProfileForAccount(
+        subscription.account
+      );
+      await recordSubscriptionHistory({
+        userProfileId: profile.id,
+        senderEmail: subscription.senderEmail,
+        senderName: subscription.senderName,
+        status: "UNSUBSCRIBED",
+      });
+    }
+
+    revalidatePath("/subscriptions");
+    revalidatePath("/");
+
+    if (bothFailed) {
+      return {
+        ok: false,
+        error: lastError ?? "Unsubscribe request failed",
+      };
+    }
+
+    return {
+      ok: true,
+      data: {
+        method: result.unsub.usedGetFallback
+          ? `${result.unsub.method}_FALLBACK`
+          : result.unsub.method,
+        cleaned: result.cleanedCount,
+      },
+    };
+  } catch (error) {
+    console.error("unsubscribeSender failed", error);
+
+    await prisma.subscription.update({
+      where: { id: subscriptionId },
+      data: {
+        status: "FAILED",
+        lastError:
+          error instanceof Error ? error.message : "Unsubscribe failed",
+      },
+    });
+
+    if (
+      error instanceof InsufficientScopeError ||
+      isInsufficientScopeError(error)
+    ) {
+      return { ok: false, error: REAUTH_REQUIRED_MESSAGE };
+    }
+
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Unsubscribe failed",
+    };
+  }
+}
+
+/**
+ * Second-chance cleanup: trash past emails from an already-unsubscribed sender.
+ * Uses gmail.modify-compatible trash (batchModify TRASH label), not permanent batchDelete.
+ */
+export async function batchCleanupSender(
+  accountId: string,
+  senderEmail: string
+): Promise<ActionResult<{ cleaned: number }>> {
+  const parsed = z
+    .object({
+      accountId: z.string().min(1),
+      senderEmail: z.string().email().or(z.string().min(3)),
+    })
+    .safeParse({ accountId, senderEmail });
+
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid account or sender email" };
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: parsed.data.accountId },
+  });
+
+  if (!account || !account.isActive || !account.encryptedAccess) {
+    return { ok: false, error: "Account credentials are not linked" };
+  }
+
+  const normalizedSender = parsed.data.senderEmail.toLowerCase();
+
+  const subscription = await prisma.subscription.findUnique({
+    where: {
+      accountId_senderEmail: {
+        accountId: account.id,
+        senderEmail: normalizedSender,
+      },
+    },
+  });
+
+  const profile = await ensurePersistentProfileForAccount(account);
+  const history = await prisma.subscriptionHistory.findUnique({
+    where: {
+      userProfileId_senderEmail: {
+        userProfileId: profile.id,
+        senderEmail: normalizedSender,
+      },
+    },
+  });
+
+  const isArchived =
+    subscription?.status === "UNSUBSCRIBED" ||
+    history?.status === "UNSUBSCRIBED";
+
+  if (!isArchived) {
+    return {
+      ok: false,
+      error:
+        "Sender is not in the Unsubscribed Archive. Unsubscribe first, then use second-chance cleanup.",
+    };
+  }
+
+  try {
+    const gmail = await getGmailClientForAccount(account);
+    const cleaned = await cleanupSenderMessages(
+      gmail,
+      normalizedSender,
+      "TRASH"
+    );
+
+    await recordSubscriptionHistory({
+      userProfileId: profile.id,
+      senderEmail: normalizedSender,
+      senderName: subscription?.senderName ?? history?.senderName,
+      status: "UNSUBSCRIBED",
+    });
+
+    revalidatePath("/subscriptions");
+    return { ok: true, data: { cleaned } };
+  } catch (error) {
+    console.error("batchCleanupSender failed", error);
+    if (
+      error instanceof InsufficientScopeError ||
+      isInsufficientScopeError(error)
+    ) {
+      return { ok: false, error: REAUTH_REQUIRED_MESSAGE };
+    }
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Batch cleanup failed",
+    };
+  }
+}
+
+/**
+ * Permanently removes an unsubscribed sender from Subscription + SubscriptionHistory
+ * so it no longer appears on the Unsubscribed tab. Does not touch Gmail mail.
+ */
+export async function deleteUnsubscribedRecord(
+  accountId: string,
+  senderEmail: string
+): Promise<ActionResult> {
+  const parsed = z
+    .object({
+      accountId: z.string().min(1),
+      senderEmail: z.string().email().or(z.string().min(3)),
+    })
+    .safeParse({ accountId, senderEmail });
+
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid account or sender email" };
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: parsed.data.accountId },
+  });
+
+  if (!account) {
+    return { ok: false, error: "Account not found" };
+  }
+
+  const normalizedSender = parsed.data.senderEmail.toLowerCase();
+
+  const subscription = await prisma.subscription.findUnique({
+    where: {
+      accountId_senderEmail: {
+        accountId: account.id,
+        senderEmail: normalizedSender,
+      },
+    },
+  });
+
+  if (subscription && subscription.status !== "UNSUBSCRIBED") {
+    return {
+      ok: false,
+      error: "Only unsubscribed records can be deleted from the archive.",
+    };
+  }
+
+  const profile = await ensurePersistentProfileForAccount(account);
+  const history = await prisma.subscriptionHistory.findUnique({
+    where: {
+      userProfileId_senderEmail: {
+        userProfileId: profile.id,
+        senderEmail: normalizedSender,
+      },
+    },
+  });
+
+  if (!subscription && !history) {
+    return { ok: false, error: "Record not found" };
+  }
+
+  if (history && history.status !== "UNSUBSCRIBED") {
+    return {
+      ok: false,
+      error: "Only unsubscribed records can be deleted from the archive.",
+    };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (subscription?.status === "UNSUBSCRIBED") {
+        await tx.subscription.delete({ where: { id: subscription.id } });
+      }
+      if (history?.status === "UNSUBSCRIBED") {
+        await tx.subscriptionHistory.delete({ where: { id: history.id } });
+      }
+    });
+
+    revalidatePath("/subscriptions");
+    revalidatePath("/");
+    return { ok: true };
+  } catch (error) {
+    console.error("deleteUnsubscribedRecord failed", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to delete record",
+    };
+  }
+}
+</file>
+
+<file path="lib/subscriptions/digest.ts">
+import { readFileSync } from "fs";
+import { join } from "path";
+
+import type { gmail_v1 } from "googleapis";
+
+import { faviconUrlForDomain, getCleanDomain } from "@/lib/domain";
+import { rethrowIfInsufficientScope } from "@/lib/google";
+import { extractMessageBody, sanitizeEmailBody } from "@/lib/llm";
+import { prisma } from "@/lib/prisma";
+import { MAX_BRIEFING_DAYS } from "@/lib/subscriptions/digest-constants";
+import { subscriptionClutterScore } from "@/lib/subscriptions/filters";
+
+const BRAND_FONT_FILE =
+  "fonts/DupletRounded-Bold-BF6606345a47d2e.woff2";
+const BRAND_LOGO_FILE = "logos/transparent-logo-only.png";
+
+let cachedBrandFontDataUri: string | null = null;
+let cachedBrandLogoDataUri: string | null = null;
+
+/** Inline woff2 so preview iframes / undeployed prod URLs still render Duplet. */
+function getBrandFontDataUri(): string {
+  if (cachedBrandFontDataUri) return cachedBrandFontDataUri;
+  const abs = join(process.cwd(), "public", BRAND_FONT_FILE);
+  const buf = readFileSync(abs);
+  cachedBrandFontDataUri = `data:font/woff2;base64,${buf.toString("base64")}`;
+  return cachedBrandFontDataUri;
+}
+
+/** Inline local mark so briefing HTML always uses public/logos/transparent-logo-only.png. */
+function getBrandLogoDataUri(): string {
+  if (cachedBrandLogoDataUri) return cachedBrandLogoDataUri;
+  const abs = join(process.cwd(), "public", BRAND_LOGO_FILE);
+  const buf = readFileSync(abs);
+  cachedBrandLogoDataUri = `data:image/png;base64,${buf.toString("base64")}`;
+  return cachedBrandLogoDataUri;
+}
+
+export const MAX_BRIEFING_MESSAGES = 40;
+
+export type DigestCard = {
+  id: string;
+  from: string;
+  fromEmail: string;
+  subject: string;
+  summary: string;
+  heroImageUrl: string | null;
+  primaryLink: string | null;
+  receivedAt: Date | null;
+};
+
+export type DigestBriefingSnapshot = {
+  id: string;
+  subject: string | null;
+  htmlPreview: string;
+  generatedAt: string;
+  senderEmails: string[];
+  subscriptionIds: string[];
+};
+
+export type DigestResult = {
+  success: true;
+  processedCount: number;
+  digestSentTo: string;
+  briefing: DigestBriefingSnapshot;
+  /** Previous DB briefing displaced to client localStorage (if any). */
+  displacedBriefing: DigestBriefingSnapshot | null;
+};
+
+function encodeRawMessage(raw: string): string {
+  return Buffer.from(raw)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+function getHeader(
+  headers: gmail_v1.Schema$MessagePartHeader[] | undefined,
+  name: string
+): string {
+  const lower = name.toLowerCase();
+  return (
+    headers?.find((h) => (h.name ?? "").toLowerCase() === lower)?.value ?? ""
+  );
+}
+
+function toGmailDate(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}/${m}/${day}`;
+}
+
+/** Normalize to UTC midnight for Gmail day queries. */
+function startOfUtcDay(d: Date): Date {
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  );
+}
+
+function gmailFromClause(email: string): string {
+  // Quote addresses so +aliases / dots are matched literally.
+  const safe = email.replace(/"/g, "");
+  return `from:"${safe}"`;
+}
+
+export function buildBriefingSearchQuery(
+  senderEmails: string[],
+  rangeStart: Date,
+  rangeEnd: Date
+): string {
+  const fromClause = senderEmails.map(gmailFromClause).join(" OR ");
+  const start = startOfUtcDay(rangeStart);
+  const endExclusive = startOfUtcDay(rangeEnd);
+  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+  return `(${fromClause}) after:${toGmailDate(start)} before:${toGmailDate(endExclusive)} -in:trash -in:spam`;
+}
+
+function decodeBase64Url(data: string): string {
+  const normalized = data.replace(/-/g, "+").replace(/_/g, "/");
+  return Buffer.from(normalized, "base64").toString("utf8");
+}
+
+function findHtmlPart(
+  payload: gmail_v1.Schema$MessagePart | null | undefined
+): string | null {
+  if (!payload) return null;
+  if (payload.mimeType === "text/html" && payload.body?.data) {
+    return decodeBase64Url(payload.body.data);
+  }
+  for (const part of payload.parts ?? []) {
+    const nested = findHtmlPart(part);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+/** Explicit width below this is treated as icon/avatar, not a preview image. */
+const MIN_PREVIEW_WIDTH_PX = 120;
+
+function resolveAppUrl(): string {
+  const fromEnv =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.NEXTAUTH_URL?.trim() ||
+    process.env.APP_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/+$/, "");
+  if (process.env.VERCEL_URL?.trim()) {
+    return `https://${process.env.VERCEL_URL.trim().replace(/\/+$/, "")}`;
+  }
+  return "https://mailpilot-prod.vercel.app";
+}
+
+/** RFC 2047 encoded-word so · and – survive MIME transport. */
+export function encodeMimeSubject(str: string): string {
+  return `=?UTF-8?B?${Buffer.from(str, "utf-8").toString("base64")}?=`;
+}
+
+function parseHtmlDimension(attrs: string, name: "width" | "height"): number | null {
+  const match = attrs.match(
+    new RegExp(`\\b${name}\\s*=\\s*["']?(\\d+(?:\\.\\d+)?)(px)?["']?`, "i")
+  );
+  if (!match?.[1]) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : null;
+}
+
+/** Reject trackers, avatars, badges, and explicitly small images. */
+function isRejectedHeroImage(url: string, attrs: string): boolean {
+  const lowerUrl = url.toLowerCase();
+  const lowerAttrs = attrs.toLowerCase();
+  const hay = `${lowerUrl} ${lowerAttrs}`;
+
+  if (
+    lowerUrl.includes("avatars.githubusercontent.com") ||
+    lowerUrl.includes("gravatar.com") ||
+    lowerUrl.includes("www.gravatar.com") ||
+    /\/avatar\b/.test(lowerUrl) ||
+    /profile[-_]?pic|user[-_]?icon|emoji|badge|shields\.io|img\.shields/.test(
+      hay
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    /pixel|track|beacon|spacer|open\.|click\.|list-manage|doubleclick|facebook\.com\/tr|google-analytics|googletagmanager/.test(
+      hay
+    )
+  ) {
+    return true;
+  }
+
+  const width = parseHtmlDimension(attrs, "width");
+  const height = parseHtmlDimension(attrs, "height");
+  if (width != null && width < MIN_PREVIEW_WIDTH_PX) return true;
+  // Tall-skinny icons / 1px trackers
+  if (height != null && height > 0 && height <= 48 && (width == null || width <= 96)) {
+    return true;
+  }
+  if (width === 1 || height === 1) return true;
+
+  return false;
+}
+
+export function extractHeroImageUrl(html: string): string | null {
+  const re = /<img\b([^>]*?)>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(html)) !== null) {
+    const attrs = match[1] ?? "";
+    const src =
+      attrs.match(/\bsrc=["'](https?:\/\/[^"']+)["']/i)?.[1] ??
+      attrs.match(/\bsrc=(https?:\/\/\S+)/i)?.[1];
+    if (!src || isRejectedHeroImage(src, attrs)) continue;
+    return src;
+  }
+  return null;
+}
+
+function extractPrimaryLink(html: string): string | null {
+  const re = /<a\b([^>]*?)>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(html)) !== null) {
+    const attrs = match[1] ?? "";
+    const href =
+      attrs.match(/\bhref=["'](https?:\/\/[^"']+)["']/i)?.[1] ?? null;
+    if (!href) continue;
+    const lower = href.toLowerCase();
+    if (
+      lower.includes("unsubscribe") ||
+      lower.includes("mailto:") ||
+      lower.includes("list-manage") ||
+      lower.endsWith("#")
+    ) {
+      continue;
+    }
+    return href;
+  }
+  return null;
+}
+
+/** Context-aware CTA copy for the primary action link. */
+export function actionLinkLabel(url: string | null): string {
+  if (!url) return "Open Update →";
+  const lower = url.toLowerCase();
+  if (/github\.com\/[^/]+\/[^/]+\/pull\//.test(lower)) {
+    return "View Pull Request →";
+  }
+  if (/github\.com\/[^/]+\/[^/]+\/issues\//.test(lower)) {
+    return "View on GitHub →";
+  }
+  if (lower.includes("github.com")) {
+    return "View on GitHub →";
+  }
+  if (
+    /linkedin\.com\/jobs|jobs\.|greenhouse\.io|lever\.co|ashbyhq\.com|wellfound\.com|indeed\.com|boards\.|careers\./.test(
+      lower
+    )
+  ) {
+    return "View Opportunity →";
+  }
+  if (
+    /substack\.com|medium\.com|newsletter|blog|ghost\.io|beehiiv\.com|convertkit/.test(
+      lower
+    )
+  ) {
+    return "Read Post →";
+  }
+  return "Open Update →";
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function parseFromEmail(fromRaw: string): { name: string; email: string } {
+  const match = fromRaw.match(/^(?:"?([^"<]*)"?\s*)?<([^>]+)>$/);
+  if (match?.[2]) {
+    return {
+      name: (match[1] ?? "").trim() || match[2].trim(),
+      email: match[2].trim().toLowerCase(),
+    };
+  }
+  const email = fromRaw.replace(/[<>]/g, "").trim().toLowerCase();
+  return { name: email, email };
+}
+
+/** Strip tracking chrome / bot boilerplate / leaked URLs before summarizing. */
+export function cleanDigestSummaryText(raw: string): string {
+  let text = raw
+    .replace(/data:[a-z0-9+.-]+\/[a-z0-9+.-]+;base64,[a-z0-9+/=\s]+/gi, " ")
+    .replace(/\[[^\]]{0,12}\]:\s*#[0-9a-f]{6,}\b/gi, " ")
+    .replace(/\{?\s*"?[a-f0-9]{32,}"?\s*\}?/gi, " ")
+    // Bare tracker / click / http(s) URLs must never leak into visible copy.
+    .replace(/https?:\/\/[^\s<>"')\]]+/gi, " ")
+    .replace(/\bwww\.[^\s<>"')\]]+/gi, " ")
+    .replace(
+      /reply to this email directly or view it on github:?\s*/gi,
+      " "
+    )
+    .replace(/you(?:'|’)re receiving this because[^.]*\.?/gi, " ")
+    .replace(/unsubscribe from this list[^.]*\.?/gi, " ")
+    .replace(/view this (?:email|message) in (?:your )?browser[^.]*\.?/gi, " ")
+    .replace(/manage (?:your )?notification(?:s)?[^.]*\.?/gi, " ")
+    .replace(/this is an automated (?:message|notification)[^.]*\.?/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return text;
+}
+
+/** Truncate at a sentence or word boundary (never mid-word). */
+export function truncateSummary(text: string, maxLen = 240): string {
+  const cleaned = text.trim();
+  if (cleaned.length <= maxLen) return cleaned;
+
+  const window = cleaned.slice(0, maxLen + 1);
+  const sentenceEnd = Math.max(
+    window.lastIndexOf(". "),
+    window.lastIndexOf("! "),
+    window.lastIndexOf("? ")
+  );
+  if (sentenceEnd >= Math.floor(maxLen * 0.55)) {
+    return cleaned.slice(0, sentenceEnd + 1).trim();
+  }
+
+  const wordEnd = window.lastIndexOf(" ");
+  const cut = wordEnd > 40 ? wordEnd : maxLen;
+  return `${cleaned.slice(0, cut).trim()}…`;
+}
+
+function formatReceivedAt(date: Date | null): string {
+  if (!date) return "";
+  try {
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function formatSenderList(cards: DigestCard[]): string {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const card of cards) {
+    const key = card.fromEmail.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const label =
+      card.from && !card.from.includes("@") ? card.from : card.fromEmail;
+    names.push(label);
+  }
+  if (names.length === 0) return "your subscriptions";
+  if (names.length === 1) return names[0]!;
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+
+function senderInitials(name: string): string {
+  const words = name.trim().split(/[\s._-]+/).filter(Boolean);
+  if (words.length >= 2) {
+    return `${words[0]![0] ?? ""}${words[1]![0] ?? ""}`.toUpperCase();
+  }
+  return name.trim().slice(0, 2).toUpperCase() || "MP";
+}
+
+function renderSenderChip(card: DigestCard): string {
+  const name =
+    card.from && !card.from.includes("@") ? card.from : card.fromEmail;
+  const domain = getCleanDomain(card.fromEmail);
+  const logoUrl = domain ? faviconUrlForDomain(domain) : null;
+  const mark = logoUrl
+    ? `<img src="${escapeHtml(logoUrl)}" alt="" width="36" height="36" style="display:block;width:36px;height:36px;border:0;border-radius:12px;object-fit:cover;" />`
+    : `<div style="width:36px;height:36px;line-height:36px;text-align:center;font-size:12px;font-weight:700;color:#0F766E;background:#CCFBF1;border-radius:12px;">${escapeHtml(senderInitials(name))}</div>`;
+
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:100%;margin:0 0 14px 0;table-layout:fixed;">
+      <tr>
+        <td valign="middle" width="36" height="36" style="width:36px;height:36px;border-radius:12px;overflow:hidden;background:#F0FDFA;border:1px solid #E2E8F0;">
+          ${mark}
+        </td>
+        <td valign="middle" class="mp-break" style="padding-left:10px;min-width:0;">
+          <p class="mp-break" style="margin:0;font-size:13px;line-height:1.25;font-weight:600;color:#0F172A;">${escapeHtml(name)}</p>
+          <p class="mp-break" style="margin:2px 0 0 0;font-size:12px;line-height:1.25;color:#64748B;">${escapeHtml(card.fromEmail)}</p>
+        </td>
+      </tr>
+    </table>`;
+}
+
+function renderCtaButton(href: string, label: string): string {
+  return `
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:18px 0 0 0;">
+      <tr>
+        <td bgcolor="#0F172A" style="background:#0F172A;border-radius:999px;">
+          <a href="${escapeHtml(href)}" style="display:inline-block;padding:11px 20px;font-size:13px;line-height:1.2;font-weight:600;text-decoration:none;color:#FFFFFF;border-radius:999px;">${escapeHtml(label)}</a>
+        </td>
+      </tr>
+    </table>`;
+}
+
+function renderUpdateItem(card: DigestCard): string {
+  const ctaLabel = actionLinkLabel(card.primaryLink);
+  const received = formatReceivedAt(card.receivedAt);
+  const cta = card.primaryLink
+    ? renderCtaButton(card.primaryLink, ctaLabel)
+    : "";
+
+  const body = `
+    ${renderSenderChip(card)}
+    <h3 class="mp-break" style="margin:0 0 8px 0;font-family:Georgia,'Times New Roman',Times,serif;font-size:22px;line-height:1.28;font-weight:700;letter-spacing:-0.015em;color:#0F172A;">${escapeHtml(card.subject)}</h3>
+    ${
+      received
+        ? `<p style="margin:0 0 12px 0;font-size:12px;line-height:1.4;font-weight:500;letter-spacing:0.02em;color:#94A3B8;">${escapeHtml(received)}</p>`
+        : ""
+    }
+    <p class="mp-break" style="margin:0;font-size:15px;line-height:1.65;color:#475569;">${escapeHtml(card.summary)}</p>
+    ${cta}`;
+
+  if (card.heroImageUrl) {
+    return `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:100%;margin:0 0 18px 0;background:#FFFFFF;border:1px solid #E7E5E4;border-radius:22px;overflow:hidden;">
+        <tr>
+          <td style="padding:0;font-size:0;line-height:0;border-radius:22px 22px 0 0;">
+            <img src="${escapeHtml(card.heroImageUrl)}" alt="" width="544" style="display:block;width:100%;max-width:100%;height:auto;border:0;" />
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:22px 22px 24px 22px;min-width:0;">
+            ${body}
+          </td>
+        </tr>
+      </table>`;
+  }
+
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:100%;margin:0 0 18px 0;background:#FFFFFF;border:1px solid #E7E5E4;border-radius:22px;">
+      <tr>
+        <td style="padding:22px 22px 24px 22px;min-width:0;">
+          ${body}
+        </td>
+      </tr>
+    </table>`;
+}
+
+export function buildBriefingHtml(
+  cards: DigestCard[],
+  opts: { rangeLabel: string; recipientEmail: string; appUrl?: string }
+): string {
+  const appUrl = (opts.appUrl ?? resolveAppUrl()).replace(/\/+$/, "");
+  const logoOnlySrc = getBrandLogoDataUri();
+  const brandFontDataUri = getBrandFontDataUri();
+  const brandFontStack =
+    "'Duplet Rounded',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const brandMarkPx = 79;
+  const brandWordmarkPx = 50;
+  const subscriptionsUrl = `${appUrl}/subscriptions`;
+  const sendersLabel = formatSenderList(cards);
+  const updateCount = cards.length;
+  const updateLabel = `${updateCount} update${updateCount === 1 ? "" : "s"}`;
+
+  const cardsHtml =
+    cards.length > 0
+      ? cards
+          .map(
+            (card) => `
+          <tr>
+            <td style="padding:0;">
+              ${renderUpdateItem(card)}
+            </td>
+          </tr>`
+          )
+          .join("")
+      : `
+          <tr>
+            <td style="padding:28px 24px;background:#FFFFFF;border:1px solid #E7E5E4;border-radius:22px;font-size:15px;line-height:1.6;color:#64748B;">
+              No messages found in this window.
+            </td>
+          </tr>`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>Mail Pilot Snapshot</title>
+  <style type="text/css">
+    @font-face {
+      font-family: 'Duplet Rounded';
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src: url('${brandFontDataUri}') format('woff2');
+    }
+    html, body {
+      max-width: 100% !important;
+      overflow-x: hidden !important;
+    }
+    img, table {
+      max-width: 100% !important;
+    }
+    /* Break long URLs/subjects in content — not table chrome / labels. */
+    .mp-break {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+  </style>
+  <!--[if mso]>
+  <style type="text/css">
+    .mp-brand-wordmark { font-family: Arial, sans-serif !important; }
+  </style>
+  <![endif]-->
+</head>
+<body style="margin:0;padding:0;width:100%;max-width:100%;overflow-x:hidden;background:#F3F0EA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F172A;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:100%;background:#F3F0EA;">
+    <tr>
+      <td align="center" style="padding:32px 16px 40px 16px;">
+        <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
+          Your Mail Pilot snapshot · ${escapeHtml(updateLabel)} · ${escapeHtml(opts.rangeLabel)}
+        </div>
+
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;margin:0 auto;table-layout:fixed;">
+          <!-- Masthead -->
+          <tr>
+            <td style="padding:0 0 22px 0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border:1px solid #E7E5E4;border-radius:28px;">
+                <tr>
+                  <td align="center" style="padding:32px 28px 28px 28px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" align="center">
+                      <tr>
+                        <td align="center" style="padding:0 0 10px 0;line-height:0;font-size:0;">
+                          <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="background:#F0FDFA;border-radius:18px;">
+                            <tr>
+                              <td style="padding:14px;border-radius:24px;line-height:0;font-size:0;">
+                                <img src="${escapeHtml(logoOnlySrc)}" alt="" width="${brandMarkPx}" height="${brandMarkPx}" style="display:block;width:${brandMarkPx}px;height:${brandMarkPx}px;border:0;" />
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center" class="mp-brand-wordmark" style="padding:0 0 16px 0;font-family:${brandFontStack};font-size:${brandWordmarkPx}px;line-height:1.05;font-weight:700;letter-spacing:-0.03em;color:#0F172A;">
+                          Mail Pilot
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center">
+                          <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="max-width:100%;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:999px;">
+                            <tr>
+                              <td style="padding:7px 14px;font-size:12px;line-height:1.35;font-weight:600;color:#475569;text-align:center;overflow-wrap:anywhere;word-break:break-word;">
+                                <span style="color:#0F766E;">Snapshot</span>
+                                <span style="color:#CBD5E1;">&nbsp;·&nbsp;</span>
+                                ${escapeHtml(opts.rangeLabel)}
+                                <span style="color:#CBD5E1;">&nbsp;·&nbsp;</span>
+                                ${escapeHtml(updateLabel)}
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Greeting -->
+          <tr>
+            <td style="padding:0 8px 26px 8px;">
+              <p class="mp-break" style="margin:0;font-size:16px;line-height:1.7;color:#334155;">
+                Thanks for trusting Mail Pilot! Here's a summary of your subscriptions from <span style="color:#0F172A;font-weight:600;">${escapeHtml(sendersLabel)}</span> between <span style="color:#0F172A;font-weight:600;">${escapeHtml(opts.rangeLabel)}</span>:
+              </p>
+            </td>
+          </tr>
+
+          <!-- Section rule -->
+          <tr>
+            <td style="padding:0 8px 14px 8px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;">
+                <tr>
+                  <td valign="middle" width="1" style="vertical-align:middle;padding-right:12px;white-space:nowrap;">
+                    <span style="font-size:11px;line-height:1;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#94A3B8;white-space:nowrap;">In this snapshot</span>
+                  </td>
+                  <td valign="middle" style="vertical-align:middle;width:100%;border-top:1px solid #E7E5E4;font-size:0;line-height:0;">&nbsp;</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Cards -->
+          <tr>
+            <td style="padding:0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${cardsHtml}
+              </table>
+            </td>
+          </tr>
+
+          <!-- Sign-off -->
+          <tr>
+            <td style="padding:10px 8px 28px 8px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border:1px solid #E7E5E4;border-radius:22px;">
+                <tr>
+                  <td style="padding:24px 26px;">
+                    <p style="margin:0 0 6px 0;font-size:16px;line-height:1.6;color:#334155;">Have a great day!</p>
+                    <p style="margin:0;font-family:Georgia,'Times New Roman',Times,serif;font-size:17px;line-height:1.5;font-weight:700;color:#0F172A;">— The Mail Pilot Team</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer: mark height matches wordmark font-size -->
+          <tr>
+            <td style="padding:0 12px 8px 12px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 10px 0;">
+                <tr>
+                  <td valign="middle" style="vertical-align:middle;padding-right:10px;line-height:0;font-size:0;">
+                    <img src="${escapeHtml(logoOnlySrc)}" alt="" width="${brandWordmarkPx}" height="${brandWordmarkPx}" style="display:block;width:${brandWordmarkPx}px;height:${brandWordmarkPx}px;border:0;" />
+                  </td>
+                  <td valign="middle" class="mp-brand-wordmark" style="vertical-align:middle;font-family:${brandFontStack};font-size:${brandWordmarkPx}px;line-height:1.05;font-weight:700;letter-spacing:-0.03em;color:#0F172A;">
+                    Mail Pilot
+                  </td>
+                </tr>
+              </table>
+              <div class="mp-break" style="font-size:12px;line-height:1.6;color:#94A3B8;">
+                Original emails included in this snapshot were moved to Trash after delivery.<br />
+                Delivered to ${escapeHtml(opts.recipientEmail)}.
+                <a href="${escapeHtml(subscriptionsUrl)}" style="color:#64748B;text-decoration:underline;">Manage subscriptions</a>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+async function listMessageIds(
+  gmail: gmail_v1.Gmail,
+  query: string,
+  limit: number
+): Promise<string[]> {
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const listed = await gmail.users.messages.list({
+      userId: "me",
+      q: query,
+      maxResults: Math.min(50, limit - ids.length),
+      pageToken,
+    });
+    for (const message of listed.data.messages ?? []) {
+      if (message.id) ids.push(message.id);
+      if (ids.length >= limit) return ids;
+    }
+    pageToken = listed.data.nextPageToken ?? undefined;
+  } while (pageToken && ids.length < limit);
+
+  return ids;
+}
+
+async function estimateCount(
+  gmail: gmail_v1.Gmail,
+  query: string
+): Promise<number> {
+  const listed = await gmail.users.messages.list({
+    userId: "me",
+    q: query,
+    maxResults: 1,
+  });
+  return listed.data.resultSizeEstimate ?? 0;
+}
+
+async function fetchDigestCard(
+  gmail: gmail_v1.Gmail,
+  id: string
+): Promise<DigestCard | null> {
+  const message = await gmail.users.messages.get({
+    userId: "me",
+    id,
+    format: "full",
+  });
+  const headers = message.data.payload?.headers;
+  const subject = getHeader(headers, "Subject").trim() || "(No subject)";
+  const fromRaw = getHeader(headers, "From").trim() || "Unknown sender";
+  const parsed = parseFromEmail(fromRaw);
+
+  const plain = extractMessageBody(message.data.payload);
+  const html = findHtmlPart(message.data.payload) ?? "";
+  const rawSummary =
+    sanitizeEmailBody(plain || html.replace(/<[^>]+>/g, " ")).trim() ||
+    message.data.snippet?.trim() ||
+    subject;
+  const summary = truncateSummary(cleanDigestSummaryText(rawSummary));
+
+  const internalDate = message.data.internalDate
+    ? new Date(Number(message.data.internalDate))
+    : null;
+
+  return {
+    id,
+    from: parsed.name,
+    fromEmail: parsed.email,
+    subject,
+    summary,
+    heroImageUrl: html ? extractHeroImageUrl(html) : null,
+    primaryLink: html ? extractPrimaryLink(html) : null,
+    receivedAt: internalDate,
+  };
+}
+
+async function trashMessageIds(
+  gmail: gmail_v1.Gmail,
+  ids: string[]
+): Promise<void> {
+  for (let i = 0; i < ids.length; i += 1000) {
+    const chunk = ids.slice(i, i + 1000);
+    try {
+      await gmail.users.messages.batchModify({
+        userId: "me",
+        requestBody: {
+          ids: chunk,
+          addLabelIds: ["TRASH"],
+          removeLabelIds: ["INBOX"],
+        },
+      });
+    } catch (error) {
+      rethrowIfInsufficientScope(error);
+    }
+  }
+}
+
+async function syncSenderStatsAfterTrash(
+  gmail: gmail_v1.Gmail,
+  accountId: string,
+  senderEmails: string[],
+  trashedBySender: Map<string, number>
+): Promise<void> {
+  const emailsToSync = Array.from(
+    new Set([
+      ...senderEmails.map((e) => e.toLowerCase()),
+      ...trashedBySender.keys(),
+    ])
+  );
+
+  for (const email of emailsToSync) {
+    const key = email.toLowerCase();
+    const trashed = trashedBySender.get(key) ?? 0;
+    const sub = await prisma.subscription.findFirst({
+      where: {
+        accountId,
+        senderEmail: { equals: email, mode: "insensitive" },
+      },
+    });
+    if (!sub) continue;
+
+    // Prefer local decrement: Gmail resultSizeEstimate is coarse and often
+    // inflates remaining totals (which pushed clutter to 100 via unread share).
+    const localRemaining = Math.max(0, sub.emailCount - trashed);
+    let remainingTotal = localRemaining;
+    try {
+      const gmailEstimate = await estimateCount(
+        gmail,
+        `${gmailFromClause(email)} -in:trash -in:spam`
+      );
+      if (gmailEstimate != null && gmailEstimate >= 0) {
+        if (gmailEstimate <= localRemaining) {
+          // Estimate agrees or is lower — safe to adopt (avoids lag overcount).
+          remainingTotal = gmailEstimate;
+        } else if (localRemaining === 0 && gmailEstimate > 0) {
+          // Local math wiped the sender but Gmail still has mail — keep visible.
+          remainingTotal = gmailEstimate;
+        }
+      }
+    } catch {
+      // Keep localRemaining.
+    }
+
+    const clutterScore = subscriptionClutterScore({
+      emailCount: remainingTotal,
+      lastReceivedAt: sub.lastReceivedAt,
+    });
+
+    await prisma.subscription.update({
+      where: { id: sub.id },
+      data: {
+        emailCount: remainingTotal,
+        clutterScore,
+      },
+    });
+  }
+}
+
+/**
+ * Build a branded briefing for the date range, send it, trash originals, update Neon stats.
+ */
+export async function createSubscriptionBriefing(options: {
+  gmail: gmail_v1.Gmail;
+  accountId: string;
+  senderEmails: string[];
+  rangeStart: Date;
+  rangeEnd: Date;
+  recipientEmail: string;
+}): Promise<DigestResult> {
+  const { gmail, accountId, recipientEmail } = options;
+  const rangeStart = startOfUtcDay(options.rangeStart);
+  const rangeEnd = startOfUtcDay(options.rangeEnd);
+  if (rangeEnd < rangeStart) {
+    throw new Error("End date must be on or after start date");
+  }
+  const spanDays =
+    Math.floor(
+      (rangeEnd.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1;
+  if (spanDays > MAX_BRIEFING_DAYS) {
+    throw new Error(`Maximum snapshot range is ${MAX_BRIEFING_DAYS} days`);
+  }
+  const today = startOfUtcDay(new Date());
+  if (rangeEnd > today) {
+    throw new Error("Future dates are not allowed");
+  }
+
+  const senderEmails = Array.from(
+    new Set(
+      options.senderEmails
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes("@"))
+    )
+  );
+  if (senderEmails.length === 0) {
+    throw new Error("Select at least one sender email");
+  }
+
+  const query = buildBriefingSearchQuery(senderEmails, rangeStart, rangeEnd);
+  const ids = await listMessageIds(gmail, query, MAX_BRIEFING_MESSAGES);
+
+  const cards: DigestCard[] = [];
+  const concurrency = 5;
+  for (let i = 0; i < ids.length; i += concurrency) {
+    const slice = ids.slice(i, i + concurrency);
+    const batch = await Promise.all(
+      slice.map(async (id) => {
+        try {
+          return await fetchDigestCard(gmail, id);
+        } catch (error) {
+          rethrowIfInsufficientScope(error);
+          return null;
+        }
+      })
+    );
+    for (const card of batch) {
+      if (card) cards.push(card);
+    }
+  }
+
+  cards.sort(
+    (a, b) => (b.receivedAt?.getTime() ?? 0) - (a.receivedAt?.getTime() ?? 0)
+  );
+
+  const rangeLabel = `${rangeStart.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })} – ${rangeEnd.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })}`;
+
+  const appUrl = resolveAppUrl();
+  const html = buildBriefingHtml(cards, {
+    rangeLabel,
+    recipientEmail,
+    appUrl,
+  });
+  const subject = `Mail Pilot Snapshot · ${cards.length} update${cards.length === 1 ? "" : "s"} · ${rangeLabel}`;
+  const raw = [
+    `To: ${recipientEmail}`,
+    `Subject: ${encodeMimeSubject(subject)}`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/html; charset="UTF-8"',
+    "",
+    html,
+  ].join("\r\n");
+
+  try {
+    await gmail.users.messages.send({
+      userId: "me",
+      requestBody: { raw: encodeRawMessage(raw) },
+    });
+  } catch (error) {
+    rethrowIfInsufficientScope(error);
+  }
+
+  const processedIds = cards.map((c) => c.id);
+  const trashedBySender = new Map<string, number>();
+  for (const card of cards) {
+    const key = card.fromEmail.toLowerCase();
+    trashedBySender.set(key, (trashedBySender.get(key) ?? 0) + 1);
+  }
+
+  if (processedIds.length > 0) {
+    await trashMessageIds(gmail, processedIds);
+  }
+
+  await syncSenderStatsAfterTrash(
+    gmail,
+    accountId,
+    senderEmails,
+    trashedBySender
+  );
+
+  const generatedAt = new Date();
+  const subscriptions = await prisma.subscription.findMany({
+    where: {
+      accountId,
+      senderEmail: { in: senderEmails, mode: "insensitive" },
+    },
+    select: { id: true, senderEmail: true },
+  });
+  const subscriptionIds = subscriptions.map((s) => s.id);
+
+  const previous = await prisma.subscriptionBriefing.findUnique({
+    where: { accountId },
+    select: {
+      id: true,
+      subject: true,
+      htmlPreview: true,
+      generatedAt: true,
+      senderEmails: true,
+      subscriptionIds: true,
+    },
+  });
+
+  const briefing = await prisma.subscriptionBriefing.upsert({
+    where: { accountId },
+    create: {
+      accountId,
+      subject,
+      htmlPreview: html,
+      generatedAt,
+      senderEmails,
+      subscriptionIds,
+    },
+    update: {
+      subject,
+      htmlPreview: html,
+      generatedAt,
+      senderEmails,
+      subscriptionIds,
+    },
+  });
+
+  const toSnapshot = (row: {
+    id: string;
+    subject: string | null;
+    htmlPreview: string;
+    generatedAt: Date;
+    senderEmails: string[];
+    subscriptionIds: string[];
+  }): DigestBriefingSnapshot => ({
+    id: row.id,
+    subject: row.subject,
+    htmlPreview: row.htmlPreview,
+    generatedAt: row.generatedAt.toISOString(),
+    senderEmails: row.senderEmails,
+    subscriptionIds: row.subscriptionIds,
+  });
+
+  // Client migrates this into localStorage before the new DB row is treated as current.
+  const displacedBriefing = previous ? toSnapshot(previous) : null;
+
+  return {
+    success: true,
+    processedCount: processedIds.length,
+    digestSentTo: recipientEmail,
+    briefing: toSnapshot(briefing),
+    displacedBriefing,
+  };
+}
+</file>
+
 <file path="lib/bridge-scripts.ts">
 /**
  * Shared helpers for zero-clone Ollama bridge script generation.
@@ -7605,6 +8420,201 @@ export async function probeGmailConnection(
 }
 </file>
 
+<file path="lib/validations/profile.ts">
+import { z } from "zod";
+
+export const experienceBulletSchema = z.object({
+  id: z.string(),
+  rawText: z.string(),
+  technologies: z.array(z.string()).default([]),
+  hasMetric: z.boolean().default(false),
+});
+
+export const skillsSchema = z.object({
+  languages: z.array(z.string()).default([]),
+  frameworks: z.array(z.string()).default([]),
+  tools: z.array(z.string()).default([]),
+  concepts: z.array(z.string()).default([]),
+});
+
+export const profileLinkSchema = z.object({
+  label: z.string(),
+  url: z.string(),
+});
+
+export const workExperienceInputSchema = z.object({
+  id: z.string().optional(),
+  company: z.string().min(1),
+  role: z.string().min(1),
+  location: z.string().nullable().optional(),
+  startDate: z.string().min(1),
+  endDate: z.string().nullable().optional(),
+  bullets: z.array(experienceBulletSchema).default([]),
+  displayOrder: z.number().int().default(0),
+});
+
+export const projectInputSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1),
+  description: z.string().default(""),
+  technologies: z.array(z.string()).default([]),
+  link: z.string().nullable().optional(),
+  bullets: z.array(z.string()).default([]),
+});
+
+export const educationInputSchema = z.object({
+  id: z.string().optional(),
+  institution: z.string().min(1),
+  degree: z.string().min(1),
+  fieldOfStudy: z.string().nullable().optional(),
+  graduationDate: z.string().nullable().optional(),
+});
+
+export const masterProfileInputSchema = z.object({
+  fullName: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().nullable().optional(),
+  location: z.string().nullable().optional(),
+  summary: z.string().nullable().optional(),
+  links: z.array(profileLinkSchema).default([]),
+  skills: skillsSchema.default({
+    languages: [],
+    frameworks: [],
+    tools: [],
+    concepts: [],
+  }),
+  experiences: z.array(workExperienceInputSchema).default([]),
+  projects: z.array(projectInputSchema).default([]),
+  education: z.array(educationInputSchema).default([]),
+});
+
+export type ExperienceBullet = z.infer<typeof experienceBulletSchema>;
+export type Skills = z.infer<typeof skillsSchema>;
+export type MasterProfileInput = z.infer<typeof masterProfileInputSchema>;
+export type WorkExperienceInput = z.infer<typeof workExperienceInputSchema>;
+export type ProjectInput = z.infer<typeof projectInputSchema>;
+export type EducationInput = z.infer<typeof educationInputSchema>;
+
+export const APPLICATION_STATUSES = [
+  "LEAD",
+  "APPLIED",
+  "OA",
+  "INTERVIEW",
+  "OFFER",
+  "REJECTION",
+  "ARCHIVED",
+] as const;
+
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
+
+export const OPPORTUNITY_STATUSES = [
+  "DETECTED",
+  "DRAFT_PREPARED",
+  "DRAFT_SAVED_GMAIL",
+  "SENT",
+  "DISMISSED",
+] as const;
+
+export type OpportunityStatus = (typeof OPPORTUNITY_STATUSES)[number];
+
+export const APPLICATION_METHODS = [
+  "DIRECT_EMAIL",
+  "EXTERNAL_LINK",
+  "PORTAL_QUICK_APPLY",
+] as const;
+
+export type ApplicationMethod = (typeof APPLICATION_METHODS)[number];
+
+export const tailoredDataSchema = z.object({
+  selectedBullets: z.array(z.string()).default([]),
+  coverLetter: z.string().default(""),
+  jobRequirements: z.array(z.string()).default([]),
+});
+
+export type TailoredData = z.infer<typeof tailoredDataSchema>;
+
+/** Canonical Job Radar match threshold (PermanentSettings + UserProfile mirror). */
+export const DEFAULT_MATCH_THRESHOLD = 75;
+/** @deprecated Prefer any integer 0–100; kept for settings UI defaults. */
+export const MATCH_THRESHOLD_STEP = 1;
+
+export const matchThresholdSchema = z.number().int().min(0).max(100);
+
+/** Clamp to a whole-number Fit Score in 0–100. */
+export function snapMatchThreshold(value: number): number {
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+/**
+ * Single read-path resolver: PermanentSettings first, then UserProfile mirror.
+ * Never falls back to AccountSettings.rules.
+ */
+export function resolveMatchThreshold(input: {
+  permanentMatchScoreThreshold?: number | null;
+  profileMatchThreshold?: number | null;
+}): number {
+  for (const candidate of [
+    input.permanentMatchScoreThreshold,
+    input.profileMatchThreshold,
+  ]) {
+    if (typeof candidate !== "number" || !Number.isFinite(candidate)) continue;
+    const parsed = matchThresholdSchema.safeParse(candidate);
+    if (parsed.success) return snapMatchThreshold(parsed.data);
+  }
+  return DEFAULT_MATCH_THRESHOLD;
+}
+
+function optionalHttpsUrl(label: string) {
+  return z
+    .string()
+    .trim()
+    .optional()
+    .nullable()
+    .transform((v) => {
+      const value = (v ?? "").trim();
+      return value.length === 0 ? null : value;
+    })
+    .refine(
+      (v) => v === null || z.string().url().safeParse(v).success,
+      `${label} must be a valid URL`
+    );
+}
+
+/** External professional profile URLs on UserProfile. */
+export const linkedAccountsSchema = z.object({
+  linkedWebsite: optionalHttpsUrl("Personal Website"),
+  linkedIndeed: optionalHttpsUrl("Indeed"),
+  linkedGlassdoor: optionalHttpsUrl("Glassdoor"),
+  linkedGithub: optionalHttpsUrl("GitHub"),
+  linkedLinkedin: optionalHttpsUrl("LinkedIn"),
+  linkedHandshake: optionalHttpsUrl("Handshake"),
+});
+
+export type LinkedAccountsInput = {
+  linkedWebsite?: string | null;
+  linkedIndeed?: string | null;
+  linkedGlassdoor?: string | null;
+  linkedGithub?: string | null;
+  linkedLinkedin?: string | null;
+  linkedHandshake?: string | null;
+};
+
+/**
+ * Full master profile payload for manual editing (core resume + linked URLs).
+ * Alias requested by settings UX: `masterProfileSchema`.
+ */
+export const masterProfileSchema = masterProfileInputSchema.extend({
+  linkedWebsite: optionalHttpsUrl("Personal Website"),
+  linkedIndeed: optionalHttpsUrl("Indeed"),
+  linkedGlassdoor: optionalHttpsUrl("Glassdoor"),
+  linkedGithub: optionalHttpsUrl("GitHub"),
+  linkedLinkedin: optionalHttpsUrl("LinkedIn"),
+  linkedHandshake: optionalHttpsUrl("Handshake"),
+});
+
+export type MasterProfileUpdateInput = z.infer<typeof masterProfileSchema>;
+</file>
+
 <file path="app/actions/opportunities.ts">
 "use server";
 
@@ -8155,20 +9165,30 @@ export async function dismissOpportunity(
   return result.ok ? { ok: true } : result;
 }
 
-export async function markOpportunityExternalApplied(
-  opportunityId: string
-): Promise<ActionResult> {
-  await prisma.jobOpportunity.update({
-    where: { id: opportunityId },
+export async function markOpportunitiesExternalApplied(
+  ids: string[]
+): Promise<ActionResult<{ count: number }>> {
+  if (!ids.length) return { ok: true, data: { count: 0 } };
+
+  const appliedAt = new Date();
+  const result = await prisma.jobOpportunity.updateMany({
+    where: { id: { in: ids } },
     data: {
       status: "APPLIED",
       isArchived: false,
       previousStatus: null,
-      appliedAt: new Date(),
+      appliedAt,
     },
   });
   revalidatePath("/jobs");
-  return { ok: true };
+  return { ok: true, data: { count: result.count } };
+}
+
+export async function markOpportunityExternalApplied(
+  opportunityId: string
+): Promise<ActionResult> {
+  const result = await markOpportunitiesExternalApplied([opportunityId]);
+  return result.ok ? { ok: true } : result;
 }
 
 /**
@@ -8363,723 +9383,6 @@ export async function deleteDismissedPermanently(
   revalidatePath("/jobs");
   return { ok: true, data: { count: result.count } };
 }
-</file>
-
-<file path="lib/validations/profile.ts">
-import { z } from "zod";
-
-export const experienceBulletSchema = z.object({
-  id: z.string(),
-  rawText: z.string(),
-  technologies: z.array(z.string()).default([]),
-  hasMetric: z.boolean().default(false),
-});
-
-export const skillsSchema = z.object({
-  languages: z.array(z.string()).default([]),
-  frameworks: z.array(z.string()).default([]),
-  tools: z.array(z.string()).default([]),
-  concepts: z.array(z.string()).default([]),
-});
-
-export const profileLinkSchema = z.object({
-  label: z.string(),
-  url: z.string(),
-});
-
-export const workExperienceInputSchema = z.object({
-  id: z.string().optional(),
-  company: z.string().min(1),
-  role: z.string().min(1),
-  location: z.string().nullable().optional(),
-  startDate: z.string().min(1),
-  endDate: z.string().nullable().optional(),
-  bullets: z.array(experienceBulletSchema).default([]),
-  displayOrder: z.number().int().default(0),
-});
-
-export const projectInputSchema = z.object({
-  id: z.string().optional(),
-  name: z.string().min(1),
-  description: z.string().default(""),
-  technologies: z.array(z.string()).default([]),
-  link: z.string().nullable().optional(),
-  bullets: z.array(z.string()).default([]),
-});
-
-export const educationInputSchema = z.object({
-  id: z.string().optional(),
-  institution: z.string().min(1),
-  degree: z.string().min(1),
-  fieldOfStudy: z.string().nullable().optional(),
-  graduationDate: z.string().nullable().optional(),
-});
-
-export const masterProfileInputSchema = z.object({
-  fullName: z.string().min(1),
-  email: z.string().email(),
-  phone: z.string().nullable().optional(),
-  location: z.string().nullable().optional(),
-  summary: z.string().nullable().optional(),
-  links: z.array(profileLinkSchema).default([]),
-  skills: skillsSchema.default({
-    languages: [],
-    frameworks: [],
-    tools: [],
-    concepts: [],
-  }),
-  experiences: z.array(workExperienceInputSchema).default([]),
-  projects: z.array(projectInputSchema).default([]),
-  education: z.array(educationInputSchema).default([]),
-});
-
-export type ExperienceBullet = z.infer<typeof experienceBulletSchema>;
-export type Skills = z.infer<typeof skillsSchema>;
-export type MasterProfileInput = z.infer<typeof masterProfileInputSchema>;
-export type WorkExperienceInput = z.infer<typeof workExperienceInputSchema>;
-export type ProjectInput = z.infer<typeof projectInputSchema>;
-export type EducationInput = z.infer<typeof educationInputSchema>;
-
-export const APPLICATION_STATUSES = [
-  "LEAD",
-  "APPLIED",
-  "OA",
-  "INTERVIEW",
-  "OFFER",
-  "REJECTION",
-  "ARCHIVED",
-] as const;
-
-export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
-
-export const OPPORTUNITY_STATUSES = [
-  "DETECTED",
-  "DRAFT_PREPARED",
-  "DRAFT_SAVED_GMAIL",
-  "SENT",
-  "DISMISSED",
-] as const;
-
-export type OpportunityStatus = (typeof OPPORTUNITY_STATUSES)[number];
-
-export const APPLICATION_METHODS = [
-  "DIRECT_EMAIL",
-  "EXTERNAL_LINK",
-  "PORTAL_QUICK_APPLY",
-] as const;
-
-export type ApplicationMethod = (typeof APPLICATION_METHODS)[number];
-
-export const tailoredDataSchema = z.object({
-  selectedBullets: z.array(z.string()).default([]),
-  coverLetter: z.string().default(""),
-  jobRequirements: z.array(z.string()).default([]),
-});
-
-export type TailoredData = z.infer<typeof tailoredDataSchema>;
-
-/** Canonical Job Radar match threshold (PermanentSettings + UserProfile mirror). */
-export const DEFAULT_MATCH_THRESHOLD = 75;
-/** @deprecated Prefer any integer 0–100; kept for settings UI defaults. */
-export const MATCH_THRESHOLD_STEP = 1;
-
-export const matchThresholdSchema = z.number().int().min(0).max(100);
-
-/** Clamp to a whole-number Fit Score in 0–100. */
-export function snapMatchThreshold(value: number): number {
-  return Math.min(100, Math.max(0, Math.round(value)));
-}
-
-/**
- * Single read-path resolver: PermanentSettings first, then UserProfile mirror.
- * Never falls back to AccountSettings.rules.
- */
-export function resolveMatchThreshold(input: {
-  permanentMatchScoreThreshold?: number | null;
-  profileMatchThreshold?: number | null;
-}): number {
-  for (const candidate of [
-    input.permanentMatchScoreThreshold,
-    input.profileMatchThreshold,
-  ]) {
-    if (typeof candidate !== "number" || !Number.isFinite(candidate)) continue;
-    const parsed = matchThresholdSchema.safeParse(candidate);
-    if (parsed.success) return snapMatchThreshold(parsed.data);
-  }
-  return DEFAULT_MATCH_THRESHOLD;
-}
-
-function optionalHttpsUrl(label: string) {
-  return z
-    .string()
-    .trim()
-    .optional()
-    .nullable()
-    .transform((v) => {
-      const value = (v ?? "").trim();
-      return value.length === 0 ? null : value;
-    })
-    .refine(
-      (v) => v === null || z.string().url().safeParse(v).success,
-      `${label} must be a valid URL`
-    );
-}
-
-/** External professional profile URLs on UserProfile. */
-export const linkedAccountsSchema = z.object({
-  linkedWebsite: optionalHttpsUrl("Personal Website"),
-  linkedIndeed: optionalHttpsUrl("Indeed"),
-  linkedGlassdoor: optionalHttpsUrl("Glassdoor"),
-  linkedGithub: optionalHttpsUrl("GitHub"),
-  linkedLinkedin: optionalHttpsUrl("LinkedIn"),
-  linkedHandshake: optionalHttpsUrl("Handshake"),
-});
-
-export type LinkedAccountsInput = {
-  linkedWebsite?: string | null;
-  linkedIndeed?: string | null;
-  linkedGlassdoor?: string | null;
-  linkedGithub?: string | null;
-  linkedLinkedin?: string | null;
-  linkedHandshake?: string | null;
-};
-
-/**
- * Full master profile payload for manual editing (core resume + linked URLs).
- * Alias requested by settings UX: `masterProfileSchema`.
- */
-export const masterProfileSchema = masterProfileInputSchema.extend({
-  linkedWebsite: optionalHttpsUrl("Personal Website"),
-  linkedIndeed: optionalHttpsUrl("Indeed"),
-  linkedGlassdoor: optionalHttpsUrl("Glassdoor"),
-  linkedGithub: optionalHttpsUrl("GitHub"),
-  linkedLinkedin: optionalHttpsUrl("LinkedIn"),
-  linkedHandshake: optionalHttpsUrl("Handshake"),
-});
-
-export type MasterProfileUpdateInput = z.infer<typeof masterProfileSchema>;
-</file>
-
-<file path="app/actions/dispatch.ts">
-"use server";
-
-import { revalidatePath } from "next/cache";
-import { z } from "zod";
-
-import {
-  countSendsToday,
-  dispatchApplicationEmail,
-  getDailySendLimit,
-  prepareApplicationDraft,
-  refineApplicationDraft,
-  updateApplicationRecipient,
-  updatePreparedDraft,
-} from "@/lib/dispatch";
-import {
-  canDraftDirectEmail,
-  extractRecruiterEmail,
-} from "@/lib/application-method";
-import {
-  InsufficientScopeError,
-  REAUTH_REQUIRED_MESSAGE,
-  isInsufficientScopeError,
-} from "@/lib/google";
-import { prisma } from "@/lib/prisma";
-import {
-  APPLICATION_STATUSES,
-  type ApplicationStatus,
-} from "@/lib/validations/profile";
-import { parseAccountRules } from "@/lib/validations/rules";
-
-const NO_RECRUITER_EMAIL_ERROR =
-  "No recruiter email address — email drafts are forbidden without a direct contact. Use the external apply link instead.";
-
-const recipientEmailSchema = z.string().trim().email();
-
-export type ActionResult<T = undefined> =
-  | { ok: true; data?: T }
-  | { ok: false; error: string };
-
-const statusSchema = z.enum(APPLICATION_STATUSES);
-
-export async function sendSingleApplication(
-  applicationId: string,
-  asDraft = false
-): Promise<ActionResult<{ mode: "draft" | "sent" }>> {
-  const application = await prisma.jobApplication.findUnique({
-    where: { id: applicationId },
-  });
-  if (!application) {
-    return { ok: false, error: "Application not found" };
-  }
-  if (!application.accountId) {
-    return {
-      ok: false,
-      error: "Gmail account is unlinked. Reconnect to continue.",
-    };
-  }
-  const accountId = application.accountId;
-
-  if (
-    !extractRecruiterEmail({
-      actionSummary: application.actionSummary,
-      actionUrl: application.actionUrl,
-      applyUrl: application.applyUrl,
-    })
-  ) {
-    return { ok: false, error: NO_RECRUITER_EMAIL_ERROR };
-  }
-
-  try {
-    if (!asDraft) {
-      const sentToday = await countSendsToday(accountId);
-      const limit = await getDailySendLimit(accountId);
-      if (sentToday >= limit) {
-        return {
-          ok: false,
-          error: `Daily auto-send limit reached (${limit})`,
-        };
-      }
-    }
-
-    const hasPreparedDraft = Boolean(
-      application.draftSubject?.trim() && application.draftBody?.trim()
-    );
-
-    const result = await dispatchApplicationEmail(accountId, applicationId, {
-      createDraftOnly: asDraft,
-      usePreparedDraft: hasPreparedDraft,
-    });
-    revalidatePath("/jobs");
-    revalidatePath("/");
-    return { ok: true, data: result };
-  } catch (error) {
-    console.error("sendSingleApplication failed", error);
-    if (
-      error instanceof InsufficientScopeError ||
-      isInsufficientScopeError(error)
-    ) {
-      return { ok: false, error: REAUTH_REQUIRED_MESSAGE };
-    }
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Dispatch failed",
-    };
-  }
-}
-
-/**
- * Generates an editable in-app draft and persists subject/body on the job row.
- */
-export async function prepareDraftForReview(
-  applicationId: string
-): Promise<
-  ActionResult<{ subject: string; body: string; recipient: string | null }>
-> {
-  const application = await prisma.jobApplication.findUnique({
-    where: { id: applicationId },
-  });
-  if (!application) {
-    return { ok: false, error: "Application not found" };
-  }
-  if (!application.accountId) {
-    return {
-      ok: false,
-      error: "Gmail account is unlinked. Reconnect to continue.",
-    };
-  }
-
-  const recipientGate = extractRecruiterEmail({
-    actionSummary: application.actionSummary,
-    actionUrl: application.actionUrl,
-    applyUrl: application.applyUrl,
-  });
-
-  try {
-    if (
-      application.draftSubject?.trim() &&
-      application.draftBody?.trim() &&
-      (application.opportunityStatus === "DRAFT_PREPARED" ||
-        application.opportunityStatus === "DRAFT_SAVED_GMAIL")
-    ) {
-      return {
-        ok: true,
-        data: {
-          subject: application.draftSubject,
-          body: application.draftBody,
-          recipient: recipientGate,
-        },
-      };
-    }
-
-    const draft = await prepareApplicationDraft(
-      application.accountId,
-      applicationId
-    );
-    revalidatePath("/jobs");
-    return {
-      ok: true,
-      data: {
-        subject: draft.subject,
-        body: draft.body,
-        recipient: draft.recipient,
-      },
-    };
-  } catch (error) {
-    console.error("prepareDraftForReview failed", error);
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "Failed to prepare draft",
-    };
-  }
-}
-
-export async function refineApplicationDraftAction(
-  applicationId: string,
-  instruction: string
-): Promise<ActionResult<{ subject: string; body: string }>> {
-  const application = await prisma.jobApplication.findUnique({
-    where: { id: applicationId },
-  });
-  if (!application?.accountId) {
-    return { ok: false, error: "Application not found" };
-  }
-
-  try {
-    const draft = await refineApplicationDraft(
-      application.accountId,
-      applicationId,
-      instruction
-    );
-    revalidatePath("/jobs");
-    return { ok: true, data: draft };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Failed to refine draft",
-    };
-  }
-}
-
-/** Force a fresh LLM draft (ignores cached draftSubject/draftBody). */
-export async function regenerateApplicationDraftAction(
-  applicationId: string
-): Promise<
-  ActionResult<{ subject: string; body: string; recipient: string | null }>
-> {
-  const application = await prisma.jobApplication.findUnique({
-    where: { id: applicationId },
-  });
-  if (!application) {
-    return { ok: false, error: "Application not found" };
-  }
-  if (!application.accountId) {
-    return {
-      ok: false,
-      error: "Gmail account is unlinked. Reconnect to continue.",
-    };
-  }
-
-  try {
-    const draft = await prepareApplicationDraft(
-      application.accountId,
-      applicationId
-    );
-    revalidatePath("/jobs");
-    return {
-      ok: true,
-      data: {
-        subject: draft.subject,
-        body: draft.body,
-        recipient: draft.recipient,
-      },
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "Failed to regenerate draft",
-    };
-  }
-}
-
-export async function updateApplicationRecipientAction(
-  applicationId: string,
-  recipientEmail: string
-): Promise<ActionResult<{ recipientEmail: string }>> {
-  const parsed = recipientEmailSchema.safeParse(recipientEmail);
-  if (!parsed.success) {
-    return { ok: false, error: "Invalid recipient email address" };
-  }
-
-  const application = await prisma.jobApplication.findUnique({
-    where: { id: applicationId },
-  });
-  if (!application?.accountId) {
-    return { ok: false, error: "Application not found" };
-  }
-
-  try {
-    const data = await updateApplicationRecipient(
-      application.accountId,
-      applicationId,
-      parsed.data
-    );
-    revalidatePath("/jobs");
-    return { ok: true, data };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "Failed to update recipient",
-    };
-  }
-}
-
-/**
- * Persists user edits to the in-app draft before Gmail save/send.
- */
-export async function saveDraftEdits(
-  applicationId: string,
-  input: { subject: string; body: string; recipientEmail?: string }
-): Promise<ActionResult> {
-  const application = await prisma.jobApplication.findUnique({
-    where: { id: applicationId },
-  });
-  if (!application?.accountId) {
-    return { ok: false, error: "Application not found" };
-  }
-
-  const subject = input.subject.trim();
-  const body = input.body.trim();
-  if (!subject || !body) {
-    return { ok: false, error: "Subject and body are required" };
-  }
-
-  if (input.recipientEmail !== undefined && input.recipientEmail.trim()) {
-    const parsed = recipientEmailSchema.safeParse(input.recipientEmail);
-    if (!parsed.success) {
-      return { ok: false, error: "Invalid recipient email address" };
-    }
-  }
-
-  const effectiveRecipient =
-    input.recipientEmail !== undefined
-      ? input.recipientEmail.trim()
-      : extractRecruiterEmail({
-          actionSummary: application.actionSummary,
-          actionUrl: application.actionUrl,
-          applyUrl: application.applyUrl,
-        });
-
-  if (!canDraftDirectEmail(effectiveRecipient)) {
-    return { ok: false, error: NO_RECRUITER_EMAIL_ERROR };
-  }
-
-  try {
-    await updatePreparedDraft(application.accountId, applicationId, {
-      subject,
-      body,
-      ...(input.recipientEmail !== undefined
-        ? { recipientEmail: input.recipientEmail }
-        : {}),
-    });
-    revalidatePath("/jobs");
-    return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Failed to save draft",
-    };
-  }
-}
-
-export async function batchSendApplications(
-  applicationIds: string[]
-): Promise<ActionResult<{ sent: number; skipped: number; errors: string[] }>> {
-  if (applicationIds.length === 0) {
-    return { ok: false, error: "No applications selected" };
-  }
-
-  const first = await prisma.jobApplication.findUnique({
-    where: { id: applicationIds[0] },
-  });
-  if (!first) {
-    return { ok: false, error: "Application not found" };
-  }
-  if (!first.accountId) {
-    return {
-      ok: false,
-      error: "Gmail account is unlinked. Reconnect to continue.",
-    };
-  }
-  const accountId = first.accountId;
-
-  const limit = await getDailySendLimit(accountId);
-  let sentToday = await countSendsToday(accountId);
-  let sent = 0;
-  let skipped = 0;
-  const errors: string[] = [];
-
-  for (const id of applicationIds) {
-    if (sentToday >= limit) {
-      skipped += 1;
-      continue;
-    }
-    try {
-      await dispatchApplicationEmail(accountId, id, {
-        createDraftOnly: false,
-      });
-      sent += 1;
-      sentToday += 1;
-    } catch (error) {
-      errors.push(
-        error instanceof Error ? `${id}: ${error.message}` : `${id}: failed`
-      );
-    }
-  }
-
-  revalidatePath("/jobs");
-  revalidatePath("/");
-  return { ok: true, data: { sent, skipped, errors } };
-}
-
-export async function markPortalAsApplied(
-  applicationId: string
-): Promise<ActionResult> {
-  const application = await prisma.jobApplication.findUnique({
-    where: { id: applicationId },
-  });
-  if (!application) {
-    return { ok: false, error: "Application not found" };
-  }
-
-  const now = new Date();
-  await prisma.jobApplication.update({
-    where: { id: applicationId },
-    data: {
-      status: "APPLIED",
-      dispatchStatus: "MANUAL_APPLIED",
-      dispatchType: "PORTAL",
-      applicationMethod: "PORTAL_QUICK_APPLY",
-      opportunityStatus: "SENT",
-      appliedAt: now,
-    },
-  });
-
-  revalidatePath("/jobs");
-  return { ok: true };
-}
-
-export async function updateApplicationStatus(
-  applicationId: string,
-  status: string
-): Promise<ActionResult> {
-  const parsed = statusSchema.safeParse(status);
-  if (!parsed.success) {
-    return { ok: false, error: "Invalid application status" };
-  }
-
-  const application = await prisma.jobApplication.findUnique({
-    where: { id: applicationId },
-  });
-  if (!application) {
-    return { ok: false, error: "Application not found" };
-  }
-
-  await prisma.jobApplication.update({
-    where: { id: applicationId },
-    data: {
-      status: parsed.data,
-      isArchived: parsed.data === "ARCHIVED",
-      actionRequired:
-        parsed.data === "OA" || parsed.data === "INTERVIEW"
-          ? true
-          : application.actionRequired,
-    },
-  });
-
-  revalidatePath("/jobs");
-  return { ok: true };
-}
-
-export async function downloadTailoredPdfAction(
-  applicationId: string,
-  includeSummary = false
-): Promise<ActionResult<{ base64: string; filename: string }>> {
-  // Lazy import to keep action surface thin
-  const { generateTailoredResumePdf } = await import("@/lib/pdf-generator");
-  const { tailorResumeForJob } = await import("@/lib/resume-tailor");
-  const { getMasterProfile } = await import("@/app/actions/profile");
-
-  const application = await prisma.jobApplication.findUnique({
-    where: { id: applicationId },
-  });
-  if (!application) {
-    return { ok: false, error: "Application not found" };
-  }
-
-  if (!application.accountId) {
-    return {
-      ok: false,
-      error: "Gmail account is unlinked. Reconnect to download tailored PDFs.",
-    };
-  }
-
-  const profileResult = await getMasterProfile(application.accountId);
-  if (!profileResult.ok || !profileResult.data) {
-    return { ok: false, error: profileResult.ok ? "No profile" : profileResult.error };
-  }
-
-  const { updatedAt: _updatedAt, ...profile } = profileResult.data;
-  const settings = await prisma.accountSettings.findUnique({
-    where: { accountId: application.accountId },
-  });
-  const rules = parseAccountRules(settings?.rules);
-  const tailored = await tailorResumeForJob(
-    [
-      application.roleTitle ?? "",
-      application.companyName ?? "",
-      application.actionSummary ?? "",
-    ].filter(Boolean),
-    profile,
-    {
-      llmProvider:
-        settings?.llmProvider === "LOCAL_OLLAMA"
-          ? "LOCAL_OLLAMA"
-          : "OPENROUTER",
-      localOllamaUrl: settings?.localOllamaUrl,
-      ollamaModel: settings?.ollamaModel,
-      allowCloudFallback: rules.allowCloudFallback,
-      companyName: application.companyName,
-      roleTitle: application.roleTitle,
-      jobText: application.actionSummary ?? undefined,
-      includeSummary,
-    }
-  );
-
-  const pdf = await generateTailoredResumePdf(
-    profile,
-    tailored.selectedExperience.length > 0
-      ? tailored.selectedExperience
-      : profile.experiences,
-    tailored.selectedProjects,
-    tailored.tailoredSummary,
-    tailored.tailoredSkills,
-    includeSummary
-  );
-
-  return {
-    ok: true,
-    data: {
-      base64: pdf.toString("base64"),
-      filename: `${profile.fullName.replace(/\s+/g, "_")}_Resume.pdf`,
-    },
-  };
-}
-
-export type { ApplicationStatus };
 </file>
 
 <file path="lib/validations/rules.ts">
@@ -10074,6 +10377,478 @@ export async function getDailySendLimit(accountId: string): Promise<number> {
 
   return parseAccountRules(account?.settings?.rules).maxAutoSendsPerDay;
 }
+</file>
+
+<file path="app/actions/dispatch.ts">
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+import {
+  countSendsToday,
+  dispatchApplicationEmail,
+  getDailySendLimit,
+  prepareApplicationDraft,
+  refineApplicationDraft,
+  updateApplicationRecipient,
+  updatePreparedDraft,
+} from "@/lib/dispatch";
+import {
+  canDraftDirectEmail,
+  extractRecruiterEmail,
+} from "@/lib/application-method";
+import {
+  InsufficientScopeError,
+  REAUTH_REQUIRED_MESSAGE,
+  isInsufficientScopeError,
+} from "@/lib/google";
+import { prisma } from "@/lib/prisma";
+import {
+  APPLICATION_STATUSES,
+  type ApplicationStatus,
+} from "@/lib/validations/profile";
+import { parseAccountRules } from "@/lib/validations/rules";
+
+const NO_RECRUITER_EMAIL_ERROR =
+  "No recruiter email address — email drafts are forbidden without a direct contact. Use the external apply link instead.";
+
+const recipientEmailSchema = z.string().trim().email();
+
+export type ActionResult<T = undefined> =
+  | { ok: true; data?: T }
+  | { ok: false; error: string };
+
+const statusSchema = z.enum(APPLICATION_STATUSES);
+
+export async function sendSingleApplication(
+  applicationId: string,
+  asDraft = false
+): Promise<ActionResult<{ mode: "draft" | "sent" }>> {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application) {
+    return { ok: false, error: "Application not found" };
+  }
+  if (!application.accountId) {
+    return {
+      ok: false,
+      error: "Gmail account is unlinked. Reconnect to continue.",
+    };
+  }
+  const accountId = application.accountId;
+
+  if (
+    !extractRecruiterEmail({
+      actionSummary: application.actionSummary,
+      actionUrl: application.actionUrl,
+      applyUrl: application.applyUrl,
+    })
+  ) {
+    return { ok: false, error: NO_RECRUITER_EMAIL_ERROR };
+  }
+
+  try {
+    if (!asDraft) {
+      const sentToday = await countSendsToday(accountId);
+      const limit = await getDailySendLimit(accountId);
+      if (sentToday >= limit) {
+        return {
+          ok: false,
+          error: `Daily auto-send limit reached (${limit})`,
+        };
+      }
+    }
+
+    const hasPreparedDraft = Boolean(
+      application.draftSubject?.trim() && application.draftBody?.trim()
+    );
+
+    const result = await dispatchApplicationEmail(accountId, applicationId, {
+      createDraftOnly: asDraft,
+      usePreparedDraft: hasPreparedDraft,
+    });
+    revalidatePath("/jobs");
+    revalidatePath("/");
+    return { ok: true, data: result };
+  } catch (error) {
+    console.error("sendSingleApplication failed", error);
+    if (
+      error instanceof InsufficientScopeError ||
+      isInsufficientScopeError(error)
+    ) {
+      return { ok: false, error: REAUTH_REQUIRED_MESSAGE };
+    }
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Dispatch failed",
+    };
+  }
+}
+
+/**
+ * Generates an editable in-app draft and persists subject/body on the job row.
+ */
+export async function prepareDraftForReview(
+  applicationId: string
+): Promise<
+  ActionResult<{ subject: string; body: string; recipient: string | null }>
+> {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application) {
+    return { ok: false, error: "Application not found" };
+  }
+  if (!application.accountId) {
+    return {
+      ok: false,
+      error: "Gmail account is unlinked. Reconnect to continue.",
+    };
+  }
+
+  const recipientGate = extractRecruiterEmail({
+    actionSummary: application.actionSummary,
+    actionUrl: application.actionUrl,
+    applyUrl: application.applyUrl,
+  });
+
+  try {
+    if (
+      application.draftSubject?.trim() &&
+      application.draftBody?.trim() &&
+      (application.opportunityStatus === "DRAFT_PREPARED" ||
+        application.opportunityStatus === "DRAFT_SAVED_GMAIL")
+    ) {
+      return {
+        ok: true,
+        data: {
+          subject: application.draftSubject,
+          body: application.draftBody,
+          recipient: recipientGate,
+        },
+      };
+    }
+
+    const draft = await prepareApplicationDraft(
+      application.accountId,
+      applicationId
+    );
+    revalidatePath("/jobs");
+    return {
+      ok: true,
+      data: {
+        subject: draft.subject,
+        body: draft.body,
+        recipient: draft.recipient,
+      },
+    };
+  } catch (error) {
+    console.error("prepareDraftForReview failed", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to prepare draft",
+    };
+  }
+}
+
+export async function refineApplicationDraftAction(
+  applicationId: string,
+  instruction: string
+): Promise<ActionResult<{ subject: string; body: string }>> {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application?.accountId) {
+    return { ok: false, error: "Application not found" };
+  }
+
+  try {
+    const draft = await refineApplicationDraft(
+      application.accountId,
+      applicationId,
+      instruction
+    );
+    revalidatePath("/jobs");
+    return { ok: true, data: draft };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to refine draft",
+    };
+  }
+}
+
+/** Force a fresh LLM draft (ignores cached draftSubject/draftBody). */
+export async function regenerateApplicationDraftAction(
+  applicationId: string
+): Promise<
+  ActionResult<{ subject: string; body: string; recipient: string | null }>
+> {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application) {
+    return { ok: false, error: "Application not found" };
+  }
+  if (!application.accountId) {
+    return {
+      ok: false,
+      error: "Gmail account is unlinked. Reconnect to continue.",
+    };
+  }
+
+  try {
+    const draft = await prepareApplicationDraft(
+      application.accountId,
+      applicationId
+    );
+    revalidatePath("/jobs");
+    return {
+      ok: true,
+      data: {
+        subject: draft.subject,
+        body: draft.body,
+        recipient: draft.recipient,
+      },
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to regenerate draft",
+    };
+  }
+}
+
+export async function updateApplicationRecipientAction(
+  applicationId: string,
+  recipientEmail: string
+): Promise<ActionResult<{ recipientEmail: string }>> {
+  const parsed = recipientEmailSchema.safeParse(recipientEmail);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid recipient email address" };
+  }
+
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application?.accountId) {
+    return { ok: false, error: "Application not found" };
+  }
+
+  try {
+    const data = await updateApplicationRecipient(
+      application.accountId,
+      applicationId,
+      parsed.data
+    );
+    revalidatePath("/jobs");
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to update recipient",
+    };
+  }
+}
+
+/**
+ * Persists user edits to the in-app draft before Gmail save/send.
+ */
+export async function saveDraftEdits(
+  applicationId: string,
+  input: { subject: string; body: string; recipientEmail?: string }
+): Promise<ActionResult> {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application?.accountId) {
+    return { ok: false, error: "Application not found" };
+  }
+
+  const subject = input.subject.trim();
+  const body = input.body.trim();
+  if (!subject || !body) {
+    return { ok: false, error: "Subject and body are required" };
+  }
+
+  if (input.recipientEmail !== undefined && input.recipientEmail.trim()) {
+    const parsed = recipientEmailSchema.safeParse(input.recipientEmail);
+    if (!parsed.success) {
+      return { ok: false, error: "Invalid recipient email address" };
+    }
+  }
+
+  const effectiveRecipient =
+    input.recipientEmail !== undefined
+      ? input.recipientEmail.trim()
+      : extractRecruiterEmail({
+          actionSummary: application.actionSummary,
+          actionUrl: application.actionUrl,
+          applyUrl: application.applyUrl,
+        });
+
+  if (!canDraftDirectEmail(effectiveRecipient)) {
+    return { ok: false, error: NO_RECRUITER_EMAIL_ERROR };
+  }
+
+  try {
+    await updatePreparedDraft(application.accountId, applicationId, {
+      subject,
+      body,
+      ...(input.recipientEmail !== undefined
+        ? { recipientEmail: input.recipientEmail }
+        : {}),
+    });
+    revalidatePath("/jobs");
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to save draft",
+    };
+  }
+}
+
+export async function markPortalAsApplied(
+  applicationId: string
+): Promise<ActionResult> {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application) {
+    return { ok: false, error: "Application not found" };
+  }
+
+  const now = new Date();
+  await prisma.jobApplication.update({
+    where: { id: applicationId },
+    data: {
+      status: "APPLIED",
+      dispatchStatus: "MANUAL_APPLIED",
+      dispatchType: "PORTAL",
+      applicationMethod: "PORTAL_QUICK_APPLY",
+      opportunityStatus: "SENT",
+      appliedAt: now,
+    },
+  });
+
+  revalidatePath("/jobs");
+  return { ok: true };
+}
+
+export async function updateApplicationStatus(
+  applicationId: string,
+  status: string
+): Promise<ActionResult> {
+  const parsed = statusSchema.safeParse(status);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid application status" };
+  }
+
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application) {
+    return { ok: false, error: "Application not found" };
+  }
+
+  await prisma.jobApplication.update({
+    where: { id: applicationId },
+    data: {
+      status: parsed.data,
+      isArchived: parsed.data === "ARCHIVED",
+      actionRequired:
+        parsed.data === "OA" || parsed.data === "INTERVIEW"
+          ? true
+          : application.actionRequired,
+    },
+  });
+
+  revalidatePath("/jobs");
+  return { ok: true };
+}
+
+export async function downloadTailoredPdfAction(
+  applicationId: string,
+  includeSummary = false
+): Promise<ActionResult<{ base64: string; filename: string }>> {
+  // Lazy import to keep action surface thin
+  const { generateTailoredResumePdf } = await import("@/lib/pdf-generator");
+  const { tailorResumeForJob } = await import("@/lib/resume-tailor");
+  const { getMasterProfile } = await import("@/app/actions/profile");
+
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application) {
+    return { ok: false, error: "Application not found" };
+  }
+
+  if (!application.accountId) {
+    return {
+      ok: false,
+      error: "Gmail account is unlinked. Reconnect to download tailored PDFs.",
+    };
+  }
+
+  const profileResult = await getMasterProfile(application.accountId);
+  if (!profileResult.ok || !profileResult.data) {
+    return { ok: false, error: profileResult.ok ? "No profile" : profileResult.error };
+  }
+
+  const { updatedAt: _updatedAt, ...profile } = profileResult.data;
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId: application.accountId },
+  });
+  const rules = parseAccountRules(settings?.rules);
+  const tailored = await tailorResumeForJob(
+    [
+      application.roleTitle ?? "",
+      application.companyName ?? "",
+      application.actionSummary ?? "",
+    ].filter(Boolean),
+    profile,
+    {
+      llmProvider:
+        settings?.llmProvider === "LOCAL_OLLAMA"
+          ? "LOCAL_OLLAMA"
+          : "OPENROUTER",
+      localOllamaUrl: settings?.localOllamaUrl,
+      ollamaModel: settings?.ollamaModel,
+      allowCloudFallback: rules.allowCloudFallback,
+      companyName: application.companyName,
+      roleTitle: application.roleTitle,
+      jobText: application.actionSummary ?? undefined,
+      includeSummary,
+    }
+  );
+
+  const pdf = await generateTailoredResumePdf(
+    profile,
+    tailored.selectedExperience.length > 0
+      ? tailored.selectedExperience
+      : profile.experiences,
+    tailored.selectedProjects,
+    tailored.tailoredSummary,
+    tailored.tailoredSkills,
+    includeSummary
+  );
+
+  return {
+    ok: true,
+    data: {
+      base64: pdf.toString("base64"),
+      filename: `${profile.fullName.replace(/\s+/g, "_")}_Resume.pdf`,
+    },
+  };
+}
+
+export type { ApplicationStatus };
 </file>
 
 <file path="app/actions/profile.ts">
@@ -14267,6 +15042,15 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
   }
 }
 
+export type LatestBriefingPreview = {
+  id: string;
+  subject: string | null;
+  htmlPreview: string;
+  generatedAt: Date;
+  senderEmails: string[];
+  subscriptionIds: string[];
+};
+
 export async function getSubscriptionsForAccount(
   accountId: string
 ): Promise<Subscription[]> {
@@ -14281,93 +15065,23 @@ export async function getSubscriptionsForAccount(
   }
 }
 
-export type LatestBriefingPreview = {
-  id: string;
-  htmlPreview: string;
-  generatedAt: Date;
-  senderEmails: string[];
-};
-
 export async function getLatestBriefingForAccount(
   accountId: string
 ): Promise<LatestBriefingPreview | null> {
   try {
-    // #region agent log
-    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "3c315a",
-      },
-      body: JSON.stringify({
-        sessionId: "3c315a",
-        runId: "pre-fix",
-        hypothesisId: "H1",
-        location: "lib/data.ts:getLatestBriefingForAccount",
-        message: "briefing delegate availability",
-        data: {
-          hasDelegate:
-            typeof (prisma as { subscriptionBriefing?: unknown })
-              .subscriptionBriefing !== "undefined",
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     const row = await prisma.subscriptionBriefing.findUnique({
       where: { accountId },
       select: {
         id: true,
+        subject: true,
         htmlPreview: true,
         generatedAt: true,
         senderEmails: true,
+        subscriptionIds: true,
       },
     });
-    // #region agent log
-    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "3c315a",
-      },
-      body: JSON.stringify({
-        sessionId: "3c315a",
-        runId: "pre-fix",
-        hypothesisId: "H2",
-        location: "lib/data.ts:getLatestBriefingForAccount:ok",
-        message: "latest briefing lookup result",
-        data: {
-          found: Boolean(row),
-          senderCount: row?.senderEmails?.length ?? 0,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     return row;
   } catch (error) {
-    // #region agent log
-    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "3c315a",
-      },
-      body: JSON.stringify({
-        sessionId: "3c315a",
-        runId: "pre-fix",
-        hypothesisId: "H1",
-        location: "lib/data.ts:getLatestBriefingForAccount:catch",
-        message: "latest briefing lookup failed",
-        data: {
-          errorName: error instanceof Error ? error.name : "unknown",
-          errorMessage:
-            error instanceof Error ? error.message.slice(0, 160) : "unknown",
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     console.error("getLatestBriefingForAccount failed", error);
     return null;
   }
@@ -14611,26 +15325,30 @@ model Account {
   emailMessages   EmailMessage[]
   jobOpportunities JobOpportunity[]
   profile         UserProfile?
-  /// Single most recent subscription briefing for this inbox.
+  /// Single most-recent briefing for this inbox (older digests live in client localStorage).
   latestBriefing  SubscriptionBriefing?
 
   @@index([email])
   @@index([persistentProfileId])
 }
 
-/// Most recent briefing digest emailed to the account (one row per account).
+/// Exactly one row per account: the most recently generated briefing digest.
 model SubscriptionBriefing {
-  id           String   @id @default(cuid())
-  accountId    String   @unique
-  account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id               String   @id @default(cuid())
+  accountId        String   @unique
+  account          Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  htmlPreview  String   @db.Text
-  generatedAt  DateTime
-  /// Lowercased sender emails included in this briefing.
-  senderEmails String[]
+  /// Gmail subject, e.g. "Mail Pilot Snapshot · 8 updates · Jul 31 – Aug 7, 2026".
+  subject          String?
+  htmlPreview      String   @db.Text
+  generatedAt      DateTime
+  /// Lowercased sender emails included in this digest.
+  senderEmails     String[]
+  /// Subscription ids included (for badge matching + localStorage migration).
+  subscriptionIds  String[]
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model AccountSettings {

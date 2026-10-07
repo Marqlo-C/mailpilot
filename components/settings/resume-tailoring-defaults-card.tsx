@@ -6,6 +6,11 @@ import { toast } from "sonner";
 
 import { updateRule } from "@/app/actions/settings";
 import {
+  SETTINGS_CARD_CLASSNAME,
+  SETTINGS_ROW_CLASSNAME,
+  SETTINGS_SELECT_CLASSNAME,
+} from "@/components/settings/settings-chrome";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -19,6 +24,7 @@ import {
   type AccountRules,
   type ResumePreferences,
 } from "@/lib/validations/rules";
+import { cn } from "@/lib/utils";
 
 type ResumeTailoringDefaultsCardProps = {
   accountId: string | null;
@@ -59,7 +65,7 @@ export function ResumeTailoringDefaultsCard({
   }
 
   return (
-    <Card>
+    <Card className={SETTINGS_CARD_CLASSNAME}>
       <CardHeader>
         <CardTitle>Resume & Dispatch Defaults</CardTitle>
         <CardDescription>
@@ -74,7 +80,12 @@ export function ResumeTailoringDefaultsCard({
           </p>
         ) : null}
 
-        <div className="flex items-start justify-between gap-4 rounded-md border border-border p-3">
+        <div
+          className={cn(
+            "flex items-start justify-between gap-4",
+            SETTINGS_ROW_CLASSNAME
+          )}
+        >
           <div className="min-w-0 space-y-0.5">
             <Label
               htmlFor="resume-attach-pdf-default"
@@ -97,7 +108,12 @@ export function ResumeTailoringDefaultsCard({
           />
         </div>
 
-        <div className="flex items-start justify-between gap-4 rounded-md border border-border p-3">
+        <div
+          className={cn(
+            "flex items-start justify-between gap-4",
+            SETTINGS_ROW_CLASSNAME
+          )}
+        >
           <div className="min-w-0 space-y-0.5">
             <Label
               htmlFor="resume-include-summary-default"
@@ -139,7 +155,7 @@ export function ResumeTailoringDefaultsCard({
                 raw === "1" ? 1 : raw === "2" ? 2 : ("auto" as const);
               persist({ ...prefs, maxPages });
             }}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className={SETTINGS_SELECT_CLASSNAME}
           >
             <option value="auto">Auto</option>
             <option value="1">1 page</option>
