@@ -168,31 +168,6 @@ function buildSyncQuery(input: {
   };
 }
 
-// #region agent log
-function debugSyncLog(
-  hypothesisId: string,
-  location: string,
-  message: string,
-  data: Record<string, unknown>
-) {
-  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "3c315a",
-    },
-    body: JSON.stringify({
-      sessionId: "3c315a",
-      hypothesisId,
-      location,
-      message,
-      data,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-}
-// #endregion
-
 /**
  * Delta-first inbox opportunity sync.
  *
@@ -249,17 +224,6 @@ export async function runOpportunitySync(
         account.lastSyncedAt?.toISOString() ?? "(never)",
     });
 
-    // #region agent log
-    debugSyncLog("A", "opportunity-sync.ts:start", "Sync Inbox pipeline start", {
-      accountId,
-      forceRescan,
-      lookbackDays,
-      maxMessages,
-      lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
-      historyId: account.historyId,
-    });
-    // #endregion
-
     // ── Step 1: History delta first (Pub/Sub catch-up + subscriptions) ─────
     const delta = await processInboxDelta(
       account.email,
@@ -267,14 +231,6 @@ export async function runOpportunitySync(
     );
     const historyExpired = delta.historyExpired;
     const deltaIdSet = new Set(delta.messageIds);
-
-    // #region agent log
-    debugSyncLog("A", "opportunity-sync.ts:delta", "Delta step finished", {
-      deltaCount: delta.messageIds.length,
-      historyExpired,
-      historyId: delta.historyId,
-    });
-    // #endregion
 
     const gmail = await getGmailClientForAccount(account);
     const { query, windowLabel } = buildSyncQuery({
@@ -317,17 +273,6 @@ export async function runOpportunitySync(
       "PENDING_AI backlog pulled": pendingIds.length,
       "combined unique": combinedCandidateIds.length,
     });
-
-    // #region agent log
-    debugSyncLog("B", "opportunity-sync.ts:candidates", "Query + pending merge", {
-      listedIds: listedIds.length,
-      skippedAsDeltaDupes,
-      gmailMessageIds: gmailMessageIds.length,
-      pendingIds: pendingIds.length,
-      combined: combinedCandidateIds.length,
-      windowLabel,
-    });
-    // #endregion
 
     if (combinedCandidateIds.length === 0) {
       logStory(
@@ -409,13 +354,6 @@ export async function runOpportunitySync(
       "AI provider": llmProvider,
       "batch size": llmProvider === "LOCAL_OLLAMA" ? 1 : BATCH_SIZE,
     });
-
-    // #region agent log
-    debugSyncLog("C", "opportunity-sync.ts:classify", "Starting classify loop", {
-      targetCount: targetIds.length,
-      llmProvider,
-    });
-    // #endregion
 
     // Serialize local Ollama inference to avoid concurrent queue timeouts.
     const effectiveBatchSize = llmProvider === "LOCAL_OLLAMA" ? 1 : BATCH_SIZE;
@@ -578,15 +516,6 @@ export async function runOpportunitySync(
       "skipped earlier as known":
         combinedCandidateIds.length - targetIds.length,
     });
-
-    // #region agent log
-    debugSyncLog("C", "opportunity-sync.ts:done", "Classify loop finished", {
-      processed: targetIds.length,
-      opportunitiesUpserted,
-      skipped: combinedCandidateIds.length - targetIds.length,
-      historyExpired,
-    });
-    // #endregion
 
     return {
       processed: targetIds.length,

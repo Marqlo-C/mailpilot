@@ -1,19 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+  type MutableRefObject,
+} from "react";
 import { useRouter } from "next/navigation";
 import type { JobOpportunity } from "@prisma/client";
 import { Archive, CheckCircle2, Trash2, Undo2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  archiveOpportunities,
   deleteDismissedPermanently,
-  dismissOpportunities,
   markLessLikeThis,
-  markOpportunitiesExternalApplied,
-  restoreOpportunities,
 } from "@/app/actions/opportunities";
+import { DragGhost } from "@/components/dnd/drag-ghost";
 import {
   OpportunityCard,
   type OpportunityCardVariant,
@@ -29,8 +33,21 @@ import {
 } from "@/components/ui/bulk-actions-flyout";
 import { PipelinePaginationFooter } from "@/components/ui/pipeline-pagination";
 import { useLastClickedId } from "@/components/ui/use-last-clicked-id";
+import { useCardListGestures } from "@/hooks/use-card-list-gestures";
 import { usePagination } from "@/hooks/use-pagination";
+import { insertBeforeIdForIndex } from "@/lib/dnd/interactive";
+import {
+  mergeFilteredOrderIntoCustom,
+  orderItemsByIds,
+} from "@/lib/dnd/reorder";
 import { isUserArchived } from "@/lib/opportunities/lifecycle";
+import {
+  getJobGestureRules,
+  resolveJobMove,
+  variantToJobsTabKey,
+  type JobDropZone,
+  type JobMoveKind,
+} from "@/lib/opportunities/movement-rules";
 import {
   matchesHistoryStatusFilter,
   matchesSearchQuery,
@@ -39,11 +56,29 @@ import {
   type PipelineTab,
   type SourceFilter,
 } from "@/lib/opportunities/pipeline-filters";
+import {
+  applyJobCustomOrder,
+  persistJobCustomOrder,
+  readJobCustomOrder,
+} from "@/lib/opportunities/preferences";
+import {
+  runJobCardAction,
+  runJobDrop,
+} from "@/lib/opportunities/run-job-move";
 import { TAB_SORT_CONFIG } from "@/lib/opportunities/sorting";
 
 const JOBS_PAGE_SIZE_KEY = "mailpilot_jobs_per_page";
 
+const MOVE_TOAST: Partial<Record<JobMoveKind, string>> = {
+  mark_applied: "Marked as applied",
+  unmark_applied: "Moved back to leads",
+  dismiss: "Dismissed",
+  archive: "Archived",
+  restore: "Restored",
+};
+
 type OpportunitiesViewProps = {
+  accountId: string;
   opportunities: JobOpportunity[];
   matchThreshold: number;
   variant?: OpportunityCardVariant;
@@ -60,6 +95,10 @@ type OpportunitiesViewProps = {
   /** Controlled sort from JobsRadar (TAB_SORT_CONFIG). */
   sortOption: string;
   onSortOptionChange: (sort: string) => void;
+  /** Suppress tab switch when a drop lands on a tab trigger. */
+  suppressTabChangeRef?: MutableRefObject<boolean>;
+  /** Hovered drop-zone id while dragging (for tab ring highlight). */
+  onDragZoneChange?: (zoneId: string | null) => void;
   onReviewDraft?: (opp: JobOpportunity) => void;
   onSendNow?: (opp: JobOpportunity) => void;
   onMarkApplied?: (opp: JobOpportunity) => void;
@@ -73,10 +112,11 @@ function variantToPipelineTab(variant: OpportunityCardVariant): PipelineTab {
 }
 
 /**
- * Opportunities grid with multi-select and bulk lifecycle actions.
- * Sorting is owned by the parent tab (see lib/opportunities/sorting.ts).
+ * Opportunities grid with multi-select, bulk lifecycle actions, and DnD
+ * (Custom reorder + tab drops via movement-rules / runJobMove).
  */
 export function OpportunitiesView({
+  accountId,
   opportunities,
   matchThreshold,
   variant = "leads",
@@ -90,6 +130,8 @@ export function OpportunitiesView({
   hiddenCount = 0,
   sortOption,
   onSortOptionChange,
+  suppressTabChangeRef,
+  onDragZoneChange,
   onReviewDraft,
   onSendNow,
   onMarkApplied,
@@ -98,13 +140,20 @@ export function OpportunitiesView({
 }: OpportunitiesViewProps) {
   const router = useRouter();
   const activeTab = variantToPipelineTab(variant);
+  const jobsTabKey = variantToJobsTabKey(variant);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [customOrder, setCustomOrder] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [historyStatusFilter, setHistoryStatusFilter] =
     useState<HistoryStatusFilter>("all");
   const [batchPending, startBatch] = useTransition();
   const busy = pending || batchPending;
+
+  useEffect(() => {
+    setCustomOrder(readJobCustomOrder(accountId, jobsTabKey));
+  }, [accountId, jobsTabKey]);
 
   function handleLessLikeThis(opp: JobOpportunity) {
     if (onLessLikeThis) {
@@ -144,9 +193,14 @@ export function OpportunitiesView({
     ]
   );
 
+  const orderedOpportunities = useMemo(() => {
+    if (sortOption !== "custom") return filteredOpportunities;
+    return applyJobCustomOrder(filteredOpportunities, customOrder);
+  }, [filteredOpportunities, sortOption, customOrder]);
+
   const filteredOpportunityIds = useMemo(
-    () => filteredOpportunities.map((o) => o.id),
-    [filteredOpportunities]
+    () => orderedOpportunities.map((o) => o.id),
+    [orderedOpportunities]
   );
   const { lastClickedId, markLastClicked } = useLastClickedId(
     selectedIds,
@@ -161,9 +215,15 @@ export function OpportunitiesView({
     });
   }, [filteredOpportunityIds]);
 
+  useEffect(() => {
+    if (selectedIds.length === 0 && selectionMode) {
+      setSelectionMode(false);
+    }
+  }, [selectedIds.length, selectionMode]);
+
   const selectedRecords = useMemo(
-    () => filteredOpportunities.filter((o) => selectedIds.includes(o.id)),
-    [filteredOpportunities, selectedIds]
+    () => orderedOpportunities.filter((o) => selectedIds.includes(o.id)),
+    [orderedOpportunities, selectedIds]
   );
   const archivedSelectedIds = useMemo(
     () => selectedRecords.filter((o) => isUserArchived(o)).map((o) => o.id),
@@ -177,29 +237,61 @@ export function OpportunitiesView({
     [selectedRecords]
   );
   const isAllSelected =
-    filteredOpportunities.length > 0 &&
-    filteredOpportunities.every((o) => selectedIds.includes(o.id));
+    orderedOpportunities.length > 0 &&
+    orderedOpportunities.every((o) => selectedIds.includes(o.id));
 
   function toggleSelect(id: string) {
     markLastClicked(id);
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
+    setSelectedIds((prev) => {
+      const next = prev.includes(id)
+        ? prev.filter((i) => i !== id)
+        : [...prev, id];
+      setSelectionMode(next.length > 0);
+      return next;
+    });
   }
 
   function handleSelectAll() {
     markLastClicked(null);
     if (isAllSelected) {
-      setSelectedIds([]);
+      clearSelection();
     } else {
-      setSelectedIds(filteredOpportunities.map((o) => o.id));
+      setSelectionMode(true);
+      setSelectedIds(orderedOpportunities.map((o) => o.id));
     }
   }
 
   function clearSelection() {
     markLastClicked(null);
+    setSelectionMode(false);
     setSelectedIds([]);
   }
+
+  const enterSelectionMode = useCallback(
+    (id: string) => {
+      markLastClicked(id);
+      setSelectionMode(true);
+      setSelectedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    },
+    [markLastClicked]
+  );
+
+  const paintSelect = useCallback(
+    (id: string, mode: "add" | "remove") => {
+      markLastClicked(id);
+      setSelectedIds((prev) => {
+        if (mode === "add") {
+          if (prev.includes(id)) return prev;
+          setSelectionMode(true);
+          return [...prev, id];
+        }
+        const next = prev.filter((i) => i !== id);
+        setSelectionMode(next.length > 0);
+        return next;
+      });
+    },
+    [markLastClicked]
+  );
 
   function afterBatch(message: string) {
     toast.success(message);
@@ -207,7 +299,7 @@ export function OpportunitiesView({
     router.refresh();
   }
 
-  const visibleCount = filteredOpportunities.length;
+  const visibleCount = orderedOpportunities.length;
   const totalCount = opportunities.length + hiddenCount;
   const defaultSort = TAB_SORT_CONFIG[activeTab].defaultSort;
 
@@ -245,10 +337,165 @@ export function OpportunitiesView({
     setCurrentPage(1);
   }
 
-  const paginatedJobs = slice(filteredOpportunities);
+  const paginatedCommitted = slice(orderedOpportunities);
+  const paginatedIds = useMemo(
+    () => paginatedCommitted.map((o) => o.id),
+    [paginatedCommitted]
+  );
+
+  const gestureRules = getJobGestureRules({
+    activeTab: jobsTabKey,
+    sortIsCustom: sortOption === "custom",
+    hasSavedCustomOrder: customOrder.length > 0,
+  });
+
+  const handleReorder = useCallback(
+    (nextFullIds: string[], _movedIds: string[]) => {
+      const merged = mergeFilteredOrderIntoCustom(
+        customOrder,
+        filteredOpportunityIds,
+        nextFullIds
+      );
+      setCustomOrder(merged);
+      persistJobCustomOrder(accountId, jobsTabKey, merged);
+      if (sortOption !== "custom") {
+        onSortOptionChange("custom");
+      }
+    },
+    [
+      accountId,
+      customOrder,
+      filteredOpportunityIds,
+      jobsTabKey,
+      onSortOptionChange,
+      sortOption,
+    ]
+  );
+
+  const handleDropZone = useCallback(
+    (zoneId: string, movedIds: string[]) => {
+      const resolved = resolveJobMove(
+        jobsTabKey,
+        zoneId as JobDropZone
+      );
+      if (
+        resolved.kind === "forbidden" ||
+        resolved.kind === "reorder" ||
+        movedIds.length === 0
+      ) {
+        return;
+      }
+      if (suppressTabChangeRef) {
+        suppressTabChangeRef.current = true;
+        window.setTimeout(() => {
+          suppressTabChangeRef.current = false;
+        }, 0);
+      }
+      startBatch(async () => {
+        const result = await runJobDrop(jobsTabKey, zoneId as JobDropZone, movedIds);
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        const message =
+          MOVE_TOAST[resolved.kind] ??
+          `${resolved.label} (${result.data?.count ?? movedIds.length})`;
+        afterBatch(message);
+      });
+    },
+    // afterBatch / startBatch close over latest selection helpers
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+    [jobsTabKey, suppressTabChangeRef]
+  );
+
+  const { drag, bindItem, onBackgroundPointerDown } = useCardListGestures({
+    pageItemIds: paginatedIds,
+    fullItemIds: filteredOpportunityIds,
+    selectedIds,
+    selectionMode: selectionMode || selectedIds.length > 0,
+    onEnterSelectionMode: enterSelectionMode,
+    onToggleSelect: toggleSelect,
+    onPaintSelect: paintSelect,
+    onClearSelection: clearSelection,
+    rules: gestureRules,
+    currentPage,
+    totalPages,
+    pageSize,
+    onPageChange: setCurrentPage,
+    onReorder: handleReorder,
+    onDropZone: handleDropZone,
+    onReorderBlocked: () => {
+      toast.message("Switch to Custom sort to rearrange", {
+        action: {
+          label: "Custom",
+          onClick: () => onSortOptionChange("custom"),
+        },
+      });
+    },
+  });
+
+  useEffect(() => {
+    onDragZoneChange?.(drag?.active ? drag.dropZone : null);
+  }, [drag?.active, drag?.dropZone, onDragZoneChange]);
+
+  const changePage = useCallback(
+    (page: number) => {
+      clearSelection();
+      setCurrentPage(page);
+    },
+    // clearSelection is stable enough for page chrome
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+    [setCurrentPage]
+  );
+
+  const changePageSize = useCallback(
+    (size: number) => {
+      clearSelection();
+      setPageSize(size);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+    [setPageSize]
+  );
+
+  const dragLabel = useMemo(() => {
+    if (!drag?.active || drag.movedIds.length === 0) return null;
+    const first = orderedOpportunities.find((o) => o.id === drag.movedIds[0]);
+    if (!first) return `${drag.movedIds.length} job(s)`;
+    return `${first.company} — ${first.title}`;
+  }, [drag, orderedOpportunities]);
+
+  const displayOpportunities = useMemo(() => {
+    if (drag?.previewFullIds) {
+      return orderItemsByIds(orderedOpportunities, drag.previewFullIds);
+    }
+    return orderedOpportunities;
+  }, [drag?.previewFullIds, orderedOpportunities]);
+
+  const paginatedJobs = slice(displayOpportunities);
+
+  // Multi-column grids skip live reorder — show a stable insert marker instead.
+  const marker =
+    drag?.active &&
+    !drag.previewFullIds &&
+    drag.insertIndex != null &&
+    !drag.dropZone
+      ? insertBeforeIdForIndex(
+          filteredOpportunityIds,
+          drag.movedIds,
+          drag.insertIndex
+        )
+      : { insertBeforeId: null as string | null, insertAfterLast: false };
 
   return (
-    <div className="mt-0">
+    <div className="mt-0" onPointerDown={onBackgroundPointerDown}>
+      <DragGhost
+        active={Boolean(drag?.active)}
+        x={drag?.pointerX ?? 0}
+        y={drag?.pointerY ?? 0}
+        count={drag?.movedIds.length ?? 0}
+        label={dragLabel}
+      />
+
       <PipelineToolbar
         activeTab={activeTab}
         totalCount={totalCount}
@@ -280,17 +527,21 @@ export function OpportunitiesView({
         onSortOptionChange={onSortOptionChange}
         showTelemetry={showListingCount}
         pageSize={pageSize}
-        onPageSizeChange={setPageSize}
+        onPageSizeChange={changePageSize}
         hasActiveTransientFilters={hasActiveTransientFilters}
         onResetTransientFilters={handleResetTransientFilters}
       />
 
-      {filteredOpportunities.length === 0 ? (
+      {orderedOpportunities.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
           {emptyText}
         </div>
       ) : (
-        <div className="grid min-w-0 gap-3 md:grid-cols-2">
+        <div
+          className="grid min-w-0 gap-3 md:grid-cols-2"
+          data-dnd-list
+          data-dnd-previewing={drag?.previewFullIds ? "true" : undefined}
+        >
           {paginatedJobs.map((opp) => (
             <OpportunityCard
               key={opp.id}
@@ -302,6 +553,8 @@ export function OpportunitiesView({
               isSelected={selectedIds.includes(opp.id)}
               isLastClicked={lastClickedId === opp.id}
               onToggleSelect={toggleSelect}
+              itemProps={bindItem(opp.id)}
+              showInsertBefore={marker.insertBeforeId === opp.id}
               onReviewDraft={() => onReviewDraft?.(opp)}
               onSendNow={() => onSendNow?.(opp)}
               onMarkApplied={() => onMarkApplied?.(opp)}
@@ -313,6 +566,12 @@ export function OpportunitiesView({
               }
             />
           ))}
+          {marker.insertAfterLast ? (
+            <div
+              className="pointer-events-none col-span-full h-0.5 bg-[#1ab5af]"
+              aria-hidden
+            />
+          ) : null}
         </div>
       )}
 
@@ -321,7 +580,7 @@ export function OpportunitiesView({
         totalPages={totalPages}
         pageSize={pageSize}
         totalItems={visibleCount}
-        onPageChange={setCurrentPage}
+        onPageChange={changePage}
       />
 
       <BulkActionsFlyout
@@ -335,7 +594,15 @@ export function OpportunitiesView({
               disabled={busy}
               onClick={() =>
                 startBatch(async () => {
-                  await restoreOpportunities(selectedIds);
+                  const result = await runJobCardAction(
+                    "history",
+                    "restore",
+                    selectedIds
+                  );
+                  if (!result.ok) {
+                    toast.error(result.error);
+                    return;
+                  }
                   afterBatch("Restored");
                 })
               }
@@ -354,7 +621,15 @@ export function OpportunitiesView({
                   disabled={busy}
                   onClick={() =>
                     startBatch(async () => {
-                      await dismissOpportunities(archivedSelectedIds);
+                      const result = await runJobCardAction(
+                        "history",
+                        "dismiss",
+                        archivedSelectedIds
+                      );
+                      if (!result.ok) {
+                        toast.error(result.error);
+                        return;
+                      }
                       afterBatch("Dismissed — purge countdown started");
                     })
                   }
@@ -402,7 +677,15 @@ export function OpportunitiesView({
                 disabled={busy}
                 onClick={() =>
                   startBatch(async () => {
-                    await archiveOpportunities(selectedIds);
+                    const result = await runJobCardAction(
+                      variantToJobsTabKey(variant),
+                      "archive",
+                      selectedIds
+                    );
+                    if (!result.ok) {
+                      toast.error(result.error);
+                      return;
+                    }
                     afterBatch("Archived");
                   })
                 }
@@ -422,7 +705,15 @@ export function OpportunitiesView({
                   disabled={busy}
                   onClick={() =>
                     startBatch(async () => {
-                      await markOpportunitiesExternalApplied(selectedIds);
+                      const result = await runJobCardAction(
+                        "leads",
+                        "mark_applied",
+                        selectedIds
+                      );
+                      if (!result.ok) {
+                        toast.error(result.error);
+                        return;
+                      }
                       afterBatch("Marked as applied");
                     })
                   }
@@ -441,7 +732,15 @@ export function OpportunitiesView({
               disabled={busy}
               onClick={() =>
                 startBatch(async () => {
-                  await dismissOpportunities(selectedIds);
+                  const result = await runJobCardAction(
+                    variantToJobsTabKey(variant),
+                    "dismiss",
+                    selectedIds
+                  );
+                  if (!result.ok) {
+                    toast.error(result.error);
+                    return;
+                  }
                   afterBatch("Dismissed");
                 })
               }

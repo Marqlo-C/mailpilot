@@ -1,6 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
+import {
+  useTransition,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 import type { JobOpportunity } from "@prisma/client";
 import {
@@ -22,12 +26,12 @@ import {
   Zap,
 } from "lucide-react";
 
+import { deleteDismissedPermanently } from "@/app/actions/opportunities";
 import {
-  archiveOpportunities,
-  deleteDismissedPermanently,
-  dismissOpportunities,
-  restoreOpportunities,
-} from "@/app/actions/opportunities";
+  variantToJobsTabKey,
+  type JobCardAction,
+} from "@/lib/opportunities/movement-rules";
+import { runJobCardAction } from "@/lib/opportunities/run-job-move";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -85,6 +89,14 @@ type OpportunityCardProps = {
   onLessLikeThis?: () => void;
   onRestore?: () => void;
   onDelete?: () => void;
+  /** Pointer / data attrs from `useCardListGestures().bindItem`. */
+  itemProps?: {
+    "data-dnd-item-id": string;
+    onPointerDown: (event: ReactPointerEvent) => void;
+    style?: CSSProperties;
+  };
+  /** Insert marker above this card while reordering. */
+  showInsertBefore?: boolean;
 };
 
 function scoreTone(score: number): string {
@@ -119,7 +131,10 @@ export function OpportunityCard({
   onLessLikeThis,
   onRestore,
   onDelete,
+  itemProps,
+  showInsertBefore = false,
 }: OpportunityCardProps) {
+  const { style: itemStyle, ...itemRest } = itemProps ?? {};
   const router = useRouter();
   const [actionPending, startTransition] = useTransition();
   const busy = pending || actionPending;
@@ -152,15 +167,24 @@ export function OpportunityCard({
   const locationLabel = locationRaw || "Remote / Unspecified";
   const postedRaw = opportunity.postedAt?.trim() ?? "";
 
+  function runLifecycleAction(action: JobCardAction) {
+    startTransition(async () => {
+      const result = await runJobCardAction(
+        variantToJobsTabKey(variant),
+        action,
+        [opportunity.id]
+      );
+      if (!result.ok) return;
+      router.refresh();
+    });
+  }
+
   function runArchive() {
     if (onArchive) {
       onArchive();
       return;
     }
-    startTransition(async () => {
-      await archiveOpportunities([opportunity.id]);
-      router.refresh();
-    });
+    runLifecycleAction("archive");
   }
 
   function runDismiss() {
@@ -168,10 +192,7 @@ export function OpportunityCard({
       onDismiss();
       return;
     }
-    startTransition(async () => {
-      await dismissOpportunities([opportunity.id]);
-      router.refresh();
-    });
+    runLifecycleAction("dismiss");
   }
 
   function runRestore() {
@@ -179,10 +200,7 @@ export function OpportunityCard({
       onRestore();
       return;
     }
-    startTransition(async () => {
-      await restoreOpportunities([opportunity.id]);
-      router.refresh();
-    });
+    runLifecycleAction("restore");
   }
 
   function runDelete() {
@@ -255,14 +273,22 @@ export function OpportunityCard({
 
   return (
     <article
+      {...itemRest}
+      style={itemStyle}
       className={cn(
-        "group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card transition-all duration-200",
+        "group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card transition-all duration-200 select-none",
         belowThreshold && !userArchived && "opacity-90",
         isSelected
           ? cn(SELECT_HIGHLIGHT_CLASSNAME, SELECT_HIGHLIGHT_FILL_CLASSNAME)
           : "border-2 border-border/80 shadow-md hover:border-border hover:shadow-lg"
       )}
     >
+      {showInsertBefore ? (
+        <div
+          className="pointer-events-none absolute inset-x-3 top-0 z-20 h-0.5 bg-[#1ab5af]"
+          aria-hidden
+        />
+      ) : null}
       {/* Top-left: bare select checkbox */}
       {onToggleSelect ? (
         <label className="absolute top-2.5 left-3 z-10 m-0 flex cursor-pointer items-center p-0">

@@ -1,33 +1,33 @@
-/** Soft teal-tinted wash for selected rows/cards. */
+/** Soft blue-teal wash for selected rows/cards (hue ~188 vs brand 174). */
 export const SELECT_HIGHLIGHT_FILL_CLASSNAME =
-  "bg-[linear-gradient(135deg,hsl(174_34%_48%_/_0.10)_0%,hsl(174_34%_48%_/_0.13)_55%,hsl(174_34%_48%_/_0.16)_100%)]";
+  "bg-[linear-gradient(135deg,hsl(188_34%_48%_/_0.10)_0%,hsl(188_34%_48%_/_0.13)_55%,hsl(188_34%_48%_/_0.16)_100%)]";
 
 /**
  * Perimeter stroke via inset shadow so it tracks border-radius flush with the
  * fill (CSS borders often leave a 1px corner/edge gap on rounded cards).
- * Hex #9FCFD2 at ~95% (F2).
+ * Hex #9BC6D8 at ~95% (F2) — slightly bluer than the old #9FCFD2 teal.
  */
-const GROUP_STROKE_FULL = "shadow-[inset_0_0_0_2px_#9FCFD2F2]";
+const GROUP_STROKE_FULL = "shadow-[inset_0_0_0_2px_#9BC6D8F2]";
 const GROUP_STROKE_SIDES =
-  "shadow-[inset_2px_0_0_0_#9FCFD2F2,inset_-2px_0_0_0_#9FCFD2F2]";
+  "shadow-[inset_2px_0_0_0_#9BC6D8F2,inset_-2px_0_0_0_#9BC6D8F2]";
 const GROUP_STROKE_START =
-  "shadow-[inset_0_2px_0_0_#9FCFD2F2,inset_2px_0_0_0_#9FCFD2F2,inset_-2px_0_0_0_#9FCFD2F2]";
+  "shadow-[inset_0_2px_0_0_#9BC6D8F2,inset_2px_0_0_0_#9BC6D8F2,inset_-2px_0_0_0_#9BC6D8F2]";
 const GROUP_STROKE_END =
-  "shadow-[inset_0_-2px_0_0_#9FCFD2F2,inset_2px_0_0_0_#9FCFD2F2,inset_-2px_0_0_0_#9FCFD2F2]";
+  "shadow-[inset_0_-2px_0_0_#9BC6D8F2,inset_2px_0_0_0_#9BC6D8F2,inset_-2px_0_0_0_#9BC6D8F2]";
 
 /**
- * Standalone selected-card outline (Job Radar) — same #9FCFD2 teal as
+ * Standalone selected-card outline (Job Radar) — same #9BC6D8 stroke as
  * subscription group selection. Uses a real `border-2` (not inset shadow) so
  * the stroke sits flush on `rounded-2xl` and doesn’t fight corner chrome.
  * Pair with matching `border-2` on the resting card to avoid size shift.
  * Pair with {@link SELECT_HIGHLIGHT_FILL_CLASSNAME}.
  */
 export const SELECT_HIGHLIGHT_CLASSNAME =
-  "border-2 border-[#9FCFD2]/95 shadow-md";
+  "border-2 border-[#9BC6D8]/95 shadow-md";
 
-/** Faint row rule kept between cards inside a selected group. */
+/** Soft row rule between cards inside a selected group. */
 export const SELECT_HIGHLIGHT_GROUP_DIVIDER_CLASSNAME =
-  "border-b border-b-[hsl(220_14%_90%)]";
+  "border-b border-muted-foreground/25";
 
 /**
  * Row stacking — pair with overflow-visible so a border glow can paint

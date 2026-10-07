@@ -26,7 +26,6 @@ const syncInputSchema = z.object({
   accountId: z.string().min(1).optional(),
 });
 
-
 /**
  * Immediately clears a stuck isSyncing lock for the active account.
  */
@@ -141,28 +140,6 @@ export async function syncInboxOpportunities(
       note: "This becomes lastSyncedAt only if the whole pass succeeds.",
     });
 
-    // #region agent log
-    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "3c315a",
-      },
-      body: JSON.stringify({
-        sessionId: "3c315a",
-        hypothesisId: "D",
-        location: "email.ts:after-start",
-        message: "runStartedAt snapped",
-        data: {
-          runStartedAt: runStartedAt.toISOString(),
-          mode,
-          syncAccountId,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-
     try {
       const result = await runOpportunitySync(syncAccountId, {
         forceRescan,
@@ -230,33 +207,6 @@ export async function syncInboxOpportunities(
           );
         }
 
-        // #region agent log
-        fetch(
-          "http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Debug-Session-Id": "3c315a",
-            },
-            body: JSON.stringify({
-              sessionId: "3c315a",
-              hypothesisId: "D",
-              location: "email.ts:finally",
-              message: stampedLastSyncedAt
-                ? "Watermark committed"
-                : "Watermark held (error)",
-              data: {
-                stampedLastSyncedAt,
-                runStartedAt: runStartedAt.toISOString(),
-                processed,
-                errorMessage,
-              },
-              timestamp: Date.now(),
-            }),
-          }
-        ).catch(() => {});
-        // #endregion
       } catch (finalizeError) {
         syncLog.error(
           { err: finalizeError },

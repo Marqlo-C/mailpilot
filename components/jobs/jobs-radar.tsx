@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
 import type { JobApplication, JobOpportunity } from "@prisma/client";
 import {
@@ -66,6 +73,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 type JobsRadarProps = {
   accountId: string;
@@ -126,12 +134,15 @@ export function JobsRadar({
   const [threshold, setThreshold] = useState(matchThreshold);
   const [activeTab, setActiveTab] = useState("leads");
   const [sort, setSort] = useState(TAB_SORT_CONFIG.leads.defaultSort);
+  const [dragDropZone, setDragDropZone] = useState<string | null>(null);
+  const suppressTabChangeRef = useRef(false);
 
   useEffect(() => {
     setThreshold(matchThreshold);
   }, [matchThreshold]);
 
   function handleTabChange(nextTab: string) {
+    if (suppressTabChangeRef.current) return;
     setActiveTab(nextTab);
     const nextConfig = TAB_SORT_CONFIG[tabKeyFromValue(nextTab)];
     const allowed = nextConfig.options.map((o) => o.value);
@@ -139,6 +150,10 @@ export function JobsRadar({
       setSort(nextConfig.defaultSort);
     }
   }
+
+  const handleDragZoneChange = useCallback((zoneId: string | null) => {
+    setDragDropZone(zoneId);
+  }, []);
 
   function commitThreshold(value: number) {
     const next = Math.min(100, Math.max(0, Math.round(value)));
@@ -291,28 +306,48 @@ export function JobsRadar({
             <TabsList className={segmentedTabsListClassName}>
               <TabsTrigger
                 value="leads"
-                className={segmentedTabsTriggerClassName}
+                data-dnd-drop-zone="leads"
+                className={cn(
+                  segmentedTabsTriggerClassName,
+                  dragDropZone === "leads" &&
+                    "ring-2 ring-[#1ab5af]/70 ring-offset-2 ring-offset-background"
+                )}
               >
                 <span>Leads</span>
                 <TabCountBadge count={leadCount} />
               </TabsTrigger>
               <TabsTrigger
                 value="applied"
-                className={segmentedTabsTriggerClassName}
+                data-dnd-drop-zone="applied"
+                className={cn(
+                  segmentedTabsTriggerClassName,
+                  dragDropZone === "applied" &&
+                    "ring-2 ring-[#1ab5af]/70 ring-offset-2 ring-offset-background"
+                )}
               >
                 <span>Applied</span>
                 <TabCountBadge count={appliedCount} />
               </TabsTrigger>
               <TabsTrigger
                 value="action"
-                className={segmentedTabsTriggerClassName}
+                data-dnd-drop-zone="action_required"
+                className={cn(
+                  segmentedTabsTriggerClassName,
+                  dragDropZone === "action_required" &&
+                    "ring-2 ring-[#1ab5af]/70 ring-offset-2 ring-offset-background"
+                )}
               >
                 <span>Action Required</span>
                 <TabCountBadge count={actionCount} />
               </TabsTrigger>
               <TabsTrigger
                 value="history"
-                className={segmentedTabsTriggerClassName}
+                data-dnd-drop-zone="history"
+                className={cn(
+                  segmentedTabsTriggerClassName,
+                  dragDropZone === "history" &&
+                    "ring-2 ring-[#c21f10]/70 ring-offset-2 ring-offset-background"
+                )}
               >
                 <span>History</span>
                 <TabCountBadge count={historyCount} />
@@ -348,6 +383,7 @@ export function JobsRadar({
             <div className="space-y-4">
               {hasOpportunityLeads ? (
                 <OpportunitiesView
+                  accountId={accountId}
                   opportunities={sortedOpportunityLeads}
                   matchThreshold={threshold}
                   retentionDays={retentionDays}
@@ -360,6 +396,8 @@ export function JobsRadar({
                   hiddenCount={archivedLeadCount}
                   sortOption={sort}
                   onSortOptionChange={setSort}
+                  suppressTabChangeRef={suppressTabChangeRef}
+                  onDragZoneChange={handleDragZoneChange}
                   onReviewDraft={(opp) => setDraftOpportunity(opp)}
                   onSendNow={handleOpportunitySend}
                   onMarkApplied={(opp) => {
@@ -514,6 +552,7 @@ export function JobsRadar({
             <>
               {sortedOpportunityApplied.length > 0 ? (
                 <OpportunitiesView
+                  accountId={accountId}
                   opportunities={sortedOpportunityApplied}
                   matchThreshold={threshold}
                   retentionDays={retentionDays}
@@ -522,6 +561,8 @@ export function JobsRadar({
                   emptyText="No applied opportunities."
                   sortOption={sort}
                   onSortOptionChange={setSort}
+                  suppressTabChangeRef={suppressTabChangeRef}
+                  onDragZoneChange={handleDragZoneChange}
                   onUnmarkApplied={(opp) => {
                     startTransition(async () => {
                       await unmarkApplied(opp.id);
@@ -587,6 +628,7 @@ export function JobsRadar({
             <>
               {sortedOpportunityAction.length > 0 ? (
                 <OpportunitiesView
+                  accountId={accountId}
                   opportunities={sortedOpportunityAction}
                   matchThreshold={threshold}
                   retentionDays={retentionDays}
@@ -595,6 +637,8 @@ export function JobsRadar({
                   emptyText="No drafts awaiting review."
                   sortOption={sort}
                   onSortOptionChange={setSort}
+                  suppressTabChangeRef={suppressTabChangeRef}
+                  onDragZoneChange={handleDragZoneChange}
                   onReviewDraft={(opp) => setDraftOpportunity(opp)}
                   onSendNow={handleOpportunitySend}
                 />
@@ -682,6 +726,7 @@ export function JobsRadar({
             <>
               {sortedOpportunityHistory.length > 0 ? (
                 <OpportunitiesView
+                  accountId={accountId}
                   opportunities={sortedOpportunityHistory}
                   matchThreshold={threshold}
                   retentionDays={retentionDays}
@@ -690,6 +735,8 @@ export function JobsRadar({
                   emptyText="No archived opportunities."
                   sortOption={sort}
                   onSortOptionChange={setSort}
+                  suppressTabChangeRef={suppressTabChangeRef}
+                  onDragZoneChange={handleDragZoneChange}
                 />
               ) : null}
               {sortedHistory.length > 0 ? (

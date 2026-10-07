@@ -7,14 +7,17 @@
  * - Short hold → enter multi-select + check that card; keep holding & slide to paint-select.
  * - In multi-select: tap toggles; swipe paint adds or removes (mode from start card;
  *   sole checked card starts paint-add so it isn’t wiped).
- * - Longer hold while items are selected → drag (checked card moves all selected;
- *   unchecked moves alone). Empty-space / Escape / view changes exit multi-select;
- *   releasing a drag only ends DnD.
+ * - Longer hold on a **selected** card → drag all selected (list order).
+ *   Unselected cards never start a drag. Empty-space / Escape / view changes
+ *   exit multi-select; releasing a drag only ends DnD.
  * - Same-list reorder when `rules.canReorder` (e.g. Custom sort); edge hover flips page.
- * - Cross-list moves only via `rules.allowedDropZones` (e.g. Active → Unsubscribed).
+ *   Near the viewport top/bottom, the page auto-scrolls while the pointer stays there.
+ *   While dragging, `drag.previewFullIds` is the live order for the list UI to render.
+ * - Cross-list moves via `rules.allowedDropZones` even when reorder is locked
+ *   (e.g. Active → Unsubscribed while sorted by clutter / newest).
  *
- * Jobs / kanban later: reuse this hook; swap movement policy through
- * `CardListGestureRules` + drop-zone handlers (tab/column targets), not a new gesture stack.
+ * Jobs / kanban: reuse this hook; movement policy lives in
+ * `lib/opportunities/movement-rules.ts` (shared by cards + DnD).
  */
 
 import {
@@ -26,6 +29,8 @@ import {
 } from "react";
 
 import {
+  DND_AUTO_SCROLL_EDGE_PX,
+  DND_AUTO_SCROLL_MAX_PX,
   DND_DRAG_LONG_PRESS_MS,
   DND_MOVE_CANCEL_PX,
   DND_PAGE_EDGE_PX,
@@ -34,26 +39,37 @@ import {
   getPageFlipLeftEdgePx,
 } from "@/lib/dnd/constants";
 import {
+  captureReorderRects,
+  captureSelectionDragGeometry,
   findDropZoneFromPoint,
-  findInsertIndexFromPoint,
   findItemIdFromPoint,
+  findReorderInsertIndex,
   isInteractiveTarget,
+  getDragScrollElement,
+  isMultiColumnDndList,
   isOverlayTarget,
+  offsetFrozenGeometryByScroll,
+  type FrozenItemRect,
+  type SelectionDragGeometry,
 } from "@/lib/dnd/interactive";
-import { reorderIds } from "@/lib/dnd/reorder";
+import { previewReorderFullIds, reorderIds } from "@/lib/dnd/reorder";
+import type { CardListGestureRules } from "@/lib/dnd/types";
 
-export type CardListGestureRules = {
-  /** Same-list rearrange allowed right now. */
-  canReorder: boolean;
-  /** Drop-zone ids that accept the current drag (e.g. "archive"). */
-  allowedDropZones?: readonly string[];
-};
+export type { CardListGestureRules };
 
 export type CardListDragState = {
   active: boolean;
   movedIds: string[];
   originId: string;
+  /** Insert index in without-moved space; null when not aiming a list slot. */
   insertIndex: number | null;
+  /**
+   * Live full-list id order for same-tab rearrange preview (single-column lists).
+   * Null for multi-column grids (use insert markers), drop zones, or locked reorder.
+   */
+  previewFullIds: string[] | null;
+  /** False on multi-column grids — DOM live-reorder is unstable there. */
+  livePreview: boolean;
   dropZone: string | null;
   pointerX: number;
   pointerY: number;
@@ -86,7 +102,10 @@ type UseCardListGesturesOptions = {
   onReorder: (nextFullIds: string[], movedIds: string[]) => void;
   /** Dropped onto a named zone (e.g. archive tab). */
   onDropZone?: (zoneId: string, movedIds: string[]) => void;
-  /** Second long-press while reorder is locked (e.g. not on Custom sort). */
+  /**
+   * Second long-press when neither reorder nor any drop zone is available
+   * (e.g. History with no outbound zones — currently unused for jobs).
+   */
   onReorderBlocked?: () => void;
 };
 
@@ -131,11 +150,21 @@ export function useCardListGestures({
   onReorderBlocked,
 }: UseCardListGesturesOptions) {
   const [drag, setDrag] = useState<CardListDragState | null>(null);
+  const dragRef = useRef<CardListDragState | null>(null);
   const pendingRef = useRef<Pending | null>(null);
   const pageFlipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pageFlipDirRef = useRef<-1 | 1 | null>(null);
+  const autoScrollRafRef = useRef<number | null>(null);
+  const autoScrollSpeedRef = useRef(0);
+  const lastPointerRef = useRef({ x: 0, y: 0 });
   /** Ignore synthetic click that browsers fire after pointerup from a drag. */
   const suppressEmptySpaceUntilRef = useRef(0);
+  /** Card geometry at drag start (or after page flip) — not updated by preview. */
+  const frozenRectsRef = useRef<Map<string, FrozenItemRect> | null>(null);
+  const selectionGeometryRef = useRef<SelectionDragGeometry | null>(null);
+  const livePreviewRef = useRef(true);
+
+  dragRef.current = drag;
 
   const selectedRef = useRef(selectedIds);
   const selectionModeRef = useRef(selectionMode);
@@ -159,6 +188,14 @@ export function useCardListGestures({
     pageFlipDirRef.current = null;
   }, []);
 
+  const clearAutoScroll = useCallback(() => {
+    if (autoScrollRafRef.current != null) {
+      cancelAnimationFrame(autoScrollRafRef.current);
+      autoScrollRafRef.current = null;
+    }
+    autoScrollSpeedRef.current = 0;
+  }, []);
+
   const clearPendingTimer = useCallback(() => {
     const pending = pendingRef.current;
     if (pending?.kind === "longpress") {
@@ -168,12 +205,166 @@ export function useCardListGestures({
 
   const endDrag = useCallback(() => {
     clearPageFlip();
+    clearAutoScroll();
     pendingRef.current = null;
+    frozenRectsRef.current = null;
+    selectionGeometryRef.current = null;
     setDrag(null);
     // pointerup is often followed by a click on the list shell — don't treat
     // that as an empty-space multi-select exit.
     suppressEmptySpaceUntilRef.current = Date.now() + 500;
-  }, [clearPageFlip]);
+  }, [clearAutoScroll, clearPageFlip]);
+
+  /** Update reorder preview / drop-zone highlight from a pointer position. */
+  const updateDragFromPointer = useCallback(
+    (clientX: number, clientY: number) => {
+      const pending = pendingRef.current;
+      if (pending?.kind !== "drag") return;
+
+      const dropZone = findDropZoneFromPoint(clientX, clientY);
+      const allowed = rulesRef.current.allowedDropZones ?? [];
+      const zone =
+        dropZone && allowed.includes(dropZone) ? dropZone : null;
+
+      let insertIndex: number | null = null;
+      let previewFullIds: string[] | null = null;
+      const livePreview = livePreviewRef.current;
+      if (!zone && rulesRef.current.canReorder) {
+        const prev = dragRef.current;
+        const nextInsert = findReorderInsertIndex(
+          clientX,
+          clientY,
+          fullIdsRef.current,
+          pending.movedIds,
+          frozenRectsRef.current,
+          livePreview,
+          selectionGeometryRef.current
+        );
+        insertIndex = nextInsert ?? prev?.insertIndex ?? null;
+        previewFullIds = livePreview
+          ? previewReorderFullIds(
+              fullIdsRef.current,
+              pending.movedIds,
+              insertIndex
+            )
+          : null;
+      }
+
+      setDrag({
+        active: true,
+        movedIds: pending.movedIds,
+        originId: pending.originId,
+        insertIndex,
+        previewFullIds,
+        livePreview,
+        dropZone: zone,
+        pointerX: clientX,
+        pointerY: clientY,
+      });
+
+      // Cross-page edge flip (same tab only; not while over a drop zone).
+      if (!zone && rulesRef.current.canReorder) {
+        const { currentPage: page, totalPages: pages } = pageMetaRef.current;
+        let dir: -1 | 1 | null = null;
+        const leftEdge = getPageFlipLeftEdgePx();
+        if (clientX <= leftEdge && page > 1) dir = -1;
+        else if (
+          clientX >= window.innerWidth - DND_PAGE_EDGE_PX &&
+          page < pages
+        ) {
+          dir = 1;
+        }
+
+        if (dir !== pageFlipDirRef.current) {
+          clearPageFlip();
+          pageFlipDirRef.current = dir;
+          if (dir != null) {
+            pageFlipTimerRef.current = setTimeout(() => {
+              const meta = pageMetaRef.current;
+              const next = meta.currentPage + (dir as -1 | 1);
+              if (next >= 1 && next <= meta.totalPages) {
+                onPageChange(next);
+              }
+              pageFlipTimerRef.current = null;
+              pageFlipDirRef.current = null;
+            }, DND_PAGE_FLIP_DELAY_MS);
+          }
+        }
+      } else {
+        clearPageFlip();
+      }
+
+      return zone;
+    },
+    [clearPageFlip, onPageChange]
+  );
+
+  const syncAutoScroll = useCallback(
+    (clientY: number, overDropZone: boolean) => {
+      let speed = 0;
+      if (!overDropZone) {
+        const edge = DND_AUTO_SCROLL_EDGE_PX;
+        const viewH = window.innerHeight;
+        if (clientY < edge) {
+          const t = Math.min(1, (edge - clientY) / edge);
+          speed = -DND_AUTO_SCROLL_MAX_PX * t * t;
+        } else if (clientY > viewH - edge) {
+          const t = Math.min(1, (clientY - (viewH - edge)) / edge);
+          speed = DND_AUTO_SCROLL_MAX_PX * t * t;
+        }
+      }
+
+      autoScrollSpeedRef.current = speed;
+      if (speed === 0) {
+        clearAutoScroll();
+        return;
+      }
+      if (autoScrollRafRef.current != null) return;
+
+      const tick = () => {
+        autoScrollRafRef.current = null;
+        const pending = pendingRef.current;
+        const step = autoScrollSpeedRef.current;
+        if (!step || pending?.kind !== "drag") {
+          autoScrollSpeedRef.current = 0;
+          return;
+        }
+
+        const scroller = getDragScrollElement();
+        if (!scroller) {
+          autoScrollSpeedRef.current = 0;
+          return;
+        }
+
+        const before = scroller.scrollTop;
+        const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+        const next = Math.max(0, Math.min(max, before + step));
+        const delta = next - before;
+        if (delta !== 0) {
+          scroller.scrollTop = next;
+          offsetFrozenGeometryByScroll(
+            frozenRectsRef.current,
+            selectionGeometryRef.current,
+            delta
+          );
+          const { x, y } = lastPointerRef.current;
+          updateDragFromPointer(x, y);
+        }
+
+        const atTop = scroller.scrollTop <= 0;
+        const atBottom = scroller.scrollTop >= max - 0.5;
+        const stuck = (step < 0 && atTop) || (step > 0 && atBottom);
+        if (stuck || autoScrollSpeedRef.current === 0) {
+          if (stuck) autoScrollSpeedRef.current = 0;
+          return;
+        }
+        autoScrollRafRef.current = requestAnimationFrame(tick);
+      };
+
+      autoScrollRafRef.current = requestAnimationFrame(tick);
+    },
+    [clearAutoScroll, updateDragFromPointer]
+  );
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -194,24 +385,42 @@ export function useCardListGestures({
     return () => {
       clearPendingTimer();
       clearPageFlip();
+      clearAutoScroll();
     };
-  }, [clearPendingTimer, clearPageFlip]);
+  }, [clearPendingTimer, clearPageFlip, clearAutoScroll]);
 
   const startDrag = useCallback(
     (pointerId: number, originId: string, x: number, y: number) => {
-      const selected = selectedRef.current;
-      const movedIds = selected.includes(originId) ? [...selected] : [originId];
+      const selectedSet = new Set(selectedRef.current);
+      // Only selected cards drag; block order follows the filtered list.
+      if (!selectedSet.has(originId)) return;
+      const movedIds = fullIdsRef.current.filter((id) => selectedSet.has(id));
+      if (movedIds.length === 0) return;
+
       pendingRef.current = {
         kind: "drag",
         pointerId,
         movedIds,
         originId,
       };
+      // Freeze geometry before any preview reflow. Multi-column grids skip
+      // live DOM reorder (insert marker only) — it feedback-loops badly.
+      frozenRectsRef.current = captureReorderRects(fullIdsRef.current);
+      selectionGeometryRef.current = captureSelectionDragGeometry(
+        fullIdsRef.current,
+        movedIds,
+        frozenRectsRef.current
+      );
+      const livePreview = !isMultiColumnDndList();
+      livePreviewRef.current = livePreview;
+      lastPointerRef.current = { x, y };
       setDrag({
         active: true,
         movedIds,
         originId,
-        insertIndex: null,
+        insertIndex: selectionGeometryRef.current?.homeIndex ?? null,
+        previewFullIds: null,
+        livePreview,
         dropZone: null,
         pointerX: x,
         pointerY: y,
@@ -219,6 +428,35 @@ export function useCardListGestures({
     },
     []
   );
+
+  // Remeasure ONLY after a page-edge flip. Never remasure when drag starts
+  // or while preview is live — that captured already-shifted DOM and caused
+  // insertIndex thrashing on Subscriptions.
+  const dragPageRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!drag?.active) {
+      dragPageRef.current = null;
+      return;
+    }
+    if (dragPageRef.current == null) {
+      dragPageRef.current = currentPage;
+      return;
+    }
+    if (dragPageRef.current === currentPage) return;
+    dragPageRef.current = currentPage;
+    const frame = window.requestAnimationFrame(() => {
+      frozenRectsRef.current = captureReorderRects(fullIdsRef.current);
+      const pending = pendingRef.current;
+      if (pending?.kind === "drag") {
+        selectionGeometryRef.current = captureSelectionDragGeometry(
+          fullIdsRef.current,
+          pending.movedIds,
+          frozenRectsRef.current
+        );
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [currentPage, drag?.active]);
 
   const onPointerDownItem = useCallback(
     (event: ReactPointerEvent, id: string) => {
@@ -253,8 +491,15 @@ export function useCardListGestures({
           return;
         }
 
-        // Longer hold while items are selected → drag (if rules allow).
-        if (!rulesRef.current.canReorder) {
+        // Longer hold → drag only from a selected card (moves entire selection).
+        if (!selectedRef.current.includes(id)) {
+          pendingRef.current = null;
+          return;
+        }
+
+        const zones = rulesRef.current.allowedDropZones ?? [];
+        const canDrag = rulesRef.current.canReorder || zones.length > 0;
+        if (!canDrag) {
           pendingRef.current = null;
           onReorderBlocked?.();
           return;
@@ -330,68 +575,12 @@ export function useCardListGestures({
       }
 
       if (pending.kind === "drag") {
-        const dropZone = findDropZoneFromPoint(event.clientX, event.clientY);
-        const allowed = rulesRef.current.allowedDropZones ?? [];
-        const zone =
-          dropZone && allowed.includes(dropZone) ? dropZone : null;
-
-        let insertIndex: number | null = null;
-        if (!zone && rulesRef.current.canReorder) {
-          const pageIndex = findInsertIndexFromPoint(
-            event.clientX,
-            event.clientY,
-            pageIdsRef.current
-          );
-          if (pageIndex != null) {
-            const { currentPage: page, pageSize: size } = pageMetaRef.current;
-            insertIndex = (page - 1) * size + pageIndex;
-          }
-        }
-
-        setDrag({
-          active: true,
-          movedIds: pending.movedIds,
-          originId: pending.originId,
-          insertIndex,
-          dropZone: zone,
-          pointerX: event.clientX,
-          pointerY: event.clientY,
-        });
-
-        // Cross-page edge flip (same tab only; not while over a drop zone).
-        if (!zone && rulesRef.current.canReorder) {
-          const { currentPage: page, totalPages: pages } = pageMetaRef.current;
-          let dir: -1 | 1 | null = null;
-          const leftEdge = getPageFlipLeftEdgePx();
-          if (event.clientX <= leftEdge && page > 1) dir = -1;
-          else if (
-            event.clientX >= window.innerWidth - DND_PAGE_EDGE_PX &&
-            page < pages
-          ) {
-            dir = 1;
-          }
-
-          if (dir !== pageFlipDirRef.current) {
-            clearPageFlip();
-            pageFlipDirRef.current = dir;
-            if (dir != null) {
-              pageFlipTimerRef.current = setTimeout(() => {
-                const meta = pageMetaRef.current;
-                const next = meta.currentPage + (dir as -1 | 1);
-                if (next >= 1 && next <= meta.totalPages) {
-                  onPageChange(next);
-                }
-                pageFlipTimerRef.current = null;
-                pageFlipDirRef.current = null;
-              }, DND_PAGE_FLIP_DELAY_MS);
-            }
-          }
-        } else {
-          clearPageFlip();
-        }
+        lastPointerRef.current = { x: event.clientX, y: event.clientY };
+        const zone = updateDragFromPointer(event.clientX, event.clientY);
+        syncAutoScroll(event.clientY, Boolean(zone));
       }
     },
-    [clearPageFlip, onPaintSelect, onPageChange]
+    [onPaintSelect, syncAutoScroll, updateDragFromPointer]
   );
 
   const onPointerUp = useCallback(
@@ -427,25 +616,28 @@ export function useCardListGestures({
         }
 
         if (rulesRef.current.canReorder) {
-          const pageIndex = findInsertIndexFromPoint(
-            event.clientX,
-            event.clientY,
-            pageIdsRef.current
-          );
-          if (pageIndex != null) {
-            const { currentPage: page, pageSize: size } = pageMetaRef.current;
-            const absoluteIndex = (page - 1) * size + pageIndex;
-            // Adjust target for removals before the insert point.
-            const full = fullIdsRef.current;
-            const movedSet = new Set(pending.movedIds);
-            let adjusted = absoluteIndex;
-            for (let i = 0; i < absoluteIndex && i < full.length; i++) {
-              if (movedSet.has(full[i]!)) adjusted -= 1;
-            }
-            const next = reorderIds(full, pending.movedIds, adjusted);
+          const prev = dragRef.current;
+          const insertIndex =
+            findReorderInsertIndex(
+              event.clientX,
+              event.clientY,
+              fullIdsRef.current,
+              pending.movedIds,
+              frozenRectsRef.current,
+              livePreviewRef.current,
+              selectionGeometryRef.current
+            ) ?? prev?.insertIndex;
+          if (insertIndex != null) {
+            const next = reorderIds(
+              fullIdsRef.current,
+              pending.movedIds,
+              insertIndex
+            );
             onReorder(next, pending.movedIds);
           }
         }
+        // Same-list release while reorder is locked: silent cancel.
+        // Do not toast — users drag from non-Custom to hit tab drop zones.
 
         endDrag();
       }
@@ -495,28 +687,6 @@ export function useCardListGestures({
       if (pendingRef.current?.kind === "drag" || drag) return;
       if (Date.now() < suppressEmptySpaceUntilRef.current) return;
       if (shouldIgnoreEmptySpaceExit(event.target)) return;
-      // #region agent log
-      fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "3c315a",
-        },
-        body: JSON.stringify({
-          sessionId: "3c315a",
-          hypothesisId: "A",
-          location: "use-card-list-gestures.ts:onBackgroundPointerDown",
-          message: "empty-space clear via background handler",
-          data: {
-            target:
-              event.target instanceof Element
-                ? event.target.tagName
-                : typeof event.target,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       onClearSelection();
     },
     [drag, onClearSelection, shouldIgnoreEmptySpaceExit]
@@ -531,28 +701,6 @@ export function useCardListGestures({
       if (pendingRef.current?.kind === "drag") return;
       if (Date.now() < suppressEmptySpaceUntilRef.current) return;
       if (shouldIgnoreEmptySpaceExit(event.target)) return;
-      // #region agent log
-      fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "3c315a",
-        },
-        body: JSON.stringify({
-          sessionId: "3c315a",
-          hypothesisId: "A",
-          location: "use-card-list-gestures.ts:onDocClick",
-          message: "empty-space clear via document click",
-          data: {
-            target:
-              event.target instanceof Element
-                ? `${event.target.tagName}.${event.target.className?.toString?.().slice?.(0, 80) ?? ""}`
-                : typeof event.target,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       onClearSelection();
     }
 
@@ -561,16 +709,24 @@ export function useCardListGestures({
   }, [selectionMode, onClearSelection, shouldIgnoreEmptySpaceExit]);
 
   const bindItem = useCallback(
-    (id: string) => ({
-      "data-dnd-item-id": id,
-      onPointerDown: (event: ReactPointerEvent) =>
-        onPointerDownItem(event, id),
-      style: {
-        touchAction: "pan-y" as const,
-        opacity:
-          drag?.active && drag.movedIds.includes(id) ? 0.45 : undefined,
-      },
-    }),
+    (id: string) => {
+      const isMoved =
+        Boolean(drag?.active) && Boolean(drag?.movedIds.includes(id));
+      return {
+        "data-dnd-item-id": id,
+        onPointerDown: (event: ReactPointerEvent) =>
+          onPointerDownItem(event, id),
+        style: {
+          touchAction: "pan-y" as const,
+          // Pass hits through moved cards so insert targeting stays stable
+          // while the list reflows under the live preview.
+          pointerEvents: isMoved ? ("none" as const) : undefined,
+          opacity: isMoved ? 0.4 : undefined,
+          // Opacity only — layout order snaps immediately (no transform lag).
+          transition: drag?.active ? "opacity 80ms ease" : undefined,
+        },
+      };
+    },
     [drag, onPointerDownItem]
   );
 
