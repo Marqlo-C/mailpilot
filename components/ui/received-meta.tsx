@@ -1,4 +1,4 @@
-import { Send } from "lucide-react";
+import { History } from "lucide-react";
 
 import { formatDistanceToNow } from "@/lib/format-distance";
 import { cn } from "@/lib/utils";
@@ -27,7 +27,7 @@ export function ReceivedMeta({
   if (!date) {
     return (
       <span className={cn(RECEIVED_META_CLASSNAME, "shrink-0", className)}>
-        <Send className={RECEIVED_META_ICON_CLASSNAME} aria-hidden />
+        <History className={RECEIVED_META_ICON_CLASSNAME} aria-hidden />
         <span>{emptyLabel}</span>
       </span>
     );
@@ -43,7 +43,7 @@ export function ReceivedMeta({
       className={cn(RECEIVED_META_CLASSNAME, "shrink-0", className)}
       title={`${titlePrefix}: ${label}`}
     >
-      <Send className={RECEIVED_META_ICON_CLASSNAME} aria-hidden />
+      <History className={RECEIVED_META_ICON_CLASSNAME} aria-hidden />
       <span>{label}</span>
     </span>
   );

@@ -50,9 +50,9 @@ export const PRIMARY_ACTION_FLYOUT_COUNT_CLASSNAME = [
   PRIMARY_ACTION_TONE.flyoutCountActive,
 ].join(" ");
 
-/** Soft lavender fill — selected/highlighted row CTAs. */
+/** Selected/highlighted row CTAs — #9FCFD2 fill; outline/label match muted secondary. */
 export const PRIMARY_ACTION_BTN_MUTED_CLASSNAME =
-  "inline-flex items-center justify-center gap-1.5 rounded-md border border-[#E7E7F7] bg-[#E7E7F7] px-3 py-1.5 text-xs font-medium text-muted-foreground pointer-events-none";
+  "inline-flex items-center justify-center gap-1.5 rounded-md border border-[#899499] bg-[#9FCFD2] px-3 py-1.5 text-xs font-medium text-[#899499] pointer-events-none";
 
 /** Destructive filled tone — Delete Emails / Delete Record. */
 const PRIMARY_DESTRUCTIVE_ACTION_TONE = {

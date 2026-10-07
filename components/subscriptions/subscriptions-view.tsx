@@ -15,8 +15,8 @@ import {
   DatabaseX,
   Eye,
   Loader2,
+  History,
   Mail,
-  Send,
   Summary,
   Trash2,
   UserRoundMinus,
@@ -63,10 +63,12 @@ import {
   TabCountBadge,
 } from "@/components/ui/segmented-tabs";
 import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/score-percent";
-import { SELECT_CHECKBOX_CLASSNAME } from "@/components/ui/select-checkbox";
+import { selectCheckboxClassName } from "@/components/ui/select-checkbox";
+import { useLastClickedId } from "@/components/ui/use-last-clicked-id";
 import {
-  SELECT_HIGHLIGHT_FILL_CLASSNAME,
-  selectHighlightRowClassName,
+  getSelectionGroupEdges,
+  selectHighlightGroupClassName,
+  type SelectionGroupEdges,
 } from "@/components/ui/select-highlight";
 import {
   PRIMARY_ACTION_BTN_CLASSNAME,
@@ -110,21 +112,21 @@ import { cn } from "@/lib/utils";
 import type { CleanupAction } from "@/lib/unsubscribe";
 
 /**
- * Class literals must live in components/ so Tailwind content scan picks them up.
- * (lib/ is not in tailwind.config content — orange utilities were never emitted.)
+ * Clutter tier tints — same red / warm / teal roles, shaded to page tokens
+ * (#c21f10 destructive, chart-2 warm, brand #1ab5af).
  */
-/** Bottom-value tints for stacked CLUTTER badges. */
 const CLUTTER_VALUE_CLASSES: Record<ClutterScoreTier, string> = {
-  high: "bg-orange-600/15 text-orange-700 dark:bg-orange-500/25 dark:text-orange-400",
-  mid: "bg-amber-500/10 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
-  low: "bg-emerald-500/10 text-emerald-600 dark:bg-teal-950/40 dark:text-emerald-400",
+  high: "bg-[#c21f10]/10 text-[#c21f10] dark:bg-[#fb6230]/18 dark:text-[#fb6230]",
+  mid: "bg-[hsl(28_70%_48%/0.14)] text-[hsl(28_62%_36%)] dark:bg-[hsl(28_70%_48%/0.2)] dark:text-[hsl(28_75%_68%)]",
+  // Opaque but low-sat teal so it reads on the page without competing with brand mint.
+  low: "bg-[hsl(174_22%_92%)] text-[#147a76] dark:bg-[hsl(174_28%_22%/0.55)] dark:text-[#5eead4]",
 };
 
 /** Outer pill outline matches the tier text color (softened). */
 const CLUTTER_OUTLINE_CLASSES: Record<ClutterScoreTier, string> = {
-  high: "border-orange-700/35 dark:border-orange-400/35",
-  mid: "border-amber-600/35 dark:border-amber-400/35",
-  low: "border-emerald-600/35 dark:border-emerald-400/35",
+  high: "border-[#c21f10]/35 dark:border-[#fb6230]/40",
+  mid: "border-[hsl(28_62%_40%/0.35)] dark:border-[hsl(28_75%_60%/0.4)]",
+  low: "border-[#1ab5af]/50 dark:border-[#1ab5af]/50",
 };
 
 /** Gray mute for metric pills when the parent row/card is selected. */
@@ -386,19 +388,29 @@ export function SubscriptionsView({
       );
   }, [archive, clutterThreshold, searchQuery, categoryFilter, sortOption]);
 
+  const filteredActiveIds = useMemo(
+    () => filteredActive.map((s) => s.id),
+    [filteredActive]
+  );
+  const { lastClickedId, markLastClicked } = useLastClickedId(
+    selectedIds,
+    filteredActiveIds
+  );
+
   useEffect(() => {
-    const visibleIds = new Set(filteredActive.map((s) => s.id));
+    const visibleIds = new Set(filteredActiveIds);
     setSelectedIds((prev) => {
       const next = prev.filter((id) => visibleIds.has(id));
       return next.length === prev.length ? prev : next;
     });
-  }, [filteredActive]);
+  }, [filteredActiveIds]);
 
   const isAllSelected =
     filteredActive.length > 0 &&
     filteredActive.every((s) => selectedIds.includes(s.id));
 
   function toggleSelectAll() {
+    markLastClicked(null);
     if (isAllSelected) {
       setSelectedIds([]);
       return;
@@ -407,6 +419,7 @@ export function SubscriptionsView({
   }
 
   function toggleRow(id: string) {
+    markLastClicked(id);
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
@@ -822,6 +835,7 @@ export function SubscriptionsView({
               <ActiveDesktopTable
                 subscriptions={paginatedActive}
                 selectedIds={selectedIds}
+                lastClickedId={lastClickedId}
                 onToggleRow={toggleRow}
                 onUnsubscribe={setSelected}
                 onBriefing={(sub) => openBriefing([sub])}
@@ -832,6 +846,7 @@ export function SubscriptionsView({
               <ActiveMobileCards
                 subscriptions={paginatedActive}
                 selectedIds={selectedIds}
+                lastClickedId={lastClickedId}
                 onToggleRow={toggleRow}
                 onUnsubscribe={setSelected}
                 onBriefing={(sub) => openBriefing([sub])}
@@ -1410,7 +1425,7 @@ function LastReceivedStatBadge({
   return (
     <IconStatBadge
       title="Last received"
-      icon={<Send className="size-3.5" aria-hidden />}
+      icon={<History className="size-3.5" aria-hidden />}
       value={value}
       valueClassName="bg-card font-medium tracking-normal text-muted-foreground/70"
       width={width ?? "9.5ch"}
@@ -1570,6 +1585,10 @@ function SubscriptionRowActions({
 function SubscriptionDesktopRow({
   sub,
   selected,
+  selectionGroup,
+  selectionStartRadius,
+  selectionEndRadius,
+  lastClicked,
   onToggleRow,
   clutter,
   briefing,
@@ -1581,6 +1600,12 @@ function SubscriptionDesktopRow({
 }: {
   sub: Subscription;
   selected: boolean;
+  selectionGroup: SelectionGroupEdges;
+  /** `xl` when this row is the list’s top edge so it matches the card shell. */
+  selectionStartRadius: "sm" | "xl";
+  /** `xl` when this row is the list’s bottom edge so it matches the card shell. */
+  selectionEndRadius: "sm" | "xl";
+  lastClicked: boolean;
   onToggleRow: (id: string) => void;
   clutter: number;
   briefing: ResolvedBriefing | null;
@@ -1593,13 +1618,14 @@ function SubscriptionDesktopRow({
   return (
     <div
       className={cn(
-        "flex h-16 items-center border-b border-[hsl(220_16%_88%)] pl-3 pr-4 last:border-b-0",
+        "flex h-16 items-center pl-3 pr-4",
         SUBSCRIPTION_ROW_HOVER_CLASS,
-        selected &&
-          cn(
-            SELECT_HIGHLIGHT_FILL_CLASSNAME,
-            selectHighlightRowClassName({ border: false })
-          )
+        selected
+          ? selectHighlightGroupClassName(selectionGroup, {
+              startRadius: selectionStartRadius,
+              endRadius: selectionEndRadius,
+            })
+          : "border-b border-[hsl(220_16%_88%)] last:border-b-0"
       )}
     >
       {/* Zone 1: Contact & Identity — grows so the first divider sits closer to metrics */}
@@ -1608,10 +1634,10 @@ function SubscriptionDesktopRow({
           type="checkbox"
           checked={selected}
           onChange={() => onToggleRow(sub.id)}
-          className={cn(
-            SELECT_CHECKBOX_CLASSNAME,
-            "m-0 h-3.5 w-3.5 shrink-0 cursor-pointer"
-          )}
+          className={selectCheckboxClassName({
+            lastClicked,
+            className: "m-0 h-3.5 w-3.5 shrink-0 cursor-pointer",
+          })}
           aria-label={`Select ${sub.senderEmail}`}
         />
         <CompanyLogo
@@ -1693,6 +1719,7 @@ function clutterForSub(sub: Subscription): number {
 function ActiveDesktopTable({
   subscriptions,
   selectedIds,
+  lastClickedId,
   onToggleRow,
   onUnsubscribe,
   onBriefing,
@@ -1702,6 +1729,7 @@ function ActiveDesktopTable({
 }: {
   subscriptions: Subscription[];
   selectedIds: string[];
+  lastClickedId: string | null;
   onToggleRow: (id: string) => void;
   onUnsubscribe: (sub: Subscription) => void;
   onBriefing: (sub: Subscription) => void;
@@ -1714,16 +1742,45 @@ function ActiveDesktopTable({
     [subscriptions]
   );
 
+  const orderedIds = useMemo(
+    () => subscriptions.map((sub) => sub.id),
+    [subscriptions]
+  );
+
+  const firstId = subscriptions[0]?.id;
+  const lastId = subscriptions[subscriptions.length - 1]?.id;
+  const selectionTouchesShell =
+    (firstId != null && selectedIds.includes(firstId)) ||
+    (lastId != null && selectedIds.includes(lastId));
+
   return (
-    <div className="hidden w-full overflow-visible rounded-xl border border-border/80 bg-card shadow-md transition-shadow duration-200 hover:shadow-lg md:block [&>div:first-child]:rounded-t-[0.7rem] [&>div:last-child]:rounded-b-[0.7rem]">
-      {subscriptions.map((sub) => {
+    <div
+      className={cn(
+        "hidden w-full overflow-hidden rounded-xl bg-card shadow-md transition-shadow duration-200 hover:shadow-lg md:block",
+        // Drop the shell stroke when selection paints the list edge — avoids a
+        // double border that makes the teal look inset/off at the corners.
+        selectionTouchesShell ? "border-0" : "border border-border/80"
+      )}
+    >
+      {subscriptions.map((sub, index) => {
         const clutter = clutterForSub(sub);
         const briefing = resolveBriefing(sub);
+        const selectionGroup = getSelectionGroupEdges(
+          orderedIds,
+          selectedIds,
+          index
+        );
         return (
           <SubscriptionDesktopRow
             key={sub.id}
             sub={sub}
-            selected={selectedIds.includes(sub.id)}
+            selected={selectionGroup.selected}
+            selectionGroup={selectionGroup}
+            selectionStartRadius={index === 0 ? "xl" : "sm"}
+            selectionEndRadius={
+              index === subscriptions.length - 1 ? "xl" : "sm"
+            }
+            lastClicked={lastClickedId === sub.id}
             onToggleRow={onToggleRow}
             clutter={clutter}
             briefing={briefing}
@@ -1742,6 +1799,7 @@ function ActiveDesktopTable({
 function ActiveMobileCards({
   subscriptions,
   selectedIds,
+  lastClickedId,
   onToggleRow,
   onUnsubscribe,
   onBriefing,
@@ -1751,6 +1809,7 @@ function ActiveMobileCards({
 }: {
   subscriptions: Subscription[];
   selectedIds: string[];
+  lastClickedId: string | null;
   onToggleRow: (id: string) => void;
   onUnsubscribe: (sub: Subscription) => void;
   onBriefing: (sub: Subscription) => void;
@@ -1763,18 +1822,39 @@ function ActiveMobileCards({
     [subscriptions]
   );
 
+  const orderedIds = useMemo(
+    () => subscriptions.map((sub) => sub.id),
+    [subscriptions]
+  );
+
   return (
-    <ul className="space-y-3 md:hidden">
-      {subscriptions.map((sub) => {
+    <ul className="md:hidden">
+      {subscriptions.map((sub, index) => {
         const clutter = clutterForSub(sub);
         const briefing = resolveBriefing(sub);
-        const selected = selectedIds.includes(sub.id);
+        const selectionGroup = getSelectionGroupEdges(
+          orderedIds,
+          selectedIds,
+          index
+        );
+        const selected = selectionGroup.selected;
+        const nextSelected =
+          selected && !selectionGroup.isGroupEnd;
         return (
           <li
             key={sub.id}
             className={cn(
-              SUBSCRIPTION_CARD_SURFACE_CLASS,
-              selected && SELECT_HIGHLIGHT_FILL_CLASSNAME
+              selected
+                ? cn(
+                    // No default `border` — highlight stroke owns the perimeter.
+                    "bg-card p-4 transition-all duration-200",
+                    selectHighlightGroupClassName(selectionGroup, {
+                      radius: "xl",
+                    }),
+                    // Collapse gaps inside a selected run so the perimeter reads as one block.
+                    nextSelected ? "mb-0" : "mb-3"
+                  )
+                : cn(SUBSCRIPTION_CARD_SURFACE_CLASS, "mb-3")
             )}
           >
             <div className="flex items-center gap-3">
@@ -1782,10 +1862,10 @@ function ActiveMobileCards({
                 type="checkbox"
                 checked={selected}
                 onChange={() => onToggleRow(sub.id)}
-                className={cn(
-                  SELECT_CHECKBOX_CLASSNAME,
-                  "m-0 h-3.5 w-3.5 shrink-0 cursor-pointer"
-                )}
+                className={selectCheckboxClassName({
+                  lastClicked: lastClickedId === sub.id,
+                  className: "m-0 h-3.5 w-3.5 shrink-0 cursor-pointer",
+                })}
                 aria-label={`Select ${sub.senderEmail}`}
               />
               <div className="flex min-w-0 flex-1 items-center gap-3">

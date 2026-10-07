@@ -99,7 +99,7 @@ export function EmailPreviewDialog({
       size="xl"
       showCancel={false}
       identity={{
-        title: "Viewing last email for:",
+        title: "Viewing last email from:",
         primary: senderEmail || "sender",
         secondary: senderName,
         logoSrc: senderLogoSrc(senderEmail),

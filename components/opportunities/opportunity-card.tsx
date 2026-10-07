@@ -43,7 +43,7 @@ import {
   PRIMARY_ACTION_BTN_CLASSNAME,
   PRIMARY_ACTION_BTN_MUTED_CLASSNAME,
 } from "@/components/ui/primary-action-btn";
-import { SELECT_CHECKBOX_CLASSNAME } from "@/components/ui/select-checkbox";
+import { selectCheckboxClassName } from "@/components/ui/select-checkbox";
 import {
   SELECT_HIGHLIGHT_CLASSNAME,
   SELECT_HIGHLIGHT_FILL_CLASSNAME,
@@ -73,6 +73,8 @@ type OpportunityCardProps = {
   pending?: boolean;
   retentionDays?: number;
   isSelected?: boolean;
+  /** Most recently toggled checkbox in the shared selection set. */
+  isLastClicked?: boolean;
   onToggleSelect?: (id: string) => void;
   onReviewDraft?: () => void;
   onSendNow?: () => void;
@@ -106,6 +108,7 @@ export function OpportunityCard({
   pending = false,
   retentionDays = 30,
   isSelected = false,
+  isLastClicked = false,
   onToggleSelect,
   onReviewDraft,
   onSendNow,
@@ -253,11 +256,11 @@ export function OpportunityCard({
   return (
     <article
       className={cn(
-        "group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-md transition-all duration-200",
+        "group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card transition-all duration-200",
         belowThreshold && !userArchived && "opacity-90",
         isSelected
           ? cn(SELECT_HIGHLIGHT_CLASSNAME, SELECT_HIGHLIGHT_FILL_CLASSNAME)
-          : "border-border/80 hover:border-border hover:shadow-lg"
+          : "border-2 border-border/80 shadow-md hover:border-border hover:shadow-lg"
       )}
     >
       {/* Top-left: bare select checkbox */}
@@ -267,7 +270,10 @@ export function OpportunityCard({
             type="checkbox"
             checked={isSelected}
             onChange={() => onToggleSelect(opportunity.id)}
-            className={cn(SELECT_CHECKBOX_CLASSNAME, "h-3.5 w-3.5 shrink-0 cursor-pointer")}
+            className={selectCheckboxClassName({
+              lastClicked: isLastClicked,
+              className: "h-3.5 w-3.5 shrink-0 cursor-pointer",
+            })}
             aria-label={`Select ${opportunity.title}`}
           />
         </label>

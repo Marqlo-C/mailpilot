@@ -12,7 +12,7 @@ type RowMenuTriggerProps = Omit<
   label: string;
 };
 
-/** Solid vertical kebab dots (slider teal via currentColor). */
+/** Solid vertical kebab dots (sidebar ink via currentColor). */
 function SolidKebab({ className }: { className?: string }) {
   return (
     <svg
@@ -43,8 +43,8 @@ export const RowMenuTrigger = React.forwardRef<
       variant="ghost"
       size="icon"
       className={cn(
-        // Rest: muted ghost + teal dots. Hover: teal fill + dots flip to rest bg.
-        "h-8 w-8 rounded-lg border-0 bg-muted/70 text-[#1ab5af] shadow-none hover:bg-[#1ab5af] hover:text-background",
+        // Rest + hover: secondary-teal dots. Hover fill stays sidebar.
+        "h-8 w-8 rounded-lg border-0 bg-muted/70 text-[hsl(174_32%_42%)] shadow-none hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(174_32%_42%)]",
         className
       )}
       {...props}
