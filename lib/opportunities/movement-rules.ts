@@ -63,12 +63,11 @@ export type JobMoveResolution = {
   description: string;
 };
 
-/** Same-tab Custom-order rearrange (like Subscriptions Active). */
+/** Leads are cycled by page, not rearranged. */
 export const JOB_TAB_REORDER_ALLOWED: Record<JobsTabKey, boolean> = {
-  leads: true,
-  applied: true,
-  action_required: true,
-  /** History is archive-like — no custom reorder. */
+  leads: false,
+  applied: false,
+  action_required: false,
   history: false,
 };
 
@@ -114,7 +113,7 @@ export const JOB_CARD_ACTIONS_BY_TAB: Record<JobsTabKey, JobCardAction[]> = {
 const MOVE_COPY: Record<JobMoveKind, { label: string; description: string }> = {
   reorder: {
     label: "Reorder",
-    description: "Same-tab Custom order (localStorage); page-edge flip OK.",
+    description: "Same-tab order is not used on Job Radar.",
   },
   mark_applied: {
     label: "Mark applied",
@@ -161,7 +160,7 @@ export function resolveJobMove(
       allowed ? "reorder" : "forbidden",
       allowed
         ? MOVE_COPY.reorder.description
-        : "No custom reorder on this tab."
+        : "Drop the card on another tab."
     );
   }
 
@@ -201,22 +200,13 @@ export function jobCardActionsForTab(from: JobsTabKey): JobCardAction[] {
 
 /**
  * Gesture rules for the active Job Radar tab.
- * Reorder only when Custom sort is active (or no custom order saved yet —
- * same first-reorder promotion pattern as Subscriptions).
+ * Cards move across tabs or cycle pages. They are not rearranged in place.
  */
 export function getJobGestureRules(options: {
   activeTab: JobsTabKey;
-  sortIsCustom: boolean;
-  hasSavedCustomOrder: boolean;
 }): CardListGestureRules {
-  // Same as Subscriptions: allow reorder on the tab; executor/view promotes
-  // to Custom sort on drop. Don't gate preview on the current sort label.
-  void options.sortIsCustom;
-  void options.hasSavedCustomOrder;
-  const canReorder = JOB_TAB_REORDER_ALLOWED[options.activeTab];
-
   return {
-    canReorder,
+    canReorder: JOB_TAB_REORDER_ALLOWED[options.activeTab],
     allowedDropZones: allowedJobDropZones(options.activeTab),
   };
 }
@@ -226,7 +216,7 @@ export function formatJobMovementRulesSummary(): string {
   const lines: string[] = [
     "Job Radar movement rules (DnD + card/bulk share runJobMove)",
     "",
-    "Same-tab reorder (Custom sort):",
+    "Same-tab reorder:",
   ];
   for (const tab of Object.keys(JOB_TAB_REORDER_ALLOWED) as JobsTabKey[]) {
     lines.push(

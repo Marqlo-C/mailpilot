@@ -27,7 +27,9 @@ import { PipelineToolbar } from "@/components/jobs/pipeline-toolbar";
 import {
   BULK_ACTION_BTN_CLASSNAME,
   BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME,
+  BULK_ACTION_COUNT_DISMISS_CLASSNAME,
   BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME,
+  BULK_ACTION_DISMISS_BTN_CLASSNAME,
   BulkActionCount,
   BulkActionDot,
   BulkActionsFlyout,
@@ -38,10 +40,7 @@ import { useCardListGestures } from "@/hooks/use-card-list-gestures";
 import { usePagination } from "@/hooks/use-pagination";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { insertBeforeIdForIndex } from "@/lib/dnd/interactive";
-import {
-  mergeFilteredOrderIntoCustom,
-  orderItemsByIds,
-} from "@/lib/dnd/reorder";
+import { orderItemsByIds } from "@/lib/dnd/reorder";
 import { isUserArchived } from "@/lib/opportunities/lifecycle";
 import {
   getJobGestureRules,
@@ -58,11 +57,6 @@ import {
   type PipelineTab,
   type SourceFilter,
 } from "@/lib/opportunities/pipeline-filters";
-import {
-  applyJobCustomOrder,
-  persistJobCustomOrder,
-  readJobCustomOrder,
-} from "@/lib/opportunities/preferences";
 import {
   runJobCardAction,
   runJobDrop,
@@ -145,17 +139,12 @@ export function OpportunitiesView({
   const jobsTabKey = variantToJobsTabKey(variant);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectionMode, setSelectionMode] = useState(false);
-  const [customOrder, setCustomOrder] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [historyStatusFilter, setHistoryStatusFilter] =
     useState<HistoryStatusFilter>("all");
   const [batchPending, startBatch] = useTransition();
   const busy = pending || batchPending;
-
-  useEffect(() => {
-    setCustomOrder(readJobCustomOrder(accountId, jobsTabKey));
-  }, [accountId, jobsTabKey]);
 
   function handleLessLikeThis(opp: JobOpportunity) {
     if (onLessLikeThis) {
@@ -195,10 +184,7 @@ export function OpportunitiesView({
     ]
   );
 
-  const orderedOpportunities = useMemo(() => {
-    if (sortOption !== "custom") return filteredOpportunities;
-    return applyJobCustomOrder(filteredOpportunities, customOrder);
-  }, [filteredOpportunities, sortOption, customOrder]);
+  const orderedOpportunities = filteredOpportunities;
 
   const filteredOpportunityIds = useMemo(
     () => orderedOpportunities.map((o) => o.id),
@@ -347,31 +333,13 @@ export function OpportunitiesView({
 
   const gestureRules = getJobGestureRules({
     activeTab: jobsTabKey,
-    sortIsCustom: sortOption === "custom",
-    hasSavedCustomOrder: customOrder.length > 0,
   });
 
   const handleReorder = useCallback(
-    (nextFullIds: string[], _movedIds: string[]) => {
-      const merged = mergeFilteredOrderIntoCustom(
-        customOrder,
-        filteredOpportunityIds,
-        nextFullIds
-      );
-      setCustomOrder(merged);
-      persistJobCustomOrder(accountId, jobsTabKey, merged);
-      if (sortOption !== "custom") {
-        onSortOptionChange("custom");
-      }
+    (_nextFullIds: string[], _movedIds: string[]) => {
+      // Job Radar cycles pages and moves across tabs; it does not save a custom order.
     },
-    [
-      accountId,
-      customOrder,
-      filteredOpportunityIds,
-      jobsTabKey,
-      onSortOptionChange,
-      sortOption,
-    ]
+    []
   );
 
   const handleDropZone = useCallback(
@@ -426,14 +394,6 @@ export function OpportunitiesView({
     onPageChange: setCurrentPage,
     onReorder: handleReorder,
     onDropZone: handleDropZone,
-    onReorderBlocked: () => {
-      toast.message("Switch to Custom sort to rearrange", {
-        action: {
-          label: "Custom",
-          onClick: () => onSortOptionChange("custom"),
-        },
-      });
-    },
   });
 
   useEffect(() => {
@@ -566,6 +526,9 @@ export function OpportunitiesView({
         showTelemetry={showListingCount}
         pageSize={pageSize}
         onPageSizeChange={changePageSize}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={changePage}
         hasActiveTransientFilters={hasActiveTransientFilters}
         onResetTransientFilters={handleResetTransientFilters}
       />
@@ -671,13 +634,13 @@ export function OpportunitiesView({
                       afterBatch("Dismissed — purge countdown started");
                     })
                   }
-                  className={BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME}
+                  className={BULK_ACTION_DISMISS_BTN_CLASSNAME}
                 >
                   <XCircle className="h-3.5 w-3.5" />
                   Dismiss Archived
                   <BulkActionCount
                     count={archivedSelectedIds.length}
-                    className={BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME}
+                    className={BULK_ACTION_COUNT_DISMISS_CLASSNAME}
                   />
                 </button>
               </>
@@ -782,13 +745,13 @@ export function OpportunitiesView({
                   afterBatch("Dismissed");
                 })
               }
-              className={BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME}
+              className={BULK_ACTION_DISMISS_BTN_CLASSNAME}
             >
               <XCircle className="h-3.5 w-3.5" />
               Dismiss
               <BulkActionCount
                 count={selectedIds.length}
-                className={BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME}
+                className={BULK_ACTION_COUNT_DISMISS_CLASSNAME}
               />
             </button>
           </>

@@ -1,14 +1,17 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition, type MouseEvent } from "react";
+import { XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { syncInboxOpportunities } from "@/app/actions/email";
+import { Logo } from "@/components/brand/logo";
 import {
   SYNC_STARTED_EVENT,
   useSyncStatus,
 } from "@/components/layout/sync-status-provider";
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
 import { cn } from "@/lib/utils";
 
 type SyncTelemetryProps = {
@@ -42,7 +45,11 @@ export function SyncTelemetry({
     pendingCount,
     markSyncStarted,
     markSyncFailed,
+    flushPendingClassification,
   } = useSyncStatus();
+  const [flushing, startFlush] = useTransition();
+  const [confirmFlush, setConfirmFlush] = useState(false);
+  const [flushCount, setFlushCount] = useState(0);
 
   function handleTriggerSync() {
     if (!accountId || isSyncing || pending) return;
@@ -64,6 +71,20 @@ export function SyncTelemetry({
 
       toast.success(result.data?.message ?? "Sync started in background");
       router.refresh();
+    });
+  }
+
+  function handleFlushPending(event: MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setFlushCount(pendingCount);
+    setConfirmFlush(true);
+  }
+
+  function confirmFlushPending() {
+    startFlush(async () => {
+      const cleared = await flushPendingClassification();
+      if (cleared) setConfirmFlush(false);
     });
   }
 
@@ -185,32 +206,73 @@ export function SyncTelemetry({
           )}
         </div>
       ) : pendingCount > 0 ? (
-        <button
-          type="button"
-          onClick={handleTriggerSync}
-          disabled={pending}
-          aria-label={statusLabel}
+        <div
           className={cn(
-            "group flex items-center gap-1.5 rounded-full border border-[#c21f10]/35 bg-[#c21f10]/10 px-2.5 py-1 text-xs font-medium text-[#c21f10] transition-colors hover:bg-[#c21f10]/18 disabled:opacity-60 dark:border-[#fb6230]/40 dark:bg-[#fb6230]/18 dark:text-[#fb6230] dark:hover:bg-[#fb6230]/28",
-            onSidebar &&
-              "border-[#fb6230]/40 bg-[#fb6230]/18 text-[#fb6230] hover:bg-[#fb6230]/28",
-            compact && "px-2 py-2",
-            onSidebar && !compact && !dotRest && "w-full whitespace-normal text-left",
-            restCircleClass,
-            restAwaitingClass
+            "group/awaiting inline-flex items-center gap-1.5",
+            onSidebar && !compact && !dotRest && "w-full"
           )}
         >
-          <span className="relative flex h-1.5 w-1.5 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#c21f10] opacity-75 dark:bg-[#fb6230]" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#c21f10] dark:bg-[#fb6230]" />
-          </span>
-          {compact ? null : (
-            <span className={restLabelClass}>
-              <span className="font-bold tabular-nums">{pendingCount}</span>{" "}
-              {pendingCount === 1 ? "email" : "emails"} awaiting classification
+          <button
+            type="button"
+            onClick={handleTriggerSync}
+            disabled={pending}
+            aria-label={statusLabel}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full border border-[#c21f10]/35 bg-[#c21f10]/10 px-2.5 py-1 text-xs font-medium text-[#c21f10] transition-colors hover:bg-[#c21f10]/18 disabled:opacity-60 dark:border-[#fb6230]/40 dark:bg-[#fb6230]/18 dark:text-[#fb6230] dark:hover:bg-[#fb6230]/28",
+              onSidebar &&
+                "border-[#fb6230]/40 bg-[#fb6230]/18 text-[#fb6230] hover:bg-[#fb6230]/28",
+              compact && "px-2 py-2",
+              onSidebar &&
+                !compact &&
+                !dotRest &&
+                "min-w-0 flex-1 whitespace-normal text-left",
+              !dotRest
+                ? ""
+                : forceOpen
+                  ? "h-auto w-max shrink-0 justify-start gap-1.5 whitespace-nowrap px-2.5 py-1"
+                  : "size-6 shrink-0 justify-center gap-0 whitespace-nowrap p-0 group-hover/awaiting:!h-auto group-hover/awaiting:!w-max group-hover/awaiting:!justify-start group-hover/awaiting:!gap-1.5 group-hover/awaiting:!px-2.5 group-hover/awaiting:!py-1",
+              !dotRest
+                ? ""
+                : forceOpen
+                  ? restAwaitingClass
+                  : "group-hover/awaiting:!border-[#c21f10] group-hover/awaiting:!bg-[hsl(var(--sidebar))] group-hover/awaiting:!bg-[linear-gradient(rgb(194_31_16/0.1),rgb(194_31_16/0.1))] group-hover/awaiting:!text-[#c21f10] dark:group-hover/awaiting:!border-[#fb6230] dark:group-hover/awaiting:!bg-[hsl(var(--sidebar))] dark:group-hover/awaiting:!bg-[linear-gradient(rgb(251_98_48/0.18),rgb(251_98_48/0.18))] dark:group-hover/awaiting:!text-[#fb6230]"
+            )}
+          >
+            <span className="relative flex h-1.5 w-1.5 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#c21f10] opacity-75 dark:bg-[#fb6230]" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#c21f10] dark:bg-[#fb6230]" />
             </span>
+            {compact ? null : (
+              <span
+                className={
+                  !dotRest
+                    ? ""
+                    : forceOpen
+                      ? "inline whitespace-nowrap"
+                      : "hidden whitespace-nowrap group-hover/awaiting:inline"
+                }
+              >
+                <span className="font-bold tabular-nums">{pendingCount}</span>{" "}
+                {pendingCount === 1 ? "email" : "emails"} awaiting classification
+              </span>
+            )}
+          </button>
+          {compact ? null : (
+            <button
+              type="button"
+              onClick={handleFlushPending}
+              disabled={flushing}
+              aria-label="Dismiss pending classification queue"
+              title="Dismiss awaiting emails"
+              className={cn(
+                "flex size-6 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--sidebar))] bg-[hsl(var(--sidebar))] p-0 text-[hsl(var(--sidebar-foreground))]/65 shadow-md transition-colors hover:text-[#C21E11] disabled:opacity-60 [&_svg]:h-3.5 [&_svg]:w-3.5 [&_svg]:text-current",
+                dotRest && !forceOpen && "hidden group-hover/awaiting:flex"
+              )}
+            >
+              <XCircle />
+            </button>
           )}
-        </button>
+        </div>
       ) : (
         <div
           className={cn(
@@ -231,6 +293,20 @@ export function SyncTelemetry({
           )}
         </div>
       )}
+      <ConfirmActionDialog
+        open={confirmFlush}
+        onOpenChange={(open) => {
+          if (!open && !flushing) setConfirmFlush(false);
+        }}
+        title="Clearing emails from queue:"
+        primary={`${flushCount} ${flushCount === 1 ? "email" : "emails"}`}
+        logo={<Logo variant="icon" size="md" showWordmark={false} />}
+        description="We’ll skip AI classification for these emails and let them expire naturally. Don’t worry—any emails tied to your active jobs will stay right where they are."
+        emphasis="Are you sure you want to proceed?"
+        confirmLabel="Dismiss"
+        pending={flushing}
+        onConfirm={confirmFlushPending}
+      />
     </div>
   );
 }

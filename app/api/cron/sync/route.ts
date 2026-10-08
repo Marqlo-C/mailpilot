@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 
+import { logStory, syncLog } from "@/lib/logging";
 import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
 import { runOpportunitySync } from "@/lib/opportunity-sync";
 import { prisma } from "@/lib/prisma";
@@ -93,7 +94,18 @@ export async function GET(request: Request) {
         });
 
         try {
-          await purgeExpiredDismissed(account.id);
+          const purge = await purgeExpiredDismissed(account.id);
+          if (purge.purgedCount > 0 || purge.purgedEmailCount > 0) {
+            logStory(
+              syncLog,
+              "Housekeeping — purged expired dismissed opportunities and stale emails",
+              {
+                "purged opportunities": purge.purgedCount,
+                "purged emails": purge.purgedEmailCount,
+                "retention days": purge.retentionDays,
+              }
+            );
+          }
         } catch (purgeError) {
           console.error(
             `Cron sync purge failed for ${account.email}:`,

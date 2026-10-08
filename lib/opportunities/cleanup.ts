@@ -7,6 +7,7 @@ import { parseAccountRules } from "@/lib/validations/rules";
  */
 export async function purgeExpiredDismissed(accountId: string): Promise<{
   purgedCount: number;
+  purgedEmailCount: number;
   retentionDays: number;
 }> {
   const settings = await prisma.accountSettings.findUnique({
@@ -47,5 +48,20 @@ export async function purgeExpiredDismissed(accountId: string): Promise<{
     },
   });
 
-  return { purgedCount: result.count, retentionDays };
+  // Unlinked digests and irrelevant mail only. Any JobOpportunity row
+  // (lead, applied, dismissed, or user-archived) keeps its source email.
+  const emails = await prisma.emailMessage.deleteMany({
+    where: {
+      accountId,
+      emailDate: { lt: cutoffDate },
+      emailCategory: { in: ["IRRELEVANT", "JOB_BOARD_DIGEST"] },
+      opportunities: { none: {} },
+    },
+  });
+
+  return {
+    purgedCount: result.count,
+    purgedEmailCount: emails.count,
+    retentionDays,
+  };
 }

@@ -10,6 +10,7 @@ import {
   isInsufficientScopeError,
 } from "@/lib/google";
 import { SYNC_LOCK_STALE_MS } from "@/lib/constants";
+import { getAuthenticatedAccountId } from "@/lib/auth";
 import { getActiveAccount } from "@/lib/data";
 import { logStory, syncLockLog, syncLog } from "@/lib/logging";
 import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
@@ -150,11 +151,16 @@ export async function syncInboxOpportunities(
 
       try {
         const purge = await purgeExpiredDismissed(syncAccountId);
-        if (purge.purgedCount > 0) {
-          logStory(syncLog, "Housekeeping — purged dismissed opportunities", {
-            purged: purge.purgedCount,
-            "retention days": purge.retentionDays,
-          });
+        if (purge.purgedCount > 0 || purge.purgedEmailCount > 0) {
+          logStory(
+            syncLog,
+            "Housekeeping — purged expired dismissed opportunities and stale emails",
+            {
+              "purged opportunities": purge.purgedCount,
+              "purged emails": purge.purgedEmailCount,
+              "retention days": purge.retentionDays,
+            }
+          );
         }
       } catch (purgeError) {
         syncLog.error({ err: purgeError }, "purgeExpiredDismissed failed");
@@ -234,4 +240,63 @@ export async function syncInboxOpportunities(
       mode,
     },
   };
+}
+
+const flushAccountSchema = z.string().min(1);
+
+/**
+ * Defuses the unclassified queue without deleting rows or moving sync watermarks.
+ * `messageId` stays so the next incremental sync does not treat the mail as new.
+ */
+export async function flushPendingAiMessages(
+  accountId: string
+): Promise<ActionResult<{ flushed: number }>> {
+  const parsed = flushAccountSchema.safeParse(accountId);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid account" };
+  }
+
+  const sessionAccountId = await getAuthenticatedAccountId();
+  if (!sessionAccountId) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  const [account, sessionAccount] = await Promise.all([
+    prisma.account.findUnique({
+      where: { id: parsed.data },
+      select: { id: true, isActive: true, persistentProfileId: true },
+    }),
+    prisma.account.findUnique({
+      where: { id: sessionAccountId },
+      select: { persistentProfileId: true },
+    }),
+  ]);
+
+  if (!account || !account.isActive) {
+    return { ok: false, error: "Account not found or inactive" };
+  }
+
+  const sameProfile =
+    account.persistentProfileId != null &&
+    account.persistentProfileId === sessionAccount?.persistentProfileId;
+  if (account.id !== sessionAccountId && !sameProfile) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  const flushed = await prisma.emailMessage.updateMany({
+    where: {
+      accountId: account.id,
+      emailCategory: "PENDING_AI",
+      opportunities: { none: {} },
+    },
+    data: {
+      emailCategory: "IRRELEVANT",
+      rawBody: null,
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/jobs");
+
+  return { ok: true, data: { flushed: flushed.count } };
 }

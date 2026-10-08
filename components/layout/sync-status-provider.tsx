@@ -12,7 +12,11 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 
-import { forceResetSyncStatus } from "@/app/actions/email";
+import {
+  flushPendingAiMessages,
+  forceResetSyncStatus,
+} from "@/app/actions/email";
+import { toast } from "sonner";
 import { SYNC_LOCK_STALE_MS } from "@/lib/constants";
 import { startSyncStatusBackoffPoll } from "@/lib/sync-status-poll";
 
@@ -27,6 +31,7 @@ type SyncStatusContextValue = {
   markSyncStarted: () => void;
   markSyncFailed: () => void;
   forceReset: () => Promise<void>;
+  flushPendingClassification: () => Promise<boolean>;
 };
 
 const SyncStatusContext = createContext<SyncStatusContextValue | null>(null);
@@ -57,6 +62,8 @@ export function SyncStatusProvider({
   const [showForceReset, setShowForceReset] = useState(false);
   const disposePollRef = useRef<(() => void) | null>(null);
   const wasSyncingRef = useRef(initialIsSyncing);
+  const pendingCountRef = useRef(initialPendingClassificationCount);
+  pendingCountRef.current = pendingCount;
 
   useEffect(() => {
     setIsSyncing(initialIsSyncing);
@@ -174,6 +181,20 @@ export function SyncStatusProvider({
     return () => clearTimeout(timer);
   }, [justFinished]);
 
+  const flushPendingClassification = useCallback(async () => {
+    if (!accountId) return false;
+    const previous = pendingCountRef.current;
+    setPendingCount(0);
+    const result = await flushPendingAiMessages(accountId);
+    if (!result.ok) {
+      setPendingCount(previous);
+      toast.error(result.error);
+      return false;
+    }
+    router.refresh();
+    return true;
+  }, [accountId, router]);
+
   const forceReset = useCallback(async () => {
     disposePollRef.current?.();
     disposePollRef.current = null;
@@ -199,6 +220,7 @@ export function SyncStatusProvider({
       markSyncStarted,
       markSyncFailed,
       forceReset,
+      flushPendingClassification,
     }),
     [
       accountId,
@@ -209,6 +231,7 @@ export function SyncStatusProvider({
       markSyncStarted,
       markSyncFailed,
       forceReset,
+      flushPendingClassification,
     ]
   );
 
