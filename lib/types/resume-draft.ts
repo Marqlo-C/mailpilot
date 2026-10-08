@@ -63,3 +63,9 @@ export const storedResumeDraftSchema = z.object({
 });
 
 export type StoredResumeDraft = z.infer<typeof storedResumeDraftSchema>;
+
+/** A skill section group. The label is whatever the source used. */
+export type SkillGroup = {
+  label: string;
+  items: string[];
+};

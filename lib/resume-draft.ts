@@ -7,6 +7,7 @@ import type { TailorResult } from "@/lib/resume-tailor";
 import {
   tailoredResumeDraftSchema,
   type ResumeDraftNode,
+  type SkillGroup,
   type TailoredResumeDraft,
 } from "@/lib/types/resume-draft";
 import type {
@@ -15,6 +16,10 @@ import type {
   WorkExperienceInput,
 } from "@/lib/validations/profile";
 import { buildResumeContactLine } from "@/lib/pdf-generator";
+import {
+  skillCategoryLabel,
+  skillGroupsFromUnknown,
+} from "@/lib/skill-groups";
 
 function node(
   partial: Omit<ResumeDraftNode, "selected"> & { selected?: boolean }
@@ -61,25 +66,28 @@ export function digestTailoredResume(input: {
     );
   }
 
-  const skillGroups: Array<[string, string[]]> = [
-    ["languages", tailored.tailoredSkills?.languages ?? profile.skills.languages],
-    ["frameworks", tailored.tailoredSkills?.frameworks ?? profile.skills.frameworks],
-    ["tools", tailored.tailoredSkills?.tools ?? profile.skills.tools],
-    ["concepts", tailored.tailoredSkills?.concepts ?? profile.skills.concepts],
-  ];
-  for (const [category, items] of skillGroups) {
-    const content = items.map((item) => item.trim()).filter(Boolean).join(", ");
-    if (!content) continue;
+  const tailoredGroups = skillGroupsFromUnknown(tailored.tailoredSkills);
+  const skillGroups =
+    tailoredGroups.length > 0
+      ? tailoredGroups
+      : skillGroupsFromUnknown(profile.skills);
+  skillGroups.forEach((group, index) => {
+    const content = group.items.join(", ");
+    const slug =
+      group.label
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || `group-${index}`;
     nodes.push(
       node({
-        id: `skills:${category}:${opportunityId}`,
+        id: `skills:${slug}:${index}:${opportunityId}`,
         type: "skill_group",
         section: "skills",
         content,
-        metadata: { category },
+        metadata: { categoryLabel: group.label },
       })
     );
-  }
+  });
 
   const experiences =
     tailored.selectedExperience.length > 0
@@ -212,27 +220,25 @@ export function draftToPdfInput(
   experiences: WorkExperienceInput[];
   projects: ProjectInput[];
   tailoredSummary: string | null;
-  tailoredSkills: MasterProfileInput["skills"];
+  skillGroups: SkillGroup[];
   includeSummary: boolean;
   education: MasterProfileInput["education"];
 } {
   const active = activeResumeNodes(draft);
   const header = active.find((item) => item.type === "header");
   const summary = active.find((item) => item.type === "summary");
-  const skills: MasterProfileInput["skills"] = {
-    languages: [],
-    frameworks: [],
-    tools: [],
-    concepts: [],
-  };
-  for (const group of active.filter((item) => item.type === "skill_group")) {
-    const category = asString(group.metadata?.category);
-    const items = splitList(group.content);
-    if (category === "languages") skills.languages = items;
-    else if (category === "frameworks") skills.frameworks = items;
-    else if (category === "tools") skills.tools = items;
-    else if (category === "concepts") skills.concepts = items;
-  }
+  const skillGroups = active
+    .filter((item) => item.type === "skill_group")
+    .flatMap((group) => {
+      const items = splitList(group.content);
+      if (items.length === 0) return [];
+      return [
+        {
+          label: skillCategoryLabel(group) ?? "",
+          items,
+        },
+      ];
+    });
 
   const experiences: WorkExperienceInput[] = [];
   for (const headerNode of active.filter(
@@ -308,7 +314,7 @@ export function draftToPdfInput(
     experiences,
     projects,
     tailoredSummary: summary?.content.trim() || null,
-    tailoredSkills: skills,
+    skillGroups,
     includeSummary:
       draft.exportConfig.includeSummary && Boolean(summary?.content.trim()),
     education,
