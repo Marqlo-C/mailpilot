@@ -10,7 +10,7 @@
  * - Longer hold on a **selected** card → drag all selected (list order).
  *   Unselected cards never start a drag. Empty-space / Escape / view changes
  *   exit multi-select; releasing a drag only ends DnD.
- * - Same-list reorder when `rules.canReorder` (e.g. Custom sort); edge hover flips page.
+ * - Same-list reorder when `rules.canReorder` (e.g. Custom sort); hovering a page-flip button flips page.
  *   Near the viewport top/bottom, the page auto-scrolls while the pointer stays there.
  *   While dragging, `drag.previewFullIds` is the live order for the list UI to render.
  * - Cross-list moves via `rules.allowedDropZones` even when reorder is locked
@@ -33,10 +33,9 @@ import {
   DND_AUTO_SCROLL_MAX_PX,
   DND_DRAG_LONG_PRESS_MS,
   DND_MOVE_CANCEL_PX,
-  DND_PAGE_EDGE_PX,
   DND_PAGE_FLIP_DELAY_MS,
   DND_SELECT_LONG_PRESS_MS,
-  getPageFlipLeftEdgePx,
+  pageFlipDirFromPointer,
 } from "@/lib/dnd/constants";
 import {
   captureReorderRects,
@@ -280,18 +279,11 @@ export function useCardListGestures({
           : null;
       }
 
-      // Cross-page edge flip (same tab only; not while over a drop zone).
+      // Cross-page flip only while the pointer is on a flip button.
       let pageFlipDir: -1 | 1 | null = null;
       if (!zone && rulesRef.current.canReorder) {
         const { currentPage: page, totalPages: pages } = pageMetaRef.current;
-        const leftEdge = getPageFlipLeftEdgePx();
-        if (clientX <= leftEdge && page > 1) pageFlipDir = -1;
-        else if (
-          clientX >= window.innerWidth - DND_PAGE_EDGE_PX &&
-          page < pages
-        ) {
-          pageFlipDir = 1;
-        }
+        pageFlipDir = pageFlipDirFromPointer(clientX, clientY, page, pages);
 
         if (pageFlipDir !== pageFlipDirRef.current) {
           clearPageFlip();

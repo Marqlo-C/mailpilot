@@ -13,8 +13,18 @@ export const DND_MOVE_CANCEL_PX = 10;
  */
 export const DND_REORDER_EDGE_PX = 6;
 
-/** Edge band width for cross-page flip while dragging (px). */
+/**
+ * Horizontal slot that holds each page-flip button (px).
+ * The button is centered in this slot; flips only hit the button, not the slot.
+ */
 export const DND_PAGE_EDGE_PX = 56;
+
+/** Top-bar height matching AppShell `h-[4.25rem]`. */
+const PAGE_FLIP_TOP_REM = 4.25;
+/** Page-flip button size matching `size-7`. */
+const PAGE_FLIP_BUTTON_REM = 1.75;
+/** Extra px around the button so the pointer can land on it. */
+const PAGE_FLIP_HIT_PAD_PX = 8;
 
 /** Hover time on a page edge before flipping (ms). */
 export const DND_PAGE_FLIP_DELAY_MS = 380;
@@ -44,16 +54,50 @@ export const DND_LERP_ALPHA = 0.16;
  */
 export const DND_GHOST_POINTER_GRACE_PX = 12;
 
-/**
- * Left flip threshold: sidebar width (via --app-sidebar-width) plus the
- * edge band, so you only need to reach the sidebar — not the viewport edge.
- */
-export function getPageFlipLeftEdgePx(): number {
-  if (typeof document === "undefined") return DND_PAGE_EDGE_PX;
+function cssLengthPx(prop: string, fallback: number): number {
+  if (typeof document === "undefined") return fallback;
   const raw = getComputedStyle(document.documentElement)
-    .getPropertyValue("--app-sidebar-width")
+    .getPropertyValue(prop)
     .trim();
-  const sidebar = Number.parseFloat(raw);
-  const sidebarPx = Number.isFinite(sidebar) ? sidebar : 0;
-  return sidebarPx + DND_PAGE_EDGE_PX;
+  const n = Number.parseFloat(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function remToPx(rem: number): number {
+  if (typeof document === "undefined") return rem * 16;
+  const font = Number.parseFloat(
+    getComputedStyle(document.documentElement).fontSize
+  );
+  return rem * (Number.isFinite(font) ? font : 16);
+}
+
+/**
+ * Page flip only when the pointer is on a flip button (centered in the
+ * content well), not anywhere along the side band.
+ */
+export function pageFlipDirFromPointer(
+  clientX: number,
+  clientY: number,
+  page: number,
+  totalPages: number
+): -1 | 1 | null {
+  if (typeof window === "undefined" || totalPages <= 1) return null;
+
+  const wellTop = remToPx(PAGE_FLIP_TOP_REM);
+  const wellBottom =
+    window.innerHeight - cssLengthPx("--app-mobile-bottom-inset", 0);
+  const centerY = (wellTop + wellBottom) / 2;
+  const half = remToPx(PAGE_FLIP_BUTTON_REM) / 2 + PAGE_FLIP_HIT_PAD_PX;
+  if (clientY < centerY - half || clientY > centerY + half) return null;
+
+  const sidebar = cssLengthPx("--app-sidebar-width", 0);
+  if (page > 1) {
+    const centerX = sidebar + DND_PAGE_EDGE_PX / 2;
+    if (clientX >= centerX - half && clientX <= centerX + half) return -1;
+  }
+  if (page < totalPages) {
+    const centerX = window.innerWidth - DND_PAGE_EDGE_PX / 2;
+    if (clientX >= centerX - half && clientX <= centerX + half) return 1;
+  }
+  return null;
 }

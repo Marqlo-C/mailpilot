@@ -36,6 +36,7 @@ import {
   DragGhost,
   type DragGhostStackItem,
 } from "@/components/dnd/drag-ghost";
+import { PageFlipBumpers } from "@/components/dnd/page-flip-bumpers";
 import { SubscriptionsToolbar } from "@/components/subscriptions/subscriptions-toolbar";
 import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
 import {
@@ -1012,6 +1013,13 @@ export function SubscriptionsView({
         pageFlipDir={drag?.pageFlipDir ?? null}
         outsideList={drag?.outsideList ?? false}
         stackItems={dragStackItems}
+      />
+      <PageFlipBumpers
+        active={Boolean(drag?.active)}
+        pageFlipDir={drag?.pageFlipDir ?? null}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        dropZone={drag?.dropZone ?? null}
       />
       <Tabs
         value={activeTab}
