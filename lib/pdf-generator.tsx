@@ -92,6 +92,9 @@ type PdfInput = {
   tailoredSummary?: string | null;
   tailoredSkills?: MasterProfileInput["skills"] | null;
   includeSummary?: boolean;
+  headerName?: string | null;
+  contactLine?: string | null;
+  education?: MasterProfileInput["education"] | null;
 };
 
 const INVERTED_LOGO_PATH = path.join(
@@ -130,6 +133,22 @@ export function buildResumeContactLine(profile: MasterProfileInput): string {
   return contactElements.join(" • ");
 }
 
+function formatInlineSkills(skills: MasterProfileInput["skills"]): string {
+  const groups: Array<[string, string[]]> = [
+    ["Languages", skills.languages],
+    ["Frameworks", skills.frameworks],
+    ["Tools", skills.tools],
+    ["Concepts", skills.concepts],
+  ];
+  return groups
+    .map(([label, items]) => {
+      const values = items.map((item) => item.trim()).filter(Boolean);
+      return values.length > 0 ? `${label}: ${values.join(", ")}` : "";
+    })
+    .filter(Boolean)
+    .join(" • ");
+}
+
 function ResumeDocument({
   profile,
   experiences,
@@ -137,36 +156,35 @@ function ResumeDocument({
   tailoredSummary,
   tailoredSkills,
   includeSummary = true,
+  headerName,
+  contactLine,
+  education,
 }: PdfInput) {
-  const contact = buildResumeContactLine(profile);
+  const contact = contactLine?.trim() || buildResumeContactLine(profile);
+  const displayName = headerName?.trim() || profile.fullName;
+  const educationRows = education ?? profile.education;
 
   const showSummary =
     includeSummary !== false &&
     Boolean((tailoredSummary ?? profile.summary)?.trim());
   const activeSkills = tailoredSkills;
-  const tailoredSkillList = activeSkills
-    ? [
-        ...activeSkills.languages,
-        ...activeSkills.frameworks,
-        ...activeSkills.tools,
-        ...activeSkills.concepts,
-      ].filter(Boolean)
-    : [];
-  const fallbackSkills = [
-    ...profile.skills.languages,
-    ...profile.skills.frameworks,
-    ...profile.skills.tools,
-    ...profile.skills.concepts,
-  ].filter(Boolean);
-  const skills = (
-    tailoredSkillList.length > 0 ? tailoredSkillList : fallbackSkills
-  ).join(", ");
+  const skillSource =
+    activeSkills &&
+    [
+      ...activeSkills.languages,
+      ...activeSkills.frameworks,
+      ...activeSkills.tools,
+      ...activeSkills.concepts,
+    ].some(Boolean)
+      ? activeSkills
+      : profile.skills;
+  const skills = formatInlineSkills(skillSource);
 
   return (
     <Document>
       <Page size="LETTER" style={styles.page}>
         <View style={styles.headerRow}>
-          <Text style={styles.name}>{profile.fullName}</Text>
+          <Text style={styles.name}>{displayName}</Text>
           {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image */}
           <Image src={INVERTED_LOGO_PATH} style={styles.brandMark} />
         </View>
@@ -192,7 +210,9 @@ function ResumeDocument({
             <View key={`${exp.company}-${exp.role}`} style={{ marginBottom: 8 }}>
               <View style={styles.roleHeader}>
                 <Text style={styles.roleTitle}>
-                  {exp.role} · {exp.company}
+                  {exp.company.trim() && exp.company !== exp.role
+                    ? `${exp.role} · ${exp.company}`
+                    : exp.role}
                 </Text>
                 <Text style={styles.muted}>
                   {exp.startDate} – {exp.endDate ?? "Present"}
@@ -235,10 +255,10 @@ function ResumeDocument({
           </View>
         ) : null}
 
-        {profile.education.length > 0 ? (
+        {educationRows.length > 0 ? (
           <View style={styles.section}>
             <Text style={styles.heading}>Education</Text>
-            {profile.education.map((ed) => {
+            {educationRows.map((ed) => {
               const degreeText =
                 ed.fieldOfStudy &&
                 !ed.degree.toLowerCase().includes(ed.fieldOfStudy.toLowerCase())
@@ -249,8 +269,11 @@ function ResumeDocument({
                   key={`${ed.institution}-${ed.degree}`}
                   style={{ marginBottom: 3 }}
                 >
-                  {degreeText} — {ed.institution}
-                  {ed.graduationDate ? ` (${ed.graduationDate})` : ""}
+                  {ed.institution
+                    ? `${degreeText} — ${ed.institution}${
+                        ed.graduationDate ? ` (${ed.graduationDate})` : ""
+                      }`
+                    : ed.degree}
                 </Text>
               );
             })}
@@ -270,7 +293,12 @@ export async function generateTailoredResumePdf(
   projects?: ProjectInput[],
   tailoredSummary?: string | null,
   tailoredSkills?: MasterProfileInput["skills"] | null,
-  includeSummary?: boolean
+  includeSummary?: boolean,
+  overrides?: {
+    headerName?: string | null;
+    contactLine?: string | null;
+    education?: MasterProfileInput["education"] | null;
+  }
 ): Promise<Buffer> {
   const buffer = await renderToBuffer(
     <ResumeDocument
@@ -280,6 +308,9 @@ export async function generateTailoredResumePdf(
       tailoredSummary={tailoredSummary}
       tailoredSkills={tailoredSkills}
       includeSummary={includeSummary}
+      headerName={overrides?.headerName}
+      contactLine={overrides?.contactLine}
+      education={overrides?.education}
     />
   );
   return Buffer.from(buffer);

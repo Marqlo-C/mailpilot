@@ -31,6 +31,10 @@ import {
   regenerateOpportunityDraftAction,
   refineOpportunityDraftAction,
   refineOpportunityResumeAction,
+  refineSingleResumeNodeAction,
+  reorderResumeDraftNodeAction,
+  compileResumeDocumentAction,
+  updateResumeDraftNodeAction,
   saveOpportunityDraftEdits,
   sendOpportunityApplication,
   type DraftAttachmentInput,
@@ -38,6 +42,7 @@ import {
   type OriginalEmailPreview,
 } from "@/app/actions/opportunities";
 import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
+import { ResumeDraftSheet } from "@/components/jobs/resume-draft-sheet";
 import { Button } from "@/components/ui/button";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { CancelTaskButton } from "@/components/ui/cancel-task-button";
@@ -110,6 +115,20 @@ function pdfBase64ToBlobUrl(base64: string): string {
     bytes[i] = binary.charCodeAt(i);
   }
   return URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+}
+
+function downloadBase64File(filename: string, base64: string, mime: string) {
+  const binary = atob(base64.replace(/\s/g, ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 async function fileToAttachment(file: File): Promise<DraftAttachmentInput> {
@@ -262,6 +281,20 @@ export function OpportunityDraftDialog({
     if (typeof data.includeSummary === "boolean") {
       setIncludeSummary(data.includeSummary);
     }
+  }
+
+  async function persistDraftChange(
+    run: () => Promise<
+      Awaited<ReturnType<typeof updateResumeDraftNodeAction>>
+    >
+  ) {
+    if (!opportunity) return;
+    const result = await run();
+    if (!result.ok || !result.data) {
+      toast.error(result.ok ? "Empty resume" : result.error);
+      return;
+    }
+    applyResumeResult(result.data);
   }
 
   function generateResume(summaryPreference = includeSummary) {
@@ -548,7 +581,9 @@ export function OpportunityDraftDialog({
   }
 
   const effectiveRefineTarget = attachResume ? refineTarget : "email";
-  const hasTailoredResume = Boolean(resume?.pdfBase64);
+  const hasTailoredResume = Boolean(
+    resume?.draft?.nodes.length || resume?.pdfBase64
+  );
   const showGenerateResume =
     effectiveRefineTarget === "resume" && !hasTailoredResume;
   const primaryActionLabel = showGenerateResume ? "Generate" : "Regenerate";
@@ -693,18 +728,18 @@ export function OpportunityDraftDialog({
         ) : error ? (
           <p className="flex-1 px-6 py-8 text-sm text-destructive">{error}</p>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden">
             {/* Tier 2: main split */}
             <div
               className={cn(
-                "grid min-h-0 flex-1 gap-4 px-6 py-4 transition-all duration-300 ease-in-out",
+                "grid min-h-0 min-w-0 w-full max-w-full flex-1 gap-4 overflow-x-hidden px-6 py-4 transition-all duration-300 ease-in-out",
                 attachResume
                   ? "grid-cols-1 lg:grid-cols-2"
                   : "grid-cols-1"
               )}
             >
               {/* Left: seamless email composer */}
-              <div className="flex h-full min-h-0 flex-col divide-y overflow-hidden rounded-lg border bg-card text-sm focus-within:ring-1 focus-within:ring-ring">
+              <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col divide-y overflow-x-hidden overflow-hidden rounded-lg border bg-card text-sm focus-within:ring-1 focus-within:ring-ring">
                 <div className="flex flex-none items-center px-3 py-2">
                   <Label
                     htmlFor="opp-draft-to"
@@ -861,8 +896,8 @@ export function OpportunityDraftDialog({
 
               {/* Right: flush PDF + ATS rationale */}
               {attachResume ? (
-                <div className="mt-0 flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border/60 bg-muted/10 pt-0 duration-300 animate-in fade-in-0 slide-in-from-right-4">
-                  <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-0">
+                <div className="mt-0 flex h-full min-h-0 min-w-0 w-full max-w-full flex-col overflow-x-hidden overflow-hidden rounded-lg border border-border/60 bg-muted/10 pt-0 duration-300 animate-in fade-in-0 slide-in-from-right-4">
+                  <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col gap-2 overflow-x-hidden overflow-hidden p-0">
                     {resumeBusy && !resume ? (
                       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-3 text-sm text-muted-foreground">
                         <div className="flex items-center gap-2">
@@ -887,6 +922,114 @@ export function OpportunityDraftDialog({
                           Retry
                         </Button>
                       </div>
+                    ) : resume?.draft ? (
+                      <ResumeDraftSheet
+                        draft={resume.draft}
+                        strategyRationale={resume.strategyRationale}
+                        disabled={busy}
+                        exporting={resumeBusy}
+                        onCommit={(nodeId, content) => {
+                          if (!opportunity) return;
+                          void persistDraftChange(() =>
+                            updateResumeDraftNodeAction(opportunity.id, nodeId, {
+                              content,
+                            })
+                          );
+                        }}
+                        onToggle={(nodeId, selected) => {
+                          if (!opportunity) return;
+                          void persistDraftChange(() =>
+                            updateResumeDraftNodeAction(opportunity.id, nodeId, {
+                              selected,
+                            })
+                          );
+                        }}
+                        onMove={(nodeId, direction) => {
+                          if (!opportunity) return;
+                          void persistDraftChange(() =>
+                            reorderResumeDraftNodeAction(
+                              opportunity.id,
+                              nodeId,
+                              direction
+                            )
+                          );
+                        }}
+                        onRefine={(nodeId, instruction) => {
+                          if (!opportunity) return;
+                          const signal = startTask(TASK_RESUME);
+                          void (async () => {
+                            try {
+                              const result = await abortablePromise(
+                                refineSingleResumeNodeAction(
+                                  opportunity.id,
+                                  nodeId,
+                                  instruction
+                                ),
+                                signal
+                              );
+                              if (signal.aborted) return;
+                              if (!result.ok || !result.data) {
+                                toast.error(result.ok ? "Empty resume" : result.error);
+                                return;
+                              }
+                              applyResumeResult(result.data);
+                            } catch (error) {
+                              if (isAbortError(error) || signal.aborted) return;
+                              toast.error(
+                                error instanceof Error
+                                  ? error.message
+                                  : "Failed to refine line"
+                              );
+                            } finally {
+                              finishTask(TASK_RESUME, signal);
+                            }
+                          })();
+                        }}
+                        onExport={(format) => {
+                          if (!opportunity) return;
+                          const signal = startTask(TASK_RESUME);
+                          void (async () => {
+                            try {
+                              const result = await abortablePromise(
+                                compileResumeDocumentAction(opportunity.id, format),
+                                signal
+                              );
+                              if (signal.aborted) return;
+                              if (!result.ok || !result.data) {
+                                toast.error(result.ok ? "Empty resume" : result.error);
+                                return;
+                              }
+                              if (format === "docx" && result.data.docxBase64) {
+                                downloadBase64File(
+                                  result.data.filename,
+                                  result.data.docxBase64,
+                                  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                );
+                                toast.success("DOCX exported");
+                                return;
+                              }
+                              if (result.data.pdfBase64) {
+                                downloadBase64File(
+                                  result.data.filename,
+                                  result.data.pdfBase64,
+                                  "application/pdf"
+                                );
+                              }
+                              applyResumeResult(result.data);
+                              toast.success("PDF exported");
+                            } catch (error) {
+                              if (isAbortError(error) || signal.aborted) return;
+                              toast.error(
+                                error instanceof Error
+                                  ? error.message
+                                  : "Failed to export resume"
+                              );
+                            } finally {
+                              finishTask(TASK_RESUME, signal);
+                            }
+                          })();
+                        }}
+                      />
                     ) : resume && resumePdfUrl ? (
                       <>
                         <iframe

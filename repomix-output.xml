@@ -58,14 +58,25 @@ lib/
     classifier.ts
     persona.ts
     prefilter.ts
+  dnd/
+    constants.ts
+    drag-smooth.ts
+    interactive.ts
+    reorder.ts
+    types.ts
   email/
     cleaner.ts
   gmail/
     message.ts
+  logging/
+    index.ts
   opportunities/
     cleanup.ts
     lifecycle.ts
+    movement-rules.ts
     pipeline-filters.ts
+    preferences.ts
+    run-job-move.ts
     sorting.ts
   parsers/
     application-parser.ts
@@ -74,8 +85,16 @@ lib/
     digest-constants.ts
     digest.ts
     filters.ts
+    movement-rules.ts
+    preferences.ts
+    run-subscription-move.ts
+  types/
+    resume-draft.ts
+  ui/
+    tab-rail-preference.ts
   utils/
     format.ts
+    location.ts
   validations/
     profile.ts
     rules.ts
@@ -107,6 +126,8 @@ lib/
   prisma.ts
   profile-consolidation.ts
   profile-history.ts
+  resume-docx.ts
+  resume-draft.ts
   resume-parser.ts
   resume-tailor.ts
   scan-types.ts
@@ -121,6 +142,759 @@ prisma/
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="lib/types/resume-draft.ts">
+import { z } from "zod";
+
+export const resumeDraftNodeTypeSchema = z.enum([
+  "header",
+  "summary",
+  "skill_group",
+  "experience_header",
+  "experience_bullet",
+  "project_header",
+  "project_bullet",
+  "education_item",
+]);
+
+export type ResumeDraftNodeType = z.infer<typeof resumeDraftNodeTypeSchema>;
+
+export const resumeDraftSectionSchema = z.enum([
+  "contact",
+  "summary",
+  "skills",
+  "experience",
+  "projects",
+  "education",
+]);
+
+export type ResumeDraftSection = z.infer<typeof resumeDraftSectionSchema>;
+
+export const resumeDraftNodeSchema = z.object({
+  id: z.string().min(1),
+  type: resumeDraftNodeTypeSchema,
+  section: resumeDraftSectionSchema,
+  parentId: z.string().min(1).optional(),
+  content: z.string(),
+  selected: z.boolean(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type ResumeDraftNode = z.infer<typeof resumeDraftNodeSchema>;
+
+export const tailoredResumeDraftSchema = z.object({
+  opportunityId: z.string().min(1),
+  nodes: z.array(resumeDraftNodeSchema),
+  exportConfig: z.object({
+    includeSummary: z.boolean(),
+    pageBudget: z.union([z.literal("auto"), z.literal(1), z.literal(2)]),
+  }),
+  updatedAt: z.string(),
+});
+
+export type TailoredResumeDraft = z.infer<typeof tailoredResumeDraftSchema>;
+
+export const storedResumeDraftSchema = z.object({
+  version: z.literal(2),
+  filename: z.string().optional(),
+  draft: tailoredResumeDraftSchema,
+  strategyRationale: z
+    .object({
+      roleFitAnalysis: z.string(),
+      selectedSkillsReasoning: z.string(),
+      featuredExperiencesReasoning: z.string(),
+      featuredProjectsReasoning: z.string(),
+    })
+    .optional(),
+});
+
+export type StoredResumeDraft = z.infer<typeof storedResumeDraftSchema>;
+</file>
+
+<file path="lib/resume-docx.ts">
+import JSZip from "jszip";
+
+import { activeResumeNodes } from "@/lib/resume-draft";
+import type {
+  ResumeDraftNode,
+  TailoredResumeDraft,
+} from "@/lib/types/resume-draft";
+
+const SECTION_LABEL: Record<ResumeDraftNode["section"], string | null> = {
+  contact: null,
+  summary: "SUMMARY",
+  skills: "SKILLS",
+  experience: "EXPERIENCE",
+  projects: "PROJECTS",
+  education: "EDUCATION",
+};
+
+const SKILL_LABEL: Record<string, string> = {
+  languages: "Languages",
+  frameworks: "Frameworks",
+  tools: "Tools",
+  concepts: "Concepts",
+};
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function run(text: string, options: { bold?: boolean; size?: number; color?: string } = {}): string {
+  const size = options.size ?? 20;
+  const props = [
+    options.bold ? "<w:b/>" : "",
+    `<w:sz w:val="${size}"/>`,
+    `<w:szCs w:val="${size}"/>`,
+    options.color ? `<w:color w:val="${options.color}"/>` : "",
+    `<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>`,
+  ].join("");
+  return `<w:r><w:rPr>${props}</w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`;
+}
+
+function spacing(before = 40, after = 40): string {
+  return `<w:spacing w:before="${before}" w:after="${after}" w:line="240" w:lineRule="auto"/>`;
+}
+
+function sectionHeading(label: string): string {
+  return `<w:p>
+    <w:pPr>
+      ${spacing(80, 40)}
+      <w:pBdr><w:bottom w:val="single" w:sz="4" w:space="1" w:color="D1D5DB"/></w:pBdr>
+    </w:pPr>
+    ${run(label, { bold: true, size: 22 })}
+  </w:p>`;
+}
+
+function bodyParagraph(runsXml: string, before = 0, after = 40): string {
+  return `<w:p><w:pPr>${spacing(before, after)}</w:pPr>${runsXml}</w:p>`;
+}
+
+function bulletParagraph(text: string): string {
+  return `<w:p>
+    <w:pPr>
+      <w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>
+      ${spacing(0, 40)}
+    </w:pPr>
+    ${run(text)}
+  </w:p>`;
+}
+
+function roleParagraph(title: string, trailing: string | null): string {
+  const date = trailing
+    ? `<w:r><w:tab/></w:r>${run(trailing, { size: 18, color: "4B5563" })}`
+    : "";
+  return `<w:p>
+    <w:pPr>
+      <w:tabs><w:tab w:val="right" w:pos="10080"/></w:tabs>
+      ${spacing(40, 20)}
+    </w:pPr>
+    ${run(title, { bold: true })}${date}
+  </w:p>`;
+}
+
+function datesFor(node: ResumeDraftNode): string | null {
+  if (node.type !== "experience_header") return null;
+  const start =
+    typeof node.metadata?.startDate === "string" ? node.metadata.startDate : "";
+  if (!start) return null;
+  const end =
+    typeof node.metadata?.endDate === "string" && node.metadata.endDate
+      ? node.metadata.endDate
+      : "Present";
+  return `${start} – ${end}`;
+}
+
+function skillLine(groups: ResumeDraftNode[]): string {
+  const runs: string[] = [];
+  groups.forEach((group) => {
+    const category =
+      typeof group.metadata?.category === "string" ? group.metadata.category : "";
+    const label = SKILL_LABEL[category] ?? "Skills";
+    const values = group.content.trim();
+    if (!values) return;
+    if (runs.length > 0) runs.push(run(" • "));
+    runs.push(run(`${label}: `, { bold: true }));
+    runs.push(run(values));
+  });
+  return bodyParagraph(runs.join("") || run(""));
+}
+
+/** Styled OOXML resume built from checked draft nodes. */
+export async function compileResumeDocx(
+  draft: TailoredResumeDraft
+): Promise<Buffer> {
+  const active = activeResumeNodes(draft);
+  const body: string[] = [];
+  let lastSection: ResumeDraftNode["section"] | null = null;
+
+  const pushHeading = (section: ResumeDraftNode["section"]) => {
+    const label = SECTION_LABEL[section];
+    if (!label || section === lastSection) return;
+    body.push(sectionHeading(label));
+    lastSection = section;
+  };
+
+  for (let index = 0; index < active.length; index += 1) {
+    const item = active[index];
+    if (item.type === "header") {
+      body.push(
+        `<w:p><w:pPr>${spacing(0, 40)}</w:pPr>${run(item.content, {
+          bold: true,
+          size: 36,
+        })}</w:p>`
+      );
+      const contact =
+        typeof item.metadata?.contactLine === "string"
+          ? item.metadata.contactLine.trim()
+          : "";
+      if (contact) {
+        body.push(
+          `<w:p><w:pPr>${spacing(0, 80)}</w:pPr>${run(contact, {
+            size: 18,
+            color: "374151",
+          })}</w:p>`
+        );
+      }
+      continue;
+    }
+
+    if (item.type === "skill_group") {
+      const groups = [item];
+      while (active[index + 1]?.type === "skill_group") {
+        index += 1;
+        groups.push(active[index]);
+      }
+      pushHeading("skills");
+      body.push(skillLine(groups));
+      continue;
+    }
+
+    pushHeading(item.section);
+
+    if (item.type === "experience_header" || item.type === "project_header") {
+      const technologies = Array.isArray(item.metadata?.technologies)
+        ? item.metadata.technologies.filter(
+            (value): value is string => typeof value === "string"
+          )
+        : [];
+      const trailing =
+        item.type === "experience_header"
+          ? datesFor(item)
+          : technologies.slice(0, 4).join(", ") || null;
+      body.push(roleParagraph(item.content, trailing));
+      continue;
+    }
+
+    if (item.type === "experience_bullet" || item.type === "project_bullet") {
+      body.push(bulletParagraph(item.content));
+      continue;
+    }
+
+      body.push(bodyParagraph(run(item.content)));
+  }
+
+  const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    ${body.join("")}
+    <w:sectPr>
+      <w:pgSz w:w="12240" w:h="15840"/>
+      <w:pgMar w:top="720" w:right="1080" w:bottom="720" w:left="1080"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
+
+  const numberingXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="0">
+    <w:multiLevelType w:val="hybridMultilevel"/>
+      <w:lvl w:ilvl="0">
+      <w:start w:val="1"/>
+      <w:numFmt w:val="bullet"/>
+      <w:lvlText w:val="•"/>
+      <w:lvlJc w:val="left"/>
+      <w:pPr>
+        <w:ind w:left="360" w:hanging="180"/>
+        <w:spacing w:before="0" w:after="40" w:line="240" w:lineRule="auto"/>
+      </w:pPr>
+      <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/></w:rPr>
+    </w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
+</w:numbering>`;
+
+  const zip = new JSZip();
+  zip.file(
+    "[Content_Types].xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>`
+  );
+  zip.file(
+    "_rels/.rels",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`
+  );
+  zip.file(
+    "word/_rels/document.xml.rels",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`
+  );
+  zip.file("word/document.xml", documentXml);
+  zip.file("word/numbering.xml", numberingXml);
+  zip.file(
+    "word/styles.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:rPrDefault>
+      <w:rPr>
+        <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+        <w:sz w:val="20"/>
+        <w:szCs w:val="20"/>
+      </w:rPr>
+    </w:rPrDefault>
+    <w:pPrDefault>
+      <w:pPr>
+        <w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>
+      </w:pPr>
+    </w:pPrDefault>
+  </w:docDefaults>
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+    <w:name w:val="Normal"/>
+    <w:qFormat/>
+    <w:pPr>
+      <w:spacing w:before="40" w:after="40" w:line="240" w:lineRule="auto"/>
+    </w:pPr>
+  </w:style>
+</w:styles>`
+  );
+  const bytes = await zip.generateAsync({ type: "nodebuffer" });
+  return Buffer.from(bytes);
+}
+</file>
+
+<file path="lib/resume-draft.ts">
+import { randomUUID } from "crypto";
+
+import { z } from "zod";
+
+import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
+import type { TailorResult } from "@/lib/resume-tailor";
+import {
+  tailoredResumeDraftSchema,
+  type ResumeDraftNode,
+  type TailoredResumeDraft,
+} from "@/lib/types/resume-draft";
+import type {
+  MasterProfileInput,
+  ProjectInput,
+  WorkExperienceInput,
+} from "@/lib/validations/profile";
+import { buildResumeContactLine } from "@/lib/pdf-generator";
+
+function node(
+  partial: Omit<ResumeDraftNode, "selected"> & { selected?: boolean }
+): ResumeDraftNode {
+  return { selected: true, ...partial };
+}
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+/**
+ * Turn a tailor result plus the master profile into a line-addressable draft.
+ * Does not render a PDF.
+ */
+export function digestTailoredResume(input: {
+  opportunityId: string;
+  profile: MasterProfileInput;
+  tailored: TailorResult;
+  includeSummary: boolean;
+}): TailoredResumeDraft {
+  const { opportunityId, profile, tailored, includeSummary } = input;
+  const nodes: ResumeDraftNode[] = [];
+
+  nodes.push(
+    node({
+      id: `header:${opportunityId}`,
+      type: "header",
+      section: "contact",
+      content: profile.fullName,
+      metadata: { contactLine: buildResumeContactLine(profile) },
+    })
+  );
+
+  const summary = tailored.tailoredSummary?.trim() || profile.summary?.trim() || "";
+  if (includeSummary && summary) {
+    nodes.push(
+      node({
+        id: `summary:${opportunityId}`,
+        type: "summary",
+        section: "summary",
+        content: summary,
+      })
+    );
+  }
+
+  const skillGroups: Array<[string, string[]]> = [
+    ["languages", tailored.tailoredSkills?.languages ?? profile.skills.languages],
+    ["frameworks", tailored.tailoredSkills?.frameworks ?? profile.skills.frameworks],
+    ["tools", tailored.tailoredSkills?.tools ?? profile.skills.tools],
+    ["concepts", tailored.tailoredSkills?.concepts ?? profile.skills.concepts],
+  ];
+  for (const [category, items] of skillGroups) {
+    const content = items.map((item) => item.trim()).filter(Boolean).join(", ");
+    if (!content) continue;
+    nodes.push(
+      node({
+        id: `skills:${category}:${opportunityId}`,
+        type: "skill_group",
+        section: "skills",
+        content,
+        metadata: { category },
+      })
+    );
+  }
+
+  const experiences =
+    tailored.selectedExperience.length > 0
+      ? tailored.selectedExperience
+      : profile.experiences;
+
+  experiences.forEach((exp, index) => {
+    const headerId = `exp:${exp.id ?? index}:${opportunityId}`;
+    nodes.push(
+      node({
+        id: headerId,
+        type: "experience_header",
+        section: "experience",
+        content: `${exp.role} · ${exp.company}`,
+        metadata: {
+          company: exp.company,
+          role: exp.role,
+          location: exp.location ?? null,
+          startDate: exp.startDate,
+          endDate: exp.endDate ?? null,
+          displayOrder: exp.displayOrder ?? index,
+        },
+      })
+    );
+    exp.bullets.forEach((bullet, bulletIndex) => {
+      nodes.push(
+        node({
+          id: `exp-bullet:${bullet.id || bulletIndex}:${headerId}`,
+          type: "experience_bullet",
+          section: "experience",
+          parentId: headerId,
+          content: bullet.rawText,
+          metadata: {
+            bulletId: bullet.id,
+            technologies: bullet.technologies,
+            hasMetric: bullet.hasMetric,
+          },
+        })
+      );
+    });
+  });
+
+  tailored.selectedProjects.forEach((project, index) => {
+    const headerId = `proj:${project.id ?? index}:${opportunityId}`;
+    nodes.push(
+      node({
+        id: headerId,
+        type: "project_header",
+        section: "projects",
+        content: project.name,
+        metadata: {
+          description: project.description,
+          technologies: project.technologies,
+          link: project.link ?? null,
+        },
+      })
+    );
+    const bullets =
+      project.bullets.length > 0
+        ? project.bullets
+        : project.description
+          ? [project.description]
+          : [];
+    bullets.forEach((text, bulletIndex) => {
+      nodes.push(
+        node({
+          id: `proj-bullet:${bulletIndex}:${headerId}`,
+          type: "project_bullet",
+          section: "projects",
+          parentId: headerId,
+          content: text,
+        })
+      );
+    });
+  });
+
+  profile.education.forEach((ed, index) => {
+    const degree = [ed.degree, ed.fieldOfStudy].filter(Boolean).join(", ");
+    nodes.push(
+      node({
+        id: `edu:${ed.id ?? index}:${opportunityId}`,
+        type: "education_item",
+        section: "education",
+        content: `${degree} — ${ed.institution}${
+          ed.graduationDate ? ` (${ed.graduationDate})` : ""
+        }`,
+        metadata: {
+          institution: ed.institution,
+          degree: ed.degree,
+          fieldOfStudy: ed.fieldOfStudy ?? null,
+          graduationDate: ed.graduationDate ?? null,
+        },
+      })
+    );
+  });
+
+  return tailoredResumeDraftSchema.parse({
+    opportunityId,
+    nodes,
+    exportConfig: { includeSummary, pageBudget: "auto" },
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export function activeResumeNodes(draft: TailoredResumeDraft): ResumeDraftNode[] {
+  const selected = new Set(
+    draft.nodes.filter((item) => item.selected).map((item) => item.id)
+  );
+  return draft.nodes.filter((item) => {
+    if (!item.selected) return false;
+    if (item.parentId && !selected.has(item.parentId)) return false;
+    return true;
+  });
+}
+
+function splitList(content: string): string[] {
+  return content
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+/** Rebuild the structures the PDF renderer already understands. */
+export function draftToPdfInput(
+  draft: TailoredResumeDraft,
+  profile?: MasterProfileInput | null
+): {
+  headerName: string;
+  contactLine: string;
+  experiences: WorkExperienceInput[];
+  projects: ProjectInput[];
+  tailoredSummary: string | null;
+  tailoredSkills: MasterProfileInput["skills"];
+  includeSummary: boolean;
+  education: MasterProfileInput["education"];
+} {
+  const active = activeResumeNodes(draft);
+  const header = active.find((item) => item.type === "header");
+  const summary = active.find((item) => item.type === "summary");
+  const skills: MasterProfileInput["skills"] = {
+    languages: [],
+    frameworks: [],
+    tools: [],
+    concepts: [],
+  };
+  for (const group of active.filter((item) => item.type === "skill_group")) {
+    const category = asString(group.metadata?.category);
+    const items = splitList(group.content);
+    if (category === "languages") skills.languages = items;
+    else if (category === "frameworks") skills.frameworks = items;
+    else if (category === "tools") skills.tools = items;
+    else if (category === "concepts") skills.concepts = items;
+  }
+
+  const experiences: WorkExperienceInput[] = [];
+  for (const headerNode of active.filter(
+    (item) => item.type === "experience_header"
+  )) {
+    const bullets = active.filter(
+      (item) =>
+        item.type === "experience_bullet" && item.parentId === headerNode.id
+    );
+    const parts = headerNode.content.split(" · ");
+    const role =
+      parts[0]?.trim() || asString(headerNode.metadata?.role) || headerNode.content;
+    const company =
+      parts.length > 1 ? parts.slice(1).join(" · ").trim() : "";
+    experiences.push({
+      id: headerNode.id,
+      company: company || role,
+      role,
+      location: asString(headerNode.metadata?.location) || null,
+      startDate: asString(headerNode.metadata?.startDate) || "—",
+      endDate: asString(headerNode.metadata?.endDate) || null,
+      displayOrder: Number(headerNode.metadata?.displayOrder ?? experiences.length),
+      bullets: bullets.map((bullet) => ({
+        id: bullet.id,
+        rawText: bullet.content,
+        technologies: Array.isArray(bullet.metadata?.technologies)
+          ? bullet.metadata.technologies.filter(
+              (item): item is string => typeof item === "string"
+            )
+          : [],
+        hasMetric: bullet.metadata?.hasMetric === true,
+      })),
+    });
+  }
+
+  const projects: ProjectInput[] = [];
+  for (const headerNode of active.filter((item) => item.type === "project_header")) {
+    const bullets = active
+      .filter(
+        (item) =>
+          item.type === "project_bullet" && item.parentId === headerNode.id
+      )
+      .map((item) => item.content);
+    projects.push({
+      id: headerNode.id,
+      name: headerNode.content,
+      description: asString(headerNode.metadata?.description),
+      technologies: Array.isArray(headerNode.metadata?.technologies)
+        ? headerNode.metadata.technologies.filter(
+            (item): item is string => typeof item === "string"
+          )
+        : [],
+      link: asString(headerNode.metadata?.link) || null,
+      bullets,
+    });
+  }
+
+  const education = active
+    .filter((item) => item.type === "education_item")
+    .map((item) => ({
+      id: item.id,
+      institution: "",
+      degree: item.content,
+      fieldOfStudy: null,
+      graduationDate: null,
+    }));
+
+  return {
+    headerName: header?.content.trim() || profile?.fullName || "",
+    contactLine:
+      asString(header?.metadata?.contactLine) ||
+      (profile ? buildResumeContactLine(profile) : ""),
+    experiences,
+    projects,
+    tailoredSummary: summary?.content.trim() || null,
+    tailoredSkills: skills,
+    includeSummary:
+      draft.exportConfig.includeSummary && Boolean(summary?.content.trim()),
+    education,
+  };
+}
+
+export function moveResumeNode(
+  draft: TailoredResumeDraft,
+  nodeId: string,
+  direction: "up" | "down"
+): TailoredResumeDraft {
+  const index = draft.nodes.findIndex((item) => item.id === nodeId);
+  if (index < 0) return draft;
+  const current = draft.nodes[index];
+  const roots: number[] = [];
+  draft.nodes.forEach((item, itemIndex) => {
+    if (item.type === current.type && item.parentId === current.parentId) {
+      roots.push(itemIndex);
+    }
+  });
+  const position = roots.indexOf(index);
+  const swapWith = direction === "up" ? position - 1 : position + 1;
+  if (swapWith < 0 || swapWith >= roots.length) return draft;
+
+  const rangeOf = (start: number): [number, number] => {
+    let end = start + 1;
+    const parentId = draft.nodes[start]?.id;
+    while (
+      end < draft.nodes.length &&
+      draft.nodes[end]?.parentId === parentId
+    ) {
+      end += 1;
+    }
+    return [start, end];
+  };
+
+  const [aStart, aEnd] = rangeOf(roots[position]);
+  const [bStart, bEnd] = rangeOf(roots[swapWith]);
+  const first: [number, number] = aStart < bStart ? [aStart, aEnd] : [bStart, bEnd];
+  const second: [number, number] = aStart < bStart ? [bStart, bEnd] : [aStart, aEnd];
+  const nodes = draft.nodes;
+  const next = [
+    ...nodes.slice(0, first[0]),
+    ...nodes.slice(second[0], second[1]),
+    ...nodes.slice(first[1], second[0]),
+    ...nodes.slice(first[0], first[1]),
+    ...nodes.slice(second[1]),
+  ];
+  return { ...draft, nodes: next, updatedAt: new Date().toISOString() };
+}
+
+const refineLineSchema = z.object({
+  content: z.string().min(1),
+});
+
+/**
+ * Rewrite one node. The model only sees that line plus the instruction.
+ */
+export async function refineResumeLine(input: {
+  content: string;
+  instruction: string;
+  llmProvider: LlmProvider;
+  localOllamaUrl?: string | null;
+  ollamaModel?: string | null;
+  allowCloudFallback?: boolean;
+}): Promise<string> {
+  const instruction = input.instruction.trim();
+  if (!instruction) {
+    throw new Error("Refinement instruction is required");
+  }
+  const result = await callLLMWithFallback({
+    llmProvider: input.llmProvider,
+    localOllamaUrl: input.localOllamaUrl,
+    ollamaModel: input.ollamaModel,
+    allowCloudFallback: input.allowCloudFallback,
+    systemPrompt:
+      "You edit one resume line. Return JSON {\"content\":\"...\"} containing only the rewritten line. Do not add bullets, headings, or extra sentences.",
+    userPrompt: `Instruction: ${instruction}\nLine: ${input.content}`,
+  });
+  const parsed = refineLineSchema.safeParse(result);
+  if (!parsed.success) {
+    throw new Error("The model did not return a single rewritten line");
+  }
+  return parsed.data.content.trim();
+}
+
+export function touchDraft(draft: TailoredResumeDraft): TailoredResumeDraft {
+  return { ...draft, updatedAt: new Date().toISOString() };
+}
+
+export function newNodeId(): string {
+  return randomUUID();
+}
+</file>
 
 <file path="app/actions/auth.ts">
 "use server";
@@ -405,6 +1179,158 @@ export function shouldClassifyEmail(input: {
 }
 </file>
 
+<file path="lib/dnd/drag-smooth.ts">
+import {
+  DND_DEADZONE_BOTTOM_RATIO,
+  DND_DEADZONE_TOP_RATIO,
+} from "@/lib/dnd/constants";
+import {
+  captureReorderRects,
+  contiguousMovedRunIds,
+  type FrozenItemRect,
+} from "@/lib/dnd/interactive";
+
+/** Grab-relative geometry for deadzone drag of a single card or multi-select union. */
+export type DragGrabGeometry = {
+  grabX: number;
+  grabY: number;
+  width: number;
+  height: number;
+  startLeft: number;
+  startTop: number;
+  topThreshold: number;
+  bottomThreshold: number;
+};
+
+function unionRects(
+  rects: Iterable<FrozenItemRect>
+): { left: number; top: number; right: number; bottom: number } | null {
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  let found = false;
+  for (const rect of rects) {
+    found = true;
+    left = Math.min(left, rect.left);
+    top = Math.min(top, rect.top);
+    right = Math.max(right, rect.right);
+    bottom = Math.max(bottom, rect.bottom);
+  }
+  if (!found) return null;
+  return { left, top, right, bottom };
+}
+
+/**
+ * Grab bbox for deadzone/lerp: contiguous selected run containing the origin
+ * (the card under the pointer). Distant selected clusters are ignored so the
+ * ghost stays glued to the grab — live preview still moves all selected ids.
+ */
+export function captureDragGrabGeometry(
+  movedIds: readonly string[],
+  clientX: number,
+  clientY: number,
+  rects?: Map<string, FrozenItemRect> | null,
+  originId?: string,
+  fullIds?: readonly string[]
+): DragGrabGeometry | null {
+  if (movedIds.length === 0) return null;
+
+  const map = rects ?? captureReorderRects(movedIds);
+  const runIds =
+    fullIds && fullIds.length > 0
+      ? contiguousMovedRunIds(fullIds, movedIds, originId)
+      : originId && map.has(originId)
+        ? [originId]
+        : [...movedIds];
+
+  const runRects: FrozenItemRect[] = [];
+  for (const id of runIds) {
+    const rect = map.get(id);
+    if (rect) runRects.push(rect);
+  }
+
+  let bounds = unionRects(runRects);
+  if (!bounds && originId) {
+    const origin = map.get(originId);
+    if (origin) {
+      bounds = {
+        left: origin.left,
+        top: origin.top,
+        right: origin.right,
+        bottom: origin.bottom,
+      };
+    }
+  }
+  if (!bounds) {
+    bounds = unionRects(
+      movedIds
+        .map((id) => map.get(id))
+        .filter((r): r is FrozenItemRect => Boolean(r))
+    );
+  }
+  if (!bounds) return null;
+
+  const width = Math.max(1, bounds.right - bounds.left);
+  const height = Math.max(1, bounds.bottom - bounds.top);
+  const topThreshold = DND_DEADZONE_TOP_RATIO * height;
+  const bottomThreshold = DND_DEADZONE_BOTTOM_RATIO * height;
+
+  const rawGrabX = clientX - bounds.left;
+  const rawGrabY = clientY - bounds.top;
+  const grabX = Math.min(width, Math.max(0, rawGrabX));
+  const grabY = Math.min(height, Math.max(0, rawGrabY));
+
+  return {
+    grabX,
+    grabY,
+    width,
+    height,
+    startLeft: bounds.left,
+    startTop: bounds.top,
+    topThreshold,
+    bottomThreshold,
+  };
+}
+
+/**
+ * Deadzone target for the dragged representation’s top-left.
+ * Vertical free zone is the middle 20% of height; X follows grab offset directly.
+ */
+export function computeDeadzoneTarget(
+  clientX: number,
+  clientY: number,
+  currentTop: number,
+  grab: DragGrabGeometry
+): { targetX: number; targetY: number } {
+  const targetX = clientX - grab.grabX;
+  const relativeY = clientY - currentTop;
+
+  if (relativeY < grab.topThreshold) {
+    return { targetX, targetY: clientY - grab.topThreshold };
+  }
+  if (relativeY > grab.bottomThreshold) {
+    return { targetX, targetY: clientY - grab.bottomThreshold };
+  }
+  // Free zone — hold vertical target at the current element top.
+  return { targetX, targetY: currentTop };
+}
+</file>
+
+<file path="lib/dnd/types.ts">
+/** Shared DnD policy shape for `useCardListGestures`. */
+export type CardListGestureRules = {
+  /** Same-list rearrange allowed right now. */
+  canReorder: boolean;
+  /**
+   * Drop-zone ids that accept the current drag (e.g. "archive", "history").
+   * When non-empty, drag may start even if `canReorder` is false so tab drops
+   * still work outside Custom sort.
+   */
+  allowedDropZones?: readonly string[];
+};
+</file>
+
 <file path="lib/email/cleaner.ts">
 /**
  * Fast pre-LLM email cleaning: strip HTML bloat, preserve apply links as markdown.
@@ -571,6 +1497,123 @@ export async function findLatestMessageIdFromSender(
 }
 </file>
 
+<file path="lib/logging/index.ts">
+import pino, { type Logger } from "pino";
+import pretty from "pino-pretty";
+
+/**
+ * Central MailPilot logger (Pino).
+ *
+ * Levels by environment (override with LOG_LEVEL):
+ * - production  → warn  (errors/warnings only; no Sync/Dedupe chatter)
+ * - preview     → debug (Vercel preview — full sync/dedupe stories)
+ * - development → debug (local `next dev` — pretty-printed)
+ * - test        → silent
+ *
+ * Dev pretty uses an in-process stream (not `pino.transport` workers). Next.js
+ * HMR / `after()` kills those workers and surfaces "the worker has exited".
+ */
+
+export type LogEnv = "production" | "preview" | "development" | "test";
+
+export function resolveLogEnv(): LogEnv {
+  const vercel = process.env.VERCEL_ENV;
+  if (
+    vercel === "production" ||
+    vercel === "preview" ||
+    vercel === "development"
+  ) {
+    return vercel;
+  }
+  if (process.env.NODE_ENV === "test") return "test";
+  if (process.env.NODE_ENV === "production") return "production";
+  return "development";
+}
+
+function resolveLevel(env: LogEnv): pino.LevelWithSilent {
+  const override = process.env.LOG_LEVEL?.trim().toLowerCase();
+  if (
+    override === "fatal" ||
+    override === "error" ||
+    override === "warn" ||
+    override === "info" ||
+    override === "debug" ||
+    override === "trace" ||
+    override === "silent"
+  ) {
+    return override;
+  }
+
+  switch (env) {
+    case "production":
+      return "warn";
+    case "preview":
+    case "development":
+      return "debug";
+    case "test":
+      return "silent";
+    default:
+      return "info";
+  }
+}
+
+const logEnv = resolveLogEnv();
+const level = resolveLevel(logEnv);
+
+/** Pretty stream only for local dev (never on Vercel). */
+const usePretty =
+  logEnv === "development" &&
+  process.env.LOG_PRETTY !== "0" &&
+  process.env.VERCEL !== "1";
+
+export const logger: Logger = usePretty
+  ? pino(
+      {
+        level,
+        base: { env: logEnv },
+      },
+      pretty({
+        colorize: true,
+        ignore: "pid,hostname",
+        translateTime: "HH:MM:ss",
+        sync: true,
+      })
+    )
+  : pino({
+      level,
+      base: { env: logEnv },
+    });
+
+/** Inbox sync pipeline (delta → job query → classify → watermark). */
+export const syncLog = logger.child({ scope: "Sync" });
+
+/** Opportunity 3-tier dedupe decisions. */
+export const dedupeLog = logger.child({ scope: "Dedupe" });
+
+/** Stale sync-lock auto-reset (kept at warn so production still surfaces it). */
+export const syncLockLog = logger.child({ scope: "SyncLock" });
+
+/**
+ * Plain-English multi-line story. Defaults to `debug` so production stays quiet
+ * while preview/dev keep the full narrative.
+ */
+export function logStory(
+  log: Logger,
+  title: string,
+  details?: Record<string, string | number | boolean | null | undefined>,
+  lvl: "debug" | "info" | "warn" = "debug"
+): void {
+  if (!log.isLevelEnabled(lvl)) return;
+  const lines = details
+    ? Object.entries(details)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => `  ${k}: ${v}`)
+        .join("\n")
+    : "";
+  log[lvl](lines ? `${title}\n${lines}` : title);
+}
+</file>
+
 <file path="lib/opportunities/cleanup.ts">
 import { prisma } from "@/lib/prisma";
 import { parseAccountRules } from "@/lib/validations/rules";
@@ -622,6 +1665,262 @@ export async function purgeExpiredDismissed(accountId: string): Promise<{
   });
 
   return { purgedCount: result.count, retentionDays };
+}
+</file>
+
+<file path="lib/opportunities/movement-rules.ts">
+/**
+ * Job Radar lifecycle / kanban policy — shared home for card buttons, bulk
+ * flyout, and DnD tab drops.
+ *
+ * Flow:
+ * 1. Resolve intent → `JobMoveKind`
+ *    - DnD: `resolveJobMove(fromTab, dropZone)`
+ *    - Card/bulk: `resolveJobCardAction(fromTab, action)`
+ * 2. Execute: `runJobMove` / `runJobCardAction` / `runJobDrop`
+ *    in `lib/opportunities/run-job-move.ts`
+ *
+ * Gesture plumbing stays in `hooks/use-card-list-gestures.ts` + `lib/dnd/*`.
+ * "Less like this" (ban + dismiss) stays outside this matrix.
+ *
+ * Tabs: leads | applied | action_required | history
+ */
+
+import type { CardListGestureRules } from "@/lib/dnd/types";
+import type { JobsTabKey } from "@/lib/opportunities/sorting";
+
+/** Map OpportunityCard / view variant → movement tab key. */
+export function variantToJobsTabKey(
+  variant: "leads" | "applied" | "action" | "history" | string
+): JobsTabKey {
+  if (variant === "action") return "action_required";
+  if (
+    variant === "leads" ||
+    variant === "applied" ||
+    variant === "history" ||
+    variant === "action_required"
+  ) {
+    return variant;
+  }
+  return "leads";
+}
+
+/** Drop-zone ids — match `data-dnd-drop-zone` on Job Radar tab triggers. */
+export type JobDropZone = JobsTabKey;
+
+/** Lifecycle move kinds shared by DnD + card actions. */
+export type JobMoveKind =
+  | "reorder"
+  | "mark_applied"
+  | "unmark_applied"
+  | "dismiss"
+  | "archive"
+  | "restore"
+  | "forbidden";
+
+/** Explicit card / bulk button intents (map to kinds + validate by tab). */
+export type JobCardAction =
+  | "mark_applied"
+  | "unmark_applied"
+  | "dismiss"
+  | "archive"
+  | "restore";
+
+export type JobMoveResolution = {
+  kind: JobMoveKind;
+  /** Short label for UI / toasts. */
+  label: string;
+  /** Human explanation of the rule. */
+  description: string;
+};
+
+/** Same-tab Custom-order rearrange (like Subscriptions Active). */
+export const JOB_TAB_REORDER_ALLOWED: Record<JobsTabKey, boolean> = {
+  leads: true,
+  applied: true,
+  action_required: true,
+  /** History is archive-like — no custom reorder. */
+  history: false,
+};
+
+/**
+ * Cross-tab DnD defaults. Same-tab is `reorder` when allowed.
+ * Card buttons may use a more specific kind (e.g. archive vs dismiss to History).
+ */
+export const JOB_CROSS_TAB_MOVES: Record<
+  JobsTabKey,
+  Partial<Record<JobDropZone, JobMoveKind>>
+> = {
+  leads: {
+    applied: "mark_applied",
+    history: "dismiss",
+  },
+  applied: {
+    history: "archive",
+    leads: "unmark_applied",
+  },
+  action_required: {
+    history: "dismiss",
+    applied: "mark_applied",
+  },
+  history: {
+    leads: "restore",
+    applied: "restore",
+  },
+};
+
+/**
+ * Which lifecycle buttons are valid on each tab.
+ * DnD drop zones are derived from `JOB_CROSS_TAB_MOVES`; card UI uses this list
+ * so overflow/bulk actions stay in lockstep with the matrix.
+ */
+export const JOB_CARD_ACTIONS_BY_TAB: Record<JobsTabKey, JobCardAction[]> = {
+  leads: ["mark_applied", "dismiss", "archive"],
+  applied: ["unmark_applied", "archive", "dismiss"],
+  action_required: ["mark_applied", "dismiss"],
+  /** restore = leave History; dismiss = start purge on user-archived rows */
+  history: ["restore", "dismiss"],
+};
+
+const MOVE_COPY: Record<JobMoveKind, { label: string; description: string }> = {
+  reorder: {
+    label: "Reorder",
+    description: "Same-tab Custom order (localStorage); page-edge flip OK.",
+  },
+  mark_applied: {
+    label: "Mark applied",
+    description: "Move into Applied (external/applied flow).",
+  },
+  unmark_applied: {
+    label: "Unmark applied",
+    description: "Return from Applied to the active leads queue.",
+  },
+  dismiss: {
+    label: "Dismiss",
+    description: "Send to History as dismissed (retention countdown).",
+  },
+  archive: {
+    label: "Archive",
+    description: "User-archive into History (keeps previousStatus).",
+  },
+  restore: {
+    label: "Restore",
+    description: "Pull out of History to previous active status.",
+  },
+  forbidden: {
+    label: "Not allowed",
+    description: "This move is blocked from the current tab.",
+  },
+};
+
+function resolutionFor(kind: JobMoveKind, description?: string): JobMoveResolution {
+  return {
+    kind,
+    label: MOVE_COPY[kind].label,
+    description: description ?? MOVE_COPY[kind].description,
+  };
+}
+
+/** Resolve a DnD drop (from tab → drop zone). */
+export function resolveJobMove(
+  from: JobsTabKey,
+  to: JobDropZone
+): JobMoveResolution {
+  if (from === to) {
+    const allowed = JOB_TAB_REORDER_ALLOWED[from];
+    return resolutionFor(
+      allowed ? "reorder" : "forbidden",
+      allowed
+        ? MOVE_COPY.reorder.description
+        : "No custom reorder on this tab."
+    );
+  }
+
+  const kind = JOB_CROSS_TAB_MOVES[from][to] ?? "forbidden";
+  return resolutionFor(kind);
+}
+
+/**
+ * Resolve a card/bulk button. Validates the action is allowed on `from` tab
+ * so buttons and DnD share one allowlist.
+ */
+export function resolveJobCardAction(
+  from: JobsTabKey,
+  action: JobCardAction
+): JobMoveResolution {
+  if (!JOB_CARD_ACTIONS_BY_TAB[from].includes(action)) {
+    return resolutionFor(
+      "forbidden",
+      `“${action}” is not available on the ${from} tab.`
+    );
+  }
+  return resolutionFor(action);
+}
+
+/** Drop zones the current tab may drag onto (for `CardListGestureRules`). */
+export function allowedJobDropZones(from: JobsTabKey): JobDropZone[] {
+  const row = JOB_CROSS_TAB_MOVES[from];
+  return (Object.keys(row) as JobDropZone[]).filter(
+    (zone) => row[zone] != null && row[zone] !== "forbidden"
+  );
+}
+
+/** Card/bulk actions available on a tab (for rendering buttons). */
+export function jobCardActionsForTab(from: JobsTabKey): JobCardAction[] {
+  return JOB_CARD_ACTIONS_BY_TAB[from];
+}
+
+/**
+ * Gesture rules for the active Job Radar tab.
+ * Reorder only when Custom sort is active (or no custom order saved yet —
+ * same first-reorder promotion pattern as Subscriptions).
+ */
+export function getJobGestureRules(options: {
+  activeTab: JobsTabKey;
+  sortIsCustom: boolean;
+  hasSavedCustomOrder: boolean;
+}): CardListGestureRules {
+  // Same as Subscriptions: allow reorder on the tab; executor/view promotes
+  // to Custom sort on drop. Don't gate preview on the current sort label.
+  void options.sortIsCustom;
+  void options.hasSavedCustomOrder;
+  const canReorder = JOB_TAB_REORDER_ALLOWED[options.activeTab];
+
+  return {
+    canReorder,
+    allowedDropZones: allowedJobDropZones(options.activeTab),
+  };
+}
+
+/** Readable summary for docs / debugging. */
+export function formatJobMovementRulesSummary(): string {
+  const lines: string[] = [
+    "Job Radar movement rules (DnD + card/bulk share runJobMove)",
+    "",
+    "Same-tab reorder (Custom sort):",
+  ];
+  for (const tab of Object.keys(JOB_TAB_REORDER_ALLOWED) as JobsTabKey[]) {
+    lines.push(
+      `  - ${tab}: ${JOB_TAB_REORDER_ALLOWED[tab] ? "yes" : "no"}`
+    );
+  }
+  lines.push("", "Cross-tab DnD defaults:");
+  for (const from of Object.keys(JOB_CROSS_TAB_MOVES) as JobsTabKey[]) {
+    const targets = allowedJobDropZones(from);
+    if (targets.length === 0) {
+      lines.push(`  - ${from}: (none)`);
+      continue;
+    }
+    for (const to of targets) {
+      const r = resolveJobMove(from, to);
+      lines.push(`  - ${from} → ${to}: ${r.kind} — ${r.description}`);
+    }
+  }
+  lines.push("", "Card / bulk actions by tab:");
+  for (const from of Object.keys(JOB_CARD_ACTIONS_BY_TAB) as JobsTabKey[]) {
+    lines.push(`  - ${from}: ${JOB_CARD_ACTIONS_BY_TAB[from].join(", ")}`);
+  }
+  return lines.join("\n");
 }
 </file>
 
@@ -682,304 +1981,725 @@ export function matchesHistoryStatusFilter(
 }
 </file>
 
-<file path="lib/opportunities/sorting.ts">
-import type { JobApplication, JobOpportunity } from "@prisma/client";
+<file path="lib/opportunities/preferences.ts">
+/**
+ * Per-account Job Radar UI preferences (localStorage only).
+ * Custom order is scoped by account + tab (leads / applied / action_required).
+ */
 
-export type OpportunitySortOption =
-  | "match-desc"
-  | "received-desc"
-  | "applied-desc"
-  | "applied-asc"
-  | "dismissed-desc"
-  | "dismissed-asc"
-  | "salary-desc"
-  | "company-asc";
+import type { JobsTabKey } from "@/lib/opportunities/sorting";
 
-export type ActionRequiredSortOption =
-  | "deadline-asc"
-  | "recent-desc"
-  | "company-asc";
-
-export type JobsTabKey = "leads" | "applied" | "action_required" | "history";
-
-export const TAB_SORT_CONFIG: Record<
-  JobsTabKey,
-  { defaultSort: string; options: { label: string; value: string }[] }
-> = {
-  leads: {
-    defaultSort: "match-desc",
-    options: [
-      { label: "Best Match", value: "match-desc" },
-      { label: "Newest First", value: "received-desc" },
-      { label: "Highest Salary", value: "salary-desc" },
-      { label: "Company (A–Z)", value: "company-asc" },
-    ],
-  },
-  applied: {
-    defaultSort: "applied-desc",
-    options: [
-      { label: "Applied: Newest", value: "applied-desc" },
-      { label: "Applied: Oldest (Follow-up)", value: "applied-asc" },
-      { label: "Company (A–Z)", value: "company-asc" },
-      { label: "Highest Salary", value: "salary-desc" },
-    ],
-  },
-  action_required: {
-    defaultSort: "deadline-asc",
-    options: [
-      { label: "Deadline: Most Urgent", value: "deadline-asc" },
-      { label: "Most Recent", value: "recent-desc" },
-      { label: "Company (A–Z)", value: "company-asc" },
-    ],
-  },
-  history: {
-    defaultSort: "dismissed-desc",
-    options: [
-      { label: "Recently Dismissed", value: "dismissed-desc" },
-      { label: "Purge Imminent", value: "dismissed-asc" },
-      { label: "Highest Match", value: "match-desc" },
-      { label: "Company (A–Z)", value: "company-asc" },
-    ],
-  },
-};
-
-/** Maps Jobs Radar tab values → sort config keys. */
-export function tabKeyFromValue(tab: string): JobsTabKey {
-  if (tab === "action") return "action_required";
-  if (tab === "applied" || tab === "history" || tab === "leads") return tab;
-  return "leads";
+function customOrderKey(accountId: string, tab: JobsTabKey): string {
+  return `mailpilot_jobs_custom_order:${accountId}:${tab}`;
 }
 
-export function sortOpportunities(
-  items: JobOpportunity[],
-  sort: string
-): JobOpportunity[] {
-  return [...items].sort((a, b) => {
-    switch (sort) {
-      case "applied-desc": {
-        const dateA = new Date(a.appliedAt ?? a.receivedAt).getTime();
-        const dateB = new Date(b.appliedAt ?? b.receivedAt).getTime();
-        return dateB - dateA;
-      }
-      case "applied-asc": {
-        const dateA = new Date(a.appliedAt ?? a.receivedAt).getTime();
-        const dateB = new Date(b.appliedAt ?? b.receivedAt).getTime();
-        return dateA - dateB;
-      }
-      case "dismissed-desc": {
-        const dateA = new Date(a.dismissedAt ?? a.updatedAt).getTime();
-        const dateB = new Date(b.dismissedAt ?? b.updatedAt).getTime();
-        return dateB - dateA;
-      }
-      case "dismissed-asc": {
-        const dateA = new Date(a.dismissedAt ?? a.updatedAt).getTime();
-        const dateB = new Date(b.dismissedAt ?? b.updatedAt).getTime();
-        return dateA - dateB;
-      }
-      case "salary-desc":
-        return (b.salaryMax ?? 0) - (a.salaryMax ?? 0);
-      case "company-asc":
-        return a.company.localeCompare(b.company);
-      case "match-desc":
-        return (b.matchScore ?? 0) - (a.matchScore ?? 0);
-      case "deadline-asc":
-        // Opportunities have no deadline — newest received first as a stable fallback.
-        return (
-          new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
-        );
-      case "recent-desc":
-      case "received-desc":
-      default:
-        return (
-          new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
-        );
-    }
-  });
+export function readJobCustomOrder(
+  accountId: string,
+  tab: JobsTabKey
+): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(customOrderKey(accountId, tab));
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((id): id is string => typeof id === "string");
+  } catch {
+    return [];
+  }
 }
 
-export function sortActionRequired(
-  items: JobApplication[],
-  sort: string
-): JobApplication[] {
-  return [...items].sort((a, b) => {
-    switch (sort) {
-      case "deadline-asc": {
-        if (!a.deadlineAt && !b.deadlineAt) return 0;
-        if (!a.deadlineAt) return 1;
-        if (!b.deadlineAt) return -1;
-        return (
-          new Date(a.deadlineAt).getTime() - new Date(b.deadlineAt).getTime()
-        );
-      }
-      case "company-asc":
-        return (a.companyName ?? "").localeCompare(b.companyName ?? "");
-      case "recent-desc":
-      default:
-        return (
-          new Date(b.emailDate ?? b.updatedAt).getTime() -
-          new Date(a.emailDate ?? a.updatedAt).getTime()
-        );
+export function persistJobCustomOrder(
+  accountId: string,
+  tab: JobsTabKey,
+  order: string[]
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (order.length === 0) {
+      localStorage.removeItem(customOrderKey(accountId, tab));
+      return;
     }
-  });
+    localStorage.setItem(
+      customOrderKey(accountId, tab),
+      JSON.stringify(order)
+    );
+  } catch {
+    // Quota / private mode — ignore.
+  }
 }
 
-/** Sort JobApplication rows on non-action tabs (applied / leads / history). */
-export function sortJobApplications(
-  items: JobApplication[],
-  sort: string
-): JobApplication[] {
-  return [...items].sort((a, b) => {
-    switch (sort) {
-      case "applied-desc": {
-        const dateA = new Date(a.appliedAt ?? a.emailDate).getTime();
-        const dateB = new Date(b.appliedAt ?? b.emailDate).getTime();
-        return dateB - dateA;
-      }
-      case "applied-asc": {
-        const dateA = new Date(a.appliedAt ?? a.emailDate).getTime();
-        const dateB = new Date(b.appliedAt ?? b.emailDate).getTime();
-        return dateA - dateB;
-      }
-      case "dismissed-desc":
-      case "dismissed-asc": {
-        const dateA = new Date(a.updatedAt).getTime();
-        const dateB = new Date(b.updatedAt).getTime();
-        return sort === "dismissed-asc" ? dateA - dateB : dateB - dateA;
-      }
-      case "salary-desc":
-        return (b.matchScore ?? 0) - (a.matchScore ?? 0);
-      case "company-asc":
-        return (a.companyName ?? "").localeCompare(b.companyName ?? "");
-      case "match-desc":
-        return (b.matchScore ?? 0) - (a.matchScore ?? 0);
-      case "received-desc":
-      case "recent-desc":
-      default:
-        return (
-          new Date(b.emailDate ?? b.updatedAt).getTime() -
-          new Date(a.emailDate ?? a.updatedAt).getTime()
-        );
-    }
-  });
+/** Apply a saved id order; unknown ids keep relative filtered order at the end. */
+export function applyJobCustomOrder<T extends { id: string }>(
+  items: T[],
+  order: string[]
+): T[] {
+  if (order.length === 0 || items.length <= 1) return items;
+  const map = new Map(items.map((item) => [item.id, item]));
+  const result: T[] = [];
+  for (const id of order) {
+    const item = map.get(id);
+    if (!item) continue;
+    result.push(item);
+    map.delete(id);
+  }
+  for (const item of items) {
+    if (map.has(item.id)) result.push(item);
+  }
+  return result;
 }
 </file>
 
-<file path="lib/subscriptions/filters.ts">
-export type SubscriptionCategoryFilter =
-  | "all"
-  | "promotions"
-  | "newsletters"
-  | "alerts";
-
-export type SubscriptionSortOption =
-  | "clutter_desc"
-  | "freq_desc"
-  | "freq_asc"
-  | "alpha";
-
-type ClutterInput = {
-  emailCount: number;
-  lastReceivedAt?: Date | string | null;
-};
-
-type CategoryInput = {
-  senderName?: string | null;
-  senderEmail: string;
-};
+<file path="lib/opportunities/run-job-move.ts">
+"use server";
 
 /**
- * Derived clutter score (0–100) from tracked volume + recency.
- * Higher emailCount / fresher lastReceivedAt → higher noise.
+ * Shared executor for Job Radar lifecycle moves.
+ * Used by card/overflow buttons, bulk flyout, and DnD tab drops —
+ * all go through `resolveJobMove` / card-action helpers in
+ * `lib/opportunities/movement-rules.ts`, then land here.
  */
-export function subscriptionClutterScore(sub: ClutterInput): number {
-  const count = Math.max(0, sub.emailCount);
-  const volume = Math.min(
-    95,
-    Math.round((Math.log10(count + 1) / Math.log10(101)) * 95)
-  );
 
-  let recency = 0;
-  if (sub.lastReceivedAt) {
-    const days =
-      (Date.now() - new Date(sub.lastReceivedAt).getTime()) /
-      (1000 * 60 * 60 * 24);
-    if (days <= 2) recency = 5;
-    else if (days <= 7) recency = 3;
-    else if (days <= 30) recency = 1;
+import {
+  archiveOpportunities,
+  dismissOpportunities,
+  markOpportunitiesExternalApplied,
+  restoreOpportunities,
+  unmarkApplied,
+  type ActionResult,
+} from "@/app/actions/opportunities";
+import {
+  resolveJobCardAction,
+  resolveJobMove,
+  type JobCardAction,
+  type JobDropZone,
+  type JobMoveKind,
+} from "@/lib/opportunities/movement-rules";
+import type { JobsTabKey } from "@/lib/opportunities/sorting";
+
+export type RunJobMoveResult = ActionResult<{ count: number; kind: JobMoveKind }>;
+
+/** Card / bulk button → resolve allowlist → execute. */
+export async function runJobCardAction(
+  from: JobsTabKey,
+  action: JobCardAction,
+  opportunityIds: string[]
+): Promise<RunJobMoveResult> {
+  const resolved = resolveJobCardAction(from, action);
+  if (resolved.kind === "forbidden") {
+    return { ok: false, error: resolved.description };
   }
-
-  return Math.min(100, volume + recency);
+  return runJobMove(resolved.kind, opportunityIds);
 }
 
-/** Reverse of Job Radar match bands: high ≥80, mid ≥60, else low. */
-export type ClutterScoreTier = "high" | "mid" | "low";
-
-export function clutterScoreTier(score: number): ClutterScoreTier {
-  if (score >= 80) return "high";
-  if (score >= 60) return "mid";
-  return "low";
+/** DnD drop onto a tab zone → resolve matrix → execute. */
+export async function runJobDrop(
+  from: JobsTabKey,
+  to: JobDropZone,
+  opportunityIds: string[]
+): Promise<RunJobMoveResult> {
+  const resolved = resolveJobMove(from, to);
+  if (resolved.kind === "forbidden" || resolved.kind === "reorder") {
+    return {
+      ok: false,
+      error:
+        resolved.kind === "reorder"
+          ? "Reorder is handled client-side."
+          : resolved.description,
+    };
+  }
+  return runJobMove(resolved.kind, opportunityIds);
 }
 
 /**
- * Lightweight category inference from sender identity (no static columns).
+ * Execute a resolved move kind against one or more opportunity ids.
+ * `reorder` is client-only (localStorage) — not handled here.
  */
-export function inferSubscriptionCategory(
-  sub: CategoryInput
-): Exclude<SubscriptionCategoryFilter, "all"> {
-  const hay = `${sub.senderName ?? ""} ${sub.senderEmail}`.toLowerCase();
-  if (/\b(alert|notify|notification|security|otp|verify)\b/.test(hay)) {
-    return "alerts";
+export async function runJobMove(
+  kind: JobMoveKind,
+  opportunityIds: string[]
+): Promise<RunJobMoveResult> {
+  const ids = [...new Set(opportunityIds.filter(Boolean))];
+  if (ids.length === 0) {
+    return { ok: true, data: { count: 0, kind } };
   }
-  if (/\b(promo|deal|offer|sale|discount|coupon)\b/.test(hay)) {
-    return "promotions";
+
+  switch (kind) {
+    case "mark_applied": {
+      const result = await markOpportunitiesExternalApplied(ids);
+      if (!result.ok) return result;
+      return {
+        ok: true,
+        data: { count: result.data?.count ?? ids.length, kind },
+      };
+    }
+    case "dismiss": {
+      const result = await dismissOpportunities(ids);
+      if (!result.ok) return result;
+      return {
+        ok: true,
+        data: { count: result.data?.count ?? ids.length, kind },
+      };
+    }
+    case "archive": {
+      const result = await archiveOpportunities(ids);
+      if (!result.ok) return result;
+      return {
+        ok: true,
+        data: { count: result.data?.count ?? ids.length, kind },
+      };
+    }
+    case "restore": {
+      const result = await restoreOpportunities(ids);
+      if (!result.ok) return result;
+      return {
+        ok: true,
+        data: { count: result.data?.count ?? ids.length, kind },
+      };
+    }
+    case "unmark_applied": {
+      let count = 0;
+      for (const id of ids) {
+        const result = await unmarkApplied(id);
+        if (!result.ok) return result;
+        count += 1;
+      }
+      return { ok: true, data: { count, kind } };
+    }
+    case "reorder":
+      return {
+        ok: false,
+        error: "Reorder is client-only (Custom sort / localStorage).",
+      };
+    case "forbidden":
+      return { ok: false, error: "That move is not allowed." };
+    default: {
+      const _exhaustive: never = kind;
+      return { ok: false, error: `Unknown move: ${String(_exhaustive)}` };
+    }
   }
-  return "newsletters";
+}
+</file>
+
+<file path="lib/subscriptions/movement-rules.ts">
+/**
+ * Subscriptions lifecycle / tab policy — shared home for card buttons, bulk
+ * flyout, and DnD tab drops.
+ *
+ * Flow:
+ * 1. Resolve intent → `SubscriptionMoveKind`
+ *    - DnD: `resolveSubscriptionMove(fromTab, dropZone)`
+ *    - Card/bulk: `resolveSubscriptionCardAction(fromTab, action)`
+ * 2. UI confirm when `requiresConfirm` (unsubscribe), then execute via
+ *    `lib/subscriptions/run-subscription-move.ts`
+ *
+ * Gesture plumbing stays in `hooks/use-card-list-gestures.ts` + `lib/dnd/*`.
+ * Briefing / preview actions stay outside this matrix.
+ *
+ * Tabs: active | archive (Unsubscribed)
+ */
+
+import type { CardListGestureRules } from "@/lib/dnd/types";
+
+export type SubscriptionTab = "active" | "archive";
+
+/** Drop-zone ids — match `data-dnd-drop-zone` on subscription tab triggers. */
+export type SubscriptionDropZone = SubscriptionTab;
+
+export type SubscriptionMoveKind =
+  | "reorder"
+  | "unsubscribe"
+  | "cleanup"
+  | "delete_record"
+  | "forbidden";
+
+export type SubscriptionCardAction =
+  | "unsubscribe"
+  | "cleanup"
+  | "delete_record";
+
+export type SubscriptionMoveResolution = {
+  kind: SubscriptionMoveKind;
+  label: string;
+  description: string;
+  /** Unsubscribe opens the confirm dialog before `runSubscriptionMove`. */
+  requiresConfirm: boolean;
+};
+
+/** Same-tab Custom-order rearrange — Active only. */
+export const SUBSCRIPTION_TAB_REORDER_ALLOWED: Record<SubscriptionTab, boolean> =
+  {
+    active: true,
+    archive: false,
+  };
+
+/**
+ * Cross-tab DnD defaults.
+ * Only Active → Unsubscribed (archive) is allowed; opens unsubscribe confirm.
+ */
+export const SUBSCRIPTION_CROSS_TAB_MOVES: Record<
+  SubscriptionTab,
+  Partial<Record<SubscriptionDropZone, SubscriptionMoveKind>>
+> = {
+  active: {
+    archive: "unsubscribe",
+  },
+  archive: {
+    // No drag back to Active — re-subscribe is not a product action.
+  },
+};
+
+/** Card / bulk actions valid on each tab. */
+export const SUBSCRIPTION_CARD_ACTIONS_BY_TAB: Record<
+  SubscriptionTab,
+  SubscriptionCardAction[]
+> = {
+  active: ["unsubscribe"],
+  archive: ["cleanup", "delete_record"],
+};
+
+const MOVE_COPY: Record<
+  SubscriptionMoveKind,
+  { label: string; description: string; requiresConfirm: boolean }
+> = {
+  reorder: {
+    label: "Reorder",
+    description: "Same-tab Custom order (localStorage); page-edge flip OK.",
+    requiresConfirm: false,
+  },
+  unsubscribe: {
+    label: "Unsubscribe",
+    description:
+      "Move Active → Unsubscribed (confirm cleanup choice, then run unsubscribe).",
+    requiresConfirm: true,
+  },
+  cleanup: {
+    label: "Cleanup",
+    description: "Batch-clean past mail from an unsubscribed sender.",
+    requiresConfirm: false,
+  },
+  delete_record: {
+    label: "Delete record",
+    description: "Remove the unsubscribed sender record from MailPilot.",
+    requiresConfirm: false,
+  },
+  forbidden: {
+    label: "Not allowed",
+    description: "This move is blocked from the current tab.",
+    requiresConfirm: false,
+  },
+};
+
+function resolutionFor(
+  kind: SubscriptionMoveKind,
+  description?: string
+): SubscriptionMoveResolution {
+  return {
+    kind,
+    label: MOVE_COPY[kind].label,
+    description: description ?? MOVE_COPY[kind].description,
+    requiresConfirm: MOVE_COPY[kind].requiresConfirm,
+  };
 }
 
-export function matchesSubscriptionSearch(
-  sub: CategoryInput,
-  query: string
-): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  return (
-    sub.senderEmail.toLowerCase().includes(q) ||
-    (sub.senderName?.toLowerCase().includes(q) ?? false)
+/** Resolve a DnD drop (from tab → drop zone). */
+export function resolveSubscriptionMove(
+  from: SubscriptionTab,
+  to: SubscriptionDropZone
+): SubscriptionMoveResolution {
+  if (from === to) {
+    const allowed = SUBSCRIPTION_TAB_REORDER_ALLOWED[from];
+    return resolutionFor(
+      allowed ? "reorder" : "forbidden",
+      allowed
+        ? MOVE_COPY.reorder.description
+        : "No custom reorder on this tab."
+    );
+  }
+
+  const kind = SUBSCRIPTION_CROSS_TAB_MOVES[from][to] ?? "forbidden";
+  return resolutionFor(kind);
+}
+
+/** Resolve a card/bulk button against the tab allowlist. */
+export function resolveSubscriptionCardAction(
+  from: SubscriptionTab,
+  action: SubscriptionCardAction
+): SubscriptionMoveResolution {
+  if (!SUBSCRIPTION_CARD_ACTIONS_BY_TAB[from].includes(action)) {
+    return resolutionFor(
+      "forbidden",
+      `“${action}” is not available on the ${from} tab.`
+    );
+  }
+  return resolutionFor(action);
+}
+
+export function allowedSubscriptionDropZones(
+  from: SubscriptionTab
+): SubscriptionDropZone[] {
+  const row = SUBSCRIPTION_CROSS_TAB_MOVES[from];
+  return (Object.keys(row) as SubscriptionDropZone[]).filter(
+    (zone) => row[zone] != null && row[zone] !== "forbidden"
   );
 }
 
-export function compareSubscriptionsBySort(
-  a: ClutterInput & CategoryInput,
-  b: ClutterInput & CategoryInput,
-  sort: SubscriptionSortOption
-): number {
-  switch (sort) {
-    case "clutter_desc": {
-      const diff =
-        subscriptionClutterScore(b) - subscriptionClutterScore(a);
-      return diff !== 0
-        ? diff
-        : a.senderEmail.localeCompare(b.senderEmail);
+export function subscriptionCardActionsForTab(
+  from: SubscriptionTab
+): SubscriptionCardAction[] {
+  return SUBSCRIPTION_CARD_ACTIONS_BY_TAB[from];
+}
+
+export function getSubscriptionGestureRules(options: {
+  activeTab: SubscriptionTab;
+  sortIsCustom: boolean;
+  hasSavedCustomOrder: boolean;
+}): CardListGestureRules {
+  // Reorder whenever the tab allows it. First drop promotes Sort → Custom
+  // (see subscriptions-view handleReorder). Gating on sortIsCustom hid the
+  // live preview while drag still armed for tab drops — looked broken.
+  void options.sortIsCustom;
+  void options.hasSavedCustomOrder;
+  const canReorder = SUBSCRIPTION_TAB_REORDER_ALLOWED[options.activeTab];
+
+  return {
+    canReorder,
+    allowedDropZones: allowedSubscriptionDropZones(options.activeTab),
+  };
+}
+
+export function formatSubscriptionMovementRulesSummary(): string {
+  const lines: string[] = [
+    "Subscriptions movement rules (DnD + card/bulk share runSubscriptionMove)",
+    "",
+    "Same-tab reorder (Custom sort):",
+  ];
+  for (const tab of Object.keys(
+    SUBSCRIPTION_TAB_REORDER_ALLOWED
+  ) as SubscriptionTab[]) {
+    lines.push(
+      `  - ${tab}: ${SUBSCRIPTION_TAB_REORDER_ALLOWED[tab] ? "yes" : "no"}`
+    );
+  }
+  lines.push("", "Cross-tab DnD defaults:");
+  for (const from of Object.keys(
+    SUBSCRIPTION_CROSS_TAB_MOVES
+  ) as SubscriptionTab[]) {
+    const targets = allowedSubscriptionDropZones(from);
+    if (targets.length === 0) {
+      lines.push(`  - ${from}: (none)`);
+      continue;
     }
-    case "freq_desc": {
-      const diff = b.emailCount - a.emailCount;
-      return diff !== 0
-        ? diff
-        : a.senderEmail.localeCompare(b.senderEmail);
-    }
-    case "freq_asc": {
-      const diff = a.emailCount - b.emailCount;
-      return diff !== 0
-        ? diff
-        : a.senderEmail.localeCompare(b.senderEmail);
-    }
-    case "alpha":
-    default:
-      return (
-        (a.senderName ?? a.senderEmail).localeCompare(
-          b.senderName ?? b.senderEmail
-        ) || a.senderEmail.localeCompare(b.senderEmail)
+    for (const to of targets) {
+      const r = resolveSubscriptionMove(from, to);
+      lines.push(
+        `  - ${from} → ${to}: ${r.kind}${r.requiresConfirm ? " (confirm)" : ""} — ${r.description}`
       );
+    }
+  }
+  lines.push("", "Card / bulk actions by tab:");
+  for (const from of Object.keys(
+    SUBSCRIPTION_CARD_ACTIONS_BY_TAB
+  ) as SubscriptionTab[]) {
+    lines.push(
+      `  - ${from}: ${SUBSCRIPTION_CARD_ACTIONS_BY_TAB[from].join(", ")}`
+    );
+  }
+  return lines.join("\n");
+}
+</file>
+
+<file path="lib/subscriptions/preferences.ts">
+/**
+ * Per-account Subscriptions UI preferences (localStorage only).
+ */
+
+const LEGACY_CLUTTER_KEY = "mailpilot_subscriptions_min_clutter";
+
+function clutterKey(accountId: string): string {
+  return `mailpilot_subscriptions_min_clutter:${accountId}`;
+}
+
+function customOrderKey(accountId: string): string {
+  return `mailpilot_subscriptions_custom_order:${accountId}`;
+}
+
+function clampClutter(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+/** Read clutter threshold; migrates legacy global key → per-account once. */
+export function readClutterThreshold(accountId: string): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const scoped = localStorage.getItem(clutterKey(accountId));
+    if (scoped != null) {
+      const parsed = Number.parseInt(scoped, 10);
+      if (!Number.isFinite(parsed)) return null;
+      return clampClutter(parsed);
+    }
+
+    const legacy = localStorage.getItem(LEGACY_CLUTTER_KEY);
+    if (legacy == null) return null;
+    const parsed = Number.parseInt(legacy, 10);
+    if (!Number.isFinite(parsed)) return null;
+    const value = clampClutter(parsed);
+    localStorage.setItem(clutterKey(accountId), String(value));
+    localStorage.removeItem(LEGACY_CLUTTER_KEY);
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+export function persistClutterThreshold(
+  accountId: string,
+  value: number
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(clutterKey(accountId), String(clampClutter(value)));
+  } catch {
+    // Quota / private mode — ignore.
+  }
+}
+
+export function readCustomOrder(accountId: string): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(customOrderKey(accountId));
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((id): id is string => typeof id === "string");
+  } catch {
+    return [];
+  }
+}
+
+export function persistCustomOrder(
+  accountId: string,
+  order: string[]
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (order.length === 0) {
+      localStorage.removeItem(customOrderKey(accountId));
+      return;
+    }
+    localStorage.setItem(customOrderKey(accountId), JSON.stringify(order));
+  } catch {
+    // Quota / private mode — ignore.
+  }
+}
+
+/** Apply a saved id order; unknown ids keep relative filtered order at the end. */
+export function applyCustomOrder<T extends { id: string }>(
+  items: T[],
+  order: string[]
+): T[] {
+  if (order.length === 0 || items.length <= 1) return items;
+  const map = new Map(items.map((item) => [item.id, item]));
+  const result: T[] = [];
+  for (const id of order) {
+    const item = map.get(id);
+    if (!item) continue;
+    result.push(item);
+    map.delete(id);
+  }
+  for (const item of items) {
+    if (map.has(item.id)) result.push(item);
+  }
+  return result;
+}
+</file>
+
+<file path="lib/subscriptions/run-subscription-move.ts">
+"use server";
+
+/**
+ * Shared executor for Subscriptions lifecycle moves.
+ * Card buttons, bulk flyout, and DnD drops resolve intent in
+ * `lib/subscriptions/movement-rules.ts`, then land here.
+ *
+ * `unsubscribe` requires a cleanup choice (from the confirm dialog).
+ */
+
+import {
+  batchCleanupSender,
+  deleteUnsubscribedRecord,
+  unsubscribeSender,
+  type ActionResult,
+} from "@/app/actions/subscriptions";
+import {
+  resolveSubscriptionCardAction,
+  resolveSubscriptionMove,
+  type SubscriptionCardAction,
+  type SubscriptionDropZone,
+  type SubscriptionMoveKind,
+  type SubscriptionTab,
+} from "@/lib/subscriptions/movement-rules";
+import type { CleanupAction } from "@/lib/unsubscribe";
+
+export type RunSubscriptionMoveResult = ActionResult<{
+  count: number;
+  kind: SubscriptionMoveKind;
+  failed?: number;
+}>;
+
+export type SubscriptionMoveParams = {
+  subscriptionIds?: string[];
+  accountId?: string;
+  senderEmail?: string;
+  cleanup?: CleanupAction;
+};
+
+/** Card / bulk button → resolve allowlist → execute. */
+export async function runSubscriptionCardAction(
+  from: SubscriptionTab,
+  action: SubscriptionCardAction,
+  params: SubscriptionMoveParams
+): Promise<RunSubscriptionMoveResult> {
+  const resolved = resolveSubscriptionCardAction(from, action);
+  if (resolved.kind === "forbidden") {
+    return { ok: false, error: resolved.description };
+  }
+  return runSubscriptionMove(resolved.kind, params);
+}
+
+/**
+ * DnD drop onto a tab zone → resolve matrix → execute.
+ * Unsubscribe still needs `cleanup` from the confirm dialog.
+ */
+export async function runSubscriptionDrop(
+  from: SubscriptionTab,
+  to: SubscriptionDropZone,
+  params: SubscriptionMoveParams
+): Promise<RunSubscriptionMoveResult> {
+  const resolved = resolveSubscriptionMove(from, to);
+  if (resolved.kind === "forbidden" || resolved.kind === "reorder") {
+    return {
+      ok: false,
+      error:
+        resolved.kind === "reorder"
+          ? "Reorder is handled client-side."
+          : resolved.description,
+    };
+  }
+  return runSubscriptionMove(resolved.kind, params);
+}
+
+export async function runSubscriptionMove(
+  kind: SubscriptionMoveKind,
+  params: SubscriptionMoveParams
+): Promise<RunSubscriptionMoveResult> {
+  switch (kind) {
+    case "unsubscribe": {
+      const ids = [...new Set((params.subscriptionIds ?? []).filter(Boolean))];
+      if (ids.length === 0) {
+        return { ok: true, data: { count: 0, kind } };
+      }
+      if (params.cleanup == null) {
+        return {
+          ok: false,
+          error: "Cleanup choice is required to unsubscribe.",
+        };
+      }
+      let okCount = 0;
+      let failCount = 0;
+      for (const id of ids) {
+        const result = await unsubscribeSender(id, params.cleanup);
+        if (result.ok) okCount += 1;
+        else failCount += 1;
+      }
+      if (okCount === 0 && failCount > 0) {
+        return {
+          ok: false,
+          error: `Failed to unsubscribe ${failCount} sender(s)`,
+        };
+      }
+      return {
+        ok: true,
+        data: { count: okCount, kind, failed: failCount },
+      };
+    }
+    case "cleanup": {
+      if (!params.accountId || !params.senderEmail) {
+        return {
+          ok: false,
+          error: "Account and sender are required for cleanup.",
+        };
+      }
+      const result = await batchCleanupSender(
+        params.accountId,
+        params.senderEmail
+      );
+      if (!result.ok) return result;
+      return {
+        ok: true,
+        data: { count: result.data?.cleaned ?? 0, kind },
+      };
+    }
+    case "delete_record": {
+      if (!params.accountId || !params.senderEmail) {
+        return {
+          ok: false,
+          error: "Account and sender are required to delete a record.",
+        };
+      }
+      const result = await deleteUnsubscribedRecord(
+        params.accountId,
+        params.senderEmail
+      );
+      if (!result.ok) return result;
+      return { ok: true, data: { count: 1, kind } };
+    }
+    case "reorder":
+      return {
+        ok: false,
+        error: "Reorder is client-only (Custom sort / localStorage).",
+      };
+    case "forbidden":
+      return { ok: false, error: "That move is not allowed." };
+    default: {
+      const _exhaustive: never = kind;
+      return { ok: false, error: `Unknown move: ${String(_exhaustive)}` };
+    }
+  }
+}
+</file>
+
+<file path="lib/ui/tab-rail-preference.ts">
+/**
+ * Per-account tab rail choice (localStorage only).
+ */
+
+export type TabRailVariant = "light" | "dark";
+
+function tabRailKey(accountId: string): string {
+  return `mailpilot_tab_rail:${accountId}`;
+}
+
+export function readTabRail(accountId: string): TabRailVariant {
+  if (typeof window === "undefined") return "light";
+  try {
+    return localStorage.getItem(tabRailKey(accountId)) === "dark"
+      ? "dark"
+      : "light";
+  } catch {
+    return "light";
+  }
+}
+
+export function persistTabRail(
+  accountId: string,
+  variant: TabRailVariant
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(tabRailKey(accountId), variant);
+  } catch {
+    // Quota / private mode — ignore.
   }
 }
 </file>
@@ -1020,6 +2740,154 @@ export function dedupeContactItems(
   }
 
   return result;
+}
+</file>
+
+<file path="lib/utils/location.ts">
+/**
+ * Zero-cost geographic normalizer and compatibility matcher.
+ * Resolves variations like "Sacramento, CA", "Sacramento", and "Sacramento, California".
+ */
+
+const US_STATES_AND_TERRITORIES: Record<string, string> = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  newhampshire: "NH",
+  newjersey: "NJ",
+  newmexico: "NM",
+  newyork: "NY",
+  northcarolina: "NC",
+  northdakota: "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  rhodeisland: "RI",
+  southcarolina: "SC",
+  southdakota: "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  westvirginia: "WV",
+  wisconsin: "WI",
+  wyoming: "WY",
+  districtofcolumbia: "DC",
+  puertorico: "PR",
+  guam: "GU",
+  usvirginislands: "VI",
+  americansamoa: "AS",
+  northernmarianas: "MP",
+};
+
+const VALID_STATE_CODES = new Set(Object.values(US_STATES_AND_TERRITORIES));
+
+export type ParsedLocation = {
+  city: string;
+  state: string | null;
+  isRemote: boolean;
+};
+
+export function parseLocation(raw: string | null | undefined): ParsedLocation {
+  if (!raw) {
+    return { city: "", state: null, isRemote: false };
+  }
+
+  let text = raw.toLowerCase().trim();
+
+  // 1. Detect and strip remote/workplace context
+  const isRemote = /\b(remote|work from home|wfh)\b/i.test(text);
+  text = text
+    .replace(/\b(remote|hybrid|on-site|onsite|work from home|wfh)\b/gi, " ")
+    .replace(/[()[\]{}]/g, " ")
+    .trim();
+
+  // 2. Tokenize by common delimiters (e.g., "Sacramento, CA", "San Jose - California")
+  const parts = text
+    .split(/[,/·|–—-]+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return { city: "", state: null, isRemote };
+  }
+
+  const city = parts[0]!.replace(/[^a-z0-9\s]/g, "").trim();
+  let state: string | null = null;
+
+  if (parts.length > 1) {
+    const rawState = parts[1]!.replace(/[^a-z]/g, "");
+    const upperState = rawState.toUpperCase();
+
+    if (VALID_STATE_CODES.has(upperState)) {
+      state = upperState;
+    } else if (US_STATES_AND_TERRITORIES[rawState]) {
+      state = US_STATES_AND_TERRITORIES[rawState]!;
+    }
+  }
+
+  return { city, state, isRemote };
+}
+
+/**
+ * Checks if two location strings represent the same geographic opportunity.
+ * Returns true if they match or if either is unspecified/remote.
+ * Returns false if there is a definitive city or state conflict.
+ */
+export function isLocationCompatible(
+  locA: string | null | undefined,
+  locB: string | null | undefined
+): boolean {
+  if (!locA || !locB) return true;
+
+  const a = parseLocation(locA);
+  const b = parseLocation(locB);
+
+  // If both denote remote or either lacks a city, allow match
+  if (a.isRemote || b.isRemote || !a.city || !b.city) {
+    return true;
+  }
+
+  // Explicit state conflict (e.g. CA vs NC)
+  if (a.state && b.state && a.state !== b.state) {
+    return false;
+  }
+
+  // City compatibility: exact match or containment (e.g. "Sacramento" vs "Greater Sacramento")
+  const cityMatch =
+    a.city === b.city ||
+    a.city.includes(b.city) ||
+    b.city.includes(a.city);
+
+  return cityMatch;
 }
 </file>
 
@@ -2687,6 +4555,117 @@ function chunkArray<T>(items: T[], size: number): T[][] {
 }
 </file>
 
+<file path="lib/dnd/reorder.ts">
+/**
+ * Move `movedIds` (preserving their relative order) so the block starts at
+ * `targetIndex` in the list that remains after removal.
+ * `targetIndex` is an index into the without-moved list (0…without.length).
+ */
+export function reorderIds(
+  fullIds: string[],
+  movedIds: string[],
+  targetIndex: number
+): string[] {
+  const movedSet = new Set(movedIds);
+  const moving = fullIds.filter((id) => movedSet.has(id));
+  if (moving.length === 0) return fullIds;
+
+  const without = fullIds.filter((id) => !movedSet.has(id));
+  const clamped = Math.max(0, Math.min(targetIndex, without.length));
+  return [
+    ...without.slice(0, clamped),
+    ...moving,
+    ...without.slice(clamped),
+  ];
+}
+
+/**
+ * Convert an absolute index in `fullIds` into a without-moved insert index
+ * (same space `reorderIds` expects).
+ */
+export function adjustInsertIndexForMoved(
+  fullIds: string[],
+  movedIds: string[],
+  absoluteIndex: number
+): number {
+  const movedSet = new Set(movedIds);
+  let adjusted = absoluteIndex;
+  for (let i = 0; i < absoluteIndex && i < fullIds.length; i++) {
+    if (movedSet.has(fullIds[i]!)) adjusted -= 1;
+  }
+  return Math.max(0, adjusted);
+}
+
+/**
+ * Live reorder preview while dragging. `insertIndex` is without-moved space.
+ * Returns null when there is nothing to preview.
+ */
+export function previewReorderFullIds(
+  fullIds: string[],
+  movedIds: string[],
+  insertIndex: number | null
+): string[] | null {
+  if (insertIndex == null || movedIds.length === 0 || fullIds.length === 0) {
+    return null;
+  }
+  return reorderIds(fullIds, movedIds, insertIndex);
+}
+
+/** Stable reorder of records to match an id list (unknown ids append). */
+export function orderItemsByIds<T extends { id: string }>(
+  items: T[],
+  ids: string[]
+): T[] {
+  if (ids.length === 0 || items.length <= 1) return items;
+  const map = new Map(items.map((item) => [item.id, item]));
+  const result: T[] = [];
+  for (const id of ids) {
+    const item = map.get(id);
+    if (!item) continue;
+    result.push(item);
+    map.delete(id);
+  }
+  for (const item of items) {
+    if (map.has(item.id)) result.push(item);
+  }
+  return result;
+}
+
+/**
+ * Merge a reordered filtered id list back into a broader saved custom order,
+ * keeping ids that are not in the current filter in their prior relative spots.
+ */
+export function mergeFilteredOrderIntoCustom(
+  previousCustom: string[],
+  filteredIds: string[],
+  nextFilteredIds: string[]
+): string[] {
+  const filteredSet = new Set(filteredIds);
+  if (previousCustom.length === 0) {
+    return nextFilteredIds;
+  }
+
+  const nextQueue = [...nextFilteredIds];
+  const result: string[] = [];
+
+  for (const id of previousCustom) {
+    if (!filteredSet.has(id)) {
+      result.push(id);
+      continue;
+    }
+    const next = nextQueue.shift();
+    if (next != null) result.push(next);
+  }
+
+  // New filtered ids that were never in custom order.
+  for (const id of nextQueue) {
+    if (!result.includes(id)) result.push(id);
+  }
+
+  return result;
+}
+</file>
+
 <file path="lib/opportunities/lifecycle.ts">
 import type { JobOpportunity } from "@prisma/client";
 
@@ -2739,6 +4718,194 @@ export function daysRemainingUntilPurge(
     (Date.now() - dismissedMs) / (1000 * 60 * 60 * 24)
   );
   return Math.max(0, retentionDays - daysPassed);
+}
+</file>
+
+<file path="lib/opportunities/sorting.ts">
+import type { JobApplication, JobOpportunity } from "@prisma/client";
+
+export type OpportunitySortOption =
+  | "match-desc"
+  | "received-desc"
+  | "applied-desc"
+  | "applied-asc"
+  | "dismissed-desc"
+  | "dismissed-asc"
+  | "salary-desc"
+  | "company-asc";
+
+export type ActionRequiredSortOption =
+  | "deadline-asc"
+  | "recent-desc"
+  | "company-asc";
+
+export type JobsTabKey = "leads" | "applied" | "action_required" | "history";
+
+export const TAB_SORT_CONFIG: Record<
+  JobsTabKey,
+  { defaultSort: string; options: { label: string; value: string }[] }
+> = {
+  leads: {
+    defaultSort: "match-desc",
+    options: [
+      { label: "Best Match", value: "match-desc" },
+      { label: "Newest First", value: "received-desc" },
+      { label: "Highest Salary", value: "salary-desc" },
+      { label: "Company (A–Z)", value: "company-asc" },
+      { label: "Custom", value: "custom" },
+    ],
+  },
+  applied: {
+    defaultSort: "applied-desc",
+    options: [
+      { label: "Applied: Newest", value: "applied-desc" },
+      { label: "Applied: Oldest (Follow-up)", value: "applied-asc" },
+      { label: "Company (A–Z)", value: "company-asc" },
+      { label: "Highest Salary", value: "salary-desc" },
+      { label: "Custom", value: "custom" },
+    ],
+  },
+  action_required: {
+    defaultSort: "deadline-asc",
+    options: [
+      { label: "Deadline: Most Urgent", value: "deadline-asc" },
+      { label: "Most Recent", value: "recent-desc" },
+      { label: "Company (A–Z)", value: "company-asc" },
+      { label: "Custom", value: "custom" },
+    ],
+  },
+  history: {
+    defaultSort: "dismissed-desc",
+    options: [
+      { label: "Recently Dismissed", value: "dismissed-desc" },
+      { label: "Purge Imminent", value: "dismissed-asc" },
+      { label: "Highest Match", value: "match-desc" },
+      { label: "Company (A–Z)", value: "company-asc" },
+    ],
+  },
+};
+
+/** Maps Jobs Radar tab values → sort config keys. */
+export function tabKeyFromValue(tab: string): JobsTabKey {
+  if (tab === "action") return "action_required";
+  if (tab === "applied" || tab === "history" || tab === "leads") return tab;
+  return "leads";
+}
+
+export function sortOpportunities(
+  items: JobOpportunity[],
+  sort: string
+): JobOpportunity[] {
+  // Custom order is applied in the view from localStorage — keep input order.
+  if (sort === "custom") return [...items];
+
+  return [...items].sort((a, b) => {
+    switch (sort) {
+      case "applied-desc": {
+        const dateA = new Date(a.appliedAt ?? a.receivedAt).getTime();
+        const dateB = new Date(b.appliedAt ?? b.receivedAt).getTime();
+        return dateB - dateA;
+      }
+      case "applied-asc": {
+        const dateA = new Date(a.appliedAt ?? a.receivedAt).getTime();
+        const dateB = new Date(b.appliedAt ?? b.receivedAt).getTime();
+        return dateA - dateB;
+      }
+      case "dismissed-desc": {
+        const dateA = new Date(a.dismissedAt ?? a.updatedAt).getTime();
+        const dateB = new Date(b.dismissedAt ?? b.updatedAt).getTime();
+        return dateB - dateA;
+      }
+      case "dismissed-asc": {
+        const dateA = new Date(a.dismissedAt ?? a.updatedAt).getTime();
+        const dateB = new Date(b.dismissedAt ?? b.updatedAt).getTime();
+        return dateA - dateB;
+      }
+      case "salary-desc":
+        return (b.salaryMax ?? 0) - (a.salaryMax ?? 0);
+      case "company-asc":
+        return a.company.localeCompare(b.company);
+      case "match-desc":
+        return (b.matchScore ?? 0) - (a.matchScore ?? 0);
+      case "deadline-asc":
+        // Opportunities have no deadline — newest received first as a stable fallback.
+        return (
+          new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
+        );
+      case "recent-desc":
+      case "received-desc":
+      default:
+        return (
+          new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
+        );
+    }
+  });
+}
+
+export function sortActionRequired(
+  items: JobApplication[],
+  sort: string
+): JobApplication[] {
+  return [...items].sort((a, b) => {
+    switch (sort) {
+      case "deadline-asc": {
+        if (!a.deadlineAt && !b.deadlineAt) return 0;
+        if (!a.deadlineAt) return 1;
+        if (!b.deadlineAt) return -1;
+        return (
+          new Date(a.deadlineAt).getTime() - new Date(b.deadlineAt).getTime()
+        );
+      }
+      case "company-asc":
+        return (a.companyName ?? "").localeCompare(b.companyName ?? "");
+      case "recent-desc":
+      default:
+        return (
+          new Date(b.emailDate ?? b.updatedAt).getTime() -
+          new Date(a.emailDate ?? a.updatedAt).getTime()
+        );
+    }
+  });
+}
+
+/** Sort JobApplication rows on non-action tabs (applied / leads / history). */
+export function sortJobApplications(
+  items: JobApplication[],
+  sort: string
+): JobApplication[] {
+  return [...items].sort((a, b) => {
+    switch (sort) {
+      case "applied-desc": {
+        const dateA = new Date(a.appliedAt ?? a.emailDate).getTime();
+        const dateB = new Date(b.appliedAt ?? b.emailDate).getTime();
+        return dateB - dateA;
+      }
+      case "applied-asc": {
+        const dateA = new Date(a.appliedAt ?? a.emailDate).getTime();
+        const dateB = new Date(b.appliedAt ?? b.emailDate).getTime();
+        return dateA - dateB;
+      }
+      case "dismissed-desc":
+      case "dismissed-asc": {
+        const dateA = new Date(a.updatedAt).getTime();
+        const dateB = new Date(b.updatedAt).getTime();
+        return sort === "dismissed-asc" ? dateA - dateB : dateB - dateA;
+      }
+      case "salary-desc":
+        return (b.matchScore ?? 0) - (a.matchScore ?? 0);
+      case "company-asc":
+        return (a.companyName ?? "").localeCompare(b.companyName ?? "");
+      case "match-desc":
+        return (b.matchScore ?? 0) - (a.matchScore ?? 0);
+      case "received-desc":
+      case "recent-desc":
+      default:
+        return (
+          new Date(b.emailDate ?? b.updatedAt).getTime() -
+          new Date(a.emailDate ?? a.updatedAt).getTime()
+        );
+    }
+  });
 }
 </file>
 
@@ -3107,6 +5274,130 @@ export function constrainBriefingPreviewHtml(html: string): string {
     return withoutOld.replace(/<body([^>]*)>/i, `<body$1>${guard}`);
   }
   return `${guard}${withoutOld}`;
+}
+</file>
+
+<file path="lib/subscriptions/filters.ts">
+export type SubscriptionCategoryFilter =
+  | "all"
+  | "promotions"
+  | "newsletters"
+  | "alerts";
+
+export type SubscriptionSortOption =
+  | "clutter_desc"
+  | "freq_desc"
+  | "freq_asc"
+  | "alpha"
+  | "custom";
+
+type ClutterInput = {
+  emailCount: number;
+  lastReceivedAt?: Date | string | null;
+};
+
+type CategoryInput = {
+  senderName?: string | null;
+  senderEmail: string;
+};
+
+/**
+ * Derived clutter score (0–100) from tracked volume + recency.
+ * Higher emailCount / fresher lastReceivedAt → higher noise.
+ */
+export function subscriptionClutterScore(sub: ClutterInput): number {
+  const count = Math.max(0, sub.emailCount);
+  const volume = Math.min(
+    95,
+    Math.round((Math.log10(count + 1) / Math.log10(101)) * 95)
+  );
+
+  let recency = 0;
+  if (sub.lastReceivedAt) {
+    const days =
+      (Date.now() - new Date(sub.lastReceivedAt).getTime()) /
+      (1000 * 60 * 60 * 24);
+    if (days <= 2) recency = 5;
+    else if (days <= 7) recency = 3;
+    else if (days <= 30) recency = 1;
+  }
+
+  return Math.min(100, volume + recency);
+}
+
+/** Reverse of Job Radar match bands: high ≥80, mid ≥60, else low. */
+export type ClutterScoreTier = "high" | "mid" | "low";
+
+export function clutterScoreTier(score: number): ClutterScoreTier {
+  if (score >= 80) return "high";
+  if (score >= 60) return "mid";
+  return "low";
+}
+
+/**
+ * Lightweight category inference from sender identity (no static columns).
+ */
+export function inferSubscriptionCategory(
+  sub: CategoryInput
+): Exclude<SubscriptionCategoryFilter, "all"> {
+  const hay = `${sub.senderName ?? ""} ${sub.senderEmail}`.toLowerCase();
+  if (/\b(alert|notify|notification|security|otp|verify)\b/.test(hay)) {
+    return "alerts";
+  }
+  if (/\b(promo|deal|offer|sale|discount|coupon)\b/.test(hay)) {
+    return "promotions";
+  }
+  return "newsletters";
+}
+
+export function matchesSubscriptionSearch(
+  sub: CategoryInput,
+  query: string
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    sub.senderEmail.toLowerCase().includes(q) ||
+    (sub.senderName?.toLowerCase().includes(q) ?? false)
+  );
+}
+
+export function compareSubscriptionsBySort(
+  a: ClutterInput & CategoryInput,
+  b: ClutterInput & CategoryInput,
+  sort: SubscriptionSortOption
+): number {
+  switch (sort) {
+    case "custom":
+      // Order is applied separately via applyCustomOrder; keep a stable fallback.
+      return a.senderEmail.localeCompare(b.senderEmail);
+    case "clutter_desc": {
+      const diff =
+        subscriptionClutterScore(b) - subscriptionClutterScore(a);
+      return diff !== 0
+        ? diff
+        : a.senderEmail.localeCompare(b.senderEmail);
+    }
+    case "freq_desc": {
+      const diff = b.emailCount - a.emailCount;
+      return diff !== 0
+        ? diff
+        : a.senderEmail.localeCompare(b.senderEmail);
+    }
+    case "freq_asc": {
+      const diff = a.emailCount - b.emailCount;
+      return diff !== 0
+        ? diff
+        : a.senderEmail.localeCompare(b.senderEmail);
+    }
+    case "alpha":
+    default:
+      return (
+        (a.senderName ?? a.senderEmail).localeCompare(
+          b.senderName ?? b.senderEmail
+        ) || a.senderEmail.localeCompare(b.senderEmail)
+      );
+  }
 }
 </file>
 
@@ -3998,6 +6289,9 @@ type PdfInput = {
   tailoredSummary?: string | null;
   tailoredSkills?: MasterProfileInput["skills"] | null;
   includeSummary?: boolean;
+  headerName?: string | null;
+  contactLine?: string | null;
+  education?: MasterProfileInput["education"] | null;
 };
 
 const INVERTED_LOGO_PATH = path.join(
@@ -4036,6 +6330,22 @@ export function buildResumeContactLine(profile: MasterProfileInput): string {
   return contactElements.join(" • ");
 }
 
+function formatInlineSkills(skills: MasterProfileInput["skills"]): string {
+  const groups: Array<[string, string[]]> = [
+    ["Languages", skills.languages],
+    ["Frameworks", skills.frameworks],
+    ["Tools", skills.tools],
+    ["Concepts", skills.concepts],
+  ];
+  return groups
+    .map(([label, items]) => {
+      const values = items.map((item) => item.trim()).filter(Boolean);
+      return values.length > 0 ? `${label}: ${values.join(", ")}` : "";
+    })
+    .filter(Boolean)
+    .join(" • ");
+}
+
 function ResumeDocument({
   profile,
   experiences,
@@ -4043,36 +6353,35 @@ function ResumeDocument({
   tailoredSummary,
   tailoredSkills,
   includeSummary = true,
+  headerName,
+  contactLine,
+  education,
 }: PdfInput) {
-  const contact = buildResumeContactLine(profile);
+  const contact = contactLine?.trim() || buildResumeContactLine(profile);
+  const displayName = headerName?.trim() || profile.fullName;
+  const educationRows = education ?? profile.education;
 
   const showSummary =
     includeSummary !== false &&
     Boolean((tailoredSummary ?? profile.summary)?.trim());
   const activeSkills = tailoredSkills;
-  const tailoredSkillList = activeSkills
-    ? [
-        ...activeSkills.languages,
-        ...activeSkills.frameworks,
-        ...activeSkills.tools,
-        ...activeSkills.concepts,
-      ].filter(Boolean)
-    : [];
-  const fallbackSkills = [
-    ...profile.skills.languages,
-    ...profile.skills.frameworks,
-    ...profile.skills.tools,
-    ...profile.skills.concepts,
-  ].filter(Boolean);
-  const skills = (
-    tailoredSkillList.length > 0 ? tailoredSkillList : fallbackSkills
-  ).join(", ");
+  const skillSource =
+    activeSkills &&
+    [
+      ...activeSkills.languages,
+      ...activeSkills.frameworks,
+      ...activeSkills.tools,
+      ...activeSkills.concepts,
+    ].some(Boolean)
+      ? activeSkills
+      : profile.skills;
+  const skills = formatInlineSkills(skillSource);
 
   return (
     <Document>
       <Page size="LETTER" style={styles.page}>
         <View style={styles.headerRow}>
-          <Text style={styles.name}>{profile.fullName}</Text>
+          <Text style={styles.name}>{displayName}</Text>
           {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image */}
           <Image src={INVERTED_LOGO_PATH} style={styles.brandMark} />
         </View>
@@ -4098,7 +6407,9 @@ function ResumeDocument({
             <View key={`${exp.company}-${exp.role}`} style={{ marginBottom: 8 }}>
               <View style={styles.roleHeader}>
                 <Text style={styles.roleTitle}>
-                  {exp.role} · {exp.company}
+                  {exp.company.trim() && exp.company !== exp.role
+                    ? `${exp.role} · ${exp.company}`
+                    : exp.role}
                 </Text>
                 <Text style={styles.muted}>
                   {exp.startDate} – {exp.endDate ?? "Present"}
@@ -4141,10 +6452,10 @@ function ResumeDocument({
           </View>
         ) : null}
 
-        {profile.education.length > 0 ? (
+        {educationRows.length > 0 ? (
           <View style={styles.section}>
             <Text style={styles.heading}>Education</Text>
-            {profile.education.map((ed) => {
+            {educationRows.map((ed) => {
               const degreeText =
                 ed.fieldOfStudy &&
                 !ed.degree.toLowerCase().includes(ed.fieldOfStudy.toLowerCase())
@@ -4155,8 +6466,11 @@ function ResumeDocument({
                   key={`${ed.institution}-${ed.degree}`}
                   style={{ marginBottom: 3 }}
                 >
-                  {degreeText} — {ed.institution}
-                  {ed.graduationDate ? ` (${ed.graduationDate})` : ""}
+                  {ed.institution
+                    ? `${degreeText} — ${ed.institution}${
+                        ed.graduationDate ? ` (${ed.graduationDate})` : ""
+                      }`
+                    : ed.degree}
                 </Text>
               );
             })}
@@ -4176,7 +6490,12 @@ export async function generateTailoredResumePdf(
   projects?: ProjectInput[],
   tailoredSummary?: string | null,
   tailoredSkills?: MasterProfileInput["skills"] | null,
-  includeSummary?: boolean
+  includeSummary?: boolean,
+  overrides?: {
+    headerName?: string | null;
+    contactLine?: string | null;
+    education?: MasterProfileInput["education"] | null;
+  }
 ): Promise<Buffer> {
   const buffer = await renderToBuffer(
     <ResumeDocument
@@ -4186,6 +6505,9 @@ export async function generateTailoredResumePdf(
       tailoredSummary={tailoredSummary}
       tailoredSkills={tailoredSkills}
       includeSummary={includeSummary}
+      headerName={overrides?.headerName}
+      contactLine={overrides?.contactLine}
+      education={overrides?.education}
     />
   );
   return Buffer.from(buffer);
@@ -4713,6 +7035,589 @@ async function persistPersonaCache(
       error
     );
   }
+}
+</file>
+
+<file path="lib/dnd/interactive.ts">
+import {
+  DND_AUTO_SCROLL_EDGE_PX,
+  DND_REORDER_EDGE_PX,
+} from "@/lib/dnd/constants";
+
+/** Targets that must not start long-press / paint-select / drag. */
+const INTERACTIVE_SELECTOR = [
+  "button",
+  "a",
+  "input",
+  "select",
+  "textarea",
+  "label",
+  "[role='button']",
+  "[role='menuitem']",
+  "[role='option']",
+  "[data-dnd-ignore]",
+].join(",");
+
+/** Overlays where empty-space clicks must not exit multi-select. */
+const OVERLAY_SELECTOR = [
+  "[role='dialog']",
+  "[role='menu']",
+  "[role='listbox']",
+  "[data-radix-popper-content-wrapper]",
+  "[data-sonner-toaster]",
+  "[data-bulk-actions]",
+].join(",");
+
+export type FrozenItemRect = {
+  id: string;
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+};
+
+function asElement(target: EventTarget | null): Element | null {
+  if (target instanceof Element) return target;
+  // Clicks on text nodes still belong to their parent element.
+  if (target instanceof Node) return target.parentElement;
+  return null;
+}
+
+export function isInteractiveTarget(target: EventTarget | null): boolean {
+  const el = asElement(target);
+  if (!el) return false;
+  return Boolean(el.closest(INTERACTIVE_SELECTOR));
+}
+
+/** True when the event is inside a dialog/menu/popover/flyout portal. */
+export function isOverlayTarget(target: EventTarget | null): boolean {
+  const el = asElement(target);
+  if (!el) return false;
+  return Boolean(el.closest(OVERLAY_SELECTOR));
+}
+
+export function findItemIdFromPoint(clientX: number, clientY: number): string | null {
+  if (typeof document === "undefined") return null;
+  const el = document.elementFromPoint(clientX, clientY);
+  if (!(el instanceof Element)) return null;
+  const item = el.closest("[data-dnd-item-id]");
+  if (!(item instanceof HTMLElement)) return null;
+  return item.dataset.dndItemId ?? null;
+}
+
+export function findDropZoneFromPoint(
+  clientX: number,
+  clientY: number
+): string | null {
+  if (typeof document === "undefined") return null;
+  const el = document.elementFromPoint(clientX, clientY);
+  if (!(el instanceof Element)) return null;
+  const zone = el.closest("[data-dnd-drop-zone]");
+  if (!(zone instanceof HTMLElement)) return null;
+  return zone.dataset.dndDropZone ?? null;
+}
+
+export function findInsertIndexFromPoint(
+  clientX: number,
+  clientY: number,
+  pageItemIds: string[]
+): number | null {
+  if (typeof document === "undefined" || pageItemIds.length === 0) return null;
+
+  const el = document.elementFromPoint(clientX, clientY);
+  if (!(el instanceof Element)) return null;
+  const item = el.closest("[data-dnd-item-id]");
+  if (!(item instanceof HTMLElement)) return null;
+
+  const id = item.dataset.dndItemId;
+  if (!id) return null;
+  const indexInPage = pageItemIds.indexOf(id);
+  if (indexInPage < 0) return null;
+
+  const rect = item.getBoundingClientRect();
+  const after = clientY > rect.top + rect.height / 2;
+  return after ? indexInPage + 1 : indexInPage;
+}
+
+/** Snapshot card geometry before preview reflow (avoids hit-test feedback loops). */
+export function captureReorderRects(
+  ids: readonly string[]
+): Map<string, FrozenItemRect> {
+  const map = new Map<string, FrozenItemRect>();
+  if (typeof document === "undefined") return map;
+
+  for (const id of ids) {
+    // Desktop + mobile duplicates share ids; skip display:none (0×0) nodes.
+    const nodes = document.querySelectorAll(
+      `[data-dnd-item-id="${CSS.escape(id)}"]`
+    );
+    for (const node of nodes) {
+      if (!(node instanceof HTMLElement)) continue;
+      const rect = node.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      map.set(id, {
+        id,
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+      });
+      break;
+    }
+  }
+  return map;
+}
+
+/**
+ * True when the visible `[data-dnd-list]` lays out items in multiple columns
+ * (two+ cards share a row). Do not parse `grid-template-columns` tokens —
+ * values like `repeat(1, minmax(0, 1fr))` falsely look multi-column.
+ */
+export function isMultiColumnDndList(): boolean {
+  if (typeof document === "undefined") return false;
+
+  let list: Element | null = null;
+  for (const el of document.querySelectorAll("[data-dnd-list]")) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      list = el;
+      break;
+    }
+  }
+  if (!list) return false;
+
+  const items = [...list.querySelectorAll("[data-dnd-item-id]")].filter(
+    (el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    }
+  );
+  if (items.length < 2) return false;
+
+  const top0 = items[0]!.getBoundingClientRect().top;
+  return items.some(
+    (el, i) =>
+      i > 0 && Math.abs(el.getBoundingClientRect().top - top0) < 8
+  );
+}
+
+/** Frozen selection footprint + home slot (without-moved index at drag start). */
+export type SelectionDragGeometry = {
+  homeIndex: number;
+  selectionTop: number;
+  selectionBottom: number;
+};
+
+/**
+ * After the page scrolls, viewport-relative frozen rects must shift by the
+ * opposite of the scroll delta (content moves up when scrollTop increases).
+ */
+export function offsetFrozenGeometryByScroll(
+  rects: Map<string, FrozenItemRect> | null | undefined,
+  selection: SelectionDragGeometry | null | undefined,
+  scrollDeltaY: number
+): void {
+  if (!scrollDeltaY) return;
+  const dy = -scrollDeltaY;
+  if (rects) {
+    for (const rect of rects.values()) {
+      rect.top += dy;
+      rect.bottom += dy;
+    }
+  }
+  if (selection) {
+    selection.selectionTop += dy;
+    selection.selectionBottom += dy;
+  }
+}
+
+/** Top edge of the visible `[data-dnd-list]` (toolbar/chrome sits above this). */
+export function getDndListTopPx(): number {
+  if (typeof document === "undefined") return DND_AUTO_SCROLL_EDGE_PX;
+  for (const node of document.querySelectorAll("[data-dnd-list]")) {
+    const r = node.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) return r.top;
+  }
+  return DND_AUTO_SCROLL_EDGE_PX;
+}
+
+/** Visible triage list bounds (`[data-dnd-list]`), or null if none. */
+export function getDndListBounds(): {
+  top: number;
+  left: number;
+  right: number;
+  bottom: number;
+} | null {
+  if (typeof document === "undefined") return null;
+  for (const node of document.querySelectorAll("[data-dnd-list]")) {
+    const r = node.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      return {
+        top: r.top,
+        left: r.left,
+        right: r.right,
+        bottom: r.bottom,
+      };
+    }
+  }
+  return null;
+}
+
+/** True when the pointer is outside the visible triage list rect. */
+export function isPointerOutsideDndList(
+  clientX: number,
+  clientY: number
+): boolean {
+  const bounds = getDndListBounds();
+  if (!bounds) return true;
+  return (
+    clientX < bounds.left ||
+    clientX > bounds.right ||
+    clientY < bounds.top ||
+    clientY > bounds.bottom
+  );
+}
+
+/** Nearest vertical scrollport for the active card list, else the document. */
+export function getDragScrollElement(): Element | null {
+  if (typeof document === "undefined") return null;
+  let el: Element | null = null;
+  for (const node of document.querySelectorAll("[data-dnd-list]")) {
+    const r = node.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      el = node;
+      break;
+    }
+  }
+  while (el && el !== document.documentElement) {
+    if (el instanceof HTMLElement) {
+      const overflowY = getComputedStyle(el).overflowY;
+      if (
+        (overflowY === "auto" ||
+          overflowY === "scroll" ||
+          overflowY === "overlay") &&
+        el.scrollHeight > el.clientHeight + 1
+      ) {
+        return el;
+      }
+    }
+    el = el.parentElement;
+  }
+  return document.scrollingElement ?? document.documentElement;
+}
+
+/**
+ * Contiguous selected run in list order that contains `anchorId`
+ * (falls back to the first moved id).
+ */
+export function contiguousMovedRunIds(
+  fullIds: readonly string[],
+  movedIds: readonly string[],
+  anchorId?: string
+): string[] {
+  const movedSet = new Set(movedIds);
+  const moving = fullIds.filter((id) => movedSet.has(id));
+  if (moving.length === 0) return [];
+
+  const anchor =
+    anchorId && movedSet.has(anchorId) ? anchorId : moving[0]!;
+  const anchorIdx = fullIds.indexOf(anchor);
+  if (anchorIdx < 0) return [anchor];
+
+  let runStart = anchorIdx;
+  let runEnd = anchorIdx;
+  while (runStart > 0 && movedSet.has(fullIds[runStart - 1]!)) runStart -= 1;
+  while (
+    runEnd < fullIds.length - 1 &&
+    movedSet.has(fullIds[runEnd + 1]!)
+  ) {
+    runEnd += 1;
+  }
+  return fullIds.slice(runStart, runEnd + 1);
+}
+
+/**
+ * Geometry for “snap when the pointer leaves the selected block”.
+ * Without this, insert only changed at the next *non-selected* center — a gap
+ * as tall as the whole multi-select (logs: +240px to move one slot with 3 selected).
+ *
+ * `originId` (grabbed card) sets homeIndex so live preview gathers at the grab
+ * cluster — not at the first selected id in list order (which snapped bottom
+ * grabs to the top: debug snap-top homeIndex=1 while origin was at y≈570).
+ */
+export function captureSelectionDragGeometry(
+  fullIds: string[],
+  movedIds: string[],
+  rects: Map<string, FrozenItemRect>,
+  originId?: string
+): SelectionDragGeometry | null {
+  const movedSet = new Set(movedIds);
+  const moving = fullIds.filter((id) => movedSet.has(id));
+  if (moving.length === 0) return null;
+
+  const anchorId =
+    originId && movedSet.has(originId) ? originId : moving[0]!;
+  const anchorIdx = fullIds.indexOf(anchorId);
+  if (anchorIdx < 0) return null;
+
+  // Home slot = without-moved index of the grabbed card (not the first selected).
+  let homeIndex = 0;
+  for (let i = 0; i < anchorIdx; i++) {
+    if (!movedSet.has(fullIds[i]!)) homeIndex += 1;
+  }
+
+  // Edge bounds from the contiguous run under the pointer only — scattered
+  // off-screen selections must not create a viewport-tall “inside” dead zone.
+  const runIds = contiguousMovedRunIds(fullIds, movedIds, anchorId);
+  let selectionTop = Infinity;
+  let selectionBottom = -Infinity;
+  for (const id of runIds) {
+    const rect = rects.get(id);
+    if (!rect) continue;
+    selectionTop = Math.min(selectionTop, rect.top);
+    selectionBottom = Math.max(selectionBottom, rect.bottom);
+  }
+  if (!Number.isFinite(selectionTop) || !Number.isFinite(selectionBottom)) {
+    return null;
+  }
+
+  return { homeIndex, selectionTop, selectionBottom };
+}
+
+/** Live viewport bounds for a set of card ids (visible node only). */
+export function measureIdsViewportBounds(
+  ids: readonly string[]
+): { top: number; bottom: number } | null {
+  if (typeof document === "undefined" || ids.length === 0) return null;
+  let top = Infinity;
+  let bottom = -Infinity;
+  for (const id of ids) {
+    const nodes = document.querySelectorAll(
+      `[data-dnd-item-id="${CSS.escape(id)}"]`
+    );
+    for (const node of nodes) {
+      if (!(node instanceof HTMLElement)) continue;
+      const rect = node.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      top = Math.min(top, rect.top);
+      bottom = Math.max(bottom, rect.bottom);
+      break;
+    }
+  }
+  if (!Number.isFinite(top) || !Number.isFinite(bottom)) return null;
+  return { top, bottom };
+}
+
+/**
+ * Without-row centers that are actually on-screen. Off-page ids have no DOM
+ * node — skipping them without remapping left insertIndex stuck on the origin
+ * page after an edge flip (logs: pageFlip→re-enter still insertIndex=3).
+ */
+function measureVisibleWithoutCenters(
+  without: string[],
+  rects: Map<string, FrozenItemRect>
+): { index: number; cy: number; cx: number; id: string }[] {
+  const live = captureReorderRects(without);
+  const measured: { index: number; cy: number; cx: number; id: string }[] = [];
+  for (let i = 0; i < without.length; i++) {
+    const id = without[i]!;
+    const rect = live.get(id) ?? rects.get(id);
+    if (!rect) continue;
+    if (typeof window !== "undefined" && rect.top >= window.innerHeight) {
+      break;
+    }
+    // Ignore rows fully above the viewport (other pages / scrolled away).
+    if (typeof window !== "undefined" && rect.bottom <= 0) continue;
+    measured.push({
+      index: i,
+      id,
+      cy: rect.top + rect.height / 2,
+      cx: rect.left + rect.width / 2,
+    });
+  }
+  return measured;
+}
+
+/**
+ * Single-column list insert index.
+ * - Over live moved-card body → keep prev insert (no ±1 force — that looped).
+ * - Still at home inside frozen grab footprint → homeIndex (origin page only).
+ * - Else midY among *visible* without-row centers (cross-page safe).
+ */
+function findListInsertIndexFromFrozenY(
+  clientY: number,
+  without: string[],
+  rects: Map<string, FrozenItemRect>,
+  selection: SelectionDragGeometry | null,
+  movedIds: readonly string[],
+  prevInsertIndex?: number | null
+): number {
+  if (without.length === 0) return 0;
+
+  const measured = measureVisibleWithoutCenters(without, rects);
+  const listTop = getDndListTopPx();
+
+  // Top of the visible triage page → insert before the first on-screen row
+  // (not full-list 0 — that pinned previews to page 1 after a flip).
+  if (
+    measured.length > 0 &&
+    (clientY <= listTop + 4 || clientY < DND_AUTO_SCROLL_EDGE_PX)
+  ) {
+    return measured[0]!.index;
+  }
+
+  // Pointer still over the live selection block after preview reflow —
+  // sticky only (never force sticky±1; that + live remasure oscillated).
+  const liveSel = measureIdsViewportBounds(movedIds);
+  if (
+    liveSel &&
+    clientY >= liveSel.top &&
+    clientY <= liveSel.bottom &&
+    prevInsertIndex != null
+  ) {
+    return prevInsertIndex;
+  }
+
+  // Initial hold inside the *frozen* grab footprint (origin page only).
+  if (selection) {
+    const home = Math.max(0, Math.min(selection.homeIndex, without.length));
+    const stillAtHome =
+      prevInsertIndex == null || prevInsertIndex === home;
+    if (
+      stillAtHome &&
+      clientY >= selection.selectionTop &&
+      clientY <= selection.selectionBottom
+    ) {
+      return home;
+    }
+  }
+
+  if (measured.length === 0) {
+    return prevInsertIndex ?? 0;
+  }
+
+  let insertIndex = measured[0]!.index;
+  for (const row of measured) {
+    if (clientY < row.cy) {
+      insertIndex = row.index;
+      break;
+    }
+    insertIndex = row.index + 1;
+  }
+
+  // Hysteresis: ignore single-slot flicker around the active boundary.
+  if (
+    prevInsertIndex != null &&
+    insertIndex !== prevInsertIndex &&
+    Math.abs(insertIndex - prevInsertIndex) === 1
+  ) {
+    const boundary = Math.min(insertIndex, prevInsertIndex);
+    const row = measured.find((m) => m.index === boundary);
+    if (row && Math.abs(clientY - row.cy) < 10) return prevInsertIndex;
+  }
+
+  return insertIndex;
+}
+
+/**
+ * Multi-column grid (marker mode): nearest *visible* cell, then before/after
+ * from pointer vs that cell’s center.
+ */
+function findGridInsertIndexFromFrozen(
+  clientX: number,
+  clientY: number,
+  without: string[],
+  rects: Map<string, FrozenItemRect>
+): number {
+  const measured = measureVisibleWithoutCenters(without, rects);
+  if (measured.length === 0) return 0;
+
+  let best = measured[0]!;
+  let bestDist = Infinity;
+  for (const row of measured) {
+    const dist = (clientX - row.cx) ** 2 + (clientY - row.cy) ** 2;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = row;
+    }
+  }
+  const rect = rects.get(best.id) ?? captureReorderRects([best.id]).get(best.id);
+  if (!rect) return best.index;
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const past =
+    clientY > cy + 4 ||
+    (Math.abs(clientY - cy) <= rect.height / 2 && clientX > cx);
+  return past ? best.index + 1 : best.index;
+}
+
+/**
+ * Insert index in without-moved space using **frozen** rects from drag start.
+ * `listMode` uses selection-edge snapping; grid mode uses nearest-cell markers.
+ */
+export function findReorderInsertIndex(
+  clientX: number,
+  clientY: number,
+  fullIds: string[],
+  movedIds: string[],
+  frozenRects: Map<string, FrozenItemRect> | null | undefined,
+  listMode = true,
+  selectionGeometry?: SelectionDragGeometry | null,
+  prevInsertIndex?: number | null
+): number | null {
+  if (fullIds.length === 0) return null;
+
+  const movedSet = new Set(movedIds);
+  const without = fullIds.filter((id) => !movedSet.has(id));
+  if (without.length === 0) return 0;
+
+  if (!frozenRects || frozenRects.size === 0) return null;
+
+  if (listMode) {
+    const selection =
+      selectionGeometry ??
+      captureSelectionDragGeometry(fullIds, movedIds, frozenRects);
+    // Selection may be null after a page flip (moved cards not on this page).
+    // Still target from visible without-rows so triage rearrange can resume.
+    return findListInsertIndexFromFrozenY(
+      clientY,
+      without,
+      frozenRects,
+      selection,
+      movedIds,
+      prevInsertIndex
+    );
+  }
+  return findGridInsertIndexFromFrozen(
+    clientX,
+    clientY,
+    without,
+    frozenRects
+  );
+}
+
+/** Map without-moved insert index → id that should show an insert-before marker. */
+export function insertBeforeIdForIndex(
+  fullIds: string[],
+  movedIds: string[],
+  insertIndex: number | null
+): { insertBeforeId: string | null; insertAfterLast: boolean } {
+  if (insertIndex == null) {
+    return { insertBeforeId: null, insertAfterLast: false };
+  }
+  const movedSet = new Set(movedIds);
+  const without = fullIds.filter((id) => !movedSet.has(id));
+  if (insertIndex >= without.length) {
+    return { insertBeforeId: null, insertAfterLast: without.length > 0 };
+  }
+  return {
+    insertBeforeId: without[insertIndex] ?? null,
+    insertAfterLast: false,
+  };
 }
 </file>
 
@@ -6057,206 +8962,6 @@ function chunkArray<T>(items: T[], size: number): T[][] {
     chunks.push(items.slice(i, i + size));
   }
   return chunks;
-}
-</file>
-
-<file path="app/actions/email.ts">
-"use server";
-
-import { after } from "next/server";
-import { revalidatePath } from "next/cache";
-import { z } from "zod";
-
-import {
-  InsufficientScopeError,
-  REAUTH_REQUIRED_MESSAGE,
-  isInsufficientScopeError,
-} from "@/lib/google";
-import { SYNC_LOCK_STALE_MS } from "@/lib/constants";
-import { getActiveAccount } from "@/lib/data";
-import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
-import { runOpportunitySync } from "@/lib/opportunity-sync";
-import { prisma } from "@/lib/prisma";
-
-export type ActionResult<T = undefined> =
-  | { ok: true; data?: T }
-  | { ok: false; error: string };
-
-const syncInputSchema = z.object({
-  forceRescan: z.boolean().default(false),
-  lookbackDays: z.number().int().min(1).max(30).default(14),
-  accountId: z.string().min(1).optional(),
-});
-
-
-/**
- * Immediately clears a stuck isSyncing lock for the active account.
- */
-export async function forceResetSyncStatus(): Promise<ActionResult> {
-  const active = await getActiveAccount();
-  if (!active) {
-    return { ok: false, error: "Unauthorized" };
-  }
-
-  await prisma.account.update({
-    where: { id: active.id },
-    data: {
-      isSyncing: false,
-      syncError: null,
-      lastSyncedAt: new Date(),
-    },
-  });
-
-  revalidatePath("/");
-  revalidatePath("/jobs");
-  return { ok: true };
-}
-
-/**
- * Dual-mode inbox opportunity sync.
- * - forceRescan=false → incremental (after:lastSyncedAt), skip known EmailMessages
- * - forceRescan=true  → lookback window, re-extract & backfill salary/scores/links/logos
- *
- * Returns immediately; work runs in after(). finally always clears isSyncing.
- */
-export async function syncInboxOpportunities(
-  input: {
-    forceRescan?: boolean;
-    lookbackDays?: number;
-    accountId?: string;
-  } = {}
-): Promise<ActionResult<{ message: string; mode: "incremental" | "rescan" }>> {
-  const parsed = syncInputSchema.safeParse(input);
-  if (!parsed.success) {
-    return { ok: false, error: "Invalid sync input" };
-  }
-
-  const forceRescan = parsed.data.forceRescan;
-  const lookbackDays = parsed.data.lookbackDays;
-
-  let accountId = parsed.data.accountId;
-  if (!accountId) {
-    const active = await getActiveAccount();
-    if (!active) {
-      return { ok: false, error: "Unauthorized — connect a Gmail account first" };
-    }
-    accountId = active.id;
-  }
-
-  const account = await prisma.account.findUnique({
-    where: { id: accountId },
-    select: { id: true, isActive: true, isSyncing: true, updatedAt: true },
-  });
-
-  if (!account || !account.isActive) {
-    return { ok: false, error: "Account not found or inactive" };
-  }
-
-  if (account.isSyncing) {
-    const lockAgeMs = Date.now() - account.updatedAt.getTime();
-    if (lockAgeMs <= SYNC_LOCK_STALE_MS) {
-      return {
-        ok: true,
-        data: {
-          message: "Sync already running in background",
-          mode: forceRescan ? "rescan" : "incremental",
-        },
-      };
-    }
-    console.warn(
-      `Clearing stale sync lock before new sync (age=${Math.round(lockAgeMs / 1000)}s)`
-    );
-  }
-
-  await prisma.account.update({
-    where: { id: account.id },
-    data: {
-      isSyncing: true,
-      syncError: null,
-      lastSyncProcessed: null,
-      syncHeartbeatAt: new Date(),
-    },
-  });
-
-  const syncAccountId = account.id;
-  const mode = forceRescan ? ("rescan" as const) : ("incremental" as const);
-
-  after(async () => {
-    let errorMessage: string | null = null;
-    let processed = 0;
-
-    try {
-      const result = await runOpportunitySync(syncAccountId, {
-        forceRescan,
-        lookbackDays,
-        maxMessages: 25,
-      });
-      processed = result.opportunitiesUpserted;
-
-      try {
-        const purge = await purgeExpiredDismissed(syncAccountId);
-        if (purge.purgedCount > 0) {
-          console.info(
-            `Purged ${purge.purgedCount} dismissed opportunities (retention=${purge.retentionDays}d)`
-          );
-        }
-      } catch (purgeError) {
-        console.error("purgeExpiredDismissed failed", purgeError);
-      }
-
-      revalidatePath("/");
-      revalidatePath("/jobs");
-      revalidatePath("/subscriptions");
-    } catch (error) {
-      console.error("syncInboxOpportunities background failed", error);
-      if (
-        error instanceof InsufficientScopeError ||
-        isInsufficientScopeError(error)
-      ) {
-        errorMessage = REAUTH_REQUIRED_MESSAGE;
-      } else {
-        errorMessage =
-          error instanceof Error ? error.message : "Inbox sync failed";
-      }
-    } finally {
-      // ALWAYS clear lock — even on crash / timeout paths we control.
-      try {
-        await prisma.account.update({
-          where: { id: syncAccountId },
-          data: {
-            isSyncing: false,
-            lastSyncedAt: new Date(),
-            syncError: errorMessage,
-            lastSyncProcessed: errorMessage ? null : processed,
-          },
-        });
-      } catch (finalizeError) {
-        console.error(
-          "Failed to clear isSyncing after inbox sync",
-          finalizeError
-        );
-        // Last-resort retry without optional fields.
-        try {
-          await prisma.account.update({
-            where: { id: syncAccountId },
-            data: { isSyncing: false },
-          });
-        } catch (retryError) {
-          console.error("Retry clear isSyncing also failed", retryError);
-        }
-      }
-    }
-  });
-
-  return {
-    ok: true,
-    data: {
-      message: forceRescan
-        ? "Force rescan started in background"
-        : "Sync started in background",
-      mode,
-    },
-  };
 }
 </file>
 
@@ -7995,6 +10700,353 @@ export const SYNC_LOCK_STALE_MS = 600 * 1000;
 export const SYNC_HEARTBEAT_STALE_MS = 180 * 1000;
 </file>
 
+<file path="lib/dnd/constants.ts">
+/** Hold duration to enter multi-select. */
+export const DND_SELECT_LONG_PRESS_MS = 280;
+
+/** Hold duration to arm drag while already in multi-select (longer than select). */
+export const DND_DRAG_LONG_PRESS_MS = 350;
+
+/** Pointer travel that cancels a pending long-press (px). */
+export const DND_MOVE_CANCEL_PX = 10;
+
+/**
+ * How far into a frozen card (from its top) counts as “past” it for list
+ * reorder. Small = snappy border cross on Subscriptions-style rows.
+ */
+export const DND_REORDER_EDGE_PX = 6;
+
+/**
+ * Horizontal slot that holds each page-flip button (px).
+ * The button is centered in this slot; flips only hit the button, not the slot.
+ */
+export const DND_PAGE_EDGE_PX = 56;
+
+/** Mobile top-bar height matching AppShell `h-[4.25rem]`. Desktop has no top bar. */
+const PAGE_FLIP_TOP_REM = 4.25;
+/** Page-flip button size matching `size-7`. */
+const PAGE_FLIP_BUTTON_REM = 1.75;
+/** Extra px around the button so the pointer can land on it. */
+const PAGE_FLIP_HIT_PAD_PX = 8;
+
+/** Hover time on a page edge before flipping (ms). */
+export const DND_PAGE_FLIP_DELAY_MS = 380;
+
+/** Viewport top/bottom band that triggers auto-scroll while dragging (px). */
+export const DND_AUTO_SCROLL_EDGE_PX = 56;
+
+/** Max vertical auto-scroll speed while dragging (px per animation frame). */
+export const DND_AUTO_SCROLL_MAX_PX = 40;
+
+/**
+ * Vertical deadzone for the drag ghost: top/bottom bands of the grab bbox.
+ * Free zone is the middle strip between these ratios (20% when 0.4 / 0.6).
+ */
+export const DND_DEADZONE_TOP_RATIO = 0.4;
+export const DND_DEADZONE_BOTTOM_RATIO = 0.6;
+
+/**
+ * Per-frame lerp factor toward the deadzone target (≈60fps).
+ * Higher = snappier; keep in ~0.12–0.20 for smooth follow.
+ */
+export const DND_LERP_ALPHA = 0.16;
+
+/**
+ * Extra px between the pointer and the ghost’s top-left lerp target
+ * (card sits slightly down/right of the cursor tip).
+ */
+export const DND_GHOST_POINTER_GRACE_PX = 12;
+
+function cssLengthPx(prop: string, fallback: number): number {
+  if (typeof document === "undefined") return fallback;
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue(prop)
+    .trim();
+  const n = Number.parseFloat(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function remToPx(rem: number): number {
+  if (typeof document === "undefined") return rem * 16;
+  const font = Number.parseFloat(
+    getComputedStyle(document.documentElement).fontSize
+  );
+  return rem * (Number.isFinite(font) ? font : 16);
+}
+
+/**
+ * Page flip only when the pointer is on a flip button (centered in the
+ * content well), not anywhere along the side band.
+ */
+export function pageFlipDirFromPointer(
+  clientX: number,
+  clientY: number,
+  page: number,
+  totalPages: number
+): -1 | 1 | null {
+  if (typeof window === "undefined" || totalPages <= 1) return null;
+
+  const desktop = window.matchMedia("(min-width: 768px)").matches;
+  const wellTop = desktop ? 0 : remToPx(PAGE_FLIP_TOP_REM);
+  const wellBottom =
+    window.innerHeight - cssLengthPx("--app-mobile-bottom-inset", 0);
+  const centerY = (wellTop + wellBottom) / 2;
+  const half = remToPx(PAGE_FLIP_BUTTON_REM) / 2 + PAGE_FLIP_HIT_PAD_PX;
+  if (clientY < centerY - half || clientY > centerY + half) return null;
+
+  const sidebar = cssLengthPx("--app-sidebar-width", 0);
+  if (page > 1) {
+    const centerX = sidebar + DND_PAGE_EDGE_PX / 2;
+    if (clientX >= centerX - half && clientX <= centerX + half) return -1;
+  }
+  if (page < totalPages) {
+    const centerX = window.innerWidth - DND_PAGE_EDGE_PX / 2;
+    if (clientX >= centerX - half && clientX <= centerX + half) return 1;
+  }
+  return null;
+}
+</file>
+
+<file path="app/actions/email.ts">
+"use server";
+
+import { after } from "next/server";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+import {
+  InsufficientScopeError,
+  REAUTH_REQUIRED_MESSAGE,
+  isInsufficientScopeError,
+} from "@/lib/google";
+import { SYNC_LOCK_STALE_MS } from "@/lib/constants";
+import { getActiveAccount } from "@/lib/data";
+import { logStory, syncLockLog, syncLog } from "@/lib/logging";
+import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
+import { runOpportunitySync } from "@/lib/opportunity-sync";
+import { prisma } from "@/lib/prisma";
+
+export type ActionResult<T = undefined> =
+  | { ok: true; data?: T }
+  | { ok: false; error: string };
+
+const syncInputSchema = z.object({
+  forceRescan: z.boolean().default(false),
+  lookbackDays: z.number().int().min(1).max(30).default(14),
+  accountId: z.string().min(1).optional(),
+});
+
+/**
+ * Immediately clears a stuck isSyncing lock for the active account.
+ */
+export async function forceResetSyncStatus(): Promise<ActionResult> {
+  const active = await getActiveAccount();
+  if (!active) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  await prisma.account.update({
+    where: { id: active.id },
+    data: {
+      isSyncing: false,
+      syncError: null,
+      lastSyncedAt: new Date(),
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/jobs");
+  return { ok: true };
+}
+
+/**
+ * Dual-mode inbox opportunity sync (delta-first pipeline).
+ *
+ * - forceRescan=false → history delta, then incremental job query (after:lastSyncedAt)
+ * - forceRescan=true  → history delta, then lookback window rescan/backfill
+ *
+ * Returns immediately; work runs in `after()`:
+ * 1. Snapshot `runStartedAt` (do not write it yet)
+ * 2. `runOpportunitySync` → delta → job query → PENDING_AI classify
+ * 3. On success only, commit `lastSyncedAt = runStartedAt` so mail arriving during
+ *    the run is still covered by the next incremental `after:` window (+ overlap)
+ *
+ * Heartbeat / stale-lock constants are owned by sync-status polling — untouched here.
+ * Settings → Sync (`triggerManualSync`) remains available for isolated delta tests.
+ */
+export async function syncInboxOpportunities(
+  input: {
+    forceRescan?: boolean;
+    lookbackDays?: number;
+    accountId?: string;
+  } = {}
+): Promise<ActionResult<{ message: string; mode: "incremental" | "rescan" }>> {
+  const parsed = syncInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid sync input" };
+  }
+
+  const forceRescan = parsed.data.forceRescan;
+  const lookbackDays = parsed.data.lookbackDays;
+
+  let accountId = parsed.data.accountId;
+  if (!accountId) {
+    const active = await getActiveAccount();
+    if (!active) {
+      return { ok: false, error: "Unauthorized — connect a Gmail account first" };
+    }
+    accountId = active.id;
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    select: { id: true, isActive: true, isSyncing: true, updatedAt: true },
+  });
+
+  if (!account || !account.isActive) {
+    return { ok: false, error: "Account not found or inactive" };
+  }
+
+  if (account.isSyncing) {
+    const lockAgeMs = Date.now() - account.updatedAt.getTime();
+    if (lockAgeMs <= SYNC_LOCK_STALE_MS) {
+      return {
+        ok: true,
+        data: {
+          message: "Sync already running in background",
+          mode: forceRescan ? "rescan" : "incremental",
+        },
+      };
+    }
+    syncLockLog.warn(
+      { ageSec: Math.round(lockAgeMs / 1000) },
+      "Clearing stale sync lock before new sync"
+    );
+  }
+
+  await prisma.account.update({
+    where: { id: account.id },
+    data: {
+      isSyncing: true,
+      syncError: null,
+      lastSyncProcessed: null,
+      syncHeartbeatAt: new Date(),
+    },
+  });
+
+  const syncAccountId = account.id;
+  const mode = forceRescan ? ("rescan" as const) : ("incremental" as const);
+
+  after(async () => {
+    // Snapshot before any digestion so mid-run arrivals stay inside the next
+    // incremental window (plus INCREMENTAL_OVERLAP_SECONDS in opportunity-sync).
+    const runStartedAt = new Date();
+    let errorMessage: string | null = null;
+    let processed = 0;
+
+    logStory(syncLog, "Step 0 — Snapshot run start time (not written yet)", {
+      runStartedAt: runStartedAt.toISOString(),
+      mode,
+      note: "This becomes lastSyncedAt only if the whole pass succeeds.",
+    });
+
+    try {
+      const result = await runOpportunitySync(syncAccountId, {
+        forceRescan,
+        lookbackDays,
+        maxMessages: 25,
+      });
+      processed = result.opportunitiesUpserted;
+
+      try {
+        const purge = await purgeExpiredDismissed(syncAccountId);
+        if (purge.purgedCount > 0) {
+          logStory(syncLog, "Housekeeping — purged dismissed opportunities", {
+            purged: purge.purgedCount,
+            "retention days": purge.retentionDays,
+          });
+        }
+      } catch (purgeError) {
+        syncLog.error({ err: purgeError }, "purgeExpiredDismissed failed");
+      }
+
+      revalidatePath("/");
+      revalidatePath("/jobs");
+      revalidatePath("/subscriptions");
+    } catch (error) {
+      syncLog.error({ err: error }, "syncInboxOpportunities background failed");
+      if (
+        error instanceof InsufficientScopeError ||
+        isInsufficientScopeError(error)
+      ) {
+        errorMessage = REAUTH_REQUIRED_MESSAGE;
+      } else {
+        errorMessage =
+          error instanceof Error ? error.message : "Inbox sync failed";
+      }
+    } finally {
+      // ALWAYS clear lock — even on crash / timeout paths we control.
+      // Advance lastSyncedAt only on success, using the pre-run snapshot.
+      const stampedLastSyncedAt = !errorMessage;
+      try {
+        await prisma.account.update({
+          where: { id: syncAccountId },
+          data: {
+            isSyncing: false,
+            ...(stampedLastSyncedAt ? { lastSyncedAt: runStartedAt } : {}),
+            syncError: errorMessage,
+            lastSyncProcessed: errorMessage ? null : processed,
+          },
+        });
+
+        if (stampedLastSyncedAt) {
+          logStory(syncLog, "Step 4/4 — Finish SUCCESS", {
+            lastSyncedAt: runStartedAt.toISOString(),
+            "opportunities touched": processed,
+            isSyncing: false,
+          });
+        } else {
+          logStory(
+            syncLog,
+            "Step 4/4 — Finish FAILED — lastSyncedAt NOT advanced",
+            {
+              error: errorMessage,
+              isSyncing: false,
+            },
+            "warn"
+          );
+        }
+
+      } catch (finalizeError) {
+        syncLog.error(
+          { err: finalizeError },
+          "Failed to clear isSyncing after inbox sync"
+        );
+        // Last-resort retry without optional fields.
+        try {
+          await prisma.account.update({
+            where: { id: syncAccountId },
+            data: { isSyncing: false },
+          });
+        } catch (retryError) {
+          syncLog.error({ err: retryError }, "Retry clear isSyncing also failed");
+        }
+      }
+    }
+  });
+
+  return {
+    ok: true,
+    data: {
+      message: forceRescan
+        ? "Force rescan started in background"
+        : "Sync started in background",
+      mode,
+    },
+  };
+}
+</file>
+
 <file path="app/actions/scan.ts">
 "use server";
 
@@ -8009,6 +11061,7 @@ import {
   isInsufficientScopeError,
 } from "@/lib/google";
 import { scanHistoricalEmails } from "@/lib/historical-scan";
+import { syncLockLog } from "@/lib/logging";
 import { prisma } from "@/lib/prisma";
 import {
   SCAN_DAY_OPTIONS,
@@ -8162,8 +11215,9 @@ export async function getAccountSyncStatus(
         (account.syncHeartbeatAt?.getTime() ?? account.updatedAt.getTime());
 
       if (heartbeatAgeMs > SYNC_HEARTBEAT_STALE_MS) {
-        console.warn(
-          `[SyncLock:AutoReset] Clearing stale sync lock (heartbeatAge=${Math.round(heartbeatAgeMs / 1000)}s)`
+        syncLockLog.warn(
+          { heartbeatAgeSec: Math.round(heartbeatAgeMs / 1000) },
+          "Clearing stale sync lock (heartbeat silent too long)"
         );
 
         syncErrorMessage =
@@ -8203,218 +11257,6 @@ export async function getAccountSyncStatus(
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Failed to read sync status",
-    };
-  }
-}
-</file>
-
-<file path="app/actions/accounts.ts">
-"use server";
-
-import { cookies } from "next/headers";
-import { revalidatePath } from "next/cache";
-
-import { logoutSession } from "@/app/actions/auth";
-import { getSessionToken } from "@/lib/auth";
-import {
-  ACTIVE_ACCOUNT_COOKIE,
-  AUTH_COOKIE_MAX_AGE,
-  SESSION_COOKIE,
-} from "@/lib/constants";
-import { getGmailClientForAccount } from "@/lib/google";
-import { normalizeOllamaBaseUrl, probeOllamaTags } from "@/lib/llm";
-import { prisma } from "@/lib/prisma";
-import { processInboxDelta } from "@/lib/sync";
-import { Prisma } from "@prisma/client";
-import {
-  accountRulesSchema,
-  parseAccountRules,
-} from "@/lib/validations/rules";
-
-export type ActionResult<T = undefined> =
-  | { ok: true; data?: T }
-  | { ok: false; error: string };
-
-export async function setActiveAccount(
-  accountId: string
-): Promise<ActionResult> {
-  const session = await getSessionToken();
-  if (!session) {
-    return { ok: false, error: "Not authenticated" };
-  }
-
-  const sessionAccount = await prisma.account.findFirst({
-    where: { id: session, isActive: true },
-    select: { id: true, persistentProfileId: true },
-  });
-  if (!sessionAccount) {
-    return { ok: false, error: "Session expired" };
-  }
-
-  const account = await prisma.account.findFirst({
-    where: {
-      id: accountId,
-      isActive: true,
-      ...(sessionAccount.persistentProfileId
-        ? { persistentProfileId: sessionAccount.persistentProfileId }
-        : { id: sessionAccount.id }),
-    },
-  });
-
-  if (!account) {
-    return { ok: false, error: "Account not found for this user" };
-  }
-
-  const cookieStore = await cookies();
-  cookieStore.set(ACTIVE_ACCOUNT_COOKIE, accountId, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: AUTH_COOKIE_MAX_AGE,
-    secure: process.env.NODE_ENV === "production",
-  });
-
-  revalidatePath("/", "layout");
-  return { ok: true };
-}
-
-/**
- * Clears Gmail OAuth tokens but keeps Account + historical data rows.
- */
-export async function unlinkAccountCredentials(
-  accountId: string
-): Promise<ActionResult> {
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account) {
-    return { ok: false, error: "Account not found" };
-  }
-
-  await prisma.account.update({
-    where: { id: accountId },
-    data: {
-      encryptedAccess: null,
-      encryptedRefresh: null,
-      tokenExpiry: null,
-      historyId: null,
-      // Keep row active in UI so history remains visible; tokens alone are cleared.
-      isActive: true,
-    },
-  });
-
-  const cookieStore = await cookies();
-  if (cookieStore.get(ACTIVE_ACCOUNT_COOKIE)?.value === accountId) {
-    cookieStore.delete(ACTIVE_ACCOUNT_COOKIE);
-  }
-  if (cookieStore.get(SESSION_COOKIE)?.value === accountId) {
-    // Session pointed at this inbox — clear selection but keep session if another
-    // account exists; full logout is explicit via logoutSession.
-    cookieStore.delete(ACTIVE_ACCOUNT_COOKIE);
-  }
-
-  revalidatePath("/", "layout");
-  revalidatePath("/settings");
-  return { ok: true };
-}
-
-/**
- * @deprecated Prefer unlinkAccountCredentials — kept as alias for older callers.
- */
-export async function removeAccount(accountId: string): Promise<ActionResult> {
-  return unlinkAccountCredentials(accountId);
-}
-
-/**
- * Ends the MailPilot browser session (cookies only). Does not unlink Gmail.
- * @deprecated Prefer `logoutSession` from `@/app/actions/auth`.
- */
-export async function logoutMailPilotSession(): Promise<never> {
-  return logoutSession();
-}
-
-export async function triggerManualSync(
-  accountId: string
-): Promise<ActionResult> {
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account || !account.isActive || !account.encryptedAccess) {
-    return { ok: false, error: "Account not found or credentials unlinked" };
-  }
-
-  try {
-    const historyId = account.historyId ?? "1";
-    await processInboxDelta(account.email, historyId);
-    revalidatePath("/");
-    revalidatePath("/subscriptions");
-    revalidatePath("/jobs");
-    return { ok: true };
-  } catch (error) {
-    console.error("Manual sync failed", error);
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Sync failed",
-    };
-  }
-}
-
-export async function pingOllama(
-  accountId: string,
-  url?: string
-): Promise<ActionResult<{ models: string[] }>> {
-  const settings = await prisma.accountSettings.findUnique({
-    where: { accountId },
-  });
-
-  const raw =
-    url?.trim() || settings?.localOllamaUrl || "http://127.0.0.1:11434";
-  const base = normalizeOllamaBaseUrl(raw);
-
-  try {
-    const { models } = await probeOllamaTags(base, 5000);
-
-    const current = parseAccountRules(settings?.rules);
-    const validated = accountRulesSchema.parse({
-      ...current,
-      availableModels: models,
-      bridgeConnected: true,
-    });
-
-    await prisma.accountSettings.update({
-      where: { accountId },
-      data: {
-        localOllamaUrl: base,
-        llmProvider: "LOCAL_OLLAMA",
-        rules: validated as Prisma.InputJsonValue,
-      },
-    });
-
-    return { ok: true, data: { models } };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Could not reach Ollama endpoint",
-    };
-  }
-}
-
-/** Used to verify Gmail still accepts tokens before showing sync badge as live. */
-export async function probeGmailConnection(
-  accountId: string
-): Promise<ActionResult> {
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account || !account.encryptedAccess) {
-    return { ok: false, error: "Account not found or credentials unlinked" };
-  }
-
-  try {
-    const gmail = await getGmailClientForAccount(account);
-    await gmail.users.getProfile({ userId: "me" });
-    return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Gmail probe failed",
     };
   }
 }
@@ -8615,6 +11457,223 @@ export const masterProfileSchema = masterProfileInputSchema.extend({
 export type MasterProfileUpdateInput = z.infer<typeof masterProfileSchema>;
 </file>
 
+<file path="app/actions/accounts.ts">
+"use server";
+
+import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
+
+import { logoutSession } from "@/app/actions/auth";
+import { getSessionToken } from "@/lib/auth";
+import {
+  ACTIVE_ACCOUNT_COOKIE,
+  AUTH_COOKIE_MAX_AGE,
+  SESSION_COOKIE,
+} from "@/lib/constants";
+import { getGmailClientForAccount } from "@/lib/google";
+import { normalizeOllamaBaseUrl, probeOllamaTags } from "@/lib/llm";
+import { prisma } from "@/lib/prisma";
+import { processInboxDelta } from "@/lib/sync";
+import { Prisma } from "@prisma/client";
+import {
+  accountRulesSchema,
+  parseAccountRules,
+} from "@/lib/validations/rules";
+
+export type ActionResult<T = undefined> =
+  | { ok: true; data?: T }
+  | { ok: false; error: string };
+
+export async function setActiveAccount(
+  accountId: string
+): Promise<ActionResult> {
+  const session = await getSessionToken();
+  if (!session) {
+    return { ok: false, error: "Not authenticated" };
+  }
+
+  const sessionAccount = await prisma.account.findFirst({
+    where: { id: session, isActive: true },
+    select: { id: true, persistentProfileId: true },
+  });
+  if (!sessionAccount) {
+    return { ok: false, error: "Session expired" };
+  }
+
+  const account = await prisma.account.findFirst({
+    where: {
+      id: accountId,
+      isActive: true,
+      ...(sessionAccount.persistentProfileId
+        ? { persistentProfileId: sessionAccount.persistentProfileId }
+        : { id: sessionAccount.id }),
+    },
+  });
+
+  if (!account) {
+    return { ok: false, error: "Account not found for this user" };
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.set(ACTIVE_ACCOUNT_COOKIE, accountId, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: AUTH_COOKIE_MAX_AGE,
+    secure: process.env.NODE_ENV === "production",
+  });
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * Clears Gmail OAuth tokens but keeps Account + historical data rows.
+ */
+export async function unlinkAccountCredentials(
+  accountId: string
+): Promise<ActionResult> {
+  const account = await prisma.account.findUnique({ where: { id: accountId } });
+  if (!account) {
+    return { ok: false, error: "Account not found" };
+  }
+
+  await prisma.account.update({
+    where: { id: accountId },
+    data: {
+      encryptedAccess: null,
+      encryptedRefresh: null,
+      tokenExpiry: null,
+      historyId: null,
+      // Keep row active in UI so history remains visible; tokens alone are cleared.
+      isActive: true,
+    },
+  });
+
+  const cookieStore = await cookies();
+  if (cookieStore.get(ACTIVE_ACCOUNT_COOKIE)?.value === accountId) {
+    cookieStore.delete(ACTIVE_ACCOUNT_COOKIE);
+  }
+  if (cookieStore.get(SESSION_COOKIE)?.value === accountId) {
+    // Session pointed at this inbox — clear selection but keep session if another
+    // account exists; full logout is explicit via logoutSession.
+    cookieStore.delete(ACTIVE_ACCOUNT_COOKIE);
+  }
+
+  revalidatePath("/", "layout");
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+/**
+ * @deprecated Prefer unlinkAccountCredentials — kept as alias for older callers.
+ */
+export async function removeAccount(accountId: string): Promise<ActionResult> {
+  return unlinkAccountCredentials(accountId);
+}
+
+/**
+ * Ends the MailPilot browser session (cookies only). Does not unlink Gmail.
+ * @deprecated Prefer `logoutSession` from `@/app/actions/auth`.
+ */
+export async function logoutMailPilotSession(): Promise<never> {
+  return logoutSession();
+}
+
+/**
+ * Settings → Sync: runs History API delta only (`processInboxDelta`).
+ * Advances `historyId`; does not stamp `lastSyncedAt` (Sync Inbox owns that).
+ * Kept for isolated delta testing — prefer Job Radar → Sync Inbox day-to-day.
+ */
+export async function triggerManualSync(
+  accountId: string
+): Promise<ActionResult> {
+  const account = await prisma.account.findUnique({ where: { id: accountId } });
+  if (!account || !account.isActive || !account.encryptedAccess) {
+    return { ok: false, error: "Account not found or credentials unlinked" };
+  }
+
+  try {
+    const historyId = account.historyId ?? "1";
+    await processInboxDelta(account.email, historyId);
+    revalidatePath("/");
+    revalidatePath("/subscriptions");
+    revalidatePath("/jobs");
+    return { ok: true };
+  } catch (error) {
+    console.error("Manual sync failed", error);
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Sync failed",
+    };
+  }
+}
+
+export async function pingOllama(
+  accountId: string,
+  url?: string
+): Promise<ActionResult<{ models: string[] }>> {
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId },
+  });
+
+  const raw =
+    url?.trim() || settings?.localOllamaUrl || "http://127.0.0.1:11434";
+  const base = normalizeOllamaBaseUrl(raw);
+
+  try {
+    const { models } = await probeOllamaTags(base, 5000);
+
+    const current = parseAccountRules(settings?.rules);
+    const validated = accountRulesSchema.parse({
+      ...current,
+      availableModels: models,
+      bridgeConnected: true,
+    });
+
+    await prisma.accountSettings.update({
+      where: { accountId },
+      data: {
+        localOllamaUrl: base,
+        llmProvider: "LOCAL_OLLAMA",
+        rules: validated as Prisma.InputJsonValue,
+      },
+    });
+
+    return { ok: true, data: { models } };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not reach Ollama endpoint",
+    };
+  }
+}
+
+/** Used to verify Gmail still accepts tokens before showing sync badge as live. */
+export async function probeGmailConnection(
+  accountId: string
+): Promise<ActionResult> {
+  const account = await prisma.account.findUnique({ where: { id: accountId } });
+  if (!account || !account.encryptedAccess) {
+    return { ok: false, error: "Account not found or credentials unlinked" };
+  }
+
+  try {
+    const gmail = await getGmailClientForAccount(account);
+    await gmail.users.getProfile({ userId: "me" });
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Gmail probe failed",
+    };
+  }
+}
+</file>
+
 <file path="app/actions/opportunities.ts">
 "use server";
 
@@ -8632,6 +11691,10 @@ import {
   prepareOpportunityResume,
   refineOpportunityDraft,
   refineOpportunityResume,
+  reorderResumeDraftNode,
+  refineSingleResumeNode,
+  compileResumeDocument,
+  updateResumeDraftNode,
   updateOpportunityDraft,
   updateOpportunityRecipient,
   type MimeAttachment,
@@ -9037,6 +12100,116 @@ export async function regenerateOpportunityResumeAction(
   includeSummary = false
 ): Promise<ActionResult<OpportunityResumePreview>> {
   return generateOpportunityResumeAction(opportunityId, includeSummary);
+}
+
+export async function updateResumeDraftNodeAction(
+  opportunityId: string,
+  nodeId: string,
+  patch: { content?: string; selected?: boolean }
+): Promise<ActionResult<OpportunityResumePreview>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+  try {
+    const data = await updateResumeDraftNode(
+      opportunity.accountId,
+      opportunityId,
+      nodeId,
+      patch
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to update resume line",
+    };
+  }
+}
+
+export async function reorderResumeDraftNodeAction(
+  opportunityId: string,
+  nodeId: string,
+  direction: "up" | "down"
+): Promise<ActionResult<OpportunityResumePreview>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+  try {
+    const data = await reorderResumeDraftNode(
+      opportunity.accountId,
+      opportunityId,
+      nodeId,
+      direction
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to reorder resume line",
+    };
+  }
+}
+
+export async function refineSingleResumeNodeAction(
+  opportunityId: string,
+  nodeId: string,
+  instruction: string
+): Promise<ActionResult<OpportunityResumePreview>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+  try {
+    const data = await refineSingleResumeNode(
+      opportunity.accountId,
+      opportunityId,
+      nodeId,
+      instruction
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to refine resume line",
+    };
+  }
+}
+
+export async function compileResumeDocumentAction(
+  opportunityId: string,
+  format: "pdf" | "docx" = "pdf"
+): Promise<ActionResult<OpportunityResumePreview>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+  try {
+    const data = await compileResumeDocument(
+      opportunity.accountId,
+      opportunityId,
+      format
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to export resume",
+    };
+  }
 }
 
 export async function refineOpportunityResumeAction(
@@ -9522,6 +12695,18 @@ import type { LlmProvider } from "@/lib/llm";
 import { generateTailoredResumePdf } from "@/lib/pdf-generator";
 import { prisma } from "@/lib/prisma";
 import { loadMasterProfileForDraft } from "@/lib/master-profile";
+import { compileResumeDocx } from "@/lib/resume-docx";
+import {
+  digestTailoredResume,
+  draftToPdfInput,
+  moveResumeNode,
+  refineResumeLine,
+  touchDraft,
+} from "@/lib/resume-draft";
+import {
+  storedResumeDraftSchema,
+  type TailoredResumeDraft,
+} from "@/lib/types/resume-draft";
 import {
   buildSlimCandidate,
   draftContextualEmail,
@@ -9550,6 +12735,9 @@ export type OpportunityResumePreview = {
   tailoredSkills?: MasterProfileInput["skills"];
   strategyRationale?: TailorResult["strategyRationale"];
   includeSummary?: boolean;
+  /** Line-addressable draft. Present after digestion, before or after PDF export. */
+  draft?: TailoredResumeDraft | null;
+  docxBase64?: string;
 };
 
 export type OpportunityResumeState = {
@@ -9855,11 +13043,40 @@ export async function refineOpportunityDraft(
   return draft;
 }
 
+function previewFromStoredDraft(
+  row: {
+    tailoredResumePdf: string | null;
+    tailorConfig: unknown;
+  },
+  stored: z.infer<typeof storedResumeDraftSchema>
+): OpportunityResumePreview {
+  const config = tailorConfigSchema.safeParse(row.tailorConfig ?? {});
+  const includeSummary = config.success
+    ? config.data.includeSummary
+    : stored.draft.exportConfig.includeSummary;
+  const compiled = draftToPdfInput(stored.draft);
+  return {
+    filename: stored.filename ?? "Resume.pdf",
+    pdfBase64: row.tailoredResumePdf ?? "",
+    experiences: compiled.experiences,
+    projects: compiled.projects,
+    tailoredSummary: compiled.tailoredSummary,
+    tailoredSkills: compiled.tailoredSkills,
+    strategyRationale: stored.strategyRationale,
+    includeSummary,
+    draft: stored.draft,
+  };
+}
+
 function previewFromCache(row: {
   tailoredResumePdf: string | null;
   tailoredResumeData: unknown;
   tailorConfig: unknown;
 }): OpportunityResumePreview | null {
+  const stored = storedResumeDraftSchema.safeParse(row.tailoredResumeData);
+  if (stored.success) {
+    return previewFromStoredDraft(row, stored.data);
+  }
   if (!row.tailoredResumePdf || !row.tailoredResumeData) return null;
   const data = tailoredResumeDataSchema.safeParse(row.tailoredResumeData);
   if (!data.success) return null;
@@ -9881,20 +13098,33 @@ function previewFromCache(row: {
 
 async function persistOpportunityResumeCache(
   opportunityId: string,
-  preview: OpportunityResumePreview
+  preview: OpportunityResumePreview,
+  options: { writePdf?: boolean } = {}
 ): Promise<void> {
-  const payload = {
-    filename: preview.filename,
-    tailoredSummary: preview.tailoredSummary ?? null,
-    tailoredSkills: preview.tailoredSkills,
-    selectedExperience: preview.experiences,
-    selectedProjects: preview.projects ?? [],
-    strategyRationale: preview.strategyRationale,
-  };
+  const writePdf = options.writePdf === true && Boolean(preview.pdfBase64);
+  const payload = preview.draft
+    ? {
+        version: 2 as const,
+        filename: preview.filename,
+        draft: preview.draft,
+        strategyRationale: preview.strategyRationale,
+      }
+    : {
+        filename: preview.filename,
+        tailoredSummary: preview.tailoredSummary ?? null,
+        tailoredSkills: preview.tailoredSkills,
+        selectedExperience: preview.experiences,
+        selectedProjects: preview.projects ?? [],
+        strategyRationale: preview.strategyRationale,
+      };
   await prisma.jobOpportunity.update({
     where: { id: opportunityId },
     data: {
-      tailoredResumePdf: preview.pdfBase64,
+      ...(writePdf
+        ? { tailoredResumePdf: preview.pdfBase64 }
+        : preview.draft
+          ? { tailoredResumePdf: null }
+          : { tailoredResumePdf: preview.pdfBase64 }),
       tailoredResumeData: payload as Prisma.InputJsonValue,
       tailoredAt: new Date(),
       tailorConfig: {
@@ -9902,6 +13132,26 @@ async function persistOpportunityResumeCache(
       } as Prisma.InputJsonValue,
     },
   });
+}
+
+async function renderDraftPdf(
+  profile: MasterProfileInput,
+  draft: TailoredResumeDraft
+): Promise<Buffer> {
+  const compiled = draftToPdfInput(draft, profile);
+  return generateTailoredResumePdf(
+    profile,
+    compiled.experiences,
+    compiled.projects,
+    compiled.tailoredSummary,
+    compiled.tailoredSkills,
+    compiled.includeSummary,
+    {
+      headerName: compiled.headerName,
+      contactLine: compiled.contactLine,
+      education: compiled.education,
+    }
+  );
 }
 
 async function buildOpportunityResumePreview(
@@ -9966,30 +13216,25 @@ async function buildOpportunityResumePreview(
     }
   );
 
-  const experiences =
-    tailored.selectedExperience.length > 0
-      ? tailored.selectedExperience
-      : profile.experiences;
-
-  const pdf = await generateTailoredResumePdf(
-    profile,
-    experiences,
-    tailored.selectedProjects,
-    tailored.tailoredSummary,
-    tailored.tailoredSkills,
-    includeSummary
-  );
   const filename = `${profile.fullName.replace(/\s+/g, "_")}_Resume.pdf`;
+  const draft = digestTailoredResume({
+    opportunityId,
+    profile,
+    tailored,
+    includeSummary,
+  });
+  const compiled = draftToPdfInput(draft, profile);
 
   const preview: OpportunityResumePreview = {
     filename,
-    pdfBase64: pdf.toString("base64"),
-    experiences: tailored.selectedExperience,
-    projects: tailored.selectedProjects,
-    tailoredSummary: tailored.tailoredSummary,
-    tailoredSkills: tailored.tailoredSkills,
+    pdfBase64: "",
+    experiences: compiled.experiences,
+    projects: compiled.projects,
+    tailoredSummary: compiled.tailoredSummary,
+    tailoredSkills: compiled.tailoredSkills,
     strategyRationale: tailored.strategyRationale,
     includeSummary,
+    draft,
   };
 
   await persistOpportunityResumeCache(opportunityId, preview);
@@ -10029,8 +13274,8 @@ export async function getOpportunityResumeState(
 }
 
 /**
- * Tailor + render the resume PDF for in-app review.
- * Without forceRegenerate, returns the cached PDF or null (no Ollama call).
+ * Digest the master profile and job into an editable draft.
+ * Without forceRegenerate, returns the cached draft or null (no model call, no PDF).
  */
 export async function prepareOpportunityResume(
   accountId: string,
@@ -10071,6 +13316,180 @@ export async function refineOpportunityResume(
   if (!preview) {
     throw new Error("Failed to refine resume");
   }
+  return preview;
+}
+
+async function loadStoredDraft(
+  accountId: string,
+  opportunityId: string
+): Promise<{ draft: TailoredResumeDraft; filename: string }> {
+  const opportunity = await prisma.jobOpportunity.findFirst({
+    where: { id: opportunityId, accountId },
+    select: { tailoredResumeData: true },
+  });
+  if (!opportunity) {
+    throw new Error("Opportunity not found");
+  }
+  const stored = storedResumeDraftSchema.safeParse(opportunity.tailoredResumeData);
+  if (!stored.success) {
+    throw new Error("No editable resume draft for this opportunity");
+  }
+  return {
+    draft: stored.data.draft,
+    filename: stored.data.filename ?? "Resume.pdf",
+  };
+}
+
+async function saveDraft(
+  accountId: string,
+  opportunityId: string,
+  draft: TailoredResumeDraft
+): Promise<OpportunityResumePreview> {
+  const opportunity = await prisma.jobOpportunity.findFirst({
+    where: { id: opportunityId, accountId },
+    select: {
+      tailoredResumePdf: true,
+      tailoredResumeData: true,
+      tailorConfig: true,
+    },
+  });
+  if (!opportunity) {
+    throw new Error("Opportunity not found");
+  }
+  const previous = storedResumeDraftSchema.safeParse(opportunity.tailoredResumeData);
+  const next = touchDraft(draft);
+  const compiled = draftToPdfInput(next);
+  const preview: OpportunityResumePreview = {
+    filename: previous.success ? previous.data.filename ?? "Resume.pdf" : "Resume.pdf",
+    pdfBase64: "",
+    experiences: compiled.experiences,
+    projects: compiled.projects,
+    tailoredSummary: compiled.tailoredSummary,
+    tailoredSkills: compiled.tailoredSkills,
+    strategyRationale: previous.success ? previous.data.strategyRationale : undefined,
+    includeSummary: next.exportConfig.includeSummary,
+    draft: next,
+  };
+  await persistOpportunityResumeCache(opportunityId, preview);
+  return preview;
+}
+
+export async function updateResumeDraftNode(
+  accountId: string,
+  opportunityId: string,
+  nodeId: string,
+  patch: { content?: string; selected?: boolean }
+): Promise<OpportunityResumePreview> {
+  const { draft } = await loadStoredDraft(accountId, opportunityId);
+  const nodes = draft.nodes.map((item) => {
+    if (item.id !== nodeId) return item;
+    return {
+      ...item,
+      content: patch.content !== undefined ? patch.content : item.content,
+      selected: patch.selected !== undefined ? patch.selected : item.selected,
+    };
+  });
+  if (!nodes.some((item) => item.id === nodeId)) {
+    throw new Error("Resume line not found");
+  }
+  return saveDraft(accountId, opportunityId, { ...draft, nodes });
+}
+
+export async function reorderResumeDraftNode(
+  accountId: string,
+  opportunityId: string,
+  nodeId: string,
+  direction: "up" | "down"
+): Promise<OpportunityResumePreview> {
+  const { draft } = await loadStoredDraft(accountId, opportunityId);
+  return saveDraft(
+    accountId,
+    opportunityId,
+    moveResumeNode(draft, nodeId, direction)
+  );
+}
+
+export async function refineSingleResumeNode(
+  accountId: string,
+  opportunityId: string,
+  nodeId: string,
+  instruction: string
+): Promise<OpportunityResumePreview> {
+  const { draft } = await loadStoredDraft(accountId, opportunityId);
+  const target = draft.nodes.find((item) => item.id === nodeId);
+  if (!target) {
+    throw new Error("Resume line not found");
+  }
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { settings: true },
+  });
+  const rules = parseAccountRules(account?.settings?.rules);
+  const content = await refineResumeLine({
+    content: target.content,
+    instruction,
+    llmProvider: normalizeProvider(account?.settings?.llmProvider),
+    localOllamaUrl: account?.settings?.localOllamaUrl,
+    ollamaModel: account?.settings?.ollamaModel,
+    allowCloudFallback: rules.allowCloudFallback,
+  });
+  const nodes = draft.nodes.map((item) =>
+    item.id === nodeId ? { ...item, content } : item
+  );
+  return saveDraft(accountId, opportunityId, { ...draft, nodes });
+}
+
+/** Compile checked draft nodes into a PDF or DOCX. PDF is cached; DOCX is returned only. */
+export async function compileResumeDocument(
+  accountId: string,
+  opportunityId: string,
+  format: "pdf" | "docx" = "pdf"
+): Promise<OpportunityResumePreview> {
+  const opportunity = await prisma.jobOpportunity.findFirst({
+    where: { id: opportunityId, accountId },
+    select: { tailoredResumeData: true },
+  });
+  if (!opportunity) {
+    throw new Error("Opportunity not found");
+  }
+  const stored = storedResumeDraftSchema.safeParse(opportunity.tailoredResumeData);
+  if (!stored.success) {
+    throw new Error("No editable resume draft for this opportunity");
+  }
+  const profile = await loadMasterProfile(accountId);
+  const filenameBase = profile.fullName.replace(/\s+/g, "_");
+  const compiled = draftToPdfInput(stored.data.draft, profile);
+  if (format === "docx") {
+    const docx = await compileResumeDocx(stored.data.draft);
+    return {
+      filename:
+        stored.data.filename?.replace(/\.pdf$/i, ".docx") ??
+        `${filenameBase}_Resume.docx`,
+      pdfBase64: "",
+      docxBase64: docx.toString("base64"),
+      experiences: compiled.experiences,
+      projects: compiled.projects,
+      tailoredSummary: compiled.tailoredSummary,
+      tailoredSkills: compiled.tailoredSkills,
+      strategyRationale: stored.data.strategyRationale,
+      includeSummary: compiled.includeSummary,
+      draft: stored.data.draft,
+    };
+  }
+  const pdf = await renderDraftPdf(profile, stored.data.draft);
+  const filename = stored.data.filename ?? `${filenameBase}_Resume.pdf`;
+  const preview: OpportunityResumePreview = {
+    filename,
+    pdfBase64: pdf.toString("base64"),
+    experiences: compiled.experiences,
+    projects: compiled.projects,
+    tailoredSummary: compiled.tailoredSummary,
+    tailoredSkills: compiled.tailoredSkills,
+    strategyRationale: stored.data.strategyRationale,
+    includeSummary: compiled.includeSummary,
+    draft: stored.data.draft,
+  };
+  await persistOpportunityResumeCache(opportunityId, preview, { writePdf: true });
   return preview;
 }
 
@@ -10261,7 +13680,10 @@ export async function dispatchOpportunityEmail(
         options.reviewedSkills,
         includeSummary
       );
-    } else if (cachedPreview) {
+    } else if (cachedPreview?.draft) {
+      pdf = await renderDraftPdf(profile, cachedPreview.draft);
+      filename = cachedPreview.filename || filename;
+    } else if (cachedPreview?.pdfBase64) {
       pdf = Buffer.from(cachedPreview.pdfBase64, "base64");
       filename = cachedPreview.filename || filename;
     } else {
@@ -10279,15 +13701,29 @@ export async function dispatchOpportunityEmail(
           includeSummary,
         }
       );
-      pdf = await generateTailoredResumePdf(
+      const digested = digestTailoredResume({
+        opportunityId,
         profile,
-        tailored.selectedExperience.length > 0
-          ? tailored.selectedExperience
-          : profile.experiences,
-        tailored.selectedProjects,
-        tailored.tailoredSummary,
-        tailored.tailoredSkills,
-        includeSummary
+        tailored,
+        includeSummary,
+      });
+      pdf = await renderDraftPdf(profile, digested);
+      filename = `${profile.fullName.replace(/\s+/g, "_")}_Resume.pdf`;
+      const compiled = draftToPdfInput(digested, profile);
+      await persistOpportunityResumeCache(
+        opportunityId,
+        {
+          filename,
+          pdfBase64: pdf.toString("base64"),
+          experiences: compiled.experiences,
+          projects: compiled.projects,
+          tailoredSummary: compiled.tailoredSummary,
+          tailoredSkills: compiled.tailoredSkills,
+          strategyRationale: tailored.strategyRationale,
+          includeSummary,
+          draft: digested,
+        },
+        { writePdf: true }
       );
     }
     attachments.unshift({
@@ -14451,8 +17887,13 @@ import {
   type LlmProvider,
 } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
-import { parseFromHeader, persistClassifiedEmail } from "@/lib/sync";
-import { resolveIngestionRules } from "@/lib/sync";
+import { logStory, syncLog } from "@/lib/logging";
+import {
+  parseFromHeader,
+  persistClassifiedEmail,
+  processInboxDelta,
+  resolveIngestionRules,
+} from "@/lib/sync";
 
 export type OpportunitySyncOptions = {
   forceRescan?: boolean;
@@ -14465,6 +17906,8 @@ export type OpportunitySyncResult = {
   processed: number;
   opportunitiesUpserted: number;
   skipped: number;
+  /** True when Gmail History API returned expired startHistoryId (404). */
+  historyExpired: boolean;
 };
 
 const JOB_QUERY_BASE =
@@ -14563,27 +18006,49 @@ async function listGmailMessageIds(
 
 function buildSyncQuery(input: {
   forceRescan: boolean;
+  historyExpired: boolean;
   lookbackDays: number;
   lastSyncedAt: Date | null;
-}): string {
+}): { query: string; windowLabel: string } {
   let query = JOB_QUERY_BASE;
 
-  if (!input.forceRescan && input.lastSyncedAt) {
-    // Incremental: only mail newer than last sync (10-minute overlap buffer).
-    const afterTimestamp =
-      Math.floor(input.lastSyncedAt.getTime() / 1000) -
-      INCREMENTAL_OVERLAP_SECONDS;
-    query += ` after:${afterTimestamp}`;
-  } else {
+  // Wide lookback when force-rescanning or after History API expiry (gap cannot
+  // be replayed via historyId — fall back to time search).
+  if (input.forceRescan || input.historyExpired || !input.lastSyncedAt) {
+    const reason = input.forceRescan
+      ? "force rescan"
+      : input.historyExpired
+        ? "history tip expired"
+        : "no lastSyncedAt yet";
     query += ` newer_than:${input.lookbackDays}d`;
+    return {
+      query,
+      windowLabel: `lookback newer_than:${input.lookbackDays}d (${reason})`,
+    };
   }
 
-  return query;
+  // Incremental: only mail newer than last sync (10-minute overlap buffer).
+  const afterTimestamp =
+    Math.floor(input.lastSyncedAt.getTime() / 1000) -
+    INCREMENTAL_OVERLAP_SECONDS;
+  query += ` after:${afterTimestamp}`;
+  return {
+    query,
+    windowLabel: `incremental after:${afterTimestamp} (lastSyncedAt − 10m overlap)`,
+  };
 }
 
 /**
- * Fast incremental opportunity sync, or forced lookback rescan/backfill.
- * Uses cleaned payloads + batched concurrency (4) to cut AI latency.
+ * Delta-first inbox opportunity sync.
+ *
+ * Pipeline (owned by Sync Inbox / `syncInboxOpportunities`):
+ * 1. `processInboxDelta` — subscriptions + history catch-up; advances `historyId`
+ *    only (never `lastSyncedAt`).
+ * 2. Job Gmail search (`after:lastSyncedAt` or lookback) + ≤10 `PENDING_AI` drain.
+ * 3. Classify / persist job candidates (heartbeat renewed per chunk; unchanged).
+ *
+ * `lastSyncedAt` is stamped by the caller with the pre-run `runStartedAt` snapshot
+ * after this function returns successfully — not here, not inside the delta.
  */
 export async function runOpportunitySync(
   accountId: string,
@@ -14613,19 +18078,48 @@ export async function runOpportunitySync(
     }
 
     if (!account.profile) {
-      console.warn(
-        "Sync warning: Account has no linked profile. Match scoring will use generic profile defaults."
+      logStory(
+        syncLog,
+        "Account has no linked profile. Match scoring will use generic defaults.",
+        { mailbox: account.email },
+        "warn"
       );
     }
 
+    logStory(syncLog, "Sync Inbox starting", {
+      mailbox: account.email,
+      mode: forceRescan ? "force rescan" : "incremental",
+      "max job-query messages": maxMessages,
+      "previous lastSyncedAt":
+        account.lastSyncedAt?.toISOString() ?? "(never)",
+    });
+
+    // ── Step 1: History delta first (Pub/Sub catch-up + subscriptions) ─────
+    const delta = await processInboxDelta(
+      account.email,
+      account.historyId ?? "1"
+    );
+    const historyExpired = delta.historyExpired;
+    const deltaIdSet = new Set(delta.messageIds);
+
     const gmail = await getGmailClientForAccount(account);
-    const query = buildSyncQuery({
+    const { query, windowLabel } = buildSyncQuery({
       forceRescan,
+      historyExpired,
       lookbackDays,
       lastSyncedAt: account.lastSyncedAt,
     });
 
-    const gmailMessageIds = await listGmailMessageIds(gmail, query, maxMessages);
+    logStory(syncLog, "Step 2/4 — Job search + PENDING_AI drain", {
+      window: windowLabel,
+      "skipping delta ids": deltaIdSet.size,
+    });
+
+    // ── Step 2: Job search + PENDING_AI; dedupe vs delta + known rows ───────
+    const listedIds = await listGmailMessageIds(gmail, query, maxMessages);
+    // Delta already digested these; skip re-fetch (PENDING_AI still drained below).
+    const gmailMessageIds = listedIds.filter((id) => !deltaIdSet.has(id));
+    const skippedAsDeltaDupes = listedIds.length - gmailMessageIds.length;
 
     // Pull up to 10 backlogged PENDING_AI emails so Sync Inbox drains the queue.
     const pendingRows = await prisma.emailMessage.findMany({
@@ -14642,31 +18136,78 @@ export async function runOpportunitySync(
       new Set([...gmailMessageIds, ...pendingIds])
     );
 
+    logStory(syncLog, "Candidate scoop", {
+      "Gmail job search hits": listedIds.length,
+      "already digested in delta (skipped)": skippedAsDeltaDupes,
+      "fresh from search": gmailMessageIds.length,
+      "PENDING_AI backlog pulled": pendingIds.length,
+      "combined unique": combinedCandidateIds.length,
+    });
+
     if (combinedCandidateIds.length === 0) {
-      return { processed: 0, opportunitiesUpserted: 0, skipped: 0 };
+      logStory(
+        syncLog,
+        "Nothing left to classify — inbox already caught up. Step 3/4 skipped; Step 4 will stamp lastSyncedAt on success."
+      );
+      return {
+        processed: 0,
+        opportunitiesUpserted: 0,
+        skipped: 0,
+        historyExpired,
+      };
     }
 
     let targetIds = combinedCandidateIds;
     if (!forceRescan) {
-      // Dedup against EmailMessage.messageId (Gmail ids), not JobOpportunity cuid FKs.
-      // Re-process PENDING_AI rows so offline-parked mail gets classified when AI returns.
-      const processed = await prisma.emailMessage.findMany({
-        where: {
-          accountId,
-          messageId: { in: combinedCandidateIds },
-          emailCategory: { not: "PENDING_AI" },
-        },
-        select: { messageId: true },
-      });
-      const processedSet = new Set(processed.map((row) => row.messageId));
-      targetIds = combinedCandidateIds.filter((id) => !processedSet.has(id));
+      // Dedup against EmailMessage + JobApplication (Gmail ids).
+      // Keep PENDING_AI so offline-parked mail gets classified when AI returns.
+      const [processedEmail, processedApps] = await Promise.all([
+        prisma.emailMessage.findMany({
+          where: {
+            accountId,
+            messageId: { in: combinedCandidateIds },
+            emailCategory: { not: "PENDING_AI" },
+          },
+          select: { messageId: true },
+        }),
+        prisma.jobApplication.findMany({
+          where: {
+            accountId,
+            messageId: { in: combinedCandidateIds },
+          },
+          select: { messageId: true },
+        }),
+      ]);
+      const processedSet = new Set([
+        ...processedEmail.map((row) => row.messageId),
+        ...processedApps.map((row) => row.messageId),
+      ]);
+      // PENDING_AI rows must still run even if a JobApplication row exists.
+      const pendingSet = new Set(pendingIds);
+      targetIds = combinedCandidateIds.filter(
+        (id) => pendingSet.has(id) || !processedSet.has(id)
+      );
+      logStory(
+        syncLog,
+        "After DB dedupe (keep PENDING_AI, skip known EmailMessage/JobApplication)",
+        {
+          "still to classify": targetIds.length,
+          "skipped as already known":
+            combinedCandidateIds.length - targetIds.length,
+        }
+      );
     }
 
     if (targetIds.length === 0) {
+      logStory(
+        syncLog,
+        "All candidates were already known — nothing to classify."
+      );
       return {
         processed: 0,
         opportunitiesUpserted: 0,
         skipped: combinedCandidateIds.length,
+        historyExpired,
       };
     }
 
@@ -14679,6 +18220,11 @@ export async function runOpportunitySync(
 
     let opportunitiesUpserted = 0;
 
+    logStory(syncLog, `Step 3/4 — Classifying ${targetIds.length} message(s)`, {
+      "AI provider": llmProvider,
+      "batch size": llmProvider === "LOCAL_OLLAMA" ? 1 : BATCH_SIZE,
+    });
+
     // Serialize local Ollama inference to avoid concurrent queue timeouts.
     const effectiveBatchSize = llmProvider === "LOCAL_OLLAMA" ? 1 : BATCH_SIZE;
     for (let i = 0; i < targetIds.length; i += effectiveBatchSize) {
@@ -14689,11 +18235,17 @@ export async function runOpportunitySync(
 
       // If the user clicked Cancel, isSyncing will be false. Abort the loop safely.
       if (!currentState?.isSyncing) {
-        console.log(
-          `[Sync] Aborting sync loop for account ${accountId} (cancelled by user).`
+        logStory(
+          syncLog,
+          "Stopped early — sync was cancelled (isSyncing cleared).",
+          { "classified so far": `${i} / ${targetIds.length}` },
+          "warn"
         );
         break;
       }
+
+      const chunkLabel = `${Math.min(i + effectiveBatchSize, targetIds.length)} / ${targetIds.length}`;
+      logStory(syncLog, `Classifying chunk … ${chunkLabel}`);
 
       const chunk = targetIds.slice(i, i + effectiveBatchSize);
       const results = await Promise.all(
@@ -14808,7 +18360,10 @@ export async function runOpportunitySync(
 
             return result.opportunitiesUpserted + (result.applicationTouched ? 1 : 0);
           } catch (error) {
-            console.error(`Opportunity sync failed for ${messageId}`, error);
+            syncLog.error(
+              { err: error, messageId },
+              "Opportunity sync failed for message"
+            );
             if (isRateLimited(error)) {
               await sleep(RATE_LIMIT_BASE_MS * 2);
             }
@@ -14825,10 +18380,18 @@ export async function runOpportunitySync(
       });
     }
 
+    logStory(syncLog, "Step 3/4 done — classification finished", {
+      "messages attempted": targetIds.length,
+      "opportunities touched": opportunitiesUpserted,
+      "skipped earlier as known":
+        combinedCandidateIds.length - targetIds.length,
+    });
+
     return {
       processed: targetIds.length,
       opportunitiesUpserted,
       skipped: combinedCandidateIds.length - targetIds.length,
+      historyExpired,
     };
   } catch (error) {
     if (
@@ -17184,7 +20747,7 @@ function decodeBase64Url(data: string): string {
 
 <file path="lib/sync.ts">
 import type { gmail_v1 } from "googleapis";
-import type { Account, AccountSettings } from "@prisma/client";
+import type { Account, AccountSettings, JobOpportunity } from "@prisma/client";
 import { GaxiosError } from "gaxios";
 
 import {
@@ -17217,11 +20780,201 @@ import {
 } from "@/lib/parsers/application-parser";
 import { prisma } from "@/lib/prisma";
 import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
+import { dedupeLog, logStory, syncLog } from "@/lib/logging";
+import { isLocationCompatible } from "@/lib/utils/location";
 import {
   parseAccountRules,
   titleMatchesExcluded,
   type AccountRules,
 } from "@/lib/validations/rules";
+
+/** Normalize role titles for fuzzy equality (strip Jr/Sr/II noise). */
+function normalizeOpportunityTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/\b(jr\.?|sr\.?|ii|iii|iv)\b/g, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function opportunityTitlesMatch(a: string, b: string): boolean {
+  const na = normalizeOpportunityTitle(a);
+  const nb = normalizeOpportunityTitle(b);
+  if (!na || !nb) return false;
+  return na === nb || na.includes(nb) || nb.includes(na);
+}
+
+function applyUrlsMatch(
+  a: string | null | undefined,
+  b: string | null | undefined
+): boolean {
+  if (!a?.trim() || !b?.trim()) return false;
+  const na = a.trim().replace(/\/+$/, "");
+  const nb = b.trim().replace(/\/+$/, "");
+  return na.length > 0 && na === nb;
+}
+
+function isSuppressedOpportunity(row: JobOpportunity): boolean {
+  if (row.status === "DISMISSED") return true;
+  // User-archived (history) — do not resurrect via ingest.
+  if (row.isArchived && row.previousStatus != null) return true;
+  return false;
+}
+
+function isActiveOpportunityStatus(status: string): boolean {
+  return (
+    status === "DISCOVERED" ||
+    status === "REVIEW_READY" ||
+    status === "APPLIED" ||
+    status === "LEAD"
+  );
+}
+
+/**
+ * Multi-tier opportunity dedupe before create:
+ * 1) Same emailMessageId — applyUrl, else title + location
+ * 2) Cross-email company + title + location (suppress dismissed/archived)
+ * 3) null → caller inserts
+ */
+async function findMatchingOpportunity(input: {
+  accountId: string;
+  emailMessageId: string;
+  company: string;
+  title: string;
+  location: string | null | undefined;
+  applyUrl: string | null | undefined;
+  isAlreadyApplied: boolean;
+}): Promise<
+  | { kind: "update"; row: JobOpportunity; upgradingPlaceholder: boolean }
+  | { kind: "suppress"; row: JobOpportunity }
+  | { kind: "none" }
+> {
+  const {
+    accountId,
+    emailMessageId,
+    company,
+    title,
+    location,
+    applyUrl,
+    isAlreadyApplied,
+  } = input;
+
+  // ── Tier 1: same-email origin ───────────────────────────────────────────
+  const sameEmailRows = await prisma.jobOpportunity.findMany({
+    where: { accountId, emailMessageId },
+  });
+
+  const tier1 =
+    sameEmailRows.find((row) => applyUrlsMatch(applyUrl, row.applyUrl)) ??
+    sameEmailRows.find(
+      (row) =>
+        opportunityTitlesMatch(title, row.title) &&
+        isLocationCompatible(location, row.location)
+    );
+
+  if (tier1) {
+    const viaUrl = applyUrlsMatch(applyUrl, tier1.applyUrl);
+    if (isSuppressedOpportunity(tier1)) {
+      logStory(dedupeLog, "Tier 1 — same email, but left alone (dismissed/archived)", {
+        company,
+        title,
+        "matched via": viaUrl ? "apply URL" : "title + location",
+        "existing id": tier1.id,
+      });
+      return { kind: "suppress", row: tier1 };
+    }
+    logStory(dedupeLog, "Tier 1 — same email → update existing row", {
+      company,
+      title,
+      "matched via": viaUrl ? "apply URL" : "title + location",
+      "existing id": tier1.id,
+    });
+    return { kind: "update", row: tier1, upgradingPlaceholder: false };
+  }
+
+  // ── Tier 2: cross-email company + role + location ───────────────────────
+  const companyRows = await prisma.jobOpportunity.findMany({
+    where: {
+      accountId,
+      company: { equals: company, mode: "insensitive" },
+    },
+    orderBy: { receivedAt: "desc" },
+  });
+
+  let upgradingPlaceholder = false;
+  let tier2 =
+    companyRows.find(
+      (row) =>
+        opportunityTitlesMatch(title, row.title) &&
+        isLocationCompatible(location, row.location)
+    ) ?? null;
+
+  // Upgrade generic placeholders when an applied confirmation carries a real title.
+  if (
+    !tier2 &&
+    isAlreadyApplied &&
+    !isGenericTitle(title, company)
+  ) {
+    const placeholder = companyRows.find(
+      (row) =>
+        isLocationCompatible(location, row.location) &&
+        (isGenericTitle(row.title, company) ||
+          row.title.toLowerCase() === "applied position" ||
+          row.title.toLowerCase() === "applicant" ||
+          row.title.toLowerCase() === genericRoleTitle(company).toLowerCase())
+    );
+    if (placeholder) {
+      tier2 = placeholder;
+      upgradingPlaceholder = true;
+    }
+  }
+
+  if (tier2) {
+    if (isSuppressedOpportunity(tier2)) {
+      logStory(
+        dedupeLog,
+        "Tier 2 — same company/role/location, but left alone (dismissed/archived)",
+        {
+          company,
+          title,
+          location: location ?? "(none)",
+          "existing id": tier2.id,
+          status: tier2.status,
+        }
+      );
+      return { kind: "suppress", row: tier2 };
+    }
+    if (isActiveOpportunityStatus(tier2.status) || !tier2.isArchived) {
+      logStory(
+        dedupeLog,
+        "Tier 2 — cross-email company + title + location → update",
+        {
+          company,
+          title,
+          location: location ?? "(none)",
+          "placeholder upgrade": upgradingPlaceholder ? "yes" : "no",
+          "existing id": tier2.id,
+        }
+      );
+      return { kind: "update", row: tier2, upgradingPlaceholder };
+    }
+    logStory(dedupeLog, "Tier 2 — matched but suppressed (not an active row)", {
+      company,
+      title,
+      "existing id": tier2.id,
+      status: tier2.status,
+    });
+    return { kind: "suppress", row: tier2 };
+  }
+
+  logStory(dedupeLog, "Tier 3 — no match → create new opportunity", {
+    company,
+    title,
+    location: location ?? "(none)",
+  });
+  return { kind: "none" };
+}
 
 /**
  * Resolve account rules for ingestion (automation knobs from PermanentSettings).
@@ -17269,39 +21022,77 @@ export type ClassifiableAccount = {
 };
 
 /**
+ * Result of a Gmail History API delta pass.
+ *
+ * NOTE: This advances `historyId` only. It does **not** stamp `lastSyncedAt`.
+ * Sync Inbox owns `lastSyncedAt` (snapshot `runStartedAt` committed after the
+ * full delta + job-query + PENDING_AI pass). See README "Inbox sync pipeline".
+ */
+export type InboxDeltaResult = {
+  /** Message ids digested during this delta (empty when history expired). */
+  messageIds: string[];
+  /** True when startHistoryId was too old (Gmail 404) and the watch was renewed. */
+  historyExpired: boolean;
+  /** Watermark written to Account.historyId, if any. */
+  historyId: string | null;
+};
+
+/**
  * Processes Gmail history deltas for an account:
  * fetches newly added messages, parses RFC 8058 headers, upserts Subscriptions,
- * runs job classification + rejection actions, and advances historyId.
+ * runs job classification + rejection actions, and advances `historyId`.
+ *
+ * Does not update `lastSyncedAt` — callers that own the job-query watermark
+ * (Sync Inbox) commit that after the full pipeline finishes.
  */
 export async function processInboxDelta(
   emailAddress: string,
   notificationHistoryId: string
-): Promise<void> {
+): Promise<InboxDeltaResult> {
   const account = await prisma.account.findUnique({
     where: { email: emailAddress },
     include: { settings: true },
   });
 
   if (!account || !account.isActive || !account.encryptedAccess) {
-    console.warn(`Ignoring delta for unknown/inactive account: ${emailAddress}`);
-    return;
+    logStory(
+      syncLog,
+      "Delta skipped — account inactive or credentials missing",
+      { mailbox: emailAddress },
+      "warn"
+    );
+    return { messageIds: [], historyExpired: false, historyId: null };
   }
 
   const gmail = await getGmailClientForAccount(account);
   const startHistoryId = account.historyId ?? notificationHistoryId;
 
+  logStory(syncLog, "Step 1/4 — History delta", {
+    mailbox: emailAddress,
+    "starting from historyId": startHistoryId,
+    note: "asking Gmail: what changed since this tip?",
+  });
+
   let latestHistoryId = notificationHistoryId;
+  let messageIds: string[] = [];
+  let historyExpired = false;
 
   try {
-    const messageIds = await collectAddedMessageIds(gmail, startHistoryId);
+    messageIds = await collectAddedMessageIds(gmail, startHistoryId);
+    logStory(
+      syncLog,
+      messageIds.length === 0
+        ? "Delta found 0 new message(s) to digest (inbox quiet since last tip)."
+        : `Delta found ${messageIds.length} new message(s) to digest — processing subscriptions + classification…`
+    );
 
     for (const messageId of messageIds) {
       try {
         await processMessage(gmail, account, messageId);
       } catch (error) {
-        console.error(
-          `Failed to process message ${messageId} for ${emailAddress}`,
-          error
+        syncLog.error(
+          { err: error, messageId, emailAddress },
+          "Failed to process message during delta"
         );
       }
     }
@@ -17312,11 +21103,18 @@ export async function processInboxDelta(
     }
   } catch (error) {
     if (isHistoryExpiredError(error)) {
-      console.warn(
-        `History ID expired for ${emailAddress}; re-registering watch`
+      // History store no longer has startHistoryId — renew watch and signal
+      // callers to use a wider lookback (gap cannot be replayed via History API).
+      logStory(
+        syncLog,
+        "History tip expired (Gmail 404). Renewing watch; Sync Inbox will use a wider time lookback. Gap cannot be replayed via History API.",
+        { mailbox: emailAddress },
+        "warn"
       );
       const watch = await registerInboxWatch(gmail);
       latestHistoryId = watch.historyId;
+      historyExpired = true;
+      messageIds = [];
     } else {
       throw error;
     }
@@ -17326,9 +21124,20 @@ export async function processInboxDelta(
     where: { id: account.id },
     data: {
       historyId: latestHistoryId,
-      lastSyncedAt: new Date(),
     },
   });
+
+  logStory(syncLog, "Delta done", {
+    digested: `${messageIds.length} message(s)`,
+    "historyId advanced to": latestHistoryId,
+    lastSyncedAt: "not touched (Sync Inbox owns that watermark)",
+  });
+
+  return {
+    messageIds,
+    historyExpired,
+    historyId: latestHistoryId,
+  };
 }
 
 async function collectAddedMessageIds(
@@ -17506,7 +21315,10 @@ async function processMessage(
 /**
  * Persists LLM classification: APPLICATION_STATUS → JobApplication;
  * DIRECT_RECRUITER / JOB_BOARD_DIGEST → EmailMessage + JobOpportunity rows.
- * Returns how many new opportunities were created (digests may yield many).
+ *
+ * Opportunity rows use 3-tier dedupe (see `findMatchingOpportunity`):
+ * same `emailMessageId` → company+title+location → create.
+ * Never unique-indexes `emailMessageId` alone (digests yield many roles).
  */
 export async function persistClassifiedEmail(input: {
   gmail: gmail_v1.Gmail;
@@ -17867,43 +21679,26 @@ export async function persistClassifiedEmail(input: {
     // Visibility vs threshold is evaluated at read time; do not persist soft-archive.
     const isAlreadyApplied = Boolean(job.isAlreadyApplied);
 
-    // Scoped dedupe: exact (company + title), else upgrade a placeholder
-    // for this company. Never overwrite a different real role at the company.
-    let existing = await prisma.jobOpportunity.findFirst({
-      where: {
-        accountId: account.id,
-        company: { equals: cleanCompany, mode: "insensitive" },
-        title: { equals: cleanTitle, mode: "insensitive" },
-      },
+    // Multi-tier dedupe: same-email → company+title+location → create.
+    // Shared by webhook delta, Sync Inbox, and historical scan (all call this).
+    const match = await findMatchingOpportunity({
+      accountId: account.id,
+      emailMessageId: emailMessage.id,
+      company: cleanCompany,
+      title: cleanTitle,
+      location: job.location,
+      applyUrl: job.applyUrl,
+      isAlreadyApplied,
     });
 
-    let upgradingPlaceholder = false;
-    if (!existing && isAlreadyApplied && !isGenericTitle(cleanTitle, cleanCompany)) {
-      existing = await prisma.jobOpportunity.findFirst({
-        where: {
-          accountId: account.id,
-          company: { equals: cleanCompany, mode: "insensitive" },
-          OR: [
-            { title: { equals: "Applied Position", mode: "insensitive" } },
-            { title: { equals: "Applicant", mode: "insensitive" } },
-            {
-              title: {
-                equals: genericRoleTitle(cleanCompany),
-                mode: "insensitive",
-              },
-            },
-          ],
-        },
-        orderBy: { receivedAt: "desc" },
-      });
-      upgradingPlaceholder = Boolean(existing);
+    if (match.kind === "suppress") {
+      // DISMISSED / user-archived — do not overwrite or re-create.
+      continue;
     }
 
-    if (existing) {
-      const userArchived =
-        existing.status !== "DISMISSED" &&
-        existing.isArchived &&
-        existing.previousStatus != null;
+    if (match.kind === "update") {
+      const existing = match.row;
+      const upgradingPlaceholder = match.upgradingPlaceholder;
 
       // Upgrade to APPLIED when email confirms application; never reset
       // APPLIED / DISMISSED / REVIEW_READY back to DISCOVERED.
@@ -17925,7 +21720,6 @@ export async function persistClassifiedEmail(input: {
         existing.status === "APPLIED" ||
         existing.status === "DISMISSED" ||
         existing.status === "REVIEW_READY" ||
-        userArchived ||
         resolvedStatus === "APPLIED";
 
       const appliedAt =
@@ -17959,13 +21753,11 @@ export async function persistClassifiedEmail(input: {
           status: resolvedStatus,
           appliedAt,
           emailMessageId: emailMessage.id,
-          // Preserve user archives only; never persist below-threshold soft-hide.
           isArchived: preserveLifecycle
             ? resolvedStatus === "APPLIED"
               ? false
               : existing.isArchived
             : false,
-          // Clear user-archive markers once promoted to APPLIED.
           ...(resolvedStatus === "APPLIED"
             ? { previousStatus: null, dismissedAt: null }
             : {}),
@@ -17976,6 +21768,7 @@ export async function persistClassifiedEmail(input: {
       continue;
     }
 
+    // ── Tier 3: insert ────────────────────────────────────────────────────
     const initialStatus = isAlreadyApplied ? "APPLIED" : "DISCOVERED";
 
     await prisma.jobOpportunity.create({

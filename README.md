@@ -145,6 +145,17 @@ Use `.env.example` as the source of truth. Key variables:
 - Protect cron routes with `Authorization: ******
 - Ensure all OAuth tokens are encrypted via `TOKEN_ENCRYPTION_KEY`
 
+## Tailored Resume Architecture: Intermediate Document Tree Flow
+
+Tailoring used to digest a job and immediately freeze the result into a base64 PDF. That buffer could not be edited line by line, and a later model pass had to see the whole document, which drifted unrelated bullets. The draft is now a line-addressable tree stored on `JobOpportunity.tailoredResumeData`. PDF and DOCX compilation happens only when you export or send.
+
+1. **Digestion.** `tailorResumeForJob` still chooses summary, skills, experiences, and projects. `digestTailoredResume` maps that result plus the master profile into a `TailoredResumeDraft` (`lib/types/resume-draft.ts`) and saves it. This step does not render a PDF.
+2. **Draft workspace.** The review dialog shows a Letter sheet (8.5in by at least 11in, with the same padding, type size, and section rules as the PDF). Each node is click-to-edit. A checkbox sets `selected` so a line stays in the tree but drops out of export. Up and down reorder sibling nodes.
+3. **Surgical AI refinement.** `refineSingleResumeNode` sends only that node's `content` and the instruction to the model, then writes the returned string back onto that one node.
+4. **Export compilation.** `compileResumeDocument` keeps nodes with `selected === true` whose parent is also selected, then builds a PDF (cached on `tailoredResumePdf`) or a DOCX download.
+
+`ResumeDraftNode` fields: `id`, `type` (`header`, `summary`, `skill_group`, `experience_header`, `experience_bullet`, `project_header`, `project_bullet`, `education_item`), `section`, optional `parentId`, `content`, `selected`, and optional `metadata`. `TailoredResumeDraft` also stores `opportunityId`, `exportConfig` (`includeSummary`, `pageBudget`), and `updatedAt`.
+
 ## Status
 
 MailPilot is currently in early access.

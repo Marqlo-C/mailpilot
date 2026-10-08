@@ -535,7 +535,7 @@ export function OpportunityCard({
               )
             ) : (
               <span className="inline-flex items-center rounded-lg border border-border/40 bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground/60">
-                No apply link detected
+                No link detected
               </span>
             )
           ) : null}
