@@ -16,7 +16,11 @@ import { Logo, NavLogo } from "@/components/brand/logo";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { GlobalSyncTracker } from "@/components/layout/global-sync-tracker";
 import { SyncStatusProvider } from "@/components/layout/sync-status-provider";
-import { SyncTelemetry } from "@/components/opportunities/sync-telemetry";
+import { TabRailProvider } from "@/components/ui/segmented-tabs";
+import {
+  SyncStatusDot,
+  SyncTelemetry,
+} from "@/components/opportunities/sync-telemetry";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AccountSummary } from "@/lib/data";
@@ -32,10 +36,10 @@ const NAV = [
 const SHELL_TOP_BAND_CLASS = "flex h-[4.25rem] shrink-0 items-center";
 
 /**
- * First nav item (Overview) aligns with Job Radar / Subscriptions tab rails:
- * main `md:pt-6` (24px) + tab row `pt-2` (8px) = 32px → `pt-8`.
+ * First nav item (Overview) aligns with the Job Radar / Subscriptions toolbar.
+ * The tab rail fills the 4.25rem logo band; `mb-3` (12px) sits under it → `pt-3`.
  */
-const SHELL_NAV_CLASS = "flex flex-1 flex-col gap-1 px-3 pb-3 pt-8";
+const SHELL_NAV_CLASS = "flex flex-1 flex-col gap-1 px-3 pb-3 pt-3";
 
 type AppShellProps = {
   accounts: AccountSummary[];
@@ -56,6 +60,9 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [statusFlyout, setStatusFlyout] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);
+  const toggleSidebar = () => setCollapsed((open) => !open);
   /** Desktop sidebar widths: expanded w-60 (240px), collapsed w-[72px]. */
   const sidebarWidthPx = collapsed ? 72 : 240;
 
@@ -89,15 +96,28 @@ export function AppShell({
       initialIsSyncing={initialIsSyncing}
       initialPendingClassificationCount={initialPendingClassificationCount}
     >
+    <TabRailProvider accountId={activeAccountId}>
     <div className="min-h-screen md:flex">
       <GlobalSyncTracker />
 
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-white/10 bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))] transition-[width] duration-200 md:flex",
+          "sticky top-0 z-30 hidden h-screen shrink-0 cursor-pointer flex-col border-r border-white/10 bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))] transition-[width] duration-200 md:flex",
           collapsed ? "w-[72px]" : "w-60"
         )}
+        onClick={(event) => {
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          if (
+            target.closest(
+              "a, button, input, select, textarea, [role='menuitem'], [data-sync-pill]"
+            )
+          ) {
+            return;
+          }
+          toggleSidebar();
+        }}
       >
         <div
           className={cn(
@@ -116,52 +136,170 @@ export function AppShell({
                 ? pathname === "/"
                 : pathname.startsWith(item.href);
             const Icon = item.icon;
+            const showCollapsedStatus = collapsed && item.href === "/jobs";
+            const showJobRadarStatus = !collapsed && item.href === "/jobs";
             return (
-              <Link
+              <div
                 key={item.href}
-                href={item.href}
-                title={item.label}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                  collapsed && "justify-center px-2",
+                  "flex w-full items-center rounded-md text-sm transition-colors",
+                  showCollapsedStatus && "justify-center",
                   active
                     ? "bg-white/10 text-white"
                     : "text-white/65 hover:bg-white/5 hover:text-white"
                 )}
               >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
-              </Link>
+                <div
+                  className={cn(
+                    "relative flex items-center",
+                    showCollapsedStatus && "mx-auto",
+                    !showCollapsedStatus && !showJobRadarStatus && "w-full",
+                    showJobRadarStatus && "w-auto shrink-0"
+                  )}
+                  onPointerLeave={
+                    showCollapsedStatus
+                      ? (event) => {
+                          const next = event.relatedTarget;
+                          if (
+                            next instanceof Node &&
+                            event.currentTarget.contains(next)
+                          ) {
+                            return;
+                          }
+                          setStatusFlyout(false);
+                        }
+                      : undefined
+                  }
+                >
+                <Link
+                  href={item.href}
+                  title={item.label}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2",
+                    collapsed && !showCollapsedStatus && "w-full justify-center px-2",
+                    showCollapsedStatus && "px-2",
+                    !collapsed && !showJobRadarStatus && "w-full",
+                    showJobRadarStatus && "w-auto shrink-0 pr-0"
+                  )}
+                >
+                  <span className="relative shrink-0">
+                    <Icon className="h-4 w-4" />
+                    {showCollapsedStatus ? (
+                      <SyncStatusDot
+                        connected={Boolean(activeAccountId)}
+                        className={statusFlyout ? "opacity-0" : undefined}
+                      />
+                    ) : null}
+                  </span>
+                  {!collapsed && (
+                    <span className="whitespace-nowrap">
+                      {item.label}
+                    </span>
+                  )}
+                </Link>
+                {showCollapsedStatus ? (
+                  <div
+                    className="absolute right-0 top-0 z-[120] h-5 w-5"
+                    onPointerEnter={() => setStatusFlyout(true)}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    {statusFlyout ? (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2">
+                        <SyncTelemetry
+                          connected={Boolean(activeAccountId)}
+                          surface="sidebar"
+                          restAsDot
+                          forceOpen
+                          className="shrink-0"
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                </div>
+                {showJobRadarStatus ? (
+                  <Link
+                    href={item.href}
+                    tabIndex={-1}
+                    aria-hidden
+                    className="h-8 min-w-0 flex-1"
+                  />
+                ) : null}
+                {showJobRadarStatus ? (
+                  <div
+                    className="relative mr-3 size-6 shrink-0"
+                    onPointerEnter={() => setRailOpen(true)}
+                    onPointerLeave={(event) => {
+                      const next = event.relatedTarget;
+                      if (
+                        next instanceof Node &&
+                        event.currentTarget.contains(next)
+                      ) {
+                        return;
+                      }
+                      setRailOpen(false);
+                    }}
+                  >
+                    <div className="absolute left-0 top-1/2 z-[100] -translate-y-1/2">
+                      <SyncTelemetry
+                        connected={Boolean(activeAccountId)}
+                        surface="sidebar"
+                        restAsDot
+                        forceOpen={railOpen}
+                        className="shrink-0"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             );
           })}
         </nav>
 
-        <div className="space-y-3 border-t border-white/10 p-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start text-white/70 hover:bg-white/5 hover:text-white"
-            onClick={() => setCollapsed((v) => !v)}
-          >
-            {collapsed ? (
-              <PanelLeftOpen className="h-4 w-4" />
-            ) : (
-              <>
-                <PanelLeftClose className="h-4 w-4" />
-                Collapse
-              </>
+        <div
+          className={cn(
+            "space-y-2 border-t border-white/10 p-3",
+            collapsed && "flex flex-col items-center px-2"
+          )}
+        >
+          <AccountSwitcher
+            accounts={accounts}
+            activeAccountId={activeAccountId}
+            activeEmail={activeEmail}
+            surface="sidebar"
+            collapsed={collapsed}
+          />
+          <div
+            className={cn(
+              "flex w-full",
+              collapsed ? "justify-center" : "justify-end"
             )}
-          </Button>
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="size-8 px-0 text-white/70 hover:bg-white/5 hover:text-white"
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              onClick={toggleSidebar}
+            >
+              {collapsed ? (
+                <PanelLeftOpen className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
-        {/* Top bar — account dropdown always available */}
+        {/* Mobile top bar. Desktop sync status sits beside Job Radar. */}
         <header
           className={cn(
             SHELL_TOP_BAND_CLASS,
-            "sticky top-0 z-30 justify-between gap-3 border-b border-border/80 bg-gradient-to-b from-card from-55% via-card/70 to-card/30 px-4 backdrop-blur-md md:px-6"
+            "sticky top-0 z-30 justify-between gap-3 border-b border-border/80 bg-gradient-to-b from-card from-55% via-card/70 to-card/30 px-4 backdrop-blur-md md:hidden"
           )}
         >
           <div className="shrink-0 md:hidden">
@@ -187,7 +325,7 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-6 md:px-6 md:pt-6 md:pb-8">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-6 md:px-6 md:pb-8 md:pt-[4.25rem]">
           {children}
         </main>
       </div>
@@ -222,6 +360,7 @@ export function AppShell({
         </ul>
       </nav>
     </div>
+    </TabRailProvider>
     </SyncStatusProvider>
   );
 }

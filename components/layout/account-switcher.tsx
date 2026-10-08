@@ -1,12 +1,11 @@
 "use client";
 
 import { useTransition } from "react";
-import { Check, ChevronsUpDown, LogOut, Plus } from "lucide-react";
+import { Check, ChevronsUpDown, LogOut, Plus, UserCog } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { setActiveAccount } from "@/app/actions/accounts";
 import { logoutSession } from "@/app/actions/auth";
-import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -23,12 +22,18 @@ type AccountSwitcherProps = {
   accounts: AccountSummary[];
   activeAccountId: string | null;
   activeEmail?: string | null;
+  /** Sidebar placement opens the menu into the content column. */
+  surface?: "header" | "sidebar";
+  /** Collapsed sidebar: icon trigger only. */
+  collapsed?: boolean;
 };
 
 export function AccountSwitcher({
   accounts,
   activeAccountId,
   activeEmail,
+  surface = "header",
+  collapsed = false,
 }: AccountSwitcherProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -41,17 +46,32 @@ export function AccountSwitcher({
         <Button
           variant="outline"
           size="sm"
-          className="max-w-[260px] justify-between gap-2"
+          className={cn(
+            "max-w-[260px] justify-between gap-2",
+            surface === "sidebar" &&
+              !collapsed &&
+              "w-full max-w-none border-white/15 bg-white/10 text-[hsl(var(--sidebar-foreground))] hover:bg-white/15 hover:text-white",
+            collapsed &&
+              "h-auto w-full max-w-none justify-center border-0 bg-transparent px-2 py-2 text-white/65 shadow-none hover:bg-white/5 hover:text-white"
+          )}
           disabled={pending}
+          aria-label={collapsed ? label : undefined}
+          title={collapsed ? label : undefined}
         >
           <span className="flex min-w-0 items-center gap-2">
-            <Logo variant="icon" size="xs" showWordmark={false} />
-            <span className="truncate">{label}</span>
+            <UserCog className="h-3.5 w-3.5 shrink-0" />
+            {collapsed ? null : <span className="truncate">{label}</span>}
           </span>
-          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+          {collapsed ? null : (
+            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+          )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72">
+      <DropdownMenuContent
+        side={surface === "sidebar" ? "right" : "bottom"}
+        align="end"
+        className="w-72"
+      >
         <DropdownMenuLabel>Connected accounts</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {accounts.length === 0 ? (

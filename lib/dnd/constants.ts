@@ -19,7 +19,7 @@ export const DND_REORDER_EDGE_PX = 6;
  */
 export const DND_PAGE_EDGE_PX = 56;
 
-/** Top-bar height matching AppShell `h-[4.25rem]`. */
+/** Mobile top-bar height matching AppShell `h-[4.25rem]`. Desktop has no top bar. */
 const PAGE_FLIP_TOP_REM = 4.25;
 /** Page-flip button size matching `size-7`. */
 const PAGE_FLIP_BUTTON_REM = 1.75;
@@ -83,7 +83,8 @@ export function pageFlipDirFromPointer(
 ): -1 | 1 | null {
   if (typeof window === "undefined" || totalPages <= 1) return null;
 
-  const wellTop = remToPx(PAGE_FLIP_TOP_REM);
+  const desktop = window.matchMedia("(min-width: 768px)").matches;
+  const wellTop = desktop ? 0 : remToPx(PAGE_FLIP_TOP_REM);
   const wellBottom =
     window.innerHeight - cssLengthPx("--app-mobile-bottom-inset", 0);
   const centerY = (wellTop + wellBottom) / 2;

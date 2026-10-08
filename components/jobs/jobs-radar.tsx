@@ -62,8 +62,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  segmentedTabsListClassName,
-  segmentedTabsTriggerClassName,
+  tabRailRowClassName,
+  useTabRailClasses,
   TabCountBadge,
 } from "@/components/ui/segmented-tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -126,6 +126,10 @@ export function JobsRadar({
   retentionDays = 30,
 }: JobsRadarProps) {
   const router = useRouter();
+  const {
+    listClassName: segmentedTabsListClassName,
+    triggerClassName: segmentedTabsTriggerClassName,
+  } = useTabRailClasses();
   const [pending, startTransition] = useTransition();
   const [portalJob, setPortalJob] = useState<JobApplication | null>(null);
   const [draftJob, setDraftJob] = useState<JobApplication | null>(null);
@@ -301,7 +305,7 @@ export function JobsRadar({
   return (
     <div>
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <div className="mb-3 flex flex-col justify-between gap-3 pt-2 sm:flex-row sm:items-center">
+        <div className={tabRailRowClassName}>
           <div className="flex items-center gap-1.5">
             <TabsList className={segmentedTabsListClassName}>
               <TabsTrigger
