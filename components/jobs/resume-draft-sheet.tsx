@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { skillCategoryLabel } from "@/lib/skill-groups";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/types/resume-draft";
 import { cn } from "@/lib/utils";
 
@@ -16,13 +17,6 @@ const SECTION_LABEL: Record<ResumeDraftNode["section"], string | null> = {
   experience: "Experience",
   projects: "Projects",
   education: "Education",
-};
-
-const SKILL_LABEL: Record<string, string> = {
-  languages: "Languages",
-  frameworks: "Frameworks",
-  tools: "Tools",
-  concepts: "Concepts",
 };
 
 const SECTION_HEADING_CLASS =
@@ -83,9 +77,7 @@ function datesFor(node: ResumeDraftNode): string | null {
 }
 
 function skillLabel(node: ResumeDraftNode): string | null {
-  const category =
-    typeof node.metadata?.category === "string" ? node.metadata.category : "";
-  return SKILL_LABEL[category] ?? null;
+  return skillCategoryLabel(node);
 }
 
 function projectTrailing(node: ResumeDraftNode): string | null {
@@ -341,7 +333,7 @@ export function ResumeDraftSheet({
                           >
                             {skillIndex > 0 ? <span> • </span> : null}
                             {label ? (
-                              <span className="font-semibold text-slate-950">
+                              <span className="font-bold text-slate-900">
                                 {label}:{" "}
                               </span>
                             ) : null}
@@ -350,7 +342,7 @@ export function ResumeDraftSheet({
                               value={node.content}
                               disabled={disabled}
                               onCommit={(next) => onCommit(node.id, next)}
-                              className="font-normal text-[#111827] outline-none focus:bg-[#f8fafc]"
+                              className="font-normal text-slate-700 outline-none focus:bg-[#f8fafc]"
                             />
                           </span>
                         );
@@ -396,7 +388,10 @@ export function ResumeDraftSheet({
                     disabled={disabled}
                     aria-label="Include line in export"
                     onCheckedChange={(checked) => onToggle(node.id, checked)}
-                    className="absolute -left-6 top-[2px] h-3.5 w-3.5 opacity-40 transition-opacity group-hover:opacity-100"
+                    className={cn(
+                      "absolute -left-6 h-3.5 w-3.5 opacity-40 transition-opacity group-hover:opacity-100",
+                      node.type === "header" ? "top-2" : "top-[2px]"
+                    )}
                   />
                   <div
                     className={cn(

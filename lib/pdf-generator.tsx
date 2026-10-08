@@ -15,6 +15,8 @@ import type {
   ProjectInput,
   WorkExperienceInput,
 } from "@/lib/validations/profile";
+import { skillGroupsFromUnknown } from "@/lib/skill-groups";
+import type { SkillGroup } from "@/lib/types/resume-draft";
 import { cleanDisplayUrl, dedupeContactItems } from "@/lib/utils/format";
 
 /** @deprecated Prefer cleanDisplayUrl from @/lib/utils/format */
@@ -83,6 +85,10 @@ const styles = StyleSheet.create({
     fontSize: 9,
     lineHeight: 1.4,
   },
+  skillLabel: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 9,
+  },
 });
 
 type PdfInput = {
@@ -95,6 +101,7 @@ type PdfInput = {
   headerName?: string | null;
   contactLine?: string | null;
   education?: MasterProfileInput["education"] | null;
+  skillGroups?: SkillGroup[] | null;
 };
 
 const INVERTED_LOGO_PATH = path.join(
@@ -133,22 +140,6 @@ export function buildResumeContactLine(profile: MasterProfileInput): string {
   return contactElements.join(" • ");
 }
 
-function formatInlineSkills(skills: MasterProfileInput["skills"]): string {
-  const groups: Array<[string, string[]]> = [
-    ["Languages", skills.languages],
-    ["Frameworks", skills.frameworks],
-    ["Tools", skills.tools],
-    ["Concepts", skills.concepts],
-  ];
-  return groups
-    .map(([label, items]) => {
-      const values = items.map((item) => item.trim()).filter(Boolean);
-      return values.length > 0 ? `${label}: ${values.join(", ")}` : "";
-    })
-    .filter(Boolean)
-    .join(" • ");
-}
-
 function ResumeDocument({
   profile,
   experiences,
@@ -159,6 +150,7 @@ function ResumeDocument({
   headerName,
   contactLine,
   education,
+  skillGroups,
 }: PdfInput) {
   const contact = contactLine?.trim() || buildResumeContactLine(profile);
   const displayName = headerName?.trim() || profile.fullName;
@@ -167,18 +159,15 @@ function ResumeDocument({
   const showSummary =
     includeSummary !== false &&
     Boolean((tailoredSummary ?? profile.summary)?.trim());
-  const activeSkills = tailoredSkills;
-  const skillSource =
-    activeSkills &&
-    [
-      ...activeSkills.languages,
-      ...activeSkills.frameworks,
-      ...activeSkills.tools,
-      ...activeSkills.concepts,
-    ].some(Boolean)
-      ? activeSkills
-      : profile.skills;
-  const skills = formatInlineSkills(skillSource);
+  const explicitGroups = skillGroups?.filter((group) => group.items.length > 0);
+  const resolvedGroups =
+    explicitGroups && explicitGroups.length > 0
+      ? explicitGroups
+      : skillGroupsFromUnknown(tailoredSkills);
+  const renderedGroups =
+    resolvedGroups.length > 0
+      ? resolvedGroups
+      : skillGroupsFromUnknown(profile.skills);
 
   return (
     <Document>
@@ -197,10 +186,27 @@ function ResumeDocument({
           </View>
         ) : null}
 
-        {skills ? (
+        {renderedGroups.length > 0 ? (
           <View style={styles.section}>
             <Text style={styles.heading}>Skills</Text>
-            <Text style={styles.skills}>{skills}</Text>
+            <Text style={styles.skills}>
+              {renderedGroups.flatMap((group, index) => {
+                const items = group.items.join(", ").trim();
+                if (!items) return [];
+                const label = group.label.trim();
+                return [
+                  index > 0 ? (
+                    <Text key={`${index}-sep`}>{" • "}</Text>
+                  ) : null,
+                  label ? (
+                    <Text key={`${index}-label`} style={styles.skillLabel}>
+                      {`${label}: `}
+                    </Text>
+                  ) : null,
+                  <Text key={`${index}-items`}>{items}</Text>,
+                ];
+              })}
+            </Text>
           </View>
         ) : null}
 
@@ -298,6 +304,7 @@ export async function generateTailoredResumePdf(
     headerName?: string | null;
     contactLine?: string | null;
     education?: MasterProfileInput["education"] | null;
+    skillGroups?: SkillGroup[] | null;
   }
 ): Promise<Buffer> {
   const buffer = await renderToBuffer(
@@ -311,6 +318,7 @@ export async function generateTailoredResumePdf(
       headerName={overrides?.headerName}
       contactLine={overrides?.contactLine}
       education={overrides?.education}
+      skillGroups={overrides?.skillGroups}
     />
   );
   return Buffer.from(buffer);

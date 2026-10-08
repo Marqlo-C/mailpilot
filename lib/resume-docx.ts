@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 
 import { activeResumeNodes } from "@/lib/resume-draft";
+import { skillCategoryLabel } from "@/lib/skill-groups";
 import type {
   ResumeDraftNode,
   TailoredResumeDraft,
@@ -13,13 +14,6 @@ const SECTION_LABEL: Record<ResumeDraftNode["section"], string | null> = {
   experience: "EXPERIENCE",
   projects: "PROJECTS",
   education: "EDUCATION",
-};
-
-const SKILL_LABEL: Record<string, string> = {
-  languages: "Languages",
-  frameworks: "Frameworks",
-  tools: "Tools",
-  concepts: "Concepts",
 };
 
 function escapeXml(value: string): string {
@@ -98,14 +92,12 @@ function datesFor(node: ResumeDraftNode): string | null {
 function skillLine(groups: ResumeDraftNode[]): string {
   const runs: string[] = [];
   groups.forEach((group) => {
-    const category =
-      typeof group.metadata?.category === "string" ? group.metadata.category : "";
-    const label = SKILL_LABEL[category] ?? "Skills";
-    const values = group.content.trim();
-    if (!values) return;
+    const itemsString = group.content.trim();
+    if (!itemsString) return;
+    const categoryLabel = skillCategoryLabel(group);
     if (runs.length > 0) runs.push(run(" • "));
-    runs.push(run(`${label}: `, { bold: true }));
-    runs.push(run(values));
+    if (categoryLabel) runs.push(run(`${categoryLabel}: `, { bold: true }));
+    runs.push(run(itemsString, { bold: false }));
   });
   return bodyParagraph(runs.join("") || run(""));
 }
