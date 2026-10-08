@@ -608,7 +608,7 @@ export function ToolbarTelemetry({
         <button
           type="button"
           onClick={onResetFilters}
-          className="ml-1.5 cursor-pointer text-xs font-medium text-teal-600 underline underline-offset-2 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300"
+          className="ml-1.5 cursor-pointer text-[11px] font-medium text-teal-600 underline underline-offset-2 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300"
         >
           Reset filters
         </button>

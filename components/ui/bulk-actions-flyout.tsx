@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type AnimationEvent,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 
 import { CancelTaskButton } from "@/components/ui/cancel-task-button";
 import { TabCountBadge } from "@/components/ui/segmented-tabs";
@@ -117,36 +124,26 @@ type BulkActionsFlyoutProps = {
 
 type FlyoutPhase = "prep" | "in" | "idle" | "out";
 
-/**
- * Fixed bottom selection flyout (Job Radar / Subscriptions).
- * Outer shell keeps content-center `translateX(-50%)` stable; enter overshoots;
- * exit slides pills together then folds down.
- */
-export function BulkActionsFlyout({
-  selectedCount,
-  onCancel,
-  children,
-  trailing,
-  className,
-  label = "Bulk actions toolbar",
-}: BulkActionsFlyoutProps) {
+/** Same enter/exit timing as the selection flyout. */
+export function useFlyoutPresence(open: boolean) {
   const [mounted, setMounted] = useState(false);
   const [phase, setPhase] = useState<FlyoutPhase>("prep");
   const phaseRef = useRef<FlyoutPhase>("prep");
   const mountedRef = useRef(false);
-  const cancelPendingRef = useRef(false);
+  const openRef = useRef(open);
   phaseRef.current = phase;
   mountedRef.current = mounted;
+  openRef.current = open;
 
   useEffect(() => {
-    if (selectedCount > 0) {
-      cancelPendingRef.current = false;
-      // Already visible — don't restart enter when the count changes.
-      // (Do not depend on `mounted` state here: setMounted(true) used to
-      // re-run this effect, cancel the enter rAF, and leave opacity at 0.)
+    if (open) {
+      // A leave already running must finish. Restarting here loops when the
+      // sliding edge passes back under a cursor held just outside.
       if (
         mountedRef.current &&
-        (phaseRef.current === "in" || phaseRef.current === "idle")
+        (phaseRef.current === "in" ||
+          phaseRef.current === "idle" ||
+          phaseRef.current === "out")
       ) {
         return;
       }
@@ -164,7 +161,59 @@ export function BulkActionsFlyout({
       }, 16);
       return () => window.clearTimeout(timer);
     }
-    if (mountedRef.current) setPhase("out");
+    if (mountedRef.current && phaseRef.current !== "out") setPhase("out");
+  }, [open]);
+
+  function onAnimationEnd(event: AnimationEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) return;
+    const name = event.animationName;
+    if (phaseRef.current === "in" && name.includes("mp-flyout-pop")) {
+      setPhase("idle");
+      return;
+    }
+    if (phaseRef.current === "out" && name.includes("mp-flyout-retract")) {
+      if (openRef.current) {
+        setPhase("prep");
+        window.setTimeout(() => {
+          if (phaseRef.current === "prep" && openRef.current) setPhase("in");
+        }, 16);
+        return;
+      }
+      setMounted(false);
+      setPhase("prep");
+    }
+  }
+
+  const style: CSSProperties | undefined =
+    phase === "prep"
+      ? { opacity: 0, transform: "scale(0.15) translateY(5px)" }
+      : phase === "idle"
+        ? { opacity: 1, transform: "scale(1) translateY(0)" }
+        : undefined;
+
+  return { mounted, phase, style, onAnimationEnd };
+}
+
+/**
+ * Fixed bottom selection flyout (Job Radar / Subscriptions).
+ * Outer shell keeps content-center `translateX(-50%)` stable; enter overshoots;
+ * exit slides pills together then folds down.
+ */
+export function BulkActionsFlyout({
+  selectedCount,
+  onCancel,
+  children,
+  trailing,
+  className,
+  label = "Bulk actions toolbar",
+}: BulkActionsFlyoutProps) {
+  const cancelPendingRef = useRef(false);
+  const { mounted, phase, style, onAnimationEnd } = useFlyoutPresence(
+    selectedCount > 0
+  );
+
+  useEffect(() => {
+    if (selectedCount > 0) cancelPendingRef.current = false;
   }, [selectedCount]);
 
   if (!mounted) return null;
@@ -189,28 +238,8 @@ export function BulkActionsFlyout({
           phase === "in" && "mp-flyout-pop",
           phase === "out" && "mp-flyout-retract"
         )}
-        style={
-          phase === "prep"
-            ? { opacity: 0, transform: "scale(0.15) translateY(5px)" }
-            : phase === "idle"
-              ? { opacity: 1, transform: "scale(1) translateY(0)" }
-              : undefined
-        }
-        onAnimationEnd={(event) => {
-          if (event.target !== event.currentTarget) return;
-          const name = event.animationName;
-          if (phaseRef.current === "in" && name.includes("mp-flyout-pop")) {
-            setPhase("idle");
-            return;
-          }
-          if (
-            phaseRef.current === "out" &&
-            name.includes("mp-flyout-retract")
-          ) {
-            setMounted(false);
-            setPhase("prep");
-          }
-        }}
+        style={style}
+        onAnimationEnd={onAnimationEnd}
       >
         <div className={cn("mp-flyout-chunk", BULK_FLYOUT_PILL_CLASSNAME)}>
           {children}
