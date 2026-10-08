@@ -18,6 +18,7 @@ import {
   markLessLikeThis,
 } from "@/app/actions/opportunities";
 import { DragGhost } from "@/components/dnd/drag-ghost";
+import { PageFlipBumpers } from "@/components/dnd/page-flip-bumpers";
 import {
   OpportunityCard,
   type OpportunityCardVariant,
@@ -524,6 +525,13 @@ export function OpportunitiesView({
         pageFlipDir={drag?.pageFlipDir ?? null}
         outsideList={drag?.outsideList ?? false}
         stackItems={dragStackItems}
+      />
+      <PageFlipBumpers
+        active={Boolean(drag?.active)}
+        pageFlipDir={drag?.pageFlipDir ?? null}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        dropZone={drag?.dropZone ?? null}
       />
 
       <PipelineToolbar
