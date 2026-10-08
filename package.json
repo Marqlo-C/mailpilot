@@ -10,7 +10,7 @@
     "postinstall": "prisma generate",
     "cleanup:duplicates": "npx tsx scripts/cleanup-duplicates.ts",
     "ollama:bridge": "node scripts/ollama-bridge.mjs",
-    "bundle": "repomix --include 'lib/**,prisma/**,app/actions/**,types/**'"
+    "bundle": "npx repomix@latest --include 'lib/**,prisma/**,app/actions/**,app/api/**,types/**' --watch"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

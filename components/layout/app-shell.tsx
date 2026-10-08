@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 import type { AccountSummary } from "@/lib/data";
 
 const NAV = [
-  { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/", label: "Console", icon: LayoutDashboard },
   { href: "/subscriptions", label: "Subscriptions", icon: Mail },
   { href: "/jobs", label: "Job Radar", icon: Briefcase },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -36,7 +36,7 @@ const NAV = [
 const SHELL_TOP_BAND_CLASS = "flex h-[4.25rem] shrink-0 items-center";
 
 /**
- * First nav item (Overview) aligns with the Job Radar / Subscriptions toolbar.
+ * First nav item (Console) aligns with the Job Radar / Subscriptions toolbar.
  * The tab rail fills the 4.25rem logo band; `mb-3` (12px) sits under it → `pt-3`.
  */
 const SHELL_NAV_CLASS = "flex flex-1 flex-col gap-1 px-3 pb-3 pt-3";
@@ -61,6 +61,7 @@ export function AppShell({
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [statusFlyout, setStatusFlyout] = useState(false);
+  const [statusFlyoutHeld, setStatusFlyoutHeld] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const toggleSidebar = () => setCollapsed((open) => !open);
   /** Desktop sidebar widths: expanded w-60 (240px), collapsed w-[72px]. */
@@ -187,7 +188,7 @@ export function AppShell({
                     {showCollapsedStatus ? (
                       <SyncStatusDot
                         connected={Boolean(activeAccountId)}
-                        className={statusFlyout ? "opacity-0" : undefined}
+                        className={statusFlyoutHeld ? "opacity-0" : undefined}
                       />
                     ) : null}
                   </span>
@@ -204,17 +205,17 @@ export function AppShell({
                     onClick={(event) => event.stopPropagation()}
                   >
                     <div className="absolute -inset-2" />
-                    {statusFlyout ? (
-                      <div className="absolute left-1/2 top-1/2 -translate-x-[calc(1px+0.625rem+0.1875rem)] -translate-y-[calc(1px+0.25rem+0.5rem)]">
-                        <SyncTelemetry
-                          connected={Boolean(activeAccountId)}
-                          surface="sidebar"
-                          restAsDot
-                          forceOpen
-                          className="shrink-0"
-                        />
-                      </div>
-                    ) : null}
+                    <div className="absolute left-1/2 top-1/2 -translate-x-[calc(1px+0.625rem+0.1875rem)] -translate-y-1/2">
+                      <SyncTelemetry
+                        connected={Boolean(activeAccountId)}
+                        surface="sidebar"
+                        restAsDot
+                        overlay
+                        forceOpen={statusFlyout}
+                        onPresenceChange={setStatusFlyoutHeld}
+                        className="shrink-0"
+                      />
+                    </div>
                   </div>
                 ) : null}
                 </div>

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition, type MouseEvent } from "react";
-import { XCircle } from "lucide-react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -11,6 +10,8 @@ import {
   SYNC_STARTED_EVENT,
   useSyncStatus,
 } from "@/components/layout/sync-status-provider";
+import { useFlyoutPresence } from "@/components/ui/bulk-actions-flyout";
+import { CancelTaskButton } from "@/components/ui/cancel-task-button";
 import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,10 @@ type SyncTelemetryProps = {
   restAsDot?: boolean;
   /** Show the expanded pill immediately (collapsed-sidebar dot hover). */
   forceOpen?: boolean;
+  /** Collapsed-sidebar overlay: nothing until the flyout opens. */
+  overlay?: boolean;
+  /** Fires while the enter/leave animation is on screen. */
+  onPresenceChange?: (mounted: boolean) => void;
 };
 
 /**
@@ -35,7 +40,9 @@ export function SyncTelemetry({
   surface = "header",
   compact = false,
   restAsDot = false,
-  forceOpen = false,
+  forceOpen: requestedOpen = false,
+  overlay = false,
+  onPresenceChange,
 }: SyncTelemetryProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -74,9 +81,7 @@ export function SyncTelemetry({
     });
   }
 
-  function handleFlushPending(event: MouseEvent<HTMLButtonElement>) {
-    event.preventDefault();
-    event.stopPropagation();
+  function handleFlushPending() {
     setFlushCount(pendingCount);
     setConfirmFlush(true);
   }
@@ -90,37 +95,66 @@ export function SyncTelemetry({
 
   const onSidebar = surface === "sidebar";
   const dotRest = restAsDot && !compact;
+  const presence = useFlyoutPresence(
+    Boolean(dotRest && (requestedOpen || confirmFlush))
+  );
+  // Stay expanded through the leave animation after the pointer has gone.
+  const forceOpen = dotRest && presence.mounted;
+
+  useEffect(() => {
+    onPresenceChange?.(presence.mounted);
+    return () => onPresenceChange?.(false);
+  }, [onPresenceChange, presence.mounted]);
+
+  function motionWrap(child: ReactNode) {
+    if (!forceOpen) return child;
+    return (
+      <div
+        className={cn(
+          "flex origin-center flex-nowrap items-center gap-2.5",
+          presence.phase === "in" && "mp-flyout-pop",
+          presence.phase === "out" && "mp-flyout-retract"
+        )}
+        style={presence.style}
+        onAnimationEnd={presence.onAnimationEnd}
+      >
+        {child}
+      </div>
+    );
+  }
+
+  if (overlay && !presence.mounted) return null;
   const restCircleClass = !dotRest
     ? ""
     : forceOpen
-      ? "h-auto w-max shrink-0 justify-start gap-1.5 whitespace-nowrap px-2.5 py-1 transition-[padding,gap,background-color,background-image,color,border-color]"
-      : "size-6 shrink-0 justify-center gap-0 whitespace-nowrap p-0 transition-[padding,gap,background-color,background-image,color,border-color] hover:!h-auto hover:!w-max hover:!justify-start hover:!gap-1.5 hover:!px-2.5 hover:!py-1";
+      ? "h-8 w-max shrink-0 justify-start gap-1.5 whitespace-nowrap px-2.5 py-0 transition-[padding,gap,background-color,background-image,color,border-color]"
+      : "size-6 shrink-0 justify-center gap-0 whitespace-nowrap p-0";
   /** Opaque sidebar plate plus the status tint, so the flyout is not see-through. */
   const restPlateMuted = !dotRest
     ? ""
     : forceOpen
       ? "!bg-[hsl(var(--sidebar))] !bg-[linear-gradient(rgb(255_255_255/0.1),rgb(255_255_255/0.1))]"
-      : "hover:!bg-[hsl(var(--sidebar))] hover:!bg-[linear-gradient(rgb(255_255_255/0.1),rgb(255_255_255/0.1))]";
+      : "";
   const restPlateSky = !dotRest
     ? ""
     : forceOpen
       ? "!bg-[hsl(var(--sidebar))] !bg-[linear-gradient(rgb(56_189_248/0.15),rgb(56_189_248/0.15))]"
-      : "hover:!bg-[hsl(var(--sidebar))] hover:!bg-[linear-gradient(rgb(56_189_248/0.15),rgb(56_189_248/0.15))]";
+      : "";
   const restPlateReady = !dotRest
     ? ""
     : forceOpen
       ? "!bg-[hsl(var(--sidebar))] !bg-[linear-gradient(rgb(52_211_153/0.15),rgb(52_211_153/0.15))]"
-      : "hover:!bg-[hsl(var(--sidebar))] hover:!bg-[linear-gradient(rgb(52_211_153/0.15),rgb(52_211_153/0.15))]";
+      : "";
   /** Awaiting-classification flyout matches the high-clutter score chip. */
   const restAwaitingClass = !dotRest
     ? ""
     : forceOpen
       ? "!border-[#c21f10] !bg-[hsl(var(--sidebar))] !bg-[linear-gradient(rgb(194_31_16/0.1),rgb(194_31_16/0.1))] !text-[#c21f10] dark:!border-[#fb6230] dark:!bg-[hsl(var(--sidebar))] dark:!bg-[linear-gradient(rgb(251_98_48/0.18),rgb(251_98_48/0.18))] dark:!text-[#fb6230]"
-      : "hover:!border-[#c21f10] hover:!bg-[hsl(var(--sidebar))] hover:!bg-[linear-gradient(rgb(194_31_16/0.1),rgb(194_31_16/0.1))] hover:!text-[#c21f10] dark:hover:!border-[#fb6230] dark:hover:!bg-[hsl(var(--sidebar))] dark:hover:!bg-[linear-gradient(rgb(251_98_48/0.18),rgb(251_98_48/0.18))] dark:hover:!text-[#fb6230]";
+      : "";
   const restLabelClass = dotRest
     ? forceOpen
       ? "inline whitespace-nowrap"
-      : "hidden whitespace-nowrap group-hover:inline"
+      : "hidden whitespace-nowrap"
     : "";
   const statusLabel = !connected
     ? "Offline"
@@ -142,6 +176,7 @@ export function SyncTelemetry({
         )}
         title={compact || dotRest ? statusLabel : undefined}
       >
+        {motionWrap(
         <div
           className={cn(
             "group inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-secondary/60 px-2.5 py-0.5 text-xs font-medium text-muted-foreground",
@@ -149,7 +184,8 @@ export function SyncTelemetry({
               "border-white/15 bg-white/10 text-white/70",
             compact && "px-2 py-2",
             restCircleClass,
-            restPlateMuted
+            restPlateMuted,
+            forceOpen && "mp-flyout-chunk"
           )}
         >
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-60" />
@@ -157,6 +193,7 @@ export function SyncTelemetry({
             <span className={restLabelClass}>Offline</span>
           )}
         </div>
+        )}
         {compact || onSidebar ? null : (
           <>
             <span className="text-border">•</span>
@@ -180,7 +217,7 @@ export function SyncTelemetry({
       title={compact || dotRest ? statusLabel : undefined}
     >
       {isSyncing ? (
-        <div
+        motionWrap(<div
           className={cn(
             "group flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-1 text-xs font-medium text-sky-700/80 dark:border-sky-400/40 dark:bg-sky-400/15 dark:text-sky-300/85",
             onSidebar &&
@@ -188,7 +225,8 @@ export function SyncTelemetry({
             compact && "px-2 py-2",
             onSidebar && !compact && !dotRest && "w-full whitespace-normal text-left",
             restCircleClass,
-            restPlateSky
+            restPlateSky,
+            forceOpen && "mp-flyout-chunk"
           )}
         >
           <span className="relative flex h-1.5 w-1.5 shrink-0">
@@ -204,13 +242,20 @@ export function SyncTelemetry({
           ) : (
             <span className={restLabelClass}>Syncing inbox…</span>
           )}
-        </div>
+        </div>)
       ) : pendingCount > 0 ? (
         <div
           className={cn(
-            "group/awaiting inline-flex items-center gap-1.5",
+            "group/awaiting",
+            forceOpen
+              ? "flex origin-center flex-nowrap items-center gap-2.5"
+              : "inline-flex items-center gap-1.5",
+            forceOpen && presence.phase === "in" && "mp-flyout-pop",
+            forceOpen && presence.phase === "out" && "mp-flyout-retract mp-flyout-retract-status",
             onSidebar && !compact && !dotRest && "w-full"
           )}
+          style={forceOpen ? presence.style : undefined}
+          onAnimationEnd={forceOpen ? presence.onAnimationEnd : undefined}
         >
           <button
             type="button"
@@ -229,13 +274,14 @@ export function SyncTelemetry({
               !dotRest
                 ? ""
                 : forceOpen
-                  ? "h-auto w-max shrink-0 justify-start gap-1.5 whitespace-nowrap px-2.5 py-1"
-                  : "size-6 shrink-0 justify-center gap-0 whitespace-nowrap p-0 group-hover/awaiting:!h-auto group-hover/awaiting:!w-max group-hover/awaiting:!justify-start group-hover/awaiting:!gap-1.5 group-hover/awaiting:!px-2.5 group-hover/awaiting:!py-1",
+                  ? "h-8 w-max shrink-0 justify-start gap-1.5 whitespace-nowrap px-2.5 py-0"
+                  : "size-6 shrink-0 justify-center gap-0 whitespace-nowrap p-0",
               !dotRest
                 ? ""
                 : forceOpen
                   ? restAwaitingClass
-                  : "group-hover/awaiting:!border-[#c21f10] group-hover/awaiting:!bg-[hsl(var(--sidebar))] group-hover/awaiting:!bg-[linear-gradient(rgb(194_31_16/0.1),rgb(194_31_16/0.1))] group-hover/awaiting:!text-[#c21f10] dark:group-hover/awaiting:!border-[#fb6230] dark:group-hover/awaiting:!bg-[hsl(var(--sidebar))] dark:group-hover/awaiting:!bg-[linear-gradient(rgb(251_98_48/0.18),rgb(251_98_48/0.18))] dark:group-hover/awaiting:!text-[#fb6230]"
+                  : "",
+              forceOpen && "mp-flyout-chunk"
             )}
           >
             <span className="relative flex h-1.5 w-1.5 shrink-0">
@@ -249,7 +295,7 @@ export function SyncTelemetry({
                     ? ""
                     : forceOpen
                       ? "inline whitespace-nowrap"
-                      : "hidden whitespace-nowrap group-hover/awaiting:inline"
+                      : "hidden whitespace-nowrap"
                 }
               >
                 <span className="font-bold tabular-nums">{pendingCount}</span>{" "}
@@ -258,23 +304,20 @@ export function SyncTelemetry({
             )}
           </button>
           {compact ? null : (
-            <button
-              type="button"
-              onClick={handleFlushPending}
+            <CancelTaskButton
+              onCancel={handleFlushPending}
               disabled={flushing}
-              aria-label="Dismiss pending classification queue"
               title="Dismiss awaiting emails"
+              spinMs={600}
               className={cn(
-                "flex size-6 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--sidebar))] bg-[hsl(var(--sidebar))] p-0 text-[hsl(var(--sidebar-foreground))]/65 shadow-md transition-colors hover:text-[#C21E11] disabled:opacity-60 [&_svg]:h-3.5 [&_svg]:w-3.5 [&_svg]:text-current",
-                dotRest && !forceOpen && "hidden group-hover/awaiting:flex"
+                "mp-flyout-chunk flex size-8 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--sidebar))] bg-[hsl(var(--sidebar))] p-0 text-[hsl(var(--sidebar-foreground))]/65 shadow-md hover:bg-[hsl(var(--sidebar))] hover:text-[#C21E11] disabled:opacity-60 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-current",
+                dotRest && !forceOpen && "hidden"
               )}
-            >
-              <XCircle />
-            </button>
+            />
           )}
         </div>
       ) : (
-        <div
+        motionWrap(<div
           className={cn(
             "group flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-700/80 dark:border-emerald-400/40 dark:bg-emerald-400/15 dark:text-emerald-300/85",
             onSidebar &&
@@ -282,7 +325,8 @@ export function SyncTelemetry({
             compact && "px-2 py-2",
             onSidebar && !compact && !dotRest && "w-full",
             restCircleClass,
-            restPlateReady
+            restPlateReady,
+            forceOpen && "mp-flyout-chunk"
           )}
         >
           <span className="relative flex h-1.5 w-1.5 shrink-0">
@@ -291,7 +335,7 @@ export function SyncTelemetry({
           {compact ? null : (
             <span className={restLabelClass}>Inbox up to date</span>
           )}
-        </div>
+        </div>)
       )}
       <ConfirmActionDialog
         open={confirmFlush}

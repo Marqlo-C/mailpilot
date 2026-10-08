@@ -145,6 +145,8 @@
 
 .mp-flyout-retract {
   animation: mp-flyout-retract 1330ms cubic-bezier(0.33, 0.1, 0.2, 1) both;
+  /* Sliding pieces must not re-enter hover and restart the leave. */
+  pointer-events: none;
 }
 
 .mp-flyout-retract > .mp-flyout-chunk {
@@ -167,10 +169,20 @@
   --mp-inward: 0px;
 }
 
+/* Telemetry dismiss circle is 32px, so half the slide of the 44px selection X. */
+.mp-flyout-retract-status > .mp-flyout-chunk:first-child:not(:only-child) {
+  --mp-inward: 16px;
+}
+
+.mp-flyout-retract-status > .mp-flyout-chunk:last-child:not(:only-child) {
+  --mp-inward: -16px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mp-flyout-pop,
   .mp-flyout-retract,
-  .mp-flyout-retract > .mp-flyout-chunk {
+  .mp-flyout-retract > .mp-flyout-chunk,
+  .mp-flyout-retract-status > .mp-flyout-chunk {
     animation-duration: 1ms;
   }
 }
