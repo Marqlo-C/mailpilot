@@ -14,6 +14,10 @@ import {
   prepareOpportunityResume,
   refineOpportunityDraft,
   refineOpportunityResume,
+  reorderResumeDraftNode,
+  refineSingleResumeNode,
+  compileResumeDocument,
+  updateResumeDraftNode,
   updateOpportunityDraft,
   updateOpportunityRecipient,
   type MimeAttachment,
@@ -419,6 +423,116 @@ export async function regenerateOpportunityResumeAction(
   includeSummary = false
 ): Promise<ActionResult<OpportunityResumePreview>> {
   return generateOpportunityResumeAction(opportunityId, includeSummary);
+}
+
+export async function updateResumeDraftNodeAction(
+  opportunityId: string,
+  nodeId: string,
+  patch: { content?: string; selected?: boolean }
+): Promise<ActionResult<OpportunityResumePreview>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+  try {
+    const data = await updateResumeDraftNode(
+      opportunity.accountId,
+      opportunityId,
+      nodeId,
+      patch
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to update resume line",
+    };
+  }
+}
+
+export async function reorderResumeDraftNodeAction(
+  opportunityId: string,
+  nodeId: string,
+  direction: "up" | "down"
+): Promise<ActionResult<OpportunityResumePreview>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+  try {
+    const data = await reorderResumeDraftNode(
+      opportunity.accountId,
+      opportunityId,
+      nodeId,
+      direction
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to reorder resume line",
+    };
+  }
+}
+
+export async function refineSingleResumeNodeAction(
+  opportunityId: string,
+  nodeId: string,
+  instruction: string
+): Promise<ActionResult<OpportunityResumePreview>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+  try {
+    const data = await refineSingleResumeNode(
+      opportunity.accountId,
+      opportunityId,
+      nodeId,
+      instruction
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to refine resume line",
+    };
+  }
+}
+
+export async function compileResumeDocumentAction(
+  opportunityId: string,
+  format: "pdf" | "docx" = "pdf"
+): Promise<ActionResult<OpportunityResumePreview>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+  try {
+    const data = await compileResumeDocument(
+      opportunity.accountId,
+      opportunityId,
+      format
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to export resume",
+    };
+  }
 }
 
 export async function refineOpportunityResumeAction(

@@ -17,6 +17,18 @@ import type { LlmProvider } from "@/lib/llm";
 import { generateTailoredResumePdf } from "@/lib/pdf-generator";
 import { prisma } from "@/lib/prisma";
 import { loadMasterProfileForDraft } from "@/lib/master-profile";
+import { compileResumeDocx } from "@/lib/resume-docx";
+import {
+  digestTailoredResume,
+  draftToPdfInput,
+  moveResumeNode,
+  refineResumeLine,
+  touchDraft,
+} from "@/lib/resume-draft";
+import {
+  storedResumeDraftSchema,
+  type TailoredResumeDraft,
+} from "@/lib/types/resume-draft";
 import {
   buildSlimCandidate,
   draftContextualEmail,
@@ -45,6 +57,9 @@ export type OpportunityResumePreview = {
   tailoredSkills?: MasterProfileInput["skills"];
   strategyRationale?: TailorResult["strategyRationale"];
   includeSummary?: boolean;
+  /** Line-addressable draft. Present after digestion, before or after PDF export. */
+  draft?: TailoredResumeDraft | null;
+  docxBase64?: string;
 };
 
 export type OpportunityResumeState = {
@@ -350,11 +365,40 @@ export async function refineOpportunityDraft(
   return draft;
 }
 
+function previewFromStoredDraft(
+  row: {
+    tailoredResumePdf: string | null;
+    tailorConfig: unknown;
+  },
+  stored: z.infer<typeof storedResumeDraftSchema>
+): OpportunityResumePreview {
+  const config = tailorConfigSchema.safeParse(row.tailorConfig ?? {});
+  const includeSummary = config.success
+    ? config.data.includeSummary
+    : stored.draft.exportConfig.includeSummary;
+  const compiled = draftToPdfInput(stored.draft);
+  return {
+    filename: stored.filename ?? "Resume.pdf",
+    pdfBase64: row.tailoredResumePdf ?? "",
+    experiences: compiled.experiences,
+    projects: compiled.projects,
+    tailoredSummary: compiled.tailoredSummary,
+    tailoredSkills: compiled.tailoredSkills,
+    strategyRationale: stored.strategyRationale,
+    includeSummary,
+    draft: stored.draft,
+  };
+}
+
 function previewFromCache(row: {
   tailoredResumePdf: string | null;
   tailoredResumeData: unknown;
   tailorConfig: unknown;
 }): OpportunityResumePreview | null {
+  const stored = storedResumeDraftSchema.safeParse(row.tailoredResumeData);
+  if (stored.success) {
+    return previewFromStoredDraft(row, stored.data);
+  }
   if (!row.tailoredResumePdf || !row.tailoredResumeData) return null;
   const data = tailoredResumeDataSchema.safeParse(row.tailoredResumeData);
   if (!data.success) return null;
@@ -376,20 +420,33 @@ function previewFromCache(row: {
 
 async function persistOpportunityResumeCache(
   opportunityId: string,
-  preview: OpportunityResumePreview
+  preview: OpportunityResumePreview,
+  options: { writePdf?: boolean } = {}
 ): Promise<void> {
-  const payload = {
-    filename: preview.filename,
-    tailoredSummary: preview.tailoredSummary ?? null,
-    tailoredSkills: preview.tailoredSkills,
-    selectedExperience: preview.experiences,
-    selectedProjects: preview.projects ?? [],
-    strategyRationale: preview.strategyRationale,
-  };
+  const writePdf = options.writePdf === true && Boolean(preview.pdfBase64);
+  const payload = preview.draft
+    ? {
+        version: 2 as const,
+        filename: preview.filename,
+        draft: preview.draft,
+        strategyRationale: preview.strategyRationale,
+      }
+    : {
+        filename: preview.filename,
+        tailoredSummary: preview.tailoredSummary ?? null,
+        tailoredSkills: preview.tailoredSkills,
+        selectedExperience: preview.experiences,
+        selectedProjects: preview.projects ?? [],
+        strategyRationale: preview.strategyRationale,
+      };
   await prisma.jobOpportunity.update({
     where: { id: opportunityId },
     data: {
-      tailoredResumePdf: preview.pdfBase64,
+      ...(writePdf
+        ? { tailoredResumePdf: preview.pdfBase64 }
+        : preview.draft
+          ? { tailoredResumePdf: null }
+          : { tailoredResumePdf: preview.pdfBase64 }),
       tailoredResumeData: payload as Prisma.InputJsonValue,
       tailoredAt: new Date(),
       tailorConfig: {
@@ -397,6 +454,26 @@ async function persistOpportunityResumeCache(
       } as Prisma.InputJsonValue,
     },
   });
+}
+
+async function renderDraftPdf(
+  profile: MasterProfileInput,
+  draft: TailoredResumeDraft
+): Promise<Buffer> {
+  const compiled = draftToPdfInput(draft, profile);
+  return generateTailoredResumePdf(
+    profile,
+    compiled.experiences,
+    compiled.projects,
+    compiled.tailoredSummary,
+    compiled.tailoredSkills,
+    compiled.includeSummary,
+    {
+      headerName: compiled.headerName,
+      contactLine: compiled.contactLine,
+      education: compiled.education,
+    }
+  );
 }
 
 async function buildOpportunityResumePreview(
@@ -461,30 +538,25 @@ async function buildOpportunityResumePreview(
     }
   );
 
-  const experiences =
-    tailored.selectedExperience.length > 0
-      ? tailored.selectedExperience
-      : profile.experiences;
-
-  const pdf = await generateTailoredResumePdf(
-    profile,
-    experiences,
-    tailored.selectedProjects,
-    tailored.tailoredSummary,
-    tailored.tailoredSkills,
-    includeSummary
-  );
   const filename = `${profile.fullName.replace(/\s+/g, "_")}_Resume.pdf`;
+  const draft = digestTailoredResume({
+    opportunityId,
+    profile,
+    tailored,
+    includeSummary,
+  });
+  const compiled = draftToPdfInput(draft, profile);
 
   const preview: OpportunityResumePreview = {
     filename,
-    pdfBase64: pdf.toString("base64"),
-    experiences: tailored.selectedExperience,
-    projects: tailored.selectedProjects,
-    tailoredSummary: tailored.tailoredSummary,
-    tailoredSkills: tailored.tailoredSkills,
+    pdfBase64: "",
+    experiences: compiled.experiences,
+    projects: compiled.projects,
+    tailoredSummary: compiled.tailoredSummary,
+    tailoredSkills: compiled.tailoredSkills,
     strategyRationale: tailored.strategyRationale,
     includeSummary,
+    draft,
   };
 
   await persistOpportunityResumeCache(opportunityId, preview);
@@ -524,8 +596,8 @@ export async function getOpportunityResumeState(
 }
 
 /**
- * Tailor + render the resume PDF for in-app review.
- * Without forceRegenerate, returns the cached PDF or null (no Ollama call).
+ * Digest the master profile and job into an editable draft.
+ * Without forceRegenerate, returns the cached draft or null (no model call, no PDF).
  */
 export async function prepareOpportunityResume(
   accountId: string,
@@ -566,6 +638,180 @@ export async function refineOpportunityResume(
   if (!preview) {
     throw new Error("Failed to refine resume");
   }
+  return preview;
+}
+
+async function loadStoredDraft(
+  accountId: string,
+  opportunityId: string
+): Promise<{ draft: TailoredResumeDraft; filename: string }> {
+  const opportunity = await prisma.jobOpportunity.findFirst({
+    where: { id: opportunityId, accountId },
+    select: { tailoredResumeData: true },
+  });
+  if (!opportunity) {
+    throw new Error("Opportunity not found");
+  }
+  const stored = storedResumeDraftSchema.safeParse(opportunity.tailoredResumeData);
+  if (!stored.success) {
+    throw new Error("No editable resume draft for this opportunity");
+  }
+  return {
+    draft: stored.data.draft,
+    filename: stored.data.filename ?? "Resume.pdf",
+  };
+}
+
+async function saveDraft(
+  accountId: string,
+  opportunityId: string,
+  draft: TailoredResumeDraft
+): Promise<OpportunityResumePreview> {
+  const opportunity = await prisma.jobOpportunity.findFirst({
+    where: { id: opportunityId, accountId },
+    select: {
+      tailoredResumePdf: true,
+      tailoredResumeData: true,
+      tailorConfig: true,
+    },
+  });
+  if (!opportunity) {
+    throw new Error("Opportunity not found");
+  }
+  const previous = storedResumeDraftSchema.safeParse(opportunity.tailoredResumeData);
+  const next = touchDraft(draft);
+  const compiled = draftToPdfInput(next);
+  const preview: OpportunityResumePreview = {
+    filename: previous.success ? previous.data.filename ?? "Resume.pdf" : "Resume.pdf",
+    pdfBase64: "",
+    experiences: compiled.experiences,
+    projects: compiled.projects,
+    tailoredSummary: compiled.tailoredSummary,
+    tailoredSkills: compiled.tailoredSkills,
+    strategyRationale: previous.success ? previous.data.strategyRationale : undefined,
+    includeSummary: next.exportConfig.includeSummary,
+    draft: next,
+  };
+  await persistOpportunityResumeCache(opportunityId, preview);
+  return preview;
+}
+
+export async function updateResumeDraftNode(
+  accountId: string,
+  opportunityId: string,
+  nodeId: string,
+  patch: { content?: string; selected?: boolean }
+): Promise<OpportunityResumePreview> {
+  const { draft } = await loadStoredDraft(accountId, opportunityId);
+  const nodes = draft.nodes.map((item) => {
+    if (item.id !== nodeId) return item;
+    return {
+      ...item,
+      content: patch.content !== undefined ? patch.content : item.content,
+      selected: patch.selected !== undefined ? patch.selected : item.selected,
+    };
+  });
+  if (!nodes.some((item) => item.id === nodeId)) {
+    throw new Error("Resume line not found");
+  }
+  return saveDraft(accountId, opportunityId, { ...draft, nodes });
+}
+
+export async function reorderResumeDraftNode(
+  accountId: string,
+  opportunityId: string,
+  nodeId: string,
+  direction: "up" | "down"
+): Promise<OpportunityResumePreview> {
+  const { draft } = await loadStoredDraft(accountId, opportunityId);
+  return saveDraft(
+    accountId,
+    opportunityId,
+    moveResumeNode(draft, nodeId, direction)
+  );
+}
+
+export async function refineSingleResumeNode(
+  accountId: string,
+  opportunityId: string,
+  nodeId: string,
+  instruction: string
+): Promise<OpportunityResumePreview> {
+  const { draft } = await loadStoredDraft(accountId, opportunityId);
+  const target = draft.nodes.find((item) => item.id === nodeId);
+  if (!target) {
+    throw new Error("Resume line not found");
+  }
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { settings: true },
+  });
+  const rules = parseAccountRules(account?.settings?.rules);
+  const content = await refineResumeLine({
+    content: target.content,
+    instruction,
+    llmProvider: normalizeProvider(account?.settings?.llmProvider),
+    localOllamaUrl: account?.settings?.localOllamaUrl,
+    ollamaModel: account?.settings?.ollamaModel,
+    allowCloudFallback: rules.allowCloudFallback,
+  });
+  const nodes = draft.nodes.map((item) =>
+    item.id === nodeId ? { ...item, content } : item
+  );
+  return saveDraft(accountId, opportunityId, { ...draft, nodes });
+}
+
+/** Compile checked draft nodes into a PDF or DOCX. PDF is cached; DOCX is returned only. */
+export async function compileResumeDocument(
+  accountId: string,
+  opportunityId: string,
+  format: "pdf" | "docx" = "pdf"
+): Promise<OpportunityResumePreview> {
+  const opportunity = await prisma.jobOpportunity.findFirst({
+    where: { id: opportunityId, accountId },
+    select: { tailoredResumeData: true },
+  });
+  if (!opportunity) {
+    throw new Error("Opportunity not found");
+  }
+  const stored = storedResumeDraftSchema.safeParse(opportunity.tailoredResumeData);
+  if (!stored.success) {
+    throw new Error("No editable resume draft for this opportunity");
+  }
+  const profile = await loadMasterProfile(accountId);
+  const filenameBase = profile.fullName.replace(/\s+/g, "_");
+  const compiled = draftToPdfInput(stored.data.draft, profile);
+  if (format === "docx") {
+    const docx = await compileResumeDocx(stored.data.draft);
+    return {
+      filename:
+        stored.data.filename?.replace(/\.pdf$/i, ".docx") ??
+        `${filenameBase}_Resume.docx`,
+      pdfBase64: "",
+      docxBase64: docx.toString("base64"),
+      experiences: compiled.experiences,
+      projects: compiled.projects,
+      tailoredSummary: compiled.tailoredSummary,
+      tailoredSkills: compiled.tailoredSkills,
+      strategyRationale: stored.data.strategyRationale,
+      includeSummary: compiled.includeSummary,
+      draft: stored.data.draft,
+    };
+  }
+  const pdf = await renderDraftPdf(profile, stored.data.draft);
+  const filename = stored.data.filename ?? `${filenameBase}_Resume.pdf`;
+  const preview: OpportunityResumePreview = {
+    filename,
+    pdfBase64: pdf.toString("base64"),
+    experiences: compiled.experiences,
+    projects: compiled.projects,
+    tailoredSummary: compiled.tailoredSummary,
+    tailoredSkills: compiled.tailoredSkills,
+    strategyRationale: stored.data.strategyRationale,
+    includeSummary: compiled.includeSummary,
+    draft: stored.data.draft,
+  };
+  await persistOpportunityResumeCache(opportunityId, preview, { writePdf: true });
   return preview;
 }
 
@@ -756,7 +1002,10 @@ export async function dispatchOpportunityEmail(
         options.reviewedSkills,
         includeSummary
       );
-    } else if (cachedPreview) {
+    } else if (cachedPreview?.draft) {
+      pdf = await renderDraftPdf(profile, cachedPreview.draft);
+      filename = cachedPreview.filename || filename;
+    } else if (cachedPreview?.pdfBase64) {
       pdf = Buffer.from(cachedPreview.pdfBase64, "base64");
       filename = cachedPreview.filename || filename;
     } else {
@@ -774,15 +1023,29 @@ export async function dispatchOpportunityEmail(
           includeSummary,
         }
       );
-      pdf = await generateTailoredResumePdf(
+      const digested = digestTailoredResume({
+        opportunityId,
         profile,
-        tailored.selectedExperience.length > 0
-          ? tailored.selectedExperience
-          : profile.experiences,
-        tailored.selectedProjects,
-        tailored.tailoredSummary,
-        tailored.tailoredSkills,
-        includeSummary
+        tailored,
+        includeSummary,
+      });
+      pdf = await renderDraftPdf(profile, digested);
+      filename = `${profile.fullName.replace(/\s+/g, "_")}_Resume.pdf`;
+      const compiled = draftToPdfInput(digested, profile);
+      await persistOpportunityResumeCache(
+        opportunityId,
+        {
+          filename,
+          pdfBase64: pdf.toString("base64"),
+          experiences: compiled.experiences,
+          projects: compiled.projects,
+          tailoredSummary: compiled.tailoredSummary,
+          tailoredSkills: compiled.tailoredSkills,
+          strategyRationale: tailored.strategyRationale,
+          includeSummary,
+          draft: digested,
+        },
+        { writePdf: true }
       );
     }
     attachments.unshift({
