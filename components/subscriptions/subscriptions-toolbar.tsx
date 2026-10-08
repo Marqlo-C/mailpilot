@@ -11,7 +11,7 @@ import {
   ToolbarSelectAll,
   ToolbarTelemetry,
 } from "@/components/jobs/pipeline-toolbar-primitives";
-import { ToolbarPageSizeSelect } from "@/components/ui/pipeline-pagination";
+import { ToolbarPageNav, ToolbarPageSizeSelect } from "@/components/ui/pipeline-pagination";
 import type {
   SubscriptionCategoryFilter,
   SubscriptionSortOption,
@@ -35,6 +35,9 @@ export type SubscriptionsToolbarProps = {
   selectEnabled?: boolean;
   pageSize: number;
   onPageSizeChange: (size: number) => void;
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
   hasActiveTransientFilters?: boolean;
   onResetTransientFilters?: () => void;
 };
@@ -42,7 +45,7 @@ export type SubscriptionsToolbarProps = {
 /**
  * Two-row Subscriptions filter chrome:
  * 1) Filter card — Select All, Clutter, Search (+ Category/Sort addons)
- * 2) Meta bar — result counts (left) + page size (right)
+ * 2) Meta bar — result counts (left) + page readout and page size (right)
  */
 export function SubscriptionsToolbar({
   totalCount,
@@ -62,6 +65,9 @@ export function SubscriptionsToolbar({
   selectEnabled = true,
   pageSize,
   onPageSizeChange,
+  currentPage,
+  totalPages,
+  onPageChange,
   hasActiveTransientFilters = false,
   onResetTransientFilters,
 }: SubscriptionsToolbarProps) {
@@ -152,10 +158,17 @@ export function SubscriptionsToolbar({
               : undefined
           }
         />
-        <ToolbarPageSizeSelect
-          value={pageSize}
-          onChange={onPageSizeChange}
-        />
+        <div className="flex shrink-0 items-center gap-2">
+          <ToolbarPageNav
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+          />
+          <ToolbarPageSizeSelect
+            value={pageSize}
+            onChange={onPageSizeChange}
+          />
+        </div>
       </ToolbarMetaRow>
     </div>
   );

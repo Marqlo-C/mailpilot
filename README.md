@@ -50,6 +50,36 @@ Settings → **Sync** still calls `triggerManualSync` → `processInboxDelta` al
 
 Location helpers live in `lib/utils/location.ts` (`parseLocation`, `isLocationCompatible`).
 
+## Email Ingestion, Deduplication & Retention Lifecycle
+
+### Dual watermarks and the ingestion window
+
+Two bookmarks cover different jobs:
+
+- **`historyId`** is the Gmail History API tip. Delta sync asks “what was added since this id?” and advances `historyId` when that pass finishes. It does not move `lastSyncedAt`.
+- **`lastSyncedAt`** is the time cursor for the job-oriented Gmail search. An incremental sweep uses `after:lastSyncedAt` plus a short overlap so mail near the boundary is not skipped.
+
+`lastSyncedAt` advances only when the whole Sync Inbox pass succeeds. The handler snapshots `runStartedAt` before digestion and writes that snapshot at the end. Mail that arrives while the run is in flight stays inside the next incremental window. A failed pass leaves the previous cursor in place so the same mail is tried again.
+
+### Manual AI queue flush
+
+Messages waiting on a model are stored as `PENDING_AI`, including the extracted `rawBody`. Deleting those rows while they are still inside the Gmail query window makes the next sync treat them as new: the `messageId` dedupe shield is gone, so Gmail is fetched again and the queue refills.
+
+The flush does not delete the row and does not touch `lastSyncedAt` or `historyId`. `flushPendingAiMessages` sets `emailCategory` to `IRRELEVANT` and `rawBody` to null on `PENDING_AI` messages that have no `JobOpportunity`. The raw text is released immediately, classification stops, and the `messageId` row still blocks re-ingestion.
+
+The status pill that reads “N emails awaiting classification” has a circled **X** beside that label (`Dismiss awaiting emails`). It runs the flush for the active account and drops the counter as soon as the update succeeds.
+
+### Automated retention purge
+
+`dismissedRetentionDays` on account rules (default 30) is the hard age boundary. During sync housekeeping, `purgeExpiredDismissed`:
+
+1. Deletes `DISMISSED` opportunities whose `dismissedAt` is older than that window. User-archived History cards are not dismissed, so they stay.
+2. Deletes `EmailMessage` rows older than the same cutoff when they are `IRRELEVANT` or `JOB_BOARD_DIGEST` and no `JobOpportunity` points at them.
+
+After a dismissed opportunity is removed, its source email becomes eligible for that second delete only if it is unlinked and in one of those two categories.
+
+Active pipeline cards (`Leads`, `Action Required`, `Applied`) and user-archived cards in **History** keep their source `EmailMessage`. The email delete requires `opportunities: { none: {} }`, so any linked opportunity — including one that is still inside the retention window — blocks deletion.
+
 ## Tech Stack
 
 - **Framework:** Next.js 15 (App Router), React 19, TypeScript

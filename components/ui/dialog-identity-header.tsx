@@ -86,15 +86,17 @@ export function DialogIdentityHeader({
           <DialogTitle className="text-lg font-semibold leading-tight tracking-tight">
             {title}
           </DialogTitle>
-          <DialogDescription className="mt-0.5 flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs font-medium text-muted-foreground">
-            <span className={primaryClass}>{primary}</span>
-            {secondary ? (
-              <>
-                <span className="shrink-0 text-muted-foreground/60">•</span>
-                <span className={secondaryClass}>{secondary}</span>
-              </>
-            ) : null}
-          </DialogDescription>
+          {primary || secondary ? (
+            <DialogDescription className="mt-0.5 flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs font-medium text-muted-foreground">
+              <span className={primaryClass}>{primary}</span>
+              {secondary ? (
+                <>
+                  <span className="shrink-0 text-muted-foreground/60">•</span>
+                  <span className={secondaryClass}>{secondary}</span>
+                </>
+              ) : null}
+            </DialogDescription>
+          ) : null}
         </div>
       </div>
     </DialogHeader>

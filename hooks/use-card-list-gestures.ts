@@ -10,7 +10,7 @@
  * - Longer hold on a **selected** card → drag all selected (list order).
  *   Unselected cards never start a drag. Empty-space / Escape / view changes
  *   exit multi-select; releasing a drag only ends DnD.
- * - Same-list reorder when `rules.canReorder` (e.g. Custom sort); hovering a page-flip button flips page.
+ * - Same-list reorder when `rules.canReorder`. Page arrows cycle pages even when rearrange is off.
  *   Near the viewport top/bottom, the page auto-scrolls while the pointer stays there.
  *   While dragging, `drag.previewFullIds` is the live order for the list UI to render.
  * - Cross-list moves via `rules.allowedDropZones` even when reorder is locked
@@ -279,9 +279,9 @@ export function useCardListGestures({
           : null;
       }
 
-      // Cross-page flip only while the pointer is on a flip button.
+      // Page arrows cycle the list even when same-list rearrange is off.
       let pageFlipDir: -1 | 1 | null = null;
-      if (!zone && rulesRef.current.canReorder) {
+      if (!zone) {
         const { currentPage: page, totalPages: pages } = pageMetaRef.current;
         pageFlipDir = pageFlipDirFromPointer(clientX, clientY, page, pages);
 

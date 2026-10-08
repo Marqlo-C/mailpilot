@@ -26,8 +26,8 @@ const PAGE_FLIP_BUTTON_REM = 1.75;
 /** Extra px around the button so the pointer can land on it. */
 const PAGE_FLIP_HIT_PAD_PX = 8;
 
-/** Hover time on a page edge before flipping (ms). */
-export const DND_PAGE_FLIP_DELAY_MS = 380;
+/** Hold on a page-flip arrow before each page change, including the next one. */
+export const DND_PAGE_FLIP_DELAY_MS = 600;
 
 /** Viewport top/bottom band that triggers auto-scroll while dragging (px). */
 export const DND_AUTO_SCROLL_EDGE_PX = 56;

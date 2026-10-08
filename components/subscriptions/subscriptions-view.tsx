@@ -41,8 +41,8 @@ import { SubscriptionsToolbar } from "@/components/subscriptions/subscriptions-t
 import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
 import {
   BULK_ACTION_BTN_CLASSNAME,
-  BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME,
-  BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME,
+  BULK_ACTION_COUNT_DISMISS_CLASSNAME,
+  BULK_ACTION_DISMISS_BTN_CLASSNAME,
   BulkActionCount,
   BulkActionDot,
   BulkActionSection,
@@ -1102,6 +1102,9 @@ export function SubscriptionsView({
           selectEnabled={activeTab === "active"}
           pageSize={pageSize}
           onPageSizeChange={changePageSize}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={changePage}
           hasActiveTransientFilters={hasActiveTransientFilters}
           onResetTransientFilters={handleResetTransientFilters}
         />
@@ -1251,7 +1254,7 @@ export function SubscriptionsView({
                       selectedWithBriefingIds
                     )
                   }
-                  className={BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME}
+                  className={BULK_ACTION_DISMISS_BTN_CLASSNAME}
                 >
                   {deletePending ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1259,7 +1262,7 @@ export function SubscriptionsView({
                   Delete
                   <BulkActionCount
                     count={selectedWithBriefingIds.length}
-                    className={BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME}
+                    className={BULK_ACTION_COUNT_DISMISS_CLASSNAME}
                   />
                 </button>
               </>

@@ -44,6 +44,53 @@ export function ToolbarPageSizeSelect({
   );
 }
 
+export function ToolbarPageNav({
+  currentPage,
+  totalPages,
+  onPageChange,
+  className,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  className?: string;
+}) {
+  const pages = Math.max(1, totalPages);
+  const arrowClass =
+    "inline-flex size-6 items-center justify-center text-foreground/70 transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40";
+
+  return (
+    <div
+      className={cn(
+        "inline-flex h-6 items-center text-[11px] font-medium text-foreground/80",
+        className
+      )}
+    >
+      <button
+        type="button"
+        disabled={currentPage <= 1}
+        onClick={() => onPageChange(currentPage - 1)}
+        className={arrowClass}
+        aria-label="Previous page"
+      >
+        <ChevronLeft className="size-3.5" />
+      </button>
+      <span className="px-0.5 text-center tabular-nums">
+        {currentPage} of {pages}
+      </span>
+      <button
+        type="button"
+        disabled={currentPage >= pages}
+        onClick={() => onPageChange(currentPage + 1)}
+        className={arrowClass}
+        aria-label="Next page"
+      >
+        <ChevronRight className="size-3.5" />
+      </button>
+    </div>
+  );
+}
+
 export function PipelinePaginationFooter({
   currentPage,
   totalPages,

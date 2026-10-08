@@ -28,7 +28,6 @@ export const TAB_SORT_CONFIG: Record<
       { label: "Newest First", value: "received-desc" },
       { label: "Highest Salary", value: "salary-desc" },
       { label: "Company (A–Z)", value: "company-asc" },
-      { label: "Custom", value: "custom" },
     ],
   },
   applied: {
@@ -38,7 +37,6 @@ export const TAB_SORT_CONFIG: Record<
       { label: "Applied: Oldest (Follow-up)", value: "applied-asc" },
       { label: "Company (A–Z)", value: "company-asc" },
       { label: "Highest Salary", value: "salary-desc" },
-      { label: "Custom", value: "custom" },
     ],
   },
   action_required: {
@@ -47,7 +45,6 @@ export const TAB_SORT_CONFIG: Record<
       { label: "Deadline: Most Urgent", value: "deadline-asc" },
       { label: "Most Recent", value: "recent-desc" },
       { label: "Company (A–Z)", value: "company-asc" },
-      { label: "Custom", value: "custom" },
     ],
   },
   history: {
@@ -72,9 +69,6 @@ export function sortOpportunities(
   items: JobOpportunity[],
   sort: string
 ): JobOpportunity[] {
-  // Custom order is applied in the view from localStorage — keep input order.
-  if (sort === "custom") return [...items];
-
   return [...items].sort((a, b) => {
     switch (sort) {
       case "applied-desc": {

@@ -13,7 +13,7 @@ import {
   ToolbarSourceFilter,
   ToolbarTelemetry,
 } from "@/components/jobs/pipeline-toolbar-primitives";
-import { ToolbarPageSizeSelect } from "@/components/ui/pipeline-pagination";
+import { ToolbarPageNav, ToolbarPageSizeSelect } from "@/components/ui/pipeline-pagination";
 import type {
   HistoryStatusFilter,
   PipelineTab,
@@ -42,6 +42,9 @@ export type PipelineToolbarProps = {
   showTelemetry?: boolean;
   pageSize?: number;
   onPageSizeChange?: (size: number) => void;
+  currentPage?: number;
+  totalPages?: number;
+  onPageChange?: (page: number) => void;
   hasActiveTransientFilters?: boolean;
   onResetTransientFilters?: () => void;
 };
@@ -49,7 +52,7 @@ export type PipelineToolbarProps = {
 /**
  * Two-row Job Radar filter chrome:
  * 1) Filter card — Select All, Score, Search (+ Source/History/Sort addons)
- * 2) Meta bar — result counts (left) + page size (right)
+ * 2) Meta bar — result counts (left) + page readout and page size (right)
  */
 export function PipelineToolbar({
   activeTab,
@@ -73,6 +76,9 @@ export function PipelineToolbar({
   showTelemetry = true,
   pageSize,
   onPageSizeChange,
+  currentPage,
+  totalPages,
+  onPageChange,
   hasActiveTransientFilters = false,
   onResetTransientFilters,
 }: PipelineToolbarProps) {
@@ -163,12 +169,23 @@ export function PipelineToolbar({
             />
           ) : null}
         </div>
-        {typeof pageSize === "number" && onPageSizeChange ? (
-          <ToolbarPageSizeSelect
-            value={pageSize}
-            onChange={onPageSizeChange}
-          />
-        ) : null}
+        <div className="flex shrink-0 items-center gap-2">
+          {typeof currentPage === "number" &&
+          typeof totalPages === "number" &&
+          onPageChange ? (
+            <ToolbarPageNav
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={onPageChange}
+            />
+          ) : null}
+          {typeof pageSize === "number" && onPageSizeChange ? (
+            <ToolbarPageSizeSelect
+              value={pageSize}
+              onChange={onPageSizeChange}
+            />
+          ) : null}
+        </div>
       </ToolbarMetaRow>
     </div>
   );

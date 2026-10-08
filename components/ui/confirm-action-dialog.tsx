@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 
 import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
@@ -21,6 +22,8 @@ type ConfirmActionDialogProps = {
   secondary?: string | null;
   logoSrc?: string | null;
   logoName?: string;
+  /** Replaces the company mark (for example the MailPilot logo). */
+  logo?: ReactNode;
   /** Muted lead copy (unsubscribe-style info line). */
   description?: string;
   /** Emphasized follow-up under the lead. */
@@ -45,6 +48,7 @@ export function ConfirmActionDialog({
   secondary = null,
   logoSrc = null,
   logoName,
+  logo,
   description = "This action cannot be reversed.",
   emphasis = "Are you sure? This can't be undone.",
   confirmLabel = "Confirm",
@@ -65,6 +69,7 @@ export function ConfirmActionDialog({
         secondary,
         logoSrc,
         logoName: logoName ?? primary,
+        logo,
         logoSize: "lg",
       }}
       cancelLabel={cancelLabel}

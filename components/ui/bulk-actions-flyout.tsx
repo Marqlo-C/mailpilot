@@ -29,7 +29,7 @@ export const BULK_ACTION_PLAIN_BTN_CLASSNAME = BULK_ACTION_BTN_CLASSNAME;
 
 /** Destructive action chip — same red family as Delete Emails. */
 export const BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME =
-  "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium text-[#fb7185] transition-colors hover:bg-[#fb7185]/15 disabled:opacity-50";
+  "group inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium text-[#fb7185] transition-colors hover:bg-[#C21E11]/15 hover:text-[#C21E11] disabled:opacity-50";
 
 /** Default count pill on the dark sidebar flyout. */
 export const BULK_ACTION_COUNT_CLASSNAME =
@@ -37,7 +37,15 @@ export const BULK_ACTION_COUNT_CLASSNAME =
 
 /** Count pill tint matching destructive flyout text. */
 export const BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME =
-  "bg-[#fb7185]/20 text-[#fb7185] group-data-[state=active]:bg-[#fb7185]/20 group-data-[state=active]:text-[#fb7185]";
+  "bg-[#fb7185]/20 text-[#fb7185] group-hover:bg-[#C21E11]/20 group-hover:text-[#C21E11] group-data-[state=active]:bg-[#fb7185]/20 group-data-[state=active]:text-[#fb7185]";
+
+/** Dismiss chip — #C21E11 label before hover. */
+export const BULK_ACTION_DISMISS_BTN_CLASSNAME =
+  "group inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium text-[#C21E11] transition-colors hover:bg-[#C21E11]/15 hover:text-[#C21E11] disabled:opacity-50";
+
+/** Count pill matching the Dismiss label. */
+export const BULK_ACTION_COUNT_DISMISS_CLASSNAME =
+  "bg-[#C21E11]/20 text-[#C21E11] group-data-[state=active]:bg-[#C21E11]/20 group-data-[state=active]:text-[#C21E11]";
 
 /** Count pill for flyout action labels — sidebar-flyout chrome by default. */
 export function BulkActionCount({
@@ -224,7 +232,7 @@ export function BulkActionsFlyout({
             title="Clear selection"
             // Full turn before pills meet; hold through the rest of converge.
             spinMs={600}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--sidebar))] bg-[hsl(var(--sidebar))] p-0 text-[hsl(var(--sidebar-foreground))]/65 shadow-md hover:bg-[hsl(var(--sidebar))] hover:text-[#fb7185] [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-current"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--sidebar))] bg-[hsl(var(--sidebar))] p-0 text-[hsl(var(--sidebar-foreground))]/65 shadow-md hover:bg-[hsl(var(--sidebar))] hover:text-[#C21E11] [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-current"
           />
         </div>
       </div>

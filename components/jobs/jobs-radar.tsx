@@ -338,7 +338,7 @@ export function JobsRadar({
                 className={cn(
                   segmentedTabsTriggerClassName,
                   dragDropZone === "action_required" &&
-                    "ring-2 ring-[#1ab5af]/70 ring-offset-2 ring-offset-background"
+                    "ring-2 ring-[#955823]/70 ring-offset-2 ring-offset-background dark:ring-[#eba970]/70"
                 )}
               >
                 <span>Action Required</span>

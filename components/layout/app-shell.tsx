@@ -199,12 +199,13 @@ export function AppShell({
                 </Link>
                 {showCollapsedStatus ? (
                   <div
-                    className="absolute right-0 top-0 z-[120] h-5 w-5"
+                    className="absolute left-[calc(0.5rem+1rem)] top-[calc(0.5rem-0.375rem)] z-[120] h-1.5 w-1.5"
                     onPointerEnter={() => setStatusFlyout(true)}
                     onClick={(event) => event.stopPropagation()}
                   >
+                    <div className="absolute -inset-2" />
                     {statusFlyout ? (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2">
+                      <div className="absolute left-1/2 top-1/2 -translate-x-[calc(1px+0.625rem+0.1875rem)] -translate-y-[calc(1px+0.25rem+0.5rem)]">
                         <SyncTelemetry
                           connected={Boolean(activeAccountId)}
                           surface="sidebar"
