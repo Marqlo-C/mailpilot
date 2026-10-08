@@ -32,8 +32,9 @@
     --sidebar: 210 24% 12%;
     --sidebar-foreground: 40 20% 96%;
     --sidebar-muted: 210 14% 28%;
-    /* Light tint of --sidebar for segmented tab rails */
-    --tab-rail: 210 16% 84%;
+    /* Light rail: tint of --sidebar. Dark rail: primary button shell (#181e26). */
+    --tab-rail-light: 210 16% 84%;
+    --tab-rail-dark: 214 23% 12%;
     --tab-rail-chip: 210 14% 80%;
   }
 }

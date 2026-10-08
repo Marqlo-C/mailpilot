@@ -10,16 +10,14 @@ import { ExcludedTitlesCard } from "@/components/settings/excluded-titles-card";
 import { MasterProfileCard } from "@/components/settings/master-profile-card";
 import type { ProfileSnapshotData } from "@/components/settings/master-profile-card";
 import { ResumeTailoringDefaultsCard } from "@/components/settings/resume-tailoring-defaults-card";
+import { UiRailCard } from "@/components/settings/ui-rail-card";
 import { DismissedRetentionSetting } from "@/components/settings/retention-setting";
-import {
-  segmentedTabsListClassName,
-  segmentedTabsTriggerClassName,
-} from "@/components/ui/segmented-tabs";
+import { useTabRailClasses } from "@/components/ui/segmented-tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AccountSummary } from "@/lib/data";
 import type { AccountRules } from "@/lib/validations/rules";
 
-type SettingsTab = "accounts" | "profile" | "automation" | "ai";
+type SettingsTab = "accounts" | "profile" | "automation" | "ai" | "ui";
 
 type SettingsViewProps = {
   accounts: AccountSummary[];
@@ -54,6 +52,10 @@ export function SettingsView({
   errorBanner,
 }: SettingsViewProps) {
   const [tab, setTab] = useState<SettingsTab>("accounts");
+  const {
+    listClassName: segmentedTabsListClassName,
+    triggerClassName: segmentedTabsTriggerClassName,
+  } = useTabRailClasses();
 
   return (
     <div className="space-y-4">
@@ -94,6 +96,9 @@ export function SettingsView({
             </TabsTrigger>
             <TabsTrigger value="ai" className={segmentedTabsTriggerClassName}>
               AI & Models
+            </TabsTrigger>
+            <TabsTrigger value="ui" className={segmentedTabsTriggerClassName}>
+              UI
             </TabsTrigger>
           </TabsList>
         </div>
@@ -163,6 +168,14 @@ export function SettingsView({
             bridgeConnected={rules.bridgeConnected ?? false}
             allowCloudFallback={rules.allowCloudFallback ?? false}
           />
+        </TabsContent>
+
+        <TabsContent
+          value="ui"
+          forceMount
+          className="mt-0 space-y-4 data-[state=inactive]:hidden"
+        >
+          <UiRailCard />
         </TabsContent>
       </Tabs>
     </div>

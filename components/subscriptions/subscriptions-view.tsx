@@ -60,9 +60,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PipelinePaginationFooter } from "@/components/ui/pipeline-pagination";
 import {
-  segmentedTabsListClassName,
-  segmentedTabsTriggerClassName,
+  tabRailRowClassName,
   TabCountBadge,
+  useTabRailClasses,
 } from "@/components/ui/segmented-tabs";
 import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/score-percent";
 import { selectCheckboxClassName } from "@/components/ui/select-checkbox";
@@ -222,6 +222,10 @@ export function SubscriptionsView({
   latestBriefing = null,
 }: SubscriptionsViewProps) {
   const router = useRouter();
+  const {
+    listClassName: segmentedTabsListClassName,
+    triggerClassName: segmentedTabsTriggerClassName,
+  } = useTabRailClasses();
   const [activeTab, setActiveTab] = useState<SubscriptionTab>("active");
   const [selected, setSelected] = useState<Subscription | null>(null);
   const [batchConfirmOpen, setBatchConfirmOpen] = useState(false);
@@ -1030,7 +1034,7 @@ export function SubscriptionsView({
         }}
         className="w-full"
       >
-        <div className="mb-3 flex flex-col justify-between gap-3 pt-2 sm:flex-row sm:items-center">
+        <div className={tabRailRowClassName}>
           <div className="flex items-center gap-1.5">
             <TabsList className={segmentedTabsListClassName}>
               <TabsTrigger

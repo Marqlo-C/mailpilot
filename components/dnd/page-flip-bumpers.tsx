@@ -13,7 +13,7 @@ const BUMPER_ICON_ARMED_CLASS =
 
 /**
  * Page-flip edge buttons while dragging. Placed only inside the content well:
- * below the top bar (`4.25rem`), right of the sidebar (`--app-sidebar-width`),
+ * below the mobile top bar (`4.25rem`; flush on desktop, where that bar is in the sidebar), right of the sidebar (`--app-sidebar-width`),
  * above the mobile bottom nav (`--app-mobile-bottom-inset`), and inset from
  * the viewport’s right edge by the flip band width. Armed state is the button
  * fill — no edge glow.
@@ -39,9 +39,8 @@ export function PageFlipBumpers({
 
   return (
     <div
-      className="pointer-events-none fixed z-[70]"
+      className="pointer-events-none fixed top-[4.25rem] z-[70] md:top-0"
       style={{
-        top: "4.25rem",
         left: "var(--app-sidebar-width, 0px)",
         right: 0,
         bottom: "var(--app-mobile-bottom-inset, 0px)",
