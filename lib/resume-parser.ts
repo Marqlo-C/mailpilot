@@ -55,6 +55,22 @@ function coerceStringList(value: unknown): string[] {
   return [];
 }
 
+/** Turns technology entries into trimmed strings. Objects contribute their first string field. */
+function coerceTechnologyList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item: unknown) => {
+      if (typeof item === "string") return item.trim();
+      if (typeof item === "number") return String(item);
+      if (item && typeof item === "object") {
+        const found = Object.values(item).find((entry) => typeof entry === "string");
+        return typeof found === "string" ? found.trim() : "";
+      }
+      return "";
+    })
+    .filter((item) => item.length > 0);
+}
+
 /** Stores a grade point as text. A blank value is null. */
 function coerceGpa(value: unknown): string | null {
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
@@ -170,7 +186,7 @@ function sanitizeResumeLlmJson(json: unknown): unknown {
       return {
         ...p,
         description: p.description ?? "",
-        technologies: Array.isArray(p.technologies) ? p.technologies : [],
+        technologies: coerceTechnologyList(p.technologies),
         bullets: Array.isArray(p.bullets) ? p.bullets : [],
       };
     });
@@ -221,13 +237,6 @@ Return ONLY valid JSON matching this schema (no markdown formatting, no code fen
   "location": string | null,
   "summary": string | null,
   "links": [{ "label": string, "url": string }],
-  "skills": [
-    {
-      "label": string,
-      "parentCategory": string | null,
-      "items": [{ "name": string, "proficiency": string | null }]
-    }
-  ],
   "experiences": [{
     "company": string,
     "role": string,
@@ -237,6 +246,13 @@ Return ONLY valid JSON matching this schema (no markdown formatting, no code fen
     "endDate": string | null,
     "bullets": string[]
   }],
+  "skills": [
+    {
+      "label": string,
+      "parentCategory": string | null,
+      "items": [{ "name": string, "proficiency": string | null }]
+    }
+  ],
   "projects": [{
     "name": string,
     "description": string,
@@ -1088,6 +1104,11 @@ export async function parseResumeToStructuredProfile(
     localOllamaUrl: options.localOllamaUrl,
     ollamaModel: options.ollamaModel,
     allowCloudFallback: options.allowCloudFallback,
+    ollamaOptions: {
+      num_ctx: 16384,
+      num_predict: 8192,
+      temperature: 0.1,
+    },
   });
 
   if (!json) {

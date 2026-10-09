@@ -965,6 +965,12 @@ export type CallLLMOptions = {
   allowOpenRouterFallback?: boolean;
   /** When set, OpenRouter tries only these models, in order. */
   openRouterModels?: string[];
+  /** Local generation limits. Omitted calls keep Ollama defaults. */
+  ollamaOptions?: {
+    num_ctx: number;
+    num_predict: number;
+    temperature: number;
+  };
 };
 
 /** Thrown when LOCAL_OLLAMA is selected but the instance cannot be reached. */
@@ -1058,7 +1064,8 @@ export async function callLLMWithFallback(
         baseUrl,
         options.systemPrompt,
         options.userPrompt,
-        options.ollamaModel
+        options.ollamaModel,
+        options.ollamaOptions
       );
       if (result) {
         console.info("[Ollama:Done]", {
@@ -1120,7 +1127,8 @@ async function callOllamaJson(
   baseUrl: string,
   systemPrompt: string,
   userPrompt: string,
-  model?: string | null
+  model?: string | null,
+  ollamaOptions?: CallLLMOptions["ollamaOptions"]
 ): Promise<Record<string, unknown> | null> {
   const resolvedModel =
     model?.trim() || process.env.OLLAMA_MODEL?.trim() || DEFAULT_OLLAMA_MODEL;
@@ -1162,7 +1170,8 @@ async function callOllamaJson(
         resolvedModel,
         systemPrompt,
         userPrompt,
-        timeouts
+        timeouts,
+        ollamaOptions
       );
       const durationMs = Date.now() - startedAt;
       if (result) {
@@ -1224,7 +1233,8 @@ async function callOllamaGenerateOnce(
   resolvedModel: string,
   systemPrompt: string,
   userPrompt: string,
-  timeouts: { idleTimeoutMs: number; hardCapMs: number }
+  timeouts: { idleTimeoutMs: number; hardCapMs: number },
+  ollamaOptions?: CallLLMOptions["ollamaOptions"]
 ): Promise<Record<string, unknown> | null> {
   const url = `${baseUrl}/api/chat`;
   const controller = new AbortController();
@@ -1254,6 +1264,7 @@ async function callOllamaGenerateOnce(
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
+        ...(ollamaOptions ? { options: ollamaOptions } : {}),
       }),
     });
 
