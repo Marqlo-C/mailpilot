@@ -368,6 +368,7 @@ export function consolidateProfiles(
       experiences[existingIndex] = {
         ...match,
         role: match.role || incExp.role,
+        location: preferPopulated(match.location, incExp.location),
         category: match.category || incExp.category || "Work",
         startDate: match.startDate || incExp.startDate,
         endDate: match.endDate ?? incExp.endDate,

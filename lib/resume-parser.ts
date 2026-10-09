@@ -32,6 +32,43 @@ const nullableStringArray = z
   .nullish()
   .transform((val) => val ?? []);
 
+const HONOR_SPLIT = /\s*(?:,|;|\n|•|·|●)\s*|\s+[-–—]\s+/;
+
+/** Turns one printed list, or a real array, into trimmed strings. */
+function coerceStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => {
+      if (typeof item === "string") {
+        const trimmed = item.trim();
+        return trimmed ? [trimmed] : [];
+      }
+      if (typeof item === "number" && Number.isFinite(item)) return [String(item)];
+      return [];
+    });
+  }
+  if (typeof value === "string") {
+    return value
+      .split(HONOR_SPLIT)
+      .map((part) => part.replace(/^[-*]\s+/, "").trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+/** Stores a grade point as text. A blank value is null. */
+function coerceGpa(value: unknown): string | null {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || null;
+  }
+  return null;
+}
+
+const coercedStringList = z.preprocess(coerceStringList, z.array(z.string()));
+
+const coercedGpa = z.preprocess(coerceGpa, z.string().nullable());
+
 const resumeLlmSchema = z.object({
   fullName: nullableStringToEmpty,
   email: nullableStringToEmpty,
@@ -106,8 +143,8 @@ const resumeLlmSchema = z.object({
         graduationDate: nullableStringOrNull,
         endDate: nullableStringOrNull,
         status: z.string().nullish().transform((val) => val ?? null),
-        gpa: nullableStringOrNull,
-        honors: nullableStringArray,
+        gpa: coercedGpa,
+        honors: coercedStringList,
         coursework: nullableStringArray,
       })
     )
@@ -154,6 +191,20 @@ function sanitizeResumeLlmJson(json: unknown): unknown {
 
   if (typeof raw.interests === "string") {
     raw.interests = [raw.interests];
+  }
+
+  if (Array.isArray(raw.education)) {
+    raw.education = raw.education.map((item) => {
+      const record =
+        item && typeof item === "object"
+          ? (item as Record<string, unknown>)
+          : {};
+      return {
+        ...record,
+        honors: coerceStringList(record.honors),
+        gpa: coerceGpa(record.gpa),
+      };
+    });
   }
 
   return raw;
@@ -237,6 +288,9 @@ CRITICAL EXTRACTION RULES:
        [Role / Job Title]                 [Location]
        [Company / Organization Name]      [Dates]
    - The organization line is the organization. The title line is the role. NEVER use the job title as the company name.
+   - location is the workplace printed with that entry: a city and region, a country, or an arrangement such as remote or hybrid. It often sits beside the organization or the dates, after a separator, or in brackets. Copy it as printed, for example "Austin, TX" or "Remote".
+   - If no workplace is printed, location is null. Never invent one and never guess a headquarters.
+   - Do not leave that workplace inside company, role, or a bullet.
    - Map entries with a role, organization, and dates to "experiences".
    - Set "category" from the printed heading above the entry:
        professional, employment, or experience headings -> "Work"
@@ -310,6 +364,94 @@ const METRIC_RE =
 
 function detectMetric(text: string): boolean {
   return METRIC_RE.test(text);
+}
+
+const WORKPLACE_MODE = /^(?:remote|hybrid)$/i;
+const ORG_SUFFIX = /^(?:inc|llc|ltd|llp|lp|co|corp|plc|gmbh|pc|pa)\.?$/i;
+
+/** Drops blank workplace text and trailing separator characters. */
+export function cleanWorkplaceLocation(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const text = value
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^[\[({\s]+|[\]})\s]+$/g, "")
+    .replace(/^[\s,;|·•–—-]+|[\s,;|·•–—-]+$/g, "")
+    .trim();
+  return text || null;
+}
+
+function looksLikeWorkplace(value: string): boolean {
+  const text = cleanWorkplaceLocation(value);
+  if (!text || text.length > 80) return false;
+  if (WORKPLACE_MODE.test(text)) return true;
+  const parts = text.split(",").map((part) => part.trim());
+  if (parts.length !== 2) return false;
+  const left = parts[0] ?? "";
+  const right = parts[1] ?? "";
+  if (!left || !right || ORG_SUFFIX.test(right)) return false;
+  if (left.length > 40 || right.length > 40 || /\d/.test(text)) return false;
+  return (
+    /^[\p{L}][\p{L} .'-]*$/u.test(left) && /^[\p{L}][\p{L} .'-]*$/u.test(right)
+  );
+}
+
+function splitConcatenatedWorkplace(
+  label: string,
+  location: string | null
+): { label: string; location: string | null } {
+  const cleaned = cleanWorkplaceLocation(location);
+  const name = label.trim();
+  if (cleaned) {
+    const escaped = cleaned.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const stripped = name
+      .replace(new RegExp(`\\s*[|·•]\\s*${escaped}\\s*$`, "i"), "")
+      .trim();
+    return { label: stripped || name, location: cleaned };
+  }
+  const match = name.match(/^(.*?)\s*[|·•]\s*(.+)$/);
+  const left = match?.[1]?.trim() ?? "";
+  const right = match?.[2]?.trim() ?? "";
+  if (!left || !looksLikeWorkplace(right)) return { label: name, location: null };
+  return { label: left, location: cleanWorkplaceLocation(right) };
+}
+
+/**
+ * Keeps a printed workplace on location. A workplace glued to the company or
+ * role with a separator is moved out. A missing workplace stays null.
+ */
+export function normalizeExperienceLocation<
+  T extends {
+    company: string;
+    role: string;
+    location?: string | null;
+    bullets?: Array<{ rawText: string }>;
+  },
+>(entry: T): T {
+  let company = entry.company.trim();
+  let role = entry.role.trim();
+  const fromCompany = splitConcatenatedWorkplace(company, entry.location ?? null);
+  company = fromCompany.label;
+  let location = fromCompany.location;
+  if (!location) {
+    const fromRole = splitConcatenatedWorkplace(role, null);
+    role = fromRole.label;
+    location = fromRole.location;
+  }
+  let bullets = entry.bullets;
+  const first = bullets?.[0]?.rawText ?? "";
+  const firstPlace = cleanWorkplaceLocation(first);
+  if (
+    firstPlace &&
+    bullets &&
+    (location
+      ? firstPlace.toLowerCase() === location.toLowerCase()
+      : looksLikeWorkplace(firstPlace))
+  ) {
+    if (!location) location = firstPlace;
+    bullets = bullets.slice(1);
+  }
+  return { ...entry, company, role, location, bullets };
 }
 
 function appearsInSource(value: string, rawText: string): boolean {
@@ -982,23 +1124,31 @@ export async function parseResumeToStructuredProfile(
   const skillTerms = interpretedSkills.groups.flatMap((group) =>
     group.items.map((item) => item.name)
   );
-  const experiences = parsed.experiences.map((exp, index) => ({
-    company: exp.company,
-    role: exp.role,
-    location: exp.location ?? null,
-    category: experienceCategory(exp.category, sliced),
-    startDate: exp.startDate || "Present",
-    endDate: exp.endDate ?? null,
-    displayOrder: index,
-    bullets: exp.bullets.map((rawText, bulletIndex) =>
-      experienceBulletSchema.parse({
-        id: `exp-${index}-b-${bulletIndex}`,
-        rawText,
-        technologies: inferTechnologies(rawText, skillTerms),
-        hasMetric: detectMetric(rawText),
-      })
-    ),
-  }));
+  const experiences = parsed.experiences.map((exp, index) => {
+    const placed = normalizeExperienceLocation({
+      company: exp.company,
+      role: exp.role,
+      location: exp.location,
+      bullets: exp.bullets.map((rawText) => ({ rawText })),
+    });
+    return {
+      company: placed.company,
+      role: placed.role,
+      location: placed.location,
+      category: experienceCategory(exp.category, sliced),
+      startDate: exp.startDate || "Present",
+      endDate: exp.endDate ?? null,
+      displayOrder: index,
+      bullets: (placed.bullets ?? []).map((bullet, bulletIndex) =>
+        experienceBulletSchema.parse({
+          id: `exp-${index}-b-${bulletIndex}`,
+          rawText: bullet.rawText,
+          technologies: inferTechnologies(bullet.rawText, skillTerms),
+          hasMetric: detectMetric(bullet.rawText),
+        })
+      ),
+    };
+  });
 
   const projects = parsed.projects.map((p) => ({
     name: p.name,

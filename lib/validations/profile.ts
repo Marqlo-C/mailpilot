@@ -52,7 +52,13 @@ export const workExperienceInputSchema = z.object({
   id: z.string().optional(),
   company: z.string().min(1),
   role: z.string().min(1),
-  location: z.string().nullable().optional(),
+  location: z
+    .preprocess((value) => {
+      if (typeof value !== "string") return null;
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }, z.string().nullable())
+    .default(null),
   /** Parent resume heading. "Work" is professional employment and counts toward tenure. */
   category: z.string().trim().min(1).default("Work"),
   startDate: z.string().min(1),

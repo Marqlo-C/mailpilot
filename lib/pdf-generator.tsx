@@ -22,6 +22,7 @@ import {
   dedupeContactItems,
   formatEducationDates,
   formatEducationTitle,
+  formatExperienceHeading,
   formatSchoolName,
 } from "@/lib/utils/format";
 import { categorizeProfileUrl, isResumeHeaderLink } from "@/lib/utils/url";
@@ -245,9 +246,7 @@ function ResumeDocument({
             <View key={`${exp.company}-${exp.role}`} style={{ marginBottom: 8 }}>
               <View style={styles.roleHeader}>
                 <Text style={styles.roleTitle}>
-                  {exp.company.trim() && exp.company !== exp.role
-                    ? `${exp.role} · ${exp.company}`
-                    : exp.role}
+                  {formatExperienceHeading(exp.role, exp.company, exp.location) || exp.role}
                 </Text>
                 <Text style={styles.muted}>
                   {exp.startDate} – {exp.endDate ?? "Present"}

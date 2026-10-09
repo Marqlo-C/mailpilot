@@ -20,6 +20,7 @@ import {
   educationProgressLabel,
   formatEducationDates,
   formatEducationTitle,
+  formatExperienceHeading,
   formatSchoolName,
 } from "@/lib/utils/format";
 import type { MasterProfileInput } from "@/lib/validations/profile";
@@ -343,7 +344,7 @@ export function ResumeUploadDialog({
               {draft.experiences.map((exp) => (
                 <div key={`${exp.company}-${exp.role}`} className="space-y-2">
                   <p className="font-medium">
-                    {exp.role} · {exp.company}
+                    {formatExperienceHeading(exp.role, exp.company, exp.location)}
                   </p>
                   <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
                     {exp.bullets.map((b) => (

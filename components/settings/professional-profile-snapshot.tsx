@@ -15,6 +15,7 @@ import {
   educationProgressLabel,
   formatEducationDates,
   formatEducationTitle,
+  formatExperienceHeading,
   formatSchoolName,
 } from "@/lib/utils/format";
 import {
@@ -276,12 +277,11 @@ export function ProfessionalProfileSnapshot({
                 >
                   <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
                     <p className="font-semibold">
-                      {exp.role} · {exp.company}
+                      {formatExperienceHeading(exp.role, exp.company, exp.location)}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {exp.category && exp.category !== "Work" ? `${exp.category} · ` : ""}
                       {exp.startDate} – {exp.endDate ?? "Present"}
-                      {exp.location ? ` · ${exp.location}` : ""}
                     </p>
                   </div>
                   <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-foreground/90">
@@ -317,7 +317,7 @@ export function ProfessionalProfileSnapshot({
                 >
                   <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
                     <p className="font-semibold">
-                      {exp.role} · {exp.company}
+                      {formatExperienceHeading(exp.role, exp.company, exp.location)}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {exp.category} · {exp.startDate} – {exp.endDate ?? "Present"}

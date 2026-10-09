@@ -6,6 +6,7 @@ import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
 import {
   formatEducationDates,
   formatEducationTitle,
+  formatExperienceHeading,
   formatSchoolName,
 } from "@/lib/utils/format";
 import type { TailorResult } from "@/lib/resume-tailor";
@@ -110,7 +111,7 @@ export function digestTailoredResume(input: {
         id: headerId,
         type: "experience_header",
         section: "experience",
-        content: `${exp.role} · ${exp.company}`,
+        content: formatExperienceHeading(exp.role, exp.company, exp.location),
         metadata: {
           company: exp.company,
           role: exp.role,
@@ -318,7 +319,8 @@ export function draftToPdfInput(
     const role =
       parts[0]?.trim() || asString(headerNode.metadata?.role) || headerNode.content;
     const company =
-      parts.length > 1 ? parts.slice(1).join(" · ").trim() : "";
+      asString(headerNode.metadata?.company) ||
+      (parts.length > 1 ? parts[1]?.trim() ?? "" : "");
     experiences.push({
       id: headerNode.id,
       company: company || role,
