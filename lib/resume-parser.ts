@@ -3,7 +3,7 @@ import { z } from "zod";
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
 import { isPlaceholderEmail } from "@/lib/profile-consolidation";
 import { interpretSkillGroups, isCourseworkLabel } from "@/lib/skill-groups";
-import type { SkillItem } from "@/lib/types/resume-draft";
+import type { SkillGroup, SkillItem } from "@/lib/types/resume-draft";
 import { githubProfileRoot, isVerifiedProfileUrl, normalizeProfileUrl } from "@/lib/utils/url";
 import {
   awardsSchema,
@@ -51,6 +51,7 @@ const resumeLlmSchema = z.object({
     .array(
       z.object({
         label: nullableStringToEmpty,
+        parentCategory: nullableStringOrNull,
         items: z
           .array(
             z.union([
@@ -170,7 +171,11 @@ Return ONLY valid JSON matching this schema (no markdown formatting, no code fen
   "summary": string | null,
   "links": [{ "label": string, "url": string }],
   "skills": [
-    { "label": "Skills", "items": [{ "name": "Skill A", "proficiency": null }] }
+    {
+      "label": string,
+      "parentCategory": string | null,
+      "items": [{ "name": string, "proficiency": string | null }]
+    }
   ],
   "experiences": [{
     "company": string,
@@ -244,14 +249,16 @@ CRITICAL EXTRACTION RULES:
    - Do not collapse a role that has an organization, dates, and bullets into "interests".
    - Entries under a Projects or portfolio heading go to "projects". Do not place those entries in "experiences" or "awards".
 
-5. GROUP SKILLS ONLY BY PRINTED SUBHEADINGS:
-   - Return skills as an array of { "label": string, "items": [{ "name": string, "proficiency": string | null }] }.
-   - Use the exact subheading printed on the page. If skills appear in a flat list with no subheadings, group them under a single group labeled "Skills".
+5. GROUP SKILLS BY THE PRINTED LAYOUT:
+   - Return skills as an array of { "label": string, "parentCategory": string | null, "items": [{ "name": string, "proficiency": string | null }] }.
+   - Two-tier layout: a section header contains distinct sub-blocks. A sub-block is a short label, then a separator such as a colon, then the items for that row.
+     Set parentCategory to the verbatim section header. Set label to the verbatim sub-block label. Do not copy either heading into the items.
+   - One-tier layout: the section is a direct list and has no sub-block labels. Set label to the verbatim section header and parentCategory to null.
+   - When no heading is printed, label is "Skills" and parentCategory is null.
    - Never output a group where the label is merely a duplicate of its single child item.
-   - Each name is one atomic skill copied from the page. Never put a paragraph, a multi-clause sentence, or a whole parenthetical list in one name.
-   - Split comma-separated lists, slash-separated lists, and lists inside parentheses into separate items.
-   - When a phrase qualifies the items after it, store that phrase in proficiency and do not leave it in the name. This includes phrases such as skilled in, significant experience with, familiar with, working knowledge of, fluent in, proficient in, and experienced with.
-   - When one item has its own short modifier, that modifier is only that item's proficiency.
+   - Each name is one atomic term copied from the page. Never put a paragraph, a multi-clause sentence, or several terms in one name.
+   - When terms are separated by commas, semicolons, slashes, or line breaks, each term is its own item.
+   - A parenthetical list shares one qualifier: the words before the parentheses are proficiency, and each entry inside is its own item. A parenthetical note attached to one term is that term's proficiency. Do not leave the qualifier in the name.
    - A full sentence that says what the person did is not a skill. Put it on the matching project or experience bullet, or leave it out when that bullet is already present.
    - Class titles, subjects, and academic foundations go on the related education record's coursework array, or in a group whose label is the printed heading for that list. Do not mix them into a list of tools or methods.
    - Omit empty groups.
@@ -392,11 +399,8 @@ export function experienceCategory(raw: string, source: string): string {
   return "Work";
 }
 
-function anchorSkillLabels(
-  groups: Array<{ label: string; items: SkillItem[] }>,
-  source: string
-): Array<{ label: string; items: SkillItem[] }> {
-  const merged = new Map<string, SkillItem[]>();
+function anchorSkillLabels(groups: SkillGroup[], source: string): SkillGroup[] {
+  const merged = new Map<string, SkillGroup>();
   for (const group of groups) {
     if (isCourseworkLabel(group.label)) continue;
     const rawLabel = group.label.trim();
@@ -406,24 +410,28 @@ function anchorSkillLabels(
         : appearsInSource(rawLabel, source)
           ? rawLabel
           : "Skills";
+    let parent = group.parentCategory?.trim() || null;
+    if (!parent || !appearsInSource(parent, source) || label === "Skills") parent = null;
     const items = group.items.filter(
       (item) => item.name.trim() && appearsInSource(item.name, source)
     );
     if (items.length === 0) continue;
-    const existing = merged.get(label) ?? [];
+    const key = `${parent?.toLowerCase() ?? ""}\n${label.toLowerCase()}`;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, { label, parentCategory: parent, items: [...items] });
+      continue;
+    }
     for (const item of items) {
-      if (!existing.some((current) => current.name.toLowerCase() === item.name.toLowerCase())) {
-        existing.push(item);
+      if (!existing.items.some((current) => current.name.toLowerCase() === item.name.toLowerCase())) {
+        existing.items.push(item);
       }
     }
-    merged.set(label, existing);
   }
-  return collapseEchoSkillGroups(
-    [...merged.entries()].map(([label, items]) => ({ label, items }))
-  );
+  return collapseEchoSkillGroups([...merged.values()]);
 }
 
-function isEchoSkillGroup(group: { label: string; items: SkillItem[] }): boolean {
+function isEchoSkillGroup(group: SkillGroup): boolean {
   const item = group.items[0]?.name.trim() ?? "";
   return (
     group.items.length === 1 &&
@@ -436,10 +444,9 @@ function isEchoSkillGroup(group: { label: string; items: SkillItem[] }): boolean
  * Flat lists often come back as one group per skill, with the label repeating
  * the item. When that pattern is the majority, keep one Skills group.
  */
-export function collapseEchoSkillGroups(
-  groups: Array<{ label: string; items: SkillItem[] }>
-): Array<{ label: string; items: SkillItem[] }> {
+export function collapseEchoSkillGroups(groups: SkillGroup[]): SkillGroup[] {
   if (groups.length === 0) return groups;
+  if (groups.some((group) => group.parentCategory?.trim())) return groups;
   const echoCount = groups.filter(isEchoSkillGroup).length;
   if (echoCount * 2 <= groups.length) return groups;
   const items: SkillItem[] = [];
@@ -454,7 +461,7 @@ export function collapseEchoSkillGroups(
     }
   }
   if (items.length === 0) return [];
-  return [{ label: "Skills", items }];
+  return [{ label: "Skills", parentCategory: null, items }];
 }
 
 function mergeUnique(existing: string[], incoming: string[]): string[] {
@@ -1032,6 +1039,7 @@ export async function parseResumeToStructuredProfile(
   if (unplacedCoursework.length > 0) {
     skills.push({
       label: "Coursework",
+      parentCategory: null,
       items: unplacedCoursework.map((name) => ({ name, proficiency: null })),
     });
   }

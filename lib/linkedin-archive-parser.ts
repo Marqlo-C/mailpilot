@@ -143,6 +143,7 @@ export async function parseLinkedInArchive(
 
   const skills = Array.from(skillBuckets, ([label, items]) => ({
     label,
+    parentCategory: null,
     items: items.map((name) => ({ name, proficiency: null })),
   }));
 

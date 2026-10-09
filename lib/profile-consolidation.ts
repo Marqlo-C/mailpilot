@@ -244,15 +244,20 @@ export function resolveGithubHandle(
  */
 function mergeSkillGroups(existing: Skills, incoming: Skills): Skills {
   const order: string[] = [];
-  const groups = new Map<string, { label: string; items: Skills[number]["items"] }>();
+  const groups = new Map<
+    string,
+    { label: string; parentCategory: string | null; items: Skills[number]["items"] }
+  >();
 
   for (const group of [...existing, ...incoming]) {
-    const key = normalizeString(group.label);
-    if (!key) continue;
+    const parentCategory = group.parentCategory?.trim() || null;
+    const key = `${normalizeString(parentCategory ?? "")}\n${normalizeString(group.label)}`;
+    if (!normalizeString(group.label)) continue;
     const current = groups.get(key);
     if (!current) {
       groups.set(key, {
         label: group.label.trim(),
+        parentCategory,
         items: mergeSkillBuckets([], group.items),
       });
       order.push(key);
@@ -263,7 +268,11 @@ function mergeSkillGroups(existing: Skills, incoming: Skills): Skills {
 
   return order.map((key) => {
     const group = groups.get(key)!;
-    return { label: group.label, items: group.items };
+    return {
+      label: group.label,
+      parentCategory: group.parentCategory,
+      items: group.items,
+    };
   });
 }
 

@@ -96,7 +96,11 @@ function projectKey(row: ProjectRow): string {
 
 function skillLines(profile: DiffableProfile): string[] {
   return (profile.skills ?? []).flatMap((group) =>
-    group.items.map((item) => `${text(group.label)}: ${item.name}`.toLowerCase())
+    group.items.map((item) => {
+      const parent = text(group.parentCategory);
+      const prefix = parent ? `${parent} / ` : "";
+      return `${prefix}${text(group.label)}: ${item.name}`.toLowerCase();
+    })
   );
 }
 

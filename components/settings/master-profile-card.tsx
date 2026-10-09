@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { MasterProfileInput } from "@/lib/validations/profile";
-import { skillGroupsFromUnknown } from "@/lib/skill-groups";
+import { groupSkillSections, skillGroupsFromUnknown } from "@/lib/skill-groups";
 import {
   educationProgressLabel,
   formatEducationDates,
@@ -212,33 +212,48 @@ export function MasterProfileCard({
                 {skillGroups.length === 0 ? (
                   <p className="text-sm text-muted-foreground">None listed</p>
                 ) : (
-                  skillGroups.map((group, index) => (
-                    <div key={`${group.label}-${index}`}>
-                      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        {group.label}
-                      </p>
-                      {group.items.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          None listed
+                  groupSkillSections(skillGroups).map((section, sectionIndex) => (
+                    <div key={`${section.parentCategory ?? "root"}-${sectionIndex}`} className="space-y-3">
+                      {section.parentCategory ? (
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {section.parentCategory}
                         </p>
-                      ) : (
-                        <div className="flex flex-wrap gap-1.5">
-                          {group.items.map((skill) => (
-                            <Badge
-                              key={`${group.label}-${skill.name}`}
-                              variant="secondary"
-                              className="gap-1 font-normal"
-                            >
-                              <span className="font-medium">{skill.name}</span>
-                              {skill.proficiency ? (
-                                <span className="text-muted-foreground">
-                                  · {skill.proficiency}
-                                </span>
-                              ) : null}
-                            </Badge>
-                          ))}
+                      ) : null}
+                      {section.groups.map((group, index) => (
+                        <div key={`${section.parentCategory ?? ""}-${group.label}-${index}`}>
+                          <p
+                            className={
+                              section.parentCategory
+                                ? "mb-2 text-sm font-medium"
+                                : "mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground"
+                            }
+                          >
+                            {group.label}
+                          </p>
+                          {group.items.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                              None listed
+                            </p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                              {group.items.map((skill) => (
+                                <Badge
+                                  key={`${group.label}-${skill.name}`}
+                                  variant="secondary"
+                                  className="gap-1 font-normal"
+                                >
+                                  <span className="font-medium">{skill.name}</span>
+                                  {skill.proficiency ? (
+                                    <span className="text-muted-foreground">
+                                      · {skill.proficiency}
+                                    </span>
+                                  ) : null}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      ))}
                     </div>
                   ))
                 )}

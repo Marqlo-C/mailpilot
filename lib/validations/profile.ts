@@ -29,6 +29,11 @@ export const skillItemSchema = z.union([
 
 export const skillGroupSchema = z.object({
   label: z.string().trim().min(1),
+  parentCategory: z.preprocess((value) => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    return trimmed || null;
+  }, z.string().min(1).nullable()),
   items: z.array(skillItemSchema),
 });
 

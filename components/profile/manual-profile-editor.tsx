@@ -296,7 +296,23 @@ export function ManualProfileEditor({
                   key={`${group.label}-${index}`}
                   className="space-y-3 rounded-md border border-border p-3"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="space-y-2">
+                    <Input
+                      value={group.parentCategory ?? ""}
+                      placeholder="Parent section"
+                      aria-label="Parent skill section"
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          skills: f.skills.map((item, i) =>
+                            i === index
+                              ? { ...item, parentCategory: e.target.value || null }
+                              : item
+                          ),
+                        }))
+                      }
+                    />
+                    <div className="flex items-center gap-2">
                     <Input
                       value={group.label}
                       placeholder="Category name"
@@ -326,6 +342,7 @@ export function ManualProfileEditor({
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
+                    </div>
                   </div>
                   <TagListEditor
                     label="skill"
@@ -362,7 +379,7 @@ export function ManualProfileEditor({
                 onClick={() =>
                   setForm((f) => ({
                     ...f,
-                    skills: [...f.skills, { label: "", items: [] }],
+                    skills: [...f.skills, { label: "", parentCategory: null, items: [] }],
                   }))
                 }
               >
