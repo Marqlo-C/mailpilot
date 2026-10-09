@@ -229,6 +229,137 @@ export function computeProfileDiff(
   return { added, removed, modified };
 }
 
+export type StoredRevisionSummary = {
+  title: string;
+  diff: ProfileDiffSummary;
+};
+
+const EMPTY_DIFF: ProfileDiffSummary = { added: [], removed: [], modified: [] };
+
+function asDiffChanges(value: unknown): ProfileDiffChange[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as { section?: unknown; summary?: unknown };
+    if (typeof row.section !== "string" || typeof row.summary !== "string") return [];
+    const section = row.section.trim();
+    const summary = row.summary.trim();
+    if (!section || !summary) return [];
+    return [{ section, summary }];
+  });
+}
+
+/** Reads a stored revision. Older rows are a plain title with no itemized diff. */
+export function parseRevisionSummary(raw: string): StoredRevisionSummary {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && "title" in parsed) {
+      const record = parsed as { title?: unknown; diff?: unknown };
+      if (typeof record.title === "string" && record.diff && typeof record.diff === "object") {
+        const diff = record.diff as Partial<ProfileDiffSummary>;
+        return {
+          title: record.title.trim() || "Profile Revision",
+          diff: {
+            added: asDiffChanges(diff.added),
+            removed: asDiffChanges(diff.removed),
+            modified: asDiffChanges(diff.modified),
+          },
+        };
+      }
+    }
+  } catch {
+    // Plain-text titles from before structured diffs.
+  }
+  return {
+    title: raw.trim() || "Profile Revision",
+    diff: { added: [], removed: [], modified: [] },
+  };
+}
+
+export function serializeRevisionSummary(value: StoredRevisionSummary): string {
+  return JSON.stringify({
+    title: value.title.trim() || "Profile Revision",
+    diff: {
+      added: value.diff.added,
+      removed: value.diff.removed,
+      modified: value.diff.modified,
+    },
+  });
+}
+
+function sectionLabel(section: string): string {
+  const trimmed = section.trim();
+  if (!trimmed) return "Items";
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+function changeCount(changes: ProfileDiffChange[]): number {
+  return changes.reduce((total, change) => {
+    const match = /^(\d+)\b/.exec(change.summary.trim());
+    return total + (match ? Number(match[1]) : 1);
+  }, 0);
+}
+
+function uniqueSections(changes: ProfileDiffChange[]): string[] {
+  const seen = new Set<string>();
+  const labels: string[] = [];
+  for (const change of changes) {
+    const label = sectionLabel(change.section);
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    labels.push(label);
+  }
+  return labels;
+}
+
+function fitShortTitle(value: string): string {
+  if (value.length <= 35) return value;
+  return `${value.slice(0, 32)}...`;
+}
+
+function titleForBucket(verb: string, changes: ProfileDiffChange[]): string {
+  const labels = uniqueSections(changes);
+  const count = changeCount(changes);
+  if (labels.length === 1 && count > 1) return fitShortTitle(`${verb} ${count} Items`);
+  if (labels.length === 1) return fitShortTitle(`${verb} ${labels[0]}`);
+  if (labels.length === 2) {
+    const both = `${verb} ${labels[0]} & ${labels[1]}`;
+    if (both.length <= 35) return both;
+  }
+  return fitShortTitle(`${verb} ${Math.max(labels.length, 1)} Sections`);
+}
+
+/** Dropdown title. Uses section names and counts already on the diff. */
+export function shortRevisionTitle(diff: ProfileDiffSummary): string {
+  if (isEmptyProfileDiff(diff)) return "Profile Baseline";
+  const buckets = [
+    { verb: "Added", changes: diff.added },
+    { verb: "Updated", changes: diff.modified },
+    { verb: "Removed", changes: diff.removed },
+  ].filter((bucket) => bucket.changes.length > 0);
+  const only = buckets[0];
+  if (buckets.length === 1 && only) return titleForBucket(only.verb, only.changes);
+  const combined = [
+    ...diff.added,
+    ...diff.modified,
+    ...diff.removed,
+  ];
+  return titleForBucket("Updated", combined);
+}
+
+export function describeProfileRevision(
+  previous: DiffableProfile | null,
+  next: DiffableProfile
+): StoredRevisionSummary {
+  if (!previous) {
+    return { title: "Initial Profile Import", diff: EMPTY_DIFF };
+  }
+  const diff = computeProfileDiff(previous, next);
+  if (isEmptyProfileDiff(diff)) return { title: "Profile Baseline", diff };
+  return { title: shortRevisionTitle(diff), diff };
+}
+
 export function isEmptyProfileDiff(diff: ProfileDiffSummary): boolean {
   return (
     diff.added.length === 0 &&
@@ -237,23 +368,28 @@ export function isEmptyProfileDiff(diff: ProfileDiffSummary): boolean {
   );
 }
 
-function joinSummaries(changes: ProfileDiffChange[]): string {
-  return changes
-    .slice(0, 2)
-    .map((change) => change.summary)
-    .filter(Boolean)
-    .join(" & ");
+const MAX_TITLE_LENGTH = 100;
+
+function formatChangeList(changes: ProfileDiffChange[]): string {
+  const summaries = changes.map((change) => change.summary.trim()).filter(Boolean);
+  if (summaries.length === 0) return "";
+  if (summaries.length === 1) return summaries[0] ?? "";
+  if (summaries.length === 2) return `${summaries[0]} & ${summaries[1]}`;
+  return `${summaries[0]} (+${summaries.length - 1} more)`;
 }
 
-/** Title built only from the diff when a model title is unavailable. */
+function limitTitle(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= MAX_TITLE_LENGTH) return trimmed;
+  return `${trimmed.slice(0, MAX_TITLE_LENGTH - 3)}...`;
+}
+
+/** Commit-style title built only from names already present in the diff. */
 export function structuralRevisionTitle(diff: ProfileDiffSummary): string {
-  const added = joinSummaries(diff.added);
-  const modified = joinSummaries(diff.modified);
-  const removed = joinSummaries(diff.removed);
   const parts = [
-    added ? `Added ${added}` : "",
-    modified ? `Updated ${modified}` : "",
-    removed ? `Removed ${removed}` : "",
+    diff.added.length > 0 ? `Add ${formatChangeList(diff.added)}` : "",
+    diff.modified.length > 0 ? `Update ${formatChangeList(diff.modified)}` : "",
+    diff.removed.length > 0 ? `Remove ${formatChangeList(diff.removed)}` : "",
   ].filter(Boolean);
-  return parts.join("; ").slice(0, 140) || "Profile update";
+  return limitTitle(parts.join(", ")) || "Profile update";
 }

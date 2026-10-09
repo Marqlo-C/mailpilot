@@ -13,6 +13,36 @@ import {
 
 const MAX_HISTORY_STATES = 5;
 
+export type ProfileRevisionListItem = {
+  id: string;
+  summary: string;
+  createdAt: string;
+};
+
+/** Newest-first revision titles. A plain read so the menu can load during a long AI action. */
+export async function listProfileRevisions(
+  accountId: string
+): Promise<ProfileRevisionListItem[]> {
+  const profile = await prisma.userProfile.findUnique({
+    where: { accountId },
+    select: { id: true },
+  });
+  if (!profile) return [];
+
+  const history = await prisma.profileHistory.findMany({
+    where: { profileId: profile.id },
+    orderBy: { createdAt: "desc" },
+    take: MAX_HISTORY_STATES,
+    select: { id: true, summary: true, createdAt: true },
+  });
+
+  return history.map((row) => ({
+    id: row.id,
+    summary: row.summary,
+    createdAt: row.createdAt.toISOString(),
+  }));
+}
+
 type ProfileTree = {
   fullName: string;
   email: string;
