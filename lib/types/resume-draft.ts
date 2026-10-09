@@ -70,8 +70,14 @@ export const storedResumeDraftSchema = z.object({
 
 export type StoredResumeDraft = z.infer<typeof storedResumeDraftSchema>;
 
+/** One skill. Proficiency is the printed qualifier, when the source stated one. */
+export type SkillItem = {
+  name: string;
+  proficiency: string | null;
+};
+
 /** A skill section group. The label is whatever the source used. */
 export type SkillGroup = {
   label: string;
-  items: string[];
+  items: SkillItem[];
 };

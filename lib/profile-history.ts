@@ -58,6 +58,7 @@ type ProfileTree = {
     graduationDate: string | null;
     gpa?: string | null;
     honors?: unknown;
+    coursework?: unknown;
   }>;
 };
 
@@ -105,6 +106,9 @@ export function serializeUserProfileToInput(
       gpa: ed.gpa ?? null,
       honors: Array.isArray(ed.honors)
         ? ed.honors.filter((item): item is string => typeof item === "string")
+        : [],
+      coursework: Array.isArray(ed.coursework)
+        ? ed.coursework.filter((item): item is string => typeof item === "string")
         : [],
     })),
     certifications: certificationsSchema.parse(profile.certifications),

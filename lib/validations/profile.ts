@@ -10,9 +10,26 @@ export const experienceBulletSchema = z.object({
   hasMetric: z.boolean().default(false),
 });
 
+export const skillItemSchema = z.union([
+  z
+    .string()
+    .trim()
+    .min(1)
+    .transform((name) => ({ name, proficiency: null as string | null })),
+  z
+    .object({
+      name: z.string().trim().min(1),
+      proficiency: z.string().trim().nullable().optional(),
+    })
+    .transform((item) => ({
+      name: item.name,
+      proficiency: item.proficiency?.trim() || null,
+    })),
+]);
+
 export const skillGroupSchema = z.object({
   label: z.string().trim().min(1),
-  items: z.array(z.string()),
+  items: z.array(skillItemSchema),
 });
 
 /** Accepts skill groups, a string-list record, or the legacy four-bucket object. */
@@ -103,6 +120,7 @@ export const educationInputSchema = z.object({
   endDate: z.string().nullable().optional(),
   gpa: z.string().nullable().optional(),
   honors: honorsListSchema.default([]),
+  coursework: honorsListSchema.default([]),
 });
 
 const nullableText = z.preprocess((value) => {

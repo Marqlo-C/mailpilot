@@ -142,7 +142,7 @@ export async function parseLinkedInArchive(
 
   const skills = Array.from(skillBuckets, ([label, items]) => ({
     label,
-    items,
+    items: items.map((name) => ({ name, proficiency: null })),
   }));
 
   const experiences = positionRows
@@ -184,6 +184,7 @@ export async function parseLinkedInArchive(
           null,
         gpa: null,
         honors: [],
+        coursework: [],
       };
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row));

@@ -511,6 +511,7 @@ export async function updateMasterProfile(
             graduationDate: ed.graduationDate || ed.endDate || null,
             gpa: ed.gpa ?? null,
             honors: (ed.honors ?? []) as Prisma.InputJsonValue,
+            coursework: (ed.coursework ?? []) as Prisma.InputJsonValue,
           })),
         });
       }
@@ -699,6 +700,7 @@ export async function getMasterProfile(
           graduationDate: ed.graduationDate,
           gpa: ed.gpa,
           honors: honorsList(ed.honors),
+          coursework: honorsList(ed.coursework),
         })),
         certifications: certificationsSchema.parse(profile.certifications),
         awards: awardsSchema.parse(profile.awards),

@@ -408,4 +408,5 @@ model Education {
   graduationDate String?
   gpa            String?
   honors         Json     @default("[]")
+  coursework     Json     @default("[]")
 }

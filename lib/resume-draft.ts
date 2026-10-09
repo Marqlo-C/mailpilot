@@ -73,7 +73,7 @@ export function digestTailoredResume(input: {
       ? tailoredGroups
       : skillGroupsFromUnknown(profile.skills);
   skillGroups.forEach((group, index) => {
-    const content = group.items.join(", ");
+    const content = group.items.map((item) => item.name).join(", ");
     const slug =
       group.label
         .toLowerCase()
@@ -290,7 +290,7 @@ export function draftToPdfInput(
       return [
         {
           label: skillCategoryLabel(group) ?? "",
-          items,
+          items: items.map((name) => ({ name, proficiency: null })),
         },
       ];
     });
@@ -385,6 +385,7 @@ export function draftToPdfInput(
       fieldOfStudy: asString(item.metadata?.fieldOfStudy) || null,
       graduationDate: asString(item.metadata?.graduationDate) || null,
       honors: [],
+      coursework: [],
     }));
 
   return {
