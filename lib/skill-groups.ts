@@ -20,16 +20,7 @@ export function isCourseworkLabel(label: string): boolean {
   return COURSE_LABEL.test(label);
 }
 
-const LEGACY_SKILL_LABELS: Record<string, string> = {
-  languages: "Languages",
-  frameworks: "Frameworks",
-  tools: "Tools",
-  concepts: "Concepts",
-};
-
 function formatLabel(key: string): string {
-  const legacy = LEGACY_SKILL_LABELS[key.trim().toLowerCase()];
-  if (legacy) return legacy;
   const spaced = key
     .replace(/[_-]+/g, " ")
     .replace(/([a-z\d])([A-Z])/g, "$1 $2")
@@ -136,6 +127,158 @@ function peelInline(value: string): { proficiency: string | null; name: string }
   return { proficiency: tidyPhrase(match[1] ?? "") || null, name: (match[2] ?? "").trim() };
 }
 
+const LABEL_SEPARATOR = /^([^:·•∙\n]{1,80}?)\s*(?::|·|•|∙)\s+(\S[\s\S]*)$/;
+
+type SkillDecomposition = {
+  label: string | null;
+  skills: SkillItem[];
+  coursework: string[];
+  narratives: string[];
+};
+
+function labeledRow(text: string): { label: string; rest: string } | null {
+  const match = text.match(LABEL_SEPARATOR);
+  if (!match) return null;
+  const label = cleanToken(match[1] ?? "");
+  const rest = (match[2] ?? "").trim();
+  if (!label || !rest) return null;
+  if (/[,;]/.test(label) || wordCount(label) > 5) return null;
+  return { label, rest };
+}
+
+/** Semicolons separate sub-rows only when more than one row has its own label. */
+function rowSegments(text: string): string[] {
+  const parts = text
+    .split(/\s*;\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length < 2) return [text.trim()];
+  const labeledCount = parts.filter((part) => labeledRow(part)).length;
+  return labeledCount >= 2 ? parts : [text.trim()];
+}
+
+function tokensFromParts(
+  parts: string[],
+  proficiency: string | null
+): { skills: SkillItem[]; coursework: string[] } {
+  const skills: SkillItem[] = [];
+  const coursework: string[] = [];
+  if (isCourseList(parts) || (parts.length === 1 && isCourseTitle(parts[0] ?? ""))) {
+    coursework.push(...parts.map(cleanToken).filter(Boolean));
+    return { skills, coursework };
+  }
+  for (const part of parts) {
+    if (isCourseTitle(part)) {
+      const title = cleanToken(part);
+      if (title) coursework.push(title);
+      continue;
+    }
+    const inline = peelInline(part);
+    const name = cleanToken(inline.name);
+    if (!name || wordCount(name) > 8) continue;
+    skills.push({
+      name,
+      proficiency: inline.proficiency ?? proficiency,
+    });
+  }
+  return { skills, coursework };
+}
+
+function analyzePiece(text: string, inherited: string | null): SkillDecomposition {
+  const empty: SkillDecomposition = {
+    label: null,
+    skills: [],
+    coursework: [],
+    narratives: [],
+  };
+  if (!text) return empty;
+  if (NARRATIVE.test(text) && wordCount(text) >= 6 && !labeledRow(text)) {
+    return { ...empty, narratives: [text] };
+  }
+  const labeled = labeledRow(text);
+  if (labeled) {
+    const inner = analyzePiece(labeled.rest, inherited);
+    return { ...inner, label: inner.label ?? labeled.label };
+  }
+  const paren = text.match(/^(.*?)\(([^()]*)\)\s*$/);
+  const lead = (paren?.[1] ?? "").trim();
+  const inner = paren?.[2]?.trim() ?? "";
+  const innerParts = inner ? splitList(inner) : [];
+  const innerIsList = /[,;]/.test(inner) && innerParts.length >= 2;
+  if (paren && innerIsList && lead && wordCount(lead) <= 6 && !/[,;]/.test(lead)) {
+    const peeled = peelQualifier(lead);
+    const shared = peeled.proficiency ?? tidyPhrase(lead);
+    const tokenized = tokensFromParts(innerParts, shared ?? inherited);
+    return { ...empty, ...tokenized };
+  }
+  if (paren && lead && inner && !innerIsList) {
+    const leadQualifier = peelQualifier(lead);
+    const innerQualifier = peelQualifier(inner);
+    if (leadQualifier.proficiency && !leadQualifier.remainder) {
+      const tokenized = tokensFromParts(splitList(inner), leadQualifier.proficiency);
+      return { ...empty, ...tokenized };
+    }
+    if (innerQualifier.proficiency && !innerQualifier.remainder && wordCount(inner) <= 4) {
+      const tokenized = tokensFromParts([lead], innerQualifier.proficiency);
+      return { ...empty, ...tokenized };
+    }
+    if (wordCount(lead) <= 8 && wordCount(inner) <= 6) {
+      const name = cleanToken(lead);
+      if (name) {
+        return {
+          ...empty,
+          skills: [{ name, proficiency: inner.replace(/\s+/g, " ").trim() || inherited }],
+        };
+      }
+    }
+  }
+  const peeled = peelQualifier(lead || text);
+  const source = inner || peeled.remainder;
+  if (!source) return empty;
+  const parts = splitList(source);
+  const tokenized = tokensFromParts(parts, peeled.proficiency ?? inherited);
+  return { ...empty, ...tokenized };
+}
+
+/**
+ * Splits one stored skill string into atomic items.
+ * A short label before a colon or dot becomes the child group label.
+ */
+export function decomposeSkillString(
+  raw: string,
+  inheritedProficiency: string | null = null
+): SkillDecomposition[] {
+  const results: SkillDecomposition[] = [];
+  for (const segment of splitDenseBlock(raw)) {
+    const text = segment.replace(/\s+/g, " ").trim();
+    if (!text) continue;
+    for (const piece of rowSegments(text)) {
+      results.push(analyzePiece(piece, inheritedProficiency));
+    }
+  }
+  return results;
+}
+
+function fromStoredItem(name: string, proficiency: string | null): SkillDecomposition[] {
+  const cleanedName = cleanToken(name);
+  const cleanedProficiency = proficiency?.trim() || null;
+  const proficiencyHoldsList = Boolean(
+    cleanedProficiency && /[,;()]/.test(cleanedProficiency)
+  );
+  if (
+    proficiencyHoldsList &&
+    cleanedName &&
+    !/[,:;·•∙|]/.test(cleanedName) &&
+    wordCount(cleanedName) <= 5
+  ) {
+    return decomposeSkillString(cleanedProficiency ?? "", null).map((entry) => ({
+      ...entry,
+      label: entry.label ?? cleanedName,
+    }));
+  }
+  return decomposeSkillString(cleanedName, cleanedProficiency);
+}
+
 /** Splits a dense skill line into tokens, qualifiers, course titles, and sentences. */
 export function interpretSkillText(raw: string): {
   skills: SkillItem[];
@@ -145,38 +288,10 @@ export function interpretSkillText(raw: string): {
   const skills: SkillItem[] = [];
   const coursework: string[] = [];
   const narratives: string[] = [];
-  for (const segment of splitDenseBlock(raw)) {
-    const text = segment.replace(/\s+/g, " ").trim();
-    if (!text) continue;
-    if (NARRATIVE.test(text) && wordCount(text) >= 6) {
-      narratives.push(text);
-      continue;
-    }
-    const paren = text.match(/^(.*)\(([^()]*)\)\s*$/);
-    const lead = (paren?.[1] ?? text).trim();
-    const inner = paren?.[2]?.trim() || null;
-    const peeled = peelQualifier(lead);
-    const source = inner ?? peeled.remainder;
-    if (!source) continue;
-    const parts = splitList(source);
-    if (isCourseList(parts) || (parts.length === 1 && isCourseTitle(parts[0] ?? ""))) {
-      coursework.push(...parts.map(cleanToken).filter(Boolean));
-      continue;
-    }
-    for (const part of parts) {
-      if (isCourseTitle(part)) {
-        const title = cleanToken(part);
-        if (title) coursework.push(title);
-        continue;
-      }
-      const inline = peelInline(part);
-      const name = cleanToken(inline.name);
-      if (!name || wordCount(name) > 8) continue;
-      skills.push({
-        name,
-        proficiency: inline.proficiency ?? peeled.proficiency,
-      });
-    }
+  for (const entry of decomposeSkillString(raw)) {
+    skills.push(...entry.skills);
+    coursework.push(...entry.coursework);
+    narratives.push(...entry.narratives);
   }
   return {
     skills: dedupeSkills(skills),
@@ -196,48 +311,80 @@ function skillItemFromUnknown(value: unknown): SkillItem | null {
   return { name: record.name.trim(), proficiency };
 }
 
+function groupKey(parent: string | null, label: string): string {
+  return `${(parent ?? "").toLowerCase()}\n${label.toLowerCase()}`;
+}
+
+function parentForChild(baseParent: string | null, baseLabel: string): string | null {
+  if (baseParent) return baseParent;
+  if (baseLabel.trim().toLowerCase() === "skills") return null;
+  return baseLabel;
+}
+
 export function interpretSkillGroups(
-  groups: Array<{ label?: string | null; items?: unknown }>
+  groups: Array<{
+    label?: string | null;
+    parentCategory?: string | null;
+    items?: unknown;
+  }>
 ): { groups: SkillGroup[]; coursework: string[]; narratives: string[] } {
-  const grouped = new Map<string, { label: string; items: SkillItem[] }>();
+  const grouped = new Map<string, SkillGroup>();
   const order: string[] = [];
   const coursework: string[] = [];
   const narratives: string[] = [];
 
-  const addSkill = (label: string, item: SkillItem) => {
-    const key = label.toLowerCase();
+  const addSkill = (parent: string | null, label: string, item: SkillItem) => {
+    const key = groupKey(parent, label);
     const current = grouped.get(key);
     if (!current) {
-      grouped.set(key, { label, items: [item] });
+      grouped.set(key, { label, parentCategory: parent, items: [item] });
       order.push(key);
       return;
     }
-    if (current.items.some((existing) => existing.name.toLowerCase() === item.name.toLowerCase())) {
+    const existing = current.items.find(
+      (skill) => skill.name.toLowerCase() === item.name.toLowerCase()
+    );
+    if (!existing) {
+      current.items.push(item);
       return;
     }
-    current.items.push(item);
+    if (!existing.proficiency && item.proficiency) existing.proficiency = item.proficiency;
+  };
+
+  const place = (
+    baseParent: string | null,
+    baseLabel: string,
+    entry: SkillDecomposition
+  ) => {
+    narratives.push(...entry.narratives);
+    coursework.push(...entry.coursework);
+    if (entry.skills.length === 0) return;
+    const childLabel = entry.label?.trim() || "";
+    const sameLabel = childLabel.toLowerCase() === baseLabel.toLowerCase();
+    const label = !childLabel || sameLabel ? baseLabel : childLabel;
+    const parent =
+      !childLabel || sameLabel ? baseParent : parentForChild(baseParent, baseLabel);
+    if (isCourseworkLabel(label) || isCourseworkLabel(baseLabel)) {
+      coursework.push(...entry.skills.map((item) => item.name));
+      return;
+    }
+    for (const item of entry.skills) addSkill(parent, label, item);
   };
 
   for (const group of groups) {
     const label = group.label?.trim() || "Skills";
-    const courseGroup = isCourseworkLabel(label);
+    const parent = group.parentCategory?.trim() || null;
     const rawItems = Array.isArray(group.items) ? group.items : [];
     for (const raw of rawItems) {
-      if (typeof raw !== "string") {
-        const item = skillItemFromUnknown(raw);
-        if (!item) continue;
-        if (courseGroup || isCourseTitle(item.name)) coursework.push(item.name);
-        else addSkill(label, item);
+      if (typeof raw === "string") {
+        for (const entry of decomposeSkillString(raw)) place(parent, label, entry);
         continue;
       }
-      const interpreted = interpretSkillText(raw);
-      narratives.push(...interpreted.narratives);
-      coursework.push(...interpreted.coursework);
-      if (courseGroup) {
-        coursework.push(...interpreted.skills.map((item) => item.name));
-        continue;
+      const item = skillItemFromUnknown(raw);
+      if (!item) continue;
+      for (const entry of fromStoredItem(item.name, item.proficiency)) {
+        place(parent, label, entry);
       }
-      for (const item of interpreted.skills) addSkill(label, item);
     }
   }
 
@@ -257,7 +404,15 @@ function itemList(value: unknown): unknown[] {
   return [];
 }
 
-function rawGroupFromRecord(record: Record<string, unknown>): { label: string; items: unknown[] } | null {
+function readParentCategory(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+function rawGroupFromRecord(
+  record: Record<string, unknown>
+): { label: string; parentCategory: string | null; items: unknown[] } | null {
   const explicit =
     typeof record.label === "string"
       ? record.label
@@ -269,19 +424,24 @@ function rawGroupFromRecord(record: Record<string, unknown>): { label: string; i
   const items = itemList(record.items ?? record.content);
   const label = explicit.trim() || (items.length > 0 ? "Skills" : "");
   if (!label) return null;
-  return { label, items };
+  return {
+    label,
+    parentCategory: readParentCategory(record.parentCategory),
+    items,
+  };
 }
 
 function isSingleGroupShape(record: Record<string, unknown>): boolean {
-  const hasGroupFields =
+  return (
     typeof record.label === "string" ||
     typeof record.categoryLabel === "string" ||
-    Array.isArray(record.items);
-  const hasLegacy = Object.keys(LEGACY_SKILL_LABELS).some((key) => key in record);
-  return hasGroupFields && !hasLegacy;
+    Array.isArray(record.items)
+  );
 }
 
-function rawGroupsFromUnknown(value: unknown): Array<{ label: string; items: unknown[] }> {
+function rawGroupsFromUnknown(
+  value: unknown
+): Array<{ label: string; parentCategory: string | null; items: unknown[] }> {
   if (!value) return [];
   if (Array.isArray(value)) {
     return value.flatMap((entry) => {
@@ -301,7 +461,7 @@ function rawGroupsFromUnknown(value: unknown): Array<{ label: string; items: unk
       if (items.length === 0) return [];
       const label = formatLabel(key);
       if (!label) return [];
-      return [{ label, items }];
+      return [{ label, parentCategory: null, items }];
     });
   }
   return [];
@@ -321,6 +481,7 @@ function withCourseworkGroup(groups: SkillGroup[], coursework: string[]): SkillG
     ...groups,
     {
       label: "Coursework",
+      parentCategory: null,
       items: coursework.map((name) => ({ name, proficiency: null })),
     },
   ];
@@ -345,6 +506,24 @@ export function flattenSkillItems(value: unknown): string[] {
     }
   }
   return items;
+}
+
+/** Keeps child groups under the same outer heading together, in source order. */
+export function groupSkillSections(groups: SkillGroup[]): Array<{
+  parentCategory: string | null;
+  groups: SkillGroup[];
+}> {
+  const sections: Array<{ parentCategory: string | null; groups: SkillGroup[] }> = [];
+  for (const group of groups) {
+    const parentCategory = group.parentCategory?.trim() || null;
+    const last = sections[sections.length - 1];
+    if (last && last.parentCategory === parentCategory) {
+      last.groups.push(group);
+      continue;
+    }
+    sections.push({ parentCategory, groups: [group] });
+  }
+  return sections;
 }
 
 export function skillCategoryLabel(node: {

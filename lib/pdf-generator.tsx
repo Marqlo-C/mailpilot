@@ -220,7 +220,9 @@ function ResumeDocument({
               {renderedGroups.flatMap((group, index) => {
                 const items = group.items.map((item) => item.name).join(", ").trim();
                 if (!items) return [];
-                const label = group.label.trim();
+                const label = [group.parentCategory?.trim(), group.label.trim()]
+                  .filter(Boolean)
+                  .join(" — ");
                 return [
                   index > 0 ? (
                     <Text key={`${index}-sep`}>{" • "}</Text>

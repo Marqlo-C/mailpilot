@@ -90,7 +90,10 @@ export function digestTailoredResume(input: {
         type: "skill_group",
         section: "skills",
         content,
-        metadata: { categoryLabel: group.label },
+        metadata: {
+          categoryLabel: group.label,
+          parentCategory: group.parentCategory ?? null,
+        },
       })
     );
   });
@@ -297,6 +300,7 @@ export function draftToPdfInput(
       return [
         {
           label: skillCategoryLabel(group) ?? "",
+          parentCategory: asString(group.metadata?.parentCategory) || null,
           items: items.map((name) => ({ name, proficiency: null })),
         },
       ];

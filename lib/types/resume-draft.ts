@@ -76,8 +76,9 @@ export type SkillItem = {
   proficiency: string | null;
 };
 
-/** A skill section group. The label is whatever the source used. */
+/** A skill section group. The label is the leaf heading. parentCategory is the outer heading when the source used two tiers. */
 export type SkillGroup = {
   label: string;
+  parentCategory: string | null;
   items: SkillItem[];
 };
