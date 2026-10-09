@@ -330,13 +330,26 @@ export function ManualProfileEditor({
                   <TagListEditor
                     label="skill"
                     hideHeading
-                    values={group.items}
+                    values={group.items.map((item) => item.name)}
                     onChange={(values) =>
                       setForm((f) => ({
                         ...f,
-                        skills: f.skills.map((item, i) =>
-                          i === index ? { ...item, items: values } : item
-                        ),
+                        skills: f.skills.map((item, i) => {
+                          if (i !== index) return item;
+                          const known = new Map(
+                            item.items.map((skill) => [
+                              skill.name.toLowerCase(),
+                              skill.proficiency,
+                            ])
+                          );
+                          return {
+                            ...item,
+                            items: values.map((name) => ({
+                              name,
+                              proficiency: known.get(name.toLowerCase()) ?? null,
+                            })),
+                          };
+                        }),
                       }))
                     }
                   />
@@ -591,6 +604,7 @@ export function ManualProfileEditor({
                             graduationDate: null,
                             gpa: null,
                             honors: [],
+                            coursework: [],
                           },
                         ],
                       }))
@@ -733,6 +747,18 @@ export function ManualProfileEditor({
                         }
                       />
                     </div>
+                    <TagListEditor
+                      label="Coursework"
+                      values={ed.coursework ?? []}
+                      onChange={(values) =>
+                        setForm((f) => ({
+                          ...f,
+                          education: f.education.map((item, i) =>
+                            i === index ? { ...item, coursework: values } : item
+                          ),
+                        }))
+                      }
+                    />
                   </div>
                 ))}
               </div>

@@ -465,6 +465,9 @@ export async function loadCandidateProfileSummary(
         honors: Array.isArray(ed.honors)
           ? ed.honors.filter((item): item is string => typeof item === "string")
           : [],
+        coursework: Array.isArray(ed.coursework)
+          ? ed.coursework.filter((item): item is string => typeof item === "string")
+          : [],
       })),
       certifications: certificationsSchema.parse(profile.certifications),
       awards: awardsSchema.parse(profile.awards),

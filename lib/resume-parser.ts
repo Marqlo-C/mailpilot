@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
 import { isPlaceholderEmail } from "@/lib/profile-consolidation";
+import { interpretSkillGroups, isCourseworkLabel } from "@/lib/skill-groups";
+import type { SkillItem } from "@/lib/types/resume-draft";
 import { githubProfileRoot, isVerifiedProfileUrl, normalizeProfileUrl } from "@/lib/utils/url";
 import {
   awardsSchema,
@@ -9,7 +11,6 @@ import {
   experienceBulletSchema,
   interestsSchema,
   masterProfileInputSchema,
-  skillsSchema,
   type MasterProfileInput,
 } from "@/lib/validations/profile";
 
@@ -45,7 +46,26 @@ const resumeLlmSchema = z.object({
     )
     .nullish()
     .transform((val) => val ?? []),
-  skills: skillsSchema.default([]),
+  skills: z
+    .array(
+      z.object({
+        label: nullableStringToEmpty,
+        items: z
+          .array(
+            z.union([
+              z.string(),
+              z.object({
+                name: z.string(),
+                proficiency: z.string().nullish(),
+              }),
+            ])
+          )
+          .nullish()
+          .transform((val) => val ?? []),
+      })
+    )
+    .nullish()
+    .transform((val) => val ?? []),
   experiences: z
     .array(
       z.object({
@@ -85,6 +105,7 @@ const resumeLlmSchema = z.object({
         endDate: nullableStringOrNull,
         gpa: nullableStringOrNull,
         honors: nullableStringArray,
+        coursework: nullableStringArray,
       })
     )
     .nullish()
@@ -147,7 +168,7 @@ Return ONLY valid JSON matching this schema (no markdown formatting, no code fen
   "summary": string | null,
   "links": [{ "label": string, "url": string }],
   "skills": [
-    { "label": "Skills", "items": ["Skill A", "Skill B"] }
+    { "label": "Skills", "items": [{ "name": "Skill A", "proficiency": null }] }
   ],
   "experiences": [{
     "company": string,
@@ -173,7 +194,8 @@ Return ONLY valid JSON matching this schema (no markdown formatting, no code fen
     "startDate": string | null,
     "endDate": string | null,
     "gpa": string | null,
-    "honors": string[]
+    "honors": string[],
+    "coursework": string[]
   }],
   "certifications": [{
     "name": string,
@@ -220,10 +242,16 @@ CRITICAL EXTRACTION RULES:
    - Entries under a Projects or portfolio heading go to "projects". Do not place those entries in "experiences" or "awards".
 
 5. GROUP SKILLS ONLY BY PRINTED SUBHEADINGS:
-   - Return skills as an array of { "label": string, "items": string[] }.
+   - Return skills as an array of { "label": string, "items": [{ "name": string, "proficiency": string | null }] }.
    - Use the exact subheading printed on the page. If skills appear in a flat list with no subheadings, group them under a single group labeled "Skills".
    - Never output a group where the label is merely a duplicate of its single child item.
-   - Keep each item as written on the resume. Omit empty groups.
+   - Each name is one atomic skill copied from the page. Never put a paragraph, a multi-clause sentence, or a whole parenthetical list in one name.
+   - Split comma-separated lists, slash-separated lists, and lists inside parentheses into separate items.
+   - When a phrase qualifies the items after it, store that phrase in proficiency and do not leave it in the name. This includes phrases such as skilled in, significant experience with, familiar with, working knowledge of, fluent in, proficient in, and experienced with.
+   - When one item has its own short modifier, that modifier is only that item's proficiency.
+   - A full sentence that says what the person did is not a skill. Put it on the matching project or experience bullet, or leave it out when that bullet is already present.
+   - Class titles, subjects, and academic foundations go on the related education record's coursework array, or in a group whose label is the printed heading for that list. Do not mix them into a list of tools or methods.
+   - Omit empty groups.
 
 6. EXTRACT ALL CONTACT / PROFILE URLS:
    - Extract every contact link printed in the header into the "links" array: professional profiles, portfolios, and websites.
@@ -254,6 +282,7 @@ CRITICAL EXTRACTION RULES:
    - school is the parent institution as printed. subSchool is a constituent school, college, faculty, or division printed with that institution. Leave subSchool null when the line names only the parent.
    - When one institution lists more than one degree, emit one education record per degree. Give each record only its own subSchool and major. Do not copy every concentration onto every record.
    - degree is the credential. Put GPA in gpa. Put Dean's List and Latin honors in honors. Never use those honors as the degree title.
+   - coursework is the list of classes or academic subjects printed for that school. One subject per item. Leave it empty when none are printed.
 
 12. CONTACT TRUTH:
    - Copy email, phone, and links ONLY when that exact value is printed in the document.
@@ -354,11 +383,12 @@ export function experienceCategory(raw: string, source: string): string {
 }
 
 function anchorSkillLabels(
-  groups: Array<{ label: string; items: string[] }>,
+  groups: Array<{ label: string; items: SkillItem[] }>,
   source: string
-): Array<{ label: string; items: string[] }> {
-  const merged = new Map<string, string[]>();
+): Array<{ label: string; items: SkillItem[] }> {
+  const merged = new Map<string, SkillItem[]>();
   for (const group of groups) {
+    if (isCourseworkLabel(group.label)) continue;
     const rawLabel = group.label.trim();
     const label =
       rawLabel.toLowerCase() === "skills"
@@ -366,11 +396,13 @@ function anchorSkillLabels(
         : appearsInSource(rawLabel, source)
           ? rawLabel
           : "Skills";
-    const items = group.items.map((item) => item.trim()).filter(Boolean);
+    const items = group.items.filter(
+      (item) => item.name.trim() && appearsInSource(item.name, source)
+    );
     if (items.length === 0) continue;
     const existing = merged.get(label) ?? [];
     for (const item of items) {
-      if (!existing.some((current) => current.toLowerCase() === item.toLowerCase())) {
+      if (!existing.some((current) => current.name.toLowerCase() === item.name.toLowerCase())) {
         existing.push(item);
       }
     }
@@ -381,8 +413,8 @@ function anchorSkillLabels(
   );
 }
 
-function isEchoSkillGroup(group: { label: string; items: string[] }): boolean {
-  const item = group.items[0]?.trim() ?? "";
+function isEchoSkillGroup(group: { label: string; items: SkillItem[] }): boolean {
+  const item = group.items[0]?.name.trim() ?? "";
   return (
     group.items.length === 1 &&
     item.length > 0 &&
@@ -395,24 +427,94 @@ function isEchoSkillGroup(group: { label: string; items: string[] }): boolean {
  * the item. When that pattern is the majority, keep one Skills group.
  */
 export function collapseEchoSkillGroups(
-  groups: Array<{ label: string; items: string[] }>
-): Array<{ label: string; items: string[] }> {
+  groups: Array<{ label: string; items: SkillItem[] }>
+): Array<{ label: string; items: SkillItem[] }> {
   if (groups.length === 0) return groups;
   const echoCount = groups.filter(isEchoSkillGroup).length;
   if (echoCount * 2 <= groups.length) return groups;
-  const items: string[] = [];
+  const items: SkillItem[] = [];
   for (const group of groups) {
     for (const item of group.items) {
-      const trimmed = item.trim();
-      if (!trimmed) continue;
-      if (items.some((current) => current.toLowerCase() === trimmed.toLowerCase())) {
+      const name = item.name.trim();
+      if (!name) continue;
+      if (items.some((current) => current.name.toLowerCase() === name.toLowerCase())) {
         continue;
       }
-      items.push(trimmed);
+      items.push({ name, proficiency: item.proficiency });
     }
   }
   if (items.length === 0) return [];
   return [{ label: "Skills", items }];
+}
+
+function mergeUnique(existing: string[], incoming: string[]): string[] {
+  const next = [...existing];
+  for (const item of incoming) {
+    const trimmed = item.trim();
+    if (!trimmed || !next.some((current) => current.toLowerCase() === trimmed.toLowerCase())) {
+      if (trimmed) next.push(trimmed);
+    }
+  }
+  return next;
+}
+
+function attachCoursework<T extends { institution: string; coursework?: string[] }>(
+  education: T[],
+  coursework: string[],
+  source: string
+): string[] {
+  const titles = coursework.filter((title) => appearsInSource(title, source));
+  if (titles.length === 0 || education.length === 0) return titles;
+  const indexes = titles
+    .map((title) => source.toLowerCase().indexOf(title.toLowerCase()))
+    .filter((index) => index >= 0);
+  const point = indexes.length > 0 ? Math.min(...indexes) : source.length;
+  let target = education[0]!;
+  let bestAt = -1;
+  for (const entry of education) {
+    const at = source.toLowerCase().lastIndexOf(entry.institution.toLowerCase(), point);
+    if (at >= bestAt) {
+      target = entry;
+      bestAt = at;
+    }
+  }
+  target.coursework = mergeUnique(target.coursework ?? [], titles);
+  return [];
+}
+
+function placeNarratives(
+  narratives: string[],
+  projects: Array<{
+    name: string;
+    description: string;
+    technologies: string[];
+    bullets: string[];
+  }>,
+  experiences: Array<{ company: string; bullets: Array<{ rawText: string }> }>
+): void {
+  const covered = (sentence: string) => {
+    const lower = sentence.toLowerCase();
+    return (
+      projects.some((project) =>
+        [project.description, ...project.bullets].some((line) =>
+          line.toLowerCase().includes(lower)
+        )
+      ) ||
+      experiences.some((experience) =>
+        experience.bullets.some((bullet) => bullet.rawText.toLowerCase().includes(lower))
+      )
+    );
+  };
+  for (const sentence of narratives) {
+    if (!sentence.trim() || covered(sentence)) continue;
+    const lower = sentence.toLowerCase();
+    const project = projects.find(
+      (item) =>
+        item.technologies.some((tech) => tech && lower.includes(tech.toLowerCase())) ||
+        (item.name && lower.includes(item.name.toLowerCase()))
+    );
+    if (project) project.bullets.push(sentence);
+  }
 }
 
 const DEGREE_MARK =
@@ -642,7 +744,10 @@ export async function parseResumeToStructuredProfile(
     throw new Error("No email address was found in the resume.");
   }
 
-  const skillTerms = parsed.skills.flatMap((group) => group.items);
+  const interpretedSkills = interpretSkillGroups(parsed.skills);
+  const skillTerms = interpretedSkills.groups.flatMap((group) =>
+    group.items.map((item) => item.name)
+  );
   const experiences = parsed.experiences.map((exp, index) => ({
     company: exp.company,
     role: exp.role,
@@ -661,6 +766,47 @@ export async function parseResumeToStructuredProfile(
     ),
   }));
 
+  const projects = parsed.projects.map((p) => ({
+    name: p.name,
+    description: p.description,
+    technologies: p.technologies,
+    link: p.link ?? null,
+    bullets: [...p.bullets],
+  }));
+  placeNarratives(interpretedSkills.narratives, projects, experiences);
+
+  const education = disambiguateEducationEntries(
+    parsed.education.flatMap((e) => {
+      const institution = e.institution.trim() || e.school.trim();
+      if (!institution) return [];
+      return [
+        {
+          institution,
+          subSchool: e.subSchool,
+          degree: e.degree.trim() || null,
+          fieldOfStudy: e.fieldOfStudy ?? null,
+          startDate: e.startDate,
+          graduationDate: e.graduationDate || e.endDate || null,
+          gpa: e.gpa,
+          honors: e.honors,
+          coursework: e.coursework,
+        },
+      ];
+    })
+  );
+  const unplacedCoursework = attachCoursework(
+    education,
+    interpretedSkills.coursework,
+    sliced
+  );
+  const skills = anchorSkillLabels(interpretedSkills.groups, sliced);
+  if (unplacedCoursework.length > 0) {
+    skills.push({
+      label: "Coursework",
+      items: unplacedCoursework.map((name) => ({ name, proficiency: null })),
+    });
+  }
+
   const draft = {
     fullName: parsed.fullName || "Unknown",
     email,
@@ -674,33 +820,10 @@ export async function parseResumeToStructuredProfile(
       if (!verified || !url.trim() || !linkAppearsInSource(url, sliced)) return [];
       return [{ label: link.label, url }];
     }),
-    skills: anchorSkillLabels(parsed.skills, sliced),
+    skills,
     experiences,
-    projects: parsed.projects.map((p) => ({
-      name: p.name,
-      description: p.description,
-      technologies: p.technologies,
-      link: p.link ?? null,
-      bullets: p.bullets,
-    })),
-    education: disambiguateEducationEntries(
-      parsed.education.flatMap((e) => {
-        const institution = e.institution.trim() || e.school.trim();
-        if (!institution) return [];
-        return [
-          {
-            institution,
-            subSchool: e.subSchool,
-            degree: e.degree.trim() || null,
-            fieldOfStudy: e.fieldOfStudy ?? null,
-            startDate: e.startDate,
-            graduationDate: e.graduationDate || e.endDate || null,
-            gpa: e.gpa,
-            honors: e.honors,
-          },
-        ];
-      })
-    ),
+    projects,
+    education,
     certifications: parsed.certifications.filter((item) =>
       appearsInSource(item.name, sliced)
     ),

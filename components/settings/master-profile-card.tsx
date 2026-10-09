@@ -230,10 +230,16 @@ export function MasterProfileCard({
                         <div className="flex flex-wrap gap-1.5">
                           {group.items.map((skill) => (
                             <Badge
-                              key={`${group.label}-${skill}`}
+                              key={`${group.label}-${skill.name}`}
                               variant="secondary"
+                              className="gap-1 font-normal"
                             >
-                              {skill}
+                              <span className="font-medium">{skill.name}</span>
+                              {skill.proficiency ? (
+                                <span className="text-muted-foreground">
+                                  · {skill.proficiency}
+                                </span>
+                              ) : null}
                             </Badge>
                           ))}
                         </div>
@@ -395,6 +401,20 @@ export function MasterProfileCard({
                         <p className="mt-1 text-xs text-muted-foreground">
                           {ed.honors.join(", ")}
                         </p>
+                      ) : null}
+                      {ed.coursework.length > 0 ? (
+                        <div className="mt-2">
+                          <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Relevant Coursework
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {ed.coursework.map((course) => (
+                              <Badge key={course} variant="outline">
+                                {course}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
                       ) : null}
                     </div>
                     );

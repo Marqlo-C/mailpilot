@@ -244,7 +244,7 @@ export function resolveGithubHandle(
  */
 function mergeSkillGroups(existing: Skills, incoming: Skills): Skills {
   const order: string[] = [];
-  const groups = new Map<string, { label: string; items: string[] }>();
+  const groups = new Map<string, { label: string; items: Skills[number]["items"] }>();
 
   for (const group of [...existing, ...incoming]) {
     const key = normalizeString(group.label);
@@ -270,15 +270,31 @@ function mergeSkillGroups(existing: Skills, incoming: Skills): Skills {
 /**
  * Merges skill names using case-insensitive set unions.
  */
-function mergeSkillBuckets(existing: string[], incoming: string[]): string[] {
+function mergeStringBuckets(existing: string[], incoming: string[]): string[] {
   const map = new Map<string, string>();
-  for (const s of existing) {
-    const key = normalizeString(s);
-    if (key) map.set(key, s);
+  for (const value of [...existing, ...incoming]) {
+    const key = normalizeString(value);
+    if (key && !map.has(key)) map.set(key, value);
   }
-  for (const s of incoming) {
-    const key = normalizeString(s);
-    if (key && !map.has(key)) map.set(key, s);
+  return Array.from(map.values());
+}
+
+function mergeSkillBuckets(
+  existing: Skills[number]["items"],
+  incoming: Skills[number]["items"]
+): Skills[number]["items"] {
+  const map = new Map<string, Skills[number]["items"][number]>();
+  for (const item of [...existing, ...incoming]) {
+    const key = normalizeString(item.name);
+    if (!key) continue;
+    const current = map.get(key);
+    if (!current) {
+      map.set(key, item);
+      continue;
+    }
+    if (!current.proficiency && item.proficiency) {
+      map.set(key, { name: current.name, proficiency: item.proficiency });
+    }
   }
   return Array.from(map.values());
 }
@@ -380,7 +396,7 @@ export function consolidateProfiles(
       projects[existingIndex] = {
         ...match,
         description: match.description || incProj.description,
-        technologies: mergeSkillBuckets(
+        technologies: mergeStringBuckets(
           match.technologies,
           incProj.technologies
         ),
@@ -424,6 +440,11 @@ export function consolidateProfiles(
         honors: [...(match.honors ?? []), ...(incEd.honors ?? [])].filter(
           (honor, index, list) =>
             list.findIndex((item) => item.toLowerCase() === honor.toLowerCase()) ===
+            index
+        ),
+        coursework: [...(match.coursework ?? []), ...(incEd.coursework ?? [])].filter(
+          (course, index, list) =>
+            list.findIndex((item) => item.toLowerCase() === course.toLowerCase()) ===
             index
         ),
       };

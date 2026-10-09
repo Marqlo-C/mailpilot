@@ -221,10 +221,16 @@ export function ProfessionalProfileSnapshot({
                     <div className="flex flex-wrap gap-1.5">
                       {group.items.map((skill) => (
                         <Badge
-                          key={`${group.label}-${skill}`}
+                          key={`${group.label}-${skill.name}`}
                           variant="secondary"
+                          className="gap-1 font-normal"
                         >
-                          {skill}
+                          <span className="font-medium">{skill.name}</span>
+                          {skill.proficiency ? (
+                            <span className="text-muted-foreground">
+                              · {skill.proficiency}
+                            </span>
+                          ) : null}
                         </Badge>
                       ))}
                     </div>
@@ -376,6 +382,15 @@ export function ProfessionalProfileSnapshot({
                     {formatSchoolName(ed.institution, ed.subSchool)}
                     {ed.graduationDate ? ` · ${ed.graduationDate}` : ""}
                   </p>
+                  {ed.coursework.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {ed.coursework.map((course) => (
+                        <Badge key={course} variant="outline">
+                          {course}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>

@@ -96,7 +96,7 @@ function projectKey(row: ProjectRow): string {
 
 function skillLines(profile: DiffableProfile): string[] {
   return (profile.skills ?? []).flatMap((group) =>
-    group.items.map((item) => `${text(group.label)}: ${text(item)}`.toLowerCase())
+    group.items.map((item) => `${text(group.label)}: ${item.name}`.toLowerCase())
   );
 }
 
@@ -141,7 +141,8 @@ export function computeProfileDiff(
     else if (
       !same(text(prior.fieldOfStudy), text(row.fieldOfStudy)) ||
       !same(text(prior.graduationDate), text(row.graduationDate)) ||
-      (prior.honors ?? []).join("|") !== (row.honors ?? []).join("|")
+      (prior.honors ?? []).join("|") !== (row.honors ?? []).join("|") ||
+      (prior.coursework ?? []).join("|") !== (row.coursework ?? []).join("|")
     ) {
       push(modified, "education", educationLabel(row));
     }

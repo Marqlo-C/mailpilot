@@ -217,7 +217,7 @@ function ResumeDocument({
             <Text style={styles.heading}>Skills</Text>
             <Text style={styles.skills}>
               {renderedGroups.flatMap((group, index) => {
-                const items = group.items.join(", ").trim();
+                const items = group.items.map((item) => item.name).join(", ").trim();
                 if (!items) return [];
                 const label = group.label.trim();
                 return [
