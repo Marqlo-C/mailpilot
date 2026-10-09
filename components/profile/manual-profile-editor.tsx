@@ -526,23 +526,6 @@ export function ManualProfileEditor({
                         }))
                       }
                     />
-                    <div className="space-y-2">
-                      <Label>Description</Label>
-                      <textarea
-                        className="min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        value={project.description}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            projects: f.projects.map((p, i) =>
-                              i === index
-                                ? { ...p, description: e.target.value }
-                                : p
-                            ),
-                          }))
-                        }
-                      />
-                    </div>
                     <TagListEditor
                       label="Tools & Methods"
                       values={project.technologies}
@@ -555,14 +538,14 @@ export function ManualProfileEditor({
                         }))
                       }
                     />
-                    <TagListEditor
-                      label="Bullets"
-                      values={project.bullets}
-                      onChange={(values) =>
+                    <ProjectPointsEditor
+                      description={project.description}
+                      bullets={project.bullets}
+                      onChange={({ description, bullets }) =>
                         setForm((f) => ({
                           ...f,
                           projects: f.projects.map((p, i) =>
-                            i === index ? { ...p, bullets: values } : p
+                            i === index ? { ...p, description, bullets } : p
                           ),
                         }))
                       }
@@ -1148,6 +1131,74 @@ function categoryOptions(current: string | null | undefined): string[] {
     return [...STANDARD_EXPERIENCE_CATEGORIES];
   }
   return [value, ...STANDARD_EXPERIENCE_CATEGORIES];
+}
+
+function ProjectPointsEditor({
+  description,
+  bullets,
+  onChange,
+}: {
+  description: string;
+  bullets: string[];
+  onChange: (next: { description: string; bullets: string[] }) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label>Bullet points</Label>
+      <div className="flex items-center gap-2">
+        <Input
+          placeholder="Description"
+          value={description}
+          onChange={(e) => onChange({ description: e.target.value, bullets })}
+        />
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground"
+          onClick={() => onChange({ description: "", bullets })}
+          aria-label="Clear description"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      {bullets.map((bullet, bulletIndex) => (
+        <div key={bulletIndex} className="flex items-center gap-2">
+          <Input
+            value={bullet}
+            onChange={(e) =>
+              onChange({
+                description,
+                bullets: bullets.map((item, i) =>
+                  i === bulletIndex ? e.target.value : item
+                ),
+              })
+            }
+          />
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() =>
+              onChange({
+                description,
+                bullets: bullets.filter((_, i) => i !== bulletIndex),
+              })
+            }
+            aria-label="Remove bullet"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => onChange({ description, bullets: [...bullets, ""] })}
+      >
+        <Plus className="h-4 w-4" />
+        Add bullet
+      </Button>
+    </div>
+  );
 }
 
 function ExperienceEditor({

@@ -373,9 +373,11 @@ export function ResumeUploadDialog({
               ) : (
                 draft.education.map((ed) => (
                   <div key={`${ed.institution}-${ed.degree}`}>
-                    <p className="font-medium">
-                      {formatEducationTitle(ed.degree, ed.fieldOfStudy)}
-                    </p>
+                    {formatEducationTitle(ed.degree, ed.fieldOfStudy) ? (
+                      <p className="font-medium">
+                        {formatEducationTitle(ed.degree, ed.fieldOfStudy)}
+                      </p>
+                    ) : null}
                     <p className="text-muted-foreground">
                       {formatSchoolName(ed.institution, ed.subSchool)}
                       {ed.graduationDate ? ` · ${ed.graduationDate}` : ""}

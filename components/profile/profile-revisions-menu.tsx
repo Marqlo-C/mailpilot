@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { History, Loader2, RotateCcw } from "lucide-react";
+import { History, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -14,11 +14,11 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ProfileRevisionHistory } from "@/components/profile/profile-revision-history";
 import { formatDistanceToNow } from "@/lib/format-distance";
 
 type ProfileRevisionsMenuProps = {
@@ -98,7 +98,7 @@ export function ProfileRevisionsMenu({ accountId }: ProfileRevisionsMenuProps) {
           Revisions
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72">
+      <DropdownMenuContent align="end" className="w-96">
         <DropdownMenuLabel>Restore a previous version</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {loading ? (
@@ -106,30 +106,14 @@ export function ProfileRevisionsMenu({ accountId }: ProfileRevisionsMenuProps) {
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Loading revisions…
           </div>
-        ) : items.length === 0 ? (
-          <p className="px-2 py-3 text-xs text-muted-foreground">
-            No revisions yet. Edit, import a resume, or sync GitHub to create
-            restore points.
-          </p>
         ) : (
-          items.map((item) => (
-            <DropdownMenuItem
-              key={item.id}
-              disabled={pending}
-              onClick={() => handleRestore(item)}
-              className="flex flex-col items-start gap-0.5 py-2"
-            >
-              <span className="flex items-center gap-1.5 text-sm font-medium">
-                <RotateCcw className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                {item.summary}
-              </span>
-              <span className="pl-5 text-[11px] text-muted-foreground">
-                {formatDistanceToNow(new Date(item.createdAt), {
-                  addSuffix: true,
-                })}
-              </span>
-            </DropdownMenuItem>
-          ))
+          <ProfileRevisionHistory
+            accountId={accountId}
+            items={items}
+            pending={pending}
+            onChange={setItems}
+            onRestore={handleRestore}
+          />
         )}
       </DropdownMenuContent>
     </DropdownMenu>

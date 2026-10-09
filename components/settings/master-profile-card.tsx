@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { PersonaViewer } from "@/components/profile/persona-viewer";
 import { ResumeUploadDialog } from "@/components/profile/resume-upload-dialog";
 import { ManualProfileEditor } from "@/components/profile/manual-profile-editor";
@@ -50,6 +51,30 @@ const LINKED_FIELDS: Array<{
   { key: "linkedHandshake", label: "Handshake" },
 ];
 
+function DateChip({
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLParagraphElement>) {
+  return (
+    <p
+      className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-border/60 px-2.5 py-0.5 text-xs text-muted-foreground"
+      {...props}
+    >
+      {children}
+    </p>
+  );
+}
+
+function capturedDateRange(
+  start?: string | null,
+  end?: string | null
+): string {
+  const startText = start?.trim() ?? "";
+  const endText = end?.trim() ?? "";
+  if (startText && endText) return `${startText} – ${endText}`;
+  return startText || endText;
+}
+
 function formatUpdatedAtUtc(iso: string): string {
   return `${new Date(iso).toLocaleString("en-US", {
     dateStyle: "medium",
@@ -67,6 +92,24 @@ export function MasterProfileCard({
   profile,
 }: MasterProfileCardProps) {
   const skillGroups = skillGroupsFromUnknown(profile?.skills);
+  useEffect(() => {
+    const nodes = Array.from(document.querySelectorAll("[data-education-date]"));
+    const ranges = (profile?.education ?? []).map((ed) =>
+      capturedDateRange(ed.startDate, ed.graduationDate || ed.endDate).length
+    );
+    const boxes = nodes.map((node) => {
+      const card = node.closest(".rounded-md");
+      const nodeBox = node.getBoundingClientRect();
+      const cardBox = card?.getBoundingClientRect();
+      return {
+        width: Math.round(nodeBox.width),
+        clipped: cardBox ? nodeBox.right > cardBox.right + 1 : null,
+      };
+    });
+    // #region agent log
+    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"3c315a"},body:JSON.stringify({sessionId:"3c315a",location:"components/settings/master-profile-card.tsx:education",message:"education date layout",data:{ranges,boxes},timestamp:Date.now(),hypothesisId:"H5",runId:"post-fix"})}).catch(()=>{});
+    // #endregion
+  }, [profile]);
   return (
     <Card className={cn(SETTINGS_CARD_CLASSNAME)}>
       <CardHeader className="gap-4 border-b border-border/50 sm:flex-row sm:items-start sm:justify-between">
@@ -235,13 +278,13 @@ export function MasterProfileCard({
                       key={exp.id ?? `${exp.company}-${exp.role}`}
                       className="rounded-md border border-border/60 p-3"
                     >
-                      <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                         <p className="font-semibold">
                           {exp.role} · {exp.company}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <DateChip>
                           {exp.startDate} – {exp.endDate ?? "Present"}
-                        </p>
+                        </DateChip>
                       </div>
                       <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm">
                         {exp.bullets.map((b) => (
@@ -276,13 +319,13 @@ export function MasterProfileCard({
                       key={exp.id ?? `${exp.company}-${exp.role}`}
                       className="rounded-md border border-border/60 p-3"
                     >
-                      <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                         <p className="font-semibold">
                           {exp.role} · {exp.company}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {exp.category} · {exp.startDate} – {exp.endDate ?? "Present"}
-                        </p>
+                        <DateChip>
+                          {exp.startDate} – {exp.endDate ?? "Present"}
+                        </DateChip>
                       </div>
                       <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm">
                         {exp.bullets.map((b) => (
@@ -308,23 +351,23 @@ export function MasterProfileCard({
                       key={project.id ?? project.name}
                       className="rounded-md border border-border/60 p-3 text-sm"
                     >
-                      <p className="font-semibold">{project.name}</p>
-                      {project.description ? (
-                        <p className="mt-1 text-muted-foreground">
-                          {project.description}
-                        </p>
-                      ) : null}
-                      {project.technologies.length > 0 ? (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {project.technologies.map((tech) => (
-                            <Badge key={tech} variant="outline">
-                              {tech}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : null}
-                      {project.bullets.length > 0 ? (
-                        <ul className="mt-2 list-disc space-y-1 pl-5">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                        <p className="font-semibold">{project.name}</p>
+                        {project.technologies.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5 sm:justify-end">
+                            {project.technologies.map((tech) => (
+                              <Badge key={tech} variant="outline">
+                                {tech}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                      {project.description || project.bullets.length > 0 ? (
+                        <ul className="mt-2 list-disc space-y-1.5 pl-5">
+                          {project.description ? (
+                            <li>{project.description}</li>
+                          ) : null}
                           {project.bullets.map((bullet) => (
                             <li key={bullet}>{bullet}</li>
                           ))}
@@ -346,25 +389,35 @@ export function MasterProfileCard({
                     No education saved.
                   </p>
                 ) : (
-                  profile.education.map((ed) => (
+                  profile.education.map((ed) => {
+                    const title = formatEducationTitle(ed.degree, ed.fieldOfStudy);
+                    const school = formatSchoolName(ed.institution, ed.subSchool);
+                    const dateRange = capturedDateRange(
+                      ed.startDate,
+                      ed.graduationDate || ed.endDate
+                    );
+                    return (
                     <div
                       key={ed.id ?? `${ed.institution}-${ed.degree}`}
                       className="rounded-md border border-border/60 p-3 text-sm"
                     >
-                      <p className="font-semibold">
-                        {formatEducationTitle(ed.degree, ed.fieldOfStudy)}
-                      </p>
-                      <p className="text-muted-foreground">
-                        {formatSchoolName(ed.institution, ed.subSchool)}
-                        {ed.graduationDate ? ` · ${ed.graduationDate}` : ""}
-                      </p>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          {school ? <p className="font-semibold">{school}</p> : null}
+                          {title ? <p>{title}</p> : null}
+                        </div>
+                        {dateRange ? (
+                          <DateChip data-education-date>{dateRange}</DateChip>
+                        ) : null}
+                      </div>
                       {ed.honors.length > 0 ? (
                         <p className="mt-1 text-xs text-muted-foreground">
                           {ed.honors.join(", ")}
                         </p>
                       ) : null}
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </details>
@@ -382,11 +435,13 @@ export function MasterProfileCard({
                       key={`${item.name}-${item.issuer ?? ""}`}
                       className="rounded-md border border-border/60 p-3"
                     >
-                      <p className="font-semibold">{item.name}</p>
-                      <p className="text-muted-foreground">
-                        {[item.issuer, item.date].filter(Boolean).join(" · ") ||
-                          "No issuer or date"}
-                      </p>
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                        <p className="font-semibold">{item.name}</p>
+                        {item.date ? <DateChip>{item.date}</DateChip> : null}
+                      </div>
+                      {item.issuer ? (
+                        <p className="text-muted-foreground">{item.issuer}</p>
+                      ) : null}
                       {item.url ? (
                         <p className="mt-1 truncate text-xs text-muted-foreground">
                           {item.url}
@@ -411,11 +466,13 @@ export function MasterProfileCard({
                       key={`${item.title}-${item.issuer ?? ""}`}
                       className="rounded-md border border-border/60 p-3"
                     >
-                      <p className="font-semibold">{item.title}</p>
-                      <p className="text-muted-foreground">
-                        {[item.issuer, item.date].filter(Boolean).join(" · ") ||
-                          "No issuer or date"}
-                      </p>
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="min-w-0 font-semibold">{item.title}</p>
+                        {item.date ? <DateChip>{item.date}</DateChip> : null}
+                      </div>
+                      {item.issuer ? (
+                        <p className="text-muted-foreground">{item.issuer}</p>
+                      ) : null}
                       {item.description ? (
                         <p className="mt-1 leading-relaxed">{item.description}</p>
                       ) : null}

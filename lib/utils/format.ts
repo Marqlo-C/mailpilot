@@ -20,12 +20,24 @@ export function formatEducationTitle(
   fieldOfStudy?: string | null
 ): string {
   const deg = degree?.trim() || "";
-  const field = fieldOfStudy?.trim() || "";
-  if (!deg && !field) return "Degree / Study";
+  const rawField = fieldOfStudy?.trim() || "";
+  if (!deg && !rawField) return "";
+  if (!rawField) return deg;
+  if (!deg) return rawField;
+  const field = rawField.replace(/^in\s+/i, "").trim();
   if (!field) return deg;
-  if (!deg) return field;
   if (deg.toLowerCase().includes(field.toLowerCase())) return deg;
-  if (deg.toLowerCase().endsWith(" in")) return `${deg} ${field}`;
+  const minorLead = /^minor\s+in\s+/i.test(rawField);
+  const mode = deg.toLowerCase().endsWith(" in")
+    ? "space"
+    : minorLead || /\bin\b/i.test(deg)
+      ? "comma"
+      : "in";
+  // #region agent log
+  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"3c315a"},body:JSON.stringify({sessionId:"3c315a",location:"lib/utils/format.ts:formatEducationTitle",message:"education title join",data:{mode,trimmedInPrefix:rawField!==field},timestamp:Date.now(),hypothesisId:"H3"})}).catch(()=>{});
+  // #endregion
+  if (mode === "space") return `${deg} ${field}`;
+  if (mode === "comma") return `${deg}, ${field}`;
   return `${deg} in ${field}`;
 }
 

@@ -98,6 +98,7 @@ lib/
     email-cleaner.ts
     persona.ts
     prefilter.ts
+    revision-namer.ts
   constants/
     job-sources.ts
   dnd/
@@ -119,6 +120,8 @@ lib/
     sorting.ts
   parsers/
     application-parser.ts
+  profile/
+    revision-diff.ts
   subscriptions/
     briefing-local.ts
     digest-constants.ts
@@ -231,6 +234,70 @@ export function cleanEmailPayload(rawHtmlOrText: string): string {
 
   // Expanded capacity so job digests keep more listing links.
   return cleaned.slice(0, 8000);
+}
+</file>
+
+<file path="lib/ai/revision-namer.ts">
+import { callLLMWithFallback } from "@/lib/llm";
+import {
+  computeProfileDiff,
+  isEmptyProfileDiff,
+  structuralRevisionTitle,
+  type ProfileDiffSummary,
+} from "@/lib/profile/revision-diff";
+import type {
+  MasterProfileInput,
+  MasterProfileUpdateInput,
+} from "@/lib/validations/profile";
+
+type NamedProfile = MasterProfileInput | MasterProfileUpdateInput;
+
+const FAST_REVISION_MODELS = [
+  process.env.OPENROUTER_MODEL,
+  "google/gemini-2.5-flash",
+  "openai/gpt-4o-mini",
+].filter((model): model is string => Boolean(model?.trim()));
+
+const TITLE_PROMPT = `Name one profile revision from the change list.
+Use only names that appear in that list.
+Write 4-8 words describing what was added, updated, or removed.
+Return JSON {"title":"..."} and nothing else.`;
+
+function readTitle(payload: Record<string, unknown> | null): string {
+  const raw = payload?.title;
+  if (typeof raw !== "string") return "";
+  return raw.replace(/^["']|["']$/g, "").replace(/\s+/g, " ").trim().slice(0, 140);
+}
+
+async function titleFromDiff(diff: ProfileDiffSummary): Promise<string> {
+  const payload = await callLLMWithFallback({
+    systemPrompt: TITLE_PROMPT,
+    userPrompt: JSON.stringify(diff),
+    llmProvider: "OPENROUTER",
+    openRouterModels: FAST_REVISION_MODELS,
+  });
+  return readTitle(payload);
+}
+
+/**
+ * Human title for a save. First import and empty diffs skip the model.
+ * The timestamp stays on the history row; the baseline fallback includes an ISO time.
+ */
+export async function nameProfileRevision(
+  previous: NamedProfile | null,
+  next: NamedProfile,
+  at: Date = new Date()
+): Promise<string> {
+  if (!previous) return "Initial Profile Import";
+  const diff = computeProfileDiff(previous, next);
+  if (isEmptyProfileDiff(diff)) return `Profile Baseline (${at.toISOString()})`;
+  try {
+    const titled = await titleFromDiff(diff);
+    if (titled) return titled;
+  } catch (error) {
+    console.warn("Revision naming failed", error);
+  }
+  return structuralRevisionTitle(diff);
 }
 </file>
 
@@ -664,6 +731,262 @@ export function buildHistoricalJobSearchQuery(days: number): string {
 }
 </file>
 
+<file path="lib/profile/revision-diff.ts">
+import type {
+  MasterProfileInput,
+  MasterProfileUpdateInput,
+} from "@/lib/validations/profile";
+
+export interface ProfileDiffChange {
+  section: string;
+  summary: string;
+}
+
+export interface ProfileDiffSummary {
+  added: ProfileDiffChange[];
+  removed: ProfileDiffChange[];
+  modified: ProfileDiffChange[];
+}
+
+type DiffableProfile = Partial<MasterProfileInput & MasterProfileUpdateInput>;
+
+type ExperienceRow = DiffableProfile["experiences"] extends
+  | Array<infer T>
+  | undefined
+  ? T
+  : never;
+type EducationRow = DiffableProfile["education"] extends Array<infer T> | undefined
+  ? T
+  : never;
+type ProjectRow = DiffableProfile["projects"] extends Array<infer T> | undefined
+  ? T
+  : never;
+
+const MAX_CHANGES = 8;
+
+function text(value: string | null | undefined): string {
+  return value?.trim() ?? "";
+}
+
+function same(left: string, right: string): boolean {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+function clip(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= 80) return trimmed;
+  return `${trimmed.slice(0, 77)}...`;
+}
+
+function push(
+  bucket: ProfileDiffChange[],
+  section: string,
+  summary: string
+): void {
+  if (bucket.length >= MAX_CHANGES || !summary.trim()) return;
+  bucket.push({ section, summary: clip(summary) });
+}
+
+function experienceKey(row: ExperienceRow): string {
+  return `${text(row.company).toLowerCase()}|${text(row.role).toLowerCase()}`;
+}
+
+function experienceLabel(row: ExperienceRow): string {
+  const role = text(row.role);
+  const company = text(row.company);
+  if (role && company) return `${role} at ${company}`;
+  return role || company || "Role";
+}
+
+function experienceBody(row: ExperienceRow): string {
+  const bullets = (row.bullets ?? []).map((bullet) => text(bullet.rawText)).join("\n");
+  return [
+    text(row.category),
+    text(row.startDate),
+    text(row.endDate),
+    text(row.location),
+    bullets,
+  ].join("\n");
+}
+
+function educationKey(row: EducationRow): string {
+  return [
+    text(row.institution).toLowerCase(),
+    text(row.subSchool).toLowerCase(),
+    text(row.degree).toLowerCase(),
+  ].join("|");
+}
+
+function educationLabel(row: EducationRow): string {
+  const credential = [text(row.degree), text(row.fieldOfStudy)].filter(Boolean).join(" ");
+  const school = [text(row.institution), text(row.subSchool)].filter(Boolean).join(", ");
+  if (credential && school) return `${credential}, ${school}`;
+  return credential || school || "Education";
+}
+
+function projectKey(row: ProjectRow): string {
+  return text(row.name).toLowerCase();
+}
+
+function skillLines(profile: DiffableProfile): string[] {
+  return (profile.skills ?? []).flatMap((group) =>
+    group.items.map((item) => `${text(group.label)}: ${text(item)}`.toLowerCase())
+  );
+}
+
+/**
+ * Structural delta between two profile saves. Summaries name the changed
+ * record only. They do not include the surrounding profile.
+ */
+export function computeProfileDiff(
+  prev: DiffableProfile | null,
+  next: DiffableProfile
+): ProfileDiffSummary {
+  const added: ProfileDiffChange[] = [];
+  const removed: ProfileDiffChange[] = [];
+  const modified: ProfileDiffChange[] = [];
+
+  if (!prev) {
+    return { added, removed, modified };
+  }
+
+  const previousExperiences = prev.experiences ?? [];
+  const nextExperiences = next.experiences ?? [];
+  const previousByRole = new Map(previousExperiences.map((row) => [experienceKey(row), row]));
+  const nextByRole = new Map(nextExperiences.map((row) => [experienceKey(row), row]));
+  for (const row of nextExperiences) {
+    const prior = previousByRole.get(experienceKey(row));
+    if (!prior) push(added, "experience", experienceLabel(row));
+    else if (experienceBody(prior) !== experienceBody(row)) {
+      push(modified, "experience", experienceLabel(row));
+    }
+  }
+  for (const row of previousExperiences) {
+    if (!nextByRole.has(experienceKey(row))) push(removed, "experience", experienceLabel(row));
+  }
+
+  const previousEducation = prev.education ?? [];
+  const nextEducation = next.education ?? [];
+  const previousSchools = new Map(previousEducation.map((row) => [educationKey(row), row]));
+  const nextSchools = new Map(nextEducation.map((row) => [educationKey(row), row]));
+  for (const row of nextEducation) {
+    const prior = previousSchools.get(educationKey(row));
+    if (!prior) push(added, "education", educationLabel(row));
+    else if (
+      !same(text(prior.fieldOfStudy), text(row.fieldOfStudy)) ||
+      !same(text(prior.graduationDate), text(row.graduationDate)) ||
+      (prior.honors ?? []).join("|") !== (row.honors ?? []).join("|")
+    ) {
+      push(modified, "education", educationLabel(row));
+    }
+  }
+  for (const row of previousEducation) {
+    if (!nextSchools.has(educationKey(row))) push(removed, "education", educationLabel(row));
+  }
+
+  const previousProjects = new Map((prev.projects ?? []).map((row) => [projectKey(row), row]));
+  const nextProjects = new Map((next.projects ?? []).map((row) => [projectKey(row), row]));
+  for (const row of next.projects ?? []) {
+    const prior = previousProjects.get(projectKey(row));
+    if (!prior) push(added, "project", text(row.name) || "Project");
+    else if (text(prior.description) !== text(row.description)) {
+      push(modified, "project", text(row.name) || "Project");
+    }
+  }
+  for (const row of prev.projects ?? []) {
+    if (!nextProjects.has(projectKey(row))) push(removed, "project", text(row.name) || "Project");
+  }
+
+  const previousCerts = new Set((prev.certifications ?? []).map((item) => text(item.name).toLowerCase()));
+  const nextCerts = new Set((next.certifications ?? []).map((item) => text(item.name).toLowerCase()));
+  for (const item of next.certifications ?? []) {
+    if (!previousCerts.has(text(item.name).toLowerCase())) {
+      push(added, "certification", text(item.name));
+    }
+  }
+  for (const item of prev.certifications ?? []) {
+    if (!nextCerts.has(text(item.name).toLowerCase())) {
+      push(removed, "certification", text(item.name));
+    }
+  }
+
+  const previousAwards = new Set((prev.awards ?? []).map((item) => text(item.title).toLowerCase()));
+  const nextAwards = new Set((next.awards ?? []).map((item) => text(item.title).toLowerCase()));
+  for (const item of next.awards ?? []) {
+    if (!previousAwards.has(text(item.title).toLowerCase())) {
+      push(added, "award", text(item.title));
+    }
+  }
+  for (const item of prev.awards ?? []) {
+    if (!nextAwards.has(text(item.title).toLowerCase())) {
+      push(removed, "award", text(item.title));
+    }
+  }
+
+  const previousSkills = new Set(skillLines(prev));
+  const nextSkills = new Set(skillLines(next));
+  const skillAdds = [...nextSkills].filter((item) => !previousSkills.has(item));
+  const skillDrops = [...previousSkills].filter((item) => !nextSkills.has(item));
+  if (skillAdds.length > 0) push(added, "skills", `${skillAdds.length} skill item${skillAdds.length === 1 ? "" : "s"}`);
+  if (skillDrops.length > 0) {
+    push(removed, "skills", `${skillDrops.length} skill item${skillDrops.length === 1 ? "" : "s"}`);
+  }
+
+  const previousInterests = new Set((prev.interests ?? []).map((item) => item.trim().toLowerCase()));
+  const nextInterests = new Set((next.interests ?? []).map((item) => item.trim().toLowerCase()));
+  for (const item of next.interests ?? []) {
+    if (!previousInterests.has(item.trim().toLowerCase())) push(added, "interest", item.trim());
+  }
+  for (const item of prev.interests ?? []) {
+    if (!nextInterests.has(item.trim().toLowerCase())) push(removed, "interest", item.trim());
+  }
+
+  const previousLinks = new Set((prev.links ?? []).map((item) => text(item.url).toLowerCase()));
+  const nextLinks = new Set((next.links ?? []).map((item) => text(item.url).toLowerCase()));
+  for (const item of next.links ?? []) {
+    if (!previousLinks.has(text(item.url).toLowerCase())) {
+      push(added, "link", text(item.label) || text(item.url));
+    }
+  }
+  for (const item of prev.links ?? []) {
+    if (!nextLinks.has(text(item.url).toLowerCase())) {
+      push(removed, "link", text(item.label) || text(item.url));
+    }
+  }
+
+  return { added, removed, modified };
+}
+
+export function isEmptyProfileDiff(diff: ProfileDiffSummary): boolean {
+  return (
+    diff.added.length === 0 &&
+    diff.removed.length === 0 &&
+    diff.modified.length === 0
+  );
+}
+
+function joinSummaries(changes: ProfileDiffChange[]): string {
+  return changes
+    .slice(0, 2)
+    .map((change) => change.summary)
+    .filter(Boolean)
+    .join(" & ");
+}
+
+/** Title built only from the diff when a model title is unavailable. */
+export function structuralRevisionTitle(diff: ProfileDiffSummary): string {
+  const added = joinSummaries(diff.added);
+  const modified = joinSummaries(diff.modified);
+  const removed = joinSummaries(diff.removed);
+  const parts = [
+    added ? `Added ${added}` : "",
+    modified ? `Updated ${modified}` : "",
+    removed ? `Removed ${removed}` : "",
+  ].filter(Boolean);
+  return parts.join("; ").slice(0, 140) || "Profile update";
+}
+</file>
+
 <file path="lib/utils/url.ts">
 /** Hosts used for account tracking and resume-header contact links. */
 export const PROFILE_DOMAIN_KEYS = [
@@ -687,7 +1010,26 @@ export type ProfileAccountKind =
 const MARKDOWN_LINK = /^\[([^\]]*)\]\(([^)]+)\)$/;
 
 const PROFILE_URL_PATTERN =
-  /(?<![A-Za-z0-9.])(?:https?:\/\/|www\.)[^\s<>"'`]+|(?<![A-Za-z0-9.])(?:github\.com|linkedin\.com|(?:app\.)?joinhandshake\.com|handshake\.com|(?:my\.)?indeed\.com|glassdoor\.com)\/[^\s<>"'`]+|(?<![A-Za-z0-9.])[a-z0-9-]+\.github\.io(?:\/[^\s<>"'`]*)?/gi;
+  /(?<![A-Za-z0-9.@])(?:https?:\/\/|www\.)[^\s<>"'`]+|(?<![A-Za-z0-9.@])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s<>"'`]*)?/gi;
+
+const FILE_EXTENSIONS = new Set([
+  "pdf",
+  "doc",
+  "docx",
+  "txt",
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "zip",
+  "html",
+  "css",
+  "js",
+  "json",
+  "xml",
+  "csv",
+  "svg",
+]);
 
 function stripEdgePunctuation(value: string): string {
   return value.replace(/^[<(]+/, "").replace(/[.,;:)]+$/g, "").trim();
@@ -753,6 +1095,46 @@ export function normalizeProfileUrl(raw: string): string {
   return trimmed;
 }
 
+function looksLikePhone(value: string): boolean {
+  const digits = value.replace(/\D/g, "");
+  const letters = value.replace(/[^a-z]/gi, "");
+  return digits.length >= 7 && letters.length === 0;
+}
+
+/**
+ * True when a string is an http(s) URL whose hostname has a dotted, non-numeric domain.
+ * Phone numbers and other non-URL text fail.
+ */
+export function isVerifiedProfileUrl(raw: string): boolean {
+  const trimmed = raw.trim();
+  let accepted = false;
+  if (trimmed && !looksLikePhone(trimmed)) {
+    const markdown = MARKDOWN_LINK.exec(trimmed);
+    const candidate = markdown?.[2]?.trim() || trimmed;
+    if (!looksLikePhone(candidate)) {
+      const normalized = normalizeProfileUrl(candidate);
+      if (/^https?:\/\//i.test(normalized)) {
+        try {
+          const hostname = new URL(normalized).hostname.replace(/\.$/, "");
+          const tld = hostname.split(".").pop() ?? "";
+          const numericHost = hostname.split(".").every((label) => /^\d+$/.test(label));
+          accepted =
+            hostname.includes(".") &&
+            !numericHost &&
+            /^[a-z]{2,}$/i.test(tld) &&
+            !FILE_EXTENSIONS.has(tld.toLowerCase());
+        } catch {
+          accepted = false;
+        }
+      }
+    }
+  }
+  // #region agent log
+  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"3c315a"},body:JSON.stringify({sessionId:"3c315a",location:"lib/utils/url.ts:isVerifiedProfileUrl",message:"url check",data:{accepted},timestamp:Date.now(),hypothesisId:"H1"})}).catch(()=>{});
+  // #endregion
+  return accepted;
+}
+
 /**
  * Pulls protocol URLs, markdown hrefs, and bare profile domains out of text.
  */
@@ -764,6 +1146,8 @@ export function extractProfileLinksFromText(rawText: string): string[] {
     const cleaned = stripEdgePunctuation(candidate);
     const normalized = normalizeProfileUrl(cleaned);
     if (!normalized || !/^https?:\/\//i.test(normalized)) return;
+    const tld = hostOf(normalized).split(".").pop() ?? "";
+    if (FILE_EXTENSIONS.has(tld)) return;
     const key = normalized.replace(/\/+$/, "").toLowerCase();
     if (!unique.has(key)) unique.set(key, normalized.replace(/\/+$/, ""));
   };
@@ -2413,12 +2797,24 @@ export function formatEducationTitle(
   fieldOfStudy?: string | null
 ): string {
   const deg = degree?.trim() || "";
-  const field = fieldOfStudy?.trim() || "";
-  if (!deg && !field) return "Degree / Study";
+  const rawField = fieldOfStudy?.trim() || "";
+  if (!deg && !rawField) return "";
+  if (!rawField) return deg;
+  if (!deg) return rawField;
+  const field = rawField.replace(/^in\s+/i, "").trim();
   if (!field) return deg;
-  if (!deg) return field;
   if (deg.toLowerCase().includes(field.toLowerCase())) return deg;
-  if (deg.toLowerCase().endsWith(" in")) return `${deg} ${field}`;
+  const minorLead = /^minor\s+in\s+/i.test(rawField);
+  const mode = deg.toLowerCase().endsWith(" in")
+    ? "space"
+    : minorLead || /\bin\b/i.test(deg)
+      ? "comma"
+      : "in";
+  // #region agent log
+  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"3c315a"},body:JSON.stringify({sessionId:"3c315a",location:"lib/utils/format.ts:formatEducationTitle",message:"education title join",data:{mode,trimmedInPrefix:rawField!==field},timestamp:Date.now(),hypothesisId:"H3"})}).catch(()=>{});
+  // #endregion
+  if (mode === "space") return `${deg} ${field}`;
+  if (mode === "comma") return `${deg}, ${field}`;
   return `${deg} in ${field}`;
 }
 
@@ -3403,6 +3799,7 @@ import {
   githubProfileRoot,
   githubProfileUrlInText,
   isGithubProfileUrl,
+  isVerifiedProfileUrl,
   normalizeProfileUrl,
 } from "@/lib/utils/url";
 
@@ -3524,6 +3921,7 @@ export function extractPlatformLinks(
   let linkedIndeed: string | null = null;
   let linkedGlassdoor: string | null = null;
   let linkedHandshake: string | null = null;
+  let websiteFromPortfolio = false;
 
   for (const item of links) {
     const url = ensureAbsoluteUrl(item.url);
@@ -3543,10 +3941,17 @@ export function extractPlatformLinks(
     } else if (kind === "handshake") {
       linkedHandshake = url;
     } else if (
-      kind === "portfolio" ||
-      label.includes("portfolio") ||
-      label.includes("website") ||
-      label.includes("personal")
+      (kind === "portfolio" || label.includes("portfolio")) &&
+      isVerifiedProfileUrl(url)
+    ) {
+      linkedWebsite = url;
+      websiteFromPortfolio = true;
+    } else if (
+      !websiteFromPortfolio &&
+      isVerifiedProfileUrl(url) &&
+      (kind === "website" ||
+        label.includes("website") ||
+        label.includes("personal"))
     ) {
       linkedWebsite = url;
     }
@@ -3572,8 +3977,8 @@ export function enrichLinksFromRawText(
   const found: { label: string; url: string }[] = [];
 
   for (const raw of extractProfileLinksFromText(text)) {
+    if (!isVerifiedProfileUrl(raw)) continue;
     const kind = categorizeProfileUrl(raw);
-    if (kind === "website") continue;
     if (kind === "github") {
       const root = githubProfileRoot(raw);
       if (!root) continue;
@@ -3581,13 +3986,19 @@ export function enrichLinksFromRawText(
       continue;
     }
     if (kind === "linkedin" && !/linkedin\.com\/(?:in|pub)\//i.test(raw)) continue;
-    found.push({ label: accountLabelForUrl(raw), url: normalizeProfileUrl(raw) });
+    const label = accountLabelForUrl(raw);
+    if (label === "Website" && !isVerifiedProfileUrl(raw)) continue;
+    found.push({ label, url: normalizeProfileUrl(raw) });
   }
 
-  const seen = new Set(
-    existingLinks.map((l) => ensureAbsoluteUrl(l.url).toLowerCase())
+  const keptExisting = existingLinks.filter(
+    (item) =>
+      item.label.trim().toLowerCase() !== "website" || isVerifiedProfileUrl(item.url)
   );
-  const merged = [...existingLinks];
+  const seen = new Set(
+    keptExisting.map((l) => ensureAbsoluteUrl(l.url).toLowerCase())
+  );
+  const merged = [...keptExisting];
   for (const item of found) {
     const key = ensureAbsoluteUrl(item.url).toLowerCase();
     if (!seen.has(key)) {
@@ -7066,7 +7477,7 @@ export function digestTailoredResume(input: {
         id: `edu:${ed.id ?? index}:${opportunityId}`,
         type: "education_item",
         section: "education",
-        content: `${degree} — ${school}${
+        content: `${[degree, school].filter(Boolean).join(" — ")}${
           ed.graduationDate ? ` (${ed.graduationDate})` : ""
         }`,
         metadata: {
@@ -9865,12 +10276,13 @@ import { z } from "zod";
 
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
 import { isPlaceholderEmail } from "@/lib/profile-consolidation";
-import { githubProfileRoot, normalizeProfileUrl } from "@/lib/utils/url";
+import { githubProfileRoot, isVerifiedProfileUrl, normalizeProfileUrl } from "@/lib/utils/url";
 import {
   awardsSchema,
   certificationsSchema,
   experienceBulletSchema,
   interestsSchema,
+  isWorkExperienceCategory,
   masterProfileInputSchema,
   skillsSchema,
   type MasterProfileInput,
@@ -10084,14 +10496,13 @@ CRITICAL EXTRACTION RULES:
 
 5. GROUP SKILLS ONLY BY PRINTED SUBHEADINGS:
    - Return skills as an array of { "label": string, "items": string[] }.
-   - Only create grouped skill objects if the resume contains explicit printed subheadings (e.g., "Languages", "Database", "Tools"). Use that printed subheading as the label.
-   - If skills appear as a flat list, table, or series of bullets without subheadings, group ALL of them together under a single entry with label: "Skills".
+   - Use the exact subheading printed on the page. If skills appear in a flat list with no subheadings, group them under a single group labeled "Skills".
    - Never output a group where the label is merely a duplicate of its single child item.
    - Keep each item as written on the resume. Omit empty groups.
 
 6. EXTRACT ALL CONTACT / PROFILE URLS:
-   - Extract all contact URLs in the header (LinkedIn, GitHub, Portfolio, personal website) into the "links" array with appropriate labels.
-   - Prefer full absolute URLs (https://…). Include every distinct profile or portfolio link present.
+   - Extract every contact link printed in the header into the "links" array: professional profiles, portfolios, and websites.
+   - Use the site or path as the label. Include every distinct link that is printed.
 
 7. DATES:
    - Extract dates as written or in standard format (e.g., "Sept 2025 – May 2026", "2016 – 2020", "June 2026").
@@ -10104,7 +10515,7 @@ CRITICAL EXTRACTION RULES:
 
 9. HONORS AND AWARDS:
    - Entries printed under headers such as Honors, Awards, or Achievements MUST be extracted into "awards".
-   - Even if an award entry lists a tech stack, bullet points, or project outcomes, store those details within the award's "description".
+   - Even if an award entry lists tools, techniques, or methods, bullet points, or outcomes, store those details within the award's "description".
    - DO NOT emit an entry into "projects" unless it is printed under a dedicated Projects or Portfolio section header.
    - Do not duplicate award entries into "experiences", "certifications", or skills.
 
@@ -10200,7 +10611,9 @@ export function experienceCategory(raw: string, source: string): string {
   if (/\b(activities|activity|campus|extracurriculars?)\b/.test(lower)) {
     return "Activity";
   }
-  if (/\b(volunteer|community)\b/.test(lower)) return "Volunteer";
+  if (/\bvolunteer\b/.test(lower) || /\bcommunity\s+service\b/.test(lower)) {
+    return "Volunteer";
+  }
   if (/\bmilitary\b/.test(lower)) return "Military";
   if (/\bclinical\b/.test(lower)) return "Clinical";
   if (
@@ -10321,9 +10734,7 @@ function pullLatinHonors(
     .replace(/\s{2,}/g, " ")
     .replace(/^[,;:\s-]+|[,;:\s-]+$/g, "")
     .trim();
-  if (!remainder || (found.length > 0 && !DEGREE_MARK.test(remainder))) {
-    return { degree: null, honors: next };
-  }
+  if (!remainder) return { degree: null, honors: next };
   return { degree: remainder, honors: next };
 }
 
@@ -10443,13 +10854,6 @@ function inferTechnologies(text: string, skillTerms: string[]): string[] {
     if (trimmed.length < 2) continue;
     if (lower.includes(trimmed.toLowerCase())) found.add(trimmed);
   }
-  const phrases =
-    text.match(
-      /\b(?:[A-Z]{2,}[A-Za-z0-9+/#.-]*|[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\b/g
-    ) ?? [];
-  for (const phrase of phrases) {
-    found.add(phrase);
-  }
   return [...found];
 }
 
@@ -10541,7 +10945,8 @@ export async function parseResumeToStructuredProfile(
     links: parsed.links.flatMap((link) => {
       const normalized = normalizeProfileUrl(link.url);
       const url = githubProfileRoot(normalized) ?? normalized;
-      if (!url.trim() || !linkAppearsInSource(url, sliced)) return [];
+      const verified = isVerifiedProfileUrl(url);
+      if (!verified || !url.trim() || !linkAppearsInSource(url, sliced)) return [];
       return [{ label: link.label, url }];
     }),
     skills: anchorSkillLabels(parsed.skills, sliced),
@@ -10564,7 +10969,7 @@ export async function parseResumeToStructuredProfile(
             degree: e.degree.trim() || null,
             fieldOfStudy: e.fieldOfStudy ?? null,
             startDate: e.startDate,
-            graduationDate: e.graduationDate ?? e.endDate,
+            graduationDate: e.graduationDate || e.endDate || null,
             gpa: e.gpa,
             honors: e.honors,
           },
@@ -10577,6 +10982,10 @@ export async function parseResumeToStructuredProfile(
     awards: parsed.awards.filter((item) => appearsInSource(item.title, sliced)),
     interests: collectSourceInterests(parsed.interests, sliced),
   };
+
+  // #region agent log
+  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"3c315a"},body:JSON.stringify({sessionId:"3c315a",location:"lib/resume-parser.ts:draft",message:"parse draft guards",data:{links:draft.links.length,educationDated:draft.education.filter((item)=>Boolean(item.graduationDate)).length,educationTotal:draft.education.length,leadershipWork:draft.experiences.filter((item)=>/\bleadership\b/i.test(item.category)&&isWorkExperienceCategory(item.category)).length,leadershipTotal:draft.experiences.filter((item)=>/\bleadership\b/i.test(item.category)).length},timestamp:Date.now(),hypothesisId:"H2"})}).catch(()=>{});
+  // #endregion
 
   return masterProfileInputSchema.parse(draft);
 }
@@ -13415,16 +13824,13 @@ function ResumeDocument({
             {educationRows.map((ed) => {
               const degreeText = formatEducationTitle(ed.degree, ed.fieldOfStudy);
               const school = formatSchoolName(ed.institution, ed.subSchool);
+              const heading = [degreeText, school].filter(Boolean).join(" — ");
               return (
                 <Text
                   key={`${ed.institution}-${ed.subSchool ?? ""}-${ed.degree}`}
                   style={{ marginBottom: 3 }}
                 >
-                  {school
-                    ? `${degreeText} — ${school}${
-                        ed.graduationDate ? ` (${ed.graduationDate})` : ""
-                      }`
-                    : degreeText}
+                  {ed.graduationDate ? `${heading} (${ed.graduationDate})` : heading}
                 </Text>
               );
             })}
@@ -14056,6 +14462,7 @@ export function pageFlipDirFromPointer(
 import { z } from "zod";
 
 import { skillGroupsFromUnknown } from "@/lib/skill-groups";
+import { normalizeProfileUrl } from "@/lib/utils/url";
 
 export const experienceBulletSchema = z.object({
   id: z.string(),
@@ -14116,11 +14523,28 @@ export type ExperienceCategory =
   | (typeof STANDARD_EXPERIENCE_CATEGORIES)[number]
   | string;
 
-/** Professional employment counts toward tenure. Other headings do not. */
+const PAID_DOMAIN_CATEGORY =
+  /\b(work|professional|employment|clinical|military|practice|freelance|consulting)\b/;
+
+const RECREATIONAL_CATEGORY =
+  /\b(leadership|activities|activity|athletics|sports|volunteer)\b/;
+
+/**
+ * Paid and domain work count toward tenure, including clinical, military,
+ * practice, freelance, and consulting. Leadership, activities, athletics,
+ * and volunteer headings do not. Those count when the heading also marks
+ * professional employment.
+ */
 export function isWorkExperienceCategory(category?: string | null): boolean {
   if (!category?.trim()) return true;
   const lower = category.trim().toLowerCase();
-  return lower === "work" || lower.includes("professional");
+  const paid = PAID_DOMAIN_CATEGORY.test(lower);
+  const recreational = RECREATIONAL_CATEGORY.test(lower);
+  const isWork = paid || !recreational;
+  // #region agent log
+  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"3c315a"},body:JSON.stringify({sessionId:"3c315a",location:"lib/validations/profile.ts:isWorkExperienceCategory",message:"category routing",data:{isWork,leadership:/\bleadership\b/.test(lower),athletics:/\bathletics\b/.test(lower)},timestamp:Date.now(),hypothesisId:"H4"})}).catch(()=>{});
+  // #endregion
+  return isWork;
 }
 
 const honorsListSchema = z.preprocess((value) => {
@@ -14141,6 +14565,7 @@ export const educationInputSchema = z.object({
   fieldOfStudy: z.string().nullable().optional(),
   startDate: z.string().nullable().optional(),
   graduationDate: z.string().nullable().optional(),
+  endDate: z.string().nullable().optional(),
   gpa: z.string().nullable().optional(),
   honors: honorsListSchema.default([]),
 });
@@ -14329,12 +14754,38 @@ function optionalHttpsUrl(label: string) {
     .nullable()
     .transform((v) => {
       const value = (v ?? "").trim();
-      return value.length === 0 ? null : value;
-    })
-    .refine(
-      (v) => v === null || z.string().url().safeParse(v).success,
-      `${label} must be a valid URL`
-    );
+      if (value.length === 0) return null;
+      const normalized = normalizeProfileUrl(value);
+      const accepted = z.string().url().safeParse(normalized).success
+        ? normalized
+        : null;
+      // #region agent log
+      if (label === "Personal Website") {
+        fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Debug-Session-Id": "3c315a",
+          },
+          body: JSON.stringify({
+            sessionId: "3c315a",
+            runId: "post-fix",
+            hypothesisId: "H1",
+            location: "lib/validations/profile.ts:optionalHttpsUrl",
+            message: "personal website normalized",
+            data: {
+              blank: false,
+              hadScheme: /^https?:\/\//i.test(value),
+              normalizedHasScheme: /^https?:\/\//i.test(normalized),
+              accepted: accepted !== null,
+            },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+      }
+      // #endregion
+      return accepted;
+    });
 }
 
 /** External professional profile URLs on UserProfile. */
@@ -16385,6 +16836,8 @@ import {
   isPlaceholderEmail,
   resolveGithubHandle,
 } from "@/lib/profile-consolidation";
+import { nameProfileRevision } from "@/lib/ai/revision-namer";
+import { normalizeProfileUrl } from "@/lib/utils/url";
 import {
   loadProfileSnapshot,
   recordProfileSnapshot,
@@ -16426,6 +16879,32 @@ export type UpdateMasterProfileOptions = {
   /** Replace the stored profile with the incoming resume instead of merging. */
   overwriteAll?: boolean;
 };
+
+const LINKED_ACCOUNT_KEYS = [
+  "linkedWebsite",
+  "linkedIndeed",
+  "linkedGlassdoor",
+  "linkedGithub",
+  "linkedLinkedin",
+  "linkedHandshake",
+] as const;
+
+/** Bare domains get a scheme before schema validation. Blank fields stay null. */
+function normalizedLinkedAccounts(
+  input: object
+): Partial<Record<(typeof LINKED_ACCOUNT_KEYS)[number], string | null>> {
+  const record = input as Partial<
+    Record<(typeof LINKED_ACCOUNT_KEYS)[number], string | null | undefined>
+  >;
+  const normalized: Partial<Record<(typeof LINKED_ACCOUNT_KEYS)[number], string | null>> = {};
+  for (const key of LINKED_ACCOUNT_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(record, key)) continue;
+    const raw = record[key];
+    const trimmed = typeof raw === "string" ? raw.trim() : "";
+    normalized[key] = trimmed ? normalizeProfileUrl(trimmed) : null;
+  }
+  return normalized;
+}
 
 /**
  * Records the current profile in ProfileHistory before a destructive write.
@@ -16731,7 +17210,11 @@ export async function updateMasterProfile(
   }
 
   const email = isPlaceholderEmail(data.email) ? account.email : data.email;
-  const parsed = masterProfileSchema.safeParse({ ...data, email });
+  const parsed = masterProfileSchema.safeParse({
+    ...data,
+    email,
+    ...normalizedLinkedAccounts(data),
+  });
   if (!parsed.success) {
     return {
       ok: false,
@@ -16744,10 +17227,25 @@ export async function updateMasterProfile(
 
   try {
     if (!options?.skipHistory) {
-      await captureProfileRevision(
-        accountId,
-        options?.summary ?? "Manual Edit"
-      );
+      const keepGiven =
+        options?.summary?.startsWith("Restored:") ||
+        options?.summary === "Before Profile Reset";
+      let summary = options?.summary ?? "Profile update";
+      if (!keepGiven) {
+        const existingTree = await prisma.userProfile.findUnique({
+          where: { accountId },
+          include: {
+            experiences: { orderBy: { displayOrder: "asc" } },
+            projects: true,
+            education: true,
+          },
+        });
+        const previous = existingTree
+          ? serializeUserProfileToInput(existingTree)
+          : null;
+        summary = await nameProfileRevision(previous, payload);
+      }
+      await captureProfileRevision(accountId, summary);
     }
 
     const profileId = await prisma.$transaction(async (tx) => {
@@ -16831,7 +17329,7 @@ export async function updateMasterProfile(
             degree: ed.degree ?? null,
             fieldOfStudy: ed.fieldOfStudy ?? null,
             startDate: ed.startDate ?? null,
-            graduationDate: ed.graduationDate ?? null,
+            graduationDate: ed.graduationDate || ed.endDate || null,
             gpa: ed.gpa ?? null,
             honors: (ed.honors ?? []) as Prisma.InputJsonValue,
           })),
@@ -17114,6 +17612,41 @@ export async function restoreProfileHistory(
 }
 
 /**
+ * Renames a revision the account owns. The stored snapshot stays unchanged.
+ */
+export async function renameProfileRevision(
+  accountId: string,
+  revisionId: string,
+  newName: string
+): Promise<ActionResult> {
+  const name = newName.trim();
+  if (!name || name.length > 160) {
+    return { ok: false, error: "Revision name must be 1–160 characters." };
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { profile: { select: { id: true } } },
+  });
+  if (!account?.profile) return { ok: false, error: "Profile not found" };
+
+  const target = await prisma.profileHistory.findUnique({
+    where: { id: revisionId },
+    select: { id: true, profileId: true },
+  });
+  if (!target || target.profileId !== account.profile.id) {
+    return { ok: false, error: "Revision not found" };
+  }
+
+  await prisma.profileHistory.update({
+    where: { id: revisionId },
+    data: { summary: name },
+  });
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+/**
  * Sole mutation for Job Radar match threshold.
  * Writes PermanentSettings.matchScoreThreshold (canonical) and mirrors
  * UserProfile.matchThreshold when a resume profile exists.
@@ -17184,7 +17717,7 @@ export async function updateLinkedAccounts(
   accountId: string,
   input: LinkedAccountsInput
 ): Promise<ActionResult> {
-  const parsed = linkedAccountsSchema.safeParse(input);
+  const parsed = linkedAccountsSchema.safeParse(normalizedLinkedAccounts(input));
   if (!parsed.success) {
     return {
       ok: false,
@@ -22762,7 +23295,7 @@ model ProfileHistory {
   profileId String
   profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
-  /// e.g. "Before GitHub Sync", "Before Resume Extraction", "Manual Edit"
+  /// Human revision title. Rename updates this in place.
   summary   String
   /// Complete MasterProfileInput JSON snapshot
   snapshot  Json
@@ -23777,6 +24310,8 @@ export type CallLLMOptions = {
   allowCloudFallback?: boolean;
   /** @deprecated Use allowCloudFallback */
   allowOpenRouterFallback?: boolean;
+  /** When set, OpenRouter tries only these models, in order. */
+  openRouterModels?: string[];
 };
 
 /** Thrown when LOCAL_OLLAMA is selected but the instance cannot be reached. */
@@ -23895,7 +24430,8 @@ export async function callLLMWithFallback(
         );
         const cloudResult = await callOpenRouterJson(
           options.systemPrompt,
-          options.userPrompt
+          options.userPrompt,
+          options.openRouterModels
         );
         if (cloudResult) {
           console.info(
@@ -23917,7 +24453,11 @@ export async function callLLMWithFallback(
     }
   }
 
-  return callOpenRouterJson(options.systemPrompt, options.userPrompt);
+  return callOpenRouterJson(
+    options.systemPrompt,
+    options.userPrompt,
+    options.openRouterModels
+  );
 }
 
 /**
@@ -24169,7 +24709,8 @@ async function callOllamaGenerateOnce(
 
 async function callOpenRouterJson(
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  models?: string[]
 ): Promise<Record<string, unknown> | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -24177,7 +24718,8 @@ async function callOpenRouterJson(
     return null;
   }
 
-  for (const model of DEFAULT_OPENROUTER_MODELS) {
+  const selected = models && models.length > 0 ? models : DEFAULT_OPENROUTER_MODELS;
+  for (const model of selected) {
     try {
       const result = await callOpenRouterModel(
         apiKey,

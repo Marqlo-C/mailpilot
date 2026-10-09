@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { skillGroupsFromUnknown } from "@/lib/skill-groups";
+import { normalizeProfileUrl } from "@/lib/utils/url";
 
 export const experienceBulletSchema = z.object({
   id: z.string(),
@@ -61,11 +62,28 @@ export type ExperienceCategory =
   | (typeof STANDARD_EXPERIENCE_CATEGORIES)[number]
   | string;
 
-/** Professional employment counts toward tenure. Other headings do not. */
+const PAID_DOMAIN_CATEGORY =
+  /\b(work|professional|employment|clinical|military|practice|freelance|consulting)\b/;
+
+const RECREATIONAL_CATEGORY =
+  /\b(leadership|activities|activity|athletics|sports|volunteer)\b/;
+
+/**
+ * Paid and domain work count toward tenure, including clinical, military,
+ * practice, freelance, and consulting. Leadership, activities, athletics,
+ * and volunteer headings do not. Those count when the heading also marks
+ * professional employment.
+ */
 export function isWorkExperienceCategory(category?: string | null): boolean {
   if (!category?.trim()) return true;
   const lower = category.trim().toLowerCase();
-  return lower === "work" || lower.includes("professional");
+  const paid = PAID_DOMAIN_CATEGORY.test(lower);
+  const recreational = RECREATIONAL_CATEGORY.test(lower);
+  const isWork = paid || !recreational;
+  // #region agent log
+  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"3c315a"},body:JSON.stringify({sessionId:"3c315a",location:"lib/validations/profile.ts:isWorkExperienceCategory",message:"category routing",data:{isWork,leadership:/\bleadership\b/.test(lower),athletics:/\bathletics\b/.test(lower)},timestamp:Date.now(),hypothesisId:"H4"})}).catch(()=>{});
+  // #endregion
+  return isWork;
 }
 
 const honorsListSchema = z.preprocess((value) => {
@@ -86,6 +104,7 @@ export const educationInputSchema = z.object({
   fieldOfStudy: z.string().nullable().optional(),
   startDate: z.string().nullable().optional(),
   graduationDate: z.string().nullable().optional(),
+  endDate: z.string().nullable().optional(),
   gpa: z.string().nullable().optional(),
   honors: honorsListSchema.default([]),
 });
@@ -274,12 +293,38 @@ function optionalHttpsUrl(label: string) {
     .nullable()
     .transform((v) => {
       const value = (v ?? "").trim();
-      return value.length === 0 ? null : value;
-    })
-    .refine(
-      (v) => v === null || z.string().url().safeParse(v).success,
-      `${label} must be a valid URL`
-    );
+      if (value.length === 0) return null;
+      const normalized = normalizeProfileUrl(value);
+      const accepted = z.string().url().safeParse(normalized).success
+        ? normalized
+        : null;
+      // #region agent log
+      if (label === "Personal Website") {
+        fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Debug-Session-Id": "3c315a",
+          },
+          body: JSON.stringify({
+            sessionId: "3c315a",
+            runId: "post-fix",
+            hypothesisId: "H1",
+            location: "lib/validations/profile.ts:optionalHttpsUrl",
+            message: "personal website normalized",
+            data: {
+              blank: false,
+              hadScheme: /^https?:\/\//i.test(value),
+              normalizedHasScheme: /^https?:\/\//i.test(normalized),
+              accepted: accepted !== null,
+            },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+      }
+      // #endregion
+      return accepted;
+    });
 }
 
 /** External professional profile URLs on UserProfile. */

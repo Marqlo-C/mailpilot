@@ -2,12 +2,13 @@ import { z } from "zod";
 
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
 import { isPlaceholderEmail } from "@/lib/profile-consolidation";
-import { githubProfileRoot, normalizeProfileUrl } from "@/lib/utils/url";
+import { githubProfileRoot, isVerifiedProfileUrl, normalizeProfileUrl } from "@/lib/utils/url";
 import {
   awardsSchema,
   certificationsSchema,
   experienceBulletSchema,
   interestsSchema,
+  isWorkExperienceCategory,
   masterProfileInputSchema,
   skillsSchema,
   type MasterProfileInput,
@@ -221,14 +222,13 @@ CRITICAL EXTRACTION RULES:
 
 5. GROUP SKILLS ONLY BY PRINTED SUBHEADINGS:
    - Return skills as an array of { "label": string, "items": string[] }.
-   - Only create grouped skill objects if the resume contains explicit printed subheadings (e.g., "Languages", "Database", "Tools"). Use that printed subheading as the label.
-   - If skills appear as a flat list, table, or series of bullets without subheadings, group ALL of them together under a single entry with label: "Skills".
+   - Use the exact subheading printed on the page. If skills appear in a flat list with no subheadings, group them under a single group labeled "Skills".
    - Never output a group where the label is merely a duplicate of its single child item.
    - Keep each item as written on the resume. Omit empty groups.
 
 6. EXTRACT ALL CONTACT / PROFILE URLS:
-   - Extract all contact URLs in the header (LinkedIn, GitHub, Portfolio, personal website) into the "links" array with appropriate labels.
-   - Prefer full absolute URLs (https://…). Include every distinct profile or portfolio link present.
+   - Extract every contact link printed in the header into the "links" array: professional profiles, portfolios, and websites.
+   - Use the site or path as the label. Include every distinct link that is printed.
 
 7. DATES:
    - Extract dates as written or in standard format (e.g., "Sept 2025 – May 2026", "2016 – 2020", "June 2026").
@@ -241,7 +241,7 @@ CRITICAL EXTRACTION RULES:
 
 9. HONORS AND AWARDS:
    - Entries printed under headers such as Honors, Awards, or Achievements MUST be extracted into "awards".
-   - Even if an award entry lists a tech stack, bullet points, or project outcomes, store those details within the award's "description".
+   - Even if an award entry lists tools, techniques, or methods, bullet points, or outcomes, store those details within the award's "description".
    - DO NOT emit an entry into "projects" unless it is printed under a dedicated Projects or Portfolio section header.
    - Do not duplicate award entries into "experiences", "certifications", or skills.
 
@@ -337,7 +337,9 @@ export function experienceCategory(raw: string, source: string): string {
   if (/\b(activities|activity|campus|extracurriculars?)\b/.test(lower)) {
     return "Activity";
   }
-  if (/\b(volunteer|community)\b/.test(lower)) return "Volunteer";
+  if (/\bvolunteer\b/.test(lower) || /\bcommunity\s+service\b/.test(lower)) {
+    return "Volunteer";
+  }
   if (/\bmilitary\b/.test(lower)) return "Military";
   if (/\bclinical\b/.test(lower)) return "Clinical";
   if (
@@ -458,9 +460,7 @@ function pullLatinHonors(
     .replace(/\s{2,}/g, " ")
     .replace(/^[,;:\s-]+|[,;:\s-]+$/g, "")
     .trim();
-  if (!remainder || (found.length > 0 && !DEGREE_MARK.test(remainder))) {
-    return { degree: null, honors: next };
-  }
+  if (!remainder) return { degree: null, honors: next };
   return { degree: remainder, honors: next };
 }
 
@@ -580,13 +580,6 @@ function inferTechnologies(text: string, skillTerms: string[]): string[] {
     if (trimmed.length < 2) continue;
     if (lower.includes(trimmed.toLowerCase())) found.add(trimmed);
   }
-  const phrases =
-    text.match(
-      /\b(?:[A-Z]{2,}[A-Za-z0-9+/#.-]*|[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\b/g
-    ) ?? [];
-  for (const phrase of phrases) {
-    found.add(phrase);
-  }
   return [...found];
 }
 
@@ -678,7 +671,8 @@ export async function parseResumeToStructuredProfile(
     links: parsed.links.flatMap((link) => {
       const normalized = normalizeProfileUrl(link.url);
       const url = githubProfileRoot(normalized) ?? normalized;
-      if (!url.trim() || !linkAppearsInSource(url, sliced)) return [];
+      const verified = isVerifiedProfileUrl(url);
+      if (!verified || !url.trim() || !linkAppearsInSource(url, sliced)) return [];
       return [{ label: link.label, url }];
     }),
     skills: anchorSkillLabels(parsed.skills, sliced),
@@ -701,7 +695,7 @@ export async function parseResumeToStructuredProfile(
             degree: e.degree.trim() || null,
             fieldOfStudy: e.fieldOfStudy ?? null,
             startDate: e.startDate,
-            graduationDate: e.graduationDate ?? e.endDate,
+            graduationDate: e.graduationDate || e.endDate || null,
             gpa: e.gpa,
             honors: e.honors,
           },
@@ -714,6 +708,10 @@ export async function parseResumeToStructuredProfile(
     awards: parsed.awards.filter((item) => appearsInSource(item.title, sliced)),
     interests: collectSourceInterests(parsed.interests, sliced),
   };
+
+  // #region agent log
+  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"3c315a"},body:JSON.stringify({sessionId:"3c315a",location:"lib/resume-parser.ts:draft",message:"parse draft guards",data:{links:draft.links.length,educationDated:draft.education.filter((item)=>Boolean(item.graduationDate)).length,educationTotal:draft.education.length,leadershipWork:draft.experiences.filter((item)=>/\bleadership\b/i.test(item.category)&&isWorkExperienceCategory(item.category)).length,leadershipTotal:draft.experiences.filter((item)=>/\bleadership\b/i.test(item.category)).length},timestamp:Date.now(),hypothesisId:"H2"})}).catch(()=>{});
+  // #endregion
 
   return masterProfileInputSchema.parse(draft);
 }

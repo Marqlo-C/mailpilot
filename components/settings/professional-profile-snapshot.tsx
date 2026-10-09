@@ -367,9 +367,11 @@ export function ProfessionalProfileSnapshot({
                   key={ed.id ?? `${ed.institution}-${ed.degree}`}
                   className="rounded-md border border-border/60 bg-background/50 p-3 text-sm"
                 >
-                  <p className="font-semibold">
-                    {formatEducationTitle(ed.degree, ed.fieldOfStudy)}
-                  </p>
+                  {formatEducationTitle(ed.degree, ed.fieldOfStudy) ? (
+                    <p className="font-semibold">
+                      {formatEducationTitle(ed.degree, ed.fieldOfStudy)}
+                    </p>
+                  ) : null}
                   <p className="text-muted-foreground">
                     {formatSchoolName(ed.institution, ed.subSchool)}
                     {ed.graduationDate ? ` · ${ed.graduationDate}` : ""}
