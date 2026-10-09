@@ -357,7 +357,7 @@ model ProfileHistory {
   profileId String
   profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
-  /// Human revision title. Rename updates this in place.
+  /// Short title, or JSON { title, diff } for itemized revisions. Rename updates the title in place.
   summary   String
   /// Complete MasterProfileInput JSON snapshot
   snapshot  Json

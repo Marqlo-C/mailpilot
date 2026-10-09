@@ -1,12 +1,24 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Loader2, Pencil, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 import { renameProfileRevision, type ProfileHistoryItem } from "@/app/actions/profile";
 import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "@/lib/format-distance";
+import {
+  parseRevisionSummary,
+  serializeRevisionSummary,
+  type ProfileDiffChange,
+} from "@/lib/profile/revision-diff";
 
 type ProfileRevisionHistoryProps = {
   accountId: string;
@@ -15,6 +27,78 @@ type ProfileRevisionHistoryProps = {
   onChange: (items: ProfileHistoryItem[]) => void;
   onRestore: (item: ProfileHistoryItem) => void;
 };
+
+type ChangeKind = "added" | "modified" | "removed";
+
+const KIND_STYLE: Record<ChangeKind, { mark: string; className: string }> = {
+  added: { mark: "+", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
+  modified: { mark: "~", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300" },
+  removed: { mark: "-", className: "bg-rose-500/15 text-rose-700 dark:text-rose-300" },
+};
+
+export function formatRevisionStamp(iso: string): string {
+  return new Date(iso).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/** Circular icon control, same chrome as the toolbar search filter button. */
+const iconButtonClassName =
+  "inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))] disabled:pointer-events-none disabled:opacity-50";
+
+function ChangeBlurb({ text, className }: { text: string; className?: string }) {
+  const full = text.trim();
+  const ref = useRef<HTMLSpanElement>(null);
+  const [overflows, setOverflows] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setOverflows(el.scrollWidth > el.clientWidth + 1);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [full, overflows]);
+
+  const label = (
+    <span
+      ref={ref}
+      className={cn("block w-full min-w-0 truncate text-xs", className)}
+    >
+      {full}
+    </span>
+  );
+
+  if (!overflows) return label;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{label}</TooltipTrigger>
+      <TooltipContent
+        side="top"
+        className="z-[80] max-w-sm whitespace-normal text-left"
+      >
+        {full}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function changeRows(diff: {
+  added: ProfileDiffChange[];
+  modified: ProfileDiffChange[];
+  removed: ProfileDiffChange[];
+}): Array<ProfileDiffChange & { kind: ChangeKind }> {
+  return [
+    ...diff.added.map((change) => ({ ...change, kind: "added" as const })),
+    ...diff.modified.map((change) => ({ ...change, kind: "modified" as const })),
+    ...diff.removed.map((change) => ({ ...change, kind: "removed" as const })),
+  ];
+}
 
 /**
  * Newest-first revision list. The name edits in place; the timestamp stays on the row.
@@ -33,7 +117,7 @@ export function ProfileRevisionHistory({
   function beginEdit(item: ProfileHistoryItem) {
     skipCommit.current = false;
     setEditingId(item.id);
-    setDraft(item.summary);
+    setDraft(parseRevisionSummary(item.summary).title);
   }
 
   function cancelEdit() {
@@ -48,13 +132,13 @@ export function ProfileRevisionHistory({
       return;
     }
     const next = draft.trim();
+    const stored = parseRevisionSummary(item.summary);
     skipCommit.current = true;
     setEditingId(null);
-    if (!next || next === item.summary) return;
+    if (!next || next === stored.title) return;
     const prior = items;
-    onChange(
-      items.map((row) => (row.id === item.id ? { ...row, summary: next } : row))
-    );
+    const summary = serializeRevisionSummary({ title: next, diff: stored.diff });
+    onChange(items.map((row) => (row.id === item.id ? { ...row, summary } : row)));
     const result = await renameProfileRevision(accountId, item.id, next);
     if (!result.ok) {
       onChange(prior);
@@ -71,65 +155,115 @@ export function ProfileRevisionHistory({
   }
 
   return (
-    <ul className="max-h-80 space-y-1 overflow-y-auto p-1">
-      {items.map((item) => {
-        const created = new Date(item.createdAt);
-        const editing = editingId === item.id;
-        return (
-          <li key={item.id} className="rounded-md px-2 py-1.5">
-            {editing ? (
-              <Input
-                autoFocus
-                value={draft}
-                aria-label="Revision name"
-                className="h-8 text-sm"
-                onChange={(event) => setDraft(event.target.value)}
-                onBlur={() => void commitEdit(item)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    event.currentTarget.blur();
-                  }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    cancelEdit();
-                  }
-                }}
-              />
-            ) : (
-              <button
-                type="button"
-                className="flex w-full items-start gap-1.5 text-left text-sm font-medium"
-                disabled={pending}
-                onClick={() => beginEdit(item)}
-              >
-                <Pencil className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span>{item.summary}</span>
-              </button>
-            )}
-            <div className="mt-1 flex items-center justify-between gap-2 pl-5">
-              <span className="text-[11px] text-muted-foreground">
-                {formatDistanceToNow(created, { addSuffix: true })}
-                {" · "}
-                {created.toISOString()}
-              </span>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-                disabled={pending || editing}
-                onClick={() => onRestore(item)}
-              >
-                {pending ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
+    <TooltipProvider delayDuration={200}>
+      <ul className="max-h-[28rem] space-y-2 overflow-y-auto p-1">
+        {items.map((item) => {
+          const created = new Date(item.createdAt);
+          const editing = editingId === item.id;
+          const stored = parseRevisionSummary(item.summary);
+          const rows = changeRows(stored.diff);
+          const stamp = formatRevisionStamp(item.createdAt);
+          return (
+            <li
+              key={item.id}
+              className="rounded-lg border border-border/50 bg-card/75 p-2.5 shadow-sm"
+            >
+              <div className="flex items-center gap-2">
+                {editing ? (
+                  <Input
+                    autoFocus
+                    value={draft}
+                    aria-label="Revision name"
+                    className="h-8 text-sm"
+                    onChange={(event) => setDraft(event.target.value)}
+                    onBlur={() => void commitEdit(item)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        cancelEdit();
+                      }
+                    }}
+                  />
                 ) : (
-                  <RotateCcw className="h-3 w-3" />
+                  <>
+                    <button
+                      type="button"
+                      className={iconButtonClassName}
+                      aria-label="Rename revision"
+                      disabled={pending}
+                      onClick={() => beginEdit(item)}
+                    >
+                      <Pencil className="size-4" aria-hidden />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-normal leading-none text-muted-foreground">
+                        {stamp}
+                      </p>
+                      <ChangeBlurb
+                        text={stored.title}
+                        className="mt-1 text-sm font-medium"
+                      />
+                    </div>
+                  </>
                 )}
-                Restore
-              </button>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+              </div>
+              {rows.length > 0 ? (
+                <ul className="mt-2.5 max-h-48 space-y-1 overflow-y-auto pr-1">
+                  {rows.map((row, index) => {
+                    const style = KIND_STYLE[row.kind];
+                    return (
+                      <li
+                        key={`${row.kind}-${row.section}-${index}`}
+                        className="grid w-full grid-cols-[1.25rem_auto_minmax(0,1fr)] items-center gap-1.5"
+                      >
+                        <span
+                          className={`inline-flex h-5 w-5 items-center justify-center rounded text-[11px] font-semibold ${style.className}`}
+                        >
+                          {style.mark}
+                        </span>
+                        <span className="relative block">
+                          <span
+                            className="invisible block px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+                            aria-hidden
+                          >
+                            experience
+                          </span>
+                          <span className="absolute inset-0 block truncate rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                            {row.section}
+                          </span>
+                        </span>
+                        <ChangeBlurb text={row.summary} />
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+              <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/40 pt-2">
+                <span className="text-[11px] text-muted-foreground">
+                  {formatDistanceToNow(created, { addSuffix: true })}
+                </span>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                  disabled={pending || editing}
+                  onClick={() => onRestore(item)}
+                >
+                  {pending ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-3 w-3" />
+                  )}
+                  Restore
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </TooltipProvider>
   );
 }

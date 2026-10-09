@@ -15,9 +15,14 @@ import {
   isPlaceholderEmail,
   resolveGithubHandle,
 } from "@/lib/profile-consolidation";
-import { nameProfileRevision } from "@/lib/ai/revision-namer";
+import {
+  describeProfileRevision,
+  parseRevisionSummary,
+  serializeRevisionSummary,
+} from "@/lib/profile/revision-diff";
 import { normalizeProfileUrl } from "@/lib/utils/url";
 import {
+  listProfileRevisions,
   loadProfileSnapshot,
   recordProfileSnapshot,
   serializeUserProfileToInput,
@@ -423,7 +428,9 @@ export async function updateMasterProfile(
         const previous = existingTree
           ? serializeUserProfileToInput(existingTree)
           : null;
-        summary = await nameProfileRevision(previous, payload);
+        summary = serializeRevisionSummary(
+          describeProfileRevision(previous, payload)
+        );
       }
       await captureProfileRevision(accountId, summary);
     }
@@ -739,28 +746,7 @@ export async function getMasterProfile(
 export async function getProfileHistory(
   accountId: string
 ): Promise<ActionResult<ProfileHistoryItem[]>> {
-  const profile = await prisma.userProfile.findUnique({
-    where: { accountId },
-    select: { id: true },
-  });
-
-  if (!profile) return { ok: false, error: "Profile not found" };
-
-  const history = await prisma.profileHistory.findMany({
-    where: { profileId: profile.id },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-    select: { id: true, summary: true, createdAt: true },
-  });
-
-  return {
-    ok: true,
-    data: history.map((h) => ({
-      id: h.id,
-      summary: h.summary,
-      createdAt: h.createdAt.toISOString(),
-    })),
-  };
+  return { ok: true, data: await listProfileRevisions(accountId) };
 }
 
 /**
@@ -785,8 +771,9 @@ export async function restoreProfileHistory(
 
   const restoredData = target.snapshot as MasterProfileUpdateInput;
 
+  const restoredTitle = parseRevisionSummary(target.summary).title;
   const result = await updateMasterProfile(accountId, restoredData, {
-    summary: `Restored: ${target.summary}`,
+    summary: `Restored: ${restoredTitle}`,
   });
   if (!result.ok) return result;
 
@@ -816,15 +803,18 @@ export async function renameProfileRevision(
 
   const target = await prisma.profileHistory.findUnique({
     where: { id: revisionId },
-    select: { id: true, profileId: true },
+    select: { id: true, profileId: true, summary: true },
   });
   if (!target || target.profileId !== account.profile.id) {
     return { ok: false, error: "Revision not found" };
   }
 
+  const stored = parseRevisionSummary(target.summary);
   await prisma.profileHistory.update({
     where: { id: revisionId },
-    data: { summary: name },
+    data: {
+      summary: serializeRevisionSummary({ title: name, diff: stored.diff }),
+    },
   });
   revalidatePath("/settings");
   return { ok: true };
