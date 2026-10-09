@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { isKnownJobDomain } from "@/lib/constants/job-sources";
 import {
   extractApexDomain,
   faviconUrlForDomain,
@@ -80,21 +81,7 @@ export function domainFromActionUrl(
   if (!url) return null;
   try {
     const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
-    const ats = new Set([
-      "greenhouse.io",
-      "boards.greenhouse.io",
-      "lever.co",
-      "jobs.lever.co",
-      "myworkdayjobs.com",
-      "workday.com",
-      "ashbyhq.com",
-      "jobs.ashbyhq.com",
-      "smartrecruiters.com",
-      "icims.com",
-      "linkedin.com",
-      "calendly.com",
-    ]);
-    if (ats.has(host) || [...ats].some((d) => host.endsWith(`.${d}`))) {
+    if (isKnownJobDomain(host)) {
       return null;
     }
     return extractApexDomain(host);

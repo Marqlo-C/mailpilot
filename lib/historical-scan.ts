@@ -1,13 +1,14 @@
 import { GaxiosError } from "gaxios";
 import type { gmail_v1 } from "googleapis";
 
+import { buildHistoricalJobSearchQuery } from "@/lib/constants/job-sources";
 import { getGmailClientForAccount } from "@/lib/google";
 import {
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
 } from "@/lib/google";
-import { cleanEmailPayload } from "@/lib/email/cleaner";
+import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
 import {
   classifyEmail,
   extractMessageBody,
@@ -287,8 +288,7 @@ async function scanJobCandidates(
   },
   days: ScanDays
 ): Promise<number> {
-  // Include job-board digests (Glassdoor / LinkedIn / Indeed) alongside status mail.
-  const query = `newer_than:${days}d (subject:(application OR applied OR interview OR status OR assessment OR hackerrank OR coderpad OR "thank you" OR "job alert" OR "jobs for you" OR "new jobs" OR "recommended jobs" OR glassdoor OR indeed OR linkedin OR hiring OR opportunity) OR "thank you for applying" OR from:(glassdoor.com OR indeed.com OR linkedin.com))`;
+  const query = buildHistoricalJobSearchQuery(days);
   const messageIds = await listMessageIds(gmail, query, JOB_CANDIDATE_LIMIT);
 
   const [existingApps, existingMessages] = await Promise.all([

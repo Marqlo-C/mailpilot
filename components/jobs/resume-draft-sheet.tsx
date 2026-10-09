@@ -17,6 +17,9 @@ const SECTION_LABEL: Record<ResumeDraftNode["section"], string | null> = {
   experience: "Experience",
   projects: "Projects",
   education: "Education",
+  certifications: "Certifications & Licenses",
+  awards: "Honors & Awards",
+  interests: "Interests",
 };
 
 const SECTION_HEADING_CLASS =

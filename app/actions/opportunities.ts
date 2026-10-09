@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { addExcludedTitle } from "@/app/actions/settings";
 import { canDraftDirectEmail } from "@/lib/application-method";
-import { cleanEmailPayload } from "@/lib/email/cleaner";
+import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
 import {
   countSendsToday,
   dispatchOpportunityEmail,

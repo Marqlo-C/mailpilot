@@ -16,7 +16,9 @@ import {
   importGitHubProjects,
   saveMasterProfile,
 } from "@/app/actions/profile";
+import { formatEducationTitle, formatSchoolName } from "@/lib/utils/format";
 import type { MasterProfileInput } from "@/lib/validations/profile";
+import { flattenSkillItems } from "@/lib/skill-groups";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ResumeUploadDialogProps = {
@@ -51,6 +54,7 @@ export function ResumeUploadDialog({
   const [draft, setDraft] = useState<MasterProfileInput | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [githubInput, setGithubInput] = useState("");
+  const [overwriteAll, setOverwriteAll] = useState(false);
   const [pending, startTransition] = useTransition();
   const editMode = Boolean(initialProfile);
 
@@ -63,6 +67,7 @@ export function ResumeUploadDialog({
       setDraft(null);
       setSelectedFile(null);
       setGithubInput("");
+      setOverwriteAll(false);
     }
   }
 
@@ -85,9 +90,13 @@ export function ResumeUploadDialog({
     if (trimmedGithub) {
       formData.append("githubUsername", trimmedGithub);
     }
+    if (overwriteAll) {
+      formData.append("overwriteAll", "true");
+    }
 
     setSelectedFile(null);
     setGithubInput("");
+    setOverwriteAll(false);
     setOpen(false);
 
     const uploadPromise = applyResumeUpload(formData).then((res) => {
@@ -101,8 +110,11 @@ export function ResumeUploadDialog({
     });
 
     toast.promise(uploadPromise, {
-      loading:
-        "Ingesting profile & GitHub data in background. You can navigate freely...",
+      loading: overwriteAll
+        ? "Replacing your profile from this resume..."
+        : trimmedGithub
+          ? "Ingesting profile and GitHub data. You can navigate freely..."
+          : "Parsing and saving your profile...",
       success: "Master profile successfully updated!",
       error: (err) =>
         err instanceof Error ? err.message : "Failed to process profile",
@@ -252,10 +264,29 @@ export function ResumeUploadDialog({
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              We will extract your resume first, then pull deep technical CAR
-              bullets from your repositories. A GitHub URL found in the resume
-              is used automatically when this field is empty.
+              A GitHub URL printed in the resume is used when this field is
+              empty. Replacing the profile syncs GitHub only when that URL is
+              in the new document.
             </p>
+          </div>
+
+          <div className="flex items-start justify-between gap-3 rounded-md border border-border px-3 py-2">
+            <div className="space-y-1">
+              <Label htmlFor="replace-profile" className="text-sm font-medium">
+                Replace entire profile with this resume
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Overwrites current experience, skills, and contact details
+                instead of merging additively. A revision backup will be saved
+                in History.
+              </p>
+            </div>
+            <Switch
+              id="replace-profile"
+              checked={overwriteAll}
+              disabled={pending}
+              onCheckedChange={setOverwriteAll}
+            />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
@@ -296,12 +327,7 @@ export function ResumeUploadDialog({
               </p>
               {draft.summary && <p>{draft.summary}</p>}
               <div className="flex flex-wrap gap-1.5">
-                {[
-                  ...draft.skills.languages,
-                  ...draft.skills.frameworks,
-                  ...draft.skills.tools,
-                  ...draft.skills.concepts,
-                ].map((skill) => (
+                {flattenSkillItems(draft.skills).map((skill) => (
                   <Badge key={skill} variant="secondary">
                     {skill}
                   </Badge>
@@ -348,11 +374,10 @@ export function ResumeUploadDialog({
                 draft.education.map((ed) => (
                   <div key={`${ed.institution}-${ed.degree}`}>
                     <p className="font-medium">
-                      {ed.degree}
-                      {ed.fieldOfStudy ? ` in ${ed.fieldOfStudy}` : ""}
+                      {formatEducationTitle(ed.degree, ed.fieldOfStudy)}
                     </p>
                     <p className="text-muted-foreground">
-                      {ed.institution}
+                      {formatSchoolName(ed.institution, ed.subSchool)}
                       {ed.graduationDate ? ` · ${ed.graduationDate}` : ""}
                     </p>
                   </div>

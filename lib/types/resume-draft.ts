@@ -9,6 +9,9 @@ export const resumeDraftNodeTypeSchema = z.enum([
   "project_header",
   "project_bullet",
   "education_item",
+  "certification_item",
+  "award_item",
+  "interest_item",
 ]);
 
 export type ResumeDraftNodeType = z.infer<typeof resumeDraftNodeTypeSchema>;
@@ -20,6 +23,9 @@ export const resumeDraftSectionSchema = z.enum([
   "experience",
   "projects",
   "education",
+  "certifications",
+  "awards",
+  "interests",
 ]);
 
 export type ResumeDraftSection = z.infer<typeof resumeDraftSectionSchema>;

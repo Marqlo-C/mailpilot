@@ -7,67 +7,7 @@ type CsvRow = Record<string, string | undefined>;
 
 const METRIC_RE = /\d+%|\$\d+|\b\d+\b/;
 
-const LANGUAGE_HINTS = [
-  "javascript",
-  "typescript",
-  "python",
-  "java",
-  "c++",
-  "c#",
-  "go",
-  "rust",
-  "kotlin",
-  "swift",
-  "ruby",
-  "php",
-  "sql",
-  "r",
-  "scala",
-  "html",
-  "css",
-];
-
-const FRAMEWORK_HINTS = [
-  "react",
-  "next",
-  "vue",
-  "angular",
-  "svelte",
-  "node",
-  "express",
-  "django",
-  "flask",
-  "spring",
-  "rails",
-  "laravel",
-  "fastapi",
-  "nestjs",
-  ".net",
-  "tailwind",
-];
-
-const TOOL_HINTS = [
-  "aws",
-  "gcp",
-  "azure",
-  "docker",
-  "kubernetes",
-  "k8s",
-  "git",
-  "github",
-  "gitlab",
-  "jenkins",
-  "terraform",
-  "ansible",
-  "linux",
-  "postgres",
-  "mysql",
-  "mongodb",
-  "redis",
-  "kafka",
-  "figma",
-  "jira",
-];
+const LINKEDIN_SKILL_GROUP = "Skills & Endorsements";
 
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -140,12 +80,16 @@ function splitBullets(description: string): Array<{
   }));
 }
 
-function categorizeSkill(name: string): keyof MasterProfileInput["skills"] {
-  const lower = name.toLowerCase();
-  if (LANGUAGE_HINTS.some((h) => lower.includes(h))) return "languages";
-  if (FRAMEWORK_HINTS.some((h) => lower.includes(h))) return "frameworks";
-  if (TOOL_HINTS.some((h) => lower.includes(h))) return "tools";
-  return "concepts";
+function addLinkedInSkill(
+  groups: Map<string, string[]>,
+  label: string,
+  name: string
+) {
+  const key = label.trim() || LINKEDIN_SKILL_GROUP;
+  const items = groups.get(key) ?? [];
+  if (items.some((item) => item.toLowerCase() === name.toLowerCase())) return;
+  items.push(name);
+  groups.set(key, items);
 }
 
 /**
@@ -156,14 +100,27 @@ export async function parseLinkedInArchive(
 ): Promise<MasterProfileInput> {
   const zip = await JSZip.loadAsync(buffer);
 
-  const [profileRows, positionRows, educationRows, skillRows, projectRows] =
-    await Promise.all([
-      readCsvFromZip(zip, "Profile.csv"),
-      readCsvFromZip(zip, "Positions.csv"),
-      readCsvFromZip(zip, "Education.csv"),
-      readCsvFromZip(zip, "Skills.csv"),
-      readCsvFromZip(zip, "Projects.csv"),
-    ]);
+  const [
+    profileRows,
+    positionRows,
+    educationRows,
+    skillRows,
+    projectRows,
+    certificationRows,
+    honorRows,
+    extraHonorRows,
+    interestRows,
+  ] = await Promise.all([
+    readCsvFromZip(zip, "Profile.csv"),
+    readCsvFromZip(zip, "Positions.csv"),
+    readCsvFromZip(zip, "Education.csv"),
+    readCsvFromZip(zip, "Skills.csv"),
+    readCsvFromZip(zip, "Projects.csv"),
+    readCsvFromZip(zip, "Certifications.csv"),
+    readCsvFromZip(zip, "Honors.csv"),
+    readCsvFromZip(zip, "Honors and Awards.csv"),
+    readCsvFromZip(zip, "Interests.csv"),
+  ]);
 
   const profile = profileRows[0] ?? {};
   const firstName = cell(profile, "First Name", "FirstName");
@@ -174,21 +131,19 @@ export async function parseLinkedInArchive(
     cell(profile, "Summary", "About") ||
     (headline ? headline : null);
 
-  const skills: MasterProfileInput["skills"] = {
-    languages: [],
-    frameworks: [],
-    tools: [],
-    concepts: [],
-  };
+  const skillBuckets = new Map<string, string[]>();
 
   for (const row of skillRows) {
     const name = cell(row, "Name", "Skill Name", "Skill");
     if (!name) continue;
-    const bucket = categorizeSkill(name);
-    if (!skills[bucket].includes(name)) {
-      skills[bucket].push(name);
-    }
+    const category = cell(row, "Category", "Skill Category", "Group");
+    addLinkedInSkill(skillBuckets, category || LINKEDIN_SKILL_GROUP, name);
   }
+
+  const skills = Array.from(skillBuckets, ([label, items]) => ({
+    label,
+    items,
+  }));
 
   const experiences = positionRows
     .map((row, index) => {
@@ -201,6 +156,7 @@ export async function parseLinkedInArchive(
         company: company || "Unknown Company",
         role: role || "Role",
         location: cell(row, "Location") || null,
+        category: "Work",
         startDate: cell(row, "Started On", "Start Date") || "Unknown",
         endDate: cell(row, "Finished On", "End Date") || null,
         bullets: splitBullets(description),
@@ -218,12 +174,16 @@ export async function parseLinkedInArchive(
       return {
         id: newId(),
         institution,
+        subSchool: null,
         degree,
         fieldOfStudy: notes || null,
+        startDate: cell(row, "Start Date", "StartDate") || null,
         graduationDate:
           cell(row, "End Date", "EndDate") ||
           cell(row, "Start Date", "StartDate") ||
           null,
+        gpa: null,
+        honors: [],
       };
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
@@ -243,9 +203,41 @@ export async function parseLinkedInArchive(
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
 
+  const certifications = certificationRows.flatMap((row) => {
+    const name = cell(row, "Name", "Certification Name", "Title");
+    if (!name) return [];
+    return [
+      {
+        name,
+        issuer: cell(row, "Authority", "Issuer", "Issuing Organization") || null,
+        date:
+          cell(row, "Started On", "StartedOn", "Issue Date", "Date") || null,
+        url: cell(row, "Url", "URL") || null,
+      },
+    ];
+  });
+
+  const awards = [...honorRows, ...extraHonorRows].flatMap((row) => {
+    const title = cell(row, "Title", "Name", "Honor");
+    if (!title) return [];
+    return [
+      {
+        title,
+        issuer: cell(row, "Issuer", "Issued By", "Authority") || null,
+        date: cell(row, "Issued On", "IssuedOn", "Date", "On") || null,
+        description: cell(row, "Description", "Notes") || null,
+      },
+    ];
+  });
+
+  const interests = interestRows.flatMap((row) => {
+    const name = cell(row, "Name", "Interest", "Title");
+    return name ? [name] : [];
+  });
+
   return {
     fullName,
-    email: "linkedin.import@mailpilot.local",
+    email: "",
     phone: null,
     location: null,
     summary,
@@ -254,5 +246,8 @@ export async function parseLinkedInArchive(
     experiences,
     projects,
     education,
+    certifications,
+    awards,
+    interests,
   };
 }

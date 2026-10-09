@@ -11,7 +11,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { MasterProfileInput } from "@/lib/validations/profile";
+import { formatEducationTitle, formatSchoolName } from "@/lib/utils/format";
+import {
+  isWorkExperienceCategory,
+  type MasterProfileInput,
+} from "@/lib/validations/profile";
+import { skillGroupsFromUnknown } from "@/lib/skill-groups";
 
 export type ProfileSnapshotData = MasterProfileInput & {
   updatedAt?: string;
@@ -78,12 +83,7 @@ export function ProfessionalProfileSnapshot({
     );
   }
 
-  const skillGroups: Array<{ label: string; items: string[] }> = [
-    { label: "Languages", items: profile.skills.languages },
-    { label: "Frameworks", items: profile.skills.frameworks },
-    { label: "Tools", items: profile.skills.tools },
-    { label: "Concepts", items: profile.skills.concepts },
-  ];
+  const skillGroups = skillGroupsFromUnknown(profile.skills);
 
   return (
     <Card className="border-border/80 bg-muted/25 shadow-none">
@@ -205,38 +205,45 @@ export function ProfessionalProfileSnapshot({
           </ul>
         </SnapshotSection>
 
-        <SnapshotSection title="Skills Matrix" hint="Grouped for ATS matching">
+        <SnapshotSection title="Skills" hint="Grouped by category">
           <div className="space-y-4">
-            {skillGroups.map((group) => (
-              <div key={group.label}>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {group.label}
-                </p>
-                {group.items.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">None listed</p>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {group.items.map((skill) => (
-                      <Badge key={`${group.label}-${skill}`} variant="secondary">
-                        {skill}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+            {skillGroups.length === 0 ? (
+              <p className="text-sm text-muted-foreground">None listed</p>
+            ) : (
+              skillGroups.map((group, index) => (
+                <div key={`${group.label}-${index}`}>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {group.label}
+                  </p>
+                  {group.items.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">None listed</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {group.items.map((skill) => (
+                        <Badge
+                          key={`${group.label}-${skill}`}
+                          variant="secondary"
+                        >
+                          {skill}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </SnapshotSection>
 
         <SnapshotSection
           title="Work History"
-          hint={`${profile.experiences.length} role${profile.experiences.length === 1 ? "" : "s"}`}
+          hint={`${profile.experiences.filter((exp) => isWorkExperienceCategory(exp.category)).length} role${profile.experiences.filter((exp) => isWorkExperienceCategory(exp.category)).length === 1 ? "" : "s"}`}
         >
-          {profile.experiences.length === 0 ? (
+          {profile.experiences.filter((exp) => isWorkExperienceCategory(exp.category)).length === 0 ? (
             <p className="text-sm text-muted-foreground">No work history saved.</p>
           ) : (
             <ul className="space-y-4">
-              {profile.experiences.map((exp) => (
+              {profile.experiences.filter((exp) => isWorkExperienceCategory(exp.category)).map((exp) => (
                 <li
                   key={exp.id ?? `${exp.company}-${exp.role}-${exp.startDate}`}
                   className="rounded-md border border-border/60 bg-background/50 p-3"
@@ -246,6 +253,7 @@ export function ProfessionalProfileSnapshot({
                       {exp.role} · {exp.company}
                     </p>
                     <p className="text-xs text-muted-foreground">
+                      {exp.category && exp.category !== "Work" ? `${exp.category} · ` : ""}
                       {exp.startDate} – {exp.endDate ?? "Present"}
                       {exp.location ? ` · ${exp.location}` : ""}
                     </p>
@@ -260,6 +268,38 @@ export function ProfessionalProfileSnapshot({
                           </Badge>
                         ) : null}
                       </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SnapshotSection>
+
+        <SnapshotSection
+          title="Activities & Leadership"
+          hint={`${profile.experiences.filter((exp) => !isWorkExperienceCategory(exp.category)).length} role${profile.experiences.filter((exp) => !isWorkExperienceCategory(exp.category)).length === 1 ? "" : "s"}`}
+        >
+          {profile.experiences.filter((exp) => !isWorkExperienceCategory(exp.category)).length === 0 ? (
+            <p className="text-sm text-muted-foreground">No activities or leadership saved.</p>
+          ) : (
+            <ul className="space-y-4">
+              {profile.experiences.filter((exp) => !isWorkExperienceCategory(exp.category)).map((exp) => (
+                <li
+                  key={exp.id ?? `${exp.company}-${exp.role}-${exp.startDate}`}
+                  className="rounded-md border border-border/60 bg-background/50 p-3"
+                >
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+                    <p className="font-semibold">
+                      {exp.role} · {exp.company}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {exp.category} · {exp.startDate} – {exp.endDate ?? "Present"}
+                    </p>
+                  </div>
+                  <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed">
+                    {exp.bullets.map((bullet) => (
+                      <li key={bullet.id}>{bullet.rawText}</li>
                     ))}
                   </ul>
                 </li>
@@ -328,16 +368,65 @@ export function ProfessionalProfileSnapshot({
                   className="rounded-md border border-border/60 bg-background/50 p-3 text-sm"
                 >
                   <p className="font-semibold">
-                    {ed.degree}
-                    {ed.fieldOfStudy ? ` in ${ed.fieldOfStudy}` : ""}
+                    {formatEducationTitle(ed.degree, ed.fieldOfStudy)}
                   </p>
                   <p className="text-muted-foreground">
-                    {ed.institution}
+                    {formatSchoolName(ed.institution, ed.subSchool)}
                     {ed.graduationDate ? ` · ${ed.graduationDate}` : ""}
                   </p>
                 </li>
               ))}
             </ul>
+          )}
+        </SnapshotSection>
+
+        <SnapshotSection
+          title="Certifications & Licenses"
+          hint={`${profile.certifications.length} item${profile.certifications.length === 1 ? "" : "s"}`}
+        >
+          {profile.certifications.length === 0 ? (
+            <p className="text-sm text-muted-foreground">None listed.</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {profile.certifications.map((item) => (
+                <li key={item.name}>
+                  <span className="font-medium">{item.name}</span>
+                  {item.issuer ? ` — ${item.issuer}` : ""}
+                  {item.date ? ` (${item.date})` : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+        </SnapshotSection>
+
+        <SnapshotSection
+          title="Honors & Awards"
+          hint={`${profile.awards.length} item${profile.awards.length === 1 ? "" : "s"}`}
+        >
+          {profile.awards.length === 0 ? (
+            <p className="text-sm text-muted-foreground">None listed.</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {profile.awards.map((item) => (
+                <li key={item.title}>
+                  <span className="font-medium">{item.title}</span>
+                  {item.issuer ? ` — ${item.issuer}` : ""}
+                  {item.date ? ` (${item.date})` : ""}
+                  {item.description ? `. ${item.description}` : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+        </SnapshotSection>
+
+        <SnapshotSection
+          title="Interests"
+          hint={`${profile.interests.length} item${profile.interests.length === 1 ? "" : "s"}`}
+        >
+          {profile.interests.length === 0 ? (
+            <p className="text-sm text-muted-foreground">None listed.</p>
+          ) : (
+            <p className="text-sm">{profile.interests.join(", ")}</p>
           )}
         </SnapshotSection>
       </CardContent>
@@ -355,8 +444,8 @@ function SnapshotSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-border/70 bg-background/40 p-4 shadow-none">
-      <div className="mb-3 flex items-start justify-between gap-3">
+    <details className="group rounded-lg border border-border/70 bg-background/40 shadow-none">
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-3 marker:content-none [&::-webkit-details-marker]:hidden">
         <div>
           <h3 className="text-sm font-semibold tracking-tight text-foreground">
             {title}
@@ -371,8 +460,8 @@ function SnapshotSection({
         >
           <Pencil className="h-3.5 w-3.5" aria-hidden />
         </span>
-      </div>
-      {children}
-    </section>
+      </summary>
+      <div className="border-t border-border/60 px-4 py-4">{children}</div>
+    </details>
   );
 }

@@ -1,9 +1,13 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import type {
-  MasterProfileInput,
-  MasterProfileUpdateInput,
+import { skillGroupsFromUnknown } from "@/lib/skill-groups";
+import {
+  awardsSchema,
+  certificationsSchema,
+  interestsSchema,
+  type MasterProfileInput,
+  type MasterProfileUpdateInput,
 } from "@/lib/validations/profile";
 
 const MAX_HISTORY_STATES = 5;
@@ -16,6 +20,9 @@ type ProfileTree = {
   summary: string | null;
   links: unknown;
   skills: unknown;
+  certifications?: unknown;
+  awards?: unknown;
+  interests?: unknown;
   linkedWebsite?: string | null;
   linkedIndeed?: string | null;
   linkedGlassdoor?: string | null;
@@ -27,6 +34,7 @@ type ProfileTree = {
     company: string;
     role: string;
     location: string | null;
+    category?: string;
     startDate: string;
     endDate: string | null;
     bullets: unknown;
@@ -43,9 +51,13 @@ type ProfileTree = {
   education: Array<{
     id: string;
     institution: string;
-    degree: string;
+    subSchool?: string | null;
+    degree: string | null;
     fieldOfStudy: string | null;
+    startDate?: string | null;
     graduationDate: string | null;
+    gpa?: string | null;
+    honors?: unknown;
   }>;
 };
 
@@ -60,17 +72,13 @@ export function serializeUserProfileToInput(
     location: profile.location,
     summary: profile.summary,
     links: (profile.links as MasterProfileInput["links"]) ?? [],
-    skills: (profile.skills as MasterProfileInput["skills"]) ?? {
-      languages: [],
-      frameworks: [],
-      tools: [],
-      concepts: [],
-    },
+    skills: skillGroupsFromUnknown(profile.skills),
     experiences: profile.experiences.map((e) => ({
       id: e.id,
       company: e.company,
       role: e.role,
       location: e.location,
+      category: e.category || "Work",
       startDate: e.startDate,
       endDate: e.endDate,
       bullets:
@@ -89,10 +97,19 @@ export function serializeUserProfileToInput(
     education: profile.education.map((ed) => ({
       id: ed.id,
       institution: ed.institution,
+      subSchool: ed.subSchool ?? null,
       degree: ed.degree,
       fieldOfStudy: ed.fieldOfStudy,
+      startDate: ed.startDate ?? null,
       graduationDate: ed.graduationDate,
+      gpa: ed.gpa ?? null,
+      honors: Array.isArray(ed.honors)
+        ? ed.honors.filter((item): item is string => typeof item === "string")
+        : [],
     })),
+    certifications: certificationsSchema.parse(profile.certifications),
+    awards: awardsSchema.parse(profile.awards),
+    interests: interestsSchema.parse(profile.interests),
     linkedWebsite: profile.linkedWebsite ?? null,
     linkedIndeed: profile.linkedIndeed ?? null,
     linkedGlassdoor: profile.linkedGlassdoor ?? null,

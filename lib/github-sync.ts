@@ -142,13 +142,13 @@ function parseManifestDependencies(
   return found;
 }
 
-const DEEP_ANALYSIS_SYSTEM_PROMPT = `You are a technical resume engineer analyzing a developer's software repository.
-Extract 2 to 3 high-impact, technical bullet points using the Context-Action-Result (CAR) format.
+const DEEP_ANALYSIS_SYSTEM_PROMPT = `You are reading a software repository to draft resume bullets for its author.
+Extract 2 to 3 high-impact bullets in Context-Action-Result form, grounded only in the README and detected files.
 
 STRICT ACCURACY RULES:
-- Never hallucinate business revenue, monetary gains, or fake user statistics (e.g. do NOT say "boosted revenue by 40%").
-- Focus purely on ENGINEERING REALITIES: architecture, protocols (HTTP, WebSockets, gRPC), database schemas, caching, concurrency, state management, latency, and technical workflows.
-- Start each bullet with a powerful active verb (Architected, Engineered, Implemented, Streamlined, Benchmarked).
+- Never invent revenue, user counts, or outcomes that are not in the source.
+- Describe what the repository actually does. Mention architecture, protocols, or implementation detail only when the source states it.
+- Start each bullet with a concrete verb supported by the source.
 - Keep each bullet between 14 and 26 words.
 - Return ONLY valid JSON:
 {
@@ -174,7 +174,9 @@ async function analyzeRepoArtifacts(params: {
   if (!readme && manifestTechnologies.length === 0) {
     return {
       bullets: [
-        `Architected and maintained the ${repoName} codebase focusing on ${description || "modular software design"}.`,
+        description
+          ? `Maintained the ${repoName} repository: ${description.replace(/\.$/, "")}.`
+          : `Maintained the ${repoName} repository.`,
       ],
       technologies: manifestTechnologies,
     };
@@ -216,11 +218,14 @@ async function analyzeRepoArtifacts(params: {
     );
   }
 
+  const namedTools = manifestTechnologies.slice(0, 4).filter(Boolean);
   const fallbackBullets = [
-    `Developed ${repoName} utilizing ${manifestTechnologies.slice(0, 4).join(", ") || "modern engineering patterns"}.`,
     description
-      ? `Focused on ${description.replace(/\.$/, "")}.`
-      : `Engineered modular architecture with clean component separation.`,
+      ? `Worked on ${repoName}: ${description.replace(/\.$/, "")}.`
+      : `Maintained the ${repoName} repository.`,
+    ...(namedTools.length > 0
+      ? [`Used ${namedTools.join(", ")} in ${repoName}.`]
+      : []),
   ];
 
   return {

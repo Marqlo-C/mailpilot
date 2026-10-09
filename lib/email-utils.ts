@@ -185,35 +185,37 @@ function firstNameFromSignoff(bodyOrSnippet?: string | null): string | null {
   return capitalizeWord(candidate);
 }
 
-const TITLE_PATTERNS: Array<{ re: RegExp; label: string }> = [
-  { re: /\btechnical\s+recruiter\b/i, label: "Technical Recruiter" },
-  { re: /\btalent\s+(?:acquisition\s+)?(?:partner|specialist|manager)\b/i, label: "Talent Partner" },
-  { re: /\brecruiter\b/i, label: "Recruiter" },
-  { re: /\b(?:vp|vice\s+president)\s+of\s+engineering\b/i, label: "VP of Engineering" },
-  { re: /\bengineering\s+manager\b/i, label: "Engineering Manager" },
-  { re: /\btech(?:nical)?\s+lead\b/i, label: "Tech Lead" },
-  { re: /\bhead\s+of\s+engineering\b/i, label: "Head of Engineering" },
-  { re: /\bfounder\b/i, label: "Founder" },
-  { re: /\bcto\b/i, label: "CTO" },
-];
+const SENDER_TITLE_RE =
+  /\b((?:senior|junior|associate|assistant|executive|chief)[ \t]+)?(vice[ \t]+president|vp|president|director|manager|partner|lead|head|coordinator|recruiter|supervisor|principal)\b(?:[ \t]+of[ \t]+([a-z][a-z&/-]*(?:[ \t]+[a-z][a-z&/-]*){0,3}))?/gi;
+
+function titleCasePhrase(value: string): string {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word, index) => {
+      const lower = word.toLowerCase();
+      if (lower === "vp") return "VP";
+      if (index > 0 && (lower === "of" || lower === "and")) return lower;
+      return capitalizeWord(word);
+    })
+    .join(" ");
+}
 
 /**
  * Best-effort sender title from snippet/body/signature text.
+ * Uses the last leadership phrase, which is usually the signature.
  */
-export function extractSenderTitle(
-  text?: string | null
-): string | null {
+export function extractSenderTitle(text?: string | null): string | null {
   const hay = (text ?? "").slice(0, 4000);
   if (!hay.trim()) return null;
-  for (const { re, label } of TITLE_PATTERNS) {
-    if (re.test(hay)) return label;
+  let last: string | null = null;
+  for (const match of hay.matchAll(SENDER_TITLE_RE)) {
+    const phrase = [match[1], match[2], match[3] ? `of ${match[3]}` : ""]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (phrase) last = titleCasePhrase(phrase);
   }
-  return null;
-}
-
-export function isEngineeringSenderTitle(title?: string | null): boolean {
-  if (!title) return false;
-  return /\b(engineer|engineering|tech\s*lead|cto|founder|architect)\b/i.test(
-    title
-  );
+  return last;
 }

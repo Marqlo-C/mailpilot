@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+import { flattenSkillItems, skillGroupsFromUnknown } from "@/lib/skill-groups";
+import {
+  awardsSchema,
+  certificationsSchema,
+  interestsSchema,
+} from "@/lib/validations/profile";
+
 import {
   type EmailCategory,
   resolveApplicationType,
@@ -17,6 +24,7 @@ import {
   seniorityMismatchPenalty,
   type CandidateProfileSummary,
 } from "@/lib/ai/classifier";
+import { matchesConfirmationSignal } from "@/lib/constants/job-sources";
 import {
   APPLICATION_SENT_TO_RE,
   DIGEST_SENDER_HINTS,
@@ -27,7 +35,7 @@ import {
   shouldClassifyEmail,
 } from "@/lib/ai/prefilter";
 import { getCachedOrSynthesizePersona } from "@/lib/ai/persona";
-import { cleanEmailPayload } from "@/lib/email/cleaner";
+import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
 import {
   genericRoleTitle,
   isGenericTitle,
@@ -280,9 +288,7 @@ export function heuristicApplicationConfirmation(input: {
   const { subject, body, fromEmail } = input;
   const parsed = parseApplicationEmail(subject, body ?? "");
   const sentMatch = subject.match(APPLICATION_SENT_TO_RE);
-  const thankYou =
-    /thank you for (?:your )?appl/i.test(subject) ||
-    /application\s+(?:received|submitted|confirmed)/i.test(subject);
+  const thankYou = matchesConfirmationSignal(subject);
   const appliedSignal = detectAlreadyApplied(subject, body);
 
   if (!parsed && !sentMatch && !thankYou && !appliedSignal) {
@@ -385,18 +391,8 @@ export async function loadCandidateProfileSummary(
     };
   }
 
-  const skillsJson = (profile.skills ?? {}) as {
-    languages?: string[];
-    frameworks?: string[];
-    tools?: string[];
-    concepts?: string[];
-  };
-  const skills = [
-    ...(skillsJson.languages ?? []),
-    ...(skillsJson.frameworks ?? []),
-    ...(skillsJson.tools ?? []),
-    ...(skillsJson.concepts ?? []),
-  ].filter(Boolean);
+  const skillGroups = skillGroupsFromUnknown(profile.skills);
+  const skills = flattenSkillItems(skillGroups);
 
   const educationSummary =
     profile.education.length > 0
@@ -437,17 +433,13 @@ export async function loadCandidateProfileSummary(
       location: profile.location,
       summary: profile.summary,
       links: [],
-      skills: {
-        languages: skillsJson.languages ?? [],
-        frameworks: skillsJson.frameworks ?? [],
-        tools: skillsJson.tools ?? [],
-        concepts: skillsJson.concepts ?? [],
-      },
+      skills: skillGroups,
       experiences: profile.experiences.map((e) => ({
         id: e.id,
         company: e.company,
         role: e.role,
         location: e.location,
+        category: e.category,
         startDate: e.startDate,
         endDate: e.endDate,
         bullets: [],
@@ -464,10 +456,19 @@ export async function loadCandidateProfileSummary(
       education: profile.education.map((ed) => ({
         id: ed.id,
         institution: ed.institution,
+        subSchool: ed.subSchool ?? null,
         degree: ed.degree,
         fieldOfStudy: ed.fieldOfStudy,
+        startDate: ed.startDate ?? null,
         graduationDate: ed.graduationDate,
+        gpa: ed.gpa ?? null,
+        honors: Array.isArray(ed.honors)
+          ? ed.honors.filter((item): item is string => typeof item === "string")
+          : [],
       })),
+      certifications: certificationsSchema.parse(profile.certifications),
+      awards: awardsSchema.parse(profile.awards),
+      interests: interestsSchema.parse(profile.interests),
       seniorityTier: profile.seniorityTier,
       timelineContext: profile.timelineContext,
       toneGuidance: profile.toneGuidance,

@@ -1,10 +1,39 @@
 /**
  * Lightweight job-email prefilter: keyword regexes + stemmed synonym expansion.
  * Keeps sync/classify gates aligned without LLM cost.
+ * Vocabulary lives in lib/constants/job-sources.ts.
  */
+
+import {
+  APPLICATION_ACTOR_PATTERN,
+  APPLICATION_SENT_TO_RE,
+  APPLICATION_STATUS_UPDATE_PATTERN,
+  APPLICATION_THANKS_PATTERN,
+  ATS_DOMAIN_PATTERN,
+  CONFIRMATION_SIGNAL_PATTERNS,
+  CORE_HIRING_STEMS,
+  DIGEST_SENDER_HINTS,
+  HIRING_ANNOUNCEMENT_PATTERN,
+  HIRING_STEM_SYNONYMS,
+  JOB_BOARD_DOMAIN_PATTERN,
+  JOB_BOARD_KEYWORDS,
+  JOB_OPPORTUNITY_NOUN_PATTERN,
+  LIFECYCLE_STATUS_PATTERN,
+  OPPORTUNITY_STEM_PATTERN,
+  OUTREACH_INTEREST_PATTERN,
+  OUTREACH_MEETING_PATTERN,
+  OUTREACH_PHRASE_PATTERN,
+  RECRUITER_TITLE_PATTERN,
+  SOURCING_HOOK_PATTERN,
+} from "@/lib/constants/job-sources";
+
+export { APPLICATION_SENT_TO_RE, DIGEST_SENDER_HINTS };
 
 /** How many chars of snippet/body to scan for job signals (beyond the old 1k). */
 export const PREFILTER_SCAN_CHARS = 4000;
+
+/** How many chars of body to scan for an applied confirmation. */
+const CONFIRMATION_BODY_SCAN_CHARS = 2000;
 
 /**
  * Algorithmic English suffix stemmer — strips common suffixes in microseconds.
@@ -20,7 +49,6 @@ export function lightStem(token: string): string {
   if (w.endsWith("ment") && w.length > 6) return w.slice(0, -4);
   if (w.endsWith("ing") && w.length > 5) {
     const base = w.slice(0, -3);
-    // hiring → hir + e heuristic not needed; keep "hir"/"hire" via synonyms
     return base.length >= 3 ? base : w;
   }
   if (w.endsWith("ies") && w.length > 5) return `${w.slice(0, -3)}y`;
@@ -35,119 +63,31 @@ export function lightStem(token: string): string {
   return w;
 }
 
-/**
- * Compact concept map: core stem → related stems/forms.
- * Matching any expanded stem counts as a job-signal hit.
- */
-export const STEM_SYNONYMS: Readonly<Record<string, readonly string[]>> = {
-  hire: ["hiring", "recruit", "recruiting", "staff", "staffing", "sourc", "talent"],
-  hiring: ["hire", "recruit", "staff", "sourc", "talent"],
-  recruit: ["hire", "hiring", "staff", "sourc", "talent", "headhunt"],
-  role: ["position", "opportunit", "gig", "opening", "job", "career"],
-  position: ["role", "opportunit", "opening", "job"],
-  job: ["career", "role", "position", "opening", "gig", "opportunit"],
-  career: ["job", "role", "profession"],
-  opportunit: ["role", "opening", "position", "gig"],
-  opening: ["role", "position", "job", "opportunit"],
-  appli: ["applicant", "candidac", "candidat"],
-  applicant: ["appli", "candidat"],
-  candidat: ["appli", "applicant", "candidac"],
-  interview: ["screen", "onsite", "loop"],
-  offer: ["compensation", "package"],
-  assess: ["hackerrank", "codesignal", "codility", "takehome"],
-};
+/** Compact concept map: core stem → related stems/forms. */
+export const STEM_SYNONYMS = HIRING_STEM_SYNONYMS;
 
 /** Stems that alone (or via synonym expansion) indicate job-related mail. */
 const CORE_JOB_STEMS = new Set<string>([
-  "job",
-  "career",
-  "role",
-  "position",
-  "opening",
-  "opportunit",
-  "hire",
-  "hiring",
-  "recruit",
-  "staff",
-  "sourc",
-  "talent",
-  "appli",
-  "applicant",
-  "candidat",
-  "candidac",
-  "interview",
-  "offer",
-  "assess",
-  "onsite",
-  "hackerrank",
-  "codesignal",
-  "codility",
-  "greenhouse",
-  "workday",
-  "ashbyhq",
-  "linkedin",
-  "indeed",
-  "glassdoor",
-  "ziprecruiter",
-  "wellfound",
-  "handshake",
-  "recruiter",
-  "headhunt",
-  "gig",
+  ...CORE_HIRING_STEMS,
+  ...JOB_BOARD_KEYWORDS,
 ]);
 
 export const JOB_EMAIL_KEYWORD_PATTERNS: RegExp[] = [
-  // 1. Core Job & Opportunity Nouns / Stems (handles plurals)
-  /\b(job|jobs|career|careers|role|roles|position|positions|opening|openings)\b/i,
-  /opportunit/i,
-
-  // 2. Hiring & Direct Sourcing Hooks
-  /\b(we'?re hiring|we are hiring|now hiring|join (our|the) team)\b/i,
-  /\b(saw your|came across your|found your|viewed your)\s+(profile|github|portfolio|work|experience|linkedin)\b/i,
-  /\b(open to|interested in)\s+(a new|new|exploring)?\s*(role|roles|opportunit|chat|discussing|position)/i,
-  /\b(talent acquisition|technical recruiter|sourcer|headhunter|executive search)\b/i,
-  /\b(intro|exploratory|quick)\s+(call|chat|screen|conversation)\b/i,
-
-  // 3. Application Lifecycle & ATS Statuses
-  /\b(application|applied|applicant|candidacy|candidate)\b/i,
-  /\b(thank you for|thanks for)\s+(applying|your application|your interest)\b/i,
-  /\b(application\s+(?:received|submitted|sent|confirmed|status|update))\b/i,
-  /\b(interview|interviewing|phone screen|tech screen|onsite|hiring manager)\b/i,
-  /\b(next steps|moving forward|status update)\b/i,
-  /\b(offer letter|job offer|offer of employment)\b/i,
-  /\b(regret to inform|other candidates|not moving forward)\b/i,
-
-  // 4. Online Assessments (OAs) & Screening Platforms
-  /\b(hackerrank|codesignal|coderpad|karat|byteboard|codility|take-home|online assessment)\b/i,
-
-  // 5. ATS Providers & Job Boards / Portals
-  /\b(greenhouse|lever\.co|ashbyhq|workday|myworkdayjobs|smartrecruiters|icims|jobvite|bamboohr|rippling|pinpointhq|workable|breezy\.hr)\b/i,
-  /\b(linkedin|indeed|glassdoor|dice\.com|ziprecruiter|wellfound|angel\.co|joinhandshake|handshake)\b/i,
+  JOB_OPPORTUNITY_NOUN_PATTERN,
+  OPPORTUNITY_STEM_PATTERN,
+  HIRING_ANNOUNCEMENT_PATTERN,
+  SOURCING_HOOK_PATTERN,
+  OUTREACH_INTEREST_PATTERN,
+  OUTREACH_PHRASE_PATTERN,
+  RECRUITER_TITLE_PATTERN,
+  OUTREACH_MEETING_PATTERN,
+  APPLICATION_ACTOR_PATTERN,
+  APPLICATION_THANKS_PATTERN,
+  APPLICATION_STATUS_UPDATE_PATTERN,
+  LIFECYCLE_STATUS_PATTERN,
+  ATS_DOMAIN_PATTERN,
+  JOB_BOARD_DOMAIN_PATTERN,
 ];
-
-export const DIGEST_SENDER_HINTS = [
-  "glassdoor",
-  "indeed",
-  "linkedin",
-  "jobs@",
-  "noreply@",
-  "no-reply@",
-  "jobalert",
-  "alerts@",
-  "greenhouse",
-  "lever.co",
-  "workday",
-  "ashbyhq",
-  "smartrecruiters",
-  "icims",
-] as const;
-
-/** LinkedIn / ATS confirmation: "your application was sent to Acme". */
-export const APPLICATION_SENT_TO_RE =
-  /(?:your\s+)?application\s+(?:was\s+|has\s+been\s+)?sent\s+to\s+(.+?)(?:\s*[-–|·]|$)/i;
-
-const APPLIED_SIGNAL_RE =
-  /\b(?:you\s+applied|applied\s+on\b|application\s+(?:submitted|sent|received|viewed|confirmed)|status\s*:\s*applied|application\s+status\s*:\s*applied|thank you for (?:your )?appl|thanks for (?:your )?appl)\b/i;
 
 function expandStem(stem: string): Set<string> {
   const out = new Set<string>([stem]);
@@ -184,7 +124,6 @@ export function matchesStemmedJobConcepts(text: string): boolean {
     const expanded = expandStem(stem);
     for (const candidate of expanded) {
       if (CORE_JOB_STEMS.has(candidate)) return true;
-      // Prefix soft-match for stems like "opportunit" / "recruit"
       for (const core of CORE_JOB_STEMS) {
         if (
           core.length >= 4 &&
@@ -236,10 +175,15 @@ function hasApplicationConfirmationSignal(
   subject: string,
   bodyOrSnippet?: string | null
 ): boolean {
-  if (APPLICATION_SENT_TO_RE.test(subject)) return true;
-  if (APPLIED_SIGNAL_RE.test(subject)) return true;
-  if (bodyOrSnippet && APPLIED_SIGNAL_RE.test(bodyOrSnippet.slice(0, 2000))) {
-    return true;
+  for (const pattern of CONFIRMATION_SIGNAL_PATTERNS) {
+    if (pattern.test(subject)) return true;
+    if (pattern === APPLICATION_SENT_TO_RE) continue;
+    if (
+      bodyOrSnippet &&
+      pattern.test(bodyOrSnippet.slice(0, CONFIRMATION_BODY_SCAN_CHARS))
+    ) {
+      return true;
+    }
   }
   return false;
 }

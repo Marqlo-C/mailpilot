@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { canDraftDirectEmail } from "@/lib/application-method";
-import { cleanEmailPayload } from "@/lib/email/cleaner";
+import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
 import {
   cleanRecruiterFirstName,
   extractSenderTitle,
@@ -472,6 +472,9 @@ async function renderDraftPdf(
       contactLine: compiled.contactLine,
       education: compiled.education,
       skillGroups: compiled.skillGroups,
+      certifications: compiled.certifications,
+      awards: compiled.awards,
+      interests: compiled.interests,
     }
   );
 }

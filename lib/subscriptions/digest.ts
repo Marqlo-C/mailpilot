@@ -3,6 +3,7 @@ import { join } from "path";
 
 import type { gmail_v1 } from "googleapis";
 
+import { isKnownJobDomain } from "@/lib/constants/job-sources";
 import { faviconUrlForDomain, getCleanDomain } from "@/lib/domain";
 import { rethrowIfInsufficientScope } from "@/lib/google";
 import { extractMessageBody, sanitizeEmailBody } from "@/lib/llm";
@@ -251,11 +252,7 @@ export function actionLinkLabel(url: string | null): string {
   if (lower.includes("github.com")) {
     return "View on GitHub →";
   }
-  if (
-    /linkedin\.com\/jobs|jobs\.|greenhouse\.io|lever\.co|ashbyhq\.com|wellfound\.com|indeed\.com|boards\.|careers\./.test(
-      lower
-    )
-  ) {
+  if (isKnownJobDomain(lower)) {
     return "View Opportunity →";
   }
   if (

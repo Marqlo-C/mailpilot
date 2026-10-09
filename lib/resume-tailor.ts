@@ -7,10 +7,12 @@ import {
   type ProfileWithPersonaCache,
 } from "@/lib/ai/persona";
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
-import type {
-  MasterProfileInput,
-  ProjectInput,
-  WorkExperienceInput,
+import { flattenSkillItems } from "@/lib/skill-groups";
+import {
+  skillsSchema,
+  type MasterProfileInput,
+  type ProjectInput,
+  type WorkExperienceInput,
 } from "@/lib/validations/profile";
 import { cleanDisplayUrl } from "@/lib/utils/format";
 
@@ -79,14 +81,7 @@ const strategyRationaleSchema = z.object({
 
 const tailorSchema = z.object({
   tailoredSummary: z.string().optional(),
-  tailoredSkills: z
-    .object({
-      languages: z.array(z.string()).default([]),
-      frameworks: z.array(z.string()).default([]),
-      tools: z.array(z.string()).default([]),
-      concepts: z.array(z.string()).default([]),
-    })
-    .optional(),
+  tailoredSkills: skillsSchema.optional(),
   selectedBulletIds: z.array(z.string()).default([]),
   selectedProjectIds: z.array(z.string()).default([]),
   strategyRationale: strategyRationaleSchema.optional(),
@@ -139,14 +134,14 @@ Your goal is to sound concise, grounded, and human — matching the candidate's 
 
 CORE BEHAVIOR:
 1. **Answer the Sender First:** Read the inbound email carefully. If the sender asked a direct question (like "Are you available Wednesday or Thursday?"), answer it immediately.
-2. **Do not repeat their pitch:** If the recruiter already called out your background (e.g., your Next.js work or past company), do NOT parrot it back to them or try to "sell" yourself. They already know your background. Just acknowledge it naturally and focus on the logistics or the next step.
+2. **Do not repeat their pitch:** If the recruiter already called out your background (e.g., your recent work on a key project or a past employer), do NOT parrot it back to them or try to "sell" yourself. They already know your background. Just acknowledge it naturally and focus on the logistics or the next step.
 3. **Match length:** If their email is long and detailed, keep your reply tight and focused (2–3 sentences max). If they asked for a time to chat, give them a time or ask a quick logistical question.
 4. **Follow toneGuidance:** When CANDIDATE PERSONA includes toneGuidance and seniorityTier, adapt voice to that tier. Do not default to a generic "senior professional" register if the persona is Early Career or Career Switcher.
 
 ABSOLUTE FACTUAL & SENIORITY INTEGRITY:
 1. Only reference skills, technologies, companies, or experiences present in CANDIDATE_SKILLS / CANDIDATE_SUMMARY / timelineContext. Never invent qualifications, years of experience, leadership scope, or tool proficiencies.
-2. Never fake senior alignment. If the opportunity is Staff / Principal / Lead / Senior and the candidate persona is Early Career, Mid-Level, or Career Switcher, do NOT claim you are a natural fit for that level, do NOT exaggerate tenure, do NOT exagerrate the scope of your work and do NOT speak as if you have owned architecture or large org scope.
-3. For Career Switchers: treat technical-track years as the only seniority signal. Prior non-tech calendar years are transferable context, not engineering seniority. Never blur them into "X years as an engineer."
+2. Never fake senior alignment. If the opportunity is Staff / Principal / Lead / Senior and the candidate persona is Early Career, Mid-Level, or Career Switcher, do NOT claim you are a natural fit for that level, do NOT exaggerate tenure, do NOT exaggerate the scope of your work, and do NOT speak as if you have owned broad scope or a large organization.
+3. For Career Switchers: treat years in the current field as the only seniority signal. Earlier years in another field are transferable context, not seniority in the new field. Never blur them into "X years in the current field."
 4. **NUMERICAL INTEGRITY:** Never output robotic, precise fractional years (e.g., "0.7 years" or "8.3 years"). Always round to the nearest whole number and use natural conversational qualifiers if needed (e.g., "around 1 year", "over 8 years", "about 3 years"). Treat any decimal tenure in timelineContext as a signal to rephrase — never copy decimals into the email.
 5. Never use self-validation about level ("I'm ready for a senior role", "my experience aligns with Staff expectations", "I operate at a lead level").
 
@@ -182,15 +177,15 @@ export function buildTailoredStrategySystemPrompt(input: {
   const includeSummary = input.includeSummary !== false;
   const summaryBlock = includeSummary
     ? `2. SUMMARY CONSTRAINTS:
-   - Draft a punchy, confident 2-sentence executive summary highlighting technical domain alignment, shipped engineering work, and core competencies for this role.
-   - NEVER quote raw profile telemetry or internal transition metrics (e.g., do NOT write "transitioning from non-tech roles" or cite "13 years of non-tech experience").
+   - Draft a punchy, confident 2-sentence executive summary highlighting alignment with the target role requirements and concrete, verifiable achievements.
+   - NEVER quote raw profile telemetry or internal transition metrics (e.g., do NOT write "transitioning from an earlier field" or cite "13 years in a previous field").
    - NEVER adopt inflated seniority titles (e.g., Senior, Lead, Staff, Principal) if the candidate's verified tenure indicates early career or career switcher.`
     : `2. SUMMARY OMITTED:
    - The candidate has opted to omit the Summary section.
    - Set tailoredSummary to null.
-   - Maximize signal in Experience and Technical Projects using the expanded bullet budget.`;
+   - Maximize signal in Experience and Projects using the expanded bullet budget.`;
 
-  return `You are a senior technical recruiter evaluating a candidate's master database for an opening at your organization.
+  return `You are a senior talent strategist evaluating a candidate's master database for an opening at your organization.
 
 Your task is to select the most relevant roles, projects, and bullets for a targeted resume, and explain WHY each choice beats alternatives for this specific role and company.
 
@@ -201,21 +196,19 @@ CRITICAL FACTUAL & SENIORITY CONSTRAINTS:
    - NEVER adopt seniority designations, ownership claims, or scale metrics from the target job posting unless that exact achievement is explicitly present in the candidate's master database.
    - Do not describe the candidate at a higher career level than their verified tenure and persona allow, even if the posting or recruiter message implies a more senior bar.
 ${summaryBlock}
-3. PROJECT INTEGRITY: Only feature distinct implemented projects with clear technical substance. Never include portfolio repositories or profile README placeholders. Prefer 2–4 strong bullets per project.
+3. PROJECT INTEGRITY: Only feature distinct projects with concrete, verifiable outcomes. Skip empty placeholders and profile-only pages. Prefer 2–4 strong bullets per project.
 4. TRUTH INTEGRITY: Only select IDs that exist in the candidate's database. Never invent experience, metrics, or tools.
-5. SKILLS: Reorder the candidate's skills array so competencies requested by the job description appear first.
+5. SKILLS: Return tailoredSkills as groups of { "label": string, "items": string[] }. Reorder items so competencies requested by the job description appear first. Preserve the candidate's category labels. Do not invent categories or skills that are not in the profile.
 6. STRICT BUDGET: Select at most the specified bullet budget across all experiences to guarantee the document fits the page target.
 7. STRATEGY RATIONALE: Provide explicit recruiter-style reasoning for role fit, skill prioritization, featured experiences, and featured projects.
+8. CREDENTIALS: Certifications, honors, and interests are separate profile sections. Never invent them, and do not fold them into skills or education.
 
 Return ONLY valid JSON:
 {
   "tailoredSummary": string,
-  "tailoredSkills": {
-    "languages": string[],
-    "frameworks": string[],
-    "tools": string[],
-    "concepts": string[]
-  },
+  "tailoredSkills": [
+    { "label": "Category", "items": ["Skill"] }
+  ],
   "selectedBulletIds": string[],
   "selectedProjectIds": string[],
   "strategyRationale": {
@@ -261,7 +254,7 @@ function isGitHubMetaProject(
 const REFRAME_SYSTEM_PROMPT = `You are a resume editor. Reframe these chosen bullets to highlight alignment with the target role description.
 
 STRICT CONSTRAINTS:
-1. TRUTH PRESERVATION: Never invent metrics, technologies, tools, frameworks, databases, protocols, or responsibilities not in the original bullet.
+1. TRUTH PRESERVATION: Never invent tools, methods, credentials, certifications, systems, or responsibilities not substantiated by the source text.
 2. ACTION-ORIENTED: Start each bullet with a strong action verb matching the candidate's verified level.
 3. NO DUPLICATES: Do NOT generate duplicate bullets for the same technology or metric claim. Maintain a strict 1:1 mapping with the input bullet IDs.
 4. LENGTH: Keep each bullet between 16 and 28 words.
@@ -366,15 +359,7 @@ export async function buildSlimCandidate(
   topSkills: string[];
   persona: CandidatePersona;
 }> {
-  const topSkills = [
-    ...profile.skills.languages,
-    ...profile.skills.frameworks,
-    ...profile.skills.tools,
-    ...profile.skills.concepts,
-  ]
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .slice(0, 15);
+  const topSkills = flattenSkillItems(profile.skills).slice(0, 15);
 
   const recent = profile.experiences[0];
   const firstName =
@@ -521,7 +506,7 @@ function defaultBodyParagraphs(input: DraftContextualEmailParams): string {
   return `Thanks for reaching out about the role at ${company}. ${
     skillHint
       ? `Lately my work has centered on ${skillHint}`
-      : "Lately I have been shipping production software"
+      : "Lately I have been focused on my recent responsibilities"
   }${
     input.candidate.recentRole ? ` (${input.candidate.recentRole})` : ""
   }. Curious what the team is focused on right now, or if you have a short JD you can share.`;
@@ -688,6 +673,9 @@ export async function tailorResumeForJob(
       email: profile.email,
       summary: profile.summary?.slice(0, 400) ?? null,
       skills: profile.skills,
+      certifications: profile.certifications,
+      awards: profile.awards,
+      interests: profile.interests,
     },
     persona: {
       seniorityTier: persona.seniorityTier,
@@ -968,20 +956,15 @@ function defaultCoverLetter(
   requirements: string[],
   companyName?: string | null
 ): string {
-  const skills = [
-    ...profile.skills.languages,
-    ...profile.skills.frameworks,
-  ]
-    .slice(0, 6)
-    .join(", ");
+  const skills = flattenSkillItems(profile.skills).slice(0, 6).join(", ");
   const company = companyName?.trim() || "your team";
   const firstName = profile.fullName.trim().split(/\s+/)[0] || profile.fullName;
-  return `Hi,\n\nI am ${profile.fullName}, writing about an opening at ${company}. ${
+  const background =
     profile.summary?.slice(0, 180) ??
-    "I bring hands-on experience shipping production software."
-  } My background includes ${skills || "full-stack development"}${
+    (skills ? `My background includes ${skills}.` : "I am writing to share my background.");
+  return `Hi,\n\nI am ${profile.fullName}, writing about an opening at ${company}. ${background}${
     requirements.length
-      ? `, including ${requirements.slice(0, 3).join(", ")}`
+      ? ` Relevant areas include ${requirements.slice(0, 3).join(", ")}.`
       : ""
-  }.\n\nHappy to share a resume or jump on a quick call.\n\nBest,\n${firstName}`;
+  }\n\nHappy to share a resume or jump on a quick call.\n\nBest,\n${firstName}`;
 }

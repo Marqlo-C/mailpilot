@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { skillGroupsFromUnknown } from "@/lib/skill-groups";
+
 export const experienceBulletSchema = z.object({
   id: z.string(),
   rawText: z.string(),
@@ -7,12 +9,16 @@ export const experienceBulletSchema = z.object({
   hasMetric: z.boolean().default(false),
 });
 
-export const skillsSchema = z.object({
-  languages: z.array(z.string()).default([]),
-  frameworks: z.array(z.string()).default([]),
-  tools: z.array(z.string()).default([]),
-  concepts: z.array(z.string()).default([]),
+export const skillGroupSchema = z.object({
+  label: z.string().trim().min(1),
+  items: z.array(z.string()),
 });
+
+/** Accepts skill groups, a string-list record, or the legacy four-bucket object. */
+export const skillsSchema = z.preprocess(
+  (value) => skillGroupsFromUnknown(value),
+  z.array(skillGroupSchema)
+);
 
 export const profileLinkSchema = z.object({
   label: z.string(),
@@ -24,6 +30,8 @@ export const workExperienceInputSchema = z.object({
   company: z.string().min(1),
   role: z.string().min(1),
   location: z.string().nullable().optional(),
+  /** Parent resume heading. "Work" is professional employment and counts toward tenure. */
+  category: z.string().trim().min(1).default("Work"),
   startDate: z.string().min(1),
   endDate: z.string().nullable().optional(),
   bullets: z.array(experienceBulletSchema).default([]),
@@ -39,13 +47,110 @@ export const projectInputSchema = z.object({
   bullets: z.array(z.string()).default([]),
 });
 
+export const STANDARD_EXPERIENCE_CATEGORIES = [
+  "Work",
+  "Leadership",
+  "Activity",
+  "Volunteer",
+  "Athletics",
+  "Clinical",
+  "Military",
+] as const;
+
+export type ExperienceCategory =
+  | (typeof STANDARD_EXPERIENCE_CATEGORIES)[number]
+  | string;
+
+/** Professional employment counts toward tenure. Other headings do not. */
+export function isWorkExperienceCategory(category?: string | null): boolean {
+  if (!category?.trim()) return true;
+  const lower = category.trim().toLowerCase();
+  return lower === "work" || lower.includes("professional");
+}
+
+const honorsListSchema = z.preprocess((value) => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (typeof item !== "string") return [];
+    const trimmed = item.trim();
+    return trimmed ? [trimmed] : [];
+  });
+}, z.array(z.string()));
+
 export const educationInputSchema = z.object({
   id: z.string().optional(),
+  /** Parent institution. */
   institution: z.string().min(1),
-  degree: z.string().min(1),
+  subSchool: z.string().nullable().optional(),
+  degree: z.string().nullable().optional(),
   fieldOfStudy: z.string().nullable().optional(),
+  startDate: z.string().nullable().optional(),
   graduationDate: z.string().nullable().optional(),
+  gpa: z.string().nullable().optional(),
+  honors: honorsListSchema.default([]),
 });
+
+const nullableText = z.preprocess((value) => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}, z.string().nullable());
+
+const nullableUrl = z.preprocess((value) => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const withProtocol = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+  return z.string().url().safeParse(withProtocol).success ? withProtocol : null;
+}, z.string().url().nullable());
+
+/** Certification and professional license. */
+export const certificationItemSchema = z.object({
+  name: z.string().trim().min(1, "Certification or license name is required"),
+  issuer: nullableText.optional(),
+  date: nullableText.optional(),
+  url: nullableUrl.optional(),
+});
+export type CertificationItem = z.infer<typeof certificationItemSchema>;
+
+/** Honor or award. */
+export const awardItemSchema = z.object({
+  title: z.string().trim().min(1, "Honor or award title is required"),
+  issuer: nullableText.optional(),
+  date: nullableText.optional(),
+  description: nullableText.optional(),
+});
+export type AwardItem = z.infer<typeof awardItemSchema>;
+
+/** Personal or professional interest. */
+export const interestItemSchema = z.string().trim().min(1);
+export type InterestItem = z.infer<typeof interestItemSchema>;
+
+export const certificationsSchema = z.preprocess((value) => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const parsed = certificationItemSchema.safeParse(item);
+    return parsed.success ? [parsed.data] : [];
+  });
+}, z.array(certificationItemSchema));
+
+export const awardsSchema = z.preprocess((value) => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const parsed = awardItemSchema.safeParse(item);
+    return parsed.success ? [parsed.data] : [];
+  });
+}, z.array(awardItemSchema));
+
+export const interestsSchema = z.preprocess((value) => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const parsed = interestItemSchema.safeParse(item);
+    return parsed.success ? [parsed.data] : [];
+  });
+}, z.array(interestItemSchema));
 
 export const masterProfileInputSchema = z.object({
   fullName: z.string().min(1),
@@ -54,20 +159,40 @@ export const masterProfileInputSchema = z.object({
   location: z.string().nullable().optional(),
   summary: z.string().nullable().optional(),
   links: z.array(profileLinkSchema).default([]),
-  skills: skillsSchema.default({
-    languages: [],
-    frameworks: [],
-    tools: [],
-    concepts: [],
-  }),
+  skills: skillsSchema.default([]),
   experiences: z.array(workExperienceInputSchema).default([]),
   projects: z.array(projectInputSchema).default([]),
   education: z.array(educationInputSchema).default([]),
+  certifications: certificationsSchema.default([]),
+  awards: awardsSchema.default([]),
+  interests: interestsSchema.default([]),
 });
 
 export type ExperienceBullet = z.infer<typeof experienceBulletSchema>;
 export type Skills = z.infer<typeof skillsSchema>;
 export type MasterProfileInput = z.infer<typeof masterProfileInputSchema>;
+
+/**
+ * Canonical baseline for a blank master profile.
+ * Use for resets, fallbacks, and empty editor state.
+ */
+export function getEmptyMasterProfileData(): MasterProfileInput {
+  return {
+    fullName: "",
+    email: "",
+    phone: null,
+    location: null,
+    summary: null,
+    links: [],
+    skills: [],
+    experiences: [],
+    projects: [],
+    education: [],
+    certifications: [],
+    awards: [],
+    interests: [],
+  };
+}
 export type WorkExperienceInput = z.infer<typeof workExperienceInputSchema>;
 export type ProjectInput = z.infer<typeof projectInputSchema>;
 export type EducationInput = z.infer<typeof educationInputSchema>;
