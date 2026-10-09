@@ -1,4 +1,5 @@
 import type { ApplicationType } from "@/lib/application-method";
+import { matchesConfirmationSignal } from "@/lib/constants/job-sources";
 
 export type CandidatePersonaSummary = {
   seniorityTier: string | null;
@@ -96,7 +97,7 @@ export function formatCandidateProfileSummary(
 
   const lines = [
     `- Target Degree / Education: ${p.educationSummary}`,
-    `- Skills & Technologies: ${skills}`,
+    `- Skills: ${skills}`,
     `- Past Experience / Titles: ${p.experienceSummary}`,
     `- Likely Target Titles: ${titles}`,
   ];
@@ -323,9 +324,6 @@ export function normalizeSalaryDisplay(
   return joined.length > 0 && /\d/.test(joined) ? joined : null;
 }
 
-const APPLIED_SIGNAL_RE =
-  /\b(?:you\s+applied|applied\s+on\b|application\s+(?:submitted|sent|received|viewed|confirmed)|status\s*:\s*applied|application\s+status\s*:\s*applied|thank you for (?:your )?appl|thanks for (?:your )?appl|(?:your\s+)?application\s+(?:was\s+|has\s+been\s+)?sent\s+to)\b/i;
-
 const DESCRIPTION_CHROME_RE =
   /\b(?:applied\s+on\s+[^.;\n]+|view\s+application|unsubscribe(?:\s+here)?|manage\s+preferences|easy\s+apply|one[- ]click\s+apply)\b[.;:]?\s*/gi;
 
@@ -337,7 +335,7 @@ export function detectAlreadyApplied(
 ): boolean {
   const hay = parts.filter(Boolean).join(" \n ");
   if (!hay.trim()) return false;
-  return APPLIED_SIGNAL_RE.test(hay);
+  return matchesConfirmationSignal(hay);
 }
 
 /**
@@ -402,7 +400,7 @@ Return ONLY valid JSON (no markdown fences):
 }
 
 Category rules:
-- DIRECT_RECRUITER: personal 1:1 outreach from ANY company representative (Recruiter, Talent Partner, Engineering Manager, Tech Lead, Founder, VP, or Director) discussing an open position or exploring fit. You MUST extract exactly one job into 'jobs' with the role discussed.
+- DIRECT_RECRUITER: personal 1:1 outreach from ANY company representative (Recruiter, Hiring Manager, Department Director, Team Lead, Operations Manager, Practice Lead, Founder, VP, or Director) discussing an open position or exploring fit. You MUST extract exactly one job into 'jobs' with the role discussed.
 - JOB_BOARD_DIGEST: Glassdoor / Indeed / LinkedIn / similar digests or alerts listing one OR many jobs.
 - APPLICATION_STATUS: rejection, interview invite, OA, offer, or application confirmation about a candidacy already in progress.
 - IRRELEVANT: marketing spam or non-job content.
@@ -415,7 +413,7 @@ Extraction rules (metadata must be robust):
 - salary: explicit compensation text if present (keep human-readable string with $ amounts, e.g. "$120k - $150k"). Omit platform notes like "(Employer est.)", "DOE", or "per hour" from the salary field — put pay-period context in description if needed. Else null.
 - salaryMax: estimated annualized MAXIMUM numeric value when salary is present (e.g. "$120k" -> 120000, "$50/hr" -> 104000), else null.
 - postedAt: relative posting age if stated (e.g. "2 days ago", "Just posted"), else null.
-- description: provide a 1–2 sentence summary emphasizing core responsibilities, tech stack, and project scope. Do not repeat the job title or company name verbatim (e.g., avoid "Software engineer role at Company X"). STRIP OUT tracking chrome such as "Applied on [Date]", "View application", "Unsubscribe", "Easy Apply", and platform disclaimers — never leave those phrases in description.
+- description: provide a 1–2 sentence summary of core responsibilities, required skills, tools, and domain competencies in the posting's own language. Do not repeat the job title or company name verbatim (e.g., avoid "Role title at Company X"). STRIP OUT tracking chrome such as "Applied on [Date]", "View application", "Unsubscribe", "Easy Apply", and platform disclaimers — never leave those phrases in description.
 - isAlreadyApplied: true ONLY when the email explicitly indicates the candidate already applied to THIS listing (e.g. "Applied on [Date]", "You applied", "Application submitted", "Application viewed", "Status: Applied", "Application sent"). Otherwise false.
 - applyUrl: Extract the EXACT markdown hyperlink destination URL associated with this role or its "Apply" / "View Job" link (the URL inside [...](URL)). DO NOT return null if a URL is present in the markdown text. Prefer listing/apply URLs over unsubscribe links. Aggregator tracking links are OK.
 - recipientEmail must be a real recruiter/hiring email ONLY. Never invent emails. Use null for job boards / no-reply senders.
@@ -427,8 +425,8 @@ Match Score (0-100) — compare each role against the Candidate Profile AND Pers
 - Roles clearly outside the candidate's field / preferences MUST score below 30.
 - Titles matching any "Excluded Titles / Roles to Dislike" MUST score below 25.
 - When the candidate profile fields are "Not specified", score conservatively (40-60) unless the email itself states clear alignment.
-- SENIORITY / TENURE FIT (critical): Infer required years of experience or level from the listing (title words like Staff/Principal/Senior/Lead, or phrases like "8+ years", "10 years experience"). Cross-check against Candidate Persona seniorityTier and timelineContext (in-track tenure only — for Career Switchers, do NOT count prior non-tech calendar years as engineering seniority).
-  - Severe mismatches (e.g. Staff/Principal/Director vs Early Career or Career Switcher, or "8+ years" when persona implies ~1-3 years in-track) MUST score below 35 and call out the gap in matchReason.
+- SENIORITY / TENURE FIT (critical): Infer required years of experience or level from the listing (title words like Staff/Principal/Senior/Lead, or phrases like "8+ years", "10 years experience"). Cross-check against Candidate Persona seniorityTier and timelineContext (in-field experience only — for Career Switchers, do NOT count years in an earlier field as seniority in the current field).
+  - Severe mismatches (e.g. Staff/Principal/Director vs Early Career or Career Switcher, or "8+ years" when persona implies ~1-3 years in the current field) MUST score below 35 and call out the gap in matchReason.
   - Mild stretch (Senior title vs Mid-Level persona) may score 40-60 with an honest caveat.
   - Never invent tenure the persona does not support.
 - NEVER default all jobs to 0. Every extracted job must include a reasoned matchScore.

@@ -1,21 +1,118 @@
 import type {
+  AwardItem,
+  CertificationItem,
   MasterProfileInput,
-  ProjectInput,
   Skills,
+  ProjectInput,
   WorkExperienceInput,
 } from "@/lib/validations/profile";
+import {
+  accountLabelForUrl,
+  categorizeProfileUrl,
+  extractProfileLinksFromText,
+  githubProfileRoot,
+  githubProfileUrlInText,
+  isGithubProfileUrl,
+  normalizeProfileUrl,
+} from "@/lib/utils/url";
+
+/** True when an address is missing or a synthetic placeholder. */
+export function isPlaceholderEmail(email?: string | null): boolean {
+  if (!email) return true;
+  const lower = email.trim().toLowerCase();
+  return (
+    lower === "" ||
+    lower.includes("example.com") ||
+    lower.includes("unknown@") ||
+    lower.includes("placeholder") ||
+    lower.includes("mailpilot.local")
+  );
+}
+
+function preferPopulated(
+  existing: string | null | undefined,
+  incoming: string | null | undefined
+): string | null {
+  const current = existing?.trim() ?? "";
+  if (current) return current;
+  const next = incoming?.trim() ?? "";
+  return next || null;
+}
+
+function mergeCertifications(
+  existing: CertificationItem[],
+  incoming: CertificationItem[]
+): CertificationItem[] {
+  const certMap = new Map<string, CertificationItem>();
+  for (const item of existing) {
+    const key = item.name.trim().toLowerCase();
+    if (!key) continue;
+    certMap.set(key, { ...item });
+  }
+  for (const item of incoming) {
+    const key = item.name.trim().toLowerCase();
+    if (!key) continue;
+    const existingItem = certMap.get(key);
+    if (existingItem) {
+      certMap.set(key, {
+        ...existingItem,
+        issuer: existingItem.issuer || item.issuer,
+        date: existingItem.date || item.date,
+        url: existingItem.url || item.url,
+      });
+    } else {
+      certMap.set(key, { ...item });
+    }
+  }
+  return Array.from(certMap.values());
+}
+
+function mergeAwards(existing: AwardItem[], incoming: AwardItem[]): AwardItem[] {
+  const awardMap = new Map<string, AwardItem>();
+  for (const item of existing) {
+    const key = item.title.trim().toLowerCase();
+    if (!key) continue;
+    awardMap.set(key, { ...item });
+  }
+  for (const item of incoming) {
+    const key = item.title.trim().toLowerCase();
+    if (!key) continue;
+    const existingItem = awardMap.get(key);
+    if (existingItem) {
+      awardMap.set(key, {
+        ...existingItem,
+        issuer: existingItem.issuer || item.issuer,
+        date: existingItem.date || item.date,
+        description: existingItem.description || item.description,
+      });
+    } else {
+      awardMap.set(key, { ...item });
+    }
+  }
+  return Array.from(awardMap.values());
+}
+
+function mergeInterests(existing: string[], incoming: string[]): string[] {
+  const interestSet = new Set<string>();
+  const normalizedInterests: string[] = [];
+  for (const interest of [...existing, ...incoming]) {
+    const trimmed = interest.trim();
+    const key = trimmed.toLowerCase();
+    if (trimmed && !interestSet.has(key)) {
+      interestSet.add(key);
+      normalizedInterests.push(trimmed);
+    }
+  }
+  return normalizedInterests;
+}
 
 function normalizeString(str: string): string {
   return str.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 function ensureAbsoluteUrl(raw: string): string {
-  const url = raw.trim();
-  if (!url) return url;
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    return `https://${url}`;
-  }
-  return url;
+  const normalized = normalizeProfileUrl(raw);
+  return normalized || raw.trim();
 }
 
 /**
@@ -41,29 +138,22 @@ export function extractPlatformLinks(
   for (const item of links) {
     const url = ensureAbsoluteUrl(item.url);
     if (!url) continue;
-
-    const lower = url.toLowerCase();
+    const kind = categorizeProfileUrl(url);
     const label = item.label.toLowerCase();
 
-    if (lower.includes("linkedin.com/in/") || lower.includes("linkedin.com/pub/")) {
+    if (kind === "linkedin" && /linkedin\.com\/(?:in|pub)\//i.test(url)) {
       linkedLinkedin = url;
-    } else if (
-      lower.includes("github.com/") &&
-      !lower.includes("github.io")
-    ) {
-      linkedGithub = url;
-    } else if (lower.includes("indeed.com")) {
+    } else if (kind === "github") {
+      const root = githubProfileRoot(url);
+      if (root) linkedGithub = root;
+    } else if (kind === "indeed") {
       linkedIndeed = url;
-    } else if (lower.includes("glassdoor.com")) {
+    } else if (kind === "glassdoor") {
       linkedGlassdoor = url;
-    } else if (
-      lower.includes("joinhandshake.com") ||
-      lower.includes("handshake.com")
-    ) {
+    } else if (kind === "handshake") {
       linkedHandshake = url;
     } else if (
-      lower.includes("github.io") ||
-      lower.includes("portfolio") ||
+      kind === "portfolio" ||
       label.includes("portfolio") ||
       label.includes("website") ||
       label.includes("personal")
@@ -90,54 +180,18 @@ export function enrichLinksFromRawText(
   existingLinks: { label: string; url: string }[]
 ): { label: string; url: string }[] {
   const found: { label: string; url: string }[] = [];
-  const patterns: Array<{ re: RegExp; label: string }> = [
-    {
-      re: /https?:\/\/(?:www\.)?linkedin\.com\/(?:in|pub)\/[A-Za-z0-9._%/-]+/gi,
-      label: "LinkedIn",
-    },
-    {
-      re: /https?:\/\/(?:www\.)?github\.com\/[A-Za-z0-9._-]+\/?/gi,
-      label: "GitHub",
-    },
-    {
-      re: /https?:\/\/[A-Za-z0-9._-]+\.github\.io\/?/gi,
-      label: "Portfolio",
-    },
-    {
-      re: /https?:\/\/(?:www\.)?indeed\.com\/[^\s)]+/gi,
-      label: "Indeed",
-    },
-    {
-      re: /https?:\/\/(?:www\.)?glassdoor\.com\/[^\s)]+/gi,
-      label: "Glassdoor",
-    },
-    {
-      re: /https?:\/\/(?:www\.)?(?:join)?handshake\.com\/[^\s)]+/gi,
-      label: "Handshake",
-    },
-  ];
 
-  for (const { re, label } of patterns) {
-    for (const match of text.matchAll(re)) {
-      const url = match[0]?.replace(/[.,;:]+$/, "") ?? "";
-      if (!url) continue;
-      // Skip repo deep-links for GitHub — keep profile roots only.
-      if (label === "GitHub") {
-        try {
-          const parsed = new URL(url);
-          const parts = parsed.pathname.split("/").filter(Boolean);
-          if (parts.length !== 1) continue;
-          found.push({
-            label,
-            url: `https://github.com/${parts[0]}`,
-          });
-          continue;
-        } catch {
-          continue;
-        }
-      }
-      found.push({ label, url });
+  for (const raw of extractProfileLinksFromText(text)) {
+    const kind = categorizeProfileUrl(raw);
+    if (kind === "website") continue;
+    if (kind === "github") {
+      const root = githubProfileRoot(raw);
+      if (!root) continue;
+      found.push({ label: "GitHub", url: root });
+      continue;
     }
+    if (kind === "linkedin" && !/linkedin\.com\/(?:in|pub)\//i.test(raw)) continue;
+    found.push({ label: accountLabelForUrl(raw), url: normalizeProfileUrl(raw) });
   }
 
   const seen = new Set(
@@ -154,6 +208,8 @@ export function enrichLinksFromRawText(
   return merged;
 }
 
+export { githubProfileUrlInText, isGithubProfileUrl };
+
 /** Resolves a GitHub username from an optional handle or detected profile URL. */
 export function resolveGithubHandle(
   explicitHandleOrUrl: string | null | undefined,
@@ -169,7 +225,35 @@ export function resolveGithubHandle(
 }
 
 /**
- * Merges skills arrays using case-insensitive set unions.
+ * Merges skill groups by label, deduping items case-insensitively.
+ */
+function mergeSkillGroups(existing: Skills, incoming: Skills): Skills {
+  const order: string[] = [];
+  const groups = new Map<string, { label: string; items: string[] }>();
+
+  for (const group of [...existing, ...incoming]) {
+    const key = normalizeString(group.label);
+    if (!key) continue;
+    const current = groups.get(key);
+    if (!current) {
+      groups.set(key, {
+        label: group.label.trim(),
+        items: mergeSkillBuckets([], group.items),
+      });
+      order.push(key);
+      continue;
+    }
+    current.items = mergeSkillBuckets(current.items, group.items);
+  }
+
+  return order.map((key) => {
+    const group = groups.get(key)!;
+    return { label: group.label, items: group.items };
+  });
+}
+
+/**
+ * Merges skill names using case-insensitive set unions.
  */
 function mergeSkillBuckets(existing: string[], incoming: string[]): string[] {
   const map = new Map<string, string>();
@@ -184,28 +268,39 @@ function mergeSkillBuckets(existing: string[], incoming: string[]): string[] {
   return Array.from(map.values());
 }
 
+export interface ConsolidationOptions {
+  /** When true, incoming data replaces the existing profile instead of merging. */
+  overwriteAll?: boolean;
+}
+
 /**
- * Consolidates incoming profile data with existing profile data additively.
+ * Consolidates incoming profile data with existing profile data.
+ * The default path merges additively. `overwriteAll` replaces the stored profile.
  */
 export function consolidateProfiles(
   existing: MasterProfileInput,
-  incoming: MasterProfileInput
+  incoming: MasterProfileInput,
+  options: ConsolidationOptions = {}
 ): MasterProfileInput {
-  const skills: Skills = {
-    languages: mergeSkillBuckets(
-      existing.skills.languages,
-      incoming.skills.languages
-    ),
-    frameworks: mergeSkillBuckets(
-      existing.skills.frameworks,
-      incoming.skills.frameworks
-    ),
-    tools: mergeSkillBuckets(existing.skills.tools, incoming.skills.tools),
-    concepts: mergeSkillBuckets(
-      existing.skills.concepts,
-      incoming.skills.concepts
-    ),
-  };
+  if (options.overwriteAll) {
+    return {
+      fullName: incoming.fullName?.trim() || "",
+      email: !isPlaceholderEmail(incoming.email) ? incoming.email.trim() : "",
+      phone: incoming.phone?.trim() || null,
+      location: incoming.location?.trim() || null,
+      summary: incoming.summary?.trim() || null,
+      links: incoming.links ?? [],
+      skills: incoming.skills ?? [],
+      experiences: incoming.experiences ?? [],
+      projects: incoming.projects ?? [],
+      education: incoming.education ?? [],
+      certifications: incoming.certifications ?? [],
+      awards: incoming.awards ?? [],
+      interests: incoming.interests ?? [],
+    };
+  }
+
+  const skills = mergeSkillGroups(existing.skills, incoming.skills);
 
   const experiences: WorkExperienceInput[] = [...existing.experiences];
 
@@ -233,6 +328,7 @@ export function consolidateProfiles(
       experiences[existingIndex] = {
         ...match,
         role: match.role || incExp.role,
+        category: match.category || incExp.category || "Work",
         startDate: match.startDate || incExp.startDate,
         endDate: match.endDate ?? incExp.endDate,
         bullets: [...match.bullets, ...newBullets],
@@ -283,18 +379,38 @@ export function consolidateProfiles(
 
   const education = [...existing.education];
   for (const incEd of incoming.education) {
-    const incInstNorm = normalizeString(incEd.institution);
-    const existingIndex = education.findIndex(
-      (e) => normalizeString(e.institution) === incInstNorm
-    );
+    const existingIndex = education.findIndex((e) => {
+      if (normalizeString(e.institution) !== normalizeString(incEd.institution)) {
+        return false;
+      }
+      const existingSchool = normalizeString(e.subSchool ?? "");
+      const incomingSchool = normalizeString(incEd.subSchool ?? "");
+      if (existingSchool && incomingSchool && existingSchool !== incomingSchool) {
+        return false;
+      }
+      const existingDegree = normalizeString(e.degree ?? "");
+      const incomingDegree = normalizeString(incEd.degree ?? "");
+      if (existingDegree && incomingDegree && existingDegree !== incomingDegree) {
+        return false;
+      }
+      return true;
+    });
 
     if (existingIndex >= 0) {
       const match = education[existingIndex]!;
       education[existingIndex] = {
         ...match,
         degree: match.degree || incEd.degree,
+        subSchool: match.subSchool || incEd.subSchool,
         fieldOfStudy: match.fieldOfStudy || incEd.fieldOfStudy,
+        startDate: match.startDate || incEd.startDate,
         graduationDate: match.graduationDate || incEd.graduationDate,
+        gpa: match.gpa || incEd.gpa,
+        honors: [...(match.honors ?? []), ...(incEd.honors ?? [])].filter(
+          (honor, index, list) =>
+            list.findIndex((item) => item.toLowerCase() === honor.toLowerCase()) ===
+            index
+        ),
       };
     } else {
       education.push(incEd);
@@ -313,16 +429,29 @@ export function consolidateProfiles(
     }
   }
 
+  const email =
+    existing.email && !isPlaceholderEmail(existing.email)
+      ? existing.email.trim()
+      : !isPlaceholderEmail(incoming.email)
+        ? incoming.email.trim()
+        : "";
+
   return {
-    fullName: incoming.fullName || existing.fullName,
-    email: incoming.email || existing.email,
-    phone: incoming.phone ?? existing.phone,
-    location: incoming.location ?? existing.location,
+    fullName: preferPopulated(existing.fullName, incoming.fullName) || "Unknown",
+    email,
+    phone: preferPopulated(existing.phone, incoming.phone),
+    location: preferPopulated(existing.location, incoming.location),
     summary: incoming.summary ?? existing.summary,
     links: mergedLinks,
     skills,
     experiences,
     projects,
     education,
+    certifications: mergeCertifications(
+      existing.certifications ?? [],
+      incoming.certifications ?? []
+    ),
+    awards: mergeAwards(existing.awards ?? [], incoming.awards ?? []),
+    interests: mergeInterests(existing.interests ?? [], incoming.interests ?? []),
   };
 }

@@ -1,6 +1,12 @@
 import type { ProfileWithPersonaCache } from "@/lib/ai/persona";
 import { prisma } from "@/lib/prisma";
-import type { MasterProfileInput } from "@/lib/validations/profile";
+import { skillGroupsFromUnknown } from "@/lib/skill-groups";
+import {
+  awardsSchema,
+  certificationsSchema,
+  interestsSchema,
+  type MasterProfileInput,
+} from "@/lib/validations/profile";
 
 /**
  * Loads the master resume plus cached persona columns for drafting.
@@ -30,17 +36,13 @@ export async function loadMasterProfileForDraft(
     location: profile.location,
     summary: profile.summary,
     links: (profile.links as MasterProfileInput["links"]) ?? [],
-    skills: (profile.skills as MasterProfileInput["skills"]) ?? {
-      languages: [],
-      frameworks: [],
-      tools: [],
-      concepts: [],
-    },
+    skills: skillGroupsFromUnknown(profile.skills),
     experiences: profile.experiences.map((e) => ({
       id: e.id,
       company: e.company,
       role: e.role,
       location: e.location,
+      category: e.category,
       startDate: e.startDate,
       endDate: e.endDate,
       bullets:
@@ -59,10 +61,19 @@ export async function loadMasterProfileForDraft(
     education: profile.education.map((ed) => ({
       id: ed.id,
       institution: ed.institution,
+      subSchool: ed.subSchool,
       degree: ed.degree,
       fieldOfStudy: ed.fieldOfStudy,
+      startDate: ed.startDate,
       graduationDate: ed.graduationDate,
+      gpa: ed.gpa,
+      honors: Array.isArray(ed.honors)
+        ? ed.honors.filter((item): item is string => typeof item === "string")
+        : [],
     })),
+    certifications: certificationsSchema.parse(profile.certifications),
+    awards: awardsSchema.parse(profile.awards),
+    interests: interestsSchema.parse(profile.interests),
     seniorityTier: profile.seniorityTier,
     timelineContext: profile.timelineContext,
     toneGuidance: profile.toneGuidance,

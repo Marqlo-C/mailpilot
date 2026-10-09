@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
+import { flattenSkillItems } from "@/lib/skill-groups";
 import type { MasterProfileInput } from "@/lib/validations/profile";
 
 export type MasterProfile = MasterProfileInput;
@@ -85,12 +86,7 @@ export async function evaluateJobFit(
 }
 
 function heuristicFit(jobText: string, profile: MasterProfile): JobFitResult {
-  const blob = [
-    ...profile.skills.languages,
-    ...profile.skills.frameworks,
-    ...profile.skills.tools,
-    ...profile.skills.concepts,
-  ].map((s) => s.toLowerCase());
+  const blob = flattenSkillItems(profile.skills).map((s) => s.toLowerCase());
 
   const lower = jobText.toLowerCase();
   const hits = blob.filter((skill) => lower.includes(skill));

@@ -320,8 +320,14 @@ model UserProfile {
   summary  String?
   // [{ label: string, url: string }]
   links    Json    @default("[]")
-  // { languages: string[], frameworks: string[], tools: string[], concepts: string[] }
-  skills   Json    @default("{}")
+  // { label: string, items: string[] }[]
+  skills   Json    @default("[]")
+  // [{ name: string, issuer?: string | null, date?: string | null, url?: string | null }]
+  certifications Json @default("[]")
+  // [{ title: string, issuer?: string | null, date?: string | null, description?: string | null }]
+  awards         Json @default("[]")
+  // string[]
+  interests      Json @default("[]")
 
   matchThreshold  Int     @default(75)
 
@@ -368,6 +374,8 @@ model WorkExperience {
   company      String
   role         String
   location     String?
+  /// Printed parent heading, normalized. "Work" counts toward career tenure.
+  category     String   @default("Work")
   startDate    String
   endDate      String?
   // [{ id: string, rawText: string, technologies: string[], hasMetric: boolean }]
@@ -393,7 +401,11 @@ model Education {
   profile        UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   institution    String
-  degree         String
+  subSchool      String?
+  degree         String?
   fieldOfStudy   String?
+  startDate      String?
   graduationDate String?
+  gpa            String?
+  honors         Json     @default("[]")
 }

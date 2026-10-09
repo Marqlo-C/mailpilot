@@ -17,7 +17,13 @@ import type {
 } from "@/lib/validations/profile";
 import { skillGroupsFromUnknown } from "@/lib/skill-groups";
 import type { SkillGroup } from "@/lib/types/resume-draft";
-import { cleanDisplayUrl, dedupeContactItems } from "@/lib/utils/format";
+import {
+  cleanDisplayUrl,
+  dedupeContactItems,
+  formatEducationTitle,
+  formatSchoolName,
+} from "@/lib/utils/format";
+import { categorizeProfileUrl, isResumeHeaderLink } from "@/lib/utils/url";
 
 /** @deprecated Prefer cleanDisplayUrl from @/lib/utils/format */
 export const cleanContactUrl = cleanDisplayUrl;
@@ -102,6 +108,9 @@ type PdfInput = {
   contactLine?: string | null;
   education?: MasterProfileInput["education"] | null;
   skillGroups?: SkillGroup[] | null;
+  certifications?: MasterProfileInput["certifications"] | null;
+  awards?: MasterProfileInput["awards"] | null;
+  interests?: MasterProfileInput["interests"] | null;
 };
 
 const INVERTED_LOGO_PATH = path.join(
@@ -125,7 +134,18 @@ type ProfileContactExtras = {
  */
 export function buildResumeContactLine(profile: MasterProfileInput): string {
   const extras = profile as MasterProfileInput & ProfileContactExtras;
-  const linkUrls = (profile.links ?? []).map((link) => link.url);
+  const linkUrls = (profile.links ?? [])
+    .map((link) => link.url)
+    .filter((url) => isResumeHeaderLink(url))
+    .filter((url) => {
+      const kind = categorizeProfileUrl(url);
+      return (
+        kind === "github" ||
+        kind === "linkedin" ||
+        kind === "portfolio" ||
+        kind === "website"
+      );
+    });
   const contactElements = dedupeContactItems([
     profile.email,
     profile.phone,
@@ -151,10 +171,16 @@ function ResumeDocument({
   contactLine,
   education,
   skillGroups,
+  certifications,
+  awards,
+  interests,
 }: PdfInput) {
   const contact = contactLine?.trim() || buildResumeContactLine(profile);
   const displayName = headerName?.trim() || profile.fullName;
   const educationRows = education ?? profile.education;
+  const certificationRows = certifications ?? profile.certifications ?? [];
+  const awardRows = awards ?? profile.awards ?? [];
+  const interestRows = interests ?? profile.interests ?? [];
 
   const showSummary =
     includeSummary !== false &&
@@ -265,24 +291,55 @@ function ResumeDocument({
           <View style={styles.section}>
             <Text style={styles.heading}>Education</Text>
             {educationRows.map((ed) => {
-              const degreeText =
-                ed.fieldOfStudy &&
-                !ed.degree.toLowerCase().includes(ed.fieldOfStudy.toLowerCase())
-                  ? `${ed.degree} in ${ed.fieldOfStudy}`
-                  : ed.degree;
+              const degreeText = formatEducationTitle(ed.degree, ed.fieldOfStudy);
+              const school = formatSchoolName(ed.institution, ed.subSchool);
               return (
                 <Text
-                  key={`${ed.institution}-${ed.degree}`}
+                  key={`${ed.institution}-${ed.subSchool ?? ""}-${ed.degree}`}
                   style={{ marginBottom: 3 }}
                 >
-                  {ed.institution
-                    ? `${degreeText} — ${ed.institution}${
+                  {school
+                    ? `${degreeText} — ${school}${
                         ed.graduationDate ? ` (${ed.graduationDate})` : ""
                       }`
-                    : ed.degree}
+                    : degreeText}
                 </Text>
               );
             })}
+          </View>
+        ) : null}
+
+        {certificationRows.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.heading}>Certifications & Licenses</Text>
+            {certificationRows.map((item) => (
+              <Text key={item.name} style={{ marginBottom: 3 }}>
+                {item.name}
+                {item.issuer ? ` — ${item.issuer}` : ""}
+                {item.date ? ` (${item.date})` : ""}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
+        {awardRows.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.heading}>Honors & Awards</Text>
+            {awardRows.map((item) => (
+              <Text key={item.title} style={{ marginBottom: 3 }}>
+                {item.title}
+                {item.issuer ? ` — ${item.issuer}` : ""}
+                {item.date ? ` (${item.date})` : ""}
+                {item.description ? `. ${item.description}` : ""}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
+        {interestRows.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.heading}>Interests</Text>
+            <Text>{interestRows.join(", ")}</Text>
           </View>
         ) : null}
       </Page>
@@ -305,6 +362,9 @@ export async function generateTailoredResumePdf(
     contactLine?: string | null;
     education?: MasterProfileInput["education"] | null;
     skillGroups?: SkillGroup[] | null;
+    certifications?: MasterProfileInput["certifications"] | null;
+    awards?: MasterProfileInput["awards"] | null;
+    interests?: MasterProfileInput["interests"] | null;
   }
 ): Promise<Buffer> {
   const buffer = await renderToBuffer(
@@ -319,6 +379,9 @@ export async function generateTailoredResumePdf(
       contactLine={overrides?.contactLine}
       education={overrides?.education}
       skillGroups={overrides?.skillGroups}
+      certifications={overrides?.certifications}
+      awards={overrides?.awards}
+      interests={overrides?.interests}
     />
   );
   return Buffer.from(buffer);

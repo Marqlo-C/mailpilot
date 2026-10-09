@@ -1,5 +1,6 @@
 "use client";
 
+import { PersonaViewer } from "@/components/profile/persona-viewer";
 import { ResumeUploadDialog } from "@/components/profile/resume-upload-dialog";
 import { ManualProfileEditor } from "@/components/profile/manual-profile-editor";
 import { ProfileRevisionsMenu } from "@/components/profile/profile-revisions-menu";
@@ -13,6 +14,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { MasterProfileInput } from "@/lib/validations/profile";
+import { skillGroupsFromUnknown } from "@/lib/skill-groups";
+import { formatEducationTitle, formatSchoolName } from "@/lib/utils/format";
+import { isWorkExperienceCategory } from "@/lib/validations/profile";
 import { cn } from "@/lib/utils";
 
 export type ProfileSnapshotData = MasterProfileInput & {
@@ -24,6 +28,9 @@ export type ProfileSnapshotData = MasterProfileInput & {
   linkedGithub?: string | null;
   linkedLinkedin?: string | null;
   linkedHandshake?: string | null;
+  seniorityTier?: string | null;
+  timelineContext?: string | null;
+  toneGuidance?: string | null;
 };
 
 type MasterProfileCardProps = {
@@ -59,6 +66,7 @@ export function MasterProfileCard({
   accountId,
   profile,
 }: MasterProfileCardProps) {
+  const skillGroups = skillGroupsFromUnknown(profile?.skills);
   return (
     <Card className={cn(SETTINGS_CARD_CLASSNAME)}>
       <CardHeader className="gap-4 border-b border-border/50 sm:flex-row sm:items-start sm:justify-between">
@@ -117,13 +125,12 @@ export function MasterProfileCard({
           </div>
         ) : (
           <>
+            <PersonaViewer profile={profile} />
+
             <details className="group rounded-lg border border-border/70 bg-background/50 open:bg-background/70">
               <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold marker:content-none [&::-webkit-details-marker]:hidden">
                 <span className="flex items-center justify-between gap-2">
                   Contact & Linked Accounts
-                  <span className="text-xs font-normal text-muted-foreground group-open:hidden">
-                    Expand
-                  </span>
                 </span>
               </summary>
               <div className="space-y-4 border-t border-border/60 px-4 py-4 text-sm">
@@ -178,50 +185,52 @@ export function MasterProfileCard({
               </div>
             </details>
 
-            <details className="group rounded-lg border border-border/70 bg-background/50 open:bg-background/70" open>
+            <details className="group rounded-lg border border-border/70 bg-background/50 open:bg-background/70">
               <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-                Skills Matrix
+                Skills
               </summary>
               <div className="space-y-4 border-t border-border/60 px-4 py-4">
-                {(
-                  [
-                    ["Languages", profile.skills.languages],
-                    ["Frameworks", profile.skills.frameworks],
-                    ["Tools", profile.skills.tools],
-                    ["Concepts", profile.skills.concepts],
-                  ] as const
-                ).map(([label, items]) => (
-                  <div key={label}>
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {label}
-                    </p>
-                    {items.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">None listed</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5">
-                        {items.map((skill) => (
-                          <Badge key={`${label}-${skill}`} variant="secondary">
-                            {skill}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                {skillGroups.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">None listed</p>
+                ) : (
+                  skillGroups.map((group, index) => (
+                    <div key={`${group.label}-${index}`}>
+                      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {group.label}
+                      </p>
+                      {group.items.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          None listed
+                        </p>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {group.items.map((skill) => (
+                            <Badge
+                              key={`${group.label}-${skill}`}
+                              variant="secondary"
+                            >
+                              {skill}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
             </details>
 
-            <details className="group rounded-lg border border-border/70 bg-background/50 open:bg-background/70" open>
+            <details className="group rounded-lg border border-border/70 bg-background/50 open:bg-background/70">
               <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-                Work History ({profile.experiences.length})
+                Work History ({profile.experiences.filter((exp) => isWorkExperienceCategory(exp.category)).length})
               </summary>
               <div className="space-y-3 border-t border-border/60 px-4 py-4">
-                {profile.experiences.length === 0 ? (
+                {profile.experiences.filter((exp) => isWorkExperienceCategory(exp.category)).length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     No work history saved.
                   </p>
                 ) : (
-                  profile.experiences.map((exp) => (
+                  profile.experiences.filter((exp) => isWorkExperienceCategory(exp.category)).map((exp) => (
                     <div
                       key={exp.id ?? `${exp.company}-${exp.role}`}
                       className="rounded-md border border-border/60 p-3"
@@ -244,6 +253,40 @@ export function MasterProfileCard({
                               </Badge>
                             ) : null}
                           </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))
+                )}
+              </div>
+            </details>
+
+            <details className="group rounded-lg border border-border/70 bg-background/50 open:bg-background/70">
+              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                Activities & Leadership ({profile.experiences.filter((exp) => !isWorkExperienceCategory(exp.category)).length})
+              </summary>
+              <div className="space-y-3 border-t border-border/60 px-4 py-4">
+                {profile.experiences.filter((exp) => !isWorkExperienceCategory(exp.category)).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No activities or leadership saved.
+                  </p>
+                ) : (
+                  profile.experiences.filter((exp) => !isWorkExperienceCategory(exp.category)).map((exp) => (
+                    <div
+                      key={exp.id ?? `${exp.company}-${exp.role}`}
+                      className="rounded-md border border-border/60 p-3"
+                    >
+                      <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
+                        <p className="font-semibold">
+                          {exp.role} · {exp.company}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {exp.category} · {exp.startDate} – {exp.endDate ?? "Present"}
+                        </p>
+                      </div>
+                      <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm">
+                        {exp.bullets.map((b) => (
+                          <li key={b.id}>{b.rawText}</li>
                         ))}
                       </ul>
                     </div>
@@ -309,15 +352,94 @@ export function MasterProfileCard({
                       className="rounded-md border border-border/60 p-3 text-sm"
                     >
                       <p className="font-semibold">
-                        {ed.degree}
-                        {ed.fieldOfStudy ? ` in ${ed.fieldOfStudy}` : ""}
+                        {formatEducationTitle(ed.degree, ed.fieldOfStudy)}
                       </p>
                       <p className="text-muted-foreground">
-                        {ed.institution}
+                        {formatSchoolName(ed.institution, ed.subSchool)}
                         {ed.graduationDate ? ` · ${ed.graduationDate}` : ""}
                       </p>
+                      {ed.honors.length > 0 ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {ed.honors.join(", ")}
+                        </p>
+                      ) : null}
                     </div>
                   ))
+                )}
+              </div>
+            </details>
+
+            <details className="group rounded-lg border border-border/70 bg-background/50 open:bg-background/70">
+              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                Certifications & Licenses ({profile.certifications.length})
+              </summary>
+              <div className="space-y-2 border-t border-border/60 px-4 py-4 text-sm">
+                {profile.certifications.length === 0 ? (
+                  <p className="text-muted-foreground">None listed.</p>
+                ) : (
+                  profile.certifications.map((item) => (
+                    <div
+                      key={`${item.name}-${item.issuer ?? ""}`}
+                      className="rounded-md border border-border/60 p-3"
+                    >
+                      <p className="font-semibold">{item.name}</p>
+                      <p className="text-muted-foreground">
+                        {[item.issuer, item.date].filter(Boolean).join(" · ") ||
+                          "No issuer or date"}
+                      </p>
+                      {item.url ? (
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {item.url}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))
+                )}
+              </div>
+            </details>
+
+            <details className="group rounded-lg border border-border/70 bg-background/50 open:bg-background/70">
+              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                Honors & Awards ({profile.awards.length})
+              </summary>
+              <div className="space-y-2 border-t border-border/60 px-4 py-4 text-sm">
+                {profile.awards.length === 0 ? (
+                  <p className="text-muted-foreground">None listed.</p>
+                ) : (
+                  profile.awards.map((item) => (
+                    <div
+                      key={`${item.title}-${item.issuer ?? ""}`}
+                      className="rounded-md border border-border/60 p-3"
+                    >
+                      <p className="font-semibold">{item.title}</p>
+                      <p className="text-muted-foreground">
+                        {[item.issuer, item.date].filter(Boolean).join(" · ") ||
+                          "No issuer or date"}
+                      </p>
+                      {item.description ? (
+                        <p className="mt-1 leading-relaxed">{item.description}</p>
+                      ) : null}
+                    </div>
+                  ))
+                )}
+              </div>
+            </details>
+
+            <details className="group rounded-lg border border-border/70 bg-background/50 open:bg-background/70">
+              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                Interests ({profile.interests.length})
+              </summary>
+              <div className="border-t border-border/60 px-4 py-4">
+                {profile.interests.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">None listed.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {profile.interests.map((interest) => (
+                      <Badge key={interest} variant="secondary">
+                        {interest}
+                      </Badge>
+                    ))}
+                  </div>
                 )}
               </div>
             </details>

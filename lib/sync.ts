@@ -7,7 +7,7 @@ import {
   registerInboxWatch,
   rethrowIfInsufficientScope,
 } from "@/lib/google";
-import { cleanEmailPayload } from "@/lib/email/cleaner";
+import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
 import {
   classifyJobEmail,
   extractMessageBody,

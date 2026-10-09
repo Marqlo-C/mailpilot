@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
+import { formatEducationTitle, formatSchoolName } from "@/lib/utils/format";
 import type { TailorResult } from "@/lib/resume-tailor";
 import {
   tailoredResumeDraftSchema,
@@ -106,6 +107,7 @@ export function digestTailoredResume(input: {
           company: exp.company,
           role: exp.role,
           location: exp.location ?? null,
+          category: exp.category || "Work",
           startDate: exp.startDate,
           endDate: exp.endDate ?? null,
           displayOrder: exp.displayOrder ?? index,
@@ -164,18 +166,68 @@ export function digestTailoredResume(input: {
     });
   });
 
+  profile.certifications.forEach((item, index) => {
+    const detail = [item.issuer, item.date].filter(Boolean).join(" · ");
+    nodes.push(
+      node({
+        id: `cert:${index}:${opportunityId}`,
+        type: "certification_item",
+        section: "certifications",
+        content: detail ? `${item.name} — ${detail}` : item.name,
+        metadata: {
+          name: item.name,
+          issuer: item.issuer ?? null,
+          date: item.date ?? null,
+          url: item.url ?? null,
+        },
+      })
+    );
+  });
+
+  profile.awards.forEach((item, index) => {
+    const detail = [item.issuer, item.date].filter(Boolean).join(" · ");
+    const headline = detail ? `${item.title} — ${detail}` : item.title;
+    nodes.push(
+      node({
+        id: `award:${index}:${opportunityId}`,
+        type: "award_item",
+        section: "awards",
+        content: item.description ? `${headline}. ${item.description}` : headline,
+        metadata: {
+          title: item.title,
+          issuer: item.issuer ?? null,
+          date: item.date ?? null,
+          description: item.description ?? null,
+        },
+      })
+    );
+  });
+
+  profile.interests.forEach((interest, index) => {
+    nodes.push(
+      node({
+        id: `interest:${index}:${opportunityId}`,
+        type: "interest_item",
+        section: "interests",
+        content: interest,
+      })
+    );
+  });
+
   profile.education.forEach((ed, index) => {
-    const degree = [ed.degree, ed.fieldOfStudy].filter(Boolean).join(", ");
+    const degree = formatEducationTitle(ed.degree, ed.fieldOfStudy);
+    const school = formatSchoolName(ed.institution, ed.subSchool);
     nodes.push(
       node({
         id: `edu:${ed.id ?? index}:${opportunityId}`,
         type: "education_item",
         section: "education",
-        content: `${degree} — ${ed.institution}${
+        content: `${degree} — ${school}${
           ed.graduationDate ? ` (${ed.graduationDate})` : ""
         }`,
         metadata: {
           institution: ed.institution,
+          subSchool: ed.subSchool ?? null,
           degree: ed.degree,
           fieldOfStudy: ed.fieldOfStudy ?? null,
           graduationDate: ed.graduationDate ?? null,
@@ -223,6 +275,9 @@ export function draftToPdfInput(
   skillGroups: SkillGroup[];
   includeSummary: boolean;
   education: MasterProfileInput["education"];
+  certifications: MasterProfileInput["certifications"];
+  awards: MasterProfileInput["awards"];
+  interests: MasterProfileInput["interests"];
 } {
   const active = activeResumeNodes(draft);
   const header = active.find((item) => item.type === "header");
@@ -258,6 +313,7 @@ export function draftToPdfInput(
       company: company || role,
       role,
       location: asString(headerNode.metadata?.location) || null,
+      category: asString(headerNode.metadata?.category) || "Work",
       startDate: asString(headerNode.metadata?.startDate) || "—",
       endDate: asString(headerNode.metadata?.endDate) || null,
       displayOrder: Number(headerNode.metadata?.displayOrder ?? experiences.length),
@@ -296,14 +352,39 @@ export function draftToPdfInput(
     });
   }
 
+  const certifications = active
+    .filter((item) => item.type === "certification_item")
+    .map((item) => ({
+      name: asString(item.metadata?.name) || item.content,
+      issuer: asString(item.metadata?.issuer) || null,
+      date: asString(item.metadata?.date) || null,
+      url: asString(item.metadata?.url) || null,
+    }));
+
+  const awards = active
+    .filter((item) => item.type === "award_item")
+    .map((item) => ({
+      title: asString(item.metadata?.title) || item.content,
+      issuer: asString(item.metadata?.issuer) || null,
+      date: asString(item.metadata?.date) || null,
+      description: asString(item.metadata?.description) || null,
+    }));
+
+  const interests = active
+    .filter((item) => item.type === "interest_item")
+    .map((item) => item.content.trim())
+    .filter(Boolean);
+
   const education = active
     .filter((item) => item.type === "education_item")
     .map((item) => ({
       id: item.id,
-      institution: "",
-      degree: item.content,
-      fieldOfStudy: null,
-      graduationDate: null,
+      institution: asString(item.metadata?.institution),
+      subSchool: asString(item.metadata?.subSchool) || null,
+      degree: asString(item.metadata?.degree) || null,
+      fieldOfStudy: asString(item.metadata?.fieldOfStudy) || null,
+      graduationDate: asString(item.metadata?.graduationDate) || null,
+      honors: [],
     }));
 
   return {
@@ -318,6 +399,9 @@ export function draftToPdfInput(
     includeSummary:
       draft.exportConfig.includeSummary && Boolean(summary?.content.trim()),
     education,
+    certifications,
+    awards,
+    interests,
   };
 }
 

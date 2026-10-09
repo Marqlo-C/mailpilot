@@ -1,13 +1,14 @@
 import { GaxiosError } from "gaxios";
 import type { gmail_v1 } from "googleapis";
 
+import { buildJobSearchQuery } from "@/lib/constants/job-sources";
 import {
   getGmailClientForAccount,
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
 } from "@/lib/google";
-import { cleanEmailPayload } from "@/lib/email/cleaner";
+import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
 import {
   classifyEmail,
   extractMessageBody,
@@ -40,11 +41,7 @@ export type OpportunitySyncResult = {
   historyExpired: boolean;
 };
 
-const JOB_QUERY_BASE =
-  "(" +
-  'subject:(job OR career OR role OR hiring OR interview OR opportunity OR opportunities OR application OR applied OR alert OR "thank you for applying" OR "application received" OR "application was sent" OR offer)' +
-  " OR from:(glassdoor OR linkedin OR indeed OR lever OR greenhouse OR dice OR workday OR ashbyhq OR smartrecruiters OR icims OR myworkdayjobs)" +
-  ") -in:trash -in:spam";
+const JOB_QUERY_BASE = buildJobSearchQuery({ excludeTrashAndSpam: true });
 
 const BATCH_SIZE = 4;
 const RATE_LIMIT_BASE_MS = 800;

@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 
 import { activeResumeNodes } from "@/lib/resume-draft";
+import { categorizeProfileUrl, normalizeProfileUrl } from "@/lib/utils/url";
 import { skillCategoryLabel } from "@/lib/skill-groups";
 import type {
   ResumeDraftNode,
@@ -14,6 +15,9 @@ const SECTION_LABEL: Record<ResumeDraftNode["section"], string | null> = {
   experience: "EXPERIENCE",
   projects: "PROJECTS",
   education: "EDUCATION",
+  certifications: "CERTIFICATIONS & LICENSES",
+  awards: "HONORS & AWARDS",
+  interests: "INTERESTS",
 };
 
 function escapeXml(value: string): string {
@@ -102,6 +106,19 @@ function skillLine(groups: ResumeDraftNode[]): string {
   return bodyParagraph(runs.join("") || run(""));
 }
 
+function headerContactLine(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value
+    .split(" • ")
+    .map((part) => part.trim())
+    .filter((part) => {
+      if (!part) return false;
+      const kind = categorizeProfileUrl(normalizeProfileUrl(part));
+      return kind !== "handshake" && kind !== "indeed";
+    })
+    .join(" • ");
+}
+
 /** Styled OOXML resume built from checked draft nodes. */
 export async function compileResumeDocx(
   draft: TailoredResumeDraft
@@ -126,10 +143,7 @@ export async function compileResumeDocx(
           size: 36,
         })}</w:p>`
       );
-      const contact =
-        typeof item.metadata?.contactLine === "string"
-          ? item.metadata.contactLine.trim()
-          : "";
+      const contact = headerContactLine(item.metadata?.contactLine);
       if (contact) {
         body.push(
           `<w:p><w:pPr>${spacing(0, 80)}</w:pPr>${run(contact, {
