@@ -139,9 +139,6 @@ export function isVerifiedProfileUrl(raw: string): boolean {
       }
     }
   }
-  // #region agent log
-  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"3c315a"},body:JSON.stringify({sessionId:"3c315a",location:"lib/utils/url.ts:isVerifiedProfileUrl",message:"url check",data:{accepted},timestamp:Date.now(),hypothesisId:"H1"})}).catch(()=>{});
-  // #endregion
   return accepted;
 }
 

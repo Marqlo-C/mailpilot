@@ -8,7 +8,6 @@ import {
   certificationsSchema,
   experienceBulletSchema,
   interestsSchema,
-  isWorkExperienceCategory,
   masterProfileInputSchema,
   skillsSchema,
   type MasterProfileInput,
@@ -708,10 +707,6 @@ export async function parseResumeToStructuredProfile(
     awards: parsed.awards.filter((item) => appearsInSource(item.title, sliced)),
     interests: collectSourceInterests(parsed.interests, sliced),
   };
-
-  // #region agent log
-  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"3c315a"},body:JSON.stringify({sessionId:"3c315a",location:"lib/resume-parser.ts:draft",message:"parse draft guards",data:{links:draft.links.length,educationDated:draft.education.filter((item)=>Boolean(item.graduationDate)).length,educationTotal:draft.education.length,leadershipWork:draft.experiences.filter((item)=>/\bleadership\b/i.test(item.category)&&isWorkExperienceCategory(item.category)).length,leadershipTotal:draft.experiences.filter((item)=>/\bleadership\b/i.test(item.category)).length},timestamp:Date.now(),hypothesisId:"H2"})}).catch(()=>{});
-  // #endregion
 
   return masterProfileInputSchema.parse(draft);
 }
