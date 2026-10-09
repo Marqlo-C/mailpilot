@@ -602,6 +602,7 @@ export function ManualProfileEditor({
                             fieldOfStudy: null,
                             startDate: null,
                             graduationDate: null,
+                            status: "GRADUATED",
                             gpa: null,
                             honors: [],
                             coursework: [],
@@ -714,6 +715,33 @@ export function ManualProfileEditor({
                           }))
                         }
                       />
+                      <div className="space-y-2">
+                        <Label>Enrollment</Label>
+                        <select
+                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                          value={ed.status ?? "GRADUATED"}
+                          onChange={(event) => {
+                            const status = event.target.value;
+                            if (
+                              status !== "GRADUATED" &&
+                              status !== "IN_PROGRESS" &&
+                              status !== "UNSURE"
+                            ) {
+                              return;
+                            }
+                            setForm((f) => ({
+                              ...f,
+                              education: f.education.map((item, i) =>
+                                i === index ? { ...item, status } : item
+                              ),
+                            }));
+                          }}
+                        >
+                          <option value="GRADUATED">Graduated</option>
+                          <option value="IN_PROGRESS">In progress</option>
+                          <option value="UNSURE">Unsure</option>
+                        </select>
+                      </div>
                       <Field
                         label="GPA"
                         value={ed.gpa ?? ""}

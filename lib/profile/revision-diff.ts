@@ -141,6 +141,7 @@ export function computeProfileDiff(
     else if (
       !same(text(prior.fieldOfStudy), text(row.fieldOfStudy)) ||
       !same(text(prior.graduationDate), text(row.graduationDate)) ||
+      !same(prior.status ?? "GRADUATED", row.status ?? "GRADUATED") ||
       (prior.honors ?? []).join("|") !== (row.honors ?? []).join("|") ||
       (prior.coursework ?? []).join("|") !== (row.coursework ?? []).join("|")
     ) {

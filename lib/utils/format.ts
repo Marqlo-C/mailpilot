@@ -38,6 +38,43 @@ export function formatEducationTitle(
   return `${deg} in ${field}`;
 }
 
+/**
+ * Education date line.
+ * A finished range stays a range. An open enrollment ends at Present.
+ * A target date on an unfinished record is prefixed with Expected.
+ */
+export function formatEducationDates(education: {
+  startDate?: string | null;
+  graduationDate?: string | null;
+  endDate?: string | null;
+  status?: string | null;
+}): string {
+  const start = education.startDate?.trim() ?? "";
+  const end = (education.graduationDate || education.endDate)
+    ?.replace(/^(?:expected|anticipated)\s+/i, "")
+    .trim() ?? "";
+  const status = education.status ?? "GRADUATED";
+  if (start && end) return `${start} – ${end}`;
+  if (start && status === "IN_PROGRESS") return `${start} – Present`;
+  if (!start && end && status === "IN_PROGRESS") return `Expected ${end}`;
+  if (end) return end;
+  return start;
+}
+
+/** Short label for an unfinished education record. */
+export function educationProgressLabel(education: {
+  startDate?: string | null;
+  graduationDate?: string | null;
+  endDate?: string | null;
+  status?: string | null;
+}): "In Progress" | "Expected" | null {
+  if (education.status !== "IN_PROGRESS") return null;
+  const start = education.startDate?.trim() ?? "";
+  const end = (education.graduationDate || education.endDate)?.trim() ?? "";
+  if (!start && end) return "Expected";
+  return "In Progress";
+}
+
 /** Parent institution with a constituent school in parentheses. */
 export function formatSchoolName(
   school: string,

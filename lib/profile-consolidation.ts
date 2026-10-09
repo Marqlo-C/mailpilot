@@ -436,6 +436,10 @@ export function consolidateProfiles(
         fieldOfStudy: match.fieldOfStudy || incEd.fieldOfStudy,
         startDate: match.startDate || incEd.startDate,
         graduationDate: match.graduationDate || incEd.graduationDate,
+        status:
+          incEd.status && incEd.status !== "GRADUATED"
+            ? incEd.status
+            : match.status ?? incEd.status ?? "GRADUATED",
         gpa: match.gpa || incEd.gpa,
         honors: [...(match.honors ?? []), ...(incEd.honors ?? [])].filter(
           (honor, index, list) =>

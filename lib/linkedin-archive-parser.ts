@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import Papa from "papaparse";
 
+import { normalizeEducationDatesAndStatus } from "@/lib/resume-parser";
 import type { MasterProfileInput } from "@/lib/validations/profile";
 
 type CsvRow = Record<string, string | undefined>;
@@ -171,21 +172,19 @@ export async function parseLinkedInArchive(
       const degree = cell(row, "Degree Name", "Degree") || "Degree";
       if (!institution) return null;
       const notes = cell(row, "Notes", "Activities");
-      return {
+      return normalizeEducationDatesAndStatus({
         id: newId(),
         institution,
         subSchool: null,
         degree,
         fieldOfStudy: notes || null,
+        notes: notes || null,
         startDate: cell(row, "Start Date", "StartDate") || null,
-        graduationDate:
-          cell(row, "End Date", "EndDate") ||
-          cell(row, "Start Date", "StartDate") ||
-          null,
+        graduationDate: cell(row, "End Date", "EndDate") || null,
         gpa: null,
         honors: [],
         coursework: [],
-      };
+      });
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
 

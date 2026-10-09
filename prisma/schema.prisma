@@ -406,6 +406,7 @@ model Education {
   fieldOfStudy   String?
   startDate      String?
   graduationDate String?
+  status         String   @default("GRADUATED")
   gpa            String?
   honors         Json     @default("[]")
   coursework     Json     @default("[]")

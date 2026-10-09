@@ -16,7 +16,12 @@ import {
   importGitHubProjects,
   saveMasterProfile,
 } from "@/app/actions/profile";
-import { formatEducationTitle, formatSchoolName } from "@/lib/utils/format";
+import {
+  educationProgressLabel,
+  formatEducationDates,
+  formatEducationTitle,
+  formatSchoolName,
+} from "@/lib/utils/format";
 import type { MasterProfileInput } from "@/lib/validations/profile";
 import { flattenSkillItems } from "@/lib/skill-groups";
 import { Badge } from "@/components/ui/badge";
@@ -380,8 +385,13 @@ export function ResumeUploadDialog({
                     ) : null}
                     <p className="text-muted-foreground">
                       {formatSchoolName(ed.institution, ed.subSchool)}
-                      {ed.graduationDate ? ` · ${ed.graduationDate}` : ""}
+                      {formatEducationDates(ed) ? ` · ${formatEducationDates(ed)}` : ""}
                     </p>
+                    {educationProgressLabel(ed) ? (
+                      <Badge variant="outline" className="mt-1 font-normal">
+                        {educationProgressLabel(ed)}
+                      </Badge>
+                    ) : null}
                   </div>
                 ))
               )}

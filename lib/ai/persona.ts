@@ -253,6 +253,7 @@ function unionYears(roles: RoleSignal[]): number {
 function latestGraduation(profile: MasterProfileInput): Date | null {
   let latest: Date | null = null;
   for (const ed of profile.education) {
+    if (ed.status === "IN_PROGRESS") continue;
     const grad = parseFlexibleDate(ed.graduationDate);
     if (!grad) continue;
     if (!latest || grad.getTime() > latest.getTime()) {
