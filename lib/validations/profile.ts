@@ -77,13 +77,9 @@ const RECREATIONAL_CATEGORY =
 export function isWorkExperienceCategory(category?: string | null): boolean {
   if (!category?.trim()) return true;
   const lower = category.trim().toLowerCase();
-  const paid = PAID_DOMAIN_CATEGORY.test(lower);
-  const recreational = RECREATIONAL_CATEGORY.test(lower);
-  const isWork = paid || !recreational;
-  // #region agent log
-  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"3c315a"},body:JSON.stringify({sessionId:"3c315a",location:"lib/validations/profile.ts:isWorkExperienceCategory",message:"category routing",data:{isWork,leadership:/\bleadership\b/.test(lower),athletics:/\bathletics\b/.test(lower)},timestamp:Date.now(),hypothesisId:"H4"})}).catch(()=>{});
-  // #endregion
-  return isWork;
+  if (PAID_DOMAIN_CATEGORY.test(lower)) return true;
+  if (RECREATIONAL_CATEGORY.test(lower)) return false;
+  return true;
 }
 
 const honorsListSchema = z.preprocess((value) => {
@@ -285,7 +281,7 @@ export function resolveMatchThreshold(input: {
   return DEFAULT_MATCH_THRESHOLD;
 }
 
-function optionalHttpsUrl(label: string) {
+function optionalHttpsUrl() {
   return z
     .string()
     .trim()
@@ -295,46 +291,18 @@ function optionalHttpsUrl(label: string) {
       const value = (v ?? "").trim();
       if (value.length === 0) return null;
       const normalized = normalizeProfileUrl(value);
-      const accepted = z.string().url().safeParse(normalized).success
-        ? normalized
-        : null;
-      // #region agent log
-      if (label === "Personal Website") {
-        fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Debug-Session-Id": "3c315a",
-          },
-          body: JSON.stringify({
-            sessionId: "3c315a",
-            runId: "post-fix",
-            hypothesisId: "H1",
-            location: "lib/validations/profile.ts:optionalHttpsUrl",
-            message: "personal website normalized",
-            data: {
-              blank: false,
-              hadScheme: /^https?:\/\//i.test(value),
-              normalizedHasScheme: /^https?:\/\//i.test(normalized),
-              accepted: accepted !== null,
-            },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-      }
-      // #endregion
-      return accepted;
+      return z.string().url().safeParse(normalized).success ? normalized : null;
     });
 }
 
 /** External professional profile URLs on UserProfile. */
 export const linkedAccountsSchema = z.object({
-  linkedWebsite: optionalHttpsUrl("Personal Website"),
-  linkedIndeed: optionalHttpsUrl("Indeed"),
-  linkedGlassdoor: optionalHttpsUrl("Glassdoor"),
-  linkedGithub: optionalHttpsUrl("GitHub"),
-  linkedLinkedin: optionalHttpsUrl("LinkedIn"),
-  linkedHandshake: optionalHttpsUrl("Handshake"),
+  linkedWebsite: optionalHttpsUrl(),
+  linkedIndeed: optionalHttpsUrl(),
+  linkedGlassdoor: optionalHttpsUrl(),
+  linkedGithub: optionalHttpsUrl(),
+  linkedLinkedin: optionalHttpsUrl(),
+  linkedHandshake: optionalHttpsUrl(),
 });
 
 export type LinkedAccountsInput = {
@@ -351,12 +319,12 @@ export type LinkedAccountsInput = {
  * Alias requested by settings UX: `masterProfileSchema`.
  */
 export const masterProfileSchema = masterProfileInputSchema.extend({
-  linkedWebsite: optionalHttpsUrl("Personal Website"),
-  linkedIndeed: optionalHttpsUrl("Indeed"),
-  linkedGlassdoor: optionalHttpsUrl("Glassdoor"),
-  linkedGithub: optionalHttpsUrl("GitHub"),
-  linkedLinkedin: optionalHttpsUrl("LinkedIn"),
-  linkedHandshake: optionalHttpsUrl("Handshake"),
+  linkedWebsite: optionalHttpsUrl(),
+  linkedIndeed: optionalHttpsUrl(),
+  linkedGlassdoor: optionalHttpsUrl(),
+  linkedGithub: optionalHttpsUrl(),
+  linkedLinkedin: optionalHttpsUrl(),
+  linkedHandshake: optionalHttpsUrl(),
 });
 
 export type MasterProfileUpdateInput = z.infer<typeof masterProfileSchema>;

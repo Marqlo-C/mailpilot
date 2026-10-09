@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { PersonaViewer } from "@/components/profile/persona-viewer";
 import { ResumeUploadDialog } from "@/components/profile/resume-upload-dialog";
 import { ManualProfileEditor } from "@/components/profile/manual-profile-editor";
@@ -92,24 +91,6 @@ export function MasterProfileCard({
   profile,
 }: MasterProfileCardProps) {
   const skillGroups = skillGroupsFromUnknown(profile?.skills);
-  useEffect(() => {
-    const nodes = Array.from(document.querySelectorAll("[data-education-date]"));
-    const ranges = (profile?.education ?? []).map((ed) =>
-      capturedDateRange(ed.startDate, ed.graduationDate || ed.endDate).length
-    );
-    const boxes = nodes.map((node) => {
-      const card = node.closest(".rounded-md");
-      const nodeBox = node.getBoundingClientRect();
-      const cardBox = card?.getBoundingClientRect();
-      return {
-        width: Math.round(nodeBox.width),
-        clipped: cardBox ? nodeBox.right > cardBox.right + 1 : null,
-      };
-    });
-    // #region agent log
-    fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"3c315a"},body:JSON.stringify({sessionId:"3c315a",location:"components/settings/master-profile-card.tsx:education",message:"education date layout",data:{ranges,boxes},timestamp:Date.now(),hypothesisId:"H5",runId:"post-fix"})}).catch(()=>{});
-    // #endregion
-  }, [profile]);
   return (
     <Card className={cn(SETTINGS_CARD_CLASSNAME)}>
       <CardHeader className="gap-4 border-b border-border/50 sm:flex-row sm:items-start sm:justify-between">
@@ -407,7 +388,7 @@ export function MasterProfileCard({
                           {title ? <p>{title}</p> : null}
                         </div>
                         {dateRange ? (
-                          <DateChip data-education-date>{dateRange}</DateChip>
+                          <DateChip>{dateRange}</DateChip>
                         ) : null}
                       </div>
                       {ed.honors.length > 0 ? (
