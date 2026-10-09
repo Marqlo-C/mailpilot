@@ -19,6 +19,7 @@ import {
   educationProgressLabel,
   formatEducationDates,
   formatEducationTitle,
+  formatExperienceHeading,
   formatSchoolName,
 } from "@/lib/utils/format";
 import { isWorkExperienceCategory } from "@/lib/validations/profile";
@@ -277,7 +278,7 @@ export function MasterProfileCard({
                     >
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                         <p className="font-semibold">
-                          {exp.role} · {exp.company}
+                          {formatExperienceHeading(exp.role, exp.company, exp.location)}
                         </p>
                         <DateChip>
                           {exp.startDate} – {exp.endDate ?? "Present"}
@@ -318,7 +319,7 @@ export function MasterProfileCard({
                     >
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                         <p className="font-semibold">
-                          {exp.role} · {exp.company}
+                          {formatExperienceHeading(exp.role, exp.company, exp.location)}
                         </p>
                         <DateChip>
                           {exp.startDate} – {exp.endDate ?? "Present"}

@@ -14,6 +14,21 @@ export function cleanDisplayUrl(url: string | null | undefined): string {
     .replace(/\.+$/, "");
 }
 
+/** Role line. The workplace is included only when one was captured. */
+export function formatExperienceHeading(
+  role?: string | null,
+  company?: string | null,
+  location?: string | null
+): string {
+  const title = role?.trim() ?? "";
+  const org = company?.trim() ?? "";
+  const place = location?.trim() ?? "";
+  const parts = [title];
+  if (org && org.toLowerCase() !== title.toLowerCase()) parts.push(org);
+  if (place) parts.push(place);
+  return parts.filter(Boolean).join(" · ");
+}
+
 /** Degree line without repeating a major that is already inside the degree name. */
 export function formatEducationTitle(
   degree?: string | null,
