@@ -222,7 +222,7 @@ export function digestTailoredResume(input: {
         id: `edu:${ed.id ?? index}:${opportunityId}`,
         type: "education_item",
         section: "education",
-        content: `${degree} — ${school}${
+        content: `${[degree, school].filter(Boolean).join(" — ")}${
           ed.graduationDate ? ` (${ed.graduationDate})` : ""
         }`,
         metadata: {

@@ -357,7 +357,7 @@ model ProfileHistory {
   profileId String
   profile   UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
-  /// e.g. "Before GitHub Sync", "Before Resume Extraction", "Manual Edit"
+  /// Human revision title. Rename updates this in place.
   summary   String
   /// Complete MasterProfileInput JSON snapshot
   snapshot  Json

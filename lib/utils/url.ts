@@ -20,7 +20,26 @@ export type ProfileAccountKind =
 const MARKDOWN_LINK = /^\[([^\]]*)\]\(([^)]+)\)$/;
 
 const PROFILE_URL_PATTERN =
-  /(?<![A-Za-z0-9.])(?:https?:\/\/|www\.)[^\s<>"'`]+|(?<![A-Za-z0-9.])(?:github\.com|linkedin\.com|(?:app\.)?joinhandshake\.com|handshake\.com|(?:my\.)?indeed\.com|glassdoor\.com)\/[^\s<>"'`]+|(?<![A-Za-z0-9.])[a-z0-9-]+\.github\.io(?:\/[^\s<>"'`]*)?/gi;
+  /(?<![A-Za-z0-9.@])(?:https?:\/\/|www\.)[^\s<>"'`]+|(?<![A-Za-z0-9.@])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s<>"'`]*)?/gi;
+
+const FILE_EXTENSIONS = new Set([
+  "pdf",
+  "doc",
+  "docx",
+  "txt",
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "zip",
+  "html",
+  "css",
+  "js",
+  "json",
+  "xml",
+  "csv",
+  "svg",
+]);
 
 function stripEdgePunctuation(value: string): string {
   return value.replace(/^[<(]+/, "").replace(/[.,;:)]+$/g, "").trim();
@@ -86,6 +105,46 @@ export function normalizeProfileUrl(raw: string): string {
   return trimmed;
 }
 
+function looksLikePhone(value: string): boolean {
+  const digits = value.replace(/\D/g, "");
+  const letters = value.replace(/[^a-z]/gi, "");
+  return digits.length >= 7 && letters.length === 0;
+}
+
+/**
+ * True when a string is an http(s) URL whose hostname has a dotted, non-numeric domain.
+ * Phone numbers and other non-URL text fail.
+ */
+export function isVerifiedProfileUrl(raw: string): boolean {
+  const trimmed = raw.trim();
+  let accepted = false;
+  if (trimmed && !looksLikePhone(trimmed)) {
+    const markdown = MARKDOWN_LINK.exec(trimmed);
+    const candidate = markdown?.[2]?.trim() || trimmed;
+    if (!looksLikePhone(candidate)) {
+      const normalized = normalizeProfileUrl(candidate);
+      if (/^https?:\/\//i.test(normalized)) {
+        try {
+          const hostname = new URL(normalized).hostname.replace(/\.$/, "");
+          const tld = hostname.split(".").pop() ?? "";
+          const numericHost = hostname.split(".").every((label) => /^\d+$/.test(label));
+          accepted =
+            hostname.includes(".") &&
+            !numericHost &&
+            /^[a-z]{2,}$/i.test(tld) &&
+            !FILE_EXTENSIONS.has(tld.toLowerCase());
+        } catch {
+          accepted = false;
+        }
+      }
+    }
+  }
+  // #region agent log
+  fetch("http://127.0.0.1:7809/ingest/151252f8-c719-4220-ad29-b58c7990906d",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"3c315a"},body:JSON.stringify({sessionId:"3c315a",location:"lib/utils/url.ts:isVerifiedProfileUrl",message:"url check",data:{accepted},timestamp:Date.now(),hypothesisId:"H1"})}).catch(()=>{});
+  // #endregion
+  return accepted;
+}
+
 /**
  * Pulls protocol URLs, markdown hrefs, and bare profile domains out of text.
  */
@@ -97,6 +156,8 @@ export function extractProfileLinksFromText(rawText: string): string[] {
     const cleaned = stripEdgePunctuation(candidate);
     const normalized = normalizeProfileUrl(cleaned);
     if (!normalized || !/^https?:\/\//i.test(normalized)) return;
+    const tld = hostOf(normalized).split(".").pop() ?? "";
+    if (FILE_EXTENSIONS.has(tld)) return;
     const key = normalized.replace(/\/+$/, "").toLowerCase();
     if (!unique.has(key)) unique.set(key, normalized.replace(/\/+$/, ""));
   };

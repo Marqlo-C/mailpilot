@@ -15,6 +15,8 @@ import {
   isPlaceholderEmail,
   resolveGithubHandle,
 } from "@/lib/profile-consolidation";
+import { nameProfileRevision } from "@/lib/ai/revision-namer";
+import { normalizeProfileUrl } from "@/lib/utils/url";
 import {
   loadProfileSnapshot,
   recordProfileSnapshot,
@@ -56,6 +58,32 @@ export type UpdateMasterProfileOptions = {
   /** Replace the stored profile with the incoming resume instead of merging. */
   overwriteAll?: boolean;
 };
+
+const LINKED_ACCOUNT_KEYS = [
+  "linkedWebsite",
+  "linkedIndeed",
+  "linkedGlassdoor",
+  "linkedGithub",
+  "linkedLinkedin",
+  "linkedHandshake",
+] as const;
+
+/** Bare domains get a scheme before schema validation. Blank fields stay null. */
+function normalizedLinkedAccounts(
+  input: object
+): Partial<Record<(typeof LINKED_ACCOUNT_KEYS)[number], string | null>> {
+  const record = input as Partial<
+    Record<(typeof LINKED_ACCOUNT_KEYS)[number], string | null | undefined>
+  >;
+  const normalized: Partial<Record<(typeof LINKED_ACCOUNT_KEYS)[number], string | null>> = {};
+  for (const key of LINKED_ACCOUNT_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(record, key)) continue;
+    const raw = record[key];
+    const trimmed = typeof raw === "string" ? raw.trim() : "";
+    normalized[key] = trimmed ? normalizeProfileUrl(trimmed) : null;
+  }
+  return normalized;
+}
 
 /**
  * Records the current profile in ProfileHistory before a destructive write.
@@ -361,7 +389,11 @@ export async function updateMasterProfile(
   }
 
   const email = isPlaceholderEmail(data.email) ? account.email : data.email;
-  const parsed = masterProfileSchema.safeParse({ ...data, email });
+  const parsed = masterProfileSchema.safeParse({
+    ...data,
+    email,
+    ...normalizedLinkedAccounts(data),
+  });
   if (!parsed.success) {
     return {
       ok: false,
@@ -374,10 +406,25 @@ export async function updateMasterProfile(
 
   try {
     if (!options?.skipHistory) {
-      await captureProfileRevision(
-        accountId,
-        options?.summary ?? "Manual Edit"
-      );
+      const keepGiven =
+        options?.summary?.startsWith("Restored:") ||
+        options?.summary === "Before Profile Reset";
+      let summary = options?.summary ?? "Profile update";
+      if (!keepGiven) {
+        const existingTree = await prisma.userProfile.findUnique({
+          where: { accountId },
+          include: {
+            experiences: { orderBy: { displayOrder: "asc" } },
+            projects: true,
+            education: true,
+          },
+        });
+        const previous = existingTree
+          ? serializeUserProfileToInput(existingTree)
+          : null;
+        summary = await nameProfileRevision(previous, payload);
+      }
+      await captureProfileRevision(accountId, summary);
     }
 
     const profileId = await prisma.$transaction(async (tx) => {
@@ -461,7 +508,7 @@ export async function updateMasterProfile(
             degree: ed.degree ?? null,
             fieldOfStudy: ed.fieldOfStudy ?? null,
             startDate: ed.startDate ?? null,
-            graduationDate: ed.graduationDate ?? null,
+            graduationDate: ed.graduationDate || ed.endDate || null,
             gpa: ed.gpa ?? null,
             honors: (ed.honors ?? []) as Prisma.InputJsonValue,
           })),
@@ -744,6 +791,41 @@ export async function restoreProfileHistory(
 }
 
 /**
+ * Renames a revision the account owns. The stored snapshot stays unchanged.
+ */
+export async function renameProfileRevision(
+  accountId: string,
+  revisionId: string,
+  newName: string
+): Promise<ActionResult> {
+  const name = newName.trim();
+  if (!name || name.length > 160) {
+    return { ok: false, error: "Revision name must be 1–160 characters." };
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { profile: { select: { id: true } } },
+  });
+  if (!account?.profile) return { ok: false, error: "Profile not found" };
+
+  const target = await prisma.profileHistory.findUnique({
+    where: { id: revisionId },
+    select: { id: true, profileId: true },
+  });
+  if (!target || target.profileId !== account.profile.id) {
+    return { ok: false, error: "Revision not found" };
+  }
+
+  await prisma.profileHistory.update({
+    where: { id: revisionId },
+    data: { summary: name },
+  });
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+/**
  * Sole mutation for Job Radar match threshold.
  * Writes PermanentSettings.matchScoreThreshold (canonical) and mirrors
  * UserProfile.matchThreshold when a resume profile exists.
@@ -814,7 +896,7 @@ export async function updateLinkedAccounts(
   accountId: string,
   input: LinkedAccountsInput
 ): Promise<ActionResult> {
-  const parsed = linkedAccountsSchema.safeParse(input);
+  const parsed = linkedAccountsSchema.safeParse(normalizedLinkedAccounts(input));
   if (!parsed.success) {
     return {
       ok: false,

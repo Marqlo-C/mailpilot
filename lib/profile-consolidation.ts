@@ -13,6 +13,7 @@ import {
   githubProfileRoot,
   githubProfileUrlInText,
   isGithubProfileUrl,
+  isVerifiedProfileUrl,
   normalizeProfileUrl,
 } from "@/lib/utils/url";
 
@@ -134,6 +135,7 @@ export function extractPlatformLinks(
   let linkedIndeed: string | null = null;
   let linkedGlassdoor: string | null = null;
   let linkedHandshake: string | null = null;
+  let websiteFromPortfolio = false;
 
   for (const item of links) {
     const url = ensureAbsoluteUrl(item.url);
@@ -153,10 +155,17 @@ export function extractPlatformLinks(
     } else if (kind === "handshake") {
       linkedHandshake = url;
     } else if (
-      kind === "portfolio" ||
-      label.includes("portfolio") ||
-      label.includes("website") ||
-      label.includes("personal")
+      (kind === "portfolio" || label.includes("portfolio")) &&
+      isVerifiedProfileUrl(url)
+    ) {
+      linkedWebsite = url;
+      websiteFromPortfolio = true;
+    } else if (
+      !websiteFromPortfolio &&
+      isVerifiedProfileUrl(url) &&
+      (kind === "website" ||
+        label.includes("website") ||
+        label.includes("personal"))
     ) {
       linkedWebsite = url;
     }
@@ -182,8 +191,8 @@ export function enrichLinksFromRawText(
   const found: { label: string; url: string }[] = [];
 
   for (const raw of extractProfileLinksFromText(text)) {
+    if (!isVerifiedProfileUrl(raw)) continue;
     const kind = categorizeProfileUrl(raw);
-    if (kind === "website") continue;
     if (kind === "github") {
       const root = githubProfileRoot(raw);
       if (!root) continue;
@@ -191,13 +200,19 @@ export function enrichLinksFromRawText(
       continue;
     }
     if (kind === "linkedin" && !/linkedin\.com\/(?:in|pub)\//i.test(raw)) continue;
-    found.push({ label: accountLabelForUrl(raw), url: normalizeProfileUrl(raw) });
+    const label = accountLabelForUrl(raw);
+    if (label === "Website" && !isVerifiedProfileUrl(raw)) continue;
+    found.push({ label, url: normalizeProfileUrl(raw) });
   }
 
-  const seen = new Set(
-    existingLinks.map((l) => ensureAbsoluteUrl(l.url).toLowerCase())
+  const keptExisting = existingLinks.filter(
+    (item) =>
+      item.label.trim().toLowerCase() !== "website" || isVerifiedProfileUrl(item.url)
   );
-  const merged = [...existingLinks];
+  const seen = new Set(
+    keptExisting.map((l) => ensureAbsoluteUrl(l.url).toLowerCase())
+  );
+  const merged = [...keptExisting];
   for (const item of found) {
     const key = ensureAbsoluteUrl(item.url).toLowerCase();
     if (!seen.has(key)) {

@@ -958,6 +958,8 @@ export type CallLLMOptions = {
   allowCloudFallback?: boolean;
   /** @deprecated Use allowCloudFallback */
   allowOpenRouterFallback?: boolean;
+  /** When set, OpenRouter tries only these models, in order. */
+  openRouterModels?: string[];
 };
 
 /** Thrown when LOCAL_OLLAMA is selected but the instance cannot be reached. */
@@ -1076,7 +1078,8 @@ export async function callLLMWithFallback(
         );
         const cloudResult = await callOpenRouterJson(
           options.systemPrompt,
-          options.userPrompt
+          options.userPrompt,
+          options.openRouterModels
         );
         if (cloudResult) {
           console.info(
@@ -1098,7 +1101,11 @@ export async function callLLMWithFallback(
     }
   }
 
-  return callOpenRouterJson(options.systemPrompt, options.userPrompt);
+  return callOpenRouterJson(
+    options.systemPrompt,
+    options.userPrompt,
+    options.openRouterModels
+  );
 }
 
 /**
@@ -1350,7 +1357,8 @@ async function callOllamaGenerateOnce(
 
 async function callOpenRouterJson(
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  models?: string[]
 ): Promise<Record<string, unknown> | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -1358,7 +1366,8 @@ async function callOpenRouterJson(
     return null;
   }
 
-  for (const model of DEFAULT_OPENROUTER_MODELS) {
+  const selected = models && models.length > 0 ? models : DEFAULT_OPENROUTER_MODELS;
+  for (const model of selected) {
     try {
       const result = await callOpenRouterModel(
         apiKey,

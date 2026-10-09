@@ -293,16 +293,13 @@ function ResumeDocument({
             {educationRows.map((ed) => {
               const degreeText = formatEducationTitle(ed.degree, ed.fieldOfStudy);
               const school = formatSchoolName(ed.institution, ed.subSchool);
+              const heading = [degreeText, school].filter(Boolean).join(" — ");
               return (
                 <Text
                   key={`${ed.institution}-${ed.subSchool ?? ""}-${ed.degree}`}
                   style={{ marginBottom: 3 }}
                 >
-                  {school
-                    ? `${degreeText} — ${school}${
-                        ed.graduationDate ? ` (${ed.graduationDate})` : ""
-                      }`
-                    : degreeText}
+                  {ed.graduationDate ? `${heading} (${ed.graduationDate})` : heading}
                 </Text>
               );
             })}
