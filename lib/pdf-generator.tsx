@@ -20,6 +20,7 @@ import type { SkillGroup } from "@/lib/types/resume-draft";
 import {
   cleanDisplayUrl,
   dedupeContactItems,
+  formatEducationDates,
   formatEducationTitle,
   formatSchoolName,
 } from "@/lib/utils/format";
@@ -299,7 +300,7 @@ function ResumeDocument({
                   key={`${ed.institution}-${ed.subSchool ?? ""}-${ed.degree}`}
                   style={{ marginBottom: 3 }}
                 >
-                  {ed.graduationDate ? `${heading} (${ed.graduationDate})` : heading}
+                  {formatEducationDates(ed) ? `${heading} (${formatEducationDates(ed)})` : heading}
                 </Text>
               );
             })}

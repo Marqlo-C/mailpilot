@@ -108,6 +108,18 @@ const honorsListSchema = z.preprocess((value) => {
   });
 }, z.array(z.string()));
 
+export const educationStatusSchema = z.enum([
+  "GRADUATED",
+  "IN_PROGRESS",
+  "UNSURE",
+]);
+export type EducationStatus = z.infer<typeof educationStatusSchema>;
+
+export function readEducationStatus(value: unknown): EducationStatus {
+  const parsed = educationStatusSchema.safeParse(value);
+  return parsed.success ? parsed.data : "GRADUATED";
+}
+
 export const educationInputSchema = z.object({
   id: z.string().optional(),
   /** Parent institution. */
@@ -118,10 +130,14 @@ export const educationInputSchema = z.object({
   startDate: z.string().nullable().optional(),
   graduationDate: z.string().nullable().optional(),
   endDate: z.string().nullable().optional(),
+  status: educationStatusSchema.default("GRADUATED"),
   gpa: z.string().nullable().optional(),
   honors: honorsListSchema.default([]),
   coursework: honorsListSchema.default([]),
 });
+
+/** Same record as `educationInputSchema`. Callers use either name. */
+export const educationItemSchema = educationInputSchema;
 
 const nullableText = z.preprocess((value) => {
   if (typeof value !== "string") return null;

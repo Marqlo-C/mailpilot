@@ -5,6 +5,7 @@ import {
   awardsSchema,
   certificationsSchema,
   interestsSchema,
+  readEducationStatus,
 } from "@/lib/validations/profile";
 
 import {
@@ -461,6 +462,7 @@ export async function loadCandidateProfileSummary(
         fieldOfStudy: ed.fieldOfStudy,
         startDate: ed.startDate ?? null,
         graduationDate: ed.graduationDate,
+        status: readEducationStatus(ed.status),
         gpa: ed.gpa ?? null,
         honors: Array.isArray(ed.honors)
           ? ed.honors.filter((item): item is string => typeof item === "string")

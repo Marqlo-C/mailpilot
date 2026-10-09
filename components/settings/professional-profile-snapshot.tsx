@@ -11,7 +11,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatEducationTitle, formatSchoolName } from "@/lib/utils/format";
+import {
+  educationProgressLabel,
+  formatEducationDates,
+  formatEducationTitle,
+  formatSchoolName,
+} from "@/lib/utils/format";
 import {
   isWorkExperienceCategory,
   type MasterProfileInput,
@@ -380,8 +385,13 @@ export function ProfessionalProfileSnapshot({
                   ) : null}
                   <p className="text-muted-foreground">
                     {formatSchoolName(ed.institution, ed.subSchool)}
-                    {ed.graduationDate ? ` · ${ed.graduationDate}` : ""}
+                    {formatEducationDates(ed) ? ` · ${formatEducationDates(ed)}` : ""}
                   </p>
+                  {educationProgressLabel(ed) ? (
+                    <Badge variant="outline" className="mt-2 font-normal text-muted-foreground">
+                      {educationProgressLabel(ed)}
+                    </Badge>
+                  ) : null}
                   {ed.coursework.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {ed.coursework.map((course) => (

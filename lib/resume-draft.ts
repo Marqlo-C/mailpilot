@@ -3,7 +3,11 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
-import { formatEducationTitle, formatSchoolName } from "@/lib/utils/format";
+import {
+  formatEducationDates,
+  formatEducationTitle,
+  formatSchoolName,
+} from "@/lib/utils/format";
 import type { TailorResult } from "@/lib/resume-tailor";
 import {
   tailoredResumeDraftSchema,
@@ -11,10 +15,11 @@ import {
   type SkillGroup,
   type TailoredResumeDraft,
 } from "@/lib/types/resume-draft";
-import type {
-  MasterProfileInput,
-  ProjectInput,
-  WorkExperienceInput,
+import {
+  readEducationStatus,
+  type MasterProfileInput,
+  type ProjectInput,
+  type WorkExperienceInput,
 } from "@/lib/validations/profile";
 import { buildResumeContactLine } from "@/lib/pdf-generator";
 import {
@@ -223,14 +228,16 @@ export function digestTailoredResume(input: {
         type: "education_item",
         section: "education",
         content: `${[degree, school].filter(Boolean).join(" — ")}${
-          ed.graduationDate ? ` (${ed.graduationDate})` : ""
+          formatEducationDates(ed) ? ` (${formatEducationDates(ed)})` : ""
         }`,
         metadata: {
           institution: ed.institution,
           subSchool: ed.subSchool ?? null,
           degree: ed.degree,
           fieldOfStudy: ed.fieldOfStudy ?? null,
+          startDate: ed.startDate ?? null,
           graduationDate: ed.graduationDate ?? null,
+          status: ed.status ?? "GRADUATED",
         },
       })
     );
@@ -383,7 +390,9 @@ export function draftToPdfInput(
       subSchool: asString(item.metadata?.subSchool) || null,
       degree: asString(item.metadata?.degree) || null,
       fieldOfStudy: asString(item.metadata?.fieldOfStudy) || null,
+      startDate: asString(item.metadata?.startDate) || null,
       graduationDate: asString(item.metadata?.graduationDate) || null,
+      status: readEducationStatus(item.metadata?.status),
       honors: [],
       coursework: [],
     }));

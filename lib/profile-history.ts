@@ -6,6 +6,7 @@ import {
   awardsSchema,
   certificationsSchema,
   interestsSchema,
+  readEducationStatus,
   type MasterProfileInput,
   type MasterProfileUpdateInput,
 } from "@/lib/validations/profile";
@@ -56,6 +57,7 @@ type ProfileTree = {
     fieldOfStudy: string | null;
     startDate?: string | null;
     graduationDate: string | null;
+    status?: string | null;
     gpa?: string | null;
     honors?: unknown;
     coursework?: unknown;
@@ -103,6 +105,7 @@ export function serializeUserProfileToInput(
       fieldOfStudy: ed.fieldOfStudy,
       startDate: ed.startDate ?? null,
       graduationDate: ed.graduationDate,
+      status: readEducationStatus(ed.status),
       gpa: ed.gpa ?? null,
       honors: Array.isArray(ed.honors)
         ? ed.honors.filter((item): item is string => typeof item === "string")

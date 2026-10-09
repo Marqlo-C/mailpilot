@@ -15,7 +15,12 @@ import {
 } from "@/components/ui/card";
 import type { MasterProfileInput } from "@/lib/validations/profile";
 import { skillGroupsFromUnknown } from "@/lib/skill-groups";
-import { formatEducationTitle, formatSchoolName } from "@/lib/utils/format";
+import {
+  educationProgressLabel,
+  formatEducationDates,
+  formatEducationTitle,
+  formatSchoolName,
+} from "@/lib/utils/format";
 import { isWorkExperienceCategory } from "@/lib/validations/profile";
 import { cn } from "@/lib/utils";
 
@@ -62,16 +67,6 @@ function DateChip({
       {children}
     </p>
   );
-}
-
-function capturedDateRange(
-  start?: string | null,
-  end?: string | null
-): string {
-  const startText = start?.trim() ?? "";
-  const endText = end?.trim() ?? "";
-  if (startText && endText) return `${startText} – ${endText}`;
-  return startText || endText;
 }
 
 function formatUpdatedAtUtc(iso: string): string {
@@ -379,10 +374,8 @@ export function MasterProfileCard({
                   profile.education.map((ed) => {
                     const title = formatEducationTitle(ed.degree, ed.fieldOfStudy);
                     const school = formatSchoolName(ed.institution, ed.subSchool);
-                    const dateRange = capturedDateRange(
-                      ed.startDate,
-                      ed.graduationDate || ed.endDate
-                    );
+                    const dateRange = formatEducationDates(ed);
+                    const progressLabel = educationProgressLabel(ed);
                     return (
                     <div
                       key={ed.id ?? `${ed.institution}-${ed.degree}`}
@@ -393,8 +386,18 @@ export function MasterProfileCard({
                           {school ? <p className="font-semibold">{school}</p> : null}
                           {title ? <p>{title}</p> : null}
                         </div>
-                        {dateRange ? (
-                          <DateChip>{dateRange}</DateChip>
+                        {dateRange || progressLabel ? (
+                          <div className="flex shrink-0 flex-col items-end gap-1">
+                            {dateRange ? <DateChip>{dateRange}</DateChip> : null}
+                            {progressLabel ? (
+                              <Badge
+                                variant="outline"
+                                className="font-normal text-muted-foreground"
+                              >
+                                {progressLabel}
+                              </Badge>
+                            ) : null}
+                          </div>
                         ) : null}
                       </div>
                       {ed.honors.length > 0 ? (
