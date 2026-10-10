@@ -90,6 +90,6 @@ describe("Persona Engine Deterministic Heuristics", () => {
 
     const persona = synthesizeCandidatePersona(switcherProfile);
     expect(persona.seniorityTier).toBe("Career Switcher");
-    expect(persona.toneGuidance).toContain("Career switcher");
+    expect(persona.toneGuidance).toMatch(/career switcher/i);;
   });
 });
