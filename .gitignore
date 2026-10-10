@@ -26,6 +26,8 @@ repomix-output.txt
 .cursorrules
 /.cursor
 SPEC.md
+switch-ollama.sh
+.pc_ollama_cache
 
 # Debug
 npm-debug.log*

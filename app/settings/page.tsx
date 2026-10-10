@@ -41,6 +41,7 @@ export default async function SettingsPage({
         llmProvider={active?.settings?.llmProvider ?? "OPENROUTER"}
         localOllamaUrl={active?.settings?.localOllamaUrl ?? ""}
         ollamaModel={active?.settings?.ollamaModel ?? "llama3.1:8b"}
+        isDev={process.env.NODE_ENV === "development"}
         connectedBanner={params.connected ?? null}
         errorBanner={params.error ?? null}
       />

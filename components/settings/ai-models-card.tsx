@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import {
   updateBridgeSecret,
   updateLlmProvider,
+  updateOllamaModel,
   updateOllamaUrl,
   updateRule,
 } from "@/app/actions/settings";
@@ -39,6 +40,7 @@ type AiModelsCardProps = {
   llmProvider: string;
   localOllamaUrl: string;
   ollamaModel: string;
+  isDev?: boolean;
   bridgeSecret: string;
   availableModels?: string[];
   bridgeConnected?: boolean;
@@ -140,6 +142,7 @@ export function AiModelsCard({
   llmProvider,
   localOllamaUrl,
   ollamaModel,
+  isDev = false,
   bridgeSecret: initialBridgeSecret,
   availableModels: initialModels = [],
   bridgeConnected: initialConnected = false,
@@ -148,6 +151,10 @@ export function AiModelsCard({
   const router = useRouter();
   const [url, setUrl] = useState(localOllamaUrl);
   const [selectedModel, setSelectedModel] = useState(ollamaModel);
+  const [devModels, setDevModels] = useState<string[]>([]);
+  const [devModelUrl, setDevModelUrl] = useState("");
+  const [devModelMessage, setDevModelMessage] = useState<string | null>(null);
+  const [checkingDevModels, setCheckingDevModels] = useState(false);
   const [allowCloudFallback, setAllowCloudFallback] = useState(
     initialAllowCloudFallback
   );
@@ -862,6 +869,113 @@ export function AiModelsCard({
                 )}
               </Button>
             </div>
+
+            {isDev ? (
+              <div className="space-y-3 rounded-xl border border-dashed border-border/80 bg-muted/10 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-sm font-medium tracking-tight">
+                      Development model check
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Lists models on the local Ollama host from OLLAMA_BASE_URL.
+                      The saved Cloudflare tunnel is left unchanged.
+                    </p>
+                    {devModelUrl ? (
+                      <p className="truncate font-mono text-[11px] text-muted-foreground">
+                        {devModelUrl}
+                      </p>
+                    ) : null}
+                    {devModelMessage ? (
+                      <p className="text-xs text-muted-foreground">{devModelMessage}</p>
+                    ) : null}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 shrink-0"
+                    disabled={disabled || checkingDevModels}
+                    onClick={() => {
+                      if (!accountId) return;
+                      setCheckingDevModels(true);
+                      void (async () => {
+                        try {
+                          const res = await fetch("/api/ollama/dev-models", {
+                            method: "POST",
+                          });
+                          const data = (await res.json()) as {
+                            models?: string[];
+                            url?: string;
+                            error?: string;
+                          };
+                          const names = Array.isArray(data.models) ? data.models : [];
+                          setDevModels(names);
+                          setDevModelUrl(data.url ?? "");
+                          if (!res.ok || data.error || names.length === 0) {
+                            setDevModelMessage(
+                              data.error ?? "No models returned from local Ollama."
+                            );
+                            toast.error("Could not list local models");
+                            return;
+                          }
+                          setDevModelMessage(
+                            `${names.length} model${names.length === 1 ? "" : "s"} on the local host`
+                          );
+                          toast.success("Local models loaded");
+                        } catch {
+                          setDevModels([]);
+                          setDevModelMessage("Could not reach the local model check.");
+                          toast.error("Could not list local models");
+                        } finally {
+                          setCheckingDevModels(false);
+                        }
+                      })();
+                    }}
+                  >
+                    {checkingDevModels ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Checking…
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4" />
+                        Check local models
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {devModels.length > 0 ? (
+                  <select
+                    id="dev-ollama-model"
+                    className="flex h-10 w-full rounded-lg border border-border/80 bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={devModels.includes(selectedModel) ? selectedModel : devModels[0]}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setSelectedModel(next);
+                      if (!accountId) return;
+                      startTransition(async () => {
+                        const result = await updateOllamaModel(accountId, next);
+                        if (!result.ok) {
+                          toast.error(result.error);
+                          return;
+                        }
+                        toast.success("Local model saved");
+                        router.refresh();
+                      });
+                    }}
+                  >
+                    {devModels.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+              </div>
+            ) : null}
 
             {/* Gated model picker */}
             {isConnected && (

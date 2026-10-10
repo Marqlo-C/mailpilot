@@ -11,7 +11,7 @@ import {
   SESSION_COOKIE,
 } from "@/lib/constants";
 import { getGmailClientForAccount } from "@/lib/google";
-import { normalizeOllamaBaseUrl, probeOllamaTags } from "@/lib/llm";
+import { normalizeOllamaBaseUrl, ollamaBaseUrlFromEnv, probeOllamaTags } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
 import { processInboxDelta } from "@/lib/sync";
 import { Prisma } from "@prisma/client";
@@ -158,7 +158,7 @@ export async function pingOllama(
   });
 
   const raw =
-    url?.trim() || settings?.localOllamaUrl || "http://127.0.0.1:11434";
+    url?.trim() || settings?.localOllamaUrl || ollamaBaseUrlFromEnv();
   const base = normalizeOllamaBaseUrl(raw);
 
   try {
