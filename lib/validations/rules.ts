@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const DISMISSED_RETENTION_OPTIONS = [10, 15, 30, 45, 60] as const;
+export const DISMISSED_RETENTION_OPTIONS = [7, 14, 30] as const;
 
 export const resumePageBudgetSchema = z.union([
   z.literal("auto"),
@@ -43,15 +43,10 @@ export const accountRulesSchema = z.object({
   matchScoreThreshold: z.number().int().min(0).max(100).optional(),
   maxAutoSendsPerDay: z.number().min(1).max(20).default(5),
   /** Days before DISMISSED History items are permanently purged. */
-  dismissedRetentionDays: z
-    .union([
-      z.literal(10),
-      z.literal(15),
-      z.literal(30),
-      z.literal(45),
-      z.literal(60),
-    ])
-    .default(30),
+  dismissedRetentionDays: z.preprocess((value) => {
+    if (value === 7 || value === 14 || value === 30) return value;
+    return 30;
+  }, z.union([z.literal(7), z.literal(14), z.literal(30)])),
   /** Role titles / patterns banned via "Less like this". */
   excludedTitles: z.array(z.string()).default([]),
   /**

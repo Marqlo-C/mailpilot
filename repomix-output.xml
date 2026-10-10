@@ -9472,21 +9472,81 @@ function fitShortTitle(value: string): string {
   return `${value.slice(0, 32)}...`;
 }
 
+const SECTION_PRIORITY = [
+  "experience",
+  "project",
+  "skills",
+  "education",
+  "certification",
+  "award",
+] as const;
+
+const SECTION_TITLE: Record<string, string> = {
+  experience: "Experience",
+  project: "Projects",
+  skills: "Skills",
+  education: "Education",
+  certification: "Certifications",
+  award: "Awards",
+};
+
+function sectionRank(section: string): number {
+  const index = SECTION_PRIORITY.indexOf(
+    section.trim().toLowerCase() as (typeof SECTION_PRIORITY)[number]
+  );
+  return index === -1 ? SECTION_PRIORITY.length : index;
+}
+
+function biggestChangeLabel(changes: ProfileDiffChange[]): string {
+  const totals = new Map<string, { label: string; count: number; rank: number }>();
+  for (const change of changes) {
+    const key = change.section.trim().toLowerCase();
+    const count = changeCount([change]);
+    const current = totals.get(key);
+    if (current) {
+      current.count += count;
+      continue;
+    }
+    totals.set(key, {
+      label: SECTION_TITLE[key] ?? sectionLabel(change.section),
+      count,
+      rank: sectionRank(key),
+    });
+  }
+  const ranked = [...totals.values()].sort((left, right) => {
+    if (right.count !== left.count) return right.count - left.count;
+    return left.rank - right.rank;
+  });
+  return ranked[0]?.label ?? "Items";
+}
+
 function titleForBucket(verb: string, changes: ProfileDiffChange[]): string {
   const labels = uniqueSections(changes);
   const count = changeCount(changes);
   if (labels.length === 1 && count > 1) return fitShortTitle(`${verb} ${count} Items`);
   if (labels.length === 1) return fitShortTitle(`${verb} ${labels[0]}`);
-  if (labels.length === 2) {
-    const both = `${verb} ${labels[0]} & ${labels[1]}`;
-    if (both.length <= 35) return both;
-  }
-  return fitShortTitle(`${verb} ${Math.max(labels.length, 1)} Sections`);
+  return fitShortTitle(
+    `${verb} ${Math.max(labels.length, 1)} Sections: ${biggestChangeLabel(changes)}`
+  );
+}
+
+function isFullProfileOverride(diff: ProfileDiffSummary): boolean {
+  const sections = uniqueSections([
+    ...diff.added,
+    ...diff.removed,
+    ...diff.modified,
+  ]);
+  return (
+    sections.length >= 2 &&
+    changeCount(diff.added) >= 3 &&
+    changeCount(diff.removed) >= 3
+  );
 }
 
 /** Dropdown title. Uses section names and counts already on the diff. */
 export function shortRevisionTitle(diff: ProfileDiffSummary): string {
   if (isEmptyProfileDiff(diff)) return "Profile Baseline";
+  if (isFullProfileOverride(diff)) return "Full Profile Override";
   const buckets = [
     { verb: "Added", changes: diff.added },
     { verb: "Updated", changes: diff.modified },
@@ -10651,12 +10711,14 @@ import {
   type MasterProfileUpdateInput,
 } from "@/lib/validations/profile";
 
-const MAX_HISTORY_STATES = 5;
+const MAX_HISTORY_STATES = 4;
 
 export type ProfileRevisionListItem = {
   id: string;
   summary: string;
   createdAt: string;
+  /** Newest row. Its snapshot is the active profile. */
+  isCurrent: boolean;
 };
 
 /** Newest-first revision titles. A plain read so the menu can load during a long AI action. */
@@ -10676,10 +10738,11 @@ export async function listProfileRevisions(
     select: { id: true, summary: true, createdAt: true },
   });
 
-  return history.map((row) => ({
+  return history.map((row, index) => ({
     id: row.id,
     summary: row.summary,
     createdAt: row.createdAt.toISOString(),
+    isCurrent: index === 0,
   }));
 }
 
@@ -10814,8 +10877,24 @@ export async function loadProfileSnapshot(
   return serializeUserProfileToInput(profile);
 }
 
+/** Drops snapshots past the four-record cap. Newest rows are kept. */
+export async function pruneProfileHistory(profileId: string): Promise<void> {
+  const excess = await prisma.profileHistory.findMany({
+    where: { profileId },
+    orderBy: { createdAt: "desc" },
+    skip: MAX_HISTORY_STATES,
+    select: { id: true },
+  });
+
+  if (excess.length > 0) {
+    await prisma.profileHistory.deleteMany({
+      where: { id: { in: excess.map((r) => r.id) } },
+    });
+  }
+}
+
 /**
- * Saves a pre-change snapshot of the profile, maintaining a strict 5-item cap.
+ * Saves a profile copy and keeps the newest four. The newest row is the current profile.
  */
 export async function recordProfileSnapshot(
   profileId: string,
@@ -10830,18 +10909,7 @@ export async function recordProfileSnapshot(
     },
   });
 
-  const excess = await prisma.profileHistory.findMany({
-    where: { profileId },
-    orderBy: { createdAt: "desc" },
-    skip: MAX_HISTORY_STATES,
-    select: { id: true },
-  });
-
-  if (excess.length > 0) {
-    await prisma.profileHistory.deleteMany({
-      where: { id: { in: excess.map((r) => r.id) } },
-    });
-  }
+  await pruneProfileHistory(profileId);
 }
 </file>
 
@@ -13872,7 +13940,7 @@ export async function forceResetSyncStatus(): Promise<ActionResult> {
  *    the run is still covered by the next incremental `after:` window (+ overlap)
  *
  * Heartbeat / stale-lock constants are owned by sync-status polling — untouched here.
- * Settings → Sync (`triggerManualSync`) remains available for isolated delta tests.
+ * `triggerManualSync` remains available for isolated delta tests.
  */
 export async function syncInboxOpportunities(
   input: {
@@ -14114,7 +14182,7 @@ export async function flushPendingAiMessages(
 <file path="lib/validations/rules.ts">
 import { z } from "zod";
 
-export const DISMISSED_RETENTION_OPTIONS = [10, 15, 30, 45, 60] as const;
+export const DISMISSED_RETENTION_OPTIONS = [7, 14, 30] as const;
 
 export const resumePageBudgetSchema = z.union([
   z.literal("auto"),
@@ -14157,15 +14225,10 @@ export const accountRulesSchema = z.object({
   matchScoreThreshold: z.number().int().min(0).max(100).optional(),
   maxAutoSendsPerDay: z.number().min(1).max(20).default(5),
   /** Days before DISMISSED History items are permanently purged. */
-  dismissedRetentionDays: z
-    .union([
-      z.literal(10),
-      z.literal(15),
-      z.literal(30),
-      z.literal(45),
-      z.literal(60),
-    ])
-    .default(30),
+  dismissedRetentionDays: z.preprocess((value) => {
+    if (value === 7 || value === 14 || value === 30) return value;
+    return 30;
+  }, z.union([z.literal(7), z.literal(14), z.literal(30)])),
   /** Role titles / patterns banned via "Less like this". */
   excludedTitles: z.array(z.string()).default([]),
   /**
@@ -17011,11 +17074,9 @@ const ruleKeySchema = z.enum([
 ]);
 
 const retentionDaysSchema = z.union([
-  z.literal(10),
-  z.literal(15),
+  z.literal(7),
+  z.literal(14),
   z.literal(30),
-  z.literal(45),
-  z.literal(60),
 ]);
 
 const llmProviderSchema = z.enum(["OPENROUTER", "LOCAL_OLLAMA"]);
@@ -22006,6 +22067,7 @@ import { normalizeProfileUrl } from "@/lib/utils/url";
 import {
   listProfileRevisions,
   loadProfileSnapshot,
+  pruneProfileHistory,
   recordProfileSnapshot,
   serializeUserProfileToInput,
 } from "@/lib/profile-history";
@@ -22038,6 +22100,7 @@ export type ProfileHistoryItem = {
   id: string;
   summary: string;
   createdAt: string;
+  isCurrent: boolean;
 };
 
 export type UpdateMasterProfileOptions = {
@@ -22393,6 +22456,7 @@ export async function updateMasterProfile(
   const persona = synthesizeCandidatePersona(payload);
 
   try {
+    let summaryForSnapshot: string | null = null;
     if (!options?.skipHistory) {
       const keepGiven =
         options?.summary?.startsWith("Restored:") ||
@@ -22414,7 +22478,7 @@ export async function updateMasterProfile(
           describeProfileRevision(previous, payload)
         );
       }
-      await captureProfileRevision(accountId, summary);
+      summaryForSnapshot = summary;
     }
 
     const profileId = await prisma.$transaction(async (tx) => {
@@ -22510,6 +22574,10 @@ export async function updateMasterProfile(
       return profile.id;
     });
 
+    if (summaryForSnapshot) {
+      await captureProfileRevision(accountId, summaryForSnapshot);
+    }
+
     revalidatePath("/settings");
     revalidatePath("/jobs");
     return { ok: true, data: { profileId } };
@@ -22538,6 +22606,23 @@ export async function resetMasterProfile(
   const blank = getEmptyMasterProfileData();
 
   try {
+    const existingTree = await prisma.userProfile.findUnique({
+      where: { accountId },
+      include: {
+        experiences: { orderBy: { displayOrder: "asc" } },
+        projects: true,
+        education: true,
+      },
+    });
+    const previous = existingTree
+      ? serializeUserProfileToInput(existingTree)
+      : null;
+    const currentSummary = serializeRevisionSummary(
+      describeProfileRevision(previous, {
+        ...blank,
+        email: account.email,
+      })
+    );
     await captureProfileRevision(accountId, "Before Profile Reset");
     await prisma.$transaction(async (tx) => {
       await tx.userProfile.update({
@@ -22574,6 +22659,8 @@ export async function resetMasterProfile(
         where: { profileId: account.profile!.id },
       });
     });
+
+    await captureProfileRevision(accountId, currentSummary);
 
     revalidatePath("/settings");
     revalidatePath("/jobs");
@@ -22723,7 +22810,7 @@ export async function getMasterProfile(
 }
 
 /**
- * Lists the last 5 profile revision snapshots (newest first).
+ * Lists the last 4 profile copies (newest first). The first row is the current profile.
  */
 export async function getProfileHistory(
   accountId: string
@@ -22731,8 +22818,23 @@ export async function getProfileHistory(
   return { ok: true, data: await listProfileRevisions(accountId) };
 }
 
+function canonicalSnapshot(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalSnapshot(item)).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalSnapshot(record[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
 /**
- * Restores a prior snapshot. Current state is archived first via updateMasterProfile.
+ * Writes a stored copy onto the live profile and moves that copy to the front.
+ * The outgoing live profile stays in history as the next rollback row.
  */
 export async function restoreProfileHistory(
   accountId: string,
@@ -22751,13 +22853,48 @@ export async function restoreProfileHistory(
     return { ok: false, error: "Revision not found" };
   }
 
-  const restoredData = target.snapshot as MasterProfileUpdateInput;
-
-  const restoredTitle = parseRevisionSummary(target.summary).title;
-  const result = await updateMasterProfile(accountId, restoredData, {
-    summary: `Restored: ${restoredTitle}`,
+  const newest = await prisma.profileHistory.findFirst({
+    where: { profileId: account.profile.id },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, snapshot: true },
   });
-  if (!result.ok) return result;
+  if (newest?.id === historyId) {
+    return { ok: true };
+  }
+
+  const live = await loadProfileSnapshot(account.profile.id);
+  if (
+    live &&
+    (!newest || canonicalSnapshot(newest.snapshot) !== canonicalSnapshot(live))
+  ) {
+    const summary = newest
+      ? serializeRevisionSummary(
+          describeProfileRevision(newest.snapshot as MasterProfileUpdateInput, live)
+        )
+      : "Profile update";
+    await prisma.profileHistory.create({
+      data: {
+        profileId: account.profile.id,
+        summary,
+        snapshot: live as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  const restoredData = target.snapshot as MasterProfileUpdateInput;
+  const result = await updateMasterProfile(accountId, restoredData, {
+    skipHistory: true,
+  });
+  if (!result.ok) {
+    await pruneProfileHistory(account.profile.id);
+    return result;
+  }
+
+  await prisma.profileHistory.update({
+    where: { id: historyId },
+    data: { createdAt: new Date() },
+  });
+  await pruneProfileHistory(account.profile.id);
 
   revalidatePath("/settings");
   revalidatePath("/jobs");

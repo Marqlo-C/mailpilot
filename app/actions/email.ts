@@ -63,7 +63,7 @@ export async function forceResetSyncStatus(): Promise<ActionResult> {
  *    the run is still covered by the next incremental `after:` window (+ overlap)
  *
  * Heartbeat / stale-lock constants are owned by sync-status polling — untouched here.
- * Settings → Sync (`triggerManualSync`) remains available for isolated delta tests.
+ * `triggerManualSync` remains available for isolated delta tests.
  */
 export async function syncInboxOpportunities(
   input: {

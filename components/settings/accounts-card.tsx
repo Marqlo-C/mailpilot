@@ -2,12 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, LogOut, RefreshCw, Unlink } from "lucide-react";
+import { LogOut, Unlink } from "lucide-react";
 
-import {
-  triggerManualSync,
-  unlinkAccountCredentials,
-} from "@/app/actions/accounts";
+import { unlinkAccountCredentials } from "@/app/actions/accounts";
 import { logoutSession } from "@/app/actions/auth";
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +32,6 @@ type AccountsCardProps = {
 export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
   const router = useRouter();
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   return (
@@ -43,8 +39,9 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
       <CardHeader>
         <CardTitle>Connected Accounts</CardTitle>
         <CardDescription>
-          Link Gmail inboxes, sync, unlink credentials (keeps history), or log
-          out of the MailPilot session.
+          Link Gmail inboxes, unlink credentials (keeps history), or log out of
+          the MailPilot session. Inbox sync runs from webhooks and scheduled
+          jobs.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -84,33 +81,6 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
                     type="button"
                     size="sm"
                     variant="outline"
-                    disabled={pending || !account.encryptedAccess}
-                    onClick={() => {
-                      setPendingId(account.id);
-                      setMessage(null);
-                      startTransition(async () => {
-                        const result = await triggerManualSync(account.id);
-                        setMessage(
-                          result.ok
-                            ? `Synced ${account.email}`
-                            : result.error
-                        );
-                        setPendingId(null);
-                        router.refresh();
-                      });
-                    }}
-                  >
-                    {pending && pendingId === account.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                    Sync
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
                     disabled={pending}
                     onClick={() => {
                       if (
@@ -129,8 +99,14 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
                     }}
                   >
                     <Unlink className="h-4 w-4" />
-                    Unlink Gmail Credentials
+                    Disconnect
                   </Button>
+                  <a
+                    href="/api/auth/google?intent=link&forceConsent=true"
+                    className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+                  >
+                    Reconnect
+                  </a>
                 </div>
               </li>
             ))}
@@ -176,9 +152,6 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
           only ends this browser session.
         </p>
 
-        {message && (
-          <p className="text-sm text-muted-foreground">{message}</p>
-        )}
       </CardContent>
     </Card>
   );

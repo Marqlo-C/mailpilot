@@ -24,6 +24,7 @@ import { normalizeProfileUrl } from "@/lib/utils/url";
 import {
   listProfileRevisions,
   loadProfileSnapshot,
+  pruneProfileHistory,
   recordProfileSnapshot,
   serializeUserProfileToInput,
 } from "@/lib/profile-history";
@@ -56,6 +57,7 @@ export type ProfileHistoryItem = {
   id: string;
   summary: string;
   createdAt: string;
+  isCurrent: boolean;
 };
 
 export type UpdateMasterProfileOptions = {
@@ -411,6 +413,7 @@ export async function updateMasterProfile(
   const persona = synthesizeCandidatePersona(payload);
 
   try {
+    let summaryForSnapshot: string | null = null;
     if (!options?.skipHistory) {
       const keepGiven =
         options?.summary?.startsWith("Restored:") ||
@@ -432,7 +435,7 @@ export async function updateMasterProfile(
           describeProfileRevision(previous, payload)
         );
       }
-      await captureProfileRevision(accountId, summary);
+      summaryForSnapshot = summary;
     }
 
     const profileId = await prisma.$transaction(async (tx) => {
@@ -528,6 +531,10 @@ export async function updateMasterProfile(
       return profile.id;
     });
 
+    if (summaryForSnapshot) {
+      await captureProfileRevision(accountId, summaryForSnapshot);
+    }
+
     revalidatePath("/settings");
     revalidatePath("/jobs");
     return { ok: true, data: { profileId } };
@@ -556,6 +563,23 @@ export async function resetMasterProfile(
   const blank = getEmptyMasterProfileData();
 
   try {
+    const existingTree = await prisma.userProfile.findUnique({
+      where: { accountId },
+      include: {
+        experiences: { orderBy: { displayOrder: "asc" } },
+        projects: true,
+        education: true,
+      },
+    });
+    const previous = existingTree
+      ? serializeUserProfileToInput(existingTree)
+      : null;
+    const currentSummary = serializeRevisionSummary(
+      describeProfileRevision(previous, {
+        ...blank,
+        email: account.email,
+      })
+    );
     await captureProfileRevision(accountId, "Before Profile Reset");
     await prisma.$transaction(async (tx) => {
       await tx.userProfile.update({
@@ -592,6 +616,8 @@ export async function resetMasterProfile(
         where: { profileId: account.profile!.id },
       });
     });
+
+    await captureProfileRevision(accountId, currentSummary);
 
     revalidatePath("/settings");
     revalidatePath("/jobs");
@@ -741,7 +767,7 @@ export async function getMasterProfile(
 }
 
 /**
- * Lists the last 5 profile revision snapshots (newest first).
+ * Lists the last 4 profile copies (newest first). The first row is the current profile.
  */
 export async function getProfileHistory(
   accountId: string
@@ -749,8 +775,23 @@ export async function getProfileHistory(
   return { ok: true, data: await listProfileRevisions(accountId) };
 }
 
+function canonicalSnapshot(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalSnapshot(item)).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalSnapshot(record[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
 /**
- * Restores a prior snapshot. Current state is archived first via updateMasterProfile.
+ * Writes a stored copy onto the live profile and moves that copy to the front.
+ * The outgoing live profile stays in history as the next rollback row.
  */
 export async function restoreProfileHistory(
   accountId: string,
@@ -769,13 +810,48 @@ export async function restoreProfileHistory(
     return { ok: false, error: "Revision not found" };
   }
 
-  const restoredData = target.snapshot as MasterProfileUpdateInput;
-
-  const restoredTitle = parseRevisionSummary(target.summary).title;
-  const result = await updateMasterProfile(accountId, restoredData, {
-    summary: `Restored: ${restoredTitle}`,
+  const newest = await prisma.profileHistory.findFirst({
+    where: { profileId: account.profile.id },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, snapshot: true },
   });
-  if (!result.ok) return result;
+  if (newest?.id === historyId) {
+    return { ok: true };
+  }
+
+  const live = await loadProfileSnapshot(account.profile.id);
+  if (
+    live &&
+    (!newest || canonicalSnapshot(newest.snapshot) !== canonicalSnapshot(live))
+  ) {
+    const summary = newest
+      ? serializeRevisionSummary(
+          describeProfileRevision(newest.snapshot as MasterProfileUpdateInput, live)
+        )
+      : "Profile update";
+    await prisma.profileHistory.create({
+      data: {
+        profileId: account.profile.id,
+        summary,
+        snapshot: live as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  const restoredData = target.snapshot as MasterProfileUpdateInput;
+  const result = await updateMasterProfile(accountId, restoredData, {
+    skipHistory: true,
+  });
+  if (!result.ok) {
+    await pruneProfileHistory(account.profile.id);
+    return result;
+  }
+
+  await prisma.profileHistory.update({
+    where: { id: historyId },
+    data: { createdAt: new Date() },
+  });
+  await pruneProfileHistory(account.profile.id);
 
   revalidatePath("/settings");
   revalidatePath("/jobs");

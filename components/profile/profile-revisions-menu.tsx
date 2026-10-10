@@ -29,7 +29,7 @@ type ProfileRevisionsMenuProps = {
 };
 
 /**
- * Undo menu for the last 5 master-profile snapshots.
+ * Current profile plus up to three earlier copies.
  */
 export function ProfileRevisionsMenu({ accountId }: ProfileRevisionsMenuProps) {
   const router = useRouter();
@@ -119,7 +119,7 @@ export function ProfileRevisionsMenu({ accountId }: ProfileRevisionsMenuProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-[32rem] rounded-lg border-border/50 bg-card p-2 shadow-md"
+        className="w-[32rem] overflow-hidden rounded-lg border border-border/50 bg-card p-2 shadow-md"
       >
         <DropdownMenuLabel>Restore a previous version</DropdownMenuLabel>
         <DropdownMenuSeparator />
