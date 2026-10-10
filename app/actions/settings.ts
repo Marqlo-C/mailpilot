@@ -254,6 +254,34 @@ export async function updateOllamaUrl(
 }
 
 /**
+ * Saves the Ollama model name only. Does not change the stored tunnel URL.
+ */
+export async function updateOllamaModel(
+  accountId: string,
+  ollamaModel: string
+): Promise<ActionResult> {
+  const modelParsed = z.string().trim().min(1).max(120).safeParse(ollamaModel);
+  if (!modelParsed.success) {
+    return { ok: false, error: "Invalid Ollama model" };
+  }
+
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId },
+  });
+  if (!settings) {
+    return { ok: false, error: "Account settings not found" };
+  }
+
+  await prisma.accountSettings.update({
+    where: { accountId },
+    data: { ollamaModel: modelParsed.data },
+  });
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+/**
  * Updates dismissed History auto-delete retention (stored in AccountSettings.rules).
  */
 export async function updateDismissedRetention(

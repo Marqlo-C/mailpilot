@@ -175,6 +175,13 @@ export function normalizeOllamaBaseUrl(raw: string): string {
   return base || "http://127.0.0.1:11434";
 }
 
+/** Dev and fallback host. Set `OLLAMA_BASE_URL` in `.env` to change it. */
+export function ollamaBaseUrlFromEnv(): string {
+  return normalizeOllamaBaseUrl(
+    process.env.OLLAMA_BASE_URL?.trim() || "http://127.0.0.1:11434"
+  );
+}
+
 /**
  * Live reachability probe: GET /api/tags must return 200 + parseable models list.
  * Used before any "[Ollama:Active] health_ok" / bridgeConnected=true claim.
@@ -998,10 +1005,8 @@ function sleep(ms: number): Promise<void> {
 
 function resolveOllamaBaseUrl(configured?: string | null): string {
   const isDev = process.env.NODE_ENV === "development";
-  if (isDev) return "http://127.0.0.1:11434";
-  return normalizeOllamaBaseUrl(
-    configured?.trim() || "http://127.0.0.1:11434"
-  );
+  if (isDev) return ollamaBaseUrlFromEnv();
+  return normalizeOllamaBaseUrl(configured?.trim() || ollamaBaseUrlFromEnv());
 }
 
 /** Adaptive idle / hard-cap timeouts from prompt payload size. */

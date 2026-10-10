@@ -29,6 +29,7 @@ type SettingsViewProps = {
   llmProvider: string;
   localOllamaUrl: string;
   ollamaModel: string;
+  isDev?: boolean;
   connectedBanner?: string | null;
   errorBanner?: string | null;
 };
@@ -48,6 +49,7 @@ export function SettingsView({
   llmProvider,
   localOllamaUrl,
   ollamaModel,
+  isDev = false,
   connectedBanner,
   errorBanner,
 }: SettingsViewProps) {
@@ -163,6 +165,7 @@ export function SettingsView({
             llmProvider={llmProvider}
             localOllamaUrl={localOllamaUrl}
             ollamaModel={ollamaModel}
+            isDev={isDev}
             bridgeSecret={rules.bridgeSecret ?? ""}
             availableModels={rules.availableModels ?? []}
             bridgeConnected={rules.bridgeConnected ?? false}

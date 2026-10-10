@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getAuthenticatedAccountId } from "@/lib/auth";
 import {
   normalizeOllamaBaseUrl,
+  ollamaBaseUrlFromEnv,
   OllamaUnreachableError,
   probeOllamaTagsWithRetry,
 } from "@/lib/llm";
@@ -216,7 +217,7 @@ export async function POST(request: Request) {
     const targetUrl =
       payloadTunnel ||
       storedTunnel ||
-      (isDev ? payloadLocal || storedLocal || "http://127.0.0.1:11434" : undefined);
+      (isDev ? payloadLocal || storedLocal || ollamaBaseUrlFromEnv() : undefined);
 
     if (!targetUrl) {
       await persistBridgeStatus(accountId, { connected: false, models: [] });
