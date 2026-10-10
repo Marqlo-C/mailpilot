@@ -23,6 +23,7 @@ node_modules
 .DS_Store
 *.pem
 repomix-output.txt
+AGENTS.md
 .cursorrules
 /.cursor
 SPEC.md
