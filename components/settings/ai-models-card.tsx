@@ -15,7 +15,6 @@ import { toast } from "sonner";
 import {
   updateBridgeSecret,
   updateLlmProvider,
-  updateOllamaModel,
   updateOllamaUrl,
   updateRule,
 } from "@/app/actions/settings";
@@ -76,6 +75,8 @@ function deriveConnectionStatus(
 function generateBridgeSecret(): string {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 16);
 }
+
+export const DEV_OLLAMA_MODEL_STORAGE_KEY = "mailpilot_dev_ollama_model";
 
 function TerminalBlock({
   title,
@@ -152,6 +153,7 @@ export function AiModelsCard({
   const [url, setUrl] = useState(localOllamaUrl);
   const [selectedModel, setSelectedModel] = useState(ollamaModel);
   const [devModels, setDevModels] = useState<string[]>([]);
+  const [devSelectedModel, setDevSelectedModel] = useState("");
   const [devModelUrl, setDevModelUrl] = useState("");
   const [devModelMessage, setDevModelMessage] = useState<string | null>(null);
   const [checkingDevModels, setCheckingDevModels] = useState(false);
@@ -206,6 +208,16 @@ export function AiModelsCard({
 
   useEffect(() => {
     setMounted(true);
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(DEV_OLLAMA_MODEL_STORAGE_KEY);
+        if (stored) {
+          setDevSelectedModel(stored);
+        }
+      } catch {
+        // ignore localStorage error
+      }
+    }
   }, []);
 
   // Stable production origin on SSR + first client paint (hydration-safe)
@@ -923,6 +935,27 @@ export function AiModelsCard({
                             `${names.length} model${names.length === 1 ? "" : "s"} on the local host`
                           );
                           toast.success("Local models loaded");
+
+                          setDevSelectedModel((prev) => {
+                            if (prev && names.includes(prev)) return prev;
+                            let stored: string | null = null;
+                            try {
+                              stored = localStorage.getItem(
+                                DEV_OLLAMA_MODEL_STORAGE_KEY
+                              );
+                            } catch {}
+                            if (stored && names.includes(stored)) return stored;
+                            const fallback = names[0] ?? "";
+                            try {
+                              if (fallback) {
+                                localStorage.setItem(
+                                  DEV_OLLAMA_MODEL_STORAGE_KEY,
+                                  fallback
+                                );
+                              }
+                            } catch {}
+                            return fallback;
+                          });
                         } catch {
                           setDevModels([]);
                           setDevModelMessage("Could not reach the local model check.");
@@ -947,32 +980,43 @@ export function AiModelsCard({
                   </Button>
                 </div>
                 {devModels.length > 0 ? (
-                  <select
-                    id="dev-ollama-model"
-                    className="flex h-10 w-full rounded-lg border border-border/80 bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    value={devModels.includes(selectedModel) ? selectedModel : devModels[0]}
-                    disabled={disabled}
-                    onChange={(event) => {
-                      const next = event.target.value;
-                      setSelectedModel(next);
-                      if (!accountId) return;
-                      startTransition(async () => {
-                        const result = await updateOllamaModel(accountId, next);
-                        if (!result.ok) {
-                          toast.error(result.error);
-                          return;
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="dev-ollama-model"
+                      className="text-xs font-medium text-muted-foreground"
+                    >
+                      Active dev model (client-only / localStorage)
+                    </Label>
+                    <select
+                      id="dev-ollama-model"
+                      className="flex h-10 w-full rounded-lg border border-border/80 bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      value={
+                        devModels.includes(devSelectedModel)
+                          ? devSelectedModel
+                          : devModels[0]
+                      }
+                      disabled={disabled}
+                      onChange={(event) => {
+                        const next = event.target.value;
+                        setDevSelectedModel(next);
+                        try {
+                          localStorage.setItem(
+                            DEV_OLLAMA_MODEL_STORAGE_KEY,
+                            next
+                          );
+                        } catch {
+                          // ignore localStorage error
                         }
-                        toast.success("Local model saved");
-                        router.refresh();
-                      });
-                    }}
-                  >
-                    {devModels.map((name) => (
-                      <option key={name} value={name}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
+                        toast.success(`Dev model set to ${next} (local only)`);
+                      }}
+                    >
+                      {devModels.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 ) : null}
               </div>
             ) : null}

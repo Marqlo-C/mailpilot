@@ -148,6 +148,8 @@ export type ClassifyOptions = {
   llmProvider: LlmProvider;
   localOllamaUrl?: string | null;
   ollamaModel?: string | null;
+  /** Dev-only client/runtime override; takes precedence over DB model in development */
+  devModelOverride?: string | null;
   subject: string;
   body: string;
   fromEmail?: string | null;
@@ -157,7 +159,39 @@ export type ClassifyOptions = {
   allowCloudFallback?: boolean;
 };
 
-const DEFAULT_OLLAMA_MODEL = "llama3.1:8b";
+export const DEFAULT_OLLAMA_MODEL = "llama3.1:8b";
+
+/**
+ * Resolves the Ollama model for inference.
+ * In development (NODE_ENV === "development"), local dev settings take precedence
+ * over database-persisted accountSettings.ollamaModel:
+ * 1. Explicit dev model override (e.g. client-passed from localStorage)
+ * 2. process.env.OLLAMA_MODEL
+ * 3. Database-stored model (configuredModel / accountSettings.ollamaModel)
+ * 4. DEFAULT_OLLAMA_MODEL
+ *
+ * In production, the database-stored model takes precedence:
+ * 1. Database-stored model (configuredModel)
+ * 2. process.env.OLLAMA_MODEL
+ * 3. DEFAULT_OLLAMA_MODEL
+ */
+export function resolveOllamaModel(
+  configuredModel?: string | null,
+  devModelOverride?: string | null
+): string {
+  const isDev = process.env.NODE_ENV === "development";
+  if (isDev) {
+    const devOverride = devModelOverride?.trim();
+    if (devOverride) return devOverride;
+    const envModel = process.env.OLLAMA_MODEL?.trim();
+    if (envModel) return envModel;
+  }
+  return (
+    configuredModel?.trim() ||
+    process.env.OLLAMA_MODEL?.trim() ||
+    DEFAULT_OLLAMA_MODEL
+  );
+}
 
 /**
  * Strips trailing slashes and a trailing `/v1` so `/api/tags` and `/api/chat`
@@ -916,6 +950,7 @@ export async function classifyJobEmail(
       llmProvider: options.llmProvider,
       localOllamaUrl: options.localOllamaUrl,
       ollamaModel: options.ollamaModel,
+      devModelOverride: options.devModelOverride,
       allowCloudFallback: options.allowCloudFallback,
     });
   } catch (error) {
@@ -962,6 +997,8 @@ export type CallLLMOptions = {
   llmProvider?: LlmProvider;
   localOllamaUrl?: string | null;
   ollamaModel?: string | null;
+  /** Dev-only client/runtime override; takes precedence over DB model in development */
+  devModelOverride?: string | null;
   /**
    * When true (or env OLLAMA_ALLOW_OPENROUTER_FALLBACK=true), LOCAL_OLLAMA may
    * fall back to OpenRouter after local failure. Default: no silent fallback.
@@ -1070,7 +1107,8 @@ export async function callLLMWithFallback(
         options.systemPrompt,
         options.userPrompt,
         options.ollamaModel,
-        options.ollamaOptions
+        options.ollamaOptions,
+        options.devModelOverride
       );
       if (result) {
         console.info("[Ollama:Done]", {
@@ -1133,10 +1171,10 @@ async function callOllamaJson(
   systemPrompt: string,
   userPrompt: string,
   model?: string | null,
-  ollamaOptions?: CallLLMOptions["ollamaOptions"]
+  ollamaOptions?: CallLLMOptions["ollamaOptions"],
+  devModelOverride?: string | null
 ): Promise<Record<string, unknown> | null> {
-  const resolvedModel =
-    model?.trim() || process.env.OLLAMA_MODEL?.trim() || DEFAULT_OLLAMA_MODEL;
+  const resolvedModel = resolveOllamaModel(model, devModelOverride);
   const payloadChars = systemPrompt.length + userPrompt.length;
   const timeouts = computeOllamaTimeouts(payloadChars);
 
