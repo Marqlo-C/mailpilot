@@ -489,6 +489,8 @@ async function processMessage(
     fromEmail: sender?.email ?? null,
     candidateProfile,
     allowCloudFallback: accountRules.allowCloudFallback,
+    accountId: account.id,
+    accountRules,
   });
 
   if (

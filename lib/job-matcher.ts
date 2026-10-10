@@ -3,6 +3,7 @@ import { z } from "zod";
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
 import { flattenSkillItems } from "@/lib/skill-groups";
 import type { MasterProfileInput } from "@/lib/validations/profile";
+import type { AccountRules } from "@/lib/validations/rules";
 
 export type MasterProfile = MasterProfileInput;
 
@@ -48,6 +49,8 @@ export async function evaluateJobFit(
     localOllamaUrl?: string | null;
     ollamaModel?: string | null;
     allowCloudFallback?: boolean;
+    accountId?: string | null;
+    accountRules?: Partial<AccountRules> | null;
   } = {}
 ): Promise<JobFitResult> {
   const profileSummary = {
@@ -72,6 +75,8 @@ export async function evaluateJobFit(
     localOllamaUrl: options.localOllamaUrl,
     ollamaModel: options.ollamaModel,
     allowCloudFallback: options.allowCloudFallback,
+    accountId: options.accountId,
+    accountRules: options.accountRules,
   });
 
   if (!result) {

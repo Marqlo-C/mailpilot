@@ -7,7 +7,7 @@ MailPilot is a Next.js dashboard that connects to Gmail, detects newsletter subs
 - **Multi-account Gmail linking** with Google OAuth
 - **Subscription management** with RFC 8058 one-click unsubscribe, mailto fallback, and cleanup options
 - **Job radar** that classifies inbox activity into leads, interviews, assessments, offers, and rejections
-- **AI-assisted processing** with provider routing (OpenRouter and optional local Ollama)
+- **AI-assisted processing** with multi-provider routing (OpenRouter, OpenAI, Groq, DeepSeek, Anthropic, Gemini, or local Ollama)
 - **Persistent profile + automation settings** for account-level and profile-level behavior
 - **Background inbox sync** through Gmail watch notifications and webhook processing
 - **Object storage via Vercel Blob** for serving login background media
@@ -85,7 +85,7 @@ Active pipeline cards (`Leads`, `Action Required`, `Applied`) and user-archived 
 - **Framework:** Next.js 15 (App Router), React 19, TypeScript
 - **Database:** PostgreSQL + Prisma
 - **UI:** Tailwind CSS + Radix UI
-- **Integrations:** Gmail API, Google Pub/Sub, Vercel Blob, OpenRouter, optional Ollama
+- **Integrations:** Gmail API, Google Pub/Sub, Vercel Blob, Multi-Provider LLM Engine (BYOK: OpenRouter, OpenAI, Groq, DeepSeek, Anthropic, Gemini), optional Ollama
 
 ## Project Structure
 
@@ -102,7 +102,7 @@ Active pipeline cards (`Leads`, `Action Required`, `Applied`) and user-archived 
 - npm
 - PostgreSQL database
 - Google Cloud project with Gmail API and Pub/Sub configured
-- OpenRouter API key (or local Ollama for local inference)
+- Cloud LLM API key (OpenRouter, OpenAI, Groq, DeepSeek, Anthropic, or Gemini configured per-account in Settings → AI & Models, or local Ollama)
 
 ## Local Setup
 
@@ -155,7 +155,7 @@ Use `.env.example` as the source of truth. Key variables:
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` – Google OAuth config
 - `GMAIL_PUBSUB_TOPIC` – Gmail watch topic (`projects/{project}/topics/{topic}`)
 - `GMAIL_WEBHOOK_SECRET` – shared secret for `/api/webhooks/gmail`
-- `OPENROUTER_API_KEY` – cloud LLM fallback key
+- `OPENROUTER_API_KEY` – optional development fallback (production customer keys are managed securely per-account in Settings → AI & Models)
 - `BLOB_READ_WRITE_TOKEN` – Vercel Blob token used by server routes for private object access
 - `CRON_SECRET` – bearer token for protected cron endpoints
 - `GITHUB_TOKEN` – optional (higher API limits for sync flows)
@@ -268,4 +268,62 @@ To alter the tone or guardrails passed downstream to LLM generation:
    - **Layer 2 (Agency Dial):** Modifies task-level vs. autonomous founder voice.
    - **Layer 3 (Narrative Angle):** Modifies applied builder vs. hybrid vs. specialist angles.
    - **Layer 4 (Proof Anchor):** Modifies how the candidate substantiates claims (projects/certs vs. honors).
+
+## Modular Multi-Provider LLM Engine & Account-Scoped BYOK
+
+MailPilot provides a decoupled, multi-provider LLM domain (`lib/llm/`) with account-scoped customer API keys (BYOK). Reliance on global server-wide API keys is removed in favor of per-account AES-256-GCM encrypted credentials stored in `AccountSettings.rules`.
+
+### Multi-Provider Architecture & Flow
+
+```
+┌──────────────────────────────────────────────┐
+│  Inference Request (dispatcher.ts)           │
+└──────────────────────┬───────────────────────┘
+                       │
+        ┌──────────────┴──────────────┐
+        ▼                             ▼
+┌──────────────────┐        ┌──────────────────┐
+│  LOCAL_OLLAMA    │        │  Cloud Provider  │
+│  - 2s tag probe  │        │  (BYOK)          │
+│  - Adaptive time │        └─────────┬────────┘
+│  - Stream decode │                  │
+└───────┬──────────┘                  ▼
+        │ (failover if      ┌──────────────────┐
+        │  allowed)         │  Account Vault   │
+        └──────────────────►│  (vault.ts)      │
+                            │  - AES-256-GCM   │
+                            │  - Masked UI     │
+                            └─────────┬────────┘
+                                      │
+            ┌─────────────────────────┴────────────────────────┐
+            ▼                                                  ▼
+┌───────────────────────────────┐              ┌───────────────────────────────┐
+│  OpenAI-Compatible Client     │              │  Anthropic Native Client      │
+│  (/chat/completions)          │              │  (/messages)                  │
+│  - OpenRouter                 │              │  - Claude 3.5 Haiku / Sonnet  │
+│  - OpenAI                     │              │  - x-api-key headers          │
+│  - Groq                       │              └───────────────────────────────┘
+│  - DeepSeek                   │
+│  - Gemini (OpenAI-compat)     │
+└───────────────────────────────┘
+```
+
+### Module Layout & Roles
+
+| File | Role | Description |
+| :--- | :--- | :--- |
+| `lib/llm/provider.ssot.ts` | **Single Source of Truth** | Defines all supported providers (`OPENROUTER`, `OPENAI`, `GROQ`, `DEEPSEEK`, `ANTHROPIC`, `GEMINI`, `LOCAL_OLLAMA`), endpoints, default models, and Zod contracts. |
+| `lib/llm/vault.ts` | **Credential Vault** | Encrypts customer API keys with AES-256-GCM, generates safe UI display masks (`sk-...1234`), and decrypts credentials with zero plaintext leaks. |
+| `lib/llm/local-ollama.ts` | **Local Inference** | Encapsulates `/api/tags` health check pings, adaptive payload timeouts, and stream parsing. |
+| `lib/llm/client.ts` | **Multi-Cloud Client** | Standardizes outbound requests across OpenAI-compatible endpoints (`/chat/completions`) and Anthropic's native Messages API (`/messages`). |
+| `lib/llm/dispatcher.ts` | **Router & Dispatcher** | Core routing logic: tries local Ollama first when configured, fails over to BYOK cloud provider if permitted, and resolves account credentials. |
+| `lib/llm/classification.ts` | **Job Classifier** | Profile-aware email classification, job extraction, and heuristic application confirmation. |
+| `lib/llm/index.ts` | **Public Barrel** | Backwards-compatible facade re-exporting the entire LLM domain. |
+
+### BYOK Configuration & Security
+
+- Customer API keys are managed per-account via **Settings → AI & Models**.
+- Server actions `updateCustomLlmKey` and `clearCustomLlmKey` encrypt keys before persistence and only expose masked versions to the client.
+- Global `OPENROUTER_API_KEY` is not required for production; it is only checked as an optional fallback in local development or test runners.
+
 

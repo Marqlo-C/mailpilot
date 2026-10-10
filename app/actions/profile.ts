@@ -175,6 +175,8 @@ export async function extractResumeDraft(
       ollamaModel: account.settings?.ollamaModel,
       allowCloudFallback: rules.allowCloudFallback,
       accountEmail: account.email,
+      accountId: account.id,
+      accountRules: rules,
     });
 
     const links = enrichLinksFromRawText(text, draft.links);
@@ -240,6 +242,7 @@ export async function applyResumeUpload(
       });
 
       const username = normalizeGitHubUsername(targetGithubHandle);
+      const rules = parseAccountRules(account?.settings?.rules);
       const githubProjects = await syncGitHubProjects(username, {
         llmProvider:
           account?.settings?.llmProvider === "LOCAL_OLLAMA"
@@ -247,8 +250,9 @@ export async function applyResumeUpload(
             : "OPENROUTER",
         localOllamaUrl: account?.settings?.localOllamaUrl,
         ollamaModel: account?.settings?.ollamaModel,
-        allowCloudFallback: parseAccountRules(account?.settings?.rules)
-          .allowCloudFallback,
+        allowCloudFallback: rules.allowCloudFallback,
+        accountId: account?.id ?? accountId,
+        accountRules: rules,
       });
 
       const linkedGithub = `https://github.com/${username}`;
@@ -1054,6 +1058,7 @@ export async function importGitHubProjects(
       );
     }
 
+    const rules = parseAccountRules(account.settings?.rules);
     const projects = await syncGitHubProjects(username, {
       llmProvider:
         account.settings?.llmProvider === "LOCAL_OLLAMA"
@@ -1061,8 +1066,9 @@ export async function importGitHubProjects(
           : "OPENROUTER",
       localOllamaUrl: account.settings?.localOllamaUrl,
       ollamaModel: account.settings?.ollamaModel,
-      allowCloudFallback: parseAccountRules(account.settings?.rules)
-        .allowCloudFallback,
+      allowCloudFallback: rules.allowCloudFallback,
+      accountId: account.id,
+      accountRules: rules,
     });
     const linkedGithub = `https://github.com/${username}`;
 

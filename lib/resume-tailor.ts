@@ -14,6 +14,7 @@ import {
   type ProjectInput,
   type WorkExperienceInput,
 } from "@/lib/validations/profile";
+import type { AccountRules } from "@/lib/validations/rules";
 import { cleanDisplayUrl } from "@/lib/utils/format";
 
 export type StrategyRationale = {
@@ -61,6 +62,8 @@ export type DraftContextualEmailParams = {
     localOllamaUrl?: string | null;
     ollamaModel?: string | null;
     allowCloudFallback?: boolean;
+    accountId?: string | null;
+    accountRules?: Partial<AccountRules> | null;
   };
 };
 
@@ -565,6 +568,8 @@ CANDIDATE PERSONA (mandatory — adapt voice; do not override with fake seniorit
     localOllamaUrl: input.llmConfig.localOllamaUrl,
     ollamaModel: input.llmConfig.ollamaModel,
     allowCloudFallback: input.llmConfig.allowCloudFallback,
+    accountId: input.llmConfig.accountId,
+    accountRules: input.llmConfig.accountRules,
   });
 
   const parsed = result ? contextualDraftSchema.safeParse(result) : null;
@@ -621,6 +626,8 @@ export type TailorOptions = {
   dbClient?: PersonaDbClient | null;
   /** When false, omit professional summary and expand experience/project budget. */
   includeSummary?: boolean;
+  accountId?: string | null;
+  accountRules?: Partial<AccountRules> | null;
 };
 
 export async function tailorResumeForJob(
@@ -717,6 +724,8 @@ export async function tailorResumeForJob(
     localOllamaUrl: options.localOllamaUrl,
     ollamaModel: options.ollamaModel,
     allowCloudFallback: options.allowCloudFallback,
+    accountId: options.accountId,
+    accountRules: options.accountRules,
   });
 
   const parsed = result ? tailorSchema.safeParse(result) : null;
@@ -815,6 +824,8 @@ export async function tailorResumeForJob(
         localOllamaUrl: options.localOllamaUrl,
         ollamaModel: options.ollamaModel,
         allowCloudFallback: options.allowCloudFallback,
+        accountId: options.accountId,
+        accountRules: options.accountRules,
       });
       const reframed = reframeResult
         ? reframeSchema.safeParse(reframeResult)

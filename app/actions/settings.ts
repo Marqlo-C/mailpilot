@@ -12,8 +12,14 @@ import {
   parseAccountRules,
   type AccountRules,
 } from "@/lib/validations/rules";
+import {
+  type CloudLlmProvider,
+  cloudProviderSchema,
+  PROVIDER_ENDPOINTS,
+} from "@/lib/llm/provider.ssot";
+import { encryptAccountKey } from "@/lib/llm/vault";
 
-export type ActionResult<T = undefined> =
+type ActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
 
@@ -29,6 +35,8 @@ const ruleKeySchema = z.enum([
   "excludedTitles",
   "bridgeSecret",
   "allowCloudFallback",
+  "cloudProvider",
+  "cloudModel",
   "resumePreferences",
 ]);
 
@@ -395,3 +403,124 @@ export async function removeExcludedTitle(
   revalidatePath("/jobs");
   return { ok: true, data: { excludedTitles: updated } };
 }
+
+const updateCustomLlmKeyInputSchema = z.object({
+  provider: cloudProviderSchema,
+  model: z.string().nullish(),
+  apiKey: z.string().min(1, "API key cannot be empty"),
+});
+
+type UpdateCustomLlmKeyInput = z.infer<
+  typeof updateCustomLlmKeyInputSchema
+>;
+
+/**
+ * Encrypts and persists a customer-provided BYOK API key on AccountSettings.rules.
+ * Never stores or returns the plaintext API key.
+ */
+export async function updateCustomLlmKey(
+  accountId: string,
+  input: UpdateCustomLlmKeyInput
+): Promise<
+  ActionResult<{
+    provider: CloudLlmProvider;
+    model: string;
+    maskedApiKey: string;
+  }>
+> {
+  const parsed = updateCustomLlmKeyInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues.map((i) => i.message).join("; "),
+    };
+  }
+
+  const { provider, model, apiKey } = parsed.data;
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId },
+  });
+  if (!settings) {
+    return { ok: false, error: "Account settings not found" };
+  }
+
+  const { encryptedApiKey, maskedApiKey } = encryptAccountKey(apiKey);
+  const resolvedModel =
+    model?.trim() || PROVIDER_ENDPOINTS[provider].defaultModel;
+
+  const currentRules = parseAccountRules(settings.rules);
+  const updatedRules = accountRulesSchema.parse({
+    ...currentRules,
+    cloudProvider: provider,
+    cloudModel: resolvedModel,
+    encryptedApiKey,
+    maskedApiKey,
+  });
+
+  const { matchScoreThreshold: _deprecated, ...rulesToSave } = updatedRules;
+
+  await prisma.accountSettings.update({
+    where: { accountId },
+    data: { rules: rulesToSave as Prisma.InputJsonValue },
+  });
+
+  revalidatePath("/settings");
+  return {
+    ok: true,
+    data: {
+      provider,
+      model: resolvedModel,
+      maskedApiKey,
+    },
+  };
+}
+
+/**
+ * Saves or updates customer BYOK credentials (alias for updateCustomLlmKey).
+ */
+export async function saveCustomLlmKey(
+  accountId: string,
+  input: UpdateCustomLlmKeyInput
+): Promise<
+  ActionResult<{
+    provider: CloudLlmProvider;
+    model: string;
+    maskedApiKey: string;
+  }>
+> {
+  return updateCustomLlmKey(accountId, input);
+}
+
+/**
+ * Clears the customer-provided BYOK API key and associated custom model
+ * from AccountSettings.rules.
+ */
+export async function clearCustomLlmKey(
+  accountId: string
+): Promise<ActionResult<{ cleared: true }>> {
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId },
+  });
+  if (!settings) {
+    return { ok: false, error: "Account settings not found" };
+  }
+
+  const currentRules = parseAccountRules(settings.rules);
+  const updatedRules = accountRulesSchema.parse({
+    ...currentRules,
+    encryptedApiKey: null,
+    maskedApiKey: null,
+    cloudModel: null,
+  });
+
+  const { matchScoreThreshold: _deprecated, ...rulesToSave } = updatedRules;
+
+  await prisma.accountSettings.update({
+    where: { accountId },
+    data: { rules: rulesToSave as Prisma.InputJsonValue },
+  });
+
+  revalidatePath("/settings");
+  return { ok: true, data: { cleared: true } };
+}
+

@@ -22,6 +22,7 @@ import {
   type ProjectInput,
   type WorkExperienceInput,
 } from "@/lib/validations/profile";
+import type { AccountRules } from "@/lib/validations/rules";
 import { buildResumeContactLine } from "@/lib/pdf-generator";
 import {
   skillCategoryLabel,
@@ -480,6 +481,8 @@ export async function refineResumeLine(input: {
   localOllamaUrl?: string | null;
   ollamaModel?: string | null;
   allowCloudFallback?: boolean;
+  accountId?: string | null;
+  accountRules?: Partial<AccountRules> | null;
 }): Promise<string> {
   const instruction = input.instruction.trim();
   if (!instruction) {
@@ -490,6 +493,8 @@ export async function refineResumeLine(input: {
     localOllamaUrl: input.localOllamaUrl,
     ollamaModel: input.ollamaModel,
     allowCloudFallback: input.allowCloudFallback,
+    accountId: input.accountId,
+    accountRules: input.accountRules,
     systemPrompt:
       "You edit one resume line. Return JSON {\"content\":\"...\"} containing only the rewritten line. Do not add bullets, headings, or extra sentences.",
     userPrompt: `Instruction: ${instruction}\nLine: ${input.content}`,
