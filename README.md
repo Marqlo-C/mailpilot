@@ -166,8 +166,26 @@ Use `.env.example` as the source of truth. Key variables:
 - `npm run build` – Prisma generate + production build
 - `npm run start` – run production server
 - `npm run lint` – run ESLint
+- `npm test` – run Vitest unit test suite (zero-token, offline)
+- `npm run test:watch` – run Vitest in interactive watch mode
 - `npm run cleanup:duplicates` – clean duplicate records
 - `npm run ollama:bridge` – run local Ollama bridge helper
+
+## Testing & CI/CD
+
+MailPilot uses [Vitest](https://vitest.dev/) for fast, deterministic unit testing. All test suites run completely offline without requiring a live database connection or network calls (~200ms total runtime).
+
+### Test Commands
+
+```bash
+# Run all unit tests once
+npm test
+
+# Run tests in watch mode during development
+npm run test:watch
+```
+
+All pushes and pull requests to `main` are automatically validated by GitHub Actions (`.github/workflows/ci.yml`) across typecheck, lint, Vitest unit tests, and a dry-run production build.
 
 ## Production Notes
 
