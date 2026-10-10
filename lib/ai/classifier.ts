@@ -147,7 +147,9 @@ export function seniorityMismatchPenalty(
     );
   const seniorOrLead = /\b(senior|sr\.?|lead|manager)\b/i.test(t);
   const early =
-    /early career|new grad|career switcher/i.test(seniorityTier);
+    /student|intern|early career|new grad|career switcher/i.test(
+      seniorityTier
+    );
 
   if (early && staffPlus) return 45;
   if (early && seniorOrLead) return 22;

@@ -189,3 +189,65 @@ Tailoring used to digest a job and immediately freeze the result into a base64 P
 ## Status
 
 MailPilot is currently in early access.
+
+## Persona Engine Architecture
+
+The MailPilot Persona Engine translates grounded candidate facts (`MasterProfileInput`) into multi-dimensional identity descriptors and prompt guardrails (`CandidatePersona`). It runs on deterministic, zero-token TypeScript heuristics without calling external LLMs.
+
+### Decoupled Data Flow
+
+```
+┌──────────────────────────────────────────────┐
+│  Ground Truth: MasterProfileInput (Database) │
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│  Adapter Lens: PersonaFactLens (lens.ts)     │  <-- Buffers schema changes
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│  Interlocking Matrix (matrix.ts)             │
+│  - Seniority Tier (6 tiers)                  │
+│  - Disciplinary Archetype (4 archetypes)     │
+│  - Leadership Scope (3 scopes)               │
+│  - Distinction Anchor (3 anchors)            │
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│  Tone Composer (tone-composer.ts)            │  <-- 4-Layer Modular Voice Stack
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│  Contract: CandidatePersona                  │
+└───────────┬───────────────────┬──────────────┘
+            │                   │
+            ▼                   ▼
+     [ Match Scoring ]   [ Email Responding ]   [ Resume Tailoring ]
+```
+
+### Module Layout & Modification Guide
+
+| File | Role | When to Edit |
+| :--- | :--- | :--- |
+| `lib/persona/schema.ssot.ts` | **Single Source of Truth** | **First stop.** Edit when adding/modifying dimensions or altering fact requirements. |
+| `lib/persona/lens.ts` | **Adapter Layer** | Edit when `MasterProfileInput` changes to update fact extraction. |
+| `lib/persona/matrix.ts` | **Classification Heuristics** | Edit to refine tenure parsing, title-family grouping, or archetype classification rules. |
+| `lib/persona/tone-composer.ts` | **Voice & Prompt Synthesis** | Edit to adjust LLM prompt phrasing, posture ceilings, or proof guardrails. |
+| `lib/persona/cache.ts` | **Persistence & Staleness** | Edit to alter caching rules or decimal-tenure auto-healing checks. |
+| `lib/persona/index.ts` | **Public Facade** | Exports the clean consumer API. |
+
+### How to Edit LLM Prompt Guidance
+
+To alter the tone or guardrails passed downstream to LLM generation:
+1. Open **`lib/persona/tone-composer.ts`**.
+2. Locate `composeToneGuidance()`.
+3. Adjust the corresponding layer:
+   - **Layer 1 (Seniority Guardrail):** Modifies base humility vs. peer posture.
+   - **Layer 2 (Agency Dial):** Modifies task-level vs. autonomous founder voice.
+   - **Layer 3 (Narrative Angle):** Modifies applied builder vs. hybrid vs. specialist angles.
+   - **Layer 4 (Proof Anchor):** Modifies how the candidate substantiates claims (projects/certs vs. honors).
+
