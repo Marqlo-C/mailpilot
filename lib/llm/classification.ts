@@ -7,7 +7,6 @@ import {
   interestsSchema,
   readEducationStatus,
 } from "@/lib/validations/profile";
-
 import {
   type EmailCategory,
   resolveApplicationType,
@@ -29,10 +28,7 @@ import { matchesConfirmationSignal } from "@/lib/constants/job-sources";
 import {
   APPLICATION_SENT_TO_RE,
   DIGEST_SENDER_HINTS,
-  JOB_EMAIL_KEYWORD_PATTERNS,
   looksLikeDigest,
-  matchesJobEmailKeywords,
-  matchesJobSubjectKeywords,
   shouldClassifyEmail,
 } from "@/lib/ai/prefilter";
 import { getCachedOrSynthesizePersona } from "@/lib/ai/persona";
@@ -43,29 +39,19 @@ import {
   parseApplicationEmail,
 } from "@/lib/parsers/application-parser";
 import { prisma } from "@/lib/prisma";
-import { parseAccountRules } from "@/lib/validations/rules";
-
-export {
-  JOB_EMAIL_KEYWORD_PATTERNS,
-  matchesJobEmailKeywords,
-  matchesJobSubjectKeywords,
-  shouldClassifyEmail,
-  looksLikeDigest,
-};
+import { parseAccountRules, type AccountRules } from "@/lib/validations/rules";
+import type { LlmProvider } from "./provider.ssot";
+import { callLLMWithFallback } from "./dispatcher";
+import { OllamaUnreachableError } from "./local-ollama";
+import { CloudLlmRateLimitError } from "./client";
 
 export const extractedJobSchema = z.object({
-  company: z.preprocess(
-    (v) => (v == null ? "" : v),
-    z.string().min(1)
-  ),
+  company: z.preprocess((v) => (v == null ? "" : v), z.string().min(1)),
   companyDomain: z.preprocess(
     (v) => (v == null ? null : v),
     z.string().nullable().optional()
   ),
-  title: z.preprocess(
-    (v) => (v == null ? "" : v),
-    z.string().min(1)
-  ),
+  title: z.preprocess((v) => (v == null ? "" : v), z.string().min(1)),
   location: z.preprocess(
     (v) => (v == null ? null : v),
     z.string().nullable().optional()
@@ -142,170 +128,24 @@ export const jobClassificationSchema = z.object({
 
 export type JobClassification = z.infer<typeof jobClassificationSchema>;
 
-export type LlmProvider = "OPENROUTER" | "LOCAL_OLLAMA";
-
 export type ClassifyOptions = {
-  llmProvider: LlmProvider;
-  localOllamaUrl?: string | null;
-  ollamaModel?: string | null;
-  /** Dev-only client/runtime override; takes precedence over DB model in development */
-  devModelOverride?: string | null;
   subject: string;
   body: string;
   fromEmail?: string | null;
-  /** When provided, scoring is profile-aware. */
   candidateProfile?: CandidateProfileSummary | null;
-  /** Account rule: allow OpenRouter when local Ollama fails. */
+  llmProvider?: LlmProvider;
+  localOllamaUrl?: string | null;
+  ollamaModel?: string | null;
+  devModelOverride?: string | null;
+  /** Account rule: allow cloud when local Ollama fails. */
   allowCloudFallback?: boolean;
+  accountId?: string | null;
+  accountRules?: Partial<AccountRules> | null;
+  cloudModel?: string | null;
+  openRouterModels?: string[];
 };
 
-export const DEFAULT_OLLAMA_MODEL = "llama3.1:8b";
-
-/**
- * Resolves the Ollama model for inference.
- * In development (NODE_ENV === "development"), local dev settings take precedence
- * over database-persisted accountSettings.ollamaModel:
- * 1. Explicit dev model override (e.g. client-passed from localStorage)
- * 2. process.env.OLLAMA_MODEL
- * 3. Database-stored model (configuredModel / accountSettings.ollamaModel)
- * 4. DEFAULT_OLLAMA_MODEL
- *
- * In production, the database-stored model takes precedence:
- * 1. Database-stored model (configuredModel)
- * 2. process.env.OLLAMA_MODEL
- * 3. DEFAULT_OLLAMA_MODEL
- */
-export function resolveOllamaModel(
-  configuredModel?: string | null,
-  devModelOverride?: string | null
-): string {
-  const isDev = process.env.NODE_ENV === "development";
-  if (isDev) {
-    const devOverride = devModelOverride?.trim();
-    if (devOverride) return devOverride;
-    const envModel = process.env.OLLAMA_MODEL?.trim();
-    if (envModel) return envModel;
-  }
-  return (
-    configuredModel?.trim() ||
-    process.env.OLLAMA_MODEL?.trim() ||
-    DEFAULT_OLLAMA_MODEL
-  );
-}
-
-/**
- * Strips trailing slashes and a trailing `/v1` so `/api/tags` and `/api/chat`
- * resolve against the Ollama root (not an OpenAI-compat base path).
- */
-export function normalizeOllamaBaseUrl(raw: string): string {
-  let base = raw.trim().replace(/\/+$/, "");
-  if (base.toLowerCase().endsWith("/v1")) {
-    base = base.slice(0, -3).replace(/\/+$/, "");
-  }
-  // Replace localhost with IPv4 127.0.0.1 to avoid Node IPv6 resolution failures
-  base = base.replace(/^http:\/\/localhost(?::|$)/i, (match) =>
-    match.replace("localhost", "127.0.0.1")
-  );
-  return base || "http://127.0.0.1:11434";
-}
-
-/** Dev and fallback host. Set `OLLAMA_BASE_URL` in `.env` to change it. */
-export function ollamaBaseUrlFromEnv(): string {
-  return normalizeOllamaBaseUrl(
-    process.env.OLLAMA_BASE_URL?.trim() || "http://127.0.0.1:11434"
-  );
-}
-
-/**
- * Live reachability probe: GET /api/tags must return 200 + parseable models list.
- * Used before any "[Ollama:Active] health_ok" / bridgeConnected=true claim.
- */
-export async function probeOllamaTags(
-  baseUrl: string,
-  timeoutMs = 5000
-): Promise<{ models: string[] }> {
-  const base = normalizeOllamaBaseUrl(baseUrl);
-  let res: Response;
-  try {
-    res = await fetch(`${base}/api/tags`, {
-      method: "GET",
-      signal: AbortSignal.timeout(timeoutMs),
-      cache: "no-store",
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "MailPilot-OllamaProbe/1.0",
-      },
-    });
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    throw new OllamaUnreachableError(base, detail);
-  }
-
-  if (!res.ok) {
-    throw new OllamaUnreachableError(base, `health check HTTP ${res.status}`);
-  }
-
-  let json: unknown;
-  try {
-    json = await res.json();
-  } catch {
-    throw new OllamaUnreachableError(
-      base,
-      "health check returned non-JSON (not a valid Ollama /api/tags response)"
-    );
-  }
-
-  if (
-    !json ||
-    typeof json !== "object" ||
-    !("models" in json) ||
-    !Array.isArray((json as { models: unknown }).models)
-  ) {
-    throw new OllamaUnreachableError(
-      base,
-      "health check JSON missing models[] (not a valid Ollama daemon)"
-    );
-  }
-
-  const models = (json as { models: Array<string | { name?: string; model?: string }> })
-    .models
-    .map((entry) => {
-      if (typeof entry === "string") return entry.trim();
-      return (entry.name ?? entry.model ?? "").trim();
-    })
-    .filter((name) => name.length > 0)
-    .sort((a, b) => a.localeCompare(b));
-
-  return { models };
-}
-
-/**
- * Retries /api/tags — Cloudflare Quick Tunnels are often flaky from serverless.
- */
-export async function probeOllamaTagsWithRetry(
-  baseUrl: string,
-  opts?: { timeoutMs?: number; attempts?: number; gapMs?: number }
-): Promise<{ models: string[] }> {
-  const timeoutMs = opts?.timeoutMs ?? 12_000;
-  const attempts = opts?.attempts ?? 3;
-  const gapMs = opts?.gapMs ?? 750;
-  let lastError: unknown;
-  for (let i = 1; i <= attempts; i++) {
-    try {
-      return await probeOllamaTags(baseUrl, timeoutMs);
-    } catch (err) {
-      lastError = err;
-      if (i < attempts) {
-        await new Promise((r) => setTimeout(r, gapMs * i));
-      }
-    }
-  }
-  throw lastError instanceof Error
-    ? lastError
-    : new OllamaUnreachableError(baseUrl, String(lastError));
-}
-
-const DEFAULT_OPENROUTER_MODELS = [
+export const DEFAULT_OPENROUTER_MODELS = [
   process.env.OPENROUTER_MODEL,
   "qwen/qwen3.8-27b:free",
   "google/gemma-4-26b-a4b-it:free",
@@ -509,7 +349,9 @@ export async function loadCandidateProfileSummary(
           ? ed.honors.filter((item): item is string => typeof item === "string")
           : [],
         coursework: Array.isArray(ed.coursework)
-          ? ed.coursework.filter((item): item is string => typeof item === "string")
+          ? ed.coursework.filter(
+              (item): item is string => typeof item === "string"
+            )
           : [],
       })),
       certifications: certificationsSchema.parse(profile.certifications),
@@ -559,7 +401,12 @@ export function normalizeClassification(
   }
 
   let jobs = [...(raw.jobs ?? [])];
-  if (jobs.length === 0 && raw.is_job_related && raw.company_name && raw.role_title) {
+  if (
+    jobs.length === 0 &&
+    raw.is_job_related &&
+    raw.company_name &&
+    raw.role_title
+  ) {
     const mailto = raw.action_url?.match(/mailto:([^?&\s]+)/i)?.[1] ?? null;
     jobs = [
       {
@@ -652,10 +499,7 @@ export function normalizeClassification(
     }
 
     let applyUrl = (job.applyUrl ?? "").trim() || null;
-    if (
-      applyUrl &&
-      /unsubscribe|mailto:|privacy|preferences/i.test(applyUrl)
-    ) {
+    if (applyUrl && /unsubscribe|mailto:|privacy|preferences/i.test(applyUrl)) {
       applyUrl = null;
     }
     // Recover aggregator apply links from preserved markdown when LLM omitted them.
@@ -723,8 +567,6 @@ export function normalizeClassification(
     }
 
     const salary = normalizeSalaryDisplay(job.salary);
-    // Prefer raw string for salaryMax so "per hour" / hourly cues aren't lost
-    // after display cleanup strips pay-period chrome.
     const salaryMax =
       typeof job.salaryMax === "number" && !Number.isNaN(job.salaryMax)
         ? job.salaryMax
@@ -828,7 +670,6 @@ export function coerceClassificationPayload(
     next.jobs = next.opportunities;
   }
 
-  // Local LLMs often emit "true"/"false" strings — coerce before Zod.
   if (typeof next.is_job_related === "string") {
     next.is_job_related =
       (next.is_job_related as string).trim().toLowerCase() === "true";
@@ -851,7 +692,6 @@ export function coerceClassificationPayload(
       .map((j) => {
         if (!j || typeof j !== "object" || Array.isArray(j)) return null;
         const jobObj = { ...(j as Record<string, unknown>) };
-        // Local LLMs emit null for optional job strings — coerce before Zod.
         for (const key of [
           "company",
           "title",
@@ -894,7 +734,6 @@ export function coerceClassificationPayload(
     next.is_job_related = true;
   }
 
-  // Non-job digests/newsletters must not carry partial job stubs that blow Zod.
   if (next.is_job_related === false) {
     next.jobs = [];
   }
@@ -925,13 +764,10 @@ export async function classifyJobEmail(
     return null;
   }
 
-  // Fast-path clear application confirmations without burning LLM quota.
   if (appliedHeuristic) {
     return appliedHeuristic;
   }
 
-  // Classifier gets cleaned text only (already cleaned upstream; re-sanitize + hard cap).
-  // Full rawBody is never passed here — it is stored separately on EmailMessage.
   const sanitizedBody = sanitizeEmailBody(options.body).slice(0, 4000);
   const systemPrompt = buildProfileAwareClassifierSystemPrompt(
     ensureCandidateProfileForScoring(options.candidateProfile ?? null)
@@ -941,6 +777,14 @@ export async function classifyJobEmail(
     body: sanitizedBody,
     fromEmail: options.fromEmail,
   });
+
+  const effectiveModel =
+    options.cloudModel?.trim() ||
+    options.accountRules?.cloudModel?.trim() ||
+    null;
+  const candidateModels = effectiveModel
+    ? [effectiveModel]
+    : options.openRouterModels ?? DEFAULT_OPENROUTER_MODELS;
 
   let result: Record<string, unknown> | null;
   try {
@@ -952,9 +796,22 @@ export async function classifyJobEmail(
       ollamaModel: options.ollamaModel,
       devModelOverride: options.devModelOverride,
       allowCloudFallback: options.allowCloudFallback,
+      accountId: options.accountId,
+      accountRules: options.accountRules,
+      cloudModel: effectiveModel,
+      openRouterModels: candidateModels,
     });
   } catch (error) {
-    // Sync/scan paths must not crash the request — park as PENDING_AI via null.
+    if (error instanceof CloudLlmRateLimitError) {
+      console.warn(
+        `[classify] Rate limit encountered on cloud provider — falling back to deterministic heuristic classification.`
+      );
+      return heuristicApplicationConfirmation({
+        subject: options.subject,
+        body: options.body,
+        fromEmail: options.fromEmail,
+      });
+    }
     if (error instanceof OllamaUnreachableError) {
       console.error(
         `[classify] ${error.message} — skipping LLM classification for this message`
@@ -990,541 +847,6 @@ export async function classifyJobEmail(
 
 /** Spec alias used by historical scan. */
 export const classifyEmail = classifyJobEmail;
-
-export type CallLLMOptions = {
-  systemPrompt: string;
-  userPrompt: string;
-  llmProvider?: LlmProvider;
-  localOllamaUrl?: string | null;
-  ollamaModel?: string | null;
-  /** Dev-only client/runtime override; takes precedence over DB model in development */
-  devModelOverride?: string | null;
-  /**
-   * When true (or env OLLAMA_ALLOW_OPENROUTER_FALLBACK=true), LOCAL_OLLAMA may
-   * fall back to OpenRouter after local failure. Default: no silent fallback.
-   * Prefer account rule `allowCloudFallback`.
-   */
-  allowCloudFallback?: boolean;
-  /** @deprecated Use allowCloudFallback */
-  allowOpenRouterFallback?: boolean;
-  /** When set, OpenRouter tries only these models, in order. */
-  openRouterModels?: string[];
-  /** Local generation limits. Omitted calls keep Ollama defaults. */
-  ollamaOptions?: {
-    num_ctx: number;
-    num_predict: number;
-    temperature: number;
-  };
-};
-
-/** Thrown when LOCAL_OLLAMA is selected but the instance cannot be reached. */
-export class OllamaUnreachableError extends Error {
-  readonly url: string;
-
-  constructor(url: string, detail?: string) {
-    const suffix = detail?.trim() ? `: ${detail.trim()}` : "";
-    super(`Local Ollama instance unreachable at ${url}${suffix}`);
-    this.name = "OllamaUnreachableError";
-    this.url = url;
-  }
-}
-
-function isOpenRouterFallbackEnabled(options: CallLLMOptions): boolean {
-  if (options.allowCloudFallback === true) return true;
-  if (options.allowOpenRouterFallback === true) return true;
-  const env = process.env.OLLAMA_ALLOW_OPENROUTER_FALLBACK?.trim().toLowerCase();
-  return env === "1" || env === "true" || env === "yes";
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function resolveOllamaBaseUrl(configured?: string | null): string {
-  const isDev = process.env.NODE_ENV === "development";
-  if (isDev) return ollamaBaseUrlFromEnv();
-  return normalizeOllamaBaseUrl(configured?.trim() || ollamaBaseUrlFromEnv());
-}
-
-/** Adaptive idle / hard-cap timeouts from prompt payload size. */
-function computeOllamaTimeouts(payloadChars: number): {
-  idleTimeoutMs: number;
-  hardCapMs: number;
-} {
-  const idleTimeoutMs = Math.min(
-    180_000,
-    Math.max(45_000, 30_000 + Math.ceil(payloadChars / 40) * 800)
-  );
-  const hardCapMs = Math.min(
-    600_000,
-    Math.max(120_000, idleTimeoutMs * 2 + Math.ceil(payloadChars / 25) * 1000)
-  );
-  return { idleTimeoutMs, hardCapMs };
-}
-
-/**
- * Normalize local Ollama failures into a descriptive Error suitable to throw
- * or pass into the OpenRouter failover path.
- */
-function toLocalOllamaError(baseUrl: string, error: unknown): Error {
-  if (error instanceof OllamaUnreachableError) return error;
-  if (error instanceof Error) {
-    const msg = error.message;
-    if (
-      /fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET|timeout|AbortError|aborted|hard.?cap|idle/i.test(
-        msg
-      ) ||
-      error.name === "AbortError" ||
-      error.name === "TimeoutError"
-    ) {
-      return new OllamaUnreachableError(baseUrl, msg);
-    }
-    return error;
-  }
-  return new Error(String(error));
-}
-
-/**
- * Shared LLM dispatcher. LOCAL_OLLAMA never silently falls back to OpenRouter
- * unless allowCloudFallback / OLLAMA_ALLOW_OPENROUTER_FALLBACK is set.
- *
- * On genuine local failure (unreachable, timeout/hard-cap abort, outage):
- * - allowCloudFallback=true  → warn [Ollama:Fallback] and route to OpenRouter
- * - allowCloudFallback=false → error [Ollama:Error] and throw immediately
- */
-export async function callLLMWithFallback(
-  options: CallLLMOptions
-): Promise<Record<string, unknown> | null> {
-  const provider = options.llmProvider ?? "OPENROUTER";
-
-  if (provider === "LOCAL_OLLAMA") {
-    const baseUrl = resolveOllamaBaseUrl(options.localOllamaUrl);
-    const allowFallback = isOpenRouterFallbackEnabled(options);
-
-    try {
-      const result = await callOllamaJson(
-        baseUrl,
-        options.systemPrompt,
-        options.userPrompt,
-        options.ollamaModel,
-        options.ollamaOptions,
-        options.devModelOverride
-      );
-      if (result) {
-        console.info("[Ollama:Done]", {
-          url: baseUrl,
-          status: "success",
-          reachable: true,
-          generated: true,
-        });
-        return result;
-      }
-      throw new OllamaUnreachableError(
-        baseUrl,
-        "empty or invalid JSON after local retries (service may be overloaded or model failed to respond)"
-      );
-    } catch (error) {
-      const localError = toLocalOllamaError(baseUrl, error);
-
-      if (allowFallback) {
-        console.warn(
-          "[Ollama:Fallback] Local generation failed. Failing over to OpenRouter...",
-          localError
-        );
-        const cloudResult = await callOpenRouterJson(
-          options.systemPrompt,
-          options.userPrompt,
-          options.openRouterModels
-        );
-        if (cloudResult) {
-          console.info(
-            "[Ollama:Fallback] OpenRouter failover succeeded after local failure."
-          );
-        } else {
-          console.error(
-            "[Ollama:Fallback] OpenRouter failover also failed after local failure."
-          );
-        }
-        return cloudResult;
-      }
-
-      console.error(
-        "[Ollama:Error] Local generation failed. Cloud fallback disabled (allowCloudFallback=false) — not routing to OpenRouter.",
-        localError
-      );
-      throw localError;
-    }
-  }
-
-  return callOpenRouterJson(
-    options.systemPrompt,
-    options.userPrompt,
-    options.openRouterModels
-  );
-}
-
-/**
- * Health-check once, then generate with a single brief retry for blips / bad JSON.
- */
-async function callOllamaJson(
-  baseUrl: string,
-  systemPrompt: string,
-  userPrompt: string,
-  model?: string | null,
-  ollamaOptions?: CallLLMOptions["ollamaOptions"],
-  devModelOverride?: string | null
-): Promise<Record<string, unknown> | null> {
-  const resolvedModel = resolveOllamaModel(model, devModelOverride);
-  const payloadChars = systemPrompt.length + userPrompt.length;
-  const timeouts = computeOllamaTimeouts(payloadChars);
-
-  // Strict probe: HTTP 200 alone is not enough — must look like Ollama /api/tags.
-  const probe = await probeOllamaTags(baseUrl, 5000);
-
-  console.info("[Ollama:Active]", {
-    phase: "health_ok",
-    reachable: true,
-    url: baseUrl,
-    model: resolvedModel,
-    modelsCount: probe.models.length,
-    payloadChars,
-    idleTimeoutMs: timeouts.idleTimeoutMs,
-    hardCapMs: timeouts.hardCapMs,
-  });
-
-  const maxAttempts = 2;
-  let lastFailure: string | null = null;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const startedAt = Date.now();
-    try {
-      console.info("[Ollama:Active]", {
-        phase: "generate_start",
-        attempt,
-        maxAttempts,
-        url: baseUrl,
-        model: resolvedModel,
-        payloadChars,
-        startedAt: new Date(startedAt).toISOString(),
-      });
-
-      const result = await callOllamaGenerateOnce(
-        baseUrl,
-        resolvedModel,
-        systemPrompt,
-        userPrompt,
-        timeouts,
-        ollamaOptions
-      );
-      const durationMs = Date.now() - startedAt;
-      if (result) {
-        console.info("[Ollama:Done]", {
-          phase: "generate_success",
-          reachable: true,
-          generated: true,
-          attempt,
-          url: baseUrl,
-          model: resolvedModel,
-          durationMs,
-          payloadChars,
-        });
-        return result;
-      }
-      lastFailure = "empty or invalid JSON content";
-      console.error("[Ollama:Error]", {
-        phase: "generate_empty_json",
-        reachable: true,
-        generated: false,
-        attempt,
-        durationMs,
-        lastFailure,
-      });
-    } catch (error) {
-      // Daemon was reachable (probe passed). Soft aborts/retries stay local;
-      // hard connection loss still escalates as unreachable.
-      if (error instanceof OllamaUnreachableError) throw error;
-      lastFailure = error instanceof Error ? error.message : String(error);
-      console.error("[Ollama:Error]", {
-        phase: "generate_attempt_failed",
-        reachable: true,
-        generated: false,
-        attempt,
-        durationMs: Date.now() - startedAt,
-        message: lastFailure,
-      });
-    }
-
-    if (attempt < maxAttempts) {
-      await sleep(500);
-    }
-  }
-
-  console.error("[Ollama:Error]", {
-    phase: "give_up",
-    reachable: true,
-    generated: false,
-    url: baseUrl,
-    model: resolvedModel,
-    attempts: maxAttempts,
-    lastFailure,
-  });
-  return null;
-}
-
-async function callOllamaGenerateOnce(
-  baseUrl: string,
-  resolvedModel: string,
-  systemPrompt: string,
-  userPrompt: string,
-  timeouts: { idleTimeoutMs: number; hardCapMs: number },
-  ollamaOptions?: CallLLMOptions["ollamaOptions"]
-): Promise<Record<string, unknown> | null> {
-  const url = `${baseUrl}/api/chat`;
-  const controller = new AbortController();
-  const hardCapTimer = setTimeout(() => {
-    controller.abort();
-  }, timeouts.hardCapMs);
-
-  let idleTimer: ReturnType<typeof setTimeout> | null = null;
-  const resetIdle = () => {
-    if (idleTimer) clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => {
-      controller.abort();
-    }, timeouts.idleTimeoutMs);
-  };
-
-  try {
-    resetIdle();
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: resolvedModel,
-        stream: true,
-        format: "json",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        ...(ollamaOptions ? { options: ollamaOptions } : {}),
-      }),
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text().catch(() => "");
-      console.error("[Ollama:Error]", {
-        phase: "http_error",
-        status: response.status,
-        model: resolvedModel,
-        url,
-        body: errorBody.slice(0, 300),
-      });
-      throw new Error(`Ollama HTTP ${response.status}`);
-    }
-
-    if (!response.body) {
-      throw new Error("Ollama response missing body stream");
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let content = "";
-    let chunkCount = 0;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      resetIdle();
-      chunkCount += 1;
-      buffer += decoder.decode(value, { stream: true });
-
-      let newlineIdx = buffer.indexOf("\n");
-      while (newlineIdx >= 0) {
-        const line = buffer.slice(0, newlineIdx).trim();
-        buffer = buffer.slice(newlineIdx + 1);
-        newlineIdx = buffer.indexOf("\n");
-        if (!line) continue;
-
-        try {
-          const event = JSON.parse(line) as {
-            message?: { content?: string };
-            response?: string;
-            done?: boolean;
-            error?: string;
-          };
-          if (event.error) {
-            throw new Error(event.error);
-          }
-          const piece = event.message?.content ?? event.response ?? "";
-          if (piece) content += piece;
-        } catch (parseErr) {
-          if (parseErr instanceof SyntaxError) continue;
-          throw parseErr;
-        }
-      }
-    }
-
-    const trailing = buffer.trim();
-    if (trailing) {
-      try {
-        const event = JSON.parse(trailing) as {
-          message?: { content?: string };
-          response?: string;
-        };
-        const piece = event.message?.content ?? event.response ?? "";
-        if (piece) content += piece;
-      } catch {
-        // ignore
-      }
-    }
-
-    console.info("[Ollama:Active]", {
-      phase: "stream_complete",
-      chunks: chunkCount,
-      contentChars: content.length,
-      model: resolvedModel,
-    });
-
-    if (!content.trim()) {
-      return null;
-    }
-
-    return parseJsonObject(content);
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    const name = error instanceof Error ? error.name : "";
-    // Idle/hard-cap aborts mean the daemon answered health but generate stalled —
-    // do NOT label that as unreachable (probe already succeeded).
-    if (
-      name === "AbortError" ||
-      name === "TimeoutError" ||
-      /AbortError|aborted|hard.?cap|idle/i.test(detail)
-    ) {
-      throw new Error(`Ollama generate aborted: ${detail}`);
-    }
-    if (/fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET/i.test(detail)) {
-      throw new OllamaUnreachableError(baseUrl, detail);
-    }
-    throw error;
-  } finally {
-    clearTimeout(hardCapTimer);
-    if (idleTimer) clearTimeout(idleTimer);
-  }
-}
-
-async function callOpenRouterJson(
-  systemPrompt: string,
-  userPrompt: string,
-  models?: string[]
-): Promise<Record<string, unknown> | null> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    console.error("OPENROUTER_API_KEY is not set");
-    return null;
-  }
-
-  const selected = models && models.length > 0 ? models : DEFAULT_OPENROUTER_MODELS;
-  for (const model of selected) {
-    try {
-      const result = await callOpenRouterModel(
-        apiKey,
-        model,
-        systemPrompt,
-        userPrompt
-      );
-      if (result) {
-        return result;
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const is403 = /\b403\b/.test(message);
-      if (error instanceof RateLimitError || is403) {
-        console.warn(
-          `OpenRouter ${error instanceof RateLimitError ? "429" : "403"} on ${model}; trying next model`
-        );
-        continue;
-      }
-      console.warn(`OpenRouter model ${model} failed`, error);
-    }
-  }
-
-  return null;
-}
-
-class RateLimitError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "RateLimitError";
-  }
-}
-
-async function callOpenRouterModel(
-  apiKey: string,
-  model: string,
-  systemPrompt: string,
-  userPrompt: string
-): Promise<Record<string, unknown> | null> {
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer":
-        process.env.OPENROUTER_SITE_URL ?? "https://mailpilot.local",
-      "X-Title": "MailPilot",
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    }),
-  });
-
-  if (response.status === 429) {
-    throw new RateLimitError(`Rate limited by ${model}`);
-  }
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(
-      `OpenRouter HTTP ${response.status}: ${detail.slice(0, 200)}`
-    );
-  }
-
-  const json = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = json.choices?.[0]?.message?.content;
-  if (!content) {
-    return null;
-  }
-
-  return parseJsonObject(content);
-}
-
-function parseJsonObject(raw: string): Record<string, unknown> | null {
-  const trimmed = raw.trim();
-  const unfenced = trimmed
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "");
-
-  try {
-    const parsed: unknown = JSON.parse(unfenced);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
-    }
-    return null;
-  } catch (error) {
-    console.warn("Failed to parse LLM JSON", error);
-    return null;
-  }
-}
 
 /**
  * Extracts a plain-text body from a Gmail message payload (recursive parts).

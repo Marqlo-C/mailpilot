@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CLOUD_LLM_PROVIDERS } from "@/lib/llm/provider.ssot";
 
 export const DISMISSED_RETENTION_OPTIONS = [7, 14, 30] as const;
 
@@ -69,6 +70,14 @@ export const accountRulesSchema = z.object({
    * may fall back to OpenRouter. Default false — no silent cloud fallback.
    */
   allowCloudFallback: z.boolean().default(false),
+  /** Account-scoped customer BYOK cloud provider */
+  cloudProvider: z.enum(CLOUD_LLM_PROVIDERS).default("OPENROUTER"),
+  /** Custom cloud model override for customer's BYOK provider */
+  cloudModel: z.string().nullable().default(null),
+  /** AES-256-GCM encrypted API key (never sent to client) */
+  encryptedApiKey: z.string().nullable().default(null),
+  /** Safe display mask (e.g. sk-...1234) for Settings UI */
+  maskedApiKey: z.string().nullable().default(null),
   /** Defaults for on-demand tailored resume generation. */
   resumePreferences: resumePreferencesSchema.default(DEFAULT_RESUME_PREFERENCES),
 });

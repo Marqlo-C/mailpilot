@@ -170,6 +170,9 @@ export function SettingsView({
             availableModels={rules.availableModels ?? []}
             bridgeConnected={rules.bridgeConnected ?? false}
             allowCloudFallback={rules.allowCloudFallback ?? false}
+            cloudProvider={rules.cloudProvider ?? "OPENROUTER"}
+            cloudModel={rules.cloudModel ?? null}
+            maskedApiKey={rules.maskedApiKey ?? null}
           />
         </TabsContent>
 

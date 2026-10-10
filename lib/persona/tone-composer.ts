@@ -188,7 +188,7 @@ export function composeToneGuidance(params: ToneGuidanceParams): string {
       } in the field): terse, visionary, and high-agency with executive presence. Frame contributions around business impact, architecture, or organizational scale without tactical micromanagement.`;
       break;
     case "Career Switcher":
-      layer1 = `Write as a career switcher with ${formatHumanYears(
+      layer1 = `Career switcher: Write as a career switcher with ${formatHumanYears(
         inFieldYears
       )} in the current field (not ${formatHumanYears(
         inFieldYears + priorFieldYears

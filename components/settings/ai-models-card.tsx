@@ -13,11 +13,18 @@ import {
 import { toast } from "sonner";
 
 import {
+  clearCustomLlmKey,
+  saveCustomLlmKey,
   updateBridgeSecret,
   updateLlmProvider,
   updateOllamaUrl,
   updateRule,
 } from "@/app/actions/settings";
+import {
+  CLOUD_LLM_PROVIDERS,
+  type CloudLlmProvider,
+  PROVIDER_ENDPOINTS,
+} from "@/lib/llm/provider.ssot";
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +40,15 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
+const PROVIDER_LABELS: Record<CloudLlmProvider, string> = {
+  OPENROUTER: "OpenRouter (Recommended / Multi-Model)",
+  OPENAI: "OpenAI (GPT-4o mini, GPT-4o)",
+  GROQ: "Groq (Llama 3.3 70B)",
+  DEEPSEEK: "DeepSeek (DeepSeek V3 / R1)",
+  ANTHROPIC: "Anthropic (Claude 3.5 Haiku / Sonnet)",
+  GEMINI: "Google Gemini (Gemini 2.5 Flash)",
+};
+
 type AiModelsCardProps = {
   accountId: string | null;
   accountEmail: string | null;
@@ -44,6 +60,9 @@ type AiModelsCardProps = {
   availableModels?: string[];
   bridgeConnected?: boolean;
   allowCloudFallback?: boolean;
+  cloudProvider?: CloudLlmProvider;
+  cloudModel?: string | null;
+  maskedApiKey?: string | null;
 };
 
 type ConnectionStatus =
@@ -148,6 +167,9 @@ export function AiModelsCard({
   availableModels: initialModels = [],
   bridgeConnected: initialConnected = false,
   allowCloudFallback: initialAllowCloudFallback = false,
+  cloudProvider: initialCloudProvider = "OPENROUTER",
+  cloudModel: initialCloudModel = null,
+  maskedApiKey: initialMaskedApiKey = null,
 }: AiModelsCardProps) {
   const router = useRouter();
   const [url, setUrl] = useState(localOllamaUrl);
@@ -182,6 +204,20 @@ export function AiModelsCard({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  // Cloud BYOK state
+  const [cloudProvider, setCloudProvider] = useState<CloudLlmProvider>(
+    initialCloudProvider ?? "OPENROUTER"
+  );
+  const [cloudModelOverride, setCloudModelOverride] = useState(
+    initialCloudModel ?? ""
+  );
+  const [maskedApiKey, setMaskedApiKey] = useState<string | null>(
+    initialMaskedApiKey ?? null
+  );
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [isEditingKey, setIsEditingKey] = useState(!initialMaskedApiKey);
+
   const useOllama = llmProvider === "LOCAL_OLLAMA";
   const disabled = !accountId || pending;
   const hasSecret = bridgeSecret.trim().length > 0;
@@ -193,6 +229,21 @@ export function AiModelsCard({
   useEffect(() => {
     setAllowCloudFallback(initialAllowCloudFallback);
   }, [initialAllowCloudFallback]);
+
+  useEffect(() => {
+    setCloudProvider(initialCloudProvider ?? "OPENROUTER");
+  }, [initialCloudProvider]);
+
+  useEffect(() => {
+    setCloudModelOverride(initialCloudModel ?? "");
+  }, [initialCloudModel]);
+
+  useEffect(() => {
+    setMaskedApiKey(initialMaskedApiKey ?? null);
+    if (!initialMaskedApiKey) {
+      setIsEditingKey(true);
+    }
+  }, [initialMaskedApiKey]);
 
   useEffect(() => {
     setUrl(localOllamaUrl);
@@ -420,14 +471,61 @@ export function AiModelsCard({
   const cloudflaredWin =
     '$cf="$env:TEMP\\cloudflared.exe"; if (-not (Test-Path $cf)) { Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile $cf -UseBasicParsing }; & $cf tunnel --url http://127.0.0.1:11434 --http-host-header localhost:11434';
 
+  function handleSaveKey() {
+    if (!accountId) return;
+    const key = apiKeyInput.trim();
+    if (!key) {
+      toast.error("Please enter an API key");
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await saveCustomLlmKey(accountId, {
+        provider: cloudProvider,
+        model: cloudModelOverride.trim() || null,
+        apiKey: key,
+      });
+
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+
+      setMaskedApiKey(result.data?.maskedApiKey ?? null);
+      setApiKeyInput("");
+      setIsEditingKey(false);
+      toast.success(`${cloudProvider} API key encrypted and saved`);
+      router.refresh();
+    });
+  }
+
+  function handleClearKey() {
+    if (!accountId) return;
+    startTransition(async () => {
+      const result = await clearCustomLlmKey(accountId);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      setMaskedApiKey(null);
+      setApiKeyInput("");
+      setIsEditingKey(true);
+      toast.success("API key cleared");
+      router.refresh();
+    });
+  }
+
   return (
-    <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
-      <CardHeader className="border-b border-border/50 pb-5">
-        <CardTitle className="text-lg tracking-tight">AI & Models</CardTitle>
-        <CardDescription>
-          Route inference through local Ollama or fall back to OpenRouter.
-        </CardDescription>
-      </CardHeader>
+    <div className="space-y-4">
+      <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
+        <CardHeader className="border-b border-border/50 pb-5">
+          <CardTitle className="text-lg tracking-tight">
+            Local AI & Ollama Bridge
+          </CardTitle>
+          <CardDescription>
+            Run private inference locally on your machine via secure CLI bridge.
+          </CardDescription>
+        </CardHeader>
       <CardContent className="space-y-6 pt-6">
         {!accountId && (
           <p className="text-sm text-muted-foreground">
@@ -795,11 +893,10 @@ export function AiModelsCard({
             <div className="flex items-center justify-between gap-4 rounded-xl border border-border/80 bg-background px-4 py-3.5">
               <div className="space-y-0.5">
                 <p className="text-sm font-medium tracking-tight">
-                  Allow cloud fallback (OpenRouter) when Local Ollama fails
+                  {`Allow cloud fallback to configured Cloud Provider (${cloudProvider}) when Local Ollama fails`}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Off by default — local failures stay local and do not silently
-                  route to OpenRouter.
+                  {`Off by default — local failures stay local and do not silently route to ${cloudProvider}.`}
                 </p>
               </div>
               <Switch
@@ -1098,5 +1195,230 @@ export function AiModelsCard({
         )}
       </CardContent>
     </Card>
+
+    {/* Cloud AI Provider & Credentials Card */}
+    <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
+      <CardHeader className="border-b border-border/50 pb-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-lg tracking-tight">
+              Cloud AI Provider & Credentials
+            </CardTitle>
+            <CardDescription>
+              Account-scoped Bring-Your-Own-Key (BYOK). Keys are encrypted with AES-256-GCM.
+            </CardDescription>
+          </div>
+          {maskedApiKey ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Key Active
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              No Key Configured
+            </span>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5 pt-6">
+        {!accountId && (
+          <p className="text-sm text-muted-foreground">
+            Connect an account to configure cloud credentials.
+          </p>
+        )}
+
+        {/* Provider Selector */}
+        <div className="space-y-1.5">
+          <Label htmlFor="cloud-provider" className="text-sm font-medium tracking-tight">
+            Cloud Provider
+          </Label>
+          <select
+            id="cloud-provider"
+            className="flex h-10 w-full rounded-lg border border-border/80 bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            value={cloudProvider}
+            disabled={disabled}
+            onChange={(e) => {
+              const next = e.target.value as CloudLlmProvider;
+              setCloudProvider(next);
+              if (accountId) {
+                startTransition(async () => {
+                  await updateRule(accountId, "cloudProvider", next);
+                  router.refresh();
+                });
+              }
+            }}
+          >
+            {CLOUD_LLM_PROVIDERS.map((p) => (
+              <option key={p} value={p}>
+                {PROVIDER_LABELS[p] ?? p}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-muted-foreground">
+            Default endpoint: <code className="font-mono text-foreground">{PROVIDER_ENDPOINTS[cloudProvider]?.baseUrl}</code>
+          </p>
+        </div>
+
+        {/* Model Name Override */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="cloud-model" className="text-sm font-medium tracking-tight">
+              Model Name Override (Optional)
+            </Label>
+            {accountId &&
+              cloudModelOverride.trim() !== (initialCloudModel ?? "") && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={disabled}
+                  onClick={() => {
+                    startTransition(async () => {
+                      const result = await updateRule(
+                        accountId,
+                        "cloudModel",
+                        cloudModelOverride.trim() || null
+                      );
+                      if (!result.ok) {
+                        toast.error(result.error);
+                        return;
+                      }
+                      toast.success("Model override updated");
+                      router.refresh();
+                    });
+                  }}
+                >
+                  Save Model
+                </Button>
+              )}
+          </div>
+          <Input
+            id="cloud-model"
+            placeholder={
+              PROVIDER_ENDPOINTS[cloudProvider]?.defaultModel ?? "default model"
+            }
+            value={cloudModelOverride}
+            disabled={disabled}
+            onChange={(e) => setCloudModelOverride(e.target.value)}
+            className="h-10 border-border/80 bg-background font-mono text-xs"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Leave blank to use default model:{" "}
+            <code className="font-mono text-foreground">
+              {PROVIDER_ENDPOINTS[cloudProvider]?.defaultModel}
+            </code>
+          </p>
+        </div>
+
+        {/* API Key Input */}
+        <div className="space-y-2">
+          <Label
+            htmlFor="cloud-api-key"
+            className="text-sm font-medium tracking-tight"
+          >
+            API Key
+          </Label>
+
+          {maskedApiKey && !isEditingKey ? (
+            <div className="flex flex-col gap-2 rounded-xl border border-border/80 bg-muted/15 p-3 sm:flex-row sm:items-center">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <Input
+                  readOnly
+                  type="text"
+                  value={maskedApiKey}
+                  className="h-9 border-border/80 bg-background font-mono text-xs text-muted-foreground"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 shrink-0 text-xs"
+                  disabled={disabled}
+                  onClick={() => {
+                    setIsEditingKey(true);
+                    setApiKeyInput("");
+                  }}
+                >
+                  Change Key
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 shrink-0 text-xs text-rose-500 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-500/20"
+                  disabled={disabled}
+                  onClick={handleClearKey}
+                >
+                  Clear Key
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="relative">
+                <Input
+                  id="cloud-api-key"
+                  type="password"
+                  placeholder={
+                    maskedApiKey ??
+                    `Enter ${cloudProvider} API key (e.g. sk-...)`
+                  }
+                  value={apiKeyInput}
+                  disabled={disabled}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  className="h-10 border-border/80 bg-background font-mono text-xs"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-9 text-xs"
+                  disabled={disabled || !apiKeyInput.trim()}
+                  onClick={handleSaveKey}
+                >
+                  {pending ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    "Save API Key"
+                  )}
+                </Button>
+                {maskedApiKey ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 text-xs"
+                    disabled={disabled}
+                    onClick={() => {
+                      setIsEditingKey(false);
+                      setApiKeyInput("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          )}
+
+          <p className="text-[11px] text-muted-foreground">
+            Keys are encrypted at rest with AES-256-GCM and scoped solely to your account. Plaintext keys are never logged or returned to client components.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  </div>
   );
 }

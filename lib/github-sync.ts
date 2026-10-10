@@ -1,4 +1,5 @@
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
+import type { AccountRules } from "@/lib/validations/rules";
 
 export type ProjectItem = {
   id?: string;
@@ -166,6 +167,8 @@ async function analyzeRepoArtifacts(params: {
     localOllamaUrl?: string | null;
     ollamaModel?: string | null;
     allowCloudFallback?: boolean;
+    accountId?: string | null;
+    accountRules?: Partial<AccountRules> | null;
   };
 }): Promise<{ bullets: string[]; technologies: string[] }> {
   const { repoName, description, readme, manifestTechnologies, llmOptions } =
@@ -197,6 +200,8 @@ async function analyzeRepoArtifacts(params: {
       localOllamaUrl: llmOptions?.localOllamaUrl,
       ollamaModel: llmOptions?.ollamaModel,
       allowCloudFallback: llmOptions?.allowCloudFallback,
+      accountId: llmOptions?.accountId,
+      accountRules: llmOptions?.accountRules,
     });
 
     if (
@@ -241,6 +246,8 @@ export async function syncGitHubProjects(
     localOllamaUrl?: string | null;
     ollamaModel?: string | null;
     allowCloudFallback?: boolean;
+    accountId?: string | null;
+    accountRules?: Partial<AccountRules> | null;
   } = {}
 ): Promise<ProjectItem[]> {
   const username = normalizeGitHubUsername(usernameOrUrl);

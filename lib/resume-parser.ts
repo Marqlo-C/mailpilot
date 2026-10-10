@@ -14,6 +14,7 @@ import {
   type EducationStatus,
   type MasterProfileInput,
 } from "@/lib/validations/profile";
+import type { AccountRules } from "@/lib/validations/rules";
 
 const MAX_RESUME_CHARS = 12_000;
 
@@ -1083,6 +1084,8 @@ export type ParseResumeOptions = {
   allowCloudFallback?: boolean;
   /** Used only when the document itself contains no real email address. */
   accountEmail?: string | null;
+  accountId?: string | null;
+  accountRules?: Partial<AccountRules> | null;
 };
 
 /**
@@ -1104,6 +1107,8 @@ export async function parseResumeToStructuredProfile(
     localOllamaUrl: options.localOllamaUrl,
     ollamaModel: options.ollamaModel,
     allowCloudFallback: options.allowCloudFallback,
+    accountId: options.accountId,
+    accountRules: options.accountRules,
     ollamaOptions: {
       num_ctx: 16384,
       num_predict: 8192,
