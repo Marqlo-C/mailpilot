@@ -318,21 +318,81 @@ function fitShortTitle(value: string): string {
   return `${value.slice(0, 32)}...`;
 }
 
+const SECTION_PRIORITY = [
+  "experience",
+  "project",
+  "skills",
+  "education",
+  "certification",
+  "award",
+] as const;
+
+const SECTION_TITLE: Record<string, string> = {
+  experience: "Experience",
+  project: "Projects",
+  skills: "Skills",
+  education: "Education",
+  certification: "Certifications",
+  award: "Awards",
+};
+
+function sectionRank(section: string): number {
+  const index = SECTION_PRIORITY.indexOf(
+    section.trim().toLowerCase() as (typeof SECTION_PRIORITY)[number]
+  );
+  return index === -1 ? SECTION_PRIORITY.length : index;
+}
+
+function biggestChangeLabel(changes: ProfileDiffChange[]): string {
+  const totals = new Map<string, { label: string; count: number; rank: number }>();
+  for (const change of changes) {
+    const key = change.section.trim().toLowerCase();
+    const count = changeCount([change]);
+    const current = totals.get(key);
+    if (current) {
+      current.count += count;
+      continue;
+    }
+    totals.set(key, {
+      label: SECTION_TITLE[key] ?? sectionLabel(change.section),
+      count,
+      rank: sectionRank(key),
+    });
+  }
+  const ranked = [...totals.values()].sort((left, right) => {
+    if (right.count !== left.count) return right.count - left.count;
+    return left.rank - right.rank;
+  });
+  return ranked[0]?.label ?? "Items";
+}
+
 function titleForBucket(verb: string, changes: ProfileDiffChange[]): string {
   const labels = uniqueSections(changes);
   const count = changeCount(changes);
   if (labels.length === 1 && count > 1) return fitShortTitle(`${verb} ${count} Items`);
   if (labels.length === 1) return fitShortTitle(`${verb} ${labels[0]}`);
-  if (labels.length === 2) {
-    const both = `${verb} ${labels[0]} & ${labels[1]}`;
-    if (both.length <= 35) return both;
-  }
-  return fitShortTitle(`${verb} ${Math.max(labels.length, 1)} Sections`);
+  return fitShortTitle(
+    `${verb} ${Math.max(labels.length, 1)} Sections: ${biggestChangeLabel(changes)}`
+  );
+}
+
+function isFullProfileOverride(diff: ProfileDiffSummary): boolean {
+  const sections = uniqueSections([
+    ...diff.added,
+    ...diff.removed,
+    ...diff.modified,
+  ]);
+  return (
+    sections.length >= 2 &&
+    changeCount(diff.added) >= 3 &&
+    changeCount(diff.removed) >= 3
+  );
 }
 
 /** Dropdown title. Uses section names and counts already on the diff. */
 export function shortRevisionTitle(diff: ProfileDiffSummary): string {
   if (isEmptyProfileDiff(diff)) return "Profile Baseline";
+  if (isFullProfileOverride(diff)) return "Full Profile Override";
   const buckets = [
     { verb: "Added", changes: diff.added },
     { verb: "Updated", changes: diff.modified },

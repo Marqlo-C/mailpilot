@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
-import { Loader2, Pencil, RotateCcw } from "lucide-react";
+import { CircleDashed, CircleDot, Loader2, Pencil, RotateCcw, RotateCcwClock } from "lucide-react";
 import { toast } from "sonner";
 
 import { renameProfileRevision, type ProfileHistoryItem } from "@/app/actions/profile";
@@ -33,7 +33,7 @@ type ChangeKind = "added" | "modified" | "removed";
 const KIND_STYLE: Record<ChangeKind, { mark: string; className: string }> = {
   added: { mark: "+", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
   modified: { mark: "~", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300" },
-  removed: { mark: "-", className: "bg-rose-500/15 text-rose-700 dark:text-rose-300" },
+  removed: { mark: "-", className: "bg-[#FAE9E9] text-[#C21E11]" },
 };
 
 export function formatRevisionStamp(iso: string): string {
@@ -166,15 +166,15 @@ export function ProfileRevisionHistory({
           return (
             <li
               key={item.id}
-              className="rounded-lg border border-border/50 bg-card/75 p-2.5 shadow-sm"
+              className="rounded-2xl border border-border/50 bg-card/75 p-2.5 shadow-sm"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 border-b border-border/40 pb-2">
                 {editing ? (
                   <Input
                     autoFocus
                     value={draft}
                     aria-label="Revision name"
-                    className="h-8 text-sm"
+                    className="h-8 flex-1 text-sm"
                     onChange={(event) => setDraft(event.target.value)}
                     onBlur={() => void commitEdit(item)}
                     onKeyDown={(event) => {
@@ -192,7 +192,7 @@ export function ProfileRevisionHistory({
                   <>
                     <button
                       type="button"
-                      className={iconButtonClassName}
+                      className={cn(iconButtonClassName, "self-start")}
                       aria-label="Rename revision"
                       disabled={pending}
                       onClick={() => beginEdit(item)}
@@ -210,55 +210,78 @@ export function ProfileRevisionHistory({
                     </div>
                   </>
                 )}
+                {item.isCurrent ? (
+                  <CircleDot className="size-4 shrink-0 self-start text-emerald-500" aria-label="Current" />
+                ) : (
+                  <CircleDashed className="size-4 shrink-0 self-start text-stone-400" aria-hidden />
+                )}
               </div>
               {rows.length > 0 ? (
-                <ul className="mt-2.5 max-h-48 space-y-1 overflow-y-auto pr-1">
+                <div className="mt-2 max-h-[13rem] overflow-y-auto py-1 pr-1">
+                <ul className="relative">
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-y-0 left-[0.75rem] right-0 bg-muted/15 shadow-[0_1px_2px_rgba(0,0,0,0.07),0_0_1px_rgba(0,0,0,0.06)]"
+                  />
                   {rows.map((row, index) => {
                     const style = KIND_STYLE[row.kind];
+                    const last = index === rows.length - 1;
                     return (
                       <li
                         key={`${row.kind}-${row.section}-${index}`}
-                        className="grid w-full grid-cols-[1.25rem_auto_minmax(0,1fr)] items-center gap-1.5"
+                        className="relative grid h-5 w-full grid-cols-[1.75rem_auto_minmax(0,1fr)] items-center gap-2"
                       >
+                        {last ? null : (
+                          <span
+                            aria-hidden
+                            className="pointer-events-none absolute bottom-0 left-[calc(1.75rem+0.25rem)] right-1.5 h-px bg-border/40"
+                          />
+                        )}
                         <span
-                          className={`inline-flex h-5 w-5 items-center justify-center rounded text-[11px] font-semibold ${style.className}`}
+                          className={`relative inline-flex h-4 w-4 items-center justify-center justify-self-end rounded text-[10px] font-semibold ${style.className}`}
                         >
                           {style.mark}
                         </span>
-                        <span className="relative block">
+                        <span className="relative z-[1] block">
                           <span
-                            className="invisible block px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+                            className="invisible block px-1.5 py-0 text-[10px] font-medium uppercase leading-none tracking-wide"
                             aria-hidden
                           >
                             experience
                           </span>
-                          <span className="absolute inset-0 block truncate rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          <span className="absolute inset-0 block truncate rounded bg-muted px-1.5 py-0 text-center text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground">
                             {row.section}
                           </span>
                         </span>
-                        <ChangeBlurb text={row.summary} />
+                        <div className="relative z-[1] min-w-0 pr-3">
+                          <ChangeBlurb text={row.summary} />
+                        </div>
                       </li>
                     );
                   })}
                 </ul>
+                </div>
               ) : null}
               <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/40 pt-2">
-                <span className="text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <RotateCcwClock className="h-3 w-3 shrink-0" aria-hidden />
                   {formatDistanceToNow(created, { addSuffix: true })}
                 </span>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-                  disabled={pending || editing}
-                  onClick={() => onRestore(item)}
-                >
-                  {pending ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <RotateCcw className="h-3 w-3" />
-                  )}
-                  Restore
-                </button>
+                {item.isCurrent ? null : (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                    disabled={pending || editing}
+                    onClick={() => onRestore(item)}
+                  >
+                    {pending ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-3 w-3" />
+                    )}
+                    Restore
+                  </button>
+                )}
               </div>
             </li>
           );

@@ -33,11 +33,9 @@ const ruleKeySchema = z.enum([
 ]);
 
 const retentionDaysSchema = z.union([
-  z.literal(10),
-  z.literal(15),
+  z.literal(7),
+  z.literal(14),
   z.literal(30),
-  z.literal(45),
-  z.literal(60),
 ]);
 
 const llmProviderSchema = z.enum(["OPENROUTER", "LOCAL_OLLAMA"]);

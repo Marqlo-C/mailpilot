@@ -11,12 +11,14 @@ import {
   type MasterProfileUpdateInput,
 } from "@/lib/validations/profile";
 
-const MAX_HISTORY_STATES = 5;
+const MAX_HISTORY_STATES = 4;
 
 export type ProfileRevisionListItem = {
   id: string;
   summary: string;
   createdAt: string;
+  /** Newest row. Its snapshot is the active profile. */
+  isCurrent: boolean;
 };
 
 /** Newest-first revision titles. A plain read so the menu can load during a long AI action. */
@@ -36,10 +38,11 @@ export async function listProfileRevisions(
     select: { id: true, summary: true, createdAt: true },
   });
 
-  return history.map((row) => ({
+  return history.map((row, index) => ({
     id: row.id,
     summary: row.summary,
     createdAt: row.createdAt.toISOString(),
+    isCurrent: index === 0,
   }));
 }
 
@@ -174,8 +177,24 @@ export async function loadProfileSnapshot(
   return serializeUserProfileToInput(profile);
 }
 
+/** Drops snapshots past the four-record cap. Newest rows are kept. */
+export async function pruneProfileHistory(profileId: string): Promise<void> {
+  const excess = await prisma.profileHistory.findMany({
+    where: { profileId },
+    orderBy: { createdAt: "desc" },
+    skip: MAX_HISTORY_STATES,
+    select: { id: true },
+  });
+
+  if (excess.length > 0) {
+    await prisma.profileHistory.deleteMany({
+      where: { id: { in: excess.map((r) => r.id) } },
+    });
+  }
+}
+
 /**
- * Saves a pre-change snapshot of the profile, maintaining a strict 5-item cap.
+ * Saves a profile copy and keeps the newest four. The newest row is the current profile.
  */
 export async function recordProfileSnapshot(
   profileId: string,
@@ -190,16 +209,5 @@ export async function recordProfileSnapshot(
     },
   });
 
-  const excess = await prisma.profileHistory.findMany({
-    where: { profileId },
-    orderBy: { createdAt: "desc" },
-    skip: MAX_HISTORY_STATES,
-    select: { id: true },
-  });
-
-  if (excess.length > 0) {
-    await prisma.profileHistory.deleteMany({
-      where: { id: { in: excess.map((r) => r.id) } },
-    });
-  }
+  await pruneProfileHistory(profileId);
 }
