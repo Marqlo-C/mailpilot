@@ -17,6 +17,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { resolveMatchThreshold } from "@/lib/validations/profile";
 import { parseAccountRules, type AccountRules } from "@/lib/validations/rules";
+import { decryptToken } from "@/lib/crypto";
 
 export type AccountSummary = Pick<
   Account,
@@ -152,6 +153,13 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
       accountRules,
       durable.permanentSettings
     );
+    if (!rules.bridgeSecret && rules.encryptedBridgeSecret) {
+      try {
+        rules.bridgeSecret = decryptToken(rules.encryptedBridgeSecret).trim();
+      } catch {
+        // gracefully ignore decryption failure
+      }
+    }
 
     const profile = await prisma.userProfile.findUnique({
       where: { accountId: selected.id },

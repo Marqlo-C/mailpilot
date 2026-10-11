@@ -10,6 +10,7 @@ import {
   type MasterProfileInput,
   type MasterProfileUpdateInput,
 } from "@/lib/validations/profile";
+import { decryptPhoneAtRest } from "@/lib/crypto";
 
 const MAX_HISTORY_STATES = 4;
 
@@ -104,7 +105,7 @@ export function serializeUserProfileToInput(
   return {
     fullName: profile.fullName,
     email: profile.email,
-    phone: profile.phone,
+    phone: decryptPhoneAtRest(profile.phone),
     location: profile.location,
     summary: profile.summary,
     links: (profile.links as MasterProfileInput["links"]) ?? [],

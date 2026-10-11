@@ -70,3 +70,48 @@ export function decryptToken(payload: string): string {
 
   return decrypted.toString("utf8");
 }
+
+/**
+ * Checks if a string is formatted as an AES-256-GCM token (iv:authTag:encryptedData).
+ */
+export function isEncryptedToken(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const parts = value.trim().split(":");
+  return (
+    parts.length === 3 &&
+    parts.every((p) => p.length > 0 && /^[0-9a-fA-F]+$/.test(p))
+  );
+}
+
+/**
+ * Encrypts a phone number if non-empty and not already in encrypted format.
+ */
+export function encryptPhoneAtRest(
+  phone: string | null | undefined
+): string | null {
+  if (!phone?.trim()) return null;
+  const trimmed = phone.trim();
+  if (isEncryptedToken(trimmed)) {
+    return trimmed;
+  }
+  return encryptToken(trimmed);
+}
+
+/**
+ * Decrypts a phone number at rest, falling back gracefully to raw plaintext
+ * if decryption fails or if it's in legacy plaintext format.
+ */
+export function decryptPhoneAtRest(
+  phone: string | null | undefined
+): string | null {
+  if (!phone?.trim()) return null;
+  const trimmed = phone.trim();
+  if (isEncryptedToken(trimmed)) {
+    try {
+      return decryptToken(trimmed);
+    } catch {
+      return trimmed;
+    }
+  }
+  return trimmed;
+}
