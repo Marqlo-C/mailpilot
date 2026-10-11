@@ -326,4 +326,26 @@ MailPilot provides a decoupled, multi-provider LLM domain (`lib/llm/`) with acco
 - Server actions `updateCustomLlmKey` and `clearCustomLlmKey` encrypt keys before persistence and only expose masked versions to the client.
 - Global `OPENROUTER_API_KEY` is not required for production; it is only checked as an optional fallback in local development or test runners.
 
+## Security & Encryption at Rest
+
+MailPilot protects vaulted credentials and sensitive candidate contact data using authenticated symmetric encryption:
+
+* **Engine:** AES-256-GCM (`lib/crypto.ts`)
+* **Key Derivation:** Single master `TOKEN_ENCRYPTION_KEY` (64-character hex / 32-byte secret)
+* **Mechanics:** 12-byte random initialization vector (IV) per invocation and 16-byte authentication tag
+* **Storage Format:** Stored strictly as `iv:authTag:ciphertext` in PostgreSQL
+
+### Encrypted Assets
+
+| Asset | Location | Storage Type | Decryption / Verification Boundary |
+| :--- | :--- | :--- | :--- |
+| **Google OAuth Access & Refresh Tokens** | `Account.encryptedAccess`, `Account.encryptedRefresh` | Database column | Decrypted in memory by serverless workers during Gmail sync / push renewal. |
+| **BYOK Cloud LLM API Keys** | `AccountSettings.rules.encryptedApiKey` | Vaulted JSON field | Decrypted in server memory per inference request; never serialized to client UI (masked as `sk-...[last4]`). |
+| **Local Ollama Bridge CLI Secret** | `AccountSettings.rules.encryptedBridgeSecret` | Vaulted JSON field | Decrypted in memory and validated against terminal pings using constant-time `crypto.timingSafeEqual`. |
+| **Candidate Phone Number** | `UserProfile.phone` | Database column | Encrypted at rest; decrypted on demand when viewing profile editor or generating tailored resume exports. |
+
+### Verification Principles
+* **Timing-Safe Authentication:** Incoming verification tokens are never stored or matched via raw ciphertext lookups; secrets are decrypted into backend memory and compared with timing-safe buffers (`crypto.timingSafeEqual`) to eliminate side-channel timing attacks.
+
+
 

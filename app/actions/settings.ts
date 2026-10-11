@@ -18,6 +18,7 @@ import {
   PROVIDER_ENDPOINTS,
 } from "@/lib/llm/provider.ssot";
 import { encryptAccountKey } from "@/lib/llm/vault";
+import { encryptToken } from "@/lib/crypto";
 
 type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -143,10 +144,14 @@ export async function updateBridgeSecret(
     return { ok: false, error: "Account settings not found" };
   }
 
+  const trimmed = secret.trim();
+  const encryptedBridgeSecret = trimmed ? encryptToken(trimmed) : null;
+
   const current = parseAccountRules(settings.rules);
   const validated = accountRulesSchema.safeParse({
     ...current,
-    bridgeSecret: secret,
+    encryptedBridgeSecret,
+    bridgeSecret: null,
   });
   if (!validated.success) {
     return {
@@ -161,7 +166,7 @@ export async function updateBridgeSecret(
   });
 
   revalidatePath("/settings");
-  return { ok: true, data: { bridgeSecret: validated.data.bridgeSecret } };
+  return { ok: true, data: { bridgeSecret: trimmed.length > 0 ? trimmed : null } };
 }
 
 /**
@@ -189,6 +194,7 @@ export async function updateLlmProvider(
     const validated = accountRulesSchema.parse({
       ...current,
       bridgeSecret: null,
+      encryptedBridgeSecret: null,
       availableModels: [],
       bridgeConnected: false,
     });

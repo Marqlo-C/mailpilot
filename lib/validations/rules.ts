@@ -51,12 +51,17 @@ export const accountRulesSchema = z.object({
   /** Role titles / patterns banned via "Less like this". */
   excludedTitles: z.array(z.string()).default([]),
   /**
+   * AES-256-GCM encrypted secret required by the Ollama terminal bridge.
+   */
+  encryptedBridgeSecret: z.string().nullable().default(null),
+  /**
    * Optional secret required by the Ollama terminal bridge when registering a
-   * Cloudflare Quick Tunnel URL against this account.
+   * Cloudflare Quick Tunnel URL against this account (legacy fallback).
    */
   bridgeSecret: z
     .string()
     .nullish()
+    .default(null)
     .transform((val) => {
       const trimmed = val?.trim() ?? "";
       return trimmed.length > 0 ? trimmed : null;

@@ -8,6 +8,7 @@ import {
   readEducationStatus,
   type MasterProfileInput,
 } from "@/lib/validations/profile";
+import { decryptPhoneAtRest } from "@/lib/crypto";
 
 /**
  * Loads the master resume plus cached persona columns for drafting.
@@ -33,7 +34,7 @@ export async function loadMasterProfileForDraft(
     accountId: profile.accountId,
     fullName: profile.fullName,
     email: profile.email,
-    phone: profile.phone,
+    phone: decryptPhoneAtRest(profile.phone),
     location: profile.location,
     summary: profile.summary,
     links: (profile.links as MasterProfileInput["links"]) ?? [],

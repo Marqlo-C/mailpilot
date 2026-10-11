@@ -21,6 +21,7 @@ import {
   serializeRevisionSummary,
 } from "@/lib/profile/revision-diff";
 import { normalizeProfileUrl } from "@/lib/utils/url";
+import { encryptPhoneAtRest, decryptPhoneAtRest } from "@/lib/crypto";
 import {
   listProfileRevisions,
   loadProfileSnapshot,
@@ -450,7 +451,7 @@ export async function updateMasterProfile(
       const shared = {
         fullName: payload.fullName,
         email: payload.email,
-        phone: payload.phone ?? null,
+        phone: encryptPhoneAtRest(payload.phone),
         location: payload.location ?? null,
         summary: payload.summary ?? null,
         links: payload.links as Prisma.InputJsonValue,
@@ -703,7 +704,7 @@ export async function getMasterProfile(
       data: {
         fullName: profile.fullName,
         email: profile.email,
-        phone: profile.phone,
+        phone: decryptPhoneAtRest(profile.phone),
         location: profile.location,
         summary: profile.summary,
         links: (profile.links as MasterProfileInput["links"]) ?? [],

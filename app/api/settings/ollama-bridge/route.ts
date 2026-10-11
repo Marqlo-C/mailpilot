@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import crypto from "crypto";
 
 import { probeOllamaTagsWithRetry } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
@@ -8,6 +9,7 @@ import {
   accountRulesSchema,
   parseAccountRules,
 } from "@/lib/validations/rules";
+import { decryptToken } from "@/lib/crypto";
 
 /** Strictly validate Cloudflare Quick Tunnel hostnames (SSRF guard). */
 const CLOUDFLARE_TUNNEL_REGEX =
@@ -92,8 +94,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const rules = parseAccountRules(account.settings?.rules);
-    if (!rules.bridgeSecret || rules.bridgeSecret !== bridgeSecret) {
+    const currentRules = parseAccountRules(account.settings?.rules);
+
+    let expectedSecret: string | null = null;
+    if (currentRules.encryptedBridgeSecret) {
+      try {
+        expectedSecret = decryptToken(currentRules.encryptedBridgeSecret).trim();
+      } catch {
+        expectedSecret = null;
+      }
+    } else if (currentRules.bridgeSecret) {
+      expectedSecret = currentRules.bridgeSecret.trim();
+    }
+
+    if (!expectedSecret) {
       return NextResponse.json(
         {
           success: false,
@@ -102,6 +116,26 @@ export async function POST(request: Request) {
         { status: 403 }
       );
     }
+
+    const cleanIncoming = (bridgeSecret ?? "").trim();
+    const expectedBuf = Buffer.from(expectedSecret);
+    const incomingBuf = Buffer.from(cleanIncoming);
+
+    const isValid =
+      expectedBuf.length === incomingBuf.length &&
+      crypto.timingSafeEqual(expectedBuf, incomingBuf);
+
+    if (!isValid) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid bridge secret",
+        },
+        { status: 403 }
+      );
+    }
+
+    const rules = currentRules;
 
     if (action === "disconnect") {
       if (account.settings) {
