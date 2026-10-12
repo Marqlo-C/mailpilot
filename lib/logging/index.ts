@@ -317,14 +317,25 @@ export function logCompactSyncCard(entry: CompactSyncLogEntry): void {
         /Tier 2:\s*CLOUD_BYOK\s*->\s*FAILED/i.test(r)
     );
 
+    const isOllamaInvalidJson = entry.routing.some((r) =>
+      /INVALID JSON/i.test(r)
+    );
+    const ollamaReason = isOllamaInvalidJson
+      ? "Ollama invalid JSON"
+      : "Ollama offline";
+
     if (isCloudRateLimited) {
-      formattedRouting.push("Tier 3: HEURISTIC (Ollama offline, Cloud rate-limited)");
+      formattedRouting.push(
+        `Tier 3: HEURISTIC (${ollamaReason}, Cloud rate-limited)`
+      );
     } else if (isCloudSkipped) {
-      formattedRouting.push("Tier 3: HEURISTIC (Ollama offline, No cloud key)");
+      formattedRouting.push(`Tier 3: HEURISTIC (${ollamaReason}, No cloud key)`);
     } else if (isCloudFailed) {
-      formattedRouting.push("Tier 3: HEURISTIC (Ollama offline, Cloud failed)");
+      formattedRouting.push(`Tier 3: HEURISTIC (${ollamaReason}, Cloud failed)`);
     } else {
-      formattedRouting.push("Tier 3: HEURISTIC (Ollama offline, Cloud disabled)");
+      formattedRouting.push(
+        `Tier 3: HEURISTIC (${ollamaReason}, Cloud disabled)`
+      );
     }
   } else if (entry.routing.some((r) => r.includes("Tier 2: CLOUD"))) {
     formattedRouting.push("Tier 2: CLOUD_BYOK (Ollama failover)");

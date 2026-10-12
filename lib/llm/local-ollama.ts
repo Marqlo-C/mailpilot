@@ -56,6 +56,17 @@ export function resetOllamaCircuit(baseUrl?: string): void {
 }
 
 /**
+ * Thrown when LOCAL_OLLAMA returns empty or malformed JSON that fails parsing
+ * after local retries, without connection/daemon downtime.
+ */
+export class OllamaInvalidJsonError extends Error {
+  constructor(message: string = "Ollama returned empty or malformed JSON") {
+    super(message);
+    this.name = "OllamaInvalidJsonError";
+  }
+}
+
+/**
  * Thrown when LOCAL_OLLAMA is selected but the instance cannot be reached
  * or fails health checks.
  */
@@ -251,6 +262,9 @@ export function computeOllamaTimeouts(payloadChars: number): {
  * or pass into the failover path.
  */
 export function toLocalOllamaError(baseUrl: string, error: unknown): Error {
+  if (error instanceof OllamaInvalidJsonError) {
+    return error;
+  }
   if (error instanceof OllamaUnreachableError) {
     tripOllamaCircuit(baseUrl, error.message);
     return error;
@@ -329,7 +343,7 @@ export async function callOllamaJson(
   if (lastError instanceof Error) {
     throw lastError;
   }
-  return null;
+  throw new OllamaInvalidJsonError("empty or invalid JSON after local retries");
 }
 
 async function callOllamaGenerateOnce(
@@ -513,7 +527,28 @@ export function parseJsonObject(raw: string): Record<string, unknown> | null {
           return parsedSliced as Record<string, unknown>;
         }
       } catch {
-        // Fall through
+        // Fall through to repair attempts
+      }
+    }
+
+    // Attempt repair for unclosed braces/brackets on truncated streams
+    if (firstBrace !== -1) {
+      const candidate = unfenced.slice(firstBrace).trim().replace(/,\s*$/, "");
+      const closingRepairs = ["}", "]}", "}]}", "\"}", "\"}]", "\"}]}", "}\n}", "]\n}"];
+      for (const repair of closingRepairs) {
+        try {
+          const repaired = candidate + repair;
+          const parsedRepaired: unknown = JSON.parse(repaired);
+          if (
+            parsedRepaired &&
+            typeof parsedRepaired === "object" &&
+            !Array.isArray(parsedRepaired)
+          ) {
+            return parsedRepaired as Record<string, unknown>;
+          }
+        } catch {
+          // Continue trying repairs
+        }
       }
     }
   }

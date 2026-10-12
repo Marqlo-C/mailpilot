@@ -14,6 +14,7 @@ import {
   tripOllamaCircuit,
   resolveOllamaModel,
   OllamaUnreachableError,
+  OllamaInvalidJsonError,
   resolveOllamaBaseUrl,
   toLocalOllamaError,
 } from "./local-ollama";
@@ -272,18 +273,21 @@ export async function callLLMWithFallback(
         return attachMeta(result, routingLines, sourceTier);
       }
 
-      throw new OllamaUnreachableError(
-        baseUrl,
+      throw new OllamaInvalidJsonError(
         "empty or invalid JSON after local retries"
       );
     } catch (error) {
-      const localError = toLocalOllamaError(baseUrl, error);
-      // Trip circuit on failure
-      tripOllamaCircuit(baseUrl, localError.message);
-      routingLines.push(
-        `Tier 1: LOCAL_OLLAMA -> FAILED (${localError.message})`,
-        `Circuit: TRIPPED (Bypassing Ollama for 60s)`
-      );
+      if (error instanceof OllamaInvalidJsonError) {
+        routingLines.push("Tier 1: LOCAL_OLLAMA -> INVALID JSON RESPONSE");
+      } else {
+        const localError = toLocalOllamaError(baseUrl, error);
+        // Trip circuit on failure
+        tripOllamaCircuit(baseUrl, localError.message);
+        routingLines.push(
+          `Tier 1: LOCAL_OLLAMA -> FAILED (${localError.message})`,
+          `Circuit: TRIPPED (Bypassing Ollama for 60s)`
+        );
+      }
 
       if (allowFallback) {
         const creds = await resolveCredentials(options);
@@ -335,7 +339,10 @@ export async function callLLMWithFallback(
       }
 
       // Re-throw so caller lands on Tier 3 Heuristic cleanly without stack dump
-      throw localError;
+      if (error instanceof OllamaInvalidJsonError) {
+        throw error;
+      }
+      throw toLocalOllamaError(baseUrl, error);
     }
   }
 

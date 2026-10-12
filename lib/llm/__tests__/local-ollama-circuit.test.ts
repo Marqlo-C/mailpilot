@@ -5,6 +5,8 @@ import {
   resetOllamaCircuit,
   probeOllamaTags,
   OllamaUnreachableError,
+  OllamaInvalidJsonError,
+  parseJsonObject,
 } from "../local-ollama";
 import { classifyJobEmail } from "../classification";
 import * as dispatcher from "../dispatcher";
@@ -141,6 +143,58 @@ describe("Local Ollama Circuit Breaker & Offline Handling", () => {
       });
 
       expect(result).toBeNull();
+    });
+
+    it("falls back to heuristic on OllamaInvalidJsonError WITHOUT tripping circuit breaker", async () => {
+      vi.spyOn(dispatcher, "callLLMWithFallback").mockRejectedValue(
+        new OllamaInvalidJsonError("empty or invalid JSON after local retries")
+      );
+
+      const result = await classifyJobEmail({
+        subject: "Senior Product Designer opening at Linear",
+        body: "Linear is looking for a Senior Product Designer to join our team in San Francisco. Salary range $160,000 - $200,000. Apply at https://linear.app/careers/designer",
+        fromEmail: "recruiting@linear.app",
+        llmProvider: "LOCAL_OLLAMA",
+      });
+
+      expect(result).not.toBeNull();
+      expect(result?.classificationMethod).toBe("HEURISTIC");
+      expect(result?.routingLines?.[0]).toContain("Tier 1: LOCAL_OLLAMA -> INVALID JSON RESPONSE");
+      // Circuit must remain CLOSED so subsequent messages can run Ollama!
+      expect(isOllamaCircuitTripped("http://localhost:11434")).toBe(false);
+    });
+  });
+
+  describe("parseJsonObject Stream Truncation Repair", () => {
+    it("successfully parses valid clean JSON", () => {
+      const parsed = parseJsonObject('{"is_job_related": true, "company_name": "Stripe"}');
+      expect(parsed).toEqual({ is_job_related: true, company_name: "Stripe" });
+    });
+
+    it("repairs and parses JSON missing outer closing brace", () => {
+      const parsed = parseJsonObject('{"is_job_related": true, "company_name": "Stripe"');
+      expect(parsed).toEqual({ is_job_related: true, company_name: "Stripe" });
+    });
+
+    it("repairs and parses JSON missing array and object closing brackets", () => {
+      const parsed = parseJsonObject('{"is_job_related": true, "jobs": [{"title": "Software Engineer"}');
+      expect(parsed).toEqual({
+        is_job_related: true,
+        jobs: [{ title: "Software Engineer" }],
+      });
+    });
+
+    it("repairs and parses JSON with trailing comma before cut-off", () => {
+      const parsed = parseJsonObject('{"is_job_related": true, "company": "Vercel",');
+      expect(parsed).toEqual({ is_job_related: true, company: "Vercel" });
+    });
+
+    it("repairs and parses JSON cut-off inside a string in an array", () => {
+      const parsed = parseJsonObject('{"is_job_related": true, "jobs": [{"title": "Principal Architect');
+      expect(parsed).toEqual({
+        is_job_related: true,
+        jobs: [{ title: "Principal Architect" }],
+      });
     });
   });
 });

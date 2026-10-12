@@ -42,7 +42,11 @@ import { prisma } from "@/lib/prisma";
 import { parseAccountRules, type AccountRules } from "@/lib/validations/rules";
 import { callLLMWithFallback, MissingLlmKeyError } from "./dispatcher";
 import { type LlmProvider } from "./provider.ssot";
-import { isOllamaCircuitTripped, OllamaUnreachableError } from "./local-ollama";
+import {
+  isOllamaCircuitTripped,
+  OllamaUnreachableError,
+  OllamaInvalidJsonError,
+} from "./local-ollama";
 import { CloudLlmRateLimitError } from "./client";
 import { classifyWithGrandHeuristic } from "@/lib/ai/grand-heuristic";
 
@@ -877,6 +881,23 @@ export async function classifyJobEmail(
           ? "Tier 1: LOCAL_OLLAMA -> FAILED / BYPASSED"
           : "Tier 1: LOCAL_OLLAMA -> NOT CONFIGURED",
         "Tier 2: CLOUD_BYOK   -> FAILED (Rate limit / 429)",
+        "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
+      ]);
+    }
+    if (error instanceof OllamaInvalidJsonError) {
+      if (process.env.DEBUG_VERBOSE) {
+        console.debug(
+          `[classify] Ollama returned invalid JSON — falling back to deterministic heuristic classification without tripping circuit.`
+        );
+      }
+      if (classificationMode === "AI_ONLY") {
+        return null;
+      }
+      return fallbackToHeuristic([
+        "Tier 1: LOCAL_OLLAMA -> INVALID JSON RESPONSE",
+        options.allowCloudFallback
+          ? "Tier 2: CLOUD_BYOK   -> FAILED / SKIPPED"
+          : "Tier 2: CLOUD_BYOK   -> DISABLED (allowCloudFallback=false)",
         "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
       ]);
     }
