@@ -1,6 +1,6 @@
 /**
- * Lightweight job-email prefilter: keyword regexes + stemmed synonym expansion.
- * Keeps sync/classify gates aligned without LLM cost.
+ * Lightweight job-email prefilter: 3-tier multi-vector signal triage engine.
+ * Arbitrates lifecycle signals, vector scores (+H vs +N), and structural reality proof.
  * Vocabulary lives in lib/constants/job-sources.ts.
  */
 
@@ -25,6 +25,7 @@ import {
   OUTREACH_PHRASE_PATTERN,
   RECRUITER_TITLE_PATTERN,
   SOURCING_HOOK_PATTERN,
+  matchesConfirmationSignal,
 } from "@/lib/constants/job-sources";
 
 export { APPLICATION_SENT_TO_RE, DIGEST_SENDER_HINTS };
@@ -188,6 +189,271 @@ function hasApplicationConfirmationSignal(
   return false;
 }
 
+export const AUTOMATED_SYSTEM_NOTICE_PATTERNS = [
+  /\b(?:run|build|workflow|pipeline|deployment|job)\s+(?:failed|errored|cancelled)\b/i,
+  /\b(?:ci|cd)\s+(?:alert|failure|notification|& deployment)\b/i,
+  /\b(?:who|people|\d+)\s+viewed\s+your\s+profile\b/i,
+  /\bsecurity\s+(?:alert|notice):\s*(?:unauthorized|new\s+sign-?in|password\s+reset)\b/i,
+  /\bunauthorized\s+sign-?in\b/i,
+];
+
+export const COMMERCIAL_PROMOTION_PATTERNS = [
+  /\b\d{1,2}%\s+off\b/i,
+  /\b(?:save|discount)\s+(?:up\s+to\s+)?(?:\$\d+|\d{1,2}%)\b/i,
+  /\b(?:coupon|promo|discount)\s+code\b/i,
+  /\b(?:bogo|buy\s+one\s+get\s+one)\b/i,
+  /\bfree\s+(?:shipping|delivery|gift|sample|chips?|steaks?|meals?|treats?|food)\b/i,
+  /\b(?:flash\s+sale|clearance\s+sale|limited\s+time\s+offer|daily\s+deals?|special\s+offer|exclusive\s+deal)\b/i,
+  /\b(?:pre-?order|shop\s+now|order\s+now|buy\s+now)\b/i,
+  /\b(?:now\s+leasing|leasing\s+up|apartment\s+homes?|rent\s+specials?)\b/i,
+  /\b(?:hardware|laptop|pizza|flight|hotel|airline|vacation)\s+(?:sale|deals?|tickets?|packages?)\b/i,
+  /\bjoin\s+the\s+fight\b/i,
+  /\b(?:rog\s+gaming|gaming\s+setup)\b/i,
+];
+
+export const NON_JOB_SUBJECT_PATTERNS = [
+  /run failed:/i,
+  /build failed:/i,
+  /workflow run/i,
+  /ci & deployment/i,
+  /(?:\d+\s+)?people viewed your profile/i,
+  /who viewed your profile/i,
+  /join the fight/i,
+  /save up to/i,
+  /coupon/i,
+  /unauthorized/i,
+  /x rog gaming/i,
+  /rog gaming/i,
+];
+
+export const PROMOTIONAL_MARKERS_PATTERN = new RegExp(
+  "\\b(" +
+    [
+      "\\d+%(?:\\s+off)?",
+      "%\\s+off",
+      "free\\s+shipping",
+      "special\\s+offer",
+      "limited\\s+time\\s+offer",
+      "flash\\s+sale",
+      "clearance(?:\\s+sale)?",
+      "black\\s+friday",
+      "cyber\\s+monday",
+      "coupon(?:\\s+code)?",
+      "promo(?:\\s+code)?",
+      "discount(?:\\s+code)?",
+      "save\\s+(?:\\$\\d+|up\\s+to|\\d+%)",
+      "shop\\s+now",
+      "buy\\s+now",
+      "order\\s+now",
+      "pre-?order(?:\\s+now|\\s+today)?",
+      "flight\\s+deals?",
+      "hotel\\s+deals?",
+      "airline\\s+tickets?",
+      "vacation\\s+packages?",
+      "hardware\\s+sale",
+      "laptop\\s+deals?",
+      "pizza\\s+deals?",
+      "cashback",
+      "exclusive\\s+deal",
+    ].join("|") +
+  ")\\b",
+  "i"
+);
+
+export type TriageDecision = {
+  isJobCandidate: boolean;
+  reason:
+    | "LIFECYCLE_CONFIRMED"
+    | "HIGH_HIRING_SIGNAL"
+    | "COMMERCIAL_NOISE"
+    | "SYSTEM_ALERT"
+    | "INSUFFICIENT_PROOF";
+  hiringScore: number;
+  noiseScore: number;
+};
+
+export function evaluateEmailTriage(input: {
+  subject: string;
+  body?: string | null;
+  snippet?: string | null;
+  fromEmail?: string | null;
+}): TriageDecision {
+  const { subject, body = "", snippet = "", fromEmail = "" } = input;
+  const fullText = `${subject}\n${snippet}\n${body?.slice(0, 2000) ?? ""}`;
+
+  // TIER 1: IRONCLAD LIFECYCLE PASS
+  if (
+    matchesConfirmationSignal(subject) ||
+    APPLICATION_SENT_TO_RE.test(subject) ||
+    hasApplicationConfirmationSignal(subject, snippet || body) ||
+    /\b(?:interview\s+invitation|schedule\s+(?:your\s+)?interview|phone\s+screen|assessment\s+invitation)\b/i.test(
+      subject
+    )
+  ) {
+    return {
+      isJobCandidate: true,
+      reason: "LIFECYCLE_CONFIRMED",
+      hiringScore: 10,
+      noiseScore: 0,
+    };
+  }
+
+  // TIER 2: VECTOR SCORING
+  let systemNoiseScore = 0;
+  let commercialNoiseScore = 0;
+  let hiringScore = 0;
+
+  for (const pattern of AUTOMATED_SYSTEM_NOTICE_PATTERNS) {
+    if (pattern.test(subject)) systemNoiseScore += 3;
+    else if (pattern.test(fullText)) systemNoiseScore += 1;
+  }
+  if (NON_JOB_SUBJECT_PATTERNS.some((re) => re.test(subject))) {
+    systemNoiseScore += 3;
+  }
+
+  for (const pattern of COMMERCIAL_PROMOTION_PATTERNS) {
+    if (pattern.test(subject)) commercialNoiseScore += 2;
+    else if (pattern.test(fullText)) commercialNoiseScore += 1;
+  }
+  if (PROMOTIONAL_MARKERS_PATTERN.test(subject)) {
+    commercialNoiseScore += 2;
+  } else if (
+    body || snippet
+      ? PROMOTIONAL_MARKERS_PATTERN.test(
+          (snippet || body || "").slice(0, 1500)
+        )
+      : false
+  ) {
+    commercialNoiseScore += 1;
+  }
+
+  const noiseScore = systemNoiseScore + commercialNoiseScore;
+
+  if (SOURCING_HOOK_PATTERN.test(fullText)) hiringScore += 2;
+  if (ATS_DOMAIN_PATTERN.test(fullText)) hiringScore += 3;
+  if (JOB_BOARD_DOMAIN_PATTERN.test(fullText)) hiringScore += 2;
+  if (
+    /\b(?:we(?:'re|\s+are)\s+hiring|now\s+hiring|join\s+our\s+team|job\s+opening|career\s+opportunity)\b/i.test(
+      subject
+    )
+  ) {
+    hiringScore += 2;
+  }
+  if (
+    /\b(?:\$\d{2,3}(?:,\d{3})*|\$\d{2,3}k)\s*(?:-|to)\s*(?:\$\d{2,3}(?:,\d{3})*|\$\d{2,3}k|\d{2,3}k)\b/i.test(
+      fullText
+    )
+  ) {
+    hiringScore += 2;
+  }
+  if (
+    looksLikeDigest(subject, fromEmail) ||
+    /\b(?:top\s+picks?|recommended\s+jobs?|jobs?\s+for\s+you|jobs?\s+similar\s+to|job\s+matches?)\b/i.test(
+      subject
+    )
+  ) {
+    hiringScore += 2;
+  }
+  if (matchesJobEmailKeywords(subject, fullText)) {
+    hiringScore += 2;
+  }
+
+  if (noiseScore >= 2 && hiringScore === 0) {
+    const reason =
+      systemNoiseScore > commercialNoiseScore
+        ? "SYSTEM_ALERT"
+        : "COMMERCIAL_NOISE";
+    return {
+      isJobCandidate: false,
+      reason,
+      hiringScore,
+      noiseScore,
+    };
+  }
+
+  if (hiringScore >= 2 && noiseScore === 0) {
+    return {
+      isJobCandidate: true,
+      reason: "HIGH_HIRING_SIGNAL",
+      hiringScore,
+      noiseScore,
+    };
+  }
+
+  // TIER 3: CONTESTED / BORDERLINE ARBITRATION
+  const hasAtsProof = ATS_DOMAIN_PATTERN.test(fullText);
+  const hasRecruiterProof = Boolean(
+    fromEmail &&
+      !/noreply|no-reply|alerts@|notifications@|news@|digest@/i.test(fromEmail) &&
+      SOURCING_HOOK_PATTERN.test(fullText)
+  );
+  const hasCompProof =
+    /\b(?:\$\d{2,3}(?:,\d{3})*|\$\d{2,3}k)\s*(?:-|to)\s*(?:\$\d{2,3}(?:,\d{3})*|\$\d{2,3}k|\d{2,3}k)\b/i.test(
+      fullText
+    );
+  const isDigestWithJobBoard =
+    looksLikeDigest(subject, fromEmail) &&
+    (JOB_BOARD_DOMAIN_PATTERN.test(fullText) ||
+      ATS_DOMAIN_PATTERN.test(fullText));
+
+  // Heavy system alert or commercial noise without structural proof is rejected
+  if (
+    systemNoiseScore >= 3 ||
+    (commercialNoiseScore >= 2 &&
+      !hasAtsProof &&
+      !hasRecruiterProof &&
+      !hasCompProof)
+  ) {
+    const reason =
+      systemNoiseScore >= commercialNoiseScore
+        ? "SYSTEM_ALERT"
+        : "COMMERCIAL_NOISE";
+    return {
+      isJobCandidate: false,
+      reason,
+      hiringScore,
+      noiseScore,
+    };
+  }
+
+  if (
+    hasAtsProof ||
+    hasRecruiterProof ||
+    hasCompProof ||
+    isDigestWithJobBoard
+  ) {
+    return {
+      isJobCandidate: true,
+      reason: "HIGH_HIRING_SIGNAL",
+      hiringScore,
+      noiseScore,
+    };
+  }
+
+  return {
+    isJobCandidate: false,
+    reason: "INSUFFICIENT_PROOF",
+    hiringScore,
+    noiseScore,
+  };
+}
+
+export function isPromotionalOrMarketingEmail(
+  subject: string,
+  bodyOrSnippet?: string | null,
+  fromEmail?: string | null
+): boolean {
+  const triage = evaluateEmailTriage({
+    subject,
+    snippet: bodyOrSnippet,
+    fromEmail,
+  });
+  return (
+    !triage.isJobCandidate &&
+    (triage.reason === "COMMERCIAL_NOISE" || triage.reason === "SYSTEM_ALERT")
+  );
+}
+
 /**
  * Single gate used by sync + classifyJobEmail so webhook and LLM paths agree.
  */
@@ -197,9 +463,5 @@ export function shouldClassifyEmail(input: {
   snippet?: string | null;
   fromEmail?: string | null;
 }): boolean {
-  const scanText = [input.snippet, input.body].filter(Boolean).join("\n");
-  if (matchesJobEmailKeywords(input.subject, scanText)) return true;
-  if (looksLikeDigest(input.subject, input.fromEmail)) return true;
-  if (hasApplicationConfirmationSignal(input.subject, scanText)) return true;
-  return false;
+  return evaluateEmailTriage(input).isJobCandidate;
 }

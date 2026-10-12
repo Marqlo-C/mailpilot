@@ -300,6 +300,9 @@ export function normalizeSalaryDisplay(
       .replace(/\beur\s*/i, "€")
       .replace(/\bgbp\s*/i, "£");
 
+    // Standardize lowercase 'k' to 'K' when preceded by digits
+    p = p.replace(/(\d)k\b/gi, "$1K");
+
     // Already has a leading currency symbol
     if (/^[$€£]/.test(p)) {
       return p.replace(/^\$+/, "$").replace(/^€+/, "€").replace(/^£+/, "£");
@@ -316,6 +319,23 @@ export function normalizeSalaryDisplay(
     }
     return p;
   });
+
+  // Handle shorthand ranges like "$120K - $160" or "$112K - $187"
+  if (normalized.length === 2) {
+    const hasK0 = /k$/i.test(normalized[0]);
+    const hasK1 = /k$/i.test(normalized[1]);
+    const isBareNum0 = /^[$€£]?\d{2,3}$/.test(normalized[0]);
+    const isBareNum1 = /^[$€£]?\d{2,3}$/.test(normalized[1]);
+
+    if (hasK0 && isBareNum1) {
+      normalized[1] = `${normalized[1]}K`;
+    } else if (hasK1 && isBareNum0) {
+      normalized[0] = `${normalized[0]}K`;
+    }
+
+    normalized[0] = normalized[0].replace(/k$/i, "K");
+    normalized[1] = normalized[1].replace(/k$/i, "K");
+  }
 
   const joined = normalized
     .join(" - ")

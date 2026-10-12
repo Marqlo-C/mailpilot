@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
+  Hexagon,
   Mail,
   MapPin,
   RotateCcw,
@@ -449,7 +450,17 @@ export function OpportunityCard({
         {opportunity.matchReason ? (
           <div className="mt-auto flex items-start gap-2 px-4 pt-3 sm:px-5">
             <div className="flex w-full items-start gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 p-2.5 dark:bg-muted/10">
-              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+              {opportunity.classificationMethod === "HEURISTIC" ? (
+                <Hexagon
+                  aria-label="Heuristic analysis"
+                  className="mt-0.5 h-4 w-4 shrink-0 text-blue-500"
+                />
+              ) : (
+                <Sparkles
+                  aria-label="AI analysis"
+                  className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/80"
+                />
+              )}
               <p className="text-xs leading-relaxed text-muted-foreground">
                 {opportunity.matchReason}
               </p>

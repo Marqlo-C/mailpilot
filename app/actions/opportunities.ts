@@ -45,6 +45,7 @@ export type ActionResult<T = undefined> =
   | { ok: false; error: string };
 
 export type OriginalEmailPreview = {
+  messageId?: string | null;
   subject: string | null;
   fromName: string | null;
   fromEmail: string | null;
@@ -84,6 +85,7 @@ export type ReviewedResumeInput = {
 };
 
 const originalEmailSelect = {
+  messageId: true,
   subject: true,
   fromName: true,
   fromEmail: true,
@@ -94,6 +96,7 @@ const originalEmailSelect = {
 
 function mapOriginalEmail(
   emailMessage: {
+    messageId: string;
     subject: string | null;
     fromName: string | null;
     fromEmail: string | null;
@@ -108,6 +111,7 @@ function mapOriginalEmail(
     ? cleanEmailPayload(raw)
     : emailMessage.snippet?.trim() || "";
   return {
+    messageId: emailMessage.messageId,
     subject: emailMessage.subject,
     fromName: emailMessage.fromName,
     fromEmail: emailMessage.fromEmail,

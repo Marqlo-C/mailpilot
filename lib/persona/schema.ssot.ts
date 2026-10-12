@@ -1,9 +1,12 @@
 /**
  * ============================================================================
- * SINGLE SOURCE OF TRUTH (SSOT) FOR PERSONA ENGINE CONTRACTS
+ * SINGLE SOURCE OF TRUTH (SSOT): CANDIDATE PERSONA CONTRACT
  * 
- * If you add, remove, or modify fields upstream in the Master Profile, or
- * expand persona classifications, THIS is the sole contract file to update.
+ * ATTENTION FUTURE DEVELOPERS:
+ * This file is the canonical contract for candidate persona dimensions.
+ * If you need to add, rename, or change data shapes, THIS IS THE FIRST AND
+ * ONLY CONTRACT FILE TO EDIT. Do NOT bypass this file by importing raw
+ * Prisma models downstream.
  * ============================================================================
  */
 

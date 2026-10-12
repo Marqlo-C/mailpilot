@@ -15,7 +15,7 @@ describe("Account & Profile Data Encryption at Rest", () => {
   });
 
   describe("Bridge CLI Secret Vaulting", () => {
-    it("encrypts secret and allows constant-time verification", () => {
+    it("encrypts secret and verifies with constant-time buffer comparison", () => {
       const rawSecret = "513d34aa664e4d19";
       const encrypted = encryptToken(rawSecret);
 
@@ -42,7 +42,7 @@ describe("Account & Profile Data Encryption at Rest", () => {
   });
 
   describe("Profile Phone Number Encryption & Legacy Compatibility", () => {
-    it("encrypts phone number and decrypts to original plaintext", () => {
+    it("encrypts phone number and cleanly restores plaintext", () => {
       const rawPhone = "+1 (555) 019-2834";
       const encrypted = encryptToken(rawPhone);
 

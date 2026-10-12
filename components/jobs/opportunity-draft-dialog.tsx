@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useId,
   useRef,
@@ -182,6 +183,8 @@ export function OpportunityDraftDialog({
   const [error, setError] = useState<string | null>(null);
   const [originalEmail, setOriginalEmail] =
     useState<OriginalEmailPreview | null>(null);
+  const [liveEmailBody, setLiveEmailBody] = useState<string | null>(null);
+  const [loadingLiveEmail, setLoadingLiveEmail] = useState(false);
   const [extraFiles, setExtraFiles] = useState<File[]>([]);
   const [resume, setResume] = useState<OpportunityResumePreview | null>(null);
   const [resumePdfUrl, setResumePdfUrl] = useState<string | null>(null);
@@ -207,6 +210,8 @@ export function OpportunityDraftDialog({
     setResumeAction(null);
     setRecipient(opportunity.recipientEmail ?? "");
     setOriginalEmail(null);
+    setLiveEmailBody(null);
+    setLoadingLiveEmail(false);
     setExtraFiles([]);
     setResume(null);
     setResumeError(null);
@@ -542,6 +547,24 @@ export function OpportunityDraftDialog({
     })();
   }
 
+  const fetchLiveEmail = useCallback(async () => {
+    if (!originalEmail?.messageId || liveEmailBody || loadingLiveEmail) return;
+    setLoadingLiveEmail(true);
+    try {
+      const res = await fetch(
+        `/api/gmail/message?id=${encodeURIComponent(originalEmail.messageId)}`
+      );
+      const json = await res.json();
+      if (json.success && json.snippet) {
+        setLiveEmailBody(json.snippet);
+      }
+    } catch {
+      // Fallback gracefully to originalEmail.body
+    } finally {
+      setLoadingLiveEmail(false);
+    }
+  }, [originalEmail?.messageId, liveEmailBody, loadingLiveEmail]);
+
   function handleCancelTask(taskId: string) {
     if (taskId === TASK_EMAIL_REFINE || taskId === TASK_EMAIL_DRAFT) {
       const snapshot = emailSnapshotRef.current;
@@ -775,7 +798,11 @@ export function OpportunityDraftDialog({
                     />
                   </div>
                   {originalEmail ? (
-                    <DropdownMenu>
+                    <DropdownMenu
+                      onOpenChange={(isOpen) => {
+                        if (isOpen) void fetchLiveEmail();
+                      }}
+                    >
                       <DropdownMenuTrigger asChild>
                         <Button
                           type="button"
@@ -820,9 +847,17 @@ export function OpportunityDraftDialog({
                             </span>{" "}
                             {originalEmail.subject?.trim() || "(no subject)"}
                           </p>
-                          <div className="mt-2 border-t border-border/50 pt-2 leading-relaxed">
-                            {originalEmail.body.trim() || "(empty body)"}
-                          </div>
+                          {loadingLiveEmail ? (
+                            <div className="flex items-center gap-2 border-t border-border/50 py-2.5 text-xs text-muted-foreground">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <span>Loading live message…</span>
+                            </div>
+                          ) : (
+                            <div className="mt-2 border-t border-border/50 pt-2 leading-relaxed">
+                              {(liveEmailBody || originalEmail.body).trim() ||
+                                "(empty body)"}
+                            </div>
+                          )}
                         </div>
                       </DropdownMenuContent>
                     </DropdownMenu>

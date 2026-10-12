@@ -29,7 +29,9 @@ export function isGenericTitle(
     lower === "applied position" ||
     lower === "applicant" ||
     lower.includes("application was sent") ||
-    lower === "linkedin"
+    lower === "linkedin" ||
+    lower.startsWith("http://") ||
+    lower.startsWith("https://")
   ) {
     return true;
   }
@@ -161,7 +163,10 @@ export function parseApplicationEmail(
     return {
       company,
       title:
-        title && !isGenericTitle(title, company)
+        title &&
+        !title.startsWith("http://") &&
+        !title.startsWith("https://") &&
+        !isGenericTitle(title, company)
           ? title
           : genericRoleTitle(company),
       location: location || null,
@@ -175,9 +180,18 @@ export function parseApplicationEmail(
   );
 
   if (atsWithRoleMatch) {
+    let title = atsWithRoleMatch[1].trim();
+    const company = atsWithRoleMatch[2].trim();
+    if (
+      title.startsWith("http://") ||
+      title.startsWith("https://") ||
+      isGenericTitle(title, company)
+    ) {
+      title = genericRoleTitle(company);
+    }
     return {
-      title: atsWithRoleMatch[1].trim(),
-      company: atsWithRoleMatch[2].trim(),
+      title,
+      company,
       location: null,
       appliedDate: new Date(),
     };

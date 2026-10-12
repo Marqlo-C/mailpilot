@@ -29,6 +29,14 @@ export const DEFAULT_RESUME_PREFERENCES: ResumePreferences = {
   maxPages: "auto",
 };
 
+export const CLASSIFICATION_MODES = [
+  "AI_WITH_HEURISTIC_FALLBACK",
+  "AI_ONLY",
+  "HEURISTIC_ONLY",
+] as const;
+
+export type ClassificationMode = (typeof CLASSIFICATION_MODES)[number];
+
 export const accountRulesSchema = z.object({
   rejectionMode: z.enum(["LABEL_ONLY", "AUTO_TRASH"]).default("LABEL_ONLY"),
   rejectionLabelName: z.string().default("Job Search/Rejections"),
@@ -37,6 +45,10 @@ export const accountRulesSchema = z.object({
   applicationMode: z
     .enum(["MANUAL_REVIEW", "AUTO_SEND"])
     .default("MANUAL_REVIEW"),
+  /** User classification strategy for inbound job emails */
+  classificationMode: z
+    .enum(CLASSIFICATION_MODES)
+    .default("AI_WITH_HEURISTIC_FALLBACK"),
   /**
    * @deprecated Threshold lives on PermanentSettings / UserProfile.
    * Stripped on parse; kept optional so legacy JSON blobs do not fail validation.
@@ -106,6 +118,21 @@ export const DEFAULT_ACCOUNT_RULES: AccountRules = (() => {
 export function parseAccountRules(rules: unknown): AccountRules {
   const parsed = accountRulesSchema.parse(rules ?? {});
   const { matchScoreThreshold: _deprecated, ...rest } = parsed;
+
+  const raw =
+    typeof rules === "object" && rules !== null
+      ? (rules as Record<string, unknown>)
+      : {};
+
+  // If allowCloudFallback is not explicitly set in the raw payload,
+  // but a key is already configured, default to true so existing configured keys stay active.
+  if (
+    raw.allowCloudFallback === undefined &&
+    Boolean(rest.maskedApiKey || rest.encryptedApiKey)
+  ) {
+    return { ...rest, allowCloudFallback: true };
+  }
+
   return rest;
 }
 
