@@ -37,7 +37,7 @@ describe("LLM Engine Model Priority & Rate Limit Fallback", () => {
       expect(result?.jobs?.[0]?.isAlreadyApplied).toBe(true);
     });
 
-    it("passes custom cloudModel and prioritizes it in candidateModels to callLLMWithFallback", async () => {
+    it("passes custom cloudModel directly to callLLMWithFallback without candidate arrays", async () => {
       const callSpy = vi
         .spyOn(dispatcher, "callLLMWithFallback")
         .mockResolvedValue({
@@ -56,7 +56,33 @@ describe("LLM Engine Model Priority & Rate Limit Fallback", () => {
       expect(callSpy).toHaveBeenCalledTimes(1);
       const callArgs = callSpy.mock.calls[0][0];
       expect(callArgs.cloudModel).toBe("anthropic/claude-3.5-sonnet");
-      expect(callArgs.openRouterModels).toEqual(["anthropic/claude-3.5-sonnet"]);
+      expect(callArgs.openRouterModels).toBeUndefined();
+    });
+  });
+
+  describe("callCloudLlmJson strict model targeting", () => {
+    it("attempts only the user-specified model exactly once without candidate rotation on 429", async () => {
+      const { callCloudLlmJson } = await import("../client");
+
+      const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
+        status: 429,
+        ok: false,
+        text: async () => "Rate limit exceeded",
+      } as unknown as Response);
+
+      await expect(
+        callCloudLlmJson({
+          provider: "OPENROUTER",
+          apiKey: "test-key",
+          model: "openai/gpt-4o",
+          systemPrompt: "sys",
+          userPrompt: "user",
+        })
+      ).rejects.toThrow(CloudLlmRateLimitError);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const fetchBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+      expect(fetchBody.model).toBe("openai/gpt-4o");
     });
   });
 });

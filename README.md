@@ -80,6 +80,28 @@ After a dismissed opportunity is removed, its source email becomes eligible for 
 
 Active pipeline cards (`Leads`, `Action Required`, `Applied`) and user-archived cards in **History** keep their source `EmailMessage`. The email delete requires `opportunities: { none: {} }`, so any linked opportunity — including one that is still inside the retention window — blocks deletion.
 
+## Multi-Tier Core Architectures
+
+MailPilot utilizes three distinct, complementary 3-tier engines to guarantee reliability, zero duplicate data, and token efficiency:
+
+### 1. Inbound Signal Triage Engine (`lib/ai/prefilter.ts`)
+Filters noise (promotions, deals, DevOps alerts, newsletters) before ingestion without hardcoded brand whitelists:
+* **Tier 1 (Ironclad Lifecycle Pass):** Application confirmations, interview invitations, assessments, and rejections bypass commercial filtering with 100% priority.
+* **Tier 2 (Vector Balance Scoring):** Computes competing scores for Hiring Intent ($+H$) and Commercial/System Noise ($+N$). Clear commercial noise ($N \ge 2, H = 0$) drops in 0ms; clear hiring ($H \ge 2, N = 0$) advances directly.
+* **Tier 3 (Structural Reality Gate):** Borderline messages ($H > 0, N > 0$) must demonstrate concrete evidence—an ATS URL, compensation range, or authenticated recruiter sender—to enter the classification pipeline.
+
+### 2. LLM Provider Failover Chain (`lib/llm/dispatcher.ts`)
+Ensures resilient, cost-effective inference with circuit-breaker protection:
+* **Tier 1 (Local Ollama):** Executes private, zero-cost inference. If the endpoint is offline or fails health checks, an in-memory circuit breaker opens, bypassing network timeouts on subsequent messages in 0ms.
+* **Tier 2 (Cloud LLM / BYOK Fallback):** When Ollama is offline or times out (and `allowCloudFallback: true` or a valid API key exists), execution transparently escalates to account-configured cloud models (OpenRouter, Gemini, Groq, OpenAI, Anthropic) with candidate rotation on HTTP 429/403.
+* **Tier 3 (Grand Heuristic Engine):** If cloud providers rate-limit, fail, or lack API keys, processing drops synchronously to the zero-token in-memory deterministic parser (`< 2ms`), ensuring sync passes never deadlock or fail.
+
+### 3. Opportunity Deduplication Engine (`lib/opportunity-sync.ts`)
+Prevents pipeline card duplication across rescans and multi-job digests:
+* **Tier 1 (Same-Origin Match):** Matches against existing opportunities tied to the same `emailMessageId` via `applyUrl` or normalized title. Updates the existing opportunity in place.
+* **Tier 2 (Cross-Email Entity Match):** Matches across different emails by checking `Company + Role Title + Location` compatibility. Attaches to and updates the active card.
+* **Tier 3 (Deterministic Insert):** Executes `prisma.jobOpportunity.create` only when Tier 1 and Tier 2 yield no existing record.
+
 ## Tech Stack
 
 - **Framework:** Next.js 15 (App Router), React 19, TypeScript
@@ -163,7 +185,7 @@ Use `.env.example` as the source of truth. Key variables:
 ## Scripts
 
 - `npm run dev` – start local dev server
-- `npm run build` – Prisma generate + production build
+- `npm run build` – Run Vitest unit tests + Next.js production build
 - `npm run start` – run production server
 - `npm run lint` – run ESLint
 - `npm test` – run Vitest unit test suite (zero-token, offline)
@@ -346,6 +368,94 @@ MailPilot protects vaulted credentials and sensitive candidate contact data usin
 
 ### Verification Principles
 * **Timing-Safe Authentication:** Incoming verification tokens are never stored or matched via raw ciphertext lookups; secrets are decrypted into backend memory and compared with timing-safe buffers (`crypto.timingSafeEqual`) to eliminate side-channel timing attacks.
+
+## Ingestion, Classification & Decoupled Opportunity Pipeline
+
+MailPilot features a resilient, decoupled ingestion and matching pipeline built around three domain contracts (`lib/persona/`, `lib/opportunities/context/`, and `lib/matching/`). Anti-corruption adapter lenses isolate external ingestion sources and database models from downstream evaluation and UI rendering.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       Gmail Webhook / Sync Trigger                          │
+│               (/api/webhooks/gmail · runOpportunitySync)                    │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Serial Ingestion Loop                             │
+│                  - Throttled Pacing: 350ms delay/message                    │
+│                  - 3 Modes: AI_WITH_HEURISTIC_FALLBACK, AI_ONLY,            │
+│                             HEURISTIC_ONLY                                  │
+└──────────────────┬──────────────────────────────────────┬───────────────────┘
+                   │                                      │
+                   ▼                                      ▼
+      ┌─────────────────────────┐            ┌─────────────────────────┐
+      │   Primary Classifier    │            │  Grand Heuristic Engine │
+      │   (Local / Cloud LLM)   │──[Fail]───▶│   (Zero-Token Regex &   │
+      │                         │            │     JSON-LD Scraper)    │
+      └────────────┬────────────┘            └────────────┬────────────┘
+                   │                                      │
+                   └──────────────────┬───────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Persistence & Deduplication Engine                       │
+│    - Transient Storage Policy: EmailMessage.rawBody = null                  │
+│    - Smart Snippet Extraction: Min 500, Max 1,500 chars (Sentence Ramp-Up)  │
+│    - 3-Tier Deduplication:                                                  │
+│        Tier 1: Same email + applyUrl or normalized title                    │
+│        Tier 2: Same company + roleTitle + location-compatible               │
+│        Tier 3: Insert new JobOpportunity (AI or [Heuristic])                │
+│    - Sync Watermark: Commit lastSyncedAt ONLY on pass completion            │
+└─────────────────────────────────────┬───────────────────────────────────────┘
+                                       │
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Anti-Corruption Lens Layer                          │
+│                                                                             │
+│   resolveJobOpportunity()            extractMatchCandidateLens()            │
+│   (lib/opportunities/context/lens.ts) (lib/matching/lens.ts)                │
+└──────────────────┬──────────────────────────────────────┬───────────────────┘
+                   │                                      │
+                   ▼                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Decoupled Domain Consumers                        │
+│                                                                             │
+│   1. Standardized 2-Pill Job Card UI (`components/opportunities/`)          │
+│   2. Match Scoring Evaluator (`lib/matching/evaluator.ts`)                  │
+│   3. Resume Tailoring Engine (`lib/resume-tailor.ts`)                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Sizing Boundaries & Content Scrubber
+
+To protect LLM context windows and maximize inference speed, MailPilot enforces strict character boundaries on inbound content:
+
+* **Inbound Snippet (Smart Ramp-Up):**
+  - Managed by `extractCleanSnippet()` in `lib/opportunities/context/scrubber.ts`.
+  - Enforces a minimum of 500 characters and a ceiling of 1,500 characters.
+  - Automatically ramps up to natural sentence boundaries (`[.!?]`), avoiding abrupt word chops.
+* **Job Description Scrubber:**
+  - Managed by `sanitizeJobDescription()` in `lib/opportunities/context/scrubber.ts`.
+  - Strips legal disclaimers, Equal Opportunity Employer (EEO) statements, benefits headers, and company culture boilerplate.
+  - Hard caps payload between 4,000 and 6,000 characters (default 4,000) at clean paragraph or section boundaries.
+
+### Transient Email Storage Policy
+
+In accordance with strict privacy principles and storage limits:
+- **`EmailMessage.rawBody` is set to `null`:** Inbound email bodies are scrubbed in memory during classification and never permanently retained in the database.
+- **On-Demand Email Fetching:** When viewing original email threads in the UI (e.g. "View Original Email" modal), live message text is fetched on the fly via `GET /api/gmail/message?id=<messageId>` using transient Google OAuth tokens.
+
+### Architecture Modification Guide
+
+Future developers should make edits within the designated Single Source of Truth (SSOT) files and adapter lenses:
+
+| Domain | Contract (SSOT) | Adapter Lens | Purpose & Future Developer Guidelines |
+| :--- | :--- | :--- | :--- |
+| **Persona** | `lib/persona/schema.ssot.ts` | `lib/persona/lens.ts` | Edit when adding candidate persona dimensions (archetypes, tone guidance, seniority tiers). Never import raw Prisma models into tailor logic. |
+| **Job Context** | `lib/opportunities/context/schema.ssot.ts` | `lib/opportunities/context/lens.ts` | Edit when updating canonical job opportunity representations. `resolveJobOpportunity()` is the sole entrypoint mapping DB rows to the pipeline. |
+| **Match Scoring** | `lib/matching/schema.ssot.ts` | `lib/matching/lens.ts` | Edit when adjusting matching criteria, fit tiers (`HIGH`, `MID`, `LOW`), or seniority alignment. Evaluators consume `MatchCandidateLens`. |
+| **Heuristics** | `lib/ai/grand-heuristic.ts` | N/A | Zero-token deterministic fallback engine extracting company, role, location, salary, apply URLs, and schema.org JSON-LD. |
+
 
 
 

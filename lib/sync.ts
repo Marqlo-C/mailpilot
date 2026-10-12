@@ -32,13 +32,15 @@ import {
 } from "@/lib/parsers/application-parser";
 import { prisma } from "@/lib/prisma";
 import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
-import { dedupeLog, logStory, syncLog } from "@/lib/logging";
+import { logStory, syncLog } from "@/lib/logging";
 import { isLocationCompatible } from "@/lib/utils/location";
 import {
   parseAccountRules,
   titleMatchesExcluded,
   type AccountRules,
 } from "@/lib/validations/rules";
+import { extractCleanSnippet } from "@/lib/opportunities/context";
+
 
 /** Normalize role titles for fuzzy equality (strip Jr/Sr/II noise). */
 function normalizeOpportunityTitle(title: string): string {
@@ -126,22 +128,9 @@ async function findMatchingOpportunity(input: {
     );
 
   if (tier1) {
-    const viaUrl = applyUrlsMatch(applyUrl, tier1.applyUrl);
     if (isSuppressedOpportunity(tier1)) {
-      logStory(dedupeLog, "Tier 1 — same email, but left alone (dismissed/archived)", {
-        company,
-        title,
-        "matched via": viaUrl ? "apply URL" : "title + location",
-        "existing id": tier1.id,
-      });
       return { kind: "suppress", row: tier1 };
     }
-    logStory(dedupeLog, "Tier 1 — same email → update existing row", {
-      company,
-      title,
-      "matched via": viaUrl ? "apply URL" : "title + location",
-      "existing id": tier1.id,
-    });
     return { kind: "update", row: tier1, upgradingPlaceholder: false };
   }
 
@@ -184,47 +173,14 @@ async function findMatchingOpportunity(input: {
 
   if (tier2) {
     if (isSuppressedOpportunity(tier2)) {
-      logStory(
-        dedupeLog,
-        "Tier 2 — same company/role/location, but left alone (dismissed/archived)",
-        {
-          company,
-          title,
-          location: location ?? "(none)",
-          "existing id": tier2.id,
-          status: tier2.status,
-        }
-      );
       return { kind: "suppress", row: tier2 };
     }
     if (isActiveOpportunityStatus(tier2.status) || !tier2.isArchived) {
-      logStory(
-        dedupeLog,
-        "Tier 2 — cross-email company + title + location → update",
-        {
-          company,
-          title,
-          location: location ?? "(none)",
-          "placeholder upgrade": upgradingPlaceholder ? "yes" : "no",
-          "existing id": tier2.id,
-        }
-      );
       return { kind: "update", row: tier2, upgradingPlaceholder };
     }
-    logStory(dedupeLog, "Tier 2 — matched but suppressed (not an active row)", {
-      company,
-      title,
-      "existing id": tier2.id,
-      status: tier2.status,
-    });
     return { kind: "suppress", row: tier2 };
   }
 
-  logStory(dedupeLog, "Tier 3 — no match → create new opportunity", {
-    company,
-    title,
-    location: location ?? "(none)",
-  });
   return { kind: "none" };
 }
 
@@ -590,7 +546,14 @@ export async function persistClassifiedEmail(input: {
     Awaited<ReturnType<typeof classifyJobEmail>>
   >;
   rules: ReturnType<typeof parseAccountRules>;
-}): Promise<{ opportunitiesUpserted: number; applicationTouched: boolean }> {
+  classificationMethod?: "AI" | "HEURISTIC" | "HYBRID";
+}): Promise<{
+  opportunitiesUpserted: number;
+  applicationTouched: boolean;
+  createdCount: number;
+  updatedCount: number;
+  lastAction?: string;
+}> {
   const {
     gmail,
     account,
@@ -598,18 +561,18 @@ export async function persistClassifiedEmail(input: {
     threadId,
     subject,
     body,
-    rawBody,
     sender,
     emailDate,
     classification,
     rules,
+    classificationMethod,
   } = input;
 
-  const storedRawBody =
-    typeof rawBody === "string" && rawBody.trim().length > 0
-      ? rawBody
-      : null;
-  const snippetPreview = sanitizeEmailBody(body).slice(0, 500);
+  let createdCount = 0;
+  let updatedCount = 0;
+  let lastAction = "";
+
+  const snippetPreview = extractCleanSnippet(body, 500, 1500);
 
   const emailMessage = await prisma.emailMessage.upsert({
     where: {
@@ -628,7 +591,7 @@ export async function persistClassifiedEmail(input: {
       emailCategory: classification.email_category,
       emailDate,
       snippet: snippetPreview,
-      rawBody: storedRawBody,
+      rawBody: null,
     },
     update: {
       threadId,
@@ -638,7 +601,7 @@ export async function persistClassifiedEmail(input: {
       emailCategory: classification.email_category,
       emailDate,
       snippet: snippetPreview,
-      ...(storedRawBody ? { rawBody: storedRawBody } : {}),
+      rawBody: null,
     },
   });
 
@@ -804,6 +767,8 @@ export async function persistClassifiedEmail(input: {
               isArchived,
             },
           });
+          updatedCount += 1;
+          lastAction = `JobApplication: Updated status to ${mappedStatus} (${existing.id})`;
         } else {
           await prisma.jobApplication.upsert({
             where: {
@@ -846,6 +811,8 @@ export async function persistClassifiedEmail(input: {
               isArchived,
             },
           });
+          createdCount += 1;
+          lastAction = `JobApplication: Recorded application status (${mappedStatus})`;
         }
       } else {
         await prisma.jobApplication.upsert({
@@ -889,10 +856,20 @@ export async function persistClassifiedEmail(input: {
             isArchived,
           },
         });
+        createdCount += 1;
+        lastAction = `JobApplication: Recorded application status (${mappedStatus})`;
       }
 
       if (classification.jobs.length === 0) {
-        return { opportunitiesUpserted: 0, applicationTouched: true };
+        return {
+          opportunitiesUpserted: 0,
+          applicationTouched: true,
+          createdCount,
+          updatedCount,
+          lastAction:
+            lastAction ||
+            `JobApplication: Recorded application status (${mappedStatus})`,
+        };
       }
     }
   }
@@ -1015,10 +992,13 @@ export async function persistClassifiedEmail(input: {
           ...(resolvedStatus === "APPLIED"
             ? { previousStatus: null, dismissedAt: null }
             : {}),
+          ...(classificationMethod ? { classificationMethod } : {}),
         },
       });
 
       opportunitiesUpserted += 1;
+      updatedCount += 1;
+      lastAction = `Tier 2 Dedupe: Updated Opportunity (${existing.id}) for ${cleanCompany}`;
       continue;
     }
 
@@ -1049,15 +1029,25 @@ export async function persistClassifiedEmail(input: {
         status: initialStatus,
         appliedAt: isAlreadyApplied ? emailDate ?? new Date() : null,
         isArchived: false,
+        classificationMethod: classificationMethod ?? "AI",
       },
     });
 
     opportunitiesUpserted += 1;
+    createdCount += 1;
+    lastAction = `Tier 3 Dedupe: Inserted New Opportunity for ${cleanCompany} (${cleanTitle})`;
   }
 
   return {
     opportunitiesUpserted,
     applicationTouched: classification.email_category === "APPLICATION_STATUS",
+    createdCount,
+    updatedCount,
+    lastAction:
+      lastAction ||
+      (opportunitiesUpserted > 0
+        ? `Saved ${opportunitiesUpserted} opportunity record(s)`
+        : "Processed"),
   };
 }
 

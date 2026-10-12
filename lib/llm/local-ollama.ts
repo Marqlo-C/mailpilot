@@ -7,7 +7,53 @@
  * ============================================================================
  */
 
+import { logEngineExecutionTable } from "@/lib/logging";
+
 export const DEFAULT_OLLAMA_MODEL = "llama3.1:8b";
+
+interface CircuitBreakerEntry {
+  trippedAt: number;
+  reason?: string;
+}
+
+const CIRCUIT_BREAKER_TTL_MS = 60_000;
+const trippedCircuits = new Map<string, CircuitBreakerEntry>();
+
+/**
+ * Checks whether the circuit breaker is currently open for a given Ollama endpoint.
+ */
+export function isOllamaCircuitTripped(baseUrl: string): boolean {
+  const key = normalizeOllamaBaseUrl(baseUrl);
+  const entry = trippedCircuits.get(key);
+  if (!entry) return false;
+  if (Date.now() - entry.trippedAt > CIRCUIT_BREAKER_TTL_MS) {
+    trippedCircuits.delete(key);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Trips the circuit breaker for a given Ollama endpoint.
+ */
+export function tripOllamaCircuit(baseUrl: string, reason?: string): void {
+  const key = normalizeOllamaBaseUrl(baseUrl);
+  trippedCircuits.set(key, {
+    trippedAt: Date.now(),
+    reason,
+  });
+}
+
+/**
+ * Resets the circuit breaker for a given endpoint, or all endpoints if none is provided.
+ */
+export function resetOllamaCircuit(baseUrl?: string): void {
+  if (baseUrl) {
+    trippedCircuits.delete(normalizeOllamaBaseUrl(baseUrl));
+  } else {
+    trippedCircuits.clear();
+  }
+}
 
 /**
  * Thrown when LOCAL_OLLAMA is selected but the instance cannot be reached
@@ -82,9 +128,18 @@ export function resolveOllamaBaseUrl(configured?: string | null): string {
  */
 export async function probeOllamaTags(
   baseUrl: string,
-  timeoutMs: number = 5000
+  timeoutMs: number = 5000,
+  opts?: { skipCircuitBreaker?: boolean }
 ): Promise<{ models: string[] }> {
   const base = normalizeOllamaBaseUrl(baseUrl);
+
+  if (!opts?.skipCircuitBreaker && isOllamaCircuitTripped(base)) {
+    throw new OllamaUnreachableError(
+      base,
+      "circuit breaker open (instance was recently detected offline)"
+    );
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -101,23 +156,26 @@ export async function probeOllamaTags(
     });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
+    tripOllamaCircuit(base, detail);
     throw new OllamaUnreachableError(base, detail);
   } finally {
     clearTimeout(timer);
   }
 
   if (!res.ok) {
-    throw new OllamaUnreachableError(base, `health check HTTP ${res.status}`);
+    const detail = `health check HTTP ${res.status}`;
+    tripOllamaCircuit(base, detail);
+    throw new OllamaUnreachableError(base, detail);
   }
 
   let data: unknown;
   try {
     data = await res.json();
   } catch {
-    throw new OllamaUnreachableError(
-      base,
-      "health check returned non-JSON (not a valid Ollama /api/tags response)"
-    );
+    const detail =
+      "health check returned non-JSON (not a valid Ollama /api/tags response)";
+    tripOllamaCircuit(base, detail);
+    throw new OllamaUnreachableError(base, detail);
   }
 
   if (
@@ -126,11 +184,13 @@ export async function probeOllamaTags(
     !("models" in data) ||
     !Array.isArray((data as { models: unknown }).models)
   ) {
-    throw new OllamaUnreachableError(
-      base,
-      "health check JSON missing models[] (not a valid Ollama daemon)"
-    );
+    const detail =
+      "health check JSON missing models[] (not a valid Ollama daemon)";
+    tripOllamaCircuit(base, detail);
+    throw new OllamaUnreachableError(base, detail);
   }
+
+  resetOllamaCircuit(base);
 
   const models = (data as { models: Array<{ name?: string }> }).models;
   const list = models
@@ -146,6 +206,7 @@ export async function probeOllamaTagsWithRetry(
   baseUrl: string,
   opts?: { timeoutMs?: number; attempts?: number; gapMs?: number }
 ): Promise<{ models: string[] }> {
+  resetOllamaCircuit(baseUrl);
   const timeoutMs = opts?.timeoutMs ?? 12_000;
   const attempts = opts?.attempts ?? 3;
   const gapMs = opts?.gapMs ?? 750;
@@ -153,7 +214,9 @@ export async function probeOllamaTagsWithRetry(
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      return await probeOllamaTags(baseUrl, timeoutMs);
+      return await probeOllamaTags(baseUrl, timeoutMs, {
+        skipCircuitBreaker: true,
+      });
     } catch (error) {
       lastError = error;
       if (attempt < attempts) {
@@ -188,7 +251,10 @@ export function computeOllamaTimeouts(payloadChars: number): {
  * or pass into the failover path.
  */
 export function toLocalOllamaError(baseUrl: string, error: unknown): Error {
-  if (error instanceof OllamaUnreachableError) return error;
+  if (error instanceof OllamaUnreachableError) {
+    tripOllamaCircuit(baseUrl, error.message);
+    return error;
+  }
   if (error instanceof Error) {
     const msg = error.message;
     if (
@@ -198,6 +264,7 @@ export function toLocalOllamaError(baseUrl: string, error: unknown): Error {
       error.name === "AbortError" ||
       error.name === "TimeoutError"
     ) {
+      tripOllamaCircuit(baseUrl, msg);
       return new OllamaUnreachableError(baseUrl, msg);
     }
     return error;
@@ -226,13 +293,7 @@ export async function callOllamaJson(
   const timeouts = computeOllamaTimeouts(payloadChars);
 
   // Strict probe: HTTP 200 alone is not enough — must look like Ollama /api/tags.
-  const probe = await probeOllamaTags(baseUrl, 5000);
-  console.info("[Ollama:Active]", {
-    url: baseUrl,
-    resolvedModel,
-    discoveredModelsCount: probe.models.length,
-    timeouts,
-  });
+  await probeOllamaTags(baseUrl, 5000);
 
   const maxAttempts = 2;
   let lastError: unknown;
@@ -240,12 +301,6 @@ export async function callOllamaJson(
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       if (attempt > 1) {
-        console.info("[Ollama:Active]", {
-          url: baseUrl,
-          resolvedModel,
-          attempt,
-          retrying: true,
-        });
         await new Promise((resolve) => setTimeout(resolve, 800));
       }
 
@@ -259,32 +314,17 @@ export async function callOllamaJson(
       );
 
       if (result) {
-        console.info("[Ollama:Done]", {
-          url: baseUrl,
-          model: resolvedModel,
-          attempt,
-          status: "success",
-        });
         return result;
       }
     } catch (error) {
       lastError = error;
-      console.error("[Ollama:Error]", {
-        url: baseUrl,
-        model: resolvedModel,
-        attempt,
-        error: error instanceof Error ? error.message : String(error),
-      });
 
-      if (error instanceof OllamaUnreachableError) throw error;
+      if (error instanceof OllamaUnreachableError) {
+        tripOllamaCircuit(baseUrl, error.message);
+        throw error;
+      }
     }
   }
-
-  console.error("[Ollama:Error]", {
-    url: baseUrl,
-    model: resolvedModel,
-    exhausted: true,
-  });
 
   if (lastError instanceof Error) {
     throw lastError;
@@ -304,6 +344,20 @@ async function callOllamaGenerateOnce(
     temperature: number;
   }
 ): Promise<Record<string, unknown> | null> {
+  const startTime = Date.now();
+  const promptChars = systemPrompt.length + userPrompt.length;
+
+  logEngineExecutionTable({
+    engineType: "LOCAL_OLLAMA",
+    provider: "LOCAL_OLLAMA",
+    model,
+    endpoint: baseUrl,
+    phase: "START",
+    promptChars,
+    idleTimeoutMs: timeouts.idleTimeoutMs,
+    hardCapMs: timeouts.hardCapMs,
+  });
+
   const controller = new AbortController();
   let hardCapTimer: NodeJS.Timeout | undefined;
   let idleTimer: NodeJS.Timeout | undefined;
@@ -323,6 +377,9 @@ async function callOllamaGenerateOnce(
   }, timeouts.hardCapMs);
 
   resetIdleTimer();
+
+  let chunkCount = 0;
+  let accumulated = "";
 
   try {
     const response = await fetch(`${baseUrl}/api/generate`, {
@@ -354,8 +411,6 @@ async function callOllamaGenerateOnce(
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    let accumulated = "";
-    let chunkCount = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -379,8 +434,41 @@ async function callOllamaGenerateOnce(
       }
     }
 
+    const durationMs = Date.now() - startTime;
+    logEngineExecutionTable({
+      engineType: "LOCAL_OLLAMA",
+      provider: "LOCAL_OLLAMA",
+      model,
+      endpoint: baseUrl,
+      phase: "COMPLETE",
+      promptChars,
+      outputChars: accumulated.length,
+      durationMs,
+      chunks: chunkCount,
+    });
+
     return parseJsonObject(accumulated);
   } catch (error) {
+    const durationMs = Date.now() - startTime;
+    let errorDetail = error instanceof Error ? error.message : String(error);
+    if (abortedReason === "hard_cap") {
+      errorDetail = `hard cap timeout exceeded (${timeouts.hardCapMs}ms)`;
+    } else if (abortedReason === "idle_timeout") {
+      errorDetail = `stream idle timeout exceeded (${timeouts.idleTimeoutMs}ms)`;
+    }
+
+    logEngineExecutionTable({
+      engineType: "LOCAL_OLLAMA",
+      provider: "LOCAL_OLLAMA",
+      model,
+      endpoint: baseUrl,
+      phase: "ERROR",
+      promptChars,
+      durationMs,
+      chunks: chunkCount,
+      errorDetail,
+    });
+
     if (abortedReason === "hard_cap") {
       throw new Error(
         `Ollama generate aborted: hard cap timeout exceeded (${timeouts.hardCapMs}ms)`

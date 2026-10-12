@@ -10,6 +10,9 @@ import {
 } from "./vault";
 import {
   callOllamaJson,
+  isOllamaCircuitTripped,
+  tripOllamaCircuit,
+  resolveOllamaModel,
   OllamaUnreachableError,
   resolveOllamaBaseUrl,
   toLocalOllamaError,
@@ -36,6 +39,12 @@ export class MissingLlmKeyError extends Error {
     this.provider = provider;
   }
 }
+
+export type DispatchExecutionResult = {
+  result: Record<string, unknown> | null;
+  routingLines: string[];
+  sourceTier: "TIER 1 (OLLAMA)" | "TIER 2 (CLOUD)" | "TIER 3 (HEURISTIC)";
+};
 
 export type CallLLMOptions = {
   systemPrompt: string;
@@ -74,6 +83,8 @@ export type CallLLMOptions = {
   cloudModel?: string | null;
   /** If true, throws MissingLlmKeyError instead of returning null when no key is set */
   throwOnMissingKey?: boolean;
+  /** If true, returns DispatchExecutionResult with telemetry lines instead of bare result */
+  returnExecutionResult?: boolean;
 };
 
 function isCloudFallbackEnabled(options: CallLLMOptions): boolean {
@@ -132,19 +143,38 @@ async function resolveCredentials(
   return null;
 }
 
+function attachMeta(
+  result: Record<string, unknown> | null,
+  routingLines: string[],
+  sourceTier: "TIER 1 (OLLAMA)" | "TIER 2 (CLOUD)" | "TIER 3 (HEURISTIC)"
+): Record<string, unknown> | null {
+  if (result && typeof result === "object") {
+    (result as Record<string, unknown>)._routingLines = routingLines;
+    (result as Record<string, unknown>)._sourceTier = sourceTier;
+  }
+  return result;
+}
+
 /**
- * Shared LLM router and dispatcher.
+ * Shared LLM router and dispatcher supporting 3-tier routing and circuit breaker telemetry.
  *
- * Routing logic:
- * - If llmProvider === "LOCAL_OLLAMA", attempts local execution via Ollama JSON API.
- * - If local execution fails and allowCloudFallback is true, fails over to the account's BYOK provider.
- * - If cloud is selected (or after local failover), resolves customer credentials from vault.
- * - If no key is set and cloud is required, throws MissingLlmKeyError (or returns null for background sweeps).
+ * Tier 1: Local Ollama. Bypasses in 0ms if circuit is tripped. Trips circuit on failure.
+ * Tier 2: Cloud BYOK. Escalates to cloud when Ollama fails and fallback is allowed.
+ * Tier 3: Caller falls back to Grand Heuristic upon error.
  */
 export async function callLLMWithFallback(
+  options: CallLLMOptions & { returnExecutionResult: true }
+): Promise<DispatchExecutionResult>;
+export async function callLLMWithFallback(
   options: CallLLMOptions
-): Promise<Record<string, unknown> | null> {
+): Promise<Record<string, unknown> | null>;
+export async function callLLMWithFallback(
+  options: CallLLMOptions & { returnExecutionResult?: boolean }
+): Promise<Record<string, unknown> | null | DispatchExecutionResult> {
   const provider = options.llmProvider ?? "OPENROUTER";
+  const routingLines: string[] = [];
+  let sourceTier: "TIER 1 (OLLAMA)" | "TIER 2 (CLOUD)" | "TIER 3 (HEURISTIC)" =
+    provider === "LOCAL_OLLAMA" ? "TIER 1 (OLLAMA)" : "TIER 2 (CLOUD)";
 
   // --------------------------------------------------------------------------
   // PATH A: LOCAL OLLAMA EXECUTION
@@ -152,7 +182,72 @@ export async function callLLMWithFallback(
   if (provider === "LOCAL_OLLAMA") {
     const baseUrl = resolveOllamaBaseUrl(options.localOllamaUrl);
     const allowFallback = isCloudFallbackEnabled(options);
+    const resolvedModel = resolveOllamaModel(
+      options.ollamaModel,
+      options.devModelOverride
+    );
 
+    // 1. Circuit Breaker Fast-Check: bypass immediately (0ms) if open
+    if (isOllamaCircuitTripped(baseUrl)) {
+      routingLines.push(
+        "Tier 1: LOCAL_OLLAMA -> BYPASSED (Circuit Open) [0ms]"
+      );
+
+      if (allowFallback) {
+        const creds = await resolveCredentials(options);
+        if (creds?.apiKey) {
+          const targetModel =
+            options.cloudModel?.trim() || creds.model?.trim() || null;
+
+          const cloudStart = Date.now();
+          try {
+            const cloudResult = await callCloudLlmJson({
+              provider: creds.provider,
+              apiKey: creds.apiKey,
+              model: targetModel,
+              systemPrompt: options.systemPrompt,
+              userPrompt: options.userPrompt,
+            });
+
+            if (cloudResult) {
+              const cloudLatencyMs = Date.now() - cloudStart;
+              routingLines.push(
+                `Tier 2: CLOUD_BYOK (${creds.provider} / ${targetModel || "default"})`,
+                `Status : 200 OK (${cloudLatencyMs}ms)`
+              );
+              sourceTier = "TIER 2 (CLOUD)";
+              if (options.returnExecutionResult) {
+                return { result: cloudResult, routingLines, sourceTier };
+              }
+              return attachMeta(cloudResult, routingLines, sourceTier);
+            }
+            routingLines.push(
+              `Tier 2: CLOUD_BYOK (${creds.provider}) -> FAILED (null response)`
+            );
+          } catch (cloudErr) {
+            const msg =
+              cloudErr instanceof Error ? cloudErr.message : String(cloudErr);
+            routingLines.push(`Tier 2: CLOUD_BYOK -> FAILED (${msg})`);
+            throw cloudErr;
+          }
+        } else {
+          routingLines.push("Tier 2: CLOUD_BYOK -> SKIPPED (No API key)");
+        }
+      } else {
+        routingLines.push(
+          "Tier 2: CLOUD_BYOK -> DISABLED (allowCloudFallback=false)"
+        );
+      }
+
+      // If circuit is tripped and cloud was not used / not configured, throw so caller lands on Tier 3 Heuristic
+      throw new OllamaUnreachableError(
+        baseUrl,
+        "circuit breaker open (instance offline)"
+      );
+    }
+
+    // 2. Circuit is closed: Attempt Ollama inference
+    const start = Date.now();
     try {
       const result = await callOllamaJson(
         baseUrl,
@@ -162,124 +257,140 @@ export async function callLLMWithFallback(
         options.ollamaOptions,
         options.devModelOverride
       );
+
       if (result) {
-        console.info("[Ollama:Done]", {
-          url: baseUrl,
-          status: "success",
-          reachable: true,
-          generated: true,
-        });
-        return result;
+        const latencyMs = Date.now() - start;
+        routingLines.push(
+          `Tier 1: LOCAL_OLLAMA (${resolvedModel})`,
+          `Endpoint: ${baseUrl}`,
+          `Status  : 200 OK (${latencyMs}ms)`
+        );
+        sourceTier = "TIER 1 (OLLAMA)";
+        if (options.returnExecutionResult) {
+          return { result, routingLines, sourceTier };
+        }
+        return attachMeta(result, routingLines, sourceTier);
       }
+
       throw new OllamaUnreachableError(
         baseUrl,
-        "empty or invalid JSON after local retries (service may be overloaded or model failed to respond)"
+        "empty or invalid JSON after local retries"
       );
     } catch (error) {
       const localError = toLocalOllamaError(baseUrl, error);
+      // Trip circuit on failure
+      tripOllamaCircuit(baseUrl, localError.message);
+      routingLines.push(
+        `Tier 1: LOCAL_OLLAMA -> FAILED (${localError.message})`,
+        `Circuit: TRIPPED (Bypassing Ollama for 60s)`
+      );
 
       if (allowFallback) {
-        console.warn(
-          "[Ollama:Fallback] Local generation failed. Failing over to configured cloud provider...",
-          localError
-        );
-
         const creds = await resolveCredentials(options);
-        if (!creds) {
+        if (creds?.apiKey) {
+          const targetModel =
+            options.cloudModel?.trim() || creds.model?.trim() || null;
+
+          const cloudStart = Date.now();
+          try {
+            const cloudResult = await callCloudLlmJson({
+              provider: creds.provider,
+              apiKey: creds.apiKey,
+              model: targetModel,
+              systemPrompt: options.systemPrompt,
+              userPrompt: options.userPrompt,
+            });
+
+            if (cloudResult) {
+              const cloudLatencyMs = Date.now() - cloudStart;
+              routingLines.push(
+                `Tier 2: CLOUD_BYOK (${creds.provider} / ${targetModel || "default"})`,
+                `Status : 200 OK (${cloudLatencyMs}ms)`
+              );
+              sourceTier = "TIER 2 (CLOUD)";
+              if (options.returnExecutionResult) {
+                return { result: cloudResult, routingLines, sourceTier };
+              }
+              return attachMeta(cloudResult, routingLines, sourceTier);
+            }
+            routingLines.push(
+              `Tier 2: CLOUD_BYOK (${creds.provider}) -> FAILED (null response)`
+            );
+          } catch (cloudErr) {
+            const msg =
+              cloudErr instanceof Error ? cloudErr.message : String(cloudErr);
+            routingLines.push(`Tier 2: CLOUD_BYOK -> FAILED (${msg})`);
+            throw cloudErr;
+          }
+        } else {
+          routingLines.push("Tier 2: CLOUD_BYOK -> SKIPPED (No API key)");
           if (options.throwOnMissingKey) {
             throw new MissingLlmKeyError(options.cloudProvider ?? "OPENROUTER");
           }
-          console.error(
-            "[Ollama:Fallback] Cloud failover failed: no customer or server API key configured."
-          );
-          return null;
         }
-
-        const targetModel =
-          options.cloudModel?.trim() || creds.model?.trim() || null;
-        const candidateModels =
-          creds.provider === "OPENROUTER"
-            ? targetModel
-              ? [
-                  targetModel,
-                  ...(options.openRouterModels ?? []).filter(
-                    (m) => m !== targetModel
-                  ),
-                ]
-              : options.openRouterModels
-            : targetModel
-              ? [targetModel]
-              : undefined;
-
-        const cloudResult = await callCloudLlmJson({
-          provider: creds.provider,
-          apiKey: creds.apiKey,
-          model: targetModel,
-          systemPrompt: options.systemPrompt,
-          userPrompt: options.userPrompt,
-          candidateModels,
-        });
-
-        if (cloudResult) {
-          console.info(
-            `[Ollama:Fallback] ${creds.provider} failover succeeded after local failure.`
-          );
-        } else {
-          console.error(
-            `[Ollama:Fallback] ${creds.provider} failover also failed after local failure.`
-          );
-        }
-        return cloudResult;
+      } else {
+        routingLines.push(
+          "Tier 2: CLOUD_BYOK -> DISABLED (allowCloudFallback=false)"
+        );
       }
 
-      console.error(
-        "[Ollama:Error] Local generation failed. Cloud fallback disabled (allowCloudFallback=false) — not routing to cloud.",
-        localError
-      );
+      // Re-throw so caller lands on Tier 3 Heuristic cleanly without stack dump
       throw localError;
     }
   }
 
   // --------------------------------------------------------------------------
-  // PATH B: CLOUD DISPATCH (BYOK)
+  // PATH B: CLOUD DISPATCH (BYOK as primary)
   // --------------------------------------------------------------------------
   const creds = await resolveCredentials(options);
-  if (!creds) {
+  if (!creds?.apiKey) {
+    routingLines.push("Tier 2: CLOUD_BYOK -> SKIPPED (No API key)");
     if (options.throwOnMissingKey) {
       throw new MissingLlmKeyError(
         (options.cloudProvider as CloudLlmProvider) ?? "OPENROUTER"
       );
     }
-    console.warn(
-      `[dispatcher] No API key configured for ${
-        options.cloudProvider ?? "cloud provider"
-      }. Skipping cloud inference.`
-    );
-    return null;
+    return options.returnExecutionResult
+      ? { result: null, routingLines, sourceTier: "TIER 2 (CLOUD)" }
+      : null;
   }
 
   const targetModel =
     options.cloudModel?.trim() || creds.model?.trim() || null;
-  const candidateModels =
-    creds.provider === "OPENROUTER"
-      ? targetModel
-        ? [
-            targetModel,
-            ...(options.openRouterModels ?? []).filter(
-              (m) => m !== targetModel
-            ),
-          ]
-        : options.openRouterModels
-      : targetModel
-        ? [targetModel]
-        : undefined;
 
-  return callCloudLlmJson({
-    provider: creds.provider,
-    apiKey: creds.apiKey,
-    model: targetModel,
-    systemPrompt: options.systemPrompt,
-    userPrompt: options.userPrompt,
-    candidateModels,
+  const cloudStart = Date.now();
+  try {
+    const cloudResult = await callCloudLlmJson({
+      provider: creds.provider,
+      apiKey: creds.apiKey,
+      model: targetModel,
+      systemPrompt: options.systemPrompt,
+      userPrompt: options.userPrompt,
+    });
+
+    const cloudLatencyMs = Date.now() - cloudStart;
+    routingLines.push(
+      `Tier 2: CLOUD_BYOK (${creds.provider} / ${targetModel || "default"})`,
+      `Status : 200 OK (${cloudLatencyMs}ms)`
+    );
+    sourceTier = "TIER 2 (CLOUD)";
+
+    if (options.returnExecutionResult) {
+      return { result: cloudResult, routingLines, sourceTier };
+    }
+    return attachMeta(cloudResult, routingLines, sourceTier);
+  } catch (cloudErr) {
+    const msg = cloudErr instanceof Error ? cloudErr.message : String(cloudErr);
+    routingLines.push(`Tier 2: CLOUD_BYOK -> FAILED (${msg})`);
+    throw cloudErr;
+  }
+}
+
+export async function dispatchLLMWithFallback(
+  options: CallLLMOptions
+): Promise<DispatchExecutionResult> {
+  return callLLMWithFallback({
+    ...options,
+    returnExecutionResult: true,
   });
 }

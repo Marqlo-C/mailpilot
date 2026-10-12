@@ -229,6 +229,8 @@ model JobOpportunity {
   isArchived      Boolean  @default(false)
   /// Set when status becomes DISMISSED; auto-purged after retention window.
   dismissedAt     DateTime?
+  /// AI | HEURISTIC | HYBRID
+  classificationMethod String @default("AI")
 
   /// Cached tailored resume PDF (base64). Null until the user generates one.
   tailoredResumePdf  String?   @db.Text

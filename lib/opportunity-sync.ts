@@ -12,19 +12,29 @@ import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
 import {
   classifyEmail,
   extractMessageBody,
+  isOllamaCircuitTripped,
   loadCandidateProfileSummary,
   sanitizeEmailBody,
   shouldClassifyEmail,
   type LlmProvider,
 } from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
-import { logStory, syncLog } from "@/lib/logging";
+import {
+  logStory,
+  syncLog,
+  logCompactSyncCard,
+  logSyncSummaryBanner,
+} from "@/lib/logging";
 import {
   parseFromHeader,
   persistClassifiedEmail,
   processInboxDelta,
   resolveIngestionRules,
 } from "@/lib/sync";
+import { classifyWithGrandHeuristic } from "@/lib/ai/grand-heuristic";
+import { extractCleanSnippet } from "@/lib/opportunities/context";
+import type { JobClassification } from "@/lib/llm/classification";
+
 
 export type OpportunitySyncOptions = {
   forceRescan?: boolean;
@@ -222,12 +232,24 @@ export async function runOpportunitySync(
     });
 
     // ── Step 1: History delta first (Pub/Sub catch-up + subscriptions) ─────
-    const delta = await processInboxDelta(
-      account.email,
-      account.historyId ?? "1"
-    );
-    const historyExpired = delta.historyExpired;
-    const deltaIdSet = new Set(delta.messageIds);
+    let historyExpired = false;
+    let deltaIdSet = new Set<string>();
+    if (account.historyId && !forceRescan) {
+      try {
+        const delta = await processInboxDelta(
+          account.email,
+          account.historyId
+        );
+        historyExpired = delta.historyExpired;
+        deltaIdSet = new Set(delta.messageIds);
+      } catch (deltaErr) {
+        syncLog.warn(
+          { err: deltaErr },
+          "Delta sync failed; falling back to query sweep"
+        );
+        historyExpired = true;
+      }
+    }
 
     const gmail = await getGmailClientForAccount(account);
     const { query, windowLabel } = buildSyncQuery({
@@ -346,15 +368,42 @@ export async function runOpportunitySync(
     const candidateProfile = await loadCandidateProfileSummary(accountId);
 
     let opportunitiesUpserted = 0;
+    let ollamaCount = 0;
+    let cloudCount = 0;
+    let heuristicCount = 0;
+    let createdCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+    const batchStartTime = Date.now();
 
-    logStory(syncLog, `Step 3/4 — Classifying ${targetIds.length} message(s)`, {
-      "AI provider": llmProvider,
-      "batch size": llmProvider === "LOCAL_OLLAMA" ? 1 : BATCH_SIZE,
+    const classificationMode =
+      rules.classificationMode ?? "AI_WITH_HEURISTIC_FALLBACK";
+
+    const configuredOllamaUrl = account.settings?.localOllamaUrl ?? "";
+    let ollamaDownForSync = false;
+    if (
+      llmProvider === "LOCAL_OLLAMA" &&
+      !rules.allowCloudFallback &&
+      isOllamaCircuitTripped(configuredOllamaUrl)
+    ) {
+      ollamaDownForSync = true;
+      logStory(
+        syncLog,
+        "Local Ollama is offline (circuit open). Fast-failing local AI to Grand Heuristic for this sync pass.",
+        { url: configuredOllamaUrl },
+        "warn"
+      );
+    }
+
+    logStory(syncLog, "Step 3/4 — Classifying candidate messages", {
+      "candidates to evaluate": targetIds.length,
+      mode: classificationMode,
+      provider: llmProvider,
     });
 
-    // Serialize local Ollama inference to avoid concurrent queue timeouts.
-    const effectiveBatchSize = llmProvider === "LOCAL_OLLAMA" ? 1 : BATCH_SIZE;
-    for (let i = 0; i < targetIds.length; i += effectiveBatchSize) {
+    for (let i = 0; i < targetIds.length; i++) {
+      const messageId = targetIds[i];
+
       const currentState = await prisma.account.findUnique({
         where: { id: accountId },
         select: { isSyncing: true },
@@ -371,33 +420,128 @@ export async function runOpportunitySync(
         break;
       }
 
-      const chunkLabel = `${Math.min(i + effectiveBatchSize, targetIds.length)} / ${targetIds.length}`;
-      logStory(syncLog, `Classifying chunk … ${chunkLabel}`);
+      let message;
+      try {
+        message = await withRateLimitRetry(() =>
+          gmail.users.messages.get({
+            userId: "me",
+            id: messageId,
+            format: "full",
+          })
+        );
+      } catch (fetchErr: unknown) {
+        const is404 =
+          (typeof fetchErr === "object" &&
+            fetchErr !== null &&
+            (("status" in fetchErr &&
+              (fetchErr as { status?: number }).status === 404) ||
+              ("code" in fetchErr &&
+                (fetchErr as { code?: number }).code === 404))) ||
+          (fetchErr instanceof Error &&
+            fetchErr.message.toLowerCase().includes("notfound"));
 
-      const chunk = targetIds.slice(i, i + effectiveBatchSize);
-      const results = await Promise.all(
-        chunk.map(async (messageId) => {
+        if (is404) {
+          skippedCount++;
+          await prisma.emailMessage.updateMany({
+            where: { accountId, messageId },
+            data: {
+              emailCategory: "IRRELEVANT",
+              rawBody: null,
+            },
+          });
+
+          logCompactSyncCard({
+            index: i + 1,
+            total: targetIds.length,
+            subject: "(Message deleted or moved)",
+            messageId,
+            isJob: false,
+            routing: [],
+            skipReason: "Message not found in Gmail (404)",
+          });
+
+          await prisma.account.update({
+            where: { id: accountId },
+            data: { syncHeartbeatAt: new Date() },
+          });
+
+          if (i < targetIds.length - 1) {
+            await sleep(350);
+          }
+          continue;
+        }
+        throw fetchErr;
+      }
+
+      try {
+        const headers = message.data.payload?.headers;
+        const subject = getHeader(headers, "Subject") ?? "";
+        const from = getHeader(headers, "From");
+        const sender = from ? parseFromHeader(from) : null;
+        const fullRawBody = extractMessageBody(message.data.payload);
+        const cleanedText = cleanEmailPayload(
+          fullRawBody.trim().length > 0
+            ? fullRawBody
+            : message.data.snippet ?? subject
+        );
+
+        // Fast-path: Filter out promotional & marketing emails without LLM invocation
+        if (
+          !shouldClassifyEmail({
+            subject,
+            body: cleanedText,
+            fromEmail: sender?.email ?? null,
+          })
+        ) {
+          skippedCount++;
+          await prisma.emailMessage.updateMany({
+            where: { accountId, messageId },
+            data: {
+              emailCategory: "IRRELEVANT",
+              rawBody: null,
+            },
+          });
+
+          logCompactSyncCard({
+            index: i + 1,
+            total: targetIds.length,
+            subject,
+            messageId,
+            isJob: false,
+            routing: [],
+            skipReason: "Non-Job / Marketing or Newsletter",
+          });
+
+          await prisma.account.update({
+            where: { id: accountId },
+            data: { syncHeartbeatAt: new Date() },
+          });
+
+          if (i < targetIds.length - 1) {
+            await sleep(350);
+          }
+          continue;
+        }
+
+        let classification: JobClassification | null = null;
+        let classificationMethod: "AI" | "HEURISTIC" = "AI";
+
+        const shouldFastFailLocalOllama =
+          llmProvider === "LOCAL_OLLAMA" &&
+          !rules.allowCloudFallback &&
+          (ollamaDownForSync || isOllamaCircuitTripped(configuredOllamaUrl));
+
+        if (classificationMode === "HEURISTIC_ONLY" || shouldFastFailLocalOllama) {
+          classification = classifyWithGrandHeuristic({
+            subject,
+            body: cleanedText,
+            fromEmail: sender?.email ?? null,
+            candidateProfile,
+          });
+          classificationMethod = "HEURISTIC";
+        } else if (classificationMode === "AI_ONLY") {
           try {
-            const message = await withRateLimitRetry(() =>
-              gmail.users.messages.get({
-                userId: "me",
-                id: messageId,
-                format: "full",
-              })
-            );
-
-            const headers = message.data.payload?.headers;
-            const subject = getHeader(headers, "Subject") ?? "";
-            const from = getHeader(headers, "From");
-            const sender = from ? parseFromHeader(from) : null;
-            const fullRawBody = extractMessageBody(message.data.payload);
-            const cleanedText = cleanEmailPayload(
-              fullRawBody.trim().length > 0
-                ? fullRawBody
-                : message.data.snippet ?? subject
-            );
-
-            const classification = await classifyEmail({
+            classification = await classifyEmail({
               llmProvider,
               localOllamaUrl: account.settings?.localOllamaUrl,
               ollamaModel: account.settings?.ollamaModel,
@@ -409,104 +553,303 @@ export async function runOpportunitySync(
               accountId: account.id,
               accountRules: rules,
             });
+            classificationMethod =
+              classification?.classificationMethod === "HEURISTIC"
+                ? "HEURISTIC"
+                : "AI";
+          } catch (aiErr) {
+            syncLog.warn(
+              { err: aiErr, messageId },
+              "AI classification failed in AI_ONLY mode; parking for retry"
+            );
+            classification = null;
+          }
 
-            if (
-              !classification ||
-              !classification.is_job_related ||
-              classification.email_category === "IRRELEVANT"
-            ) {
-              if (classification) {
-                // LLM successfully ran and determined it is not a job -> clear from PENDING_AI
-                await prisma.emailMessage.updateMany({
-                  where: { accountId, messageId },
-                  data: {
-                    emailCategory: "IRRELEVANT",
-                    rawBody:
-                      fullRawBody.trim().length > 0 ? fullRawBody : null,
-                  },
-                });
-              } else if (
-                shouldClassifyEmail({
-                  subject,
-                  body: cleanedText,
-                  fromEmail: sender?.email ?? null,
-                })
-              ) {
-                // LLM was offline or failed -> park as PENDING_AI
-                const threadId = message.data.threadId ?? messageId;
-                const emailDate = message.data.internalDate
-                  ? new Date(Number(message.data.internalDate))
-                  : new Date();
+          if (
+            llmProvider === "LOCAL_OLLAMA" &&
+            !rules.allowCloudFallback &&
+            isOllamaCircuitTripped(configuredOllamaUrl) &&
+            !ollamaDownForSync
+          ) {
+            ollamaDownForSync = true;
+            logStory(
+              syncLog,
+              "Local Ollama detected offline during sync pass. Fast-failing remaining AI_ONLY messages.",
+              { url: configuredOllamaUrl },
+              "warn"
+            );
+          }
+        } else {
+          // AI_WITH_HEURISTIC_FALLBACK (default)
+          try {
+            classification = await classifyEmail({
+              llmProvider,
+              localOllamaUrl: account.settings?.localOllamaUrl,
+              ollamaModel: account.settings?.ollamaModel,
+              subject,
+              body: cleanedText,
+              fromEmail: sender?.email ?? null,
+              candidateProfile,
+              allowCloudFallback: rules.allowCloudFallback,
+              accountId: account.id,
+              accountRules: rules,
+            });
+            classificationMethod =
+              classification?.classificationMethod === "HEURISTIC"
+                ? "HEURISTIC"
+                : "AI";
+          } catch (aiErr) {
+            syncLog.warn(
+              { messageId },
+              "AI classification failed — falling back to Grand Heuristic"
+            );
+            classification = null;
+          }
 
-                await prisma.emailMessage.upsert({
-                  where: {
-                    accountId_messageId: {
-                      accountId,
-                      messageId,
-                    },
-                  },
-                  create: {
-                    accountId,
-                    messageId,
-                    threadId,
-                    subject,
-                    fromEmail: sender?.email ?? null,
-                    fromName: sender?.name ?? null,
-                    emailCategory: "PENDING_AI",
-                    emailDate,
-                    snippet: sanitizeEmailBody(cleanedText).slice(0, 500),
-                    rawBody:
-                      fullRawBody.trim().length > 0 ? fullRawBody : null,
-                  },
-                  update: {
-                    emailCategory: "PENDING_AI",
-                    rawBody:
-                      fullRawBody.trim().length > 0 ? fullRawBody : null,
-                  },
-                });
-              }
-              return 0;
+          if (
+            llmProvider === "LOCAL_OLLAMA" &&
+            !rules.allowCloudFallback &&
+            isOllamaCircuitTripped(configuredOllamaUrl) &&
+            !ollamaDownForSync
+          ) {
+            ollamaDownForSync = true;
+            logStory(
+              syncLog,
+              "Local Ollama detected offline during sync. Routing remaining messages directly to Grand Heuristic.",
+              { url: configuredOllamaUrl },
+              "warn"
+            );
+          }
+
+          if (!classification) {
+            classification = classifyWithGrandHeuristic({
+              subject,
+              body: cleanedText,
+              fromEmail: sender?.email ?? null,
+              candidateProfile,
+            });
+            if (classification) {
+              classificationMethod = "HEURISTIC";
             }
+          }
+        }
 
+        const routingLines =
+          classification?.routingLines && classification.routingLines.length > 0
+            ? classification.routingLines
+            : shouldFastFailLocalOllama
+              ? [
+                  "Tier 1: LOCAL_OLLAMA -> BYPASSED (Circuit Open) [0ms]",
+                  rules.allowCloudFallback
+                    ? "Tier 2: CLOUD_BYOK   -> FAILED / SKIPPED"
+                    : "Tier 2: CLOUD_BYOK   -> DISABLED (allowCloudFallback=false)",
+                  "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
+                ]
+              : classificationMode === "HEURISTIC_ONLY"
+                ? [
+                    "Tier 1: LOCAL_OLLAMA -> NOT RUN (HEURISTIC_ONLY)",
+                    "Tier 2: CLOUD_BYOK   -> NOT RUN (HEURISTIC_ONLY)",
+                    "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
+                  ]
+                : [
+                    llmProvider === "LOCAL_OLLAMA"
+                      ? "Tier 1: LOCAL_OLLAMA -> FAILED"
+                      : "Tier 1: LOCAL_OLLAMA -> NOT CONFIGURED",
+                    rules.allowCloudFallback
+                      ? "Tier 2: CLOUD_BYOK   -> FAILED / SKIPPED"
+                      : "Tier 2: CLOUD_BYOK   -> DISABLED (allowCloudFallback=false)",
+                    "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
+                  ];
+
+        if (classification?.sourceTier === "TIER 1 (OLLAMA)") {
+          ollamaCount++;
+        } else if (classification?.sourceTier === "TIER 2 (CLOUD)") {
+          cloudCount++;
+        } else if (
+          classification?.sourceTier === "TIER 3 (HEURISTIC)" ||
+          classificationMethod === "HEURISTIC"
+        ) {
+          heuristicCount++;
+        } else if (classification) {
+          if (llmProvider === "LOCAL_OLLAMA") {
+            ollamaCount++;
+          } else {
+            cloudCount++;
+          }
+        }
+
+        if (
+          !classification ||
+          !classification.is_job_related ||
+          !classification.jobs ||
+          classification.jobs.length === 0 ||
+          classification.email_category === "IRRELEVANT"
+        ) {
+          skippedCount++;
+          let skipReason = "Non-Job / Marketing or Newsletter";
+
+          if (classification) {
+            // Evaluated and confirmed not a job -> clear from PENDING_AI
+            await prisma.emailMessage.updateMany({
+              where: { accountId, messageId },
+              data: {
+                emailCategory: "IRRELEVANT",
+                rawBody: null,
+              },
+            });
+            skipReason = "Confirmed Non-Job / IRRELEVANT";
+          } else if (
+            shouldClassifyEmail({
+              subject,
+              body: cleanedText,
+              fromEmail: sender?.email ?? null,
+            })
+          ) {
+            // AI offline/failed and no fallback -> park as PENDING_AI
             const threadId = message.data.threadId ?? messageId;
             const emailDate = message.data.internalDate
               ? new Date(Number(message.data.internalDate))
               : new Date();
 
-            const result = await persistClassifiedEmail({
-              gmail,
-              account,
-              messageId,
-              threadId,
-              subject,
-              body: cleanedText,
-              rawBody: fullRawBody,
-              sender,
-              emailDate,
-              classification,
-              rules,
+            await prisma.emailMessage.upsert({
+              where: {
+                accountId_messageId: {
+                  accountId,
+                  messageId,
+                },
+              },
+              create: {
+                accountId,
+                messageId,
+                threadId,
+                subject,
+                fromEmail: sender?.email ?? null,
+                fromName: sender?.name ?? null,
+                emailCategory: "PENDING_AI",
+                emailDate,
+                snippet: extractCleanSnippet(cleanedText, 500, 1500),
+                rawBody: null,
+              },
+              update: {
+                emailCategory: "PENDING_AI",
+                snippet: extractCleanSnippet(cleanedText, 500, 1500),
+                rawBody: null,
+              },
             });
-
-            return result.opportunitiesUpserted + (result.applicationTouched ? 1 : 0);
-          } catch (error) {
-            syncLog.error(
-              { err: error, messageId },
-              "Opportunity sync failed for message"
-            );
-            if (isRateLimited(error)) {
-              await sleep(RATE_LIMIT_BASE_MS * 2);
-            }
-            return 0;
+            skipReason = "Parked as PENDING_AI (Model Unavailable)";
+          } else {
+            await prisma.emailMessage.updateMany({
+              where: { accountId, messageId },
+              data: {
+                emailCategory: "IRRELEVANT",
+                rawBody: null,
+              },
+            });
+            skipReason = "Non-Job / Marketing or Newsletter";
           }
-        })
-      );
 
-      opportunitiesUpserted += results.reduce((sum, n) => sum + n, 0);
+          logCompactSyncCard({
+            index: i + 1,
+            total: targetIds.length,
+            subject,
+            messageId,
+            isJob: false,
+            routing: [],
+            skipReason,
+          });
+        } else {
+          const threadId = message.data.threadId ?? messageId;
+          const emailDate = message.data.internalDate
+            ? new Date(Number(message.data.internalDate))
+            : new Date();
+
+          const result = await persistClassifiedEmail({
+            gmail,
+            account,
+            messageId,
+            threadId,
+            subject,
+            body: cleanedText,
+            rawBody: null,
+            sender,
+            emailDate,
+            classification,
+            rules,
+            classificationMethod,
+          });
+
+          await prisma.emailMessage.updateMany({
+            where: { accountId, messageId },
+            data: {
+              emailCategory: classification.email_category,
+              rawBody: null,
+            },
+          });
+
+          opportunitiesUpserted +=
+            result.opportunitiesUpserted +
+            (result.applicationTouched ? 1 : 0);
+          createdCount += result.createdCount;
+          updatedCount += result.updatedCount;
+
+          const firstJob = classification.jobs?.[0];
+          const matchScore = firstJob?.matchScore;
+          const matchTier =
+            matchScore !== undefined
+              ? matchScore >= 75
+                ? "HIGH"
+                : matchScore >= 50
+                  ? "MID"
+                  : "LOW"
+              : "MID";
+          const matchSource =
+            classificationMethod === "HEURISTIC" ? "Heur" : "AI";
+          const dedupeOutcomeText =
+            result.lastAction ||
+            (result.createdCount > 0
+              ? "Created new opportunity record"
+              : "Updated / deduped opportunity record");
+
+          logCompactSyncCard({
+            index: i + 1,
+            total: targetIds.length,
+            subject,
+            messageId,
+            isJob: true,
+            routing: classification.routingLines ?? routingLines,
+            company:
+              firstJob?.company ||
+              classification.company_name ||
+              "Unknown",
+            role: firstJob?.title || classification.role_title || "Role",
+            location: firstJob?.location,
+            salary: firstJob?.salary,
+            status: classification.status,
+            matchScore,
+            matchTier,
+            matchSource,
+            databaseAction: dedupeOutcomeText,
+          });
+        }
+      } catch (error) {
+        syncLog.error(
+          { err: error, messageId },
+          "Opportunity sync failed for message"
+        );
+        if (isRateLimited(error)) {
+          await sleep(RATE_LIMIT_BASE_MS * 2);
+        }
+      }
 
       await prisma.account.update({
         where: { id: accountId },
         data: { syncHeartbeatAt: new Date() },
       });
+
+      // Throttled pacing: 350ms delay between emails to avoid burst rate limits
+      if (i < targetIds.length - 1) {
+        await sleep(350);
+      }
     }
 
     logStory(syncLog, "Step 3/4 done — classification finished", {
@@ -514,6 +857,18 @@ export async function runOpportunitySync(
       "opportunities touched": opportunitiesUpserted,
       "skipped earlier as known":
         combinedCandidateIds.length - targetIds.length,
+    });
+
+    logSyncSummaryBanner({
+      total: targetIds.length,
+      durationMs: Date.now() - batchStartTime,
+      ollamaCount,
+      cloudCount,
+      heuristicCount,
+      createdCount,
+      updatedCount,
+      skippedCount,
+      watermark: new Date().toISOString(),
     });
 
     return {

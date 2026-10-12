@@ -30,6 +30,7 @@ const ruleKeySchema = z.enum([
   "rejectionLabelId",
   "autoCleanAfterUnsub",
   "applicationMode",
+  "classificationMode",
   "matchScoreThreshold", // deprecated: routed to updateMatchThreshold
   "maxAutoSendsPerDay",
   "dismissedRetentionDays",

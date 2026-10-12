@@ -25,7 +25,12 @@ import {
   type CloudLlmProvider,
   PROVIDER_ENDPOINTS,
 } from "@/lib/llm/provider.ssot";
-import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
+import {
+  SETTINGS_CARD_CLASSNAME,
+  SETTINGS_ROW_CLASSNAME,
+} from "@/components/settings/settings-chrome";
+import { type ClassificationMode } from "@/lib/validations/rules";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -63,6 +68,7 @@ type AiModelsCardProps = {
   cloudProvider?: CloudLlmProvider;
   cloudModel?: string | null;
   maskedApiKey?: string | null;
+  classificationMode?: ClassificationMode;
 };
 
 type ConnectionStatus =
@@ -170,6 +176,7 @@ export function AiModelsCard({
   cloudProvider: initialCloudProvider = "OPENROUTER",
   cloudModel: initialCloudModel = null,
   maskedApiKey: initialMaskedApiKey = null,
+  classificationMode: initialClassificationMode = "AI_WITH_HEURISTIC_FALLBACK",
 }: AiModelsCardProps) {
   const router = useRouter();
   const [url, setUrl] = useState(localOllamaUrl);
@@ -182,6 +189,10 @@ export function AiModelsCard({
   const [allowCloudFallback, setAllowCloudFallback] = useState(
     initialAllowCloudFallback
   );
+  const [selectedClassificationMode, setSelectedClassificationMode] =
+    useState<ClassificationMode>(
+      initialClassificationMode ?? "AI_WITH_HEURISTIC_FALLBACK"
+    );
   const [models, setModels] = useState<string[]>(
     initialModels.length > 0
       ? initialModels
@@ -221,6 +232,27 @@ export function AiModelsCard({
   const useOllama = llmProvider === "LOCAL_OLLAMA";
   const disabled = !accountId || pending;
   const hasSecret = bridgeSecret.trim().length > 0;
+
+  useEffect(() => {
+    if (initialClassificationMode) {
+      setSelectedClassificationMode(initialClassificationMode);
+    }
+  }, [initialClassificationMode]);
+
+  function handleClassificationModeChange(value: string) {
+    const nextMode = value as ClassificationMode;
+    setSelectedClassificationMode(nextMode);
+    if (!accountId) return;
+    startTransition(async () => {
+      try {
+        await updateRule(accountId, "classificationMode", nextMode);
+        toast.success("Classification strategy updated");
+        router.refresh();
+      } catch {
+        toast.error("Failed to update classification strategy");
+      }
+    });
+  }
 
   useEffect(() => {
     setBridgeSecret(initialBridgeSecret);
@@ -494,6 +526,10 @@ export function AiModelsCard({
       setMaskedApiKey(result.data?.maskedApiKey ?? null);
       setApiKeyInput("");
       setIsEditingKey(false);
+      if (!allowCloudFallback) {
+        setAllowCloudFallback(true);
+        await updateRule(accountId, "allowCloudFallback", true);
+      }
       toast.success(`${cloudProvider} API key encrypted and saved`);
       router.refresh();
     });
@@ -510,6 +546,10 @@ export function AiModelsCard({
       setMaskedApiKey(null);
       setApiKeyInput("");
       setIsEditingKey(true);
+      if (allowCloudFallback) {
+        setAllowCloudFallback(false);
+        await updateRule(accountId, "allowCloudFallback", false);
+      }
       toast.success("API key cleared");
       router.refresh();
     });
@@ -890,43 +930,6 @@ export function AiModelsCard({
               </TabsContent>
             </Tabs>
 
-            <div className="flex items-center justify-between gap-4 rounded-xl border border-border/80 bg-background px-4 py-3.5">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium tracking-tight">
-                  {`Allow cloud fallback to configured Cloud Provider (${cloudProvider}) when Local Ollama fails`}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {`Off by default — local failures stay local and do not silently route to ${cloudProvider}.`}
-                </p>
-              </div>
-              <Switch
-                checked={allowCloudFallback}
-                disabled={disabled}
-                onCheckedChange={(checked) => {
-                  if (!accountId) return;
-                  setAllowCloudFallback(checked);
-                  startTransition(async () => {
-                    const result = await updateRule(
-                      accountId,
-                      "allowCloudFallback",
-                      checked
-                    );
-                    if (!result.ok) {
-                      setAllowCloudFallback(!checked);
-                      toast.error(result.error);
-                      return;
-                    }
-                    toast.success(
-                      checked
-                        ? "Cloud fallback enabled"
-                        : "Cloud fallback disabled"
-                    );
-                    router.refresh();
-                  });
-                }}
-              />
-            </div>
-
             {/* Status — outside tabs */}
             <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 space-y-1.5">
@@ -1228,195 +1231,345 @@ export function AiModelsCard({
           </p>
         )}
 
-        {/* Provider Selector */}
-        <div className="space-y-1.5">
-          <Label htmlFor="cloud-provider" className="text-sm font-medium tracking-tight">
-            Cloud Provider
-          </Label>
-          <select
-            id="cloud-provider"
-            className="flex h-10 w-full rounded-lg border border-border/80 bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            value={cloudProvider}
+        {/* Top-Level BYOK Toggle */}
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-border/80 bg-background px-4 py-3.5">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium tracking-tight">
+              Enable Custom Cloud API Key (BYOK)
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Use your own API key (OpenRouter, OpenAI, Anthropic, Gemini, Groq). When Local Ollama is active, this will only be used as a secondary fallback if Ollama is unreachable or times out.
+            </p>
+          </div>
+          <Switch
+            checked={allowCloudFallback}
             disabled={disabled}
-            onChange={(e) => {
-              const next = e.target.value as CloudLlmProvider;
-              setCloudProvider(next);
-              if (accountId) {
-                startTransition(async () => {
-                  await updateRule(accountId, "cloudProvider", next);
-                  router.refresh();
-                });
-              }
+            onCheckedChange={(checked) => {
+              if (!accountId) return;
+              setAllowCloudFallback(checked);
+              startTransition(async () => {
+                const result = await updateRule(
+                  accountId,
+                  "allowCloudFallback",
+                  checked
+                );
+                if (!result.ok) {
+                  setAllowCloudFallback(!checked);
+                  toast.error(result.error);
+                  return;
+                }
+                toast.success(
+                  checked
+                    ? "Cloud credentials enabled"
+                    : "Cloud credentials disabled"
+                );
+                router.refresh();
+              });
             }}
-          >
-            {CLOUD_LLM_PROVIDERS.map((p) => (
-              <option key={p} value={p}>
-                {PROVIDER_LABELS[p] ?? p}
-              </option>
-            ))}
-          </select>
-          <p className="text-[11px] text-muted-foreground">
-            Default endpoint: <code className="font-mono text-foreground">{PROVIDER_ENDPOINTS[cloudProvider]?.baseUrl}</code>
-          </p>
+          />
         </div>
 
-        {/* Model Name Override */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="cloud-model" className="text-sm font-medium tracking-tight">
-              Model Name Override (Optional)
-            </Label>
-            {accountId &&
-              cloudModelOverride.trim() !== (initialCloudModel ?? "") && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  disabled={disabled}
-                  onClick={() => {
+        {allowCloudFallback && (
+          <div className="space-y-5 border-t border-border/60 pt-5 animate-in fade-in-50 duration-200">
+            {/* Provider Selector */}
+            <div className="space-y-1.5">
+              <Label htmlFor="cloud-provider" className="text-sm font-medium tracking-tight">
+                Cloud Provider
+              </Label>
+              <select
+                id="cloud-provider"
+                className="flex h-10 w-full rounded-lg border border-border/80 bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                value={cloudProvider}
+                disabled={disabled}
+                onChange={(e) => {
+                  const next = e.target.value as CloudLlmProvider;
+                  setCloudProvider(next);
+                  if (accountId) {
                     startTransition(async () => {
-                      const result = await updateRule(
-                        accountId,
-                        "cloudModel",
-                        cloudModelOverride.trim() || null
-                      );
-                      if (!result.ok) {
-                        toast.error(result.error);
-                        return;
-                      }
-                      toast.success("Model override updated");
+                      await updateRule(accountId, "cloudProvider", next);
                       router.refresh();
                     });
-                  }}
-                >
-                  Save Model
-                </Button>
-              )}
-          </div>
-          <Input
-            id="cloud-model"
-            placeholder={
-              PROVIDER_ENDPOINTS[cloudProvider]?.defaultModel ?? "default model"
-            }
-            value={cloudModelOverride}
-            disabled={disabled}
-            onChange={(e) => setCloudModelOverride(e.target.value)}
-            className="h-10 border-border/80 bg-background font-mono text-xs"
-          />
-          <p className="text-[11px] text-muted-foreground">
-            Leave blank to use default model:{" "}
-            <code className="font-mono text-foreground">
-              {PROVIDER_ENDPOINTS[cloudProvider]?.defaultModel}
-            </code>
-          </p>
-        </div>
-
-        {/* API Key Input */}
-        <div className="space-y-2">
-          <Label
-            htmlFor="cloud-api-key"
-            className="text-sm font-medium tracking-tight"
-          >
-            API Key
-          </Label>
-
-          {maskedApiKey && !isEditingKey ? (
-            <div className="flex flex-col gap-2 rounded-xl border border-border/80 bg-muted/15 p-3 sm:flex-row sm:items-center">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <Input
-                  readOnly
-                  type="text"
-                  value={maskedApiKey}
-                  className="h-9 border-border/80 bg-background font-mono text-xs text-muted-foreground"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-9 shrink-0 text-xs"
-                  disabled={disabled}
-                  onClick={() => {
-                    setIsEditingKey(true);
-                    setApiKeyInput("");
-                  }}
-                >
-                  Change Key
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 shrink-0 text-xs text-rose-500 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-500/20"
-                  disabled={disabled}
-                  onClick={handleClearKey}
-                >
-                  Clear Key
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="relative">
-                <Input
-                  id="cloud-api-key"
-                  type="password"
-                  placeholder={
-                    maskedApiKey ??
-                    `Enter ${cloudProvider} API key (e.g. sk-...)`
                   }
-                  value={apiKeyInput}
-                  disabled={disabled}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  className="h-10 border-border/80 bg-background font-mono text-xs"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-9 text-xs"
-                  disabled={disabled || !apiKeyInput.trim()}
-                  onClick={handleSaveKey}
-                >
-                  {pending ? (
-                    <>
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      Saving…
-                    </>
-                  ) : (
-                    "Save API Key"
-                  )}
-                </Button>
-                {maskedApiKey ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-9 text-xs"
-                    disabled={disabled}
-                    onClick={() => {
-                      setIsEditingKey(false);
-                      setApiKeyInput("");
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                ) : null}
-              </div>
+                }}
+              >
+                {CLOUD_LLM_PROVIDERS.map((p) => (
+                  <option key={p} value={p}>
+                    {PROVIDER_LABELS[p] ?? p}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-muted-foreground">
+                Default endpoint: <code className="font-mono text-foreground">{PROVIDER_ENDPOINTS[cloudProvider]?.baseUrl}</code>
+              </p>
             </div>
-          )}
 
-          <p className="text-[11px] text-muted-foreground">
-            Keys are encrypted at rest with AES-256-GCM and scoped solely to your account. Plaintext keys are never logged or returned to client components.
-          </p>
-        </div>
+            {/* Model Name Override */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="cloud-model" className="text-sm font-medium tracking-tight">
+                  Model Name Override (Optional)
+                </Label>
+                {accountId &&
+                  cloudModelOverride.trim() !== (initialCloudModel ?? "") && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={disabled}
+                      onClick={() => {
+                        startTransition(async () => {
+                          const result = await updateRule(
+                            accountId,
+                            "cloudModel",
+                            cloudModelOverride.trim() || null
+                          );
+                          if (!result.ok) {
+                            toast.error(result.error);
+                            return;
+                          }
+                          toast.success("Model override updated");
+                          router.refresh();
+                        });
+                      }}
+                    >
+                      Save Model
+                    </Button>
+                  )}
+              </div>
+              <Input
+                id="cloud-model"
+                placeholder={
+                  PROVIDER_ENDPOINTS[cloudProvider]?.defaultModel ?? "default model"
+                }
+                value={cloudModelOverride}
+                disabled={disabled}
+                onChange={(e) => setCloudModelOverride(e.target.value)}
+                className="h-10 border-border/80 bg-background font-mono text-xs"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Leave blank to use default model:{" "}
+                <code className="font-mono text-foreground">
+                  {PROVIDER_ENDPOINTS[cloudProvider]?.defaultModel}
+                </code>
+              </p>
+            </div>
+
+            {/* API Key Input */}
+            <div className="space-y-2">
+              <Label
+                htmlFor="cloud-api-key"
+                className="text-sm font-medium tracking-tight"
+              >
+                API Key
+              </Label>
+
+              {maskedApiKey && !isEditingKey ? (
+                <div className="flex flex-col gap-2 rounded-xl border border-border/80 bg-muted/15 p-3 sm:flex-row sm:items-center">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <Input
+                      readOnly
+                      type="text"
+                      value={maskedApiKey}
+                      className="h-9 border-border/80 bg-background font-mono text-xs text-muted-foreground"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 shrink-0 text-xs"
+                      disabled={disabled}
+                      onClick={() => {
+                        setIsEditingKey(true);
+                        setApiKeyInput("");
+                      }}
+                    >
+                      Change Key
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 shrink-0 text-xs text-rose-500 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-500/20"
+                      disabled={disabled}
+                      onClick={handleClearKey}
+                    >
+                      Clear Key
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Input
+                      id="cloud-api-key"
+                      type="password"
+                      placeholder={
+                        maskedApiKey ??
+                        `Enter ${cloudProvider} API key (e.g. sk-...)`
+                      }
+                      value={apiKeyInput}
+                      disabled={disabled}
+                      onChange={(e) => setApiKeyInput(e.target.value)}
+                      className="h-10 border-border/80 bg-background font-mono text-xs"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-9 text-xs"
+                      disabled={disabled || !apiKeyInput.trim()}
+                      onClick={handleSaveKey}
+                    >
+                      {pending ? (
+                        <>
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          Saving…
+                        </>
+                      ) : (
+                        "Save API Key"
+                      )}
+                    </Button>
+                    {maskedApiKey ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 text-xs"
+                        disabled={disabled}
+                        onClick={() => {
+                          setIsEditingKey(false);
+                          setApiKeyInput("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[11px] text-muted-foreground">
+                Keys are encrypted at rest with AES-256-GCM and scoped solely to your account. Plaintext keys are never logged or returned to client components.
+              </p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+
+    {/* Classification & Parsing Strategy Card */}
+    <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
+      <CardHeader className="space-y-1 pb-4">
+        <CardTitle className="text-base font-semibold tracking-tight">
+          Classification & Parsing Strategy
+        </CardTitle>
+        <CardDescription className="text-xs text-muted-foreground">
+          Choose how incoming job emails and opportunities are analyzed and parsed.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <RadioGroup
+          value={selectedClassificationMode}
+          disabled={disabled}
+          onValueChange={handleClassificationModeChange}
+          className="space-y-2.5"
+        >
+          <div
+            className={cn(
+              "flex items-start gap-3 transition-colors",
+              SETTINGS_ROW_CLASSNAME,
+              selectedClassificationMode === "AI_WITH_HEURISTIC_FALLBACK" &&
+                "border-primary/50 bg-primary/5 shadow-sm"
+            )}
+          >
+            <RadioGroupItem
+              value="AI_WITH_HEURISTIC_FALLBACK"
+              id="mode-ai-heuristic"
+              className="mt-0.5 shrink-0"
+            />
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor="mode-ai-heuristic"
+                  className="cursor-pointer text-xs font-semibold tracking-tight"
+                >
+                  AI with Heuristic Fallback
+                </Label>
+                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                  Recommended
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Uses your configured AI provider with seamless deterministic fallback if unavailable or rate-limited.
+              </p>
+            </div>
+          </div>
+
+          <div
+            className={cn(
+              "flex items-start gap-3 transition-colors",
+              SETTINGS_ROW_CLASSNAME,
+              selectedClassificationMode === "AI_ONLY" &&
+                "border-primary/50 bg-primary/5 shadow-sm"
+            )}
+          >
+            <RadioGroupItem
+              value="AI_ONLY"
+              id="mode-ai-only"
+              className="mt-0.5 shrink-0"
+            />
+            <div className="space-y-1">
+              <Label
+                htmlFor="mode-ai-only"
+                className="cursor-pointer text-xs font-semibold tracking-tight"
+              >
+                AI Only
+              </Label>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Strictly uses AI models. Emails that cannot be parsed by AI remain pending.
+              </p>
+            </div>
+          </div>
+
+          <div
+            className={cn(
+              "flex items-start gap-3 transition-colors",
+              SETTINGS_ROW_CLASSNAME,
+              selectedClassificationMode === "HEURISTIC_ONLY" &&
+                "border-primary/50 bg-primary/5 shadow-sm"
+            )}
+          >
+            <RadioGroupItem
+              value="HEURISTIC_ONLY"
+              id="mode-heuristic-only"
+              className="mt-0.5 shrink-0"
+            />
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor="mode-heuristic-only"
+                  className="cursor-pointer text-xs font-semibold tracking-tight"
+                >
+                  Grand Heuristic Only
+                </Label>
+                <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                  Deterministic & Free
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                100% deterministic, zero LLM cost, instantaneous regex & heuristic extraction.
+              </p>
+            </div>
+          </div>
+        </RadioGroup>
       </CardContent>
     </Card>
   </div>

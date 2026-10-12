@@ -6,28 +6,28 @@
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("@/lib/polyfills");
-  }
 
-  if (process.env.NODE_ENV === "development") {
-    const { prisma } = await import("@/lib/prisma");
-    try {
-      await prisma.account.updateMany({ data: { isSyncing: false } });
-      console.log("[DevBoot] Cleared all hanging sync locks.");
-      const softCleared = await prisma.jobOpportunity.updateMany({
-        where: {
-          isArchived: true,
-          previousStatus: null,
-          status: { not: "DISMISSED" },
-        },
-        data: { isArchived: false },
-      });
-      if (softCleared.count > 0) {
-        console.log(
-          `[DevBoot] Cleared ${softCleared.count} legacy score soft-archives.`
-        );
+    if (process.env.NODE_ENV === "development") {
+      try {
+        const { prisma } = await import("@/lib/prisma");
+        await prisma.account.updateMany({ data: { isSyncing: false } });
+        console.log("[DevBoot] Cleared all hanging sync locks.");
+        const softCleared = await prisma.jobOpportunity.updateMany({
+          where: {
+            isArchived: true,
+            previousStatus: null,
+            status: { not: "DISMISSED" },
+          },
+          data: { isArchived: false },
+        });
+        if (softCleared.count > 0) {
+          console.log(
+            `[DevBoot] Cleared ${softCleared.count} legacy score soft-archives.`
+          );
+        }
+      } catch {
+        // Ignore transient errors on dev boot
       }
-    } catch (error) {
-      console.error("Failed to clear sync locks on boot:", error);
     }
   }
 }
