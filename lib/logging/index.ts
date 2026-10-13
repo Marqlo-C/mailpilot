@@ -226,10 +226,12 @@ export function logEngineExecutionTable(params: EngineExecutionLogParams): void 
     console.log(`└`.padEnd(65, "─") + "┘");
   } else if (phase === "ERROR") {
     console.log(`\n${header}`);
+    const cleanError = (errorDetail || "Unknown error")
+      .replace(/\r?\n/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
     console.log(
-      `│ Error   : ${truncate(errorDetail || "Unknown error", 53)}`.padEnd(
-        65
-      ) + "│"
+      `│ Error   : ${truncate(cleanError, 52)}`.padEnd(65) + "│"
     );
     console.log(`└`.padEnd(65, "─") + "┘");
   }

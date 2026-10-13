@@ -70,9 +70,67 @@ export type ParsedLocation = {
   isRemote: boolean;
 };
 
+/**
+ * Scans free-form text (email body or job description) for physical city/state
+ * locations (e.g. "Sacramento, CA", "Folsom, CA", "Austin, Texas").
+ */
+export function extractLocationFromText(
+  text: string | null | undefined
+): ParsedLocation {
+  if (!text) {
+    return { city: "", state: null, isRemote: false };
+  }
+
+  // 1. High-confidence regex: "City, ST" or "City, State" (e.g. "Sacramento, CA", "Folsom, California")
+  // Matches 1-3 capitalized words, followed by comma, followed by 2-letter state code or state name
+  const cityStateRegex =
+    /\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,2}),\s*([A-Z]{2}\b|[A-Za-z]{4,20}\b)/g;
+
+  let match: RegExpExecArray | null;
+  while ((match = cityStateRegex.exec(text)) !== null) {
+    const candidateCity = match[1]?.trim();
+    const rawState = match[2]?.toLowerCase().trim();
+
+    if (!candidateCity || !rawState) continue;
+
+    // Filter out common false positives before comma
+    if (
+      /^(monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december|salary|benefits|requirements|qualifications|experience|status|apply)$/i.test(
+        candidateCity
+      )
+    ) {
+      continue;
+    }
+
+    const upperState = rawState.toUpperCase();
+    let state: string | null = null;
+    if (VALID_STATE_CODES.has(upperState)) {
+      state = upperState;
+    } else if (US_STATES_AND_TERRITORIES[rawState]) {
+      state = US_STATES_AND_TERRITORIES[rawState]!;
+    }
+
+    if (state) {
+      const isRemote = /\b(remote|hybrid|wfh)\b/i.test(text);
+      return { city: candidateCity, state, isRemote };
+    }
+  }
+
+  const isRemote = /\b(remote|work from home|wfh)\b/i.test(text);
+  return { city: "", state: null, isRemote };
+}
+
 export function parseLocation(raw: string | null | undefined): ParsedLocation {
   if (!raw) {
     return { city: "", state: null, isRemote: false };
+  }
+
+  // If raw contains multiple sentences, newlines, or looks like a full paragraph (> 60 chars)
+  if (raw.length > 60 || raw.includes("\n")) {
+    const extracted = extractLocationFromText(raw);
+    if (extracted.city || extracted.state) {
+      return extracted;
+    }
   }
 
   let text = raw.toLowerCase().trim();
@@ -95,6 +153,11 @@ export function parseLocation(raw: string | null | undefined): ParsedLocation {
   }
 
   const city = parts[0]!.replace(/[^a-z0-9\s]/g, "").trim();
+  const formattedCity = city
+    .split(/\s+/)
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : ""))
+    .join(" ");
+
   let state: string | null = null;
 
   if (parts.length > 1) {
@@ -108,7 +171,7 @@ export function parseLocation(raw: string | null | undefined): ParsedLocation {
     }
   }
 
-  return { city, state, isRemote };
+  return { city: formattedCity, state, isRemote };
 }
 
 /**
@@ -135,11 +198,13 @@ export function isLocationCompatible(
     return false;
   }
 
-  // City compatibility: exact match or containment (e.g. "Sacramento" vs "Greater Sacramento")
+  // City compatibility: case-insensitive match or containment
+  const cityA = a.city.toLowerCase();
+  const cityB = b.city.toLowerCase();
   const cityMatch =
-    a.city === b.city ||
-    a.city.includes(b.city) ||
-    b.city.includes(a.city);
+    cityA === cityB ||
+    cityA.includes(cityB) ||
+    cityB.includes(cityA);
 
   return cityMatch;
 }

@@ -879,7 +879,10 @@ export async function persistClassifiedEmail(input: {
   let opportunitiesUpserted = 0;
   for (const job of classification.jobs) {
     const cleanCompany = job.company.trim();
-    const cleanTitle = job.title.trim();
+    const cleanTitle = job.title
+      .replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u00AD]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
     if (!cleanCompany || !cleanTitle) continue;
 
     const isDirectEmail =
@@ -981,7 +984,8 @@ export async function persistClassifiedEmail(input: {
       await prisma.jobOpportunity.update({
         where: { id: existing.id },
         data: {
-          ...(shouldUpgradeTitle ? { title: cleanTitle } : {}),
+          company: cleanCompany,
+          title: cleanTitle,
           location: job.location ?? existing.location,
           salary: job.salary ?? existing.salary,
           salaryMax:

@@ -18,6 +18,22 @@ import type {
 const SENIOR_ROLE_REGEX = /\b(lead|staff|principal|director|head|vp|vice\s+president|executive|chief)\b/i;
 const JUNIOR_ROLE_REGEX = /\b(intern|junior|jr|entry|associate|trainee)\b/i;
 
+/** Universal Section Segmentation regexes */
+const MANDATORY_SECTION_REGEX =
+  /(?:minimum|basic|required|mandatory)\s+(?:qualifications|requirements|skills|criteria):?([\s\S]*?)(?=(?:preferred|desired|bonus|nice to have|additional|benefits|what we offer|equal opportunity|$))/i;
+
+const PREFERRED_SECTION_REGEX =
+  /(?:preferred|desired|bonus|nice to have|additional)\s+(?:qualifications|requirements|skills):?([\s\S]*?)(?=(?:benefits|what we offer|equal opportunity|$))/i;
+
+const GENERIC_REQUIREMENTS_REGEX =
+  /(?:requirements|qualifications|skills|must have|what you need):?([\s\S]{1,800})/i;
+
+/** Universal Depth & Tenure Detection regexes */
+const TENURE_REGEX = /\b(\d+)\+?\s*(?:years?|yrs?)\b/gi;
+
+const DEPTH_MODIFIERS_REGEX =
+  /\b(proficient|expert|deep understanding|demonstrated experience|hands-on|proven track record|licensed|certified)\b/i;
+
 function evaluateSeniorityFit(
   roleTitle: string,
   candidateTier: string | null
@@ -204,7 +220,7 @@ export function evaluateOpportunityMatch(params: {
 }): MatchResult {
   const { opportunity, candidate } = params;
 
-  const seniorityFit = evaluateSeniorityFit(
+  let seniorityFit = evaluateSeniorityFit(
     opportunity.roleTitle,
     candidate.seniorityTier
   );
@@ -252,41 +268,107 @@ export function evaluateOpportunityMatch(params: {
   }
 
   // 2. PATH B: Rich Job Specification
-  const jobText = `${opportunity.roleTitle} ${opportunity.jobDescription}`.toLowerCase();
+  const jobDescription = opportunity.jobDescription || "";
+  const jobText = `${opportunity.roleTitle} ${jobDescription}`.toLowerCase();
 
-  const matchedSkills: string[] = [];
-  const missingRequirements: string[] = [];
+  // 2a. Universal Section Segmentation
+  const mandatoryMatch = jobDescription.match(MANDATORY_SECTION_REGEX);
+  const preferredMatch = jobDescription.match(PREFERRED_SECTION_REGEX);
+  const genericReqMatch = !mandatoryMatch
+    ? jobDescription.match(GENERIC_REQUIREMENTS_REGEX)
+    : null;
 
-  for (const skill of candidate.skills) {
-    const sLower = skill.toLowerCase();
-    if (sLower.length >= 2 && jobText.includes(sLower)) {
-      matchedSkills.push(skill);
+  const mandatoryBlock = mandatoryMatch ? mandatoryMatch[1] : null;
+  const preferredBlock = preferredMatch ? preferredMatch[1] : null;
+  const activeReqBlock = mandatoryBlock || (genericReqMatch ? genericReqMatch[1] : null);
+  const isExplicitMandatory = Boolean(mandatoryBlock);
+
+  // 2b. Universal Depth & Tenure Floor Detection
+  let mandatoryTenureFloor: number | null = null;
+  if (mandatoryBlock) {
+    const tenureMatches = Array.from(mandatoryBlock.matchAll(TENURE_REGEX));
+    for (const m of tenureMatches) {
+      const parsedYears = parseInt(m[1], 10);
+      if (!isNaN(parsedYears) && parsedYears > 0 && parsedYears <= 25) {
+        if (mandatoryTenureFloor === null || parsedYears > mandatoryTenureFloor) {
+          mandatoryTenureFloor = parsedYears;
+        }
+      }
     }
   }
 
-  // Extract explicit requirements keywords from job text if present
-  const reqMatch = opportunity.jobDescription.match(
-    /(?:requirements|qualifications|skills|must have):?([\s\S]{1,600})/i
-  );
-  if (reqMatch?.[1]) {
-    const lines = reqMatch[1]
-      .split(/\n|•|-|;/)
-      .map((l) => l.trim())
-      .filter((l) => l.length > 5 && l.length < 80);
+  // If candidate inFieldYears is below an explicitly parsed mandatory tenure floor, classify seniorityFit as REACH
+  if (
+    isExplicitMandatory &&
+    mandatoryTenureFloor !== null &&
+    candidate.inFieldYears !== null &&
+    candidate.inFieldYears !== undefined &&
+    candidate.inFieldYears < mandatoryTenureFloor
+  ) {
+    seniorityFit = "REACH";
+  }
 
-    for (const line of lines.slice(0, 5)) {
+  // 2c. Dynamic Skill Matching Across Sections
+  const matchedSkills: string[] = [];
+  const matchedMandatorySkills: string[] = [];
+  const matchedPreferredSkills: string[] = [];
+  const missingRequirements: string[] = [];
+  let deepMissingCount = 0;
+
+  const mandatoryLower = mandatoryBlock ? mandatoryBlock.toLowerCase() : "";
+  const preferredLower = preferredBlock ? preferredBlock.toLowerCase() : "";
+
+  for (const skill of candidate.skills) {
+    const sLower = skill.toLowerCase();
+    if (sLower.length >= 2) {
+      if (jobText.includes(sLower)) {
+        matchedSkills.push(skill);
+      }
+      if (mandatoryLower && mandatoryLower.includes(sLower)) {
+        matchedMandatorySkills.push(skill);
+      }
+      if (preferredLower && preferredLower.includes(sLower)) {
+        matchedPreferredSkills.push(skill);
+      }
+    }
+  }
+
+  // Extract unmet requirement lines from the active requirements block
+  if (activeReqBlock) {
+    const lines = activeReqBlock
+      .split(/\n|;|\u2022/)
+      .map((l) => l.replace(/^[\s•\-\*]+\s*/, "").trim())
+      .filter((l) => l.length > 5 && l.length < 100);
+
+    for (const line of lines.slice(0, 6)) {
       const lineLower = line.toLowerCase();
+
+      // If the requirement is tenure-based and candidate's inFieldYears meets or exceeds it, requirement is met
+      const tenureMatch = line.match(/\b(\d+)\+?\s*(?:years?|yrs?)\b/i);
+      if (
+        tenureMatch &&
+        candidate.inFieldYears !== null &&
+        candidate.inFieldYears !== undefined
+      ) {
+        const requiredYears = parseInt(tenureMatch[1], 10);
+        if (candidate.inFieldYears >= requiredYears) {
+          continue;
+        }
+      }
+
       const covered = candidate.skills.some((s) =>
         lineLower.includes(s.toLowerCase())
       );
       if (!covered) {
         missingRequirements.push(line);
+        if (DEPTH_MODIFIERS_REGEX.test(line)) {
+          deepMissingCount++;
+        }
       }
     }
   }
 
-  // Base score on skill overlap ratio
-  const candidateSkillCount = Math.max(candidate.skills.length, 1);
+  // 2d. Scoring Logic
   const matchedCount = matchedSkills.length;
 
   let baseScore = 40;
@@ -305,6 +387,28 @@ export function evaluateOpportunityMatch(params: {
     titleWords.some((w) => role.toLowerCase().includes(w))
   );
   if (hasTitleOverlap) baseScore += 5;
+
+  // Mandatory / Minimum priority & penalties
+  if (isExplicitMandatory) {
+    // High priority for skills matched in mandatory section
+    if (matchedMandatorySkills.length >= 2) {
+      baseScore += 6;
+    } else if (matchedMandatorySkills.length >= 1) {
+      baseScore += 3;
+    }
+
+    // Missing candidate skills in mandatory section apply a larger penalty
+    baseScore -= missingRequirements.length * 3;
+    if (deepMissingCount > 0) {
+      baseScore -= deepMissingCount * 2;
+    }
+  }
+
+  // Preferred / Desired section additive bonus
+  if (matchedPreferredSkills.length > 0) {
+    const preferredBonus = Math.min(10, matchedPreferredSkills.length * 3);
+    baseScore += preferredBonus;
+  }
 
   // Seniority penalty / adjustment
   if (seniorityFit === "REACH") baseScore -= 18;

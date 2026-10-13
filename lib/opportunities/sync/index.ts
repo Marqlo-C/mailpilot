@@ -140,6 +140,7 @@ export async function runOpportunitySync(
           isSyncing: false,
           syncError: null,
           lastSyncProcessed: 0,
+          syncTotal: null,
         },
       });
       return {
@@ -187,6 +188,15 @@ export async function runOpportunitySync(
       provider: llmProvider,
     });
 
+    // Record candidate total so live UI telemetry renders numerator and denominator (# / #)
+    await prisma.account.update({
+      where: { id: accountId },
+      data: {
+        syncTotal: targetIds.length,
+        lastSyncProcessed: 0,
+      },
+    });
+
     for (let i = 0; i < targetIds.length; i++) {
       const messageId = targetIds[i];
 
@@ -203,6 +213,12 @@ export async function runOpportunitySync(
           { "classified so far": `${i} / ${targetIds.length}` },
           "warn"
         );
+        await prisma.account
+          .update({
+            where: { id: accountId },
+            data: { syncTotal: null },
+          })
+          .catch(() => {});
         break;
       }
 
@@ -268,6 +284,7 @@ export async function runOpportunitySync(
         isSyncing: false,
         syncError: null,
         lastSyncProcessed: targetIds.length,
+        syncTotal: null,
       },
     });
 
@@ -308,7 +325,10 @@ export async function runOpportunitySync(
     try {
       await prisma.account.update({
         where: { id: accountId },
-        data: { isSyncing: false },
+        data: {
+          isSyncing: false,
+          syncTotal: null,
+        },
       });
     } catch {
       // Non-fatal finalize catch

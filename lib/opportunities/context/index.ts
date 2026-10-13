@@ -9,3 +9,4 @@
 export * from "./schema.ssot";
 export * from "./scrubber";
 export * from "./lens";
+export * from "./json-ld";

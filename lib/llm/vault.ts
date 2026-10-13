@@ -19,10 +19,11 @@ export function maskApiKey(rawKey: string): string {
     return "sk-...";
   }
   const clean = rawKey.trim();
+  const prefix = clean.startsWith("jina_") ? "jina_" : "sk-";
   if (clean.length <= 4) {
-    return "sk-...";
+    return `${prefix}...`;
   }
-  return `sk-...${clean.slice(-4)}`;
+  return `${prefix}...${clean.slice(-4)}`;
 }
 
 /**

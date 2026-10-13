@@ -92,6 +92,10 @@ export const accountRulesSchema = z.object({
   encryptedApiKey: z.string().nullable().default(null),
   /** Safe display mask (e.g. sk-...1234) for Settings UI */
   maskedApiKey: z.string().nullable().default(null),
+  /** AES-256-GCM encrypted Jina API key for web scraping (never sent to client) */
+  encryptedJinaApiKey: z.string().nullable().default(null),
+  /** Safe display mask (e.g. jina_...1234) for Settings UI */
+  maskedJinaApiKey: z.string().nullable().default(null),
   /** Defaults for on-demand tailored resume generation. */
   resumePreferences: resumePreferencesSchema.default(DEFAULT_RESUME_PREFERENCES),
 });

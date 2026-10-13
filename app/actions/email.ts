@@ -41,6 +41,8 @@ export async function forceResetSyncStatus(): Promise<ActionResult> {
     data: {
       isSyncing: false,
       syncError: null,
+      syncTotal: null,
+      lastSyncProcessed: 0,
       lastSyncedAt: new Date(),
     },
   });
@@ -121,6 +123,7 @@ export async function syncInboxOpportunities(
       isSyncing: true,
       syncError: null,
       lastSyncProcessed: 0,
+      syncTotal: null,
       syncHeartbeatAt: new Date(),
     },
   });
@@ -145,7 +148,7 @@ export async function syncInboxOpportunities(
       const result = await runOpportunitySync(syncAccountId, {
         forceRescan,
         lookbackDays,
-        maxMessages: 25,
+        maxMessages: 50,
       });
       processed = result.processed;
 
@@ -192,6 +195,7 @@ export async function syncInboxOpportunities(
             ...(stampedLastSyncedAt ? { lastSyncedAt: runStartedAt } : {}),
             syncError: errorMessage,
             lastSyncProcessed: errorMessage ? null : processed,
+            syncTotal: null,
           },
         });
 

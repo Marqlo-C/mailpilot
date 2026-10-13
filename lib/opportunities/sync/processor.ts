@@ -11,8 +11,14 @@ import {
 import type { JobClassification } from "@/lib/llm/classification";
 import type { CandidateProfileSummary } from "@/lib/ai/classifier";
 import { logCompactSyncCard, logStory, syncLog } from "@/lib/logging";
-import { extractCleanSnippet } from "@/lib/opportunities/context";
+import {
+  extractCleanSnippet,
+  scrapeJobPostingJsonLd,
+  unwrapTrackingUrl,
+} from "@/lib/opportunities/context";
+import { JOB_BOARD_KEYWORDS } from "@/lib/constants/job-sources";
 import { prisma } from "@/lib/prisma";
+import { decryptToken } from "@/lib/crypto";
 import { parseFromHeader, type ClassifiableAccount } from "@/lib/sync";
 import type { parseAccountRules } from "@/lib/validations/rules";
 import { withRateLimitRetry } from "./candidates";
@@ -326,6 +332,83 @@ export async function processSyncMessage(
   const emailDate = message.internalDate
     ? new Date(Number(message.internalDate))
     : new Date();
+
+  // Unpack tracking redirects and normalize URLs for all jobs in classification
+  for (const job of classification.jobs) {
+    if (job.applyUrl) {
+      job.applyUrl = unwrapTrackingUrl(job.applyUrl);
+    }
+  }
+
+  // Link Parser Enrichment: hydrate thin jobs (< 300 chars) via public JSON-LD in parallel pools
+  const thinJobs = classification.jobs.filter(
+    (job) =>
+      (!job.description || job.description.length < 300) &&
+      Boolean(job.applyUrl && /^https?:\/\//i.test(job.applyUrl))
+  );
+
+  if (thinJobs.length > 0) {
+    let jinaApiKey: string | null = null;
+    if (rules.encryptedJinaApiKey) {
+      try {
+        jinaApiKey = decryptToken(rules.encryptedJinaApiKey).trim() || null;
+      } catch {
+        jinaApiKey = null;
+      }
+    }
+
+    const CONCURRENCY = 5;
+    for (let i = 0; i < thinJobs.length; i += CONCURRENCY) {
+      const batch = thinJobs.slice(i, i + CONCURRENCY);
+      await Promise.allSettled(
+        batch.map(async (job) => {
+          try {
+            const { data: enriched, telemetry } = await scrapeJobPostingJsonLd(
+              job.applyUrl!,
+              2500,
+              jinaApiKey
+            );
+
+            console.log(`  ├─ LinkParser: ${telemetry}`);
+
+            if (enriched) {
+              if (
+                enriched.description &&
+                enriched.description.length > (job.description?.length ?? 0)
+              ) {
+                job.description = enriched.description;
+              }
+              if (enriched.applyUrl) {
+                job.applyUrl = enriched.applyUrl;
+              }
+              const isStillAggregator = JOB_BOARD_KEYWORDS.some((kw) =>
+                (job.company || "").toLowerCase().includes(kw)
+              );
+              if (
+                enriched.company &&
+                (!job.company ||
+                  job.company === "Unknown Company" ||
+                  isStillAggregator)
+              ) {
+                job.company = enriched.company;
+              }
+              if (
+                enriched.location &&
+                (!job.location || /unspecified/i.test(job.location))
+              ) {
+                job.location = enriched.location;
+              }
+              if (enriched.salary && !job.salary) {
+                job.salary = enriched.salary;
+              }
+            }
+          } catch {
+            console.log(`  ├─ LinkParser: Skipped (Network Error)`);
+          }
+        })
+      );
+    }
+  }
 
   const dedupeResult = await persistSyncOpportunity({
     gmail,

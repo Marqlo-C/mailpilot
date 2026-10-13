@@ -102,6 +102,24 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
       const calls = consoleSpy.mock.calls.map((c) => c[0]);
       expect(calls.some((c) => typeof c === "string" && c.includes("CLOUD ENGINE"))).toBe(true);
       expect(calls.some((c) => typeof c === "string" && c.includes("HTTP 429 Rate Limit"))).toBe(true);
+
+      consoleSpy.mockClear();
+
+      logEngineExecutionTable({
+        engineType: "CLOUD_BYOK",
+        provider: "OPENROUTER",
+        model: "openai/gpt-4o",
+        phase: "ERROR",
+        promptChars: 1200,
+        errorDetail: "OPENROUTER HTTP 403: Key limit exceeded\nwith multi-line json details",
+      });
+
+      const errCalls = consoleSpy.mock.calls.map((c) => c[0]);
+      const errRow = errCalls.find((c) => typeof c === "string" && c.startsWith("│ Error   :"));
+      expect(errRow).toBeDefined();
+      expect(errRow).not.toContain("\n");
+      expect((errRow as string).length).toBe(66);
+      expect(errRow).toContain("Key limit exceeded");
     });
 
     it("emits single-line JSON in production mode", () => {

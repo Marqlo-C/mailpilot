@@ -120,6 +120,7 @@ export async function GET(request: Request) {
             isSyncing: false,
             syncError: null,
             lastSyncProcessed: syncResult.opportunitiesUpserted,
+            syncTotal: null,
           },
         });
 
@@ -137,6 +138,7 @@ export async function GET(request: Request) {
               isSyncing: false,
               syncError:
                 err instanceof Error ? err.message : "Unknown error",
+              syncTotal: null,
             },
           });
         } catch {

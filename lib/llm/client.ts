@@ -145,9 +145,16 @@ async function callOpenAiCompatibleModel(
           signal: AbortSignal.timeout(25_000),
         });
       } else {
-        const errorMsg = `${provider} HTTP 400: ${errorText.slice(0, 250)}`;
-        console.error(`[cloud-llm] ${errorMsg}`);
-        throw new Error(errorMsg);
+        let cleanMsg = `${provider} HTTP 400`;
+        try {
+          const errJson = JSON.parse(errorText);
+          if (errJson?.error?.message) {
+            cleanMsg = `${provider} HTTP 400: ${errJson.error.message.replace(/https?:\/\/\S+/g, "").trim()}`;
+          }
+        } catch {
+          cleanMsg = `${provider} HTTP 400: ${errorText.slice(0, 100)}`;
+        }
+        throw new Error(cleanMsg);
       }
     }
 
@@ -168,9 +175,16 @@ async function callOpenAiCompatibleModel(
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      const errorMsg = `${provider} HTTP ${response.status}: ${detail.slice(0, 250)}`;
-      console.error(`[cloud-llm] ${errorMsg}`);
-      throw new Error(errorMsg);
+      let cleanMsg = `${provider} HTTP ${response.status}`;
+      try {
+        const errJson = JSON.parse(detail);
+        if (errJson?.error?.message) {
+          cleanMsg = `${provider} HTTP ${response.status}: ${errJson.error.message.replace(/https?:\/\/\S+/g, "").trim()}`;
+        }
+      } catch {
+        cleanMsg = `${provider} HTTP ${response.status}: ${detail.slice(0, 100)}`;
+      }
+      throw new Error(cleanMsg);
     }
 
     const json = (await response.json()) as {
@@ -265,9 +279,16 @@ async function callAnthropicMessages(
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      const errorMsg = `ANTHROPIC HTTP ${response.status}: ${detail.slice(0, 250)}`;
-      console.error(`[cloud-llm] ${errorMsg}`);
-      throw new Error(errorMsg);
+      let cleanMsg = `ANTHROPIC HTTP ${response.status}`;
+      try {
+        const errJson = JSON.parse(detail);
+        if (errJson?.error?.message) {
+          cleanMsg = `ANTHROPIC HTTP ${response.status}: ${errJson.error.message.replace(/https?:\/\/\S+/g, "").trim()}`;
+        }
+      } catch {
+        cleanMsg = `ANTHROPIC HTTP ${response.status}: ${detail.slice(0, 100)}`;
+      }
+      throw new Error(cleanMsg);
     }
 
     const json = (await response.json()) as {

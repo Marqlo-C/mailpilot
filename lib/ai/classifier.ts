@@ -1,5 +1,8 @@
 import type { ApplicationType } from "@/lib/application-method";
-import { matchesConfirmationSignal } from "@/lib/constants/job-sources";
+import {
+  JOB_BOARD_KEYWORDS,
+  matchesConfirmationSignal,
+} from "@/lib/constants/job-sources";
 
 export type CandidatePersonaSummary = {
   seniorityTier: string | null;
@@ -248,6 +251,9 @@ export function normalizeSalaryDisplay(
     return null;
   }
 
+  // Detect hourly signals before stripping
+  const isHourly = /\b(?:per\s*hour|per\s*hr|hourly|\/\s*hr|an\s*hour|an\s*hr|a\s*hour)\b/i.test(raw);
+
   // Drop parenthetical platform / estimate notes first.
   raw = raw
     .replace(
@@ -259,15 +265,16 @@ export function normalizeSalaryDisplay(
       /\b(?:usd|eur|gbp|cad|aud)\b/i.test(paren) ? paren : " "
     );
 
-  // Strip trailing / inline estimate & pay-type chrome (not part of the amount).
+  // Strip leading prefixes, trailing / inline estimate & pay-type chrome
   raw = raw
+    .replace(/\b(?:from|starting\s+at|up\s+to)\b[.:,]*/gi, " ")
     .replace(
       /\b(?:employer\s+est\.?|glassdoor\s+est\.?|indeed\s+est\.?|estimated?|approx\.?|approximately)\b[.:,]*/gi,
       " "
     )
     .replace(/\b(?:doe|negotiable|competitive)\b[.:,]*/gi, " ")
     .replace(
-      /\b(?:per\s*hour|per\s*hr|hourly|\/\s*hr|per\s*year|per\s*yr|annually|\/\s*yr|\/\s*year|a\s*year)\b[.:,]*/gi,
+      /\b(?:per\s*hour|per\s*hr|hourly|\/\s*hr|an\s*hour|an\s*hr|a\s*hour|per\s*year|per\s*yr|annually|\/\s*yr|\/\s*year|a\s*year)\b[.:,]*/gi,
       " "
     )
     .replace(/\s{2,}/g, " ")
@@ -303,6 +310,10 @@ export function normalizeSalaryDisplay(
     // Standardize lowercase 'k' to 'K' when preceded by digits
     p = p.replace(/(\d)k\b/gi, "$1K");
 
+    // Compress full thousands (e.g., 150,000 or 150000 -> 150K)
+    p = p.replace(/\b(\d{1,4}),000\b/g, "$1K");
+    p = p.replace(/\b(\d{2,4})000\b/g, "$1K");
+
     // Already has a leading currency symbol
     if (/^[$€£]/.test(p)) {
       return p.replace(/^\$+/, "$").replace(/^€+/, "€").replace(/^£+/, "£");
@@ -337,13 +348,19 @@ export function normalizeSalaryDisplay(
     normalized[1] = normalized[1].replace(/k$/i, "K");
   }
 
-  const joined = normalized
+  let joined = normalized
     .join(" - ")
     .replace(/\${2,}/g, "$")
     .replace(/\s{2,}/g, " ")
     .trim();
 
-  return joined.length > 0 && /\d/.test(joined) ? joined : null;
+  if (!joined || !/\d/.test(joined)) return null;
+
+  if (isHourly && !joined.includes("/hr") && !/k/i.test(joined)) {
+    joined = `${joined}/hr`;
+  }
+
+  return joined;
 }
 
 const DESCRIPTION_CHROME_RE =
@@ -383,6 +400,9 @@ export function buildProfileAwareClassifierSystemPrompt(
   profile: CandidateProfileSummary | null | undefined
 ): string {
   const candidateBlock = formatCandidateProfileSummary(profile);
+  const aggregatorList = JOB_BOARD_KEYWORDS.map(
+    (k) => k.charAt(0).toUpperCase() + k.slice(1)
+  ).join(", ");
 
   return `You are analyzing an email containing job listings for this candidate.
 
@@ -420,6 +440,11 @@ Return ONLY valid JSON (no markdown fences):
     }
   ]
 }
+
+CRITICAL EXTRACTION RULES:
+1. BODY PRECEDENCE: If the email subject line is vague (e.g. "New Opportunities", "Quick Chat", "Job Alert"), extract the exact job title, hiring company name, and location directly from the email body text.
+2. HIRING COMPANY VS PLATFORM: Never assign job board or aggregator platforms (${aggregatorList}) as the company_name unless the role is genuinely employment at that platform. Find the actual hiring employer named in the listing block or headline.
+3. EXPLICIT LOCATION: Extract physical city and state locations (e.g., "Sacramento, CA", "Folsom, CA") whenever present in the text before defaulting to "Remote" or "Unspecified".
 
 Category rules:
 - DIRECT_RECRUITER: personal 1:1 outreach from ANY company representative (Recruiter, Hiring Manager, Department Director, Team Lead, Operations Manager, Practice Lead, Founder, VP, or Director) discussing an open position or exploring fit. You MUST extract exactly one job into 'jobs' with the role discussed.

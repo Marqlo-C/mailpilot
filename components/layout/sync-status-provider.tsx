@@ -154,6 +154,7 @@ export function SyncStatusProvider({
             isSyncing?: boolean;
             pendingClassificationCount?: number;
             lastSyncProcessed?: number | null;
+            syncTotal?: number | null;
           };
 
           if (typeof data.pendingClassificationCount === "number") {
@@ -162,6 +163,11 @@ export function SyncStatusProvider({
 
           if (typeof data.lastSyncProcessed === "number") {
             setLastSyncProcessed(data.lastSyncProcessed);
+          }
+
+          if (typeof data.syncTotal === "number" && data.syncTotal > 0) {
+            setTotalToProcess(data.syncTotal);
+          } else if (typeof data.lastSyncProcessed === "number") {
             setTotalToProcess((prev) => {
               if (prev !== null) return prev;
               if (
