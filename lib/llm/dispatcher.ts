@@ -141,6 +141,15 @@ async function resolveCredentials(
     }
   }
 
+  // 4. Global process.env.OPENROUTER_API_KEY for dev/test compatibility
+  if (process.env.OPENROUTER_API_KEY?.trim()) {
+    return {
+      provider: "OPENROUTER",
+      apiKey: process.env.OPENROUTER_API_KEY.trim(),
+      model: options.cloudModel ?? null,
+    };
+  }
+
   return null;
 }
 

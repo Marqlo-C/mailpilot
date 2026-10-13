@@ -454,7 +454,7 @@ Future developers should make edits within the designated Single Source of Truth
 | **Persona** | `lib/persona/schema.ssot.ts` | `lib/persona/lens.ts` | Edit when adding candidate persona dimensions (archetypes, tone guidance, seniority tiers). Never import raw Prisma models into tailor logic. |
 | **Job Context** | `lib/opportunities/context/schema.ssot.ts` | `lib/opportunities/context/lens.ts` | Edit when updating canonical job opportunity representations. `resolveJobOpportunity()` is the sole entrypoint mapping DB rows to the pipeline. |
 | **Match Scoring** | `lib/matching/schema.ssot.ts` | `lib/matching/lens.ts` | Edit when adjusting matching criteria, fit tiers (`HIGH`, `MID`, `LOW`), or seniority alignment. Evaluators consume `MatchCandidateLens`. |
-| **Heuristics** | `lib/ai/grand-heuristic.ts` | N/A | Zero-token deterministic fallback engine extracting company, role, location, salary, apply URLs, and schema.org JSON-LD. |
+| **AI Classification** | `lib/llm/classification.ts` | N/A | 2-Tier AI classification pipeline (Tier 1: Local Ollama, Tier 2: Cloud BYOK) parsing opportunities without regex/footer guessing. |
 
 
 

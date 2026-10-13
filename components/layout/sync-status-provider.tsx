@@ -26,6 +26,8 @@ type SyncStatusContextValue = {
   accountId: string | null;
   isSyncing: boolean;
   pendingCount: number;
+  lastSyncProcessed: number | null;
+  totalToProcess: number | null;
   justFinished: boolean;
   showForceReset: boolean;
   markSyncStarted: () => void;
@@ -58,6 +60,10 @@ export function SyncStatusProvider({
   const [pendingCount, setPendingCount] = useState(
     initialPendingClassificationCount
   );
+  const [lastSyncProcessed, setLastSyncProcessed] = useState<number | null>(
+    null
+  );
+  const [totalToProcess, setTotalToProcess] = useState<number | null>(null);
   const [justFinished, setJustFinished] = useState(false);
   const [showForceReset, setShowForceReset] = useState(false);
   const disposePollRef = useRef<(() => void) | null>(null);
@@ -71,6 +77,8 @@ export function SyncStatusProvider({
     wasSyncingRef.current = initialIsSyncing;
     if (!initialIsSyncing) {
       setShowForceReset(false);
+      setLastSyncProcessed(null);
+      setTotalToProcess(null);
     }
   }, [accountId, initialIsSyncing, initialPendingClassificationCount]);
 
@@ -79,12 +87,18 @@ export function SyncStatusProvider({
     setShowForceReset(false);
     setJustFinished(false);
     setIsSyncing(true);
+    setLastSyncProcessed(0);
+    setTotalToProcess(
+      pendingCountRef.current > 0 ? pendingCountRef.current : null
+    );
   }, []);
 
   const markSyncFailed = useCallback(() => {
     wasSyncingRef.current = false;
     setIsSyncing(false);
     setShowForceReset(false);
+    setLastSyncProcessed(null);
+    setTotalToProcess(null);
   }, []);
 
   useEffect(() => {
@@ -106,8 +120,8 @@ export function SyncStatusProvider({
     let consecutiveErrors = 0;
 
     disposePollRef.current = startSyncStatusBackoffPoll({
-      initialMs: 3000,
-      maxMs: 20_000,
+      initialMs: 1500,
+      maxMs: 5000,
       hardStopMs: SYNC_LOCK_STALE_MS,
       slowAfterMs: 120_000,
       onSlow: () => setShowForceReset(true),
@@ -115,6 +129,8 @@ export function SyncStatusProvider({
         wasSyncingRef.current = false;
         setIsSyncing(false);
         setShowForceReset(false);
+        setLastSyncProcessed(null);
+        setTotalToProcess(null);
       },
       onTick: async () => {
         try {
@@ -126,6 +142,8 @@ export function SyncStatusProvider({
             if (consecutiveErrors >= 4) {
               wasSyncingRef.current = false;
               setIsSyncing(false);
+              setLastSyncProcessed(null);
+              setTotalToProcess(null);
               return "stop";
             }
             return "continue";
@@ -135,10 +153,28 @@ export function SyncStatusProvider({
           const data = (await res.json()) as {
             isSyncing?: boolean;
             pendingClassificationCount?: number;
+            lastSyncProcessed?: number | null;
           };
 
           if (typeof data.pendingClassificationCount === "number") {
             setPendingCount(data.pendingClassificationCount);
+          }
+
+          if (typeof data.lastSyncProcessed === "number") {
+            setLastSyncProcessed(data.lastSyncProcessed);
+            setTotalToProcess((prev) => {
+              if (prev !== null) return prev;
+              if (
+                typeof data.pendingClassificationCount === "number" &&
+                data.pendingClassificationCount > 0
+              ) {
+                return Math.max(
+                  data.pendingClassificationCount,
+                  data.lastSyncProcessed ?? 0
+                );
+              }
+              return null;
+            });
           }
 
           if (data.isSyncing) {
@@ -151,9 +187,13 @@ export function SyncStatusProvider({
             setIsSyncing(false);
             setShowForceReset(false);
             setJustFinished(true);
+            setLastSyncProcessed(null);
+            setTotalToProcess(null);
             router.refresh();
           } else {
             setIsSyncing(false);
+            setLastSyncProcessed(null);
+            setTotalToProcess(null);
           }
           return "stop";
         } catch (err) {
@@ -162,6 +202,8 @@ export function SyncStatusProvider({
           if (consecutiveErrors >= 4) {
             wasSyncingRef.current = false;
             setIsSyncing(false);
+            setLastSyncProcessed(null);
+            setTotalToProcess(null);
             return "stop";
           }
           return "continue";
@@ -202,6 +244,8 @@ export function SyncStatusProvider({
     setIsSyncing(false);
     setShowForceReset(false);
     setJustFinished(false);
+    setLastSyncProcessed(null);
+    setTotalToProcess(null);
     try {
       await forceResetSyncStatus();
     } catch (error) {
@@ -215,6 +259,8 @@ export function SyncStatusProvider({
       accountId,
       isSyncing,
       pendingCount,
+      lastSyncProcessed,
+      totalToProcess,
       justFinished,
       showForceReset,
       markSyncStarted,
@@ -226,6 +272,8 @@ export function SyncStatusProvider({
       accountId,
       isSyncing,
       pendingCount,
+      lastSyncProcessed,
+      totalToProcess,
       justFinished,
       showForceReset,
       markSyncStarted,

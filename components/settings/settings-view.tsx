@@ -173,7 +173,6 @@ export function SettingsView({
             cloudProvider={rules.cloudProvider ?? "OPENROUTER"}
             cloudModel={rules.cloudModel ?? null}
             maskedApiKey={rules.maskedApiKey ?? null}
-            classificationMode={rules.classificationMode}
           />
         </TabsContent>
 

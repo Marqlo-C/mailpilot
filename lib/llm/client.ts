@@ -125,10 +125,13 @@ async function callOpenAiCompatibleModel(
         ],
       });
 
+    const signal = AbortSignal.timeout(25_000);
+
     let response = await fetch(url, {
       method: "POST",
       headers,
       body: makeBody(true),
+      signal,
     });
 
     // Gracefully retry without response_format if provider doesn't support json_object mode
@@ -139,11 +142,12 @@ async function callOpenAiCompatibleModel(
           method: "POST",
           headers,
           body: makeBody(false),
+          signal: AbortSignal.timeout(25_000),
         });
       } else {
-        throw new Error(
-          `${provider} HTTP 400: ${errorText.slice(0, 200)}`
-        );
+        const errorMsg = `${provider} HTTP 400: ${errorText.slice(0, 250)}`;
+        console.error(`[cloud-llm] ${errorMsg}`);
+        throw new Error(errorMsg);
       }
     }
 
@@ -157,16 +161,16 @@ async function callOpenAiCompatibleModel(
         phase: "RATE_LIMIT",
         promptChars,
         durationMs,
-        rotationNote: "HTTP 429 Rate Limit - Escalating to Heuristic",
+        rotationNote: "HTTP 429 Rate Limit - Parking as PENDING_AI",
       });
       throw new CloudLlmRateLimitError(provider, model);
     }
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      throw new Error(
-        `${provider} HTTP ${response.status}: ${detail.slice(0, 200)}`
-      );
+      const errorMsg = `${provider} HTTP ${response.status}: ${detail.slice(0, 250)}`;
+      console.error(`[cloud-llm] ${errorMsg}`);
+      throw new Error(errorMsg);
     }
 
     const json = (await response.json()) as {
@@ -241,6 +245,7 @@ async function callAnthropicMessages(
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
       }),
+      signal: AbortSignal.timeout(25_000),
     });
 
     if (response.status === 429) {
@@ -253,16 +258,16 @@ async function callAnthropicMessages(
         phase: "RATE_LIMIT",
         promptChars,
         durationMs,
-        rotationNote: "HTTP 429 Rate Limit - Escalating to Heuristic",
+        rotationNote: "HTTP 429 Rate Limit - Parking as PENDING_AI",
       });
       throw new CloudLlmRateLimitError("ANTHROPIC", model);
     }
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      throw new Error(
-        `ANTHROPIC HTTP ${response.status}: ${detail.slice(0, 200)}`
-      );
+      const errorMsg = `ANTHROPIC HTTP ${response.status}: ${detail.slice(0, 250)}`;
+      console.error(`[cloud-llm] ${errorMsg}`);
+      throw new Error(errorMsg);
     }
 
     const json = (await response.json()) as {

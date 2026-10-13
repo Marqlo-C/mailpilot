@@ -29,12 +29,8 @@ export const DEFAULT_RESUME_PREFERENCES: ResumePreferences = {
   maxPages: "auto",
 };
 
-export const CLASSIFICATION_MODES = [
-  "AI_WITH_HEURISTIC_FALLBACK",
-  "AI_ONLY",
-  "HEURISTIC_ONLY",
-] as const;
-
+/** @deprecated Heuristic classification modes are decommissioned. */
+export const CLASSIFICATION_MODES = ["AI_ONLY"] as const;
 export type ClassificationMode = (typeof CLASSIFICATION_MODES)[number];
 
 export const accountRulesSchema = z.object({
@@ -45,10 +41,11 @@ export const accountRulesSchema = z.object({
   applicationMode: z
     .enum(["MANUAL_REVIEW", "AUTO_SEND"])
     .default("MANUAL_REVIEW"),
-  /** User classification strategy for inbound job emails */
-  classificationMode: z
-    .enum(CLASSIFICATION_MODES)
-    .default("AI_WITH_HEURISTIC_FALLBACK"),
+  /**
+   * @deprecated Heuristic fallback decommissioned. Pure 2-tier AI pipeline (Ollama -> Cloud BYOK).
+   * Kept optional so legacy JSON blobs do not fail validation.
+   */
+  classificationMode: z.string().optional(),
   /**
    * @deprecated Threshold lives on PermanentSettings / UserProfile.
    * Stripped on parse; kept optional so legacy JSON blobs do not fail validation.
@@ -84,9 +81,9 @@ export const accountRulesSchema = z.object({
   bridgeConnected: z.boolean().default(false),
   /**
    * When true and llmProvider is LOCAL_OLLAMA, failed/unreachable local calls
-   * may fall back to OpenRouter. Default false — no silent cloud fallback.
+   * may fall back to OpenRouter. Active by default for seamless 2-tier failover.
    */
-  allowCloudFallback: z.boolean().default(false),
+  allowCloudFallback: z.boolean().default(true),
   /** Account-scoped customer BYOK cloud provider */
   cloudProvider: z.enum(CLOUD_LLM_PROVIDERS).default("OPENROUTER"),
   /** Custom cloud model override for customer's BYOK provider */

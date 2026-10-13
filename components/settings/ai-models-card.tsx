@@ -29,8 +29,6 @@ import {
   SETTINGS_CARD_CLASSNAME,
   SETTINGS_ROW_CLASSNAME,
 } from "@/components/settings/settings-chrome";
-import { type ClassificationMode } from "@/lib/validations/rules";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -68,7 +66,6 @@ type AiModelsCardProps = {
   cloudProvider?: CloudLlmProvider;
   cloudModel?: string | null;
   maskedApiKey?: string | null;
-  classificationMode?: ClassificationMode;
 };
 
 type ConnectionStatus =
@@ -176,7 +173,6 @@ export function AiModelsCard({
   cloudProvider: initialCloudProvider = "OPENROUTER",
   cloudModel: initialCloudModel = null,
   maskedApiKey: initialMaskedApiKey = null,
-  classificationMode: initialClassificationMode = "AI_WITH_HEURISTIC_FALLBACK",
 }: AiModelsCardProps) {
   const router = useRouter();
   const [url, setUrl] = useState(localOllamaUrl);
@@ -189,10 +185,6 @@ export function AiModelsCard({
   const [allowCloudFallback, setAllowCloudFallback] = useState(
     initialAllowCloudFallback
   );
-  const [selectedClassificationMode, setSelectedClassificationMode] =
-    useState<ClassificationMode>(
-      initialClassificationMode ?? "AI_WITH_HEURISTIC_FALLBACK"
-    );
   const [models, setModels] = useState<string[]>(
     initialModels.length > 0
       ? initialModels
@@ -233,26 +225,7 @@ export function AiModelsCard({
   const disabled = !accountId || pending;
   const hasSecret = bridgeSecret.trim().length > 0;
 
-  useEffect(() => {
-    if (initialClassificationMode) {
-      setSelectedClassificationMode(initialClassificationMode);
-    }
-  }, [initialClassificationMode]);
 
-  function handleClassificationModeChange(value: string) {
-    const nextMode = value as ClassificationMode;
-    setSelectedClassificationMode(nextMode);
-    if (!accountId) return;
-    startTransition(async () => {
-      try {
-        await updateRule(accountId, "classificationMode", nextMode);
-        toast.success("Classification strategy updated");
-        router.refresh();
-      } catch {
-        toast.error("Failed to update classification strategy");
-      }
-    });
-  }
 
   useEffect(() => {
     setBridgeSecret(initialBridgeSecret);
@@ -1462,114 +1435,6 @@ export function AiModelsCard({
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
-
-    {/* Classification & Parsing Strategy Card */}
-    <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
-      <CardHeader className="space-y-1 pb-4">
-        <CardTitle className="text-base font-semibold tracking-tight">
-          Classification & Parsing Strategy
-        </CardTitle>
-        <CardDescription className="text-xs text-muted-foreground">
-          Choose how incoming job emails and opportunities are analyzed and parsed.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <RadioGroup
-          value={selectedClassificationMode}
-          disabled={disabled}
-          onValueChange={handleClassificationModeChange}
-          className="space-y-2.5"
-        >
-          <div
-            className={cn(
-              "flex items-start gap-3 transition-colors",
-              SETTINGS_ROW_CLASSNAME,
-              selectedClassificationMode === "AI_WITH_HEURISTIC_FALLBACK" &&
-                "border-primary/50 bg-primary/5 shadow-sm"
-            )}
-          >
-            <RadioGroupItem
-              value="AI_WITH_HEURISTIC_FALLBACK"
-              id="mode-ai-heuristic"
-              className="mt-0.5 shrink-0"
-            />
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Label
-                  htmlFor="mode-ai-heuristic"
-                  className="cursor-pointer text-xs font-semibold tracking-tight"
-                >
-                  AI with Heuristic Fallback
-                </Label>
-                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                  Recommended
-                </span>
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Uses your configured AI provider with seamless deterministic fallback if unavailable or rate-limited.
-              </p>
-            </div>
-          </div>
-
-          <div
-            className={cn(
-              "flex items-start gap-3 transition-colors",
-              SETTINGS_ROW_CLASSNAME,
-              selectedClassificationMode === "AI_ONLY" &&
-                "border-primary/50 bg-primary/5 shadow-sm"
-            )}
-          >
-            <RadioGroupItem
-              value="AI_ONLY"
-              id="mode-ai-only"
-              className="mt-0.5 shrink-0"
-            />
-            <div className="space-y-1">
-              <Label
-                htmlFor="mode-ai-only"
-                className="cursor-pointer text-xs font-semibold tracking-tight"
-              >
-                AI Only
-              </Label>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Strictly uses AI models. Emails that cannot be parsed by AI remain pending.
-              </p>
-            </div>
-          </div>
-
-          <div
-            className={cn(
-              "flex items-start gap-3 transition-colors",
-              SETTINGS_ROW_CLASSNAME,
-              selectedClassificationMode === "HEURISTIC_ONLY" &&
-                "border-primary/50 bg-primary/5 shadow-sm"
-            )}
-          >
-            <RadioGroupItem
-              value="HEURISTIC_ONLY"
-              id="mode-heuristic-only"
-              className="mt-0.5 shrink-0"
-            />
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Label
-                  htmlFor="mode-heuristic-only"
-                  className="cursor-pointer text-xs font-semibold tracking-tight"
-                >
-                  Grand Heuristic Only
-                </Label>
-                <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400">
-                  Deterministic & Free
-                </span>
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                100% deterministic, zero LLM cost, instantaneous regex & heuristic extraction.
-              </p>
-            </div>
-          </div>
-        </RadioGroup>
       </CardContent>
     </Card>
   </div>

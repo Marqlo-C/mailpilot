@@ -201,7 +201,7 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
       }
     });
 
-    it("condenses fallback triage routing into a single clean line", () => {
+    it("condenses Tier 2 cloud failover into a single clean line", () => {
       process.env.LOG_ASCII_TABLES = "1";
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -213,8 +213,7 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
         isJob: true,
         routing: [
           "Tier 1: LOCAL_OLLAMA -> FAILED (ECONNREFUSED)",
-          "Tier 2: CLOUD_BYOK   -> DISABLED (allowCloudFallback=false)",
-          "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
+          "Tier 2: CLOUD_BYOK   -> SUCCESS [1.1s]",
         ],
         company: "Stripe",
         role: "Staff Engineer",
@@ -228,7 +227,7 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
         calls.some(
           (c) =>
             typeof c === "string" &&
-            c.includes("Tier 3: HEURISTIC (Ollama offline, Cloud disabled)")
+            c.includes("Tier 2: CLOUD_BYOK (Ollama failover)")
         )
       ).toBe(true);
 
@@ -247,7 +246,7 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
       }
     });
 
-    it("labels cloud rate-limited fallback accurately in triage routing", () => {
+    it("renders clean Tier 1 LOCAL_OLLAMA routing line", () => {
       process.env.LOG_ASCII_TABLES = "1";
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -257,11 +256,7 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
         subject: "Senior Frontend Engineer at Vercel",
         messageId: "msg-vercel12345",
         isJob: true,
-        routing: [
-          "Tier 1: LOCAL_OLLAMA -> FAILED (ECONNREFUSED)",
-          "Tier 2: CLOUD_BYOK   -> FAILED (Rate limit / 429)",
-          "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
-        ],
+        routing: ["Tier 1: LOCAL_OLLAMA -> SUCCESS [0.8s]"],
         company: "Vercel",
         role: "Senior Frontend Engineer",
         status: "LEAD",
@@ -274,12 +269,12 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
         calls.some(
           (c) =>
             typeof c === "string" &&
-            c.includes("Tier 3: HEURISTIC (Ollama offline, Cloud rate-limited)")
+            c.includes("Tier 1: LOCAL_OLLAMA")
         )
       ).toBe(true);
     });
 
-    it("labels no cloud key fallback accurately in triage routing", () => {
+    it("renders PARKED notice when email is parked as PENDING_AI", () => {
       process.env.LOG_ASCII_TABLES = "1";
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -288,16 +283,9 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
         total: 10,
         subject: "Staff DevOps Engineer at Linear",
         messageId: "msg-linear12345",
-        isJob: true,
-        routing: [
-          "Tier 1: LOCAL_OLLAMA -> FAILED (ECONNREFUSED)",
-          "Tier 2: CLOUD_BYOK   -> SKIPPED (No API key)",
-          "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
-        ],
-        company: "Linear",
-        role: "Staff DevOps Engineer",
-        status: "LEAD",
-        matchScore: 90,
+        isJob: false,
+        routing: [],
+        skipReason: "PENDING_AI (Ollama offline, Cloud disabled)",
       });
 
       expect(consoleSpy).toHaveBeenCalled();
@@ -306,39 +294,7 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
         calls.some(
           (c) =>
             typeof c === "string" &&
-            c.includes("Tier 3: HEURISTIC (Ollama offline, No cloud key)")
-        )
-      ).toBe(true);
-    });
-
-    it("labels general cloud failure fallback accurately in triage routing", () => {
-      process.env.LOG_ASCII_TABLES = "1";
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      logCompactSyncCard({
-        index: 5,
-        total: 10,
-        subject: "Platform Engineer at Datadog",
-        messageId: "msg-dd12345",
-        isJob: true,
-        routing: [
-          "Tier 1: LOCAL_OLLAMA -> FAILED (ECONNREFUSED)",
-          "Tier 2: CLOUD_BYOK   -> FAILED (500 Internal Error)",
-          "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
-        ],
-        company: "Datadog",
-        role: "Platform Engineer",
-        status: "LEAD",
-        matchScore: 88,
-      });
-
-      expect(consoleSpy).toHaveBeenCalled();
-      const calls = consoleSpy.mock.calls.map((c) => c[0]);
-      expect(
-        calls.some(
-          (c) =>
-            typeof c === "string" &&
-            c.includes("Tier 3: HEURISTIC (Ollama offline, Cloud failed)")
+            c.includes("└─ PARKED: PENDING_AI (Model Unavailable - Will retry next sync)")
         )
       ).toBe(true);
     });
@@ -399,7 +355,6 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
         durationMs: 3500,
         ollamaCount: 5,
         cloudCount: 5,
-        heuristicCount: 5,
         createdCount: 4,
         updatedCount: 3,
         skippedCount: 8,
@@ -409,7 +364,7 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
       expect(consoleSpy).toHaveBeenCalled();
       const calls = consoleSpy.mock.calls.map((c) => c[0]);
       expect(calls.some((c) => typeof c === "string" && c.includes("[SYNC COMPLETE] 15 Messages Processed in 3.5s"))).toBe(true);
-      expect(calls.some((c) => typeof c === "string" && c.includes("5 Ollama │ 5 Cloud │ 5 Heuristic"))).toBe(true);
+      expect(calls.some((c) => typeof c === "string" && c.includes("Providers: 5 Ollama │ 5 Cloud BYOK"))).toBe(true);
       expect(calls.some((c) => typeof c === "string" && c.includes("4 Created │ 3 Updated │ 8 Skipped"))).toBe(true);
       const bannerLines = calls
         .map((c) => (typeof c === "string" ? c.trim() : ""))
@@ -432,7 +387,6 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
         durationMs: 3500,
         ollamaCount: 5,
         cloudCount: 5,
-        heuristicCount: 5,
         createdCount: 4,
         updatedCount: 3,
         skippedCount: 8,

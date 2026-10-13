@@ -120,7 +120,7 @@ export async function syncInboxOpportunities(
     data: {
       isSyncing: true,
       syncError: null,
-      lastSyncProcessed: null,
+      lastSyncProcessed: 0,
       syncHeartbeatAt: new Date(),
     },
   });
@@ -147,7 +147,7 @@ export async function syncInboxOpportunities(
         lookbackDays,
         maxMessages: 25,
       });
-      processed = result.opportunitiesUpserted;
+      processed = result.processed;
 
       try {
         const purge = await purgeExpiredDismissed(syncAccountId);

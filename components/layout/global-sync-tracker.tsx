@@ -14,11 +14,25 @@ export { SYNC_STARTED_EVENT };
  * Bottom-right floating sync capsule. Reads shared sync status (no own poller).
  */
 export function GlobalSyncTracker() {
-  const { accountId, isSyncing, justFinished, forceReset } = useSyncStatus();
+  const {
+    accountId,
+    isSyncing,
+    justFinished,
+    lastSyncProcessed,
+    totalToProcess,
+    forceReset,
+  } = useSyncStatus();
 
   if (!accountId || (!isSyncing && !justFinished)) {
     return null;
   }
+
+  const syncProgress =
+    isSyncing && lastSyncProcessed && lastSyncProcessed > 0
+      ? totalToProcess && totalToProcess >= lastSyncProcessed
+        ? `${lastSyncProcessed} / ${totalToProcess}`
+        : `${lastSyncProcessed}`
+      : null;
 
   return (
     <aside
@@ -34,7 +48,9 @@ export function GlobalSyncTracker() {
         <>
           <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
           <span className="font-medium text-foreground">
-            Scanning inbox for opportunities…
+            {syncProgress
+              ? `Classifying ${syncProgress} opportunities…`
+              : "Scanning inbox for opportunities…"}
           </span>
           <button
             type="button"

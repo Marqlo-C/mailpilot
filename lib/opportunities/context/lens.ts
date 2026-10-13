@@ -17,6 +17,7 @@ import type {
   NormalizedJobOpportunity,
 } from "./schema.ssot";
 import { extractCleanSnippet, sanitizeJobDescription } from "./scrubber";
+import { formatDistanceToNow } from "@/lib/format-distance";
 
 /**
  * Maps raw database records or partial scraper payloads into the canonical
@@ -66,6 +67,14 @@ export function resolveJobOpportunity(
     applicationType === "DIRECT_EMAIL" ||
     Boolean(opportunity.recipientEmail?.trim());
 
+  let formattedPostedAt = opportunity.postedAt?.trim() || null;
+  if (formattedPostedAt) {
+    const parsedDate = Date.parse(formattedPostedAt);
+    if (!isNaN(parsedDate) && /^\d{4}-\d{2}-\d{2}/.test(formattedPostedAt)) {
+      formattedPostedAt = formatDistanceToNow(new Date(parsedDate), { addSuffix: true });
+    }
+  }
+
   return {
     id: opportunity.id,
     company,
@@ -77,7 +86,7 @@ export function resolveJobOpportunity(
     salaryMax:
       typeof opportunity.salaryMax === "number" ? opportunity.salaryMax : null,
     status: opportunity.status || "DISCOVERED",
-    postedAt: opportunity.postedAt ?? null,
+    postedAt: formattedPostedAt,
     receivedAt: opportunity.receivedAt ?? new Date(),
     applyUrl: opportunity.applyUrl ?? null,
     applicationType,

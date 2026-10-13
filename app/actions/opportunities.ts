@@ -189,6 +189,48 @@ export async function prepareOpportunityDraftForReview(
   }
 }
 
+/** Retrieve Gmail messageId for an opportunity to view original email on demand. */
+export async function getOpportunityMessageIdAction(
+  opportunityId: string
+): Promise<
+  ActionResult<{
+    messageId: string;
+    subject: string | null;
+    from: string | null;
+  }>
+> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    include: {
+      emailMessage: {
+        select: {
+          messageId: true,
+          subject: true,
+          fromName: true,
+          fromEmail: true,
+        },
+      },
+    },
+  });
+  if (!opportunity?.emailMessage?.messageId) {
+    return { ok: false, error: "Original email not found" };
+  }
+  return {
+    ok: true,
+    data: {
+      messageId: opportunity.emailMessage.messageId,
+      subject: opportunity.emailMessage.subject,
+      from:
+        [
+          opportunity.emailMessage.fromName,
+          opportunity.emailMessage.fromEmail,
+        ]
+          .filter(Boolean)
+          .join(" · ") || null,
+    },
+  };
+}
+
 /** Force a fresh LLM draft (ignores cached draftSubject/draftBody). */
 export async function regenerateOpportunityDraftAction(
   opportunityId: string

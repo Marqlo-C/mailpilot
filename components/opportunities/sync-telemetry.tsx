@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState, useTransition, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -50,6 +56,8 @@ export function SyncTelemetry({
     accountId,
     isSyncing,
     pendingCount,
+    lastSyncProcessed,
+    totalToProcess,
     markSyncStarted,
     markSyncFailed,
     flushPendingClassification,
@@ -156,12 +164,28 @@ export function SyncTelemetry({
       ? "inline whitespace-nowrap"
       : "hidden whitespace-nowrap"
     : "";
+  const syncProgressLabel = useMemo(() => {
+    if (!isSyncing) return null;
+    if (lastSyncProcessed && lastSyncProcessed > 0) {
+      if (totalToProcess && totalToProcess >= lastSyncProcessed) {
+        return `${lastSyncProcessed} / ${totalToProcess}`;
+      }
+      if (pendingCount > 0 && pendingCount >= lastSyncProcessed) {
+        return `${lastSyncProcessed} / ${pendingCount}`;
+      }
+      return `${lastSyncProcessed}`;
+    }
+    return null;
+  }, [isSyncing, lastSyncProcessed, totalToProcess, pendingCount]);
+
   const statusLabel = !connected
     ? "Offline"
     : isSyncing
-      ? pendingCount > 0
-        ? `Classifying ${pendingCount} ${pendingCount === 1 ? "email" : "emails"}`
-        : "Syncing inbox"
+      ? syncProgressLabel
+        ? `Classifying ${syncProgressLabel} emails`
+        : pendingCount > 0
+          ? `Classifying ${pendingCount} ${pendingCount === 1 ? "email" : "emails"}`
+          : "Syncing inbox"
       : pendingCount > 0
         ? `${pendingCount} ${pendingCount === 1 ? "email" : "emails"} awaiting classification`
         : "Inbox up to date";
@@ -233,7 +257,15 @@ export function SyncTelemetry({
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-500 opacity-75" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
           </span>
-          {compact ? null : pendingCount > 0 ? (
+          {compact ? null : syncProgressLabel ? (
+            <span className={restLabelClass}>
+              Classifying{" "}
+              <span className="font-bold tabular-nums">
+                {syncProgressLabel}
+              </span>{" "}
+              emails…
+            </span>
+          ) : pendingCount > 0 ? (
             <span className={restLabelClass}>
               Classifying{" "}
               <span className="font-bold tabular-nums">{pendingCount}</span>{" "}

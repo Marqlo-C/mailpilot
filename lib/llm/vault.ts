@@ -65,6 +65,7 @@ export function resolveDecryptedAccountKey(
   try {
     const decrypted = decryptToken(rules.encryptedApiKey).trim();
     if (!decrypted) {
+      console.warn("[vault] Decrypted API key was empty string. Returning null.");
       return null;
     }
 
@@ -77,9 +78,9 @@ export function resolveDecryptedAccountKey(
       model,
     };
   } catch (error) {
-    // Zero-leak logging: never log the payload or parts
+    const reason = error instanceof Error ? error.message : String(error);
     console.error(
-      "[vault] Failed to decrypt account API key. The key may have been encrypted with a different secret."
+      `[vault] Failed to decrypt account API key: ${reason}`
     );
     return null;
   }

@@ -80,7 +80,7 @@ describe("Local Ollama Circuit Breaker & Offline Handling", () => {
   });
 
   describe("classifyJobEmail Offline Fallback", () => {
-    it("quietly falls back to Grand Heuristic when OllamaUnreachableError is thrown", async () => {
+    it("returns null and logs debug when OllamaUnreachableError is thrown with DEBUG_VERBOSE", async () => {
       process.env.DEBUG_VERBOSE = "1";
       vi.spyOn(dispatcher, "callLLMWithFallback").mockRejectedValue(
         new OllamaUnreachableError("http://localhost:11434", "ECONNREFUSED")
@@ -95,15 +95,7 @@ describe("Local Ollama Circuit Breaker & Offline Handling", () => {
         llmProvider: "LOCAL_OLLAMA",
       });
 
-      expect(result).not.toBeNull();
-      expect(result?.is_job_related).toBe(true);
-      expect(result?.company_name).toBe("Linear");
-      expect(result?.classificationMethod).toBe("HEURISTIC");
-      expect(result?.sourceTier).toBe("TIER 3 (HEURISTIC)");
-      expect(result?.routingLines).toBeDefined();
-      expect(result?.routingLines?.[0]).toContain("Tier 1: LOCAL_OLLAMA");
-      expect(result?.routingLines?.[2]).toContain("Tier 3: HEURISTIC");
-
+      expect(result).toBeNull();
       expect(debugSpy).toHaveBeenCalledWith(
         expect.stringContaining("Ollama unreachable at http://localhost:11434")
       );
@@ -124,12 +116,11 @@ describe("Local Ollama Circuit Breaker & Offline Handling", () => {
         llmProvider: "LOCAL_OLLAMA",
       });
 
-      expect(result).not.toBeNull();
-      expect(result?.classificationMethod).toBe("HEURISTIC");
+      expect(result).toBeNull();
       expect(debugSpy).not.toHaveBeenCalled();
     });
 
-    it("returns null in AI_ONLY mode when Ollama is unreachable", async () => {
+    it("returns null when Ollama is unreachable", async () => {
       vi.spyOn(dispatcher, "callLLMWithFallback").mockRejectedValue(
         new OllamaUnreachableError("http://localhost:11434", "ECONNREFUSED")
       );
@@ -139,13 +130,12 @@ describe("Local Ollama Circuit Breaker & Offline Handling", () => {
         body: "Linear is looking for a Senior Product Designer to join our team.",
         fromEmail: "recruiting@linear.app",
         llmProvider: "LOCAL_OLLAMA",
-        accountRules: { classificationMode: "AI_ONLY" },
       });
 
       expect(result).toBeNull();
     });
 
-    it("falls back to heuristic on OllamaInvalidJsonError WITHOUT tripping circuit breaker", async () => {
+    it("returns null on OllamaInvalidJsonError WITHOUT tripping circuit breaker", async () => {
       vi.spyOn(dispatcher, "callLLMWithFallback").mockRejectedValue(
         new OllamaInvalidJsonError("empty or invalid JSON after local retries")
       );
@@ -157,9 +147,7 @@ describe("Local Ollama Circuit Breaker & Offline Handling", () => {
         llmProvider: "LOCAL_OLLAMA",
       });
 
-      expect(result).not.toBeNull();
-      expect(result?.classificationMethod).toBe("HEURISTIC");
-      expect(result?.routingLines?.[0]).toContain("Tier 1: LOCAL_OLLAMA -> INVALID JSON RESPONSE");
+      expect(result).toBeNull();
       // Circuit must remain CLOSED so subsequent messages can run Ollama!
       expect(isOllamaCircuitTripped("http://localhost:11434")).toBe(false);
     });

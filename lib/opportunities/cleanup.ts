@@ -65,3 +65,35 @@ export async function purgeExpiredDismissed(accountId: string): Promise<{
     retentionDays,
   };
 }
+
+/**
+ * Deletes legacy opportunities created via heuristic parsing and re-queues
+ * their source emails to PENDING_AI so they can be re-evaluated by the 2-tier AI pipeline.
+ */
+export async function pruneHeuristicOpportunities(
+  accountId: string
+): Promise<{ prunedCount: number }> {
+  const badOpps = await prisma.jobOpportunity.findMany({
+    where: { accountId, classificationMethod: "HEURISTIC" },
+    select: { id: true, emailMessageId: true },
+  });
+
+  if (badOpps.length === 0) return { prunedCount: 0 };
+
+  const emailMessageIds = badOpps
+    .map((o) => o.emailMessageId)
+    .filter((id): id is string => Boolean(id));
+
+  const result = await prisma.jobOpportunity.deleteMany({
+    where: { id: { in: badOpps.map((o) => o.id) } },
+  });
+
+  if (emailMessageIds.length > 0) {
+    await prisma.emailMessage.updateMany({
+      where: { id: { in: emailMessageIds }, accountId },
+      data: { emailCategory: "PENDING_AI" },
+    });
+  }
+
+  return { prunedCount: result.count };
+}
