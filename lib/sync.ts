@@ -207,7 +207,7 @@ export async function resolveIngestionRules(
   );
 }
 
-type SenderInfo = {
+export type SenderInfo = {
   name: string | null;
   email: string;
 };
@@ -882,13 +882,33 @@ export async function persistClassifiedEmail(input: {
     const cleanTitle = job.title.trim();
     if (!cleanCompany || !cleanTitle) continue;
 
-    const applicationType = resolveApplicationType({
-      applyUrl: job.applyUrl,
-      recipientEmail: job.recipientEmail,
-    });
+    const isDirectEmail =
+      job.applicationType === "DIRECT_EMAIL" ||
+      classification.email_category === "DIRECT_RECRUITER" ||
+      Boolean(
+        job.recipientEmail &&
+          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(job.recipientEmail)
+      );
+
+    const resolvedRecipientEmail =
+      job.recipientEmail ??
+      (classification.email_category === "DIRECT_RECRUITER" && sender?.email
+        ? sender.email
+        : null);
+
+    const resolvedRecipientName = job.recipientName ?? sender?.name ?? null;
+
+    const applicationType = isDirectEmail
+      ? "DIRECT_EMAIL"
+      : (job.applicationType ??
+        resolveApplicationType({
+          applyUrl: job.applyUrl,
+          recipientEmail: resolvedRecipientEmail,
+        }));
+
     // Strict: never store a recipient unless application type is direct email.
     const recipientEmail =
-      applicationType === "DIRECT_EMAIL" ? job.recipientEmail : null;
+      applicationType === "DIRECT_EMAIL" ? resolvedRecipientEmail : null;
 
     const companyDomain =
       job.companyDomain ?? inferDomainFromUrl(job.applyUrl) ?? null;
@@ -976,7 +996,7 @@ export async function persistClassifiedEmail(input: {
           applyUrl: job.applyUrl ?? existing.applyUrl,
           applicationType,
           recipientEmail: recipientEmail ?? existing.recipientEmail,
-          recipientName: job.recipientName ?? existing.recipientName,
+          recipientName: resolvedRecipientName ?? existing.recipientName,
           companyDomain: existing.companyDomain ?? companyDomain,
           logoUrl: existing.logoUrl ?? logoUrl,
           matchScore,
@@ -1021,7 +1041,7 @@ export async function persistClassifiedEmail(input: {
         applyUrl: job.applyUrl ?? null,
         applicationType,
         recipientEmail,
-        recipientName: job.recipientName ?? null,
+        recipientName: resolvedRecipientName,
         companyDomain,
         logoUrl,
         matchScore,

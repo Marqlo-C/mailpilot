@@ -63,6 +63,8 @@ import {
   daysRemainingUntilPurge,
   isUserArchived,
 } from "@/lib/opportunities/lifecycle";
+import { normalizeSalaryDisplay } from "@/lib/ai/classifier";
+import { formatDistanceToNow } from "@/lib/format-distance";
 import { cn } from "@/lib/utils";
 
 export type OpportunityCardVariant =
@@ -90,6 +92,7 @@ type OpportunityCardProps = {
   onLessLikeThis?: () => void;
   onRestore?: () => void;
   onDelete?: () => void;
+  onViewOriginalEmail?: () => void;
   /** Pointer / data attrs from `useCardListGestures().bindItem`. */
   itemProps?: {
     "data-dnd-item-id": string;
@@ -132,6 +135,7 @@ export function OpportunityCard({
   onLessLikeThis,
   onRestore,
   onDelete,
+  onViewOriginalEmail,
   itemProps,
   showInsertBefore = false,
 }: OpportunityCardProps) {
@@ -162,11 +166,19 @@ export function OpportunityCard({
     retentionDays
   );
   const salaryRaw = opportunity.salary?.trim() ?? "";
-  const salaryLabel =
-    !salaryRaw || /^\$?\s*tbd\b/i.test(salaryRaw) ? "$TBD" : salaryRaw;
+  const normalizedSalary = normalizeSalaryDisplay(salaryRaw);
+  const salaryLabel = normalizedSalary || "$TBD";
   const locationRaw = opportunity.location?.trim() ?? "";
   const locationLabel = locationRaw || "Remote / Unspecified";
-  const postedRaw = opportunity.postedAt?.trim() ?? "";
+  const postedRaw = (() => {
+    const raw = opportunity.postedAt?.trim() ?? "";
+    if (!raw) return "";
+    const parsedDate = Date.parse(raw);
+    if (!isNaN(parsedDate) && /^\d{4}-\d{2}-\d{2}/.test(raw)) {
+      return formatDistanceToNow(new Date(parsedDate), { addSuffix: true });
+    }
+    return raw;
+  })();
 
   function runLifecycleAction(action: JobCardAction) {
     startTransition(async () => {
@@ -527,7 +539,17 @@ export function OpportunityCard({
 
           {/* Primary (just left of ⋮) */}
           {variant === "leads" ? (
-            opportunity.applyUrl ? (
+            canEmail ? (
+              <button
+                type="button"
+                disabled={actionsLocked}
+                onClick={onReviewDraft}
+                className={primaryBtnClass}
+              >
+                <Mail className="h-3.5 w-3.5" />
+                <span>Draft Reply</span>
+              </button>
+            ) : opportunity.applyUrl ? (
               actionsLocked ? (
                 <span className={primaryBtnClass} aria-disabled>
                   <span>View Posting</span>
@@ -638,6 +660,15 @@ export function OpportunityCard({
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                   </>
+                ) : null}
+                {opportunity.emailMessageId && onViewOriginalEmail ? (
+                  <DropdownMenuItem
+                    disabled={actionsLocked}
+                    onClick={onViewOriginalEmail}
+                  >
+                    <Mail className="mr-2 h-4 w-4" />
+                    View Original Email
+                  </DropdownMenuItem>
                 ) : null}
                 {(variant === "applied" || variant === "action") &&
                 opportunity.applyUrl ? (

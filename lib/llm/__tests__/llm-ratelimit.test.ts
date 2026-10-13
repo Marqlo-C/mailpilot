@@ -17,7 +17,7 @@ describe("LLM Engine Model Priority & Rate Limit Fallback", () => {
   });
 
   describe("classifyJobEmail Rate Limit Fallback", () => {
-    it("gracefully catches CloudLlmRateLimitError and falls back to deterministic heuristic classification for application confirmation", async () => {
+    it("gracefully catches CloudLlmRateLimitError and returns null to park as PENDING_AI", async () => {
       vi.spyOn(dispatcher, "callLLMWithFallback").mockRejectedValue(
         new CloudLlmRateLimitError("OPENROUTER", "qwen/qwen3.8-27b:free")
       );
@@ -29,12 +29,7 @@ describe("LLM Engine Model Priority & Rate Limit Fallback", () => {
         cloudModel: "custom/model-v1",
       });
 
-      expect(result).not.toBeNull();
-      expect(result?.is_job_related).toBe(true);
-      expect(result?.email_category).toBe("APPLICATION_STATUS");
-      expect(result?.company_name).toBe("Stripe");
-      expect(result?.status).toBe("APPLIED");
-      expect(result?.jobs?.[0]?.isAlreadyApplied).toBe(true);
+      expect(result).toBeNull();
     });
 
     it("passes custom cloudModel directly to callLLMWithFallback without candidate arrays", async () => {

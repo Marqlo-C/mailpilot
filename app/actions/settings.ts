@@ -30,7 +30,6 @@ const ruleKeySchema = z.enum([
   "rejectionLabelId",
   "autoCleanAfterUnsub",
   "applicationMode",
-  "classificationMode",
   "matchScoreThreshold", // deprecated: routed to updateMatchThreshold
   "maxAutoSendsPerDay",
   "dismissedRetentionDays",
@@ -462,6 +461,7 @@ export async function updateCustomLlmKey(
     cloudModel: resolvedModel,
     encryptedApiKey,
     maskedApiKey,
+    allowCloudFallback: true,
   });
 
   const { matchScoreThreshold: _deprecated, ...rulesToSave } = updatedRules;

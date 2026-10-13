@@ -100,6 +100,7 @@ type OpportunitiesViewProps = {
   onMarkApplied?: (opp: JobOpportunity) => void;
   onUnmarkApplied?: (opp: JobOpportunity) => void;
   onLessLikeThis?: (opp: JobOpportunity) => void;
+  onViewOriginalEmail?: (opp: JobOpportunity) => void;
 };
 
 function variantToPipelineTab(variant: OpportunityCardVariant): PipelineTab {
@@ -133,6 +134,7 @@ export function OpportunitiesView({
   onMarkApplied,
   onUnmarkApplied,
   onLessLikeThis,
+  onViewOriginalEmail,
 }: OpportunitiesViewProps) {
   const router = useRouter();
   const activeTab = variantToPipelineTab(variant);
@@ -560,6 +562,11 @@ export function OpportunitiesView({
               onSendNow={() => onSendNow?.(opp)}
               onMarkApplied={() => onMarkApplied?.(opp)}
               onUnmarkApplied={() => onUnmarkApplied?.(opp)}
+              onViewOriginalEmail={
+                onViewOriginalEmail
+                  ? () => onViewOriginalEmail(opp)
+                  : undefined
+              }
               onLessLikeThis={
                 variant === "history"
                   ? undefined

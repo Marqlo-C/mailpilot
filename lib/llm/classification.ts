@@ -24,31 +24,24 @@ import {
   seniorityMismatchPenalty,
   type CandidateProfileSummary,
 } from "@/lib/ai/classifier";
-import { matchesConfirmationSignal } from "@/lib/constants/job-sources";
+import { formatDistanceToNow } from "@/lib/format-distance";
+
+export { normalizeSalaryDisplay } from "@/lib/ai/classifier";
 import {
-  APPLICATION_SENT_TO_RE,
-  DIGEST_SENDER_HINTS,
   looksLikeDigest,
   shouldClassifyEmail,
 } from "@/lib/ai/prefilter";
 import { getCachedOrSynthesizePersona } from "@/lib/ai/persona";
 import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
-import {
-  genericRoleTitle,
-  isGenericTitle,
-  parseApplicationEmail,
-} from "@/lib/parsers/application-parser";
 import { prisma } from "@/lib/prisma";
 import { parseAccountRules, type AccountRules } from "@/lib/validations/rules";
 import { callLLMWithFallback, MissingLlmKeyError } from "./dispatcher";
 import { type LlmProvider } from "./provider.ssot";
 import {
-  isOllamaCircuitTripped,
   OllamaUnreachableError,
   OllamaInvalidJsonError,
 } from "./local-ollama";
 import { CloudLlmRateLimitError } from "./client";
-import { classifyWithGrandHeuristic } from "@/lib/ai/grand-heuristic";
 
 export const extractedJobSchema = z.object({
   company: z.preprocess((v) => (v == null ? "" : v), z.string().min(1)),
@@ -164,83 +157,7 @@ export type ClassifyOptions = {
  */
 export const DEFAULT_OPENROUTER_MODELS: string[] = [];
 
-/**
- * Deterministic APPLICATION_STATUS classification when LLM is unavailable
- * but the subject clearly confirms an application was submitted.
- */
-export function heuristicApplicationConfirmation(input: {
-  subject: string;
-  body?: string;
-  fromEmail?: string | null;
-}): JobClassification | null {
-  const { subject, body, fromEmail } = input;
-  const parsed = parseApplicationEmail(subject, body ?? "");
-  const sentMatch = subject.match(APPLICATION_SENT_TO_RE);
-  const thankYou = matchesConfirmationSignal(subject);
-  const appliedSignal = detectAlreadyApplied(subject, body);
 
-  if (!parsed && !sentMatch && !thankYou && !appliedSignal) {
-    return null;
-  }
-
-  let company = parsed?.company?.trim() || null;
-  if (!company && sentMatch?.[1]) {
-    company = sentMatch[1].replace(/\s+/g, " ").trim();
-  }
-  if (!company && fromEmail) {
-    const domain = fromEmail.split("@")[1]?.toLowerCase() ?? "";
-    if (
-      domain &&
-      !DIGEST_SENDER_HINTS.some((hint) =>
-        domain.includes(hint.replace("@", ""))
-      )
-    ) {
-      company = domain.split(".")[0] ?? null;
-    }
-  }
-
-  const resolvedCompany =
-    company && company.length > 0 ? company : "Unknown Company";
-  const title =
-    parsed?.title && !isGenericTitle(parsed.title, resolvedCompany)
-      ? parsed.title
-      : genericRoleTitle(resolvedCompany);
-  const location = parsed?.location ?? null;
-
-  return {
-    is_job_related: true,
-    email_category: "APPLICATION_STATUS",
-    company_name: resolvedCompany,
-    role_title: title,
-    status: "APPLIED",
-    action_required: false,
-    action_summary: "Application confirmation detected from inbox",
-    action_url: null,
-    deadline_iso: null,
-    classificationMethod: "HEURISTIC",
-    jobs: [
-      {
-        company: resolvedCompany,
-        companyDomain: null,
-        title,
-        location,
-        salary: null,
-        salaryMax: null,
-        postedAt: null,
-        description: location
-          ? `Application submitted (${location}).`
-          : "Application submitted; confirmation email detected.",
-        applyUrl: null,
-        applicationType: "EXTERNAL_LINK",
-        recipientEmail: null,
-        recipientName: null,
-        isAlreadyApplied: true,
-        matchScore: 80,
-        matchReason: "Application confirmed via email receipt.",
-      },
-    ],
-  };
-}
 
 /**
  * Loads a compact candidate summary from the account's UserProfile (resume data),
@@ -575,11 +492,21 @@ export function normalizeClassification(
       }
     }
 
-    const salary = normalizeSalaryDisplay(job.salary);
-    const salaryMax =
+    const normalizedSalary = job.salary ? normalizeSalaryDisplay(job.salary) : null;
+    const normalizedSalaryMax =
       typeof job.salaryMax === "number" && !Number.isNaN(job.salaryMax)
         ? job.salaryMax
-        : parseSalaryMax(job.salary) ?? parseSalaryMax(salary);
+        : normalizedSalary
+          ? parseSalaryMax(normalizedSalary)
+          : null;
+
+    let normalizedPostedAt = job.postedAt?.trim() || null;
+    if (normalizedPostedAt) {
+      const parsedDate = Date.parse(normalizedPostedAt);
+      if (!isNaN(parsedDate) && /^\d{4}-\d{2}-\d{2}/.test(normalizedPostedAt)) {
+        normalizedPostedAt = formatDistanceToNow(new Date(parsedDate), { addSuffix: true });
+      }
+    }
 
     const rawDescription = job.description ?? null;
     const description = cleanOpportunityDescription(rawDescription);
@@ -591,9 +518,9 @@ export function normalizeClassification(
     return {
       ...job,
       companyDomain,
-      salary,
-      salaryMax,
-      postedAt: job.postedAt ?? null,
+      salary: normalizedSalary,
+      salaryMax: normalizedSalaryMax,
+      postedAt: normalizedPostedAt,
       description,
       recipientEmail,
       applyUrl,
@@ -759,40 +686,14 @@ export function coerceClassificationPayload(
 export async function classifyJobEmail(
   options: ClassifyOptions
 ): Promise<JobClassification | null> {
-  const classificationMode =
-    options.accountRules?.classificationMode ?? "AI_WITH_HEURISTIC_FALLBACK";
-
-  if (classificationMode === "HEURISTIC_ONLY") {
-    return classifyWithGrandHeuristic({
-      subject: options.subject,
-      body: options.body,
-      fromEmail: options.fromEmail,
-      candidateProfile: options.candidateProfile,
-    });
-  }
-
-  const appliedHeuristic =
-    classificationMode !== "AI_ONLY"
-      ? heuristicApplicationConfirmation({
-          subject: options.subject,
-          body: options.body,
-          fromEmail: options.fromEmail,
-        })
-      : null;
-
   if (
     !shouldClassifyEmail({
       subject: options.subject,
       body: options.body,
       fromEmail: options.fromEmail,
-    }) &&
-    !appliedHeuristic
+    })
   ) {
     return null;
-  }
-
-  if (appliedHeuristic) {
-    return appliedHeuristic;
   }
 
   const sanitizedBody = sanitizeEmailBody(options.body).slice(0, 4000);
@@ -810,38 +711,11 @@ export async function classifyJobEmail(
     options.accountRules?.cloudModel?.trim() ||
     null;
 
-  const fallbackToHeuristic = (
-    heuristicRouting?: string[]
-  ): JobClassification | null => {
-    const heur =
-      classifyWithGrandHeuristic({
-        subject: options.subject,
-        body: options.body,
-        fromEmail: options.fromEmail,
-        candidateProfile: options.candidateProfile,
-      }) ??
-      heuristicApplicationConfirmation({
-        subject: options.subject,
-        body: options.body,
-        fromEmail: options.fromEmail,
-      });
-
-    if (heur) {
-      heur.classificationMethod = "HEURISTIC";
-      heur.sourceTier = "TIER 3 (HEURISTIC)";
-      heur.routingLines = heuristicRouting ?? [
-        "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
-      ];
-    }
-    return heur;
-  };
-
   let result: Record<string, unknown> | null = null;
   let capturedRoutingLines: string[] | undefined;
   let capturedSourceTier:
     | "TIER 1 (OLLAMA)"
     | "TIER 2 (CLOUD)"
-    | "TIER 3 (HEURISTIC)"
     | undefined;
 
   try {
@@ -863,107 +737,49 @@ export async function classifyJobEmail(
       capturedSourceTier = (result as Record<string, unknown>)._sourceTier as
         | "TIER 1 (OLLAMA)"
         | "TIER 2 (CLOUD)"
-        | "TIER 3 (HEURISTIC)"
         | undefined;
     }
   } catch (error) {
     if (error instanceof CloudLlmRateLimitError) {
       if (process.env.DEBUG_VERBOSE) {
         console.warn(
-          `[classify] Rate limit encountered on cloud provider — falling back to deterministic heuristic classification.`
+          `[classify] Rate limit encountered on cloud provider: ${error.message}`
         );
       }
-      if (classificationMode === "AI_ONLY") {
-        return null;
-      }
-      return fallbackToHeuristic([
-        options.llmProvider === "LOCAL_OLLAMA"
-          ? "Tier 1: LOCAL_OLLAMA -> FAILED / BYPASSED"
-          : "Tier 1: LOCAL_OLLAMA -> NOT CONFIGURED",
-        "Tier 2: CLOUD_BYOK   -> FAILED (Rate limit / 429)",
-        "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
-      ]);
+      return null;
     }
     if (error instanceof OllamaInvalidJsonError) {
       if (process.env.DEBUG_VERBOSE) {
         console.debug(
-          `[classify] Ollama returned invalid JSON — falling back to deterministic heuristic classification without tripping circuit.`
+          `[classify] Ollama returned invalid JSON: ${error.message}`
         );
       }
-      if (classificationMode === "AI_ONLY") {
-        return null;
-      }
-      return fallbackToHeuristic([
-        "Tier 1: LOCAL_OLLAMA -> INVALID JSON RESPONSE",
-        options.allowCloudFallback
-          ? "Tier 2: CLOUD_BYOK   -> FAILED / SKIPPED"
-          : "Tier 2: CLOUD_BYOK   -> DISABLED (allowCloudFallback=false)",
-        "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
-      ]);
+      return null;
     }
     if (error instanceof OllamaUnreachableError) {
-      if (classificationMode === "AI_ONLY") {
-        if (process.env.DEBUG_VERBOSE) {
-          console.debug(
-            `[classify] Ollama unreachable at ${error.url} (AI_ONLY mode) — skipping message.`
-          );
-        }
-        return null;
-      }
       if (process.env.DEBUG_VERBOSE) {
         console.debug(
-          `[classify] Ollama unreachable at ${error.url} — falling back to deterministic heuristic classification.`
+          `[classify] Ollama unreachable at ${error.url} (${error.message})`
         );
       }
-      return fallbackToHeuristic([
-        isOllamaCircuitTripped(
-          options.localOllamaUrl || "http://localhost:11434"
-        )
-          ? "Tier 1: LOCAL_OLLAMA -> BYPASSED (Circuit Open) [0ms]"
-          : `Tier 1: LOCAL_OLLAMA -> FAILED (${error.message})`,
-        options.allowCloudFallback
-          ? "Tier 2: CLOUD_BYOK   -> FAILED / SKIPPED"
-          : "Tier 2: CLOUD_BYOK   -> DISABLED (allowCloudFallback=false)",
-        "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
-      ]);
+      return null;
     }
     if (error instanceof MissingLlmKeyError) {
       if (process.env.DEBUG_VERBOSE) {
         console.debug(
-          `[classify] No cloud API key configured for ${error.provider} — falling back to deterministic heuristic classification.`
+          `[classify] No cloud API key configured for ${error.provider}`
         );
       }
-      if (classificationMode === "AI_ONLY") {
-        return null;
-      }
-      return fallbackToHeuristic([
-        options.llmProvider === "LOCAL_OLLAMA"
-          ? "Tier 1: LOCAL_OLLAMA -> FAILED / BYPASSED"
-          : "Tier 1: LOCAL_OLLAMA -> NOT CONFIGURED",
-        "Tier 2: CLOUD_BYOK   -> SKIPPED (No API key)",
-        "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
-      ]);
-    }
-    if (process.env.DEBUG_VERBOSE) {
-      console.debug(
-        "[classify] LLM failed — falling back to deterministic heuristic classification."
-      );
-    }
-    if (classificationMode === "AI_ONLY") {
       return null;
     }
-    return fallbackToHeuristic([
-      "Tier 1: LOCAL_OLLAMA -> FAILED",
-      "Tier 2: CLOUD_BYOK   -> FAILED",
-      "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
-    ]);
+    console.error(
+      `[classify] LLM classification failed: ${(error as Error)?.message || error}`
+    );
+    return null;
   }
 
   if (!result) {
-    if (classificationMode === "AI_ONLY") {
-      return null;
-    }
-    return fallbackToHeuristic();
+    return null;
   }
 
   try {
@@ -980,17 +796,10 @@ export async function classifyJobEmail(
   } catch (error) {
     console.warn(
       "Failed to parse job classification JSON",
-      error,
+      (error as Error)?.message || error,
       JSON.stringify(result).slice(0, 300)
     );
-    if (classificationMode === "AI_ONLY") {
-      return null;
-    }
-    return fallbackToHeuristic([
-      "Tier 1: LOCAL_OLLAMA -> INVALID JSON RESPONSE",
-      "Tier 2: CLOUD_BYOK   -> SKIPPED",
-      "Tier 3: HEURISTIC    -> Grand Heuristic Engine [< 2ms]",
-    ]);
+    return null;
   }
 }
 

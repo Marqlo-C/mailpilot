@@ -47,11 +47,7 @@ import { ResumeDraftSheet } from "@/components/jobs/resume-draft-sheet";
 import { Button } from "@/components/ui/button";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { CancelTaskButton } from "@/components/ui/cancel-task-button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { ViewEmailDialog } from "@/components/dialogs/view-email-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
@@ -183,8 +179,7 @@ export function OpportunityDraftDialog({
   const [error, setError] = useState<string | null>(null);
   const [originalEmail, setOriginalEmail] =
     useState<OriginalEmailPreview | null>(null);
-  const [liveEmailBody, setLiveEmailBody] = useState<string | null>(null);
-  const [loadingLiveEmail, setLoadingLiveEmail] = useState(false);
+  const [viewOriginalEmailOpen, setViewOriginalEmailOpen] = useState(false);
   const [extraFiles, setExtraFiles] = useState<File[]>([]);
   const [resume, setResume] = useState<OpportunityResumePreview | null>(null);
   const [resumePdfUrl, setResumePdfUrl] = useState<string | null>(null);
@@ -210,8 +205,7 @@ export function OpportunityDraftDialog({
     setResumeAction(null);
     setRecipient(opportunity.recipientEmail ?? "");
     setOriginalEmail(null);
-    setLiveEmailBody(null);
-    setLoadingLiveEmail(false);
+    setViewOriginalEmailOpen(false);
     setExtraFiles([]);
     setResume(null);
     setResumeError(null);
@@ -547,24 +541,6 @@ export function OpportunityDraftDialog({
     })();
   }
 
-  const fetchLiveEmail = useCallback(async () => {
-    if (!originalEmail?.messageId || liveEmailBody || loadingLiveEmail) return;
-    setLoadingLiveEmail(true);
-    try {
-      const res = await fetch(
-        `/api/gmail/message?id=${encodeURIComponent(originalEmail.messageId)}`
-      );
-      const json = await res.json();
-      if (json.success && json.snippet) {
-        setLiveEmailBody(json.snippet);
-      }
-    } catch {
-      // Fallback gracefully to originalEmail.body
-    } finally {
-      setLoadingLiveEmail(false);
-    }
-  }, [originalEmail?.messageId, liveEmailBody, loadingLiveEmail]);
-
   function handleCancelTask(taskId: string) {
     if (taskId === TASK_EMAIL_REFINE || taskId === TASK_EMAIL_DRAFT) {
       const snapshot = emailSnapshotRef.current;
@@ -798,69 +774,18 @@ export function OpportunityDraftDialog({
                     />
                   </div>
                   {originalEmail ? (
-                    <DropdownMenu
-                      onOpenChange={(isOpen) => {
-                        if (isOpen) void fetchLiveEmail();
-                      }}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewOriginalEmailOpen(true)}
+                      className="h-7 shrink-0 gap-1.5 rounded-md bg-muted/40 px-2.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                     >
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 shrink-0 gap-1.5 rounded-md bg-muted/40 px-2.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                        >
-                          <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="hidden sm:inline">
-                            View original email
-                          </span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="w-[min(24rem,calc(100vw-2rem))] max-h-80 overflow-y-auto p-3"
-                        onCloseAutoFocus={(e) => e.preventDefault()}
-                      >
-                        <div className="space-y-1.5 whitespace-pre-wrap font-sans text-xs text-muted-foreground">
-                          <p className="text-sm font-medium text-foreground">
-                            Original email from {originalFrom}
-                          </p>
-                          <p>
-                            <span className="font-medium text-foreground/80">
-                              From:
-                            </span>{" "}
-                            {[originalEmail.fromName, originalEmail.fromEmail]
-                              .filter(Boolean)
-                              .join(" · ") || "—"}
-                          </p>
-                          {formatEmailDate(originalEmail.date) ? (
-                            <p>
-                              <span className="font-medium text-foreground/80">
-                                Date:
-                              </span>{" "}
-                              {formatEmailDate(originalEmail.date)}
-                            </p>
-                          ) : null}
-                          <p>
-                            <span className="font-medium text-foreground/80">
-                              Subject:
-                            </span>{" "}
-                            {originalEmail.subject?.trim() || "(no subject)"}
-                          </p>
-                          {loadingLiveEmail ? (
-                            <div className="flex items-center gap-2 border-t border-border/50 py-2.5 text-xs text-muted-foreground">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              <span>Loading live message…</span>
-                            </div>
-                          ) : (
-                            <div className="mt-2 border-t border-border/50 pt-2 leading-relaxed">
-                              {(liveEmailBody || originalEmail.body).trim() ||
-                                "(empty body)"}
-                            </div>
-                          )}
-                        </div>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="hidden sm:inline">
+                        View original email
+                      </span>
+                    </Button>
                   ) : null}
                 </div>
 
@@ -1356,6 +1281,13 @@ export function OpportunityDraftDialog({
 
           </div>
         )}
+      <ViewEmailDialog
+        open={viewOriginalEmailOpen}
+        onOpenChange={setViewOriginalEmailOpen}
+        messageId={originalEmail?.messageId ?? null}
+        initialSubject={originalEmail?.subject ?? null}
+        initialFrom={originalFrom}
+      />
     </ActionDialogShell>
   );
 }

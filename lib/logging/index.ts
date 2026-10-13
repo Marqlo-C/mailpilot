@@ -277,7 +277,15 @@ export function logCompactSyncCard(entry: CompactSyncLogEntry): void {
       return;
     }
     console.log(`\n[SYNC ${padIdx}/${padTot}] "${shortSub}" (${shortId}...)`);
-    console.log(`  └─ SKIPPED: ${entry.skipReason || "Non-Job / Marketing or Newsletter"}`);
+    if (entry.skipReason && entry.skipReason.includes("PENDING_AI")) {
+      console.log(
+        "  └─ PARKED: PENDING_AI (Model Unavailable - Will retry next sync)"
+      );
+    } else {
+      console.log(
+        `  └─ SKIPPED: ${entry.skipReason || "Non-Job / Marketing or Newsletter"}`
+      );
+    }
     return;
   }
 
@@ -302,45 +310,12 @@ export function logCompactSyncCard(entry: CompactSyncLogEntry): void {
   console.log(`\n[SYNC ${padIdx}/${padTot}] "${shortSub}" (${shortId}...)`);
   console.log(`┌${"─".repeat(64)}┐`);
 
-  // Dynamically format fallback triage reason
+  // Format routing cleanly for pure 2-tier pipeline
   const formattedRouting: string[] = [];
-  if (entry.routing.some((r) => r.includes("Tier 3: HEURISTIC"))) {
-    const isCloudRateLimited = entry.routing.some(
-      (r) => r.includes("429") || /rate\s*limit/i.test(r)
-    );
-    const isCloudSkipped = entry.routing.some(
-      (r) => r.includes("SKIPPED") || /no api key/i.test(r)
-    );
-    const isCloudFailed = entry.routing.some(
-      (r) =>
-        r.includes("Tier 2: CLOUD_BYOK -> FAILED") ||
-        /Tier 2:\s*CLOUD_BYOK\s*->\s*FAILED/i.test(r)
-    );
-
-    const isOllamaInvalidJson = entry.routing.some((r) =>
-      /INVALID JSON/i.test(r)
-    );
-    const ollamaReason = isOllamaInvalidJson
-      ? "Ollama invalid JSON"
-      : "Ollama offline";
-
-    if (isCloudRateLimited) {
-      formattedRouting.push(
-        `Tier 3: HEURISTIC (${ollamaReason}, Cloud rate-limited)`
-      );
-    } else if (isCloudSkipped) {
-      formattedRouting.push(`Tier 3: HEURISTIC (${ollamaReason}, No cloud key)`);
-    } else if (isCloudFailed) {
-      formattedRouting.push(`Tier 3: HEURISTIC (${ollamaReason}, Cloud failed)`);
-    } else {
-      formattedRouting.push(
-        `Tier 3: HEURISTIC (${ollamaReason}, Cloud disabled)`
-      );
-    }
-  } else if (entry.routing.some((r) => r.includes("Tier 2: CLOUD"))) {
+  if (entry.routing.some((r) => r.includes("Tier 2: CLOUD"))) {
     formattedRouting.push("Tier 2: CLOUD_BYOK (Ollama failover)");
   } else if (entry.routing.some((r) => r.includes("Tier 1: LOCAL_OLLAMA"))) {
-    formattedRouting.push("Tier 1: LOCAL_OLLAMA (200 OK)");
+    formattedRouting.push("Tier 1: LOCAL_OLLAMA");
   } else {
     formattedRouting.push(...entry.routing);
   }
@@ -380,7 +355,6 @@ export function logSyncSummaryBanner(stats: {
   durationMs: number;
   ollamaCount: number;
   cloudCount: number;
-  heuristicCount: number;
   createdCount: number;
   updatedCount: number;
   skippedCount: number;
@@ -404,7 +378,7 @@ export function logSyncSummaryBanner(stats: {
     `│ [SYNC COMPLETE] ${stats.total} Messages Processed in ${durationSec}s`.padEnd(65) + "│"
   );
   console.log(
-    `│ Providers: ${stats.ollamaCount} Ollama │ ${stats.cloudCount} Cloud │ ${stats.heuristicCount} Heuristic`.padEnd(
+    `│ Providers: ${stats.ollamaCount} Ollama │ ${stats.cloudCount} Cloud BYOK`.padEnd(
       65
     ) + "│"
   );

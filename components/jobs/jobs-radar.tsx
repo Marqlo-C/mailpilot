@@ -24,6 +24,7 @@ import {
   updateApplicationStatus,
 } from "@/app/actions/dispatch";
 import {
+  getOpportunityMessageIdAction,
   markOpportunityExternalApplied,
   sendOpportunityApplication,
   unmarkApplied,
@@ -32,6 +33,7 @@ import { updateMatchThreshold } from "@/app/actions/profile";
 import { AtsHandoffDrawer } from "@/components/jobs/ats-handoff-drawer";
 import { DraftReviewDialog } from "@/components/jobs/draft-review-dialog";
 import { OpportunityDraftDialog } from "@/components/jobs/opportunity-draft-dialog";
+import { ViewEmailDialog } from "@/components/dialogs/view-email-dialog";
 import { OpportunitiesView } from "@/components/opportunities/opportunities-view";
 import { SyncControls } from "@/components/opportunities/sync-controls";
 import { CompanyLogo } from "@/components/ui/company-logo";
@@ -140,6 +142,27 @@ export function JobsRadar({
   const [sort, setSort] = useState(TAB_SORT_CONFIG.leads.defaultSort);
   const [dragDropZone, setDragDropZone] = useState<string | null>(null);
   const suppressTabChangeRef = useRef(false);
+
+  const [viewEmailMessageId, setViewEmailMessageId] = useState<string | null>(
+    null
+  );
+  const [viewEmailSubject, setViewEmailSubject] = useState<string | null>(null);
+  const [viewEmailFrom, setViewEmailFrom] = useState<string | null>(null);
+
+  const handleViewOriginalEmail = useCallback(async (opp: JobOpportunity) => {
+    try {
+      const res = await getOpportunityMessageIdAction(opp.id);
+      if (res.ok && res.data) {
+        setViewEmailMessageId(res.data.messageId);
+        setViewEmailSubject(res.data.subject);
+        setViewEmailFrom(res.data.from);
+      } else {
+        toast.error(res.ok ? "Message not found" : res.error);
+      }
+    } catch {
+      toast.error("Failed to load email message");
+    }
+  }, []);
 
   useEffect(() => {
     setThreshold(matchThreshold);
@@ -404,6 +427,7 @@ export function JobsRadar({
                   onDragZoneChange={handleDragZoneChange}
                   onReviewDraft={(opp) => setDraftOpportunity(opp)}
                   onSendNow={handleOpportunitySend}
+                  onViewOriginalEmail={handleViewOriginalEmail}
                   onMarkApplied={(opp) => {
                     startTransition(async () => {
                       await markOpportunityExternalApplied(opp.id);
@@ -567,6 +591,7 @@ export function JobsRadar({
                   onSortOptionChange={setSort}
                   suppressTabChangeRef={suppressTabChangeRef}
                   onDragZoneChange={handleDragZoneChange}
+                  onViewOriginalEmail={handleViewOriginalEmail}
                   onUnmarkApplied={(opp) => {
                     startTransition(async () => {
                       await unmarkApplied(opp.id);
@@ -645,6 +670,7 @@ export function JobsRadar({
                   onDragZoneChange={handleDragZoneChange}
                   onReviewDraft={(opp) => setDraftOpportunity(opp)}
                   onSendNow={handleOpportunitySend}
+                  onViewOriginalEmail={handleViewOriginalEmail}
                 />
               ) : null}
               {sortedActionRequired.length > 0 ? (
@@ -741,6 +767,7 @@ export function JobsRadar({
                   onSortOptionChange={setSort}
                   suppressTabChangeRef={suppressTabChangeRef}
                   onDragZoneChange={handleDragZoneChange}
+                  onViewOriginalEmail={handleViewOriginalEmail}
                 />
               ) : null}
               {sortedHistory.length > 0 ? (
@@ -818,6 +845,19 @@ export function JobsRadar({
         onOpenChange={(open) => !open && setDraftOpportunity(null)}
         opportunity={draftOpportunity}
         onCompleted={() => router.refresh()}
+      />
+      <ViewEmailDialog
+        open={Boolean(viewEmailMessageId)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewEmailMessageId(null);
+            setViewEmailSubject(null);
+            setViewEmailFrom(null);
+          }
+        }}
+        messageId={viewEmailMessageId}
+        initialSubject={viewEmailSubject}
+        initialFrom={viewEmailFrom}
       />
     </div>
   );

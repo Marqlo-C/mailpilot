@@ -5,13 +5,31 @@ const IV_LENGTH = 12; // 96-bit IV recommended for GCM
 const AUTH_TAG_LENGTH = 16;
 
 function getEncryptionKey(): Buffer {
-  const keyHex = process.env.TOKEN_ENCRYPTION_KEY;
-  if (!keyHex) {
+  const raw = process.env.TOKEN_ENCRYPTION_KEY;
+  if (!raw || !raw.trim()) {
+    console.error(
+      "[crypto] CRITICAL: TOKEN_ENCRYPTION_KEY environment variable is not set. Ensure it is defined in .env or .env.local as a 64-character hex string."
+    );
     throw new Error("TOKEN_ENCRYPTION_KEY environment variable is not set");
+  }
+
+  // Strip optional surrounding quotes and whitespace (e.g. from .env file entries)
+  const keyHex = raw.trim().replace(/^["']|["']$/g, "").trim();
+
+  if (!/^[0-9a-fA-F]{64}$/.test(keyHex)) {
+    console.error(
+      `[crypto] CRITICAL: TOKEN_ENCRYPTION_KEY must be a 64-character hex string (32 bytes). Received length: ${keyHex.length}.`
+    );
+    throw new Error(
+      `TOKEN_ENCRYPTION_KEY must be a 64-character hex string (32 bytes). Received length: ${keyHex.length}`
+    );
   }
 
   const key = Buffer.from(keyHex, "hex");
   if (key.length !== 32) {
+    console.error(
+      `[crypto] CRITICAL: TOKEN_ENCRYPTION_KEY decoded buffer length is ${key.length} bytes (expected 32 bytes).`
+    );
     throw new Error(
       "TOKEN_ENCRYPTION_KEY must be a 64-character hex string (32 bytes)"
     );

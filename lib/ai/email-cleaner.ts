@@ -17,18 +17,23 @@ export function cleanEmailPayload(rawHtmlOrText: string): string {
     .replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, "")
     .replace(/data:image\/[^;]+;base64,[^\s"']+/gi, "");
 
-  // Convert HTML anchors to markdown so the LLM can extract apply URLs.
+  // Insert explicit whitespace at closing block elements before stripping tags
+  cleaned = cleaned
+    .replace(/<\/(?:div|p|td|tr|th|section|li|h[1-6]|table)>/gi, " \n")
+    .replace(/<br\s*\/?>/gi, " \n");
+
+  // Preserve markdown anchors
   cleaned = cleaned.replace(
     /<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi,
     (_match, _quote: string, href: string, text: string) => markdownHref(href, text)
   );
 
-  // Catch remaining <a href="..."> variants (attribute order differs).
   cleaned = cleaned.replace(
     /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
     (_match, href: string, text: string) => markdownHref(href, text)
   );
 
+  // Strip remaining tags with padding
   cleaned = cleaned
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
@@ -37,11 +42,10 @@ export function cleanEmailPayload(rawHtmlOrText: string): string {
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
-    // Drop pure tracking pixels, keep aggregator apply/view URLs
     .replace(/https?:\/\/\S*(?:\/pixel|track\/open)\S*/gi, " ")
-    .replace(/\s+/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s*\n+/g, "\n\n")
     .trim();
 
-  // Expanded capacity so job digests keep more listing links.
-  return cleaned.slice(0, 8000);
+  return cleaned.slice(0, 10000);
 }

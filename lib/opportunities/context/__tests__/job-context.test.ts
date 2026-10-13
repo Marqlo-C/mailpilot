@@ -90,5 +90,26 @@ describe("Job Context Domain", () => {
       expect(normalized.salaryMax).toBe(210000);
       expect(normalized.inboundSnippet).toBe("Inbound raw email text snippet.");
     });
+
+    it("converts ISO date strings in postedAt to relative distance and preserves non-ISO strings", () => {
+      const pastDateIso = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+      const withIso = resolveJobOpportunity({
+        company: "Acme",
+        postedAt: pastDateIso,
+      });
+      expect(withIso.postedAt).toMatch(/\d+[dhmsmoy]\s+ago/);
+
+      const withRelative = resolveJobOpportunity({
+        company: "Acme",
+        postedAt: "Just posted",
+      });
+      expect(withRelative.postedAt).toBe("Just posted");
+
+      const withNull = resolveJobOpportunity({
+        company: "Acme",
+        postedAt: null,
+      });
+      expect(withNull.postedAt).toBeNull();
+    });
   });
 });
