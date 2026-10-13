@@ -38,6 +38,7 @@ export async function GET() {
           lastSyncedAt: true,
           syncError: true,
           lastSyncProcessed: true,
+          syncTotal: true,
           updatedAt: true,
           syncHeartbeatAt: true,
         },
@@ -54,6 +55,7 @@ export async function GET() {
       return NextResponse.json({
         isSyncing: false,
         lastSyncProcessed: null,
+        syncTotal: null,
         syncError: null,
         wasStaleReset: false,
         pendingClassificationCount: 0,
@@ -80,6 +82,7 @@ export async function GET() {
           data: {
             isSyncing: false,
             syncError,
+            syncTotal: null,
           },
         });
         return NextResponse.json({
@@ -87,6 +90,7 @@ export async function GET() {
           lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
           syncError,
           lastSyncProcessed: account.lastSyncProcessed,
+          syncTotal: null,
           wasStaleReset: true,
           pendingClassificationCount,
         });
@@ -98,6 +102,7 @@ export async function GET() {
       lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
       syncError: account.syncError,
       lastSyncProcessed: account.lastSyncProcessed,
+      syncTotal: account.syncTotal ?? null,
       wasStaleReset: false,
       pendingClassificationCount,
     });

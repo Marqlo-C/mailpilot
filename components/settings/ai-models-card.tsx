@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
+  ChevronDown,
   Copy,
   Loader2,
   RefreshCw,
@@ -14,7 +15,9 @@ import { toast } from "sonner";
 
 import {
   clearCustomLlmKey,
+  clearJinaApiKey,
   saveCustomLlmKey,
+  saveJinaApiKey,
   updateBridgeSecret,
   updateLlmProvider,
   updateOllamaUrl,
@@ -66,6 +69,7 @@ type AiModelsCardProps = {
   cloudProvider?: CloudLlmProvider;
   cloudModel?: string | null;
   maskedApiKey?: string | null;
+  maskedJinaApiKey?: string | null;
 };
 
 type ConnectionStatus =
@@ -173,6 +177,7 @@ export function AiModelsCard({
   cloudProvider: initialCloudProvider = "OPENROUTER",
   cloudModel: initialCloudModel = null,
   maskedApiKey: initialMaskedApiKey = null,
+  maskedJinaApiKey: initialMaskedJinaApiKey = null,
 }: AiModelsCardProps) {
   const router = useRouter();
   const [url, setUrl] = useState(localOllamaUrl);
@@ -221,6 +226,16 @@ export function AiModelsCard({
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [isEditingKey, setIsEditingKey] = useState(!initialMaskedApiKey);
 
+  const [jinaAccordionOpen, setJinaAccordionOpen] = useState<boolean>(
+    Boolean(initialMaskedJinaApiKey)
+  );
+  const [jinaApiKeyInput, setJinaApiKeyInput] = useState("");
+  const [maskedJinaKey, setMaskedJinaKey] = useState<string | null>(
+    initialMaskedJinaApiKey ?? null
+  );
+  const [isSavingJinaKey, setIsSavingJinaKey] = useState(false);
+  const [isClearingJinaKey, setIsClearingJinaKey] = useState(false);
+
   const useOllama = llmProvider === "LOCAL_OLLAMA";
   const disabled = !accountId || pending;
   const hasSecret = bridgeSecret.trim().length > 0;
@@ -249,6 +264,10 @@ export function AiModelsCard({
       setIsEditingKey(true);
     }
   }, [initialMaskedApiKey]);
+
+  useEffect(() => {
+    setMaskedJinaKey(initialMaskedJinaApiKey ?? null);
+  }, [initialMaskedJinaApiKey]);
 
   useEffect(() => {
     setUrl(localOllamaUrl);
@@ -525,6 +544,56 @@ export function AiModelsCard({
       }
       toast.success("API key cleared");
       router.refresh();
+    });
+  }
+
+  function handleSaveJinaKey() {
+    if (!accountId) return;
+    const key = jinaApiKeyInput.trim();
+    if (!key) {
+      toast.error("Please enter a Jina API key");
+      return;
+    }
+
+    setIsSavingJinaKey(true);
+    startTransition(async () => {
+      try {
+        const result = await saveJinaApiKey(accountId, key);
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        setMaskedJinaKey(result.data?.maskedJinaApiKey ?? null);
+        setJinaApiKeyInput("");
+        toast.success("Jina Reader API key encrypted and saved");
+        router.refresh();
+      } catch {
+        toast.error("Failed to save Jina API key");
+      } finally {
+        setIsSavingJinaKey(false);
+      }
+    });
+  }
+
+  function handleClearJinaKey() {
+    if (!accountId) return;
+    setIsClearingJinaKey(true);
+    startTransition(async () => {
+      try {
+        const result = await clearJinaApiKey(accountId);
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        setMaskedJinaKey(null);
+        setJinaApiKeyInput("");
+        toast.success("Jina API key cleared; reverted to public free tier");
+        router.refresh();
+      } catch {
+        toast.error("Failed to clear Jina API key");
+      } finally {
+        setIsClearingJinaKey(false);
+      }
     });
   }
 
@@ -1436,6 +1505,149 @@ export function AiModelsCard({
           </div>
         )}
       </CardContent>
+    </Card>
+
+    {/* Web Scraping & Enrichment (Jina Reader) Card */}
+    <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
+      <CardHeader
+        className="cursor-pointer select-none transition-colors hover:bg-muted/10 pb-5"
+        onClick={() => setJinaAccordionOpen((prev) => !prev)}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <ChevronDown
+              className={cn(
+                "h-5 w-5 text-muted-foreground transition-transform duration-200",
+                jinaAccordionOpen && "rotate-180"
+              )}
+            />
+            <div>
+              <CardTitle className="text-lg tracking-tight">
+                Web Scraping & Enrichment (Jina Reader)
+              </CardTitle>
+              <CardDescription>
+                Bypasses anti-bot challenges on aggregator links (Glassdoor, LinkedIn) to extract full job specs.
+              </CardDescription>
+            </div>
+          </div>
+          {maskedJinaKey ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Custom Key Active
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+              Free Tier (20 RPM)
+            </span>
+          )}
+        </div>
+      </CardHeader>
+
+      {jinaAccordionOpen && (
+        <CardContent className="space-y-5 border-t border-border/50 pt-5 animate-in fade-in-50 duration-200">
+          {!accountId ? (
+            <p className="text-sm text-muted-foreground">
+              Connect an account to configure Jina Reader settings.
+            </p>
+          ) : (
+            <>
+              {/* Status Readout */}
+              <div className="rounded-xl border border-border/80 bg-background p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Current Enrichment Mode
+                    </p>
+                    <p className="text-sm font-medium text-foreground">
+                      {maskedJinaKey ? (
+                        <>Custom Key Configured (<code className="font-mono text-xs">{maskedJinaKey}</code>)</>
+                      ) : (
+                        "Default (Free Unauthenticated - 20 RPM)"
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {maskedJinaKey
+                        ? `Active Key: ${maskedJinaKey}`
+                        : "Using public free tier (20 requests/minute). Add a personal key for higher limits."}
+                    </p>
+                  </div>
+
+                  {maskedJinaKey ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 shrink-0 text-xs text-rose-500 border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-500/20"
+                      disabled={disabled || isClearingJinaKey}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleClearJinaKey();
+                      }}
+                    >
+                      {isClearingJinaKey ? (
+                        <>
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          Clearing…
+                        </>
+                      ) : (
+                        "Clear Key"
+                      )}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Key Input */}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="jina-api-key"
+                  className="text-sm font-medium tracking-tight"
+                >
+                  {maskedJinaKey ? "Replace Jina API Key" : "Jina API Key"}
+                </Label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    id="jina-api-key"
+                    type="password"
+                    placeholder="jina_..."
+                    value={jinaApiKeyInput}
+                    disabled={disabled || isSavingJinaKey}
+                    onChange={(e) => setJinaApiKeyInput(e.target.value)}
+                    className="h-10 border-border/80 bg-background font-mono text-xs"
+                    autoComplete="off"
+                    spellCheck={false}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSaveJinaKey();
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-10 shrink-0 text-xs"
+                    disabled={disabled || isSavingJinaKey || !jinaApiKeyInput.trim()}
+                    onClick={handleSaveJinaKey}
+                  >
+                    {isSavingJinaKey ? (
+                      <>
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        Saving…
+                      </>
+                    ) : (
+                      "Save Key"
+                    )}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Get a free key from <a href="https://jina.ai" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">jina.ai</a> to increase your rate limit to 10M tokens. Keys are stored encrypted with AES-256-GCM.
+                </p>
+              </div>
+            </>
+          )}
+        </CardContent>
+      )}
     </Card>
   </div>
   );

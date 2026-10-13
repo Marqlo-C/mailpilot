@@ -20,6 +20,7 @@ describe("LLM Vault & Multi-Provider SSOT", () => {
       expect(maskApiKey("sk-or-v1-abcdef12345678")).toBe("sk-...5678");
       expect(maskApiKey("gsk_1234567890abcdef")).toBe("sk-...cdef");
       expect(maskApiKey("secret-token-key-9999")).toBe("sk-...9999");
+      expect(maskApiKey("jina_abcdef1234567890")).toBe("jina_...7890");
     });
 
     it("handles short or empty keys gracefully", () => {

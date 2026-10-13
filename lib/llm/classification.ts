@@ -25,6 +25,8 @@ import {
   type CandidateProfileSummary,
 } from "@/lib/ai/classifier";
 import { formatDistanceToNow } from "@/lib/format-distance";
+import { JOB_BOARD_KEYWORDS } from "@/lib/constants/job-sources";
+import { extractLocationFromText, parseLocation } from "@/lib/utils/location";
 
 export { normalizeSalaryDisplay } from "@/lib/ai/classifier";
 import {
@@ -397,6 +399,41 @@ export function normalizeClassification(
   ].map((m) => m[2]);
 
   jobs = jobs.slice(0, 15).map((job, index) => {
+    // Aggregator De-biasing
+    let resolvedCompany = job.company;
+    const isAggregatorCompany = JOB_BOARD_KEYWORDS.some((kw) => {
+      const c = (job.company || "").toLowerCase().trim();
+      return c === kw || c.startsWith(`${kw} `) || c.includes(`${kw} job`);
+    });
+
+    if (isAggregatorCompany) {
+      const employerMatch =
+        job.title?.match(/(?:at|@)\s+([A-Z0-9][A-Za-z0-9&.,' -]{1,40})/i) ||
+        job.description?.match(/([A-Z0-9][A-Za-z0-9&.,' -]{1,40})\s+(?:is|are)\s+hiring/i) ||
+        job.description?.match(/(?:at|@)\s+([A-Z0-9][A-Za-z0-9&.,' -]{1,40})/i);
+
+      if (employerMatch?.[1]) {
+        const candidateEmployer = employerMatch[1].trim();
+        const candidateIsAggregator = JOB_BOARD_KEYWORDS.some((kw) =>
+          candidateEmployer.toLowerCase().includes(kw)
+        );
+        if (!candidateIsAggregator) {
+          resolvedCompany = candidateEmployer;
+        }
+      }
+    }
+
+    // Location Fallback
+    let resolvedLocation = job.location ?? null;
+    if (!resolvedLocation || /unspecified/i.test(resolvedLocation)) {
+      const parsed = extractLocationFromText(job.description || context.emailBody);
+      if (parsed.city && parsed.state) {
+        resolvedLocation = `${parsed.city}, ${parsed.state}`;
+      } else if (parsed.city) {
+        resolvedLocation = parsed.city;
+      }
+    }
+
     let recipientEmail = (job.recipientEmail ?? "").trim() || null;
     if (recipientEmail) {
       const lower = recipientEmail.toLowerCase();
@@ -467,7 +504,7 @@ export function normalizeClassification(
     if (matchScore === 0) {
       matchScore = heuristicMatchScore(
         job.title,
-        job.company,
+        resolvedCompany,
         context.candidateProfile
       );
       if (!job.matchReason?.trim()) {
@@ -517,7 +554,9 @@ export function normalizeClassification(
 
     return {
       ...job,
+      company: resolvedCompany,
       companyDomain,
+      location: resolvedLocation,
       salary: normalizedSalary,
       salaryMax: normalizedSalaryMax,
       postedAt: normalizedPostedAt,
@@ -772,9 +811,11 @@ export async function classifyJobEmail(
       }
       return null;
     }
-    console.error(
-      `[classify] LLM classification failed: ${(error as Error)?.message || error}`
-    );
+    const msg = error instanceof Error ? error.message : String(error);
+    // Keep internal debug clean without dumping multi-line JSON blobs
+    if (process.env.DEBUG_VERBOSE === "1") {
+      console.warn(`[classify] AI pass failed: ${msg}`);
+    }
     return null;
   }
 

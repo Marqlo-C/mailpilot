@@ -17,7 +17,7 @@ import {
   cloudProviderSchema,
   PROVIDER_ENDPOINTS,
 } from "@/lib/llm/provider.ssot";
-import { encryptAccountKey } from "@/lib/llm/vault";
+import { encryptAccountKey, maskApiKey } from "@/lib/llm/vault";
 import { encryptToken } from "@/lib/crypto";
 
 type ActionResult<T = undefined> =
@@ -525,6 +525,85 @@ export async function clearCustomLlmKey(
   await prisma.accountSettings.update({
     where: { accountId },
     data: { rules: rulesToSave as Prisma.InputJsonValue },
+  });
+
+  revalidatePath("/settings");
+  return { ok: true, data: { cleared: true } };
+}
+
+/**
+ * Encrypts and persists a customer-provided Jina Reader API key in AccountSettings.rules.
+ * Never stores or returns the plaintext API key.
+ */
+export async function saveJinaApiKey(
+  accountId: string,
+  apiKey: string
+): Promise<ActionResult<{ maskedJinaApiKey: string }>> {
+  const trimmed = apiKey.trim();
+  if (!trimmed) {
+    return { ok: false, error: "API key cannot be empty" };
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { settings: true },
+  });
+  if (!account) return { ok: false, error: "Account not found" };
+
+  const rules = parseAccountRules(account.settings?.rules);
+  const encrypted = encryptToken(trimmed);
+  const masked = maskApiKey(trimmed);
+
+  const updatedRules = accountRulesSchema.parse({
+    ...rules,
+    encryptedJinaApiKey: encrypted,
+    maskedJinaApiKey: masked,
+  });
+
+  const { matchScoreThreshold: _deprecated, ...rulesToSave } = updatedRules;
+
+  await prisma.accountSettings.upsert({
+    where: { accountId },
+    create: {
+      accountId,
+      rules: rulesToSave as Prisma.InputJsonValue,
+    },
+    update: {
+      rules: rulesToSave as Prisma.InputJsonValue,
+    },
+  });
+
+  revalidatePath("/settings");
+  return { ok: true, data: { maskedJinaApiKey: masked } };
+}
+
+/**
+ * Clears the customer-provided Jina Reader API key from AccountSettings.rules,
+ * reverting link enrichment to the public free tier.
+ */
+export async function clearJinaApiKey(
+  accountId: string
+): Promise<ActionResult<{ cleared: true }>> {
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { settings: true },
+  });
+  if (!account) return { ok: false, error: "Account not found" };
+
+  const rules = parseAccountRules(account.settings?.rules);
+  const updatedRules = accountRulesSchema.parse({
+    ...rules,
+    encryptedJinaApiKey: null,
+    maskedJinaApiKey: null,
+  });
+
+  const { matchScoreThreshold: _deprecated, ...rulesToSave } = updatedRules;
+
+  await prisma.accountSettings.update({
+    where: { accountId },
+    data: {
+      rules: rulesToSave as Prisma.InputJsonValue,
+    },
   });
 
   revalidatePath("/settings");

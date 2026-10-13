@@ -111,4 +111,83 @@ describe("Matching Domain", () => {
     expect(result.reason).toContain("Scale Co");
     expect(result.reason).toContain("Product Roadmap");
   });
+
+  it("adjusts scores properly based on mandatory vs. preferred requirement segmentation and tenure floors", async () => {
+    const candidate = extractMatchCandidateLens(mockProfile, mockPersona);
+
+    // Case A: Candidate fulfills all mandatory qualifications and has preferred skills
+    const strongOpportunity = resolveJobOpportunity({
+      company: "Apex Global",
+      title: "Senior Product Manager",
+      description: `
+        Minimum Qualifications:
+        - 5+ years of experience in product management
+        - Demonstrated experience in Product Roadmap execution
+        - Proven track record of Cross-Functional Leadership
+        
+        Preferred Qualifications:
+        - Proficient in Data Analysis and metric modeling
+      `,
+      salary: "$190K - $230K",
+    });
+
+    const strongResult = await evaluateOpportunityMatch({
+      opportunity: strongOpportunity,
+      candidate,
+      mode: "HEURISTIC",
+    });
+
+    expect(strongResult.seniorityFit).toBe("ALIGNED");
+    expect(strongResult.score).toBeGreaterThanOrEqual(80);
+    expect(strongResult.matchedSkills).toContain("Product Roadmap");
+    expect(strongResult.matchedSkills).toContain("Data Analysis");
+    expect(strongResult.missingRequirements.length).toBe(0);
+
+    // Case B: Candidate inFieldYears (8) is below mandatory tenure floor (12+ years)
+    const stretchOpportunity = resolveJobOpportunity({
+      company: "Apex Global",
+      title: "Senior Product Manager",
+      description: `
+        Minimum Qualifications:
+        - 12+ years of experience in product leadership
+        - Demonstrated experience in Product Roadmap execution
+        
+        Preferred Qualifications:
+        - Proficient in Data Analysis
+      `,
+      salary: "$230K - $280K",
+    });
+
+    const stretchResult = await evaluateOpportunityMatch({
+      opportunity: stretchOpportunity,
+      candidate,
+      mode: "HEURISTIC",
+    });
+
+    expect(stretchResult.seniorityFit).toBe("REACH");
+    expect(stretchResult.score).toBeLessThan(strongResult.score);
+    expect(stretchResult.reason).toContain("career stretch");
+
+    // Case C: Missing mandatory requirements with depth modifiers penalize score
+    const gapOpportunity = resolveJobOpportunity({
+      company: "Apex Global",
+      title: "Senior Product Manager",
+      description: `
+        Minimum Qualifications:
+        - 5+ years of experience
+        - Expert in Regulatory Compliance and Audit Standards
+        - Licensed Professional Practitioner with deep understanding of Capital Budgeting
+      `,
+      salary: "$180K - $220K",
+    });
+
+    const gapResult = await evaluateOpportunityMatch({
+      opportunity: gapOpportunity,
+      candidate,
+      mode: "HEURISTIC",
+    });
+
+    expect(gapResult.missingRequirements.length).toBeGreaterThan(0);
+    expect(gapResult.score).toBeLessThan(strongResult.score);
+  });
 });

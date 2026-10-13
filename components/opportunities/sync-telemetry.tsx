@@ -182,7 +182,9 @@ export function SyncTelemetry({
     ? "Offline"
     : isSyncing
       ? syncProgressLabel
-        ? `Classifying ${syncProgressLabel} emails`
+        ? syncProgressLabel.includes("/")
+          ? `Classifying ${syncProgressLabel} emails`
+          : `Classifying email ${syncProgressLabel}`
         : pendingCount > 0
           ? `Classifying ${pendingCount} ${pendingCount === 1 ? "email" : "emails"}`
           : "Syncing inbox"

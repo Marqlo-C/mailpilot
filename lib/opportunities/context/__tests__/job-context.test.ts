@@ -58,6 +58,37 @@ describe("Job Context Domain", () => {
       expect(cleaned).not.toContain("We do not discriminate on the basis of race");
     });
 
+    it("cleans arbitrary metadata preambles and key-value headers", () => {
+      const rawWithPreamble = `
+        Job Details
+        Job ID: 492019
+        Location: Chicago, IL
+        Reports To: VP Operations
+        Category: Supply Chain & Logistics
+        Job Type: Full-time
+        Employment Status: Regular
+        
+        About the Role:
+        We are seeking a Supply Chain Manager to optimize regional inventory distribution.
+        
+        Responsibilities:
+        - Lead end-to-end warehouse logistics
+        - Coordinate freight and supplier contracts
+        
+        Qualifications:
+        - 5+ years experience in inventory or supply chain management
+        - Bachelor degree in Business, Logistics, or related discipline
+      `;
+
+      const cleaned = sanitizeJobDescription(rawWithPreamble, 4000);
+      expect(cleaned).not.toContain("Job ID: 492019");
+      expect(cleaned).not.toContain("Reports To: VP Operations");
+      expect(cleaned).not.toContain("Job Details");
+      expect(cleaned).toContain("About the Role:");
+      expect(cleaned).toContain("Supply Chain Manager");
+      expect(cleaned).toContain("Responsibilities:");
+    });
+
     it("respects length limits", () => {
       const long = "Detailed role requirement and specification. ".repeat(200);
       const cleaned = sanitizeJobDescription(long, 4000);

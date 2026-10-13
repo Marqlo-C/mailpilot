@@ -18,6 +18,7 @@ import type {
 } from "./schema.ssot";
 import { extractCleanSnippet, sanitizeJobDescription } from "./scrubber";
 import { formatDistanceToNow } from "@/lib/format-distance";
+import { normalizeSalaryDisplay, parseSalaryMax } from "@/lib/ai/classifier";
 
 /**
  * Maps raw database records or partial scraper payloads into the canonical
@@ -28,7 +29,12 @@ export function resolveJobOpportunity(
   inboundRaw?: string | null
 ): NormalizedJobOpportunity {
   const company = opportunity.company?.trim() || "Unknown Company";
-  const roleTitle = opportunity.title?.trim() || "Role";
+  const rawTitle = opportunity.title?.trim() || "Role";
+  const roleTitle =
+    rawTitle
+      .replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u00AD]/g, "")
+      .replace(/\s+/g, " ")
+      .trim() || "Role";
 
   const rawDesc = opportunity.description || inboundRaw || "";
   const scrubbedDescription = sanitizeJobDescription(rawDesc, 4000);
@@ -75,6 +81,16 @@ export function resolveJobOpportunity(
     }
   }
 
+  const normalizedSalary = opportunity.salary
+    ? normalizeSalaryDisplay(opportunity.salary)
+    : null;
+  const salaryMax =
+    typeof opportunity.salaryMax === "number"
+      ? opportunity.salaryMax
+      : normalizedSalary
+        ? parseSalaryMax(normalizedSalary)
+        : null;
+
   return {
     id: opportunity.id,
     company,
@@ -82,9 +98,8 @@ export function resolveJobOpportunity(
     logoUrl: opportunity.logoUrl ?? null,
     roleTitle,
     location: opportunity.location ?? null,
-    salary: opportunity.salary ?? null,
-    salaryMax:
-      typeof opportunity.salaryMax === "number" ? opportunity.salaryMax : null,
+    salary: normalizedSalary,
+    salaryMax,
     status: opportunity.status || "DISCOVERED",
     postedAt: formattedPostedAt,
     receivedAt: opportunity.receivedAt ?? new Date(),

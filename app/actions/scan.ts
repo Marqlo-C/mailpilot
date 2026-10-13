@@ -105,6 +105,7 @@ export async function triggerHistoricalScan(
             lastSyncedAt: new Date(),
             syncError: errorMessage,
             lastSyncProcessed: errorMessage ? null : jobsFound,
+            syncTotal: null,
           },
         });
       } catch (finalizeError) {
@@ -127,6 +128,7 @@ export type AccountSyncStatus = {
   lastSyncedAt: string | null;
   syncError: string | null;
   lastSyncProcessed: number | null;
+  syncTotal: number | null;
   pendingClassificationCount: number;
 };
 
@@ -147,6 +149,7 @@ export async function getAccountSyncStatus(
         lastSyncedAt: true,
         syncError: true,
         lastSyncProcessed: true,
+        syncTotal: true,
         updatedAt: true,
         syncHeartbeatAt: true,
       },
@@ -178,6 +181,7 @@ export async function getAccountSyncStatus(
           data: {
             isSyncing: false,
             syncError: syncErrorMessage,
+            syncTotal: null,
           },
         });
 
@@ -199,6 +203,7 @@ export async function getAccountSyncStatus(
         lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
         syncError: syncErrorMessage,
         lastSyncProcessed: account.lastSyncProcessed,
+        syncTotal: account.syncTotal ?? null,
         pendingClassificationCount,
       },
     };

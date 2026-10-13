@@ -49,7 +49,9 @@ export function GlobalSyncTracker() {
           <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
           <span className="font-medium text-foreground">
             {syncProgress
-              ? `Classifying ${syncProgress} opportunities…`
+              ? syncProgress.includes("/")
+                ? `Classifying ${syncProgress} opportunities…`
+                : `Classifying opportunity ${syncProgress}…`
               : "Scanning inbox for opportunities…"}
           </span>
           <button

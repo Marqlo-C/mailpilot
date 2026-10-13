@@ -409,7 +409,7 @@ async function callOllamaGenerateOnce(
         options: {
           temperature: options?.temperature ?? 0,
           num_ctx: options?.num_ctx ?? 8192,
-          num_predict: options?.num_predict ?? 2048,
+          num_predict: options?.num_predict ?? 4096,
         },
       }),
     });
@@ -425,6 +425,7 @@ async function callOllamaGenerateOnce(
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    let lineBuffer = "";
 
     while (true) {
       const { done, value } = await reader.read();
@@ -433,18 +434,35 @@ async function callOllamaGenerateOnce(
       chunkCount++;
       resetIdleTimer();
 
-      const text = decoder.decode(value, { stream: true });
-      const lines = text.split("\n").filter((l) => l.trim().length > 0);
+      lineBuffer += decoder.decode(value, { stream: true });
+      const lines = lineBuffer.split("\n");
+      // Keep any trailing fragment (which might be an incomplete JSON line) in lineBuffer
+      lineBuffer = lines.pop() ?? "";
 
       for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
         try {
-          const parsed = JSON.parse(line) as { response?: string; done?: boolean };
+          const parsed = JSON.parse(trimmed) as { response?: string; done?: boolean };
           if (parsed.response) {
             accumulated += parsed.response;
           }
         } catch {
           // Skip invalid stream chunks
         }
+      }
+    }
+
+    // Flush any remaining characters in the stream
+    lineBuffer += decoder.decode();
+    if (lineBuffer.trim()) {
+      try {
+        const parsed = JSON.parse(lineBuffer.trim()) as { response?: string; done?: boolean };
+        if (parsed.response) {
+          accumulated += parsed.response;
+        }
+      } catch {
+        // Skip
       }
     }
 
@@ -534,7 +552,18 @@ export function parseJsonObject(raw: string): Record<string, unknown> | null {
     // Attempt repair for unclosed braces/brackets on truncated streams
     if (firstBrace !== -1) {
       const candidate = unfenced.slice(firstBrace).trim().replace(/,\s*$/, "");
-      const closingRepairs = ["}", "]}", "}]}", "\"}", "\"}]", "\"}]}", "}\n}", "]\n}"];
+      const closingRepairs = [
+        "}",
+        "]}",
+        "}]}",
+        "\"}",
+        "\"]}",
+        "\"}]}",
+        "}\n}",
+        "]\n}",
+        "\": null}]}",
+        ": null}]}",
+      ];
       for (const repair of closingRepairs) {
         try {
           const repaired = candidate + repair;
