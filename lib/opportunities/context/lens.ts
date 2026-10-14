@@ -36,12 +36,24 @@ export function resolveJobOpportunity(
       .replace(/\s+/g, " ")
       .trim() || "Role";
 
+  const normalizedSalary = opportunity.salary
+    ? normalizeSalaryDisplay(opportunity.salary)
+    : null;
+
+  const fallbackContext = {
+    roleTitle,
+    company,
+    location: opportunity.location ?? null,
+    salary: normalizedSalary,
+  };
+
   const rawDesc = opportunity.description || inboundRaw || "";
-  const scrubbedDescription = sanitizeJobDescription(rawDesc, 4000);
+  const scrubbedDescription = sanitizeJobDescription(rawDesc, 4000, fallbackContext);
   const snippet = extractCleanSnippet(
     inboundRaw || opportunity.description || "",
     500,
-    1500
+    1500,
+    fallbackContext
   );
 
   const hasExplicitRequirements =
@@ -81,15 +93,17 @@ export function resolveJobOpportunity(
     }
   }
 
-  const normalizedSalary = opportunity.salary
-    ? normalizeSalaryDisplay(opportunity.salary)
-    : null;
   const salaryMax =
     typeof opportunity.salaryMax === "number"
       ? opportunity.salaryMax
       : normalizedSalary
         ? parseSalaryMax(normalizedSalary)
         : null;
+
+  const validApplyUrl =
+    opportunity.applyUrl && /^https?:\/\//i.test(opportunity.applyUrl.trim())
+      ? opportunity.applyUrl.trim()
+      : null;
 
   return {
     id: opportunity.id,
@@ -103,7 +117,7 @@ export function resolveJobOpportunity(
     status: opportunity.status || "DISCOVERED",
     postedAt: formattedPostedAt,
     receivedAt: opportunity.receivedAt ?? new Date(),
-    applyUrl: opportunity.applyUrl ?? null,
+    applyUrl: validApplyUrl,
     applicationType,
     classificationMethod,
     inboundSnippet: snippet,

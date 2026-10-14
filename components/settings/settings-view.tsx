@@ -173,7 +173,8 @@ export function SettingsView({
             cloudProvider={rules.cloudProvider ?? "OPENROUTER"}
             cloudModel={rules.cloudModel ?? null}
             maskedApiKey={rules.maskedApiKey ?? null}
-            maskedJinaApiKey={rules.maskedJinaApiKey ?? null}
+            maskedScrapingAntApiKey={rules.maskedScrapingAntApiKey ?? null}
+            maskedHasDataApiKey={rules.maskedHasDataApiKey ?? null}
           />
         </TabsContent>
 

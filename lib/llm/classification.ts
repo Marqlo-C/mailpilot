@@ -34,7 +34,11 @@ import {
   shouldClassifyEmail,
 } from "@/lib/ai/prefilter";
 import { getCachedOrSynthesizePersona } from "@/lib/ai/persona";
-import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
+import {
+  cleanEmailPayload,
+  extractCardApplyUrl,
+  segmentDigestBlocks,
+} from "@/lib/ai/email-cleaner";
 import { prisma } from "@/lib/prisma";
 import { parseAccountRules, type AccountRules } from "@/lib/validations/rules";
 import { callLLMWithFallback, MissingLlmKeyError } from "./dispatcher";
@@ -70,7 +74,7 @@ export const extractedJobSchema = z.object({
     z.string().nullable().optional()
   ),
   applyUrl: z.preprocess(
-    (v) => (v == null ? null : v),
+    (v) => (typeof v === "string" && /^https?:\/\//i.test(v.trim()) ? v.trim() : null),
     z.string().nullable().optional()
   ),
   applicationType: z
@@ -140,6 +144,7 @@ export type ClassifyOptions = {
   subject: string;
   body: string;
   fromEmail?: string | null;
+  fromName?: string | null;
   candidateProfile?: CandidateProfileSummary | null;
   llmProvider?: LlmProvider;
   localOllamaUrl?: string | null;
@@ -157,9 +162,79 @@ export type ClassifyOptions = {
 /**
  * @deprecated Cloud inference strictly targets user-specified model or provider default without candidate rotation.
  */
-export const DEFAULT_OPENROUTER_MODELS: string[] = [];
+/**
+ * Validates an extracted organization or employer name.
+ * Discards date patterns, timestamps, and job alert metadata prefixes.
+ */
+export function isValidEmployerName(name: string | null | undefined): boolean {
+  if (!name) return false;
+  const trimmed = name.trim();
+  if (trimmed.length < 2 || trimmed.length > 50) return false;
+  // Discard dates, timestamps, alert prefixes, saved search strings, and gender/contract markers
+  const invalidPatterns = [
+    /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\b/i,
+    /^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i,
+    /\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/,
+    /\b\d{1,2}\s*(?:st|nd|rd|th)?\s*(?:based on|saved search)/i,
+    /^(?:based on|jobs matching|new jobs|top picks|recommended|job alert)/i,
+    /\b(?:based on your saved search|saved search|most recent jobs)\b/i,
+    /^(?:today|yesterday|just posted|\d+[dhwm]\s+ago)/i,
+    /^(?:view|apply|see job|click here|full-?time|part-?time|contract|remote|hybrid|internship)/i,
+    /^(?:m\/w\/d|f\/m\/d|all genders|w\/m\/d|d\/m\/w)$/i,
+  ];
+  return !invalidPatterns.some((pattern) => pattern.test(trimmed));
+}
 
+/**
+ * Validates an extracted job role title.
+ * Discards date patterns, timestamps, saved-search banners, and generic action text.
+ */
+export function isValidRoleTitle(title: string | null | undefined): boolean {
+  if (!title) return false;
+  const trimmed = title.trim();
+  if (trimmed.length < 2 || trimmed.length > 80) return false;
 
+  const noSpace = trimmed.replace(/\s+/g, "").toLowerCase();
+  if (
+    noSpace.includes("basedonyour") ||
+    noSpace.includes("savedsearch") ||
+    noSpace.includes("mostrelevantjobs") ||
+    noSpace.includes("toppicksforyou") ||
+    noSpace.includes("jobalert")
+  ) {
+    return false;
+  }
+
+  const invalidPatterns = [
+    /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s*\d{0,2}\s*(?:st|nd|rd|th)?\s*(?:based\s*on|saved\s*search)/i,
+    /\b\d{1,2}\s*(?:st|nd|rd|th)?\s*(?:based\s*on|saved\s*search)/i,
+    /\b(?:based\s+on\s+your\s+saved\s+search|saved\s+search|most\s+recent\s+jobs|jobs\s+matching\s+your\s+search)\b/i,
+    /^(?:job\s+alert|new\s+jobs?\s+for\s+you|top\s+picks|recommended\s+jobs?|jobs?\s+tailored)[:\s-]*$/i,
+    /^(?:view\s+job|see\s+job|apply\s+now|click\s+here|view\s+details|full-?time|part-?time|contract|remote|hybrid)$/i,
+  ];
+
+  return !invalidPatterns.some((pattern) => pattern.test(trimmed));
+}
+
+/**
+ * Strips aggregator alert preambles and date headers from a role title.
+ * e.g., "Job alert: Software Engineer" -> "Software Engineer"
+ * e.g., "October 13 - Senior Accountant" -> "Senior Accountant"
+ */
+export function sanitizeRoleTitle(title: string | null | undefined): string {
+  if (!title) return "Role";
+  let cleaned = title
+    .replace(/^[A-Za-z]+\s+\d{1,2}\s*[-–|:]\s*/i, "")
+    .replace(/^job\s+alert[:\s-]*/i, "")
+    .replace(/^(?:new\s+)?jobs?\s+(?:matching|for\s+you|tailored\s+for\s+you)[:\s-]*/i, "")
+    .replace(/_[a-zA-Z]{3}\d{1,2}$/i, "")
+    .trim();
+
+  if (!isValidRoleTitle(cleaned)) {
+    return "Role";
+  }
+  return cleaned;
+}
 
 /**
  * Loads a compact candidate summary from the account's UserProfile (resume data),
@@ -313,6 +388,7 @@ export function normalizeClassification(
   context: {
     subject: string;
     fromEmail?: string | null;
+    fromName?: string | null;
     emailBody?: string;
     candidateProfile?: CandidateProfileSummary | null;
     routingLines?: string[];
@@ -398,29 +474,209 @@ export function normalizeClassification(
     ...(context.emailBody?.matchAll(/\[([^\]]*)\]\((https?:[^)\s]+)\)/gi) ?? []),
   ].map((m) => m[2]);
 
+  const digestBlocks = segmentDigestBlocks(context.emailBody || "");
+
+  // Universal Sender Metadata Extraction for De-biasing
+  let senderDisplayName: string | null = context.fromName?.trim().toLowerCase() || null;
+  let senderDomainStem: string | null = null;
+  if (context.fromEmail) {
+    const angleMatch = context.fromEmail.match(/^(.*?)\s*<([^>]+)>\s*$/);
+    const rawEmail = angleMatch ? angleMatch[2] : context.fromEmail;
+    if (!senderDisplayName && angleMatch && angleMatch[1]) {
+      const cleanedName = angleMatch[1].trim().replace(/^["']|["']$/g, "").trim().toLowerCase();
+      if (cleanedName) {
+        senderDisplayName = cleanedName;
+      }
+    }
+    const atIdx = rawEmail.indexOf("@");
+    if (atIdx >= 0) {
+      const fullDomain = rawEmail.slice(atIdx + 1).toLowerCase().trim().replace(/:\d+$/, "");
+      const parts = fullDomain.split(".");
+      if (parts.length >= 2) {
+        if (parts.length >= 3 && parts[parts.length - 1].length <= 3 && parts[parts.length - 2].length <= 3) {
+          senderDomainStem = parts[parts.length - 3];
+        } else {
+          senderDomainStem = parts[parts.length - 2];
+        }
+      }
+    }
+  }
+
+  const isLocationOrSalaryCandidate = (line: string): boolean => {
+    const trimmed = line.trim();
+    if (
+      /^(?:remote|hybrid|onsite|on-site|wfh|work\s+from\s+home|telecommute|relocation)/i.test(trimmed) ||
+      /,\s*[A-Z]{2}(?:\s+\d{5})?$/i.test(trimmed) ||
+      /,\s*(?:usa|united\s+states|uk|canada|germany|france|australia)\b/i.test(trimmed) ||
+      /[\$€£¥]|\b\d+k\b|\b(?:hourly|annual|salary|per\s+hour|per\s+year|\/hr|\/yr)\b/i.test(trimmed)
+    ) {
+      return true;
+    }
+    const extracted = extractLocationFromText(trimmed);
+    return Boolean(extracted.state || (extracted.city && extracted.state) || extracted.isRemote);
+  };
+
   jobs = jobs.slice(0, 15).map((job, index) => {
-    // Aggregator De-biasing
+    // 0. Role Title Sanitation & Pre-recovery
+    let resolvedTitle = sanitizeRoleTitle(job.title);
+
+    // If title was an alert banner (e.g. "OCTOBER 13BASED ON YOUR SAVED SEARCHMOST") and evaluated to "Role",
+    // attempt recovery from cardBlock anchor text or card lines
+    if (resolvedTitle === "Role" && digestBlocks.length > 0) {
+      const cardBlock =
+        (index < digestBlocks.length ? digestBlocks[index] : null) ||
+        digestBlocks.find((b) => {
+          const lower = b.toLowerCase();
+          return Boolean(
+            job.description && lower.includes(job.description.slice(0, 30).toLowerCase())
+          );
+        }) || "";
+
+      if (cardBlock) {
+        // Look for markdown anchor in card: [Role Title](url)
+        const anchorMatch = cardBlock.match(/\[([A-Z0-9][^\]\n]{2,60})\]\((?:https?:[^\)]+)\)/i);
+        if (
+          anchorMatch &&
+          anchorMatch[1] &&
+          isValidRoleTitle(anchorMatch[1]) &&
+          !/^(?:view|apply|see job|click|more|details|read)/i.test(anchorMatch[1]) &&
+          (!job.company || anchorMatch[1].toLowerCase() !== job.company.toLowerCase())
+        ) {
+          resolvedTitle = anchorMatch[1].trim();
+        }
+
+        // If still "Role", examine non-empty lines in the card block
+        if (resolvedTitle === "Role") {
+          const lines = cardBlock.split("\n").map((l) => l.trim()).filter(Boolean);
+          for (const line of lines) {
+            const strippedLine = line.replace(/^[#*•\-\s]+/, "").trim();
+            if (
+              isValidRoleTitle(strippedLine) &&
+              strippedLine.length >= 3 &&
+              strippedLine.length <= 60 &&
+              !isLocationOrSalaryCandidate(strippedLine) &&
+              !isValidEmployerName(strippedLine) &&
+              !/^(?:view|apply|see job|click|more|details|read|http)/i.test(strippedLine)
+            ) {
+              resolvedTitle = strippedLine;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Safe Employer De-Biasing Gate: NEVER de-bias on DIRECT_RECRUITER emails
     let resolvedCompany = job.company;
-    const isAggregatorCompany = JOB_BOARD_KEYWORDS.some((kw) => {
-      const c = (job.company || "").toLowerCase().trim();
+    if (!isValidEmployerName(resolvedCompany)) {
+      resolvedCompany = "Unknown Company";
+    }
+    const c = (resolvedCompany || "").toLowerCase().trim();
+
+    const matchesSenderStem = Boolean(
+      senderDomainStem &&
+        (c === senderDomainStem ||
+          c.startsWith(`${senderDomainStem} `) ||
+          c.includes(`${senderDomainStem} job`))
+    );
+    const matchesSenderDisplay = Boolean(
+      senderDisplayName &&
+        (c === senderDisplayName ||
+          senderDisplayName.includes(c) ||
+          c.includes(senderDisplayName))
+    );
+    const isAggregatorKeyword = JOB_BOARD_KEYWORDS.some((kw) => {
       return c === kw || c.startsWith(`${kw} `) || c.includes(`${kw} job`);
     });
 
-    if (isAggregatorCompany) {
-      const employerMatch =
-        job.title?.match(/(?:at|@)\s+([A-Z0-9][A-Za-z0-9&.,' -]{1,40})/i) ||
-        job.description?.match(/([A-Z0-9][A-Za-z0-9&.,' -]{1,40})\s+(?:is|are)\s+hiring/i) ||
-        job.description?.match(/(?:at|@)\s+([A-Z0-9][A-Za-z0-9&.,' -]{1,40})/i);
+    const isSenderOrAggregator =
+      resolvedCompany === "Unknown Company" ||
+      matchesSenderStem ||
+      matchesSenderDisplay ||
+      isAggregatorKeyword;
 
-      if (employerMatch?.[1]) {
-        const candidateEmployer = employerMatch[1].trim();
-        const candidateIsAggregator = JOB_BOARD_KEYWORDS.some((kw) =>
-          candidateEmployer.toLowerCase().includes(kw)
+    // Only de-bias in digests (or multi-card emails) when matching sender/aggregator, NEVER on DIRECT_RECRUITER
+    if (emailCategory !== "DIRECT_RECRUITER" && isSenderOrAggregator) {
+      // 1. Positive structural proof in title: [Role] at/for/with [Company] or [Role] ([Company])
+      const titleMatch =
+        resolvedTitle?.match(/(?:at|for|with|@)\s+([A-Z0-9][A-Za-z0-9&.' -]{1,35}?)(?=\s+(?:in|on|at|via|near|located|\$|\d|full-?time|part-?time|contract|remote|hybrid|just|\b[A-Z]{2}\b)|[,\n\r(]|$)/i) ||
+        resolvedTitle?.match(/\(([A-Z0-9][A-Za-z0-9&.' -]{1,35}?)\)/i) ||
+        resolvedTitle?.match(/[-–|]\s*([A-Z0-9][A-Za-z0-9&.' -]{1,35})$/i);
+
+      // 2. Check the raw card block text for distinct sub-headers or external client
+      const cardBlock =
+        digestBlocks.find((b) => {
+          const lower = b.toLowerCase();
+          return (
+            (job.title && lower.includes(job.title.toLowerCase().slice(0, 30))) ||
+            (job.description && lower.includes(job.description.slice(0, 30).toLowerCase()))
+          );
+        }) || digestBlocks[Math.min(index, digestBlocks.length - 1)] || "";
+
+      let blockEmployer: string | null = null;
+      if (cardBlock) {
+        const blockLines = cardBlock.split("\n").map((l) => l.trim()).filter(Boolean);
+        const titleIdx = blockLines.findIndex((l) =>
+          job.title && l.toLowerCase().includes(job.title.toLowerCase().slice(0, 25))
         );
-        if (!candidateIsAggregator) {
-          resolvedCompany = candidateEmployer;
+        if (titleIdx >= 0 && titleIdx + 1 < blockLines.length) {
+          const nextLine = blockLines[titleIdx + 1];
+          if (
+            isValidEmployerName(nextLine) &&
+            !isLocationOrSalaryCandidate(nextLine) &&
+            !/^(?:remote|hybrid|onsite|\$|€|£|\d+|view|apply|full-?time|part-?time|contract)/i.test(nextLine) &&
+            !nextLine.includes("http") &&
+            !nextLine.includes(":") &&
+            !nextLine.includes(".")
+          ) {
+            blockEmployer = nextLine;
+          }
+        }
+        if (!blockEmployer) {
+          const blockMatch =
+            cardBlock.match(/(?:at|for|with|@)\s+([A-Z0-9][A-Za-z0-9&.' -]{1,35}?)(?=\s+(?:in|on|at|via|near|located|\$|\d|full-?time|part-?time|contract|remote|hybrid|just|\b[A-Z]{2}\b)|[,\n\r(]|$)/i) ||
+            cardBlock.match(/\(([A-Z0-9][A-Za-z0-9&.' -]{1,35}?)\)/i) ||
+            cardBlock.match(/([A-Z0-9][A-Za-z0-9&.' -]{1,35})\s+(?:is|are)\s+hiring/i) ||
+            cardBlock.match(/(?:employer|company|client):\s*([A-Z0-9][A-Za-z0-9&.' -]{1,35})/i);
+          if (blockMatch?.[1] && isValidEmployerName(blockMatch[1])) {
+            blockEmployer = blockMatch[1].trim();
+          }
         }
       }
+
+      // 3. First sentence / description check
+      const firstSentence = (job.description || "").split(/(?<=[.!?])\s+|\n+/)[0] || "";
+      const descMatch =
+        firstSentence.match(/(?:at|for|with|@)\s+([A-Z0-9][A-Za-z0-9&.' -]{1,35}?)(?=\s+(?:in|on|at|via|near|located|\$|\d|full-?time|part-?time|contract|remote|hybrid|just|\b[A-Z]{2}\b)|[,\n\r(]|$)/i) ||
+        firstSentence.match(/\(([A-Z0-9][A-Za-z0-9&.' -]{1,35}?)\)/i) ||
+        job.description?.match(/([A-Z0-9][A-Za-z0-9&.' -]{1,35})\s+(?:is|are)\s+hiring/i);
+
+      let candidateEmployer: string | null = null;
+      if (titleMatch?.[1] && isValidEmployerName(titleMatch[1])) {
+        candidateEmployer = titleMatch[1];
+      } else if (blockEmployer && isValidEmployerName(blockEmployer)) {
+        candidateEmployer = blockEmployer;
+      } else if (descMatch?.[1] && isValidEmployerName(descMatch[1])) {
+        candidateEmployer = descMatch[1];
+      }
+
+      if (candidateEmployer) {
+        const candidateTrimmed = candidateEmployer.trim();
+        const candidateLower = candidateTrimmed.toLowerCase();
+        const candidateIsSender =
+          (senderDomainStem && (candidateLower === senderDomainStem || candidateLower.includes(senderDomainStem))) ||
+          (senderDisplayName && (candidateLower === senderDisplayName || candidateLower.includes(senderDisplayName))) ||
+          JOB_BOARD_KEYWORDS.some((kw) => candidateLower === kw || candidateLower.includes(kw));
+
+        if (
+          !candidateIsSender &&
+          isValidEmployerName(candidateTrimmed) &&
+          !isLocationOrSalaryCandidate(candidateTrimmed)
+        ) {
+          resolvedCompany = candidateTrimmed;
+        }
+      }
+      // If no external company is mentioned in the entire card block, retain company as-is (protecting internal hiring digests).
     }
 
     // Location Fallback
@@ -462,17 +718,38 @@ export function normalizeClassification(
     }
 
     let applyUrl = (job.applyUrl ?? "").trim() || null;
-    if (applyUrl && /unsubscribe|mailto:|privacy|preferences/i.test(applyUrl)) {
+    if (applyUrl && (!/^https?:\/\//i.test(applyUrl) || /unsubscribe|mailto:|privacy|preferences|opt-?out/i.test(applyUrl))) {
       applyUrl = null;
     }
-    // Recover aggregator apply links from preserved markdown when LLM omitted them.
-    if (!applyUrl && bodyMarkdownUrls.length > 0) {
-      const candidate =
-        bodyMarkdownUrls[Math.min(index, bodyMarkdownUrls.length - 1)] ?? null;
-      if (candidate && !/unsubscribe|privacy|preferences/i.test(candidate)) {
+    // In multi-card digests, anchor apply URL ONLY if a card block positively matches title or index
+    if (!applyUrl && digestBlocks.length > 0) {
+      const cardBlock =
+        (index < digestBlocks.length ? digestBlocks[index] : null) ||
+        digestBlocks.find((b) => {
+          const lower = b.toLowerCase();
+          return Boolean(
+            (resolvedTitle && resolvedTitle !== "Role" && lower.includes(resolvedTitle.toLowerCase().slice(0, 30))) ||
+            (job.description && lower.includes(job.description.slice(0, 30).toLowerCase()))
+          );
+        });
+
+      if (cardBlock) {
+        const candidate = extractCardApplyUrl(cardBlock);
+        if (candidate && /^https?:\/\//i.test(candidate)) {
+          applyUrl = candidate;
+        }
+      }
+    }
+
+    // Recover apply link only for single-job emails with exactly 1 candidate URL
+    if (!applyUrl && jobs.length === 1 && bodyMarkdownUrls.length === 1) {
+      const candidate = bodyMarkdownUrls[0];
+      if (candidate && /^https?:\/\//i.test(candidate) && !/unsubscribe|privacy|preferences|opt-?out/i.test(candidate)) {
         applyUrl = candidate;
       }
     }
+
+    const validApplyUrl = applyUrl && /^https?:\/\//i.test(applyUrl) ? applyUrl : null;
 
     // Direct emails with a valid contact must ALWAYS resolve to DIRECT_EMAIL
     let resolvedType: "DIRECT_EMAIL" | "EXTERNAL_LINK" | "QUICK_APPLY" =
@@ -482,7 +759,7 @@ export function normalizeClassification(
       resolvedType = "DIRECT_EMAIL";
     } else {
       resolvedType = resolveApplicationType({
-        applyUrl,
+        applyUrl: validApplyUrl,
         recipientEmail: null,
       });
       recipientEmail = null;
@@ -546,14 +823,21 @@ export function normalizeClassification(
     }
 
     const rawDescription = job.description ?? null;
-    const description = cleanOpportunityDescription(rawDescription);
+    let description = cleanOpportunityDescription(rawDescription);
+    if (!description || description.length < 40 || /^job alert/i.test(description)) {
+      description =
+        resolvedCompany && resolvedCompany !== "Unknown Company"
+          ? `Opportunity for ${resolvedTitle} at ${resolvedCompany}.${resolvedLocation ? ` Located in ${resolvedLocation}.` : ""}${normalizedSalary ? ` Compensated at ${normalizedSalary}.` : ""}`
+          : `Opportunity for ${resolvedTitle}.${resolvedLocation ? ` Located in ${resolvedLocation}.` : ""}${normalizedSalary ? ` Compensated at ${normalizedSalary}.` : ""}`;
+    }
     const isAlreadyApplied =
       Boolean(job.isAlreadyApplied) ||
-      detectAlreadyApplied(rawDescription, job.title) ||
+      detectAlreadyApplied(rawDescription, resolvedTitle) ||
       (emailCategory === "APPLICATION_STATUS" && raw.status === "APPLIED");
 
     return {
       ...job,
+      title: resolvedTitle,
       company: resolvedCompany,
       companyDomain,
       location: resolvedLocation,
@@ -562,7 +846,7 @@ export function normalizeClassification(
       postedAt: normalizedPostedAt,
       description,
       recipientEmail,
-      applyUrl,
+      applyUrl: validApplyUrl,
       applicationType: resolvedType,
       isAlreadyApplied,
       matchScore,
@@ -829,6 +1113,7 @@ export async function classifyJobEmail(
     return normalizeClassification(parsed, {
       subject: options.subject,
       fromEmail: options.fromEmail,
+      fromName: options.fromName,
       emailBody: sanitizedBody,
       candidateProfile: options.candidateProfile,
       routingLines: capturedRoutingLines,

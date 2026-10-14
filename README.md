@@ -102,6 +102,11 @@ Prevents pipeline card duplication across rescans and multi-job digests:
 * **Tier 2 (Cross-Email Entity Match):** Matches across different emails by checking `Company + Role Title + Location` compatibility. Attaches to and updates the active card.
 * **Tier 3 (Deterministic Insert):** Executes `prisma.jobOpportunity.create` only when Tier 1 and Tier 2 yield no existing record.
 
+### 4. LinkParser & Enrichment Architecture (`lib/opportunities/context/`)
+Guarantees fast, cost-effective context enrichment with strict credit boundaries:
+* **Background Sync Pacing (Zero Credit Waste):** During automated inbox sync passes, Glassdoor and Indeed links fast-exit immediately in 0ms without external proxy calls, persisting as `MINIMAL_LEAD` records. LinkedIn postings resolve via a fast 2-tier unauthenticated path (public guest API endpoint with Googlebot Schema.org JSON-LD fallback), while direct ATS links use standard fetch or 1-credit ScrapingAnt proxy failover.
+* **On-Demand Hydration (HasData BYOK):** Full job specifications for Glassdoor and Indeed are hydrated strictly on-demand when the user clicks to tailor a resume or hydrate a spec. The system calls `fetchViaHasData` using the customer's encrypted BYOK key, upgrading the listing from `MINIMAL_LEAD` to `RICH_SPEC` in PostgreSQL before generating tailored resume drafts.
+
 ## Tech Stack
 
 - **Framework:** Next.js 15 (App Router), React 19, TypeScript

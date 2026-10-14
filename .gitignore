@@ -29,6 +29,8 @@ AGENTS.md
 SPEC.md
 switch-ollama.sh
 .pc_ollama_cache
+.scraper-failures.json
+.glassdoor-hasdata-sample.*
 
 # Debug
 npm-debug.log*

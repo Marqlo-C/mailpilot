@@ -96,3 +96,57 @@ describe("Promotional & Marketing Email Pre-filter", () => {
     }
   });
 });
+
+describe("cleanEmailPayload Anchor Pre-filtering", () => {
+  it("preserves authentic apply links while discarding non-job navigational anchor targets", async () => {
+    const { cleanEmailPayload } = await import("../email-cleaner");
+
+    const html = `
+      <div>
+        <h1>Senior Data Scientist</h1>
+        <p>Apply for this role here: <a href="https://careers.example.com/apply/12345">Apply Now</a></p>
+        <p>To view our statement: <a href="https://example.com/privacy-policy">Privacy Policy</a></p>
+        <p>To stop receiving alerts: <a href="https://example.com/unsubscribe?token=abc">Unsubscribe</a></p>
+        <p>Manage account: <a href="https://example.com/settings/manage-preferences">Preferences</a></p>
+        <p>Opt out: <a href="https://example.com/opt-out">Opt Out of Communications</a></p>
+      </div>
+    `;
+
+    const cleaned = cleanEmailPayload(html);
+    expect(cleaned).toContain("[Apply Now](https://careers.example.com/apply/12345)");
+    expect(cleaned).not.toContain("https://example.com/privacy-policy");
+    expect(cleaned).not.toContain("https://example.com/unsubscribe");
+    expect(cleaned).not.toContain("https://example.com/settings/manage-preferences");
+    expect(cleaned).not.toContain("https://example.com/opt-out");
+    expect(cleaned).toContain("Privacy Policy");
+    expect(cleaned).toContain("Unsubscribe");
+    expect(cleaned).toContain("Preferences");
+    expect(cleaned).toContain("Opt Out of Communications");
+  });
+
+  it("pre-segments multi-job digest action blocks and extracts anchored URLs", async () => {
+    const { segmentDigestBlocks, extractCardApplyUrl } = await import(
+      "../email-cleaner"
+    );
+
+    const digestText = `
+      Software Engineer
+      Stripe
+      San Francisco, CA
+      [View this role](https://jobs.lever.co/stripe/111)
+
+      Product Manager
+      Datadog
+      New York, NY
+      [Apply now](https://boards.greenhouse.io/datadog/222)
+    `;
+
+    const blocks = segmentDigestBlocks(digestText);
+    expect(blocks.length).toBe(2);
+    expect(blocks[0]).toContain("Software Engineer");
+    expect(extractCardApplyUrl(blocks[0])).toBe("https://jobs.lever.co/stripe/111");
+
+    expect(blocks[1]).toContain("Product Manager");
+    expect(extractCardApplyUrl(blocks[1])).toBe("https://boards.greenhouse.io/datadog/222");
+  });
+});

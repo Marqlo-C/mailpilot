@@ -284,6 +284,11 @@ export function OpportunityCard({
       </span>
     ) : null;
 
+  const validApplyUrl =
+    opportunity.applyUrl && /^https?:\/\//i.test(opportunity.applyUrl.trim())
+      ? opportunity.applyUrl.trim()
+      : null;
+
   return (
     <article
       {...itemRest}
@@ -371,7 +376,11 @@ export function OpportunityCard({
         <CompanyLogo
           src={
             opportunity.logoUrl ||
-            getCompanyLogoUrl(opportunity.company, opportunity.companyDomain)
+            getCompanyLogoUrl(
+              opportunity.company,
+              opportunity.companyDomain,
+              opportunity.applyUrl
+            )
           }
           name={opportunity.company}
           size="lg"
@@ -483,138 +492,138 @@ export function OpportunityCard({
 
       {/* 5. Pinned bottom action bar — secondary · primary · ⋮ */}
       <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/[0.12] py-3 pl-4 pr-1 sm:pl-5">
-        <div className="flex min-w-0 items-center">
-          {variant === "history" && dismissed ? (
-            <span className="inline-flex items-center gap-1 px-1 text-[11px] text-muted-foreground">
-              <Clock className="h-3 w-3" />
-              {daysLeft}d left
-            </span>
-          ) : null}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {/* Secondary (left of primary) */}
-          {variant === "leads" ? (
-            <button
-              type="button"
-              disabled={actionsLocked}
-              onClick={onMarkApplied}
-              className={secondaryBtnClass}
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>Mark Applied</span>
-            </button>
-          ) : null}
-
-          {variant === "action" && canEmail ? (
-            <button
-              type="button"
-              disabled={actionsLocked}
-              onClick={onReviewDraft}
-              className={secondaryBtnClass}
-            >
-              <Mail className="h-3.5 w-3.5" />
-              <span>Review Draft</span>
-            </button>
-          ) : null}
-
-          {variant === "history" && opportunity.applyUrl ? (
-            actionsLocked ? (
-              <span className={secondaryBtnClass} aria-disabled>
-                <span>View Posting</span>
-                <ExternalLink className="h-3.5 w-3.5" />
-              </span>
-            ) : (
-              <a
-                href={opportunity.applyUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={secondaryBtnClass}
-              >
-                <span>View Posting</span>
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            )
-          ) : null}
-
-          {/* Primary (just left of ⋮) */}
-          {variant === "leads" ? (
-            canEmail ? (
-              <button
-                type="button"
-                disabled={actionsLocked}
-                onClick={onReviewDraft}
-                className={primaryBtnClass}
-              >
-                <Mail className="h-3.5 w-3.5" />
-                <span>Draft Reply</span>
-              </button>
-            ) : opportunity.applyUrl ? (
-              actionsLocked ? (
-                <span className={primaryBtnClass} aria-disabled>
-                  <span>View Posting</span>
-                  <ExternalLink className="h-3.5 w-3.5" />
+            <div className="flex min-w-0 items-center">
+              {variant === "history" && dismissed ? (
+                <span className="inline-flex items-center gap-1 px-1 text-[11px] text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  {daysLeft}d left
                 </span>
-              ) : (
-                <a
-                  href={opportunity.applyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {/* Secondary (left of primary) */}
+              {variant === "leads" ? (
+                <button
+                  type="button"
+                  disabled={actionsLocked}
+                  onClick={onMarkApplied}
+                  className={secondaryBtnClass}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>Mark Applied</span>
+                </button>
+              ) : null}
+
+              {variant === "action" && canEmail ? (
+                <button
+                  type="button"
+                  disabled={actionsLocked}
+                  onClick={onReviewDraft}
+                  className={secondaryBtnClass}
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  <span>Review Draft</span>
+                </button>
+              ) : null}
+
+              {variant === "history" && validApplyUrl ? (
+                actionsLocked ? (
+                  <span className={secondaryBtnClass} aria-disabled>
+                    <span>View Posting</span>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </span>
+                ) : (
+                  <a
+                    href={validApplyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={secondaryBtnClass}
+                  >
+                    <span>View Posting</span>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )
+              ) : null}
+
+              {/* Primary (just left of ⋮) */}
+              {variant === "leads" ? (
+                canEmail ? (
+                  <button
+                    type="button"
+                    disabled={actionsLocked}
+                    onClick={onReviewDraft}
+                    className={primaryBtnClass}
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                    <span>Draft Reply</span>
+                  </button>
+                ) : validApplyUrl ? (
+                  actionsLocked ? (
+                    <span className={primaryBtnClass} aria-disabled>
+                      <span>View Posting</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </span>
+                  ) : (
+                    <a
+                      href={validApplyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={primaryBtnClass}
+                    >
+                      <span>View Posting</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )
+                ) : (
+                  <span className="inline-flex items-center rounded-lg border border-border/40 bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground/60">
+                    No link detected
+                  </span>
+                )
+              ) : null}
+
+              {variant === "applied" ? (
+                <button
+                  type="button"
+                  disabled={actionsLocked}
+                  onClick={onUnmarkApplied}
                   className={primaryBtnClass}
                 >
-                  <span>View Posting</span>
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              )
-            ) : (
-              <span className="inline-flex items-center rounded-lg border border-border/40 bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground/60">
-                No link detected
-              </span>
-            )
-          ) : null}
+                  <Undo2 className="h-3.5 w-3.5" />
+                  <span>Mark Unapplied</span>
+                </button>
+              ) : null}
 
-          {variant === "applied" ? (
-            <button
-              type="button"
-              disabled={actionsLocked}
-              onClick={onUnmarkApplied}
-              className={primaryBtnClass}
-            >
-              <Undo2 className="h-3.5 w-3.5" />
-              <span>Mark Unapplied</span>
-            </button>
-          ) : null}
-
-          {variant === "action" ? (
-            canEmail ? (
-              <button
-                type="button"
-                disabled={actionsLocked}
-                onClick={onSendNow}
-                className={primaryBtnClass}
-              >
-                <Send className="h-3.5 w-3.5" />
-                <span>Send</span>
-              </button>
-            ) : opportunity.applyUrl ? (
-              actionsLocked ? (
-                <span className={primaryBtnClass} aria-disabled>
-                  <span>View Posting</span>
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </span>
-              ) : (
-                <a
-                  href={opportunity.applyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={primaryBtnClass}
-                >
-                  <span>View Posting</span>
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              )
-            ) : null
-          ) : null}
+              {variant === "action" ? (
+                canEmail ? (
+                  <button
+                    type="button"
+                    disabled={actionsLocked}
+                    onClick={onSendNow}
+                    className={primaryBtnClass}
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    <span>Send</span>
+                  </button>
+                ) : validApplyUrl ? (
+                  actionsLocked ? (
+                    <span className={primaryBtnClass} aria-disabled>
+                      <span>View Posting</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </span>
+                  ) : (
+                    <a
+                      href={validApplyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={primaryBtnClass}
+                    >
+                      <span>View Posting</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )
+                ) : null
+              ) : null}
 
           {variant === "history" ? (
             <button
@@ -671,10 +680,10 @@ export function OpportunityCard({
                   </DropdownMenuItem>
                 ) : null}
                 {(variant === "applied" || variant === "action") &&
-                opportunity.applyUrl ? (
+                validApplyUrl ? (
                   <DropdownMenuItem asChild disabled={actionsLocked}>
                     <a
-                      href={opportunity.applyUrl}
+                      href={validApplyUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
