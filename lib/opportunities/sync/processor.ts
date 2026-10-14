@@ -8,17 +8,26 @@ import {
   shouldClassifyEmail,
   type LlmProvider,
 } from "@/lib/llm";
-import type { JobClassification } from "@/lib/llm/classification";
-import type { CandidateProfileSummary } from "@/lib/ai/classifier";
+import {
+  type JobClassification,
+  isValidEmployerName,
+  isValidRoleTitle,
+  sanitizeRoleTitle,
+} from "@/lib/llm/classification";
+import {
+  normalizeSalaryDisplay,
+  type CandidateProfileSummary,
+} from "@/lib/ai/classifier";
 import { logCompactSyncCard, logStory, syncLog } from "@/lib/logging";
 import {
+  buildSynthesizedJobOverview,
   extractCleanSnippet,
+  sanitizeJobDescription,
   scrapeJobPostingJsonLd,
   unwrapTrackingUrl,
 } from "@/lib/opportunities/context";
 import { JOB_BOARD_KEYWORDS } from "@/lib/constants/job-sources";
 import { prisma } from "@/lib/prisma";
-import { decryptToken } from "@/lib/crypto";
 import { parseFromHeader, type ClassifiableAccount } from "@/lib/sync";
 import type { parseAccountRules } from "@/lib/validations/rules";
 import { withRateLimitRetry } from "./candidates";
@@ -192,6 +201,7 @@ export async function processSyncMessage(
         subject,
         body: cleanedText,
         fromEmail: sender?.email ?? null,
+        fromName: sender?.name ?? null,
         candidateProfile,
         allowCloudFallback: rules.allowCloudFallback,
         accountId: account.id,
@@ -286,12 +296,18 @@ export async function processSyncMessage(
           fromName: sender?.name ?? null,
           emailCategory: "PENDING_AI",
           emailDate,
-          snippet: extractCleanSnippet(cleanedText, 500, 1500),
+          snippet: extractCleanSnippet(cleanedText, 500, 1500, {
+            roleTitle: subject,
+            company: sender?.name ?? undefined,
+          }),
           rawBody: null,
         },
         update: {
           emailCategory: "PENDING_AI",
-          snippet: extractCleanSnippet(cleanedText, 500, 1500),
+          snippet: extractCleanSnippet(cleanedText, 500, 1500, {
+            roleTitle: subject,
+            company: sender?.name ?? undefined,
+          }),
           rawBody: null,
         },
       });
@@ -333,11 +349,59 @@ export async function processSyncMessage(
     ? new Date(Number(message.internalDate))
     : new Date();
 
-  // Unpack tracking redirects and normalize URLs for all jobs in classification
+  // Root level aggregator debiasing (Prevents StudySmarter/Vaia bleed)
+  if (/studysmarter|vaia|jobleads/i.test(classification.company_name || "")) {
+    classification.company_name = "Unknown Company";
+  }
+
   for (const job of classification.jobs) {
+    // 1. Validate and unwrap URLs (Fixes Localhost 404s)
     if (job.applyUrl) {
-      job.applyUrl = unwrapTrackingUrl(job.applyUrl);
+      const unwrapped = unwrapTrackingUrl(job.applyUrl);
+      job.applyUrl = unwrapped && /^https?:\/\//i.test(unwrapped) ? unwrapped : null;
     }
+
+    // 2. JobLeads & Aggregator Garbage Scrubbing
+    const companyNoSpace = (job.company || "").replace(/\s+/g, "").toLowerCase();
+    if (
+      companyNoSpace.includes("basedonyour") ||
+      companyNoSpace.includes("savedsearch") ||
+      companyNoSpace.includes("jobalert") ||
+      companyNoSpace.includes("toppicks")
+    ) {
+      job.company = sender?.name || "JobLeads";
+    }
+
+    if (job.title) {
+      job.title = sanitizeRoleTitle(job.title);
+    }
+
+    // 3. StudySmarter / Vaia Aggregator De-biasing
+    if (/studysmarter|vaia/i.test(job.company || "")) {
+      const match = job.title?.match(/\(([^)]+)\)$/);
+      if (match && match[1] && !/m\/f\/d|remote|hybrid|part.?time|full.?time/i.test(match[1])) {
+        job.company = match[1].trim();
+        job.title = job.title!.replace(/\([^)]+\)$/, "").trim();
+      } else {
+        job.company = sender?.name || "StudySmarter";
+      }
+    }
+
+    if (job.salary) {
+      job.salary = normalizeSalaryDisplay(job.salary);
+    }
+
+    // 4. Pre-scrub descriptions BEFORE database persistence
+    const fallbackContext = {
+      roleTitle: job.title,
+      company: job.company,
+      location: job.location,
+      salary: job.salary,
+    };
+    const scrubbed = sanitizeJobDescription(job.description || "", 4000, fallbackContext);
+    
+    // Force DB to hold the clean synthesized string if it was just an alert banner
+    job.description = scrubbed || buildSynthesizedJobOverview(fallbackContext);
   }
 
   // Link Parser Enrichment: hydrate thin jobs (< 300 chars) via public JSON-LD in parallel pools
@@ -347,66 +411,127 @@ export async function processSyncMessage(
       Boolean(job.applyUrl && /^https?:\/\//i.test(job.applyUrl))
   );
 
+  const enrichedUrls = new Set<string>();
+
   if (thinJobs.length > 0) {
-    let jinaApiKey: string | null = null;
-    if (rules.encryptedJinaApiKey) {
-      try {
-        jinaApiKey = decryptToken(rules.encryptedJinaApiKey).trim() || null;
-      } catch {
-        jinaApiKey = null;
+    for (let i = 0; i < thinJobs.length; i++) {
+      const job = thinJobs[i];
+
+      // In multi-card digests, if multiple jobs share the exact same applyUrl,
+      // skip enriching subsequent jobs with that same URL so Card 1's scraped
+      // company/description doesn't bleed into Cards 2..N.
+      if (enrichedUrls.has(job.applyUrl!)) {
+        continue;
       }
-    }
+      enrichedUrls.add(job.applyUrl!);
 
-    const CONCURRENCY = 5;
-    for (let i = 0; i < thinJobs.length; i += CONCURRENCY) {
-      const batch = thinJobs.slice(i, i + CONCURRENCY);
-      await Promise.allSettled(
-        batch.map(async (job) => {
-          try {
-            const { data: enriched, telemetry } = await scrapeJobPostingJsonLd(
-              job.applyUrl!,
-              2500,
-              jinaApiKey
-            );
+      if (i > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
 
-            console.log(`  ├─ LinkParser: ${telemetry}`);
+      try {
+        const { data: enriched, telemetry } = await scrapeJobPostingJsonLd(
+          job.applyUrl!,
+          rules
+        );
 
-            if (enriched) {
-              if (
-                enriched.description &&
-                enriched.description.length > (job.description?.length ?? 0)
-              ) {
-                job.description = enriched.description;
-              }
-              if (enriched.applyUrl) {
-                job.applyUrl = enriched.applyUrl;
-              }
-              const isStillAggregator = JOB_BOARD_KEYWORDS.some((kw) =>
-                (job.company || "").toLowerCase().includes(kw)
-              );
-              if (
-                enriched.company &&
-                (!job.company ||
-                  job.company === "Unknown Company" ||
-                  isStillAggregator)
-              ) {
-                job.company = enriched.company;
-              }
-              if (
-                enriched.location &&
-                (!job.location || /unspecified/i.test(job.location))
-              ) {
-                job.location = enriched.location;
-              }
-              if (enriched.salary && !job.salary) {
-                job.salary = enriched.salary;
-              }
-            }
-          } catch {
-            console.log(`  ├─ LinkParser: Skipped (Network Error)`);
+        if (enriched) {
+          if (
+            enriched.description &&
+            enriched.description.length > (job.description?.length ?? 0)
+          ) {
+            const fallbackContext = {
+              roleTitle: job.title,
+              company: job.company,
+              location: job.location,
+              salary: job.salary,
+            };
+            const scrubbed = sanitizeJobDescription(enriched.description, 4000, fallbackContext);
+            job.description = scrubbed || buildSynthesizedJobOverview(fallbackContext);
           }
-        })
-      );
+          if (enriched.applyUrl && /^https?:\/\//i.test(enriched.applyUrl)) {
+            job.applyUrl = enriched.applyUrl;
+          }
+          const isGarbageCompany =
+            !job.company ||
+            job.company === "Unknown Company" ||
+            !isValidEmployerName(job.company) ||
+            JOB_BOARD_KEYWORDS.some((kw) => (job.company || "").toLowerCase().includes(kw));
+
+          // In digests, ALWAYS OVERWRITE aggregator names with the real scraped company
+          if (
+            enriched.company &&
+            isValidEmployerName(enriched.company) &&
+            isGarbageCompany
+          ) {
+            job.company = enriched.company;
+          }
+
+          const isGarbageTitle =
+            !job.title ||
+            job.title === "Role" ||
+            !isValidRoleTitle(job.title);
+
+          if (
+            enriched.title &&
+            isValidRoleTitle(enriched.title) &&
+            isGarbageTitle
+          ) {
+            job.title = sanitizeRoleTitle(enriched.title);
+          }
+
+          if (
+            enriched.location &&
+            (!job.location || /unspecified/i.test(job.location))
+          ) {
+            job.location = enriched.location;
+          }
+          if (enriched.salary && !job.salary) {
+            job.salary = normalizeSalaryDisplay(enriched.salary);
+          }
+        }
+
+        const targetLabel = (
+          job.company && job.company !== "Unknown Company"
+            ? job.company
+            : job.title || "Job"
+        ).slice(0, 28);
+
+        let outcome = telemetry;
+        if (outcome.includes("409") || outcome.includes("concurrency")) {
+          outcome = "Skipped (ScrapingAnt: HTTP 409)";
+        } else if (outcome.includes("ScrapingAnt (BYOK Key)")) {
+          const chars = Math.min(enriched?.description?.length ?? 0, 4000);
+          outcome = `ScrapingAnt (${(chars / 1000).toFixed(1)}k)`;
+        } else if (outcome.includes("LinkedIn Guest API")) {
+          const chars = Math.min(enriched?.description?.length ?? 0, 4000);
+          outcome = `LinkedIn Guest API (${(chars / 1000).toFixed(1)}k)`;
+        } else if (outcome.includes("Direct HTML")) {
+          const chars = Math.min(enriched?.description?.length ?? 0, 4000);
+          outcome = `Direct HTML (${(chars / 1000).toFixed(1)}k)`;
+        } else if (outcome.includes("Nuxt SSR State")) {
+          const chars = Math.min(enriched?.description?.length ?? 0, 4000);
+          outcome = `Nuxt SSR State (${(chars / 1000).toFixed(1)}k)`;
+        } else if (outcome.includes("JSON-LD")) {
+          const chars = Math.min(enriched?.description?.length ?? 0, 4000);
+          outcome = `JSON-LD (${(chars / 1000).toFixed(1)}k)`;
+        } else if (outcome.includes("Glassdoor")) {
+          outcome = "Deferred (Glassdoor On-Demand)";
+        } else if (outcome.includes("Indeed")) {
+          outcome = "Deferred (Indeed On-Demand)";
+        }
+
+        const logLine = `  ├─ [LinkParser] ${targetLabel} -> ${outcome}`;
+        console.log(logLine.length > 90 ? `${logLine.slice(0, 87)}...` : logLine);
+      } catch {
+        const targetLabel = (
+          job.company && job.company !== "Unknown Company"
+            ? job.company
+            : job.title || "Job"
+        ).slice(0, 28);
+        const logLine = `  ├─ [LinkParser] ${targetLabel} -> Skipped (Network Error)`;
+        console.log(logLine.length > 90 ? `${logLine.slice(0, 87)}...` : logLine);
+      }
     }
   }
 

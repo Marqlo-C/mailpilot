@@ -7,7 +7,54 @@
  * ============================================================================
  */
 
+import fs from "fs";
+import path from "path";
+import { decryptToken } from "@/lib/crypto";
 import { assertSafeHttpsUrl } from "@/lib/ssrf";
+import type { AccountRules } from "@/lib/validations/rules";
+
+export interface ScraperFailureEntry {
+  url: string;
+  status?: number | string;
+  reason: string;
+  timestamp: string;
+}
+
+/**
+ * Dev-only helper to record failed scrape attempts (bot walls, 403s, 429s, timeouts)
+ * to a local .scraper-failures.json file for standalone local testing.
+ */
+export function recordScraperFailure(entry: ScraperFailureEntry): void {
+  if (process.env.NODE_ENV === "production") return;
+
+  try {
+    const filePath = path.resolve(process.cwd(), ".scraper-failures.json");
+    let failures: ScraperFailureEntry[] = [];
+
+    if (fs.existsSync(filePath)) {
+      try {
+        const raw = fs.readFileSync(filePath, "utf-8");
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          failures = parsed;
+        }
+      } catch {
+        failures = [];
+      }
+    }
+
+    const existingIdx = failures.findIndex((f) => f.url === entry.url);
+    if (existingIdx >= 0) {
+      failures[existingIdx] = { ...failures[existingIdx], ...entry };
+    } else {
+      failures.push(entry);
+    }
+
+    fs.writeFileSync(filePath, JSON.stringify(failures, null, 2), "utf-8");
+  } catch {
+    // Non-fatal dev logging
+  }
+}
 
 export interface ScrapedJobPosting {
   title?: string;
@@ -63,8 +110,11 @@ function safeDecodeUrl(val: string): string | null {
  * and recursive redirects, upgrading any http:// targets to https://.
  */
 export function unwrapTrackingUrl(urlString: string, maxDepth: number = 5): string {
-  if (!urlString) return urlString;
+  if (!urlString || typeof urlString !== "string") return "";
   let normalized = urlString.trim();
+  if (!/^https?:\/\//i.test(normalized)) {
+    return "";
+  }
   if (/^http:\/\//i.test(normalized)) {
     normalized = normalized.replace(/^http:\/\//i, "https://");
   }
@@ -175,7 +225,7 @@ export function unwrapTrackingUrl(urlString: string, maxDepth: number = 5): stri
     // If not a parseable URL, return normalized
   }
 
-  return normalized;
+  return /^https?:\/\//i.test(normalized) ? normalized : "";
 }
 
 /**
@@ -264,46 +314,201 @@ export function extractJsonLdJobPosting(html: string): ScrapedJobPosting | null 
   return null;
 }
 
-export interface JinaReaderResponse {
-  text: string | null;
-  error?: string;
+/**
+ * Parses Nuxt 3 SSR state payload (<script id="__NUXT_DATA__">)
+ * to extract rich job specifications from single-page apps (like JobLeads)
+ * without requiring a headless browser.
+ */
+export function extractNuxtData(html: string): ScrapedJobPosting | null {
+  if (!html || !html.includes('id="__NUXT_DATA__"')) return null;
+
+  const match = html.match(/<script[^>]*id="__NUXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (!match || !match[1]) return null;
+
+  try {
+    const nuxtArray = JSON.parse(match[1]);
+    if (!Array.isArray(nuxtArray)) return null;
+
+    let title: string | undefined;
+    let company: string | undefined;
+    let location: string | undefined;
+
+    // 1. Extract Title & Location from <title> tag if available
+    const pageTitleMatch = html.match(/<title>([^<]+)<\/title>/i);
+    if (pageTitleMatch && pageTitleMatch[1]) {
+      const parts = pageTitleMatch[1].split("|")[0].split("-");
+      title = parts[0]?.trim();
+      if (parts[1]) location = parts[1]?.trim();
+    }
+
+    // 2. Detect Company candidate in early strings
+    const companyCandidate = nuxtArray.find(
+      (item): item is string =>
+        typeof item === "string" &&
+        item.length > 2 &&
+        item.length < 50 &&
+        !item.startsWith("/") &&
+        !item.startsWith("http") &&
+        (item.includes("Inc") ||
+          item.includes("LLC") ||
+          item.includes("Corp") ||
+          item.includes("Tech") ||
+          item.includes("Technologies") ||
+          item.includes("Solutions") ||
+          item.includes("Group"))
+    );
+    if (companyCandidate) {
+      company = companyCandidate.trim();
+    }
+
+    // 3. Filter candidate strings according to Nuxt specification rules
+    const isJwtToken = (str: string) =>
+      /^eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/.test(str.trim());
+
+    const validParagraphs = nuxtArray
+      .filter((item): item is string => typeof item === "string" && item.length > 80)
+      .filter(
+        (str) =>
+          !isJwtToken(str) &&
+          !str.startsWith("/") &&
+          !str.startsWith("http") &&
+          !str.includes("/_nucf/") &&
+          !str.includes("@font-face") &&
+          !str.includes("data:image") &&
+          !str.startsWith('{"') &&
+          !str.endsWith("}") &&
+          !/seeks a .* to design|all rights reserved|job board/i.test(str)
+      );
+
+    if (validParagraphs.length === 0) return null;
+
+    // Clean inline HTML tags & collapse excess spaces
+    const cleanParagraph = (raw: string) =>
+      raw
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const uniqueParagraphs = Array.from(new Set(validParagraphs.map(cleanParagraph))).filter(
+      (p) => p.length > 40
+    );
+
+    if (uniqueParagraphs.length === 0) return null;
+
+    const description = uniqueParagraphs.join("\n\n").slice(0, 4000);
+
+    return {
+      title,
+      company,
+      location,
+      description,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export interface ScrapingAntResult {
+  data: ScrapedJobPosting | null;
+  status?: number;
+  errorMsg?: string;
 }
 
 /**
- * Fetches Markdown/text content via the public Jina Reader endpoint (r.jina.ai).
- * Uses public free tier (20 RPM) by default, or passes Bearer auth if user configured BYOK.
- * Uses 12000ms timeout to allow Jina to complete proxy challenge resolution.
+ * Fetches and enriches job postings via ScrapingAnt's fast proxy endpoint (browser=false, 1 credit, ~2.5s).
+ * Passes HTML through Schema.org JSON-LD, Nuxt 3 SSR state, or direct cleaned body text.
  */
-export async function fetchViaJinaReader(
-  targetUrl: string,
-  apiKey?: string | null,
-  timeoutMs = 12000
-): Promise<JinaReaderResponse> {
+export async function fetchViaScrapingAnt(
+  url: string,
+  apiKey: string,
+  timeoutMs: number = 6000
+): Promise<ScrapingAntResult> {
+  if (!apiKey || !url) return { data: null };
+
+  const displayUrl = url.length > 90 ? `${url.slice(0, 87)}...` : url;
+
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    const headers: Record<string, string> = {
-      Accept: "text/plain",
-      "X-No-Cache": "true",
-    };
-    if (apiKey) {
-      headers["Authorization"] = `Bearer ${apiKey}`;
-    }
+    const endpoint = new URL("https://api.scrapingant.com/v2/general");
+    endpoint.searchParams.set("url", url);
+    endpoint.searchParams.set("x-api-key", apiKey);
+    endpoint.searchParams.set("browser", "false");
 
-    const res = await fetch(`https://r.jina.ai/${targetUrl}`, {
-      signal: controller.signal,
-      headers,
-    });
-    clearTimeout(timer);
+    let res: Response;
+    try {
+      res = await fetch(endpoint.toString(), {
+        signal: controller.signal,
+        headers: {
+          Accept: "text/html,application/xhtml+xml,text/plain",
+        },
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!res.ok) {
-      const err = `HTTP ${res.status}`;
-      console.warn(`[jina] Failed to fetch ${targetUrl}: ${err}`);
-      return { text: null, error: err };
+      console.warn(`[scrapingant] Proxy request failed for ${displayUrl}: HTTP ${res.status}`);
+      return { data: null, status: res.status };
     }
-    const text = await res.text();
-    return { text, error: undefined };
+
+    const html = await res.text();
+
+    const isChallenge =
+      /(?:just a moment|verify you are human|attention required|cloudflare ray id|security check)/i.test(
+        html
+      );
+    if (isChallenge) {
+      console.warn(`[scrapingant] Challenge detected in proxy payload for ${displayUrl}`);
+      return { data: null, status: res.status, errorMsg: "Challenge detected" };
+    }
+
+    // 1. Check Schema.org JobPosting JSON-LD
+    const jsonLd = extractJsonLdJobPosting(html);
+    if (jsonLd?.description && isLegitimateJobContent(jsonLd.description)) {
+      return {
+        data: {
+          ...jsonLd,
+          applyUrl: jsonLd.applyUrl ?? url,
+        },
+        status: res.status,
+      };
+    }
+
+    // 2. Check Nuxt 3 SSR State (__NUXT_DATA__)
+    const nuxtData = extractNuxtData(html);
+    if (nuxtData?.description && isLegitimateJobContent(nuxtData.description)) {
+      return {
+        data: {
+          ...nuxtData,
+          applyUrl: url,
+        },
+        status: res.status,
+      };
+    }
+
+    // 3. General sanitized body fallback
+    const cleanHtml = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
+      .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
+      .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "");
+
+    const text = cleanHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (text.length >= 250 && isLegitimateJobContent(text)) {
+      return {
+        data: {
+          ...(jsonLd ?? {}),
+          description: text.slice(0, 4000),
+          applyUrl: url,
+        },
+        status: res.status,
+      };
+    }
+
+    return { data: null, status: res.status };
   } catch (err: unknown) {
     const isTimeout =
       (err instanceof Error && err.name === "AbortError") ||
@@ -314,45 +519,21 @@ export async function fetchViaJinaReader(
     const errorMsg = isTimeout
       ? `Timeout > ${timeoutMs}ms`
       : (err as Error)?.message || "Network Error";
-    console.warn(`[jina] Error fetching ${targetUrl}: ${errorMsg}`);
-    return { text: null, error: errorMsg };
+    console.warn(`[scrapingant] Error fetching ${displayUrl}: ${errorMsg}`);
+    return { data: null, errorMsg };
   }
 }
 
 /**
- * Sanitizes markdown returned from Jina Reader:
- * Strips metadata prefixes, Cloudflare challenge signatures, navigation links,
- * and clamps to 4,000 characters.
+ * Extracts numeric job ID from various LinkedIn URL formats.
  */
-export function sanitizeJinaMarkdown(raw: string): string {
-  if (!raw) return "";
-
-  const hasChallengeSignature =
-    /just a moment\.\.\./i.test(raw) ||
-    /enable javascript/i.test(raw) ||
-    /cloudflare ray id/i.test(raw) ||
-    /verify you are human/i.test(raw) ||
-    /attention required!\s*\|\s*cloudflare/i.test(raw) ||
-    /checking your browser/i.test(raw);
-
-  let cleaned = raw
-    .replace(/^Title:.*$/gm, "")
-    .replace(/^URL Source:.*$/gm, "")
-    .replace(/^Markdown Content:.*$/gm, "")
-    .replace(
-      /.*(?:just a moment\.\.\.|enable javascript and cookies|cloudflare ray id|attention required!\s*\|\s*cloudflare|verify you are human).*/gi,
-      ""
-    )
-    .replace(/\[(?:Apply|View|Sign In|Cookie Policy)[^\]]*\]\([^)]+\)/gi, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-  // If the payload was primarily a bot wall challenge, discard
-  if (hasChallengeSignature && cleaned.length < 300) {
-    return "";
-  }
-
-  return cleaned.slice(0, 4000);
+export function extractLinkedInJobId(urlString: string): string | null {
+  if (!urlString) return null;
+  const match =
+    urlString.match(/linkedin\.com\/(?:comm\/)?jobs\/view\/(\d+)/i) ||
+    urlString.match(/currentJobId=(\d+)/i) ||
+    urlString.match(/jobs-guest\/jobs\/api\/jobPosting\/(\d+)/i);
+  return match && match[1] ? match[1] : null;
 }
 
 /**
@@ -360,13 +541,137 @@ export function sanitizeJinaMarkdown(raw: string): string {
  * jobs-guest API endpoint, bypassing login walls.
  */
 export function transformToLinkedInGuestUrl(urlString: string): string | null {
-  if (!urlString) return null;
-  const match =
-    urlString.match(/linkedin\.com\/(?:comm\/)?jobs\/view\/(\d+)/i) ||
-    urlString.match(/currentJobId=(\d+)/i);
-  if (match && match[1]) {
-    return `https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${match[1]}`;
+  const jobId = extractLinkedInJobId(urlString);
+  if (jobId) {
+    return `https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${jobId}`;
   }
+  return null;
+}
+
+/**
+ * Fetches LinkedIn job posting details using a 2-tier fallback strategy:
+ * Tier 1: Public unauthenticated jobs-guest API endpoint (/jobs-guest/jobs/api/jobPosting/{id}).
+ * Tier 2: Public job view URL with Googlebot User-Agent extracting Schema.org JSON-LD.
+ * Never routes to external proxies.
+ */
+export async function fetchLinkedInGuestPosting(
+  url: string,
+  timeoutMs: number = 3000
+): Promise<ScrapedJobPosting | null> {
+  const jobId = extractLinkedInJobId(url);
+  if (!jobId) return null;
+
+  // Tier 1: Public unauthenticated jobs-guest API
+  try {
+    const linkedInGuestUrl = `https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${jobId}`;
+    const validatedUrl = await assertSafeHttpsUrl(linkedInGuestUrl);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    let res: Response;
+    try {
+      res = await fetch(validatedUrl.toString(), {
+        signal: controller.signal,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (res.ok) {
+      const html = await res.text();
+      let text = "";
+      const markupMatch = html.match(
+        /<div[^>]*class=["'][^"']*show-more-less-html__markup[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
+      );
+      if (markupMatch && markupMatch[1]) {
+        text = markupMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      } else {
+        const cleanHtml = html
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+          .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
+          .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
+          .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "");
+        text = cleanHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      }
+
+      const parsedJsonLd = extractJsonLdJobPosting(html);
+      if (!text && parsedJsonLd?.description) {
+        text = parsedJsonLd.description;
+      }
+
+      if (isLegitimateJobContent(text)) {
+        return {
+          ...(parsedJsonLd ?? {}),
+          description: text.slice(0, 4000),
+          applyUrl: url,
+        };
+      }
+    }
+  } catch {
+    // Soft failure on Tier 1; fall through to Tier 2 Googlebot fallback
+  }
+
+  // Tier 2: Public job view URL with Googlebot User-Agent & Schema.org JSON-LD extraction
+  try {
+    const directViewUrl = `https://www.linkedin.com/jobs/view/${jobId}`;
+    const validatedUrl = await assertSafeHttpsUrl(directViewUrl);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    let res: Response;
+    try {
+      res = await fetch(validatedUrl.toString(), {
+        signal: controller.signal,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (res.ok) {
+      const html = await res.text();
+      const parsedJsonLd = extractJsonLdJobPosting(html);
+      if (parsedJsonLd?.description && isLegitimateJobContent(parsedJsonLd.description)) {
+        return {
+          ...parsedJsonLd,
+          description: parsedJsonLd.description.slice(0, 4000),
+          applyUrl: url,
+        };
+      }
+
+      const cleanHtml = html
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+        .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
+        .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
+        .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "");
+      const text = cleanHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      if (text.length >= 250 && isLegitimateJobContent(text)) {
+        return {
+          ...(parsedJsonLd ?? {}),
+          description: text.slice(0, 4000),
+          applyUrl: url,
+        };
+      }
+    }
+  } catch {
+    // Both tiers exhausted
+  }
+
   return null;
 }
 
@@ -402,23 +707,75 @@ export function isLegitimateJobContent(text: string): boolean {
 
 /**
  * Public JSON-LD scraper: fetches public job page and extracts JobPosting LD+JSON.
- * For LinkedIn URLs, bypasses auth walls via public jobs-guest API endpoint.
- * If direct fetch hits a bot challenge (HTTP 403/429) or returns without JSON-LD,
- * falls back to Jina Reader (free 20 RPM or account BYOK key).
- * Discards auth-walled or bot-challenged pages via structural validation.
+ * For Glassdoor: fast-fails immediately to 0ms (retaining parsed email digest context).
+ * For LinkedIn: uses public guest endpoint (< 600ms, never routed to proxies).
+ * Target ATS / Direct Fetch: attempts direct fetch with desktop browser headers.
+ * Proxy Fallback: if direct fetch hits HTTP 403/429 (and domain is not blacklisted),
+ * falls back to ScrapingAnt (1-credit proxy) using account BYOK key.
  */
 export async function scrapeJobPostingJsonLd(
   rawUrl: string,
-  timeoutMs: number = 2500,
-  jinaApiKey?: string | null
+  accountRulesOrTimeout?: Partial<AccountRules> | number | null,
+  timeoutOrApiKey?: number | string | null
 ): Promise<ScrapedJobPostingResult> {
   const url = unwrapTrackingUrl(rawUrl);
-  const linkedInGuestUrl = transformToLinkedInGuestUrl(url);
-  const fetchUrl = linkedInGuestUrl ?? url;
-  const authLabel = jinaApiKey ? "BYOK Key" : "Public Free Tier";
 
+  // Fast Exit for Glassdoor: 0ms without external fetching (On-Demand Hydration)
+  if (rawUrl.includes("glassdoor.com") || url.includes("glassdoor.com")) {
+    return {
+      data: null,
+      telemetry: "Deferred (Glassdoor - On-Demand Hydration)",
+    };
+  }
+
+  // Fast Exit for Indeed: 0ms without external fetching (On-Demand Hydration)
+  if (rawUrl.includes("indeed.com") || url.includes("indeed.com")) {
+    return {
+      data: null,
+      telemetry: "Deferred (Indeed - On-Demand Hydration)",
+    };
+  }
+
+  let accountRules: Partial<AccountRules> | null = null;
+  let timeoutMs = 5000;
+
+  if (typeof accountRulesOrTimeout === "number") {
+    timeoutMs = accountRulesOrTimeout;
+    if (typeof timeoutOrApiKey === "string") {
+      accountRules = { encryptedScrapingAntApiKey: null };
+    }
+  } else if (accountRulesOrTimeout && typeof accountRulesOrTimeout === "object") {
+    accountRules = accountRulesOrTimeout;
+    if (typeof timeoutOrApiKey === "number") {
+      timeoutMs = timeoutOrApiKey;
+    }
+  }
+
+  // LinkedIn Fast-Path: public guest endpoint (< 600ms, never routed to proxies)
+  if (url.includes("linkedin.com") || rawUrl.includes("linkedin.com")) {
+    const guestData = await fetchLinkedInGuestPosting(url);
+    if (guestData) {
+      return {
+        data: guestData,
+        telemetry: `Hydrated ${Math.min(guestData.description?.length ?? 0, 4000).toLocaleString()} chars via LinkedIn Guest API`,
+      };
+    }
+
+    recordScraperFailure({
+      url,
+      status: 200,
+      reason: "Auth Wall / Non-Job Content",
+      timestamp: new Date().toISOString(),
+    });
+    return {
+      data: null,
+      telemetry: "Skipped (Auth wall or non-job content detected)",
+    };
+  }
+
+  // Target ATS / Direct Fetch
   try {
-    const validatedUrl = await assertSafeHttpsUrl(fetchUrl);
+    const validatedUrl = await assertSafeHttpsUrl(url);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -444,51 +801,11 @@ export async function scrapeJobPostingJsonLd(
       clearTimeout(timer);
     }
 
-    let parsed: ScrapedJobPosting | null = null;
     if (res.ok) {
       const html = await res.text();
 
-      // Specialized LinkedIn Guest API handling
-      if (linkedInGuestUrl) {
-        let text = "";
-        const markupMatch = html.match(
-          /<div[^>]*class=["'][^"']*show-more-less-html__markup[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
-        );
-        if (markupMatch && markupMatch[1]) {
-          text = markupMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-        } else {
-          const cleanHtml = html
-            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-            .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
-            .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
-            .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "");
-          text = cleanHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-        }
-
-        const parsedJsonLd = extractJsonLdJobPosting(html);
-        if (!text && parsedJsonLd?.description) {
-          text = parsedJsonLd.description;
-        }
-
-        if (isLegitimateJobContent(text)) {
-          return {
-            data: {
-              ...(parsedJsonLd ?? {}),
-              description: text.slice(0, 4000),
-              applyUrl: url,
-            },
-            telemetry: `Hydrated ${Math.min(text.length, 4000).toLocaleString()} chars via LinkedIn Guest API`,
-          };
-        }
-
-        return {
-          data: null,
-          telemetry: "Skipped (Auth wall or non-job content detected)",
-        };
-      }
-
-      parsed = extractJsonLdJobPosting(html);
+      // 1. Primary: Schema.org JobPosting JSON-LD
+      const parsed = extractJsonLdJobPosting(html);
       if (parsed?.description) {
         const chars = parsed.description.length;
         return {
@@ -497,7 +814,16 @@ export async function scrapeJobPostingJsonLd(
         };
       }
 
-      // No JSON-LD on 200 OK: extract plain HTML description directly
+      // 2. Secondary: Nuxt 3 SSR state (__NUXT_DATA__)
+      const nuxtData = extractNuxtData(html);
+      if (nuxtData?.description && isLegitimateJobContent(nuxtData.description)) {
+        return {
+          data: { ...nuxtData, applyUrl: url },
+          telemetry: `Hydrated ${nuxtData.description.length.toLocaleString()} chars via Nuxt SSR State`,
+        };
+      }
+
+      // 3. Fallback: Direct clean HTML body text
       const cleanHtml = html
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
@@ -506,21 +832,26 @@ export async function scrapeJobPostingJsonLd(
         .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "");
 
       const text = cleanHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-      if (text.length >= 250) {
-        if (!isLegitimateJobContent(text)) {
-          return {
-            data: null,
-            telemetry: "Skipped (Auth wall or non-job content detected)",
-          };
-        }
-
+      if (text.length >= 500 && isLegitimateJobContent(text)) {
         return {
           data: {
-            ...(parsed ?? {}),
             description: text.slice(0, 4000),
-            applyUrl: parsed?.applyUrl ?? url,
+            applyUrl: url,
           },
           telemetry: `Hydrated ${Math.min(text.length, 4000).toLocaleString()} chars via Direct HTML`,
+        };
+      }
+
+      if (text.length >= 250 && !isLegitimateJobContent(text)) {
+        recordScraperFailure({
+          url,
+          status: 200,
+          reason: "Auth Wall / Non-Job Content",
+          timestamp: new Date().toISOString(),
+        });
+        return {
+          data: null,
+          telemetry: "Skipped (Auth wall or non-job content detected)",
         };
       }
 
@@ -532,42 +863,72 @@ export async function scrapeJobPostingJsonLd(
 
     // Bot wall check (HTTP 403 or 429)
     if (res.status === 403 || res.status === 429) {
-      // Jina requires an API key for heavy domains (Glassdoor, Amazon, LinkedIn)
-      if (!jinaApiKey) {
+      recordScraperFailure({
+        url,
+        status: res.status,
+        reason: "Bot Wall",
+        timestamp: new Date().toISOString(),
+      });
+
+      // ScrapingAnt free tier blacklist (indeed.com)
+      if (url.includes("indeed.com")) {
         return {
           data: null,
-          telemetry: `Skipped (HTTP ${res.status} Bot Wall - Configure Jina Key in Settings)`,
+          telemetry: `Skipped (HTTP ${res.status} Bot Wall - indeed.com restricted on proxy)`,
+        };
+      }
+
+      let scrapingAntApiKey: string | null = null;
+      if (accountRules?.encryptedScrapingAntApiKey) {
+        try {
+          scrapingAntApiKey = decryptToken(accountRules.encryptedScrapingAntApiKey).trim() || null;
+        } catch {
+          scrapingAntApiKey = null;
+        }
+      }
+
+      if (!scrapingAntApiKey) {
+        return {
+          data: null,
+          telemetry: `Skipped (HTTP ${res.status} Bot Wall - Configure ScrapingAnt Key in Settings)`,
         };
       }
 
       console.log(
-        `  ├─ LinkParser: Fallback via Jina (BYOK Key) [HTTP ${res.status} Bot Wall]`
+        `  ├─ LinkParser: Fallback via ScrapingAnt (BYOK Key) [HTTP ${res.status} Bot Wall]`
       );
 
-      const jinaRes = await fetchViaJinaReader(url, jinaApiKey, 12000);
-      if (jinaRes.text) {
-        const sanitized = sanitizeJinaMarkdown(jinaRes.text);
-        if (sanitized.length > 150) {
-          if (!isLegitimateJobContent(sanitized)) {
-            return {
-              data: null,
-              telemetry: "Skipped (Auth wall or non-job content detected)",
-            };
-          }
-
-          return {
-            data: {
-              description: sanitized,
-              applyUrl: url,
-            },
-            telemetry: `Hydrated ${sanitized.length.toLocaleString()} chars via Jina (BYOK Key)`,
-          };
-        }
+      const antResult = await fetchViaScrapingAnt(url, scrapingAntApiKey);
+      if (antResult.data?.description) {
+        return {
+          data: { ...antResult.data, applyUrl: antResult.data.applyUrl ?? url },
+          telemetry: `Hydrated ${antResult.data.description.length.toLocaleString()} chars via ScrapingAnt (BYOK Key)`,
+        };
       }
+
+      if (antResult.status === 409) {
+        recordScraperFailure({
+          url,
+          status: 409,
+          reason: "ScrapingAnt Concurrency Limit (HTTP 409)",
+          timestamp: new Date().toISOString(),
+        });
+        return {
+          data: null,
+          telemetry: "Skipped (ScrapingAnt: HTTP 409)",
+        };
+      }
+
+      recordScraperFailure({
+        url,
+        status: antResult.status || 504,
+        reason: antResult.errorMsg || "ScrapingAnt Timeout / Bot Wall",
+        timestamp: new Date().toISOString(),
+      });
 
       return {
         data: null,
-        telemetry: "Skipped (Jina timeout or bot wall)",
+        telemetry: "Skipped (ScrapingAnt timeout or bot wall)",
       };
     }
 
@@ -583,16 +944,25 @@ export async function scrapeJobPostingJsonLd(
         err !== null &&
         "name" in err &&
         (err as { name?: string }).name === "AbortError");
+    const errorMsg = isTimeout
+      ? `Timeout > ${timeoutMs}ms`
+      : (err as Error)?.message || "Network Error";
+
+    recordScraperFailure({
+      url,
+      reason: errorMsg,
+      timestamp: new Date().toISOString(),
+    });
+
     if (isTimeout) {
       return {
         data: null,
         telemetry: `Skipped (Timeout > ${timeoutMs}ms)`,
       };
     }
-    const message = (err as Error)?.message || "Network Error";
     return {
       data: null,
-      telemetry: `Skipped (${message})`,
+      telemetry: `Skipped (${errorMsg})`,
     };
   }
 }

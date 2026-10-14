@@ -92,10 +92,18 @@ export const accountRulesSchema = z.object({
   encryptedApiKey: z.string().nullable().default(null),
   /** Safe display mask (e.g. sk-...1234) for Settings UI */
   maskedApiKey: z.string().nullable().default(null),
-  /** AES-256-GCM encrypted Jina API key for web scraping (never sent to client) */
+  /** AES-256-GCM encrypted Jina API key for web scraping (deprecated; kept for backward compatibility) */
   encryptedJinaApiKey: z.string().nullable().default(null),
-  /** Safe display mask (e.g. jina_...1234) for Settings UI */
+  /** Safe display mask (e.g. jina_...1234) for Settings UI (deprecated) */
   maskedJinaApiKey: z.string().nullable().default(null),
+  /** AES-256-GCM encrypted ScrapingAnt API key for web scraping (never sent to client) */
+  encryptedScrapingAntApiKey: z.string().nullable().default(null),
+  /** Safe display mask (e.g. ant-...39aF) for Settings UI */
+  maskedScrapingAntApiKey: z.string().nullable().default(null),
+  /** AES-256-GCM encrypted HasData API key for Glassdoor/Indeed on-demand scraping (never sent to client) */
+  encryptedHasDataApiKey: z.string().nullable().default(null),
+  /** Safe display mask (e.g. hd-...1234) for Settings UI */
+  maskedHasDataApiKey: z.string().nullable().default(null),
   /** Defaults for on-demand tailored resume generation. */
   resumePreferences: resumePreferencesSchema.default(DEFAULT_RESUME_PREFERENCES),
 });

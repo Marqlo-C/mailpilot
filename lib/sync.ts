@@ -22,6 +22,10 @@ import {
 } from "@/lib/persistent-profile";
 import { resolveApplicationType } from "@/lib/application-method";
 import {
+  normalizeSalaryDisplay,
+  parseSalaryMax,
+} from "@/lib/ai/classifier";
+import {
   getCompanyLogoUrl,
   inferDomainFromUrl,
 } from "@/lib/company-logo";
@@ -39,7 +43,10 @@ import {
   titleMatchesExcluded,
   type AccountRules,
 } from "@/lib/validations/rules";
-import { extractCleanSnippet } from "@/lib/opportunities/context";
+import {
+  extractCleanSnippet,
+  sanitizeJobDescription,
+} from "@/lib/opportunities/context";
 
 
 /** Normalize role titles for fuzzy equality (strip Jr/Sr/II noise). */
@@ -120,9 +127,16 @@ async function findMatchingOpportunity(input: {
   });
 
   const tier1 =
-    sameEmailRows.find((row) => applyUrlsMatch(applyUrl, row.applyUrl)) ??
     sameEmailRows.find(
       (row) =>
+        applyUrlsMatch(applyUrl, row.applyUrl) &&
+        (opportunityTitlesMatch(title, row.title) ||
+          isGenericTitle(row.title, row.company) ||
+          row.title.toLowerCase() === "role")
+    ) ??
+    sameEmailRows.find(
+      (row) =>
+        row.company.trim().toLowerCase() === company.trim().toLowerCase() &&
         opportunityTitlesMatch(title, row.title) &&
         isLocationCompatible(location, row.location)
     );
@@ -135,6 +149,10 @@ async function findMatchingOpportunity(input: {
   }
 
   // ── Tier 2: cross-email company + role + location ───────────────────────
+  if (!company || company.trim().toLowerCase() === "unknown company") {
+    return { kind: "none" };
+  }
+
   const companyRows = await prisma.jobOpportunity.findMany({
     where: {
       accountId,
@@ -913,9 +931,14 @@ export async function persistClassifiedEmail(input: {
     const recipientEmail =
       applicationType === "DIRECT_EMAIL" ? resolvedRecipientEmail : null;
 
+    const validApplyUrl =
+      job.applyUrl && /^https?:\/\//i.test(job.applyUrl.trim())
+        ? job.applyUrl.trim()
+        : null;
+
     const companyDomain =
-      job.companyDomain ?? inferDomainFromUrl(job.applyUrl) ?? null;
-    const logoUrl = getCompanyLogoUrl(cleanCompany, companyDomain);
+      job.companyDomain ?? inferDomainFromUrl(validApplyUrl) ?? null;
+    const logoUrl = getCompanyLogoUrl(cleanCompany, companyDomain, validApplyUrl);
     let matchScore =
       typeof job.matchScore === "number" ? job.matchScore : 0;
     // Guard: fractional scores that skipped normalizeClassification.
@@ -941,7 +964,7 @@ export async function persistClassifiedEmail(input: {
       company: cleanCompany,
       title: cleanTitle,
       location: job.location,
-      applyUrl: job.applyUrl,
+      applyUrl: validApplyUrl,
       isAlreadyApplied,
     });
 
@@ -981,28 +1004,57 @@ export async function persistClassifiedEmail(input: {
           ? existing.appliedAt ?? emailDate ?? new Date()
           : existing.appliedAt;
 
+      const safeExistingUrl =
+        existing.applyUrl && /^https?:\/\//i.test(existing.applyUrl.trim())
+          ? existing.applyUrl.trim()
+          : null;
+
+      const resolvedDescription =
+        job.description ??
+        (existing.description
+          ? sanitizeJobDescription(existing.description, 4000, {
+              roleTitle: cleanTitle,
+              company: cleanCompany,
+              location: job.location ?? existing.location,
+              salary: job.salary ?? existing.salary,
+            })
+          : null);
+
+      const resolvedLogoUrl =
+        existing.company.toLowerCase() === cleanCompany.toLowerCase() &&
+        existing.logoUrl &&
+        !existing.logoUrl.includes("ui-avatars") &&
+        !existing.logoUrl.includes("unavatar.io")
+          ? existing.logoUrl
+          : logoUrl;
+
+      const resolvedSalary = normalizeSalaryDisplay(job.salary ?? existing.salary);
+      const resolvedSalaryMax =
+        typeof job.salaryMax === "number"
+          ? job.salaryMax
+          : resolvedSalary
+            ? parseSalaryMax(resolvedSalary)
+            : existing.salaryMax;
+
       await prisma.jobOpportunity.update({
         where: { id: existing.id },
         data: {
           company: cleanCompany,
           title: cleanTitle,
           location: job.location ?? existing.location,
-          salary: job.salary ?? existing.salary,
-          salaryMax:
-            typeof job.salaryMax === "number"
-              ? job.salaryMax
-              : existing.salaryMax,
+          salary: resolvedSalary,
+          salaryMax: resolvedSalaryMax,
           postedAt: job.postedAt ?? existing.postedAt,
           // Keep the freshest sighting timestamp without inventing duplicates.
           receivedAt:
             emailDate > existing.receivedAt ? emailDate : existing.receivedAt,
-          description: job.description ?? existing.description,
-          applyUrl: job.applyUrl ?? existing.applyUrl,
+          description: resolvedDescription,
+          applyUrl: validApplyUrl ?? safeExistingUrl,
           applicationType,
           recipientEmail: recipientEmail ?? existing.recipientEmail,
           recipientName: resolvedRecipientName ?? existing.recipientName,
           companyDomain: existing.companyDomain ?? companyDomain,
-          logoUrl: existing.logoUrl ?? logoUrl,
+          logoUrl: resolvedLogoUrl,
           matchScore,
           matchReason: matchReason ?? existing.matchReason,
           status: resolvedStatus,
@@ -1028,6 +1080,13 @@ export async function persistClassifiedEmail(input: {
 
     // ── Tier 3: insert ────────────────────────────────────────────────────
     const initialStatus = isAlreadyApplied ? "APPLIED" : "DISCOVERED";
+    const initialSalary = normalizeSalaryDisplay(job.salary);
+    const initialSalaryMax =
+      typeof job.salaryMax === "number"
+        ? job.salaryMax
+        : initialSalary
+          ? parseSalaryMax(initialSalary)
+          : null;
 
     await prisma.jobOpportunity.create({
       data: {
@@ -1036,13 +1095,12 @@ export async function persistClassifiedEmail(input: {
         company: cleanCompany,
         title: cleanTitle,
         location: job.location ?? null,
-        salary: job.salary ?? null,
-        salaryMax:
-          typeof job.salaryMax === "number" ? job.salaryMax : null,
+        salary: initialSalary,
+        salaryMax: initialSalaryMax,
         postedAt: job.postedAt ?? null,
         receivedAt: emailDate,
         description: job.description ?? null,
-        applyUrl: job.applyUrl ?? null,
+        applyUrl: validApplyUrl,
         applicationType,
         recipientEmail,
         recipientName: resolvedRecipientName,

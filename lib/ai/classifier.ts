@@ -215,6 +215,8 @@ export function heuristicMatchScore(
 /**
  * Parses a display salary into an annualized max float for sorting.
  * Hourly rates are annualized at 2080 hours.
+ * Monthly rates are annualized at 12 months.
+ * Weekly rates are annualized at 52 weeks.
  */
 export function parseSalaryMax(salary: string | null | undefined): number | null {
   if (!salary) return null;
@@ -225,8 +227,27 @@ export function parseSalaryMax(salary: string | null | undefined): number | null
   });
   if (numbers.length === 0) return null;
   const max = Math.max(...numbers);
-  if (/\/\s*hr|per\s*hour|hourly|\bhr\b/.test(text) && max < 1000) {
+  if (
+    /(?:\b(?:per\s*hour|per\s*hr|hourly|an\s*hour|an\s*hr|a\s*hour)\b|\/\s*hr\b|\/\s*h\b)/i.test(
+      text
+    ) &&
+    max < 1000
+  ) {
     return max * 2080;
+  }
+  if (
+    /(?:\b(?:per\s*month|monthly|a\s*month)\b|\/\s*mo\b|\/\s*month\b)/i.test(
+      text
+    ) &&
+    max < 50000
+  ) {
+    return max * 12;
+  }
+  if (
+    /(?:\b(?:per\s*week|weekly|a\s*week)\b|\/\s*wk\b|\/\s*week\b)/i.test(text) &&
+    max < 20000
+  ) {
+    return max * 52;
   }
   // Treat bare small numbers under 500 as hourly when "/yr" absent
   if (max < 500 && !/year|\/\s*yr|annual|salary/.test(text)) {
@@ -238,43 +259,94 @@ export function parseSalaryMax(salary: string | null | undefined): number | null
 /**
  * Normalizes extracted salary display strings for storage/UI.
  * - Empty / TBD / no digits → null (UI shows $TBD)
- * - Strips platform/estimate noise: "(Employer est.)", "DOE", "per hour", etc.
- * - Bare amounts like "168K - 227K" or "70K-$120K" → "$168K - $227K" / "$70K - $120K"
- * - Existing $ / € / £ prefixes are preserved
+ * - Strips platform/estimate noise: "(Employer est.)", "DOE", etc.
+ * - Double-dipped currency signs ($$15) and stray slashes ($/160000) are sanitized.
+ * - Full salaries normalize to min-to-max formatted ranges with capital K: e.g. 150000-$160000 -> "$150K-$160K", "$130,000" -> "$130K"
+ * - Hourly wages normalize with capital Hr: e.g. "$15-20", "$15-$20 per hour", "15-$20/h" -> "$15-$20/Hr", "From $38 an hour" -> "$38/Hr"
+ * - Monthly rates (e.g. "$5,000 - $6,000 / month") are converted to standardized annual ranges: "$60K-$72K"
+ * - Weekly rates (e.g. "$1,500 - $2,000 per week") are converted to standardized annual ranges: "$78K-$104K"
+ * - Automatically detects hourly vs annual rates based on amount magnitude (<= 350 without k/000 -> hourly)
+ *   even when explicit "per hour" keywords are omitted by the AI.
  */
 export function normalizeSalaryDisplay(
   salary: string | null | undefined
 ): string | null {
   let raw = salary?.trim() ?? "";
   if (!raw) return null;
-  if (/^\$?\s*tbd\b/i.test(raw) || /^n\/?a$/i.test(raw) || /^unknown$/i.test(raw)) {
+  if (
+    /^\$?\s*tbd\b/i.test(raw) ||
+    /^n\/?a$/i.test(raw) ||
+    /^unknown$/i.test(raw) ||
+    /^none$/i.test(raw) ||
+    /^competitive$/i.test(raw) ||
+    /^negotiable$/i.test(raw)
+  ) {
     return null;
   }
 
-  // Detect hourly signals before stripping
-  const isHourly = /\b(?:per\s*hour|per\s*hr|hourly|\/\s*hr|an\s*hour|an\s*hr|a\s*hour)\b/i.test(raw);
+  // Pre-clean double-dipped currency signs and stray slashes near currency:
+  // e.g. "$$15" -> "$15", "$/160000" -> "$160000", "/$160000" -> "$160000"
+  raw = raw
+    .replace(/\${2,}/g, "$")
+    .replace(/€{2,}/g, "€")
+    .replace(/£{2,}/g, "£")
+    .replace(/([$€£])\s*\/\s*/g, "$1")
+    .replace(/\/\s*([$€£])/g, "$1");
 
-  // Drop parenthetical platform / estimate notes first.
+  // Detect currency
+  let currency = "$";
+  if (raw.includes("€") || /\beur\b/i.test(raw)) currency = "€";
+  else if (raw.includes("£") || /\bgbp\b/i.test(raw)) currency = "£";
+
+  // Detect time period signals before stripping tokens
+  const hasHourlyWord =
+    /(?:\b(?:per\s*hour|per\s*hr|hourly|an\s*hour|an\s*hr|a\s*hour)\b|\/\s*hr\b|\/\s*h\b)/i.test(
+      raw
+    );
+  const hasMonthlyWord =
+    /(?:\b(?:per\s*month|monthly|a\s*month)\b|\/\s*mo\b|\/\s*month\b)/i.test(
+      raw
+    );
+  const hasWeeklyWord =
+    /(?:\b(?:per\s*week|weekly|a\s*week)\b|\/\s*wk\b|\/\s*week\b)/i.test(
+      raw
+    );
+  const hasAnnualWord =
+    /(?:\b(?:per\s*year|per\s*yr|annually|annual|a\s*year|salary)\b|\/\s*yr\b|\/\s*year\b)/i.test(
+      raw
+    );
+
+  // Strip noise / parentheticals
   raw = raw
     .replace(
-      /\([^)]*\b(?:est\.?|estimate[ds]?|employer|glassdoor|indeed|levels?\.?fyi|reported|approx\.?|approximately|base|total|comp)\b[^)]*\)/gi,
+      /\([^)]*\b(?:est\.?|estimate[ds]?|employer|glassdoor|indeed|levels?\.?fyi|reported|approx\.?|approximately|base|total|comp|doe)\b[^)]*\)/gi,
       " "
     )
     .replace(/\([^)]{0,40}\)/g, (paren) =>
-      // Keep parentheses that look like currency units, e.g. "(USD)"
       /\b(?:usd|eur|gbp|cad|aud)\b/i.test(paren) ? paren : " "
-    );
-
-  // Strip leading prefixes, trailing / inline estimate & pay-type chrome
-  raw = raw
-    .replace(/\b(?:from|starting\s+at|up\s+to)\b[.:,]*/gi, " ")
+    )
     .replace(
-      /\b(?:employer\s+est\.?|glassdoor\s+est\.?|indeed\s+est\.?|estimated?|approx\.?|approximately)\b[.:,]*/gi,
+      /\b(?:from|starting\s+at|up\s+to|approx\.?|approximately|doe|negotiable|competitive)\b[.:,]*/gi,
       " "
     )
-    .replace(/\b(?:doe|negotiable|competitive)\b[.:,]*/gi, " ")
     .replace(
-      /\b(?:per\s*hour|per\s*hr|hourly|\/\s*hr|an\s*hour|an\s*hr|a\s*hour|per\s*year|per\s*yr|annually|\/\s*yr|\/\s*year|a\s*year)\b[.:,]*/gi,
+      /\b(?:employer\s+est\.?|glassdoor\s+est\.?|indeed\s+est\.?|estimated?)\b[.:,]*/gi,
+      " "
+    )
+    .replace(
+      /(?:\b(?:per\s*hour|per\s*hr|hourly|an\s*hour|an\s*hr|a\s*hour)\b|\/\s*hr\b|\/\s*h\b)[.:,]*/gi,
+      " "
+    )
+    .replace(
+      /(?:\b(?:per\s*month|monthly|a\s*month)\b|\/\s*mo\b|\/\s*month\b)[.:,]*/gi,
+      " "
+    )
+    .replace(
+      /(?:\b(?:per\s*week|weekly|a\s*week)\b|\/\s*wk\b|\/\s*week\b)[.:,]*/gi,
+      " "
+    )
+    .replace(
+      /(?:\b(?:per\s*year|per\s*yr|annually|annual|a\s*year)\b|\/\s*yr\b|\/\s*year\b)[.:,]*/gi,
       " "
     )
     .replace(/\s{2,}/g, " ")
@@ -282,85 +354,111 @@ export function normalizeSalaryDisplay(
 
   if (!raw || !/\d/.test(raw)) return null;
 
-  // Normalize range separators (hyphen, en/em dash, "to")
-  const segments = raw
+  // Normalize range separators (hyphens, en/em dashes, "to")
+  // Keep commas inside numbers: e.g. 150,000 -> 150000
+  const cleanedText = raw
     .replace(/,/g, (match, offset, full) => {
-      // Keep thousand separators inside numbers (150,000); drop loose commas
       const before = full[offset - 1] ?? "";
       const after = full[offset + 1] ?? "";
-      if (/\d/.test(before) && /\d/.test(after)) return ",";
+      if (/\d/.test(before) && /\d/.test(after)) return "";
       return " ";
     })
     .replace(/\s*[-–—]\s*/g, " - ")
-    .replace(/\s+\bto\b\s+/gi, " - ")
+    .replace(/\s+\bto\b\s+/gi, " - ");
+
+  const parts = cleanedText
     .split(" - ")
-    .map((part) => part.trim())
+    .map((p) => p.trim())
     .filter(Boolean);
 
-  const normalized = segments.map((part) => {
-    let p = part.trim();
-    if (!p) return p;
+  const parsedParts = parts
+    .map((part) => {
+      const hasK = /\b\d+(\.\d+)?k\b/i.test(part);
+      const numMatch = part.match(/\d+(?:\.\d+)?/);
+      const num = numMatch ? parseFloat(numMatch[0]) : null;
+      return { num, hasK, original: part };
+    })
+    .filter((p): p is { num: number; hasK: boolean; original: string } => p.num !== null);
 
-    // USD/EUR/GBP word → symbol
-    p = p
-      .replace(/\busd\s*/i, "$")
-      .replace(/\beur\s*/i, "€")
-      .replace(/\bgbp\s*/i, "£");
+  if (parsedParts.length === 0) return null;
 
-    // Standardize lowercase 'k' to 'K' when preceded by digits
-    p = p.replace(/(\d)k\b/gi, "$1K");
+  const anyHasK = parsedParts.some((p) => p.hasK);
+  const anyOver1000 = parsedParts.some((p) => p.num >= 1000);
+  const allUnder350 = parsedParts.every((p) => p.num <= 350);
 
-    // Compress full thousands (e.g., 150,000 or 150000 -> 150K)
-    p = p.replace(/\b(\d{1,4}),000\b/g, "$1K");
-    p = p.replace(/\b(\d{2,4})000\b/g, "$1K");
+  let isHourly = false;
+  let multiplier = 1;
 
-    // Already has a leading currency symbol
-    if (/^[$€£]/.test(p)) {
-      return p.replace(/^\$+/, "$").replace(/^€+/, "€").replace(/^£+/, "£");
-    }
-
-    // Currency stuck mid-token: "70K$/yr" leftovers already stripped; "120K$"
-    if (/[$€£]/.test(p)) {
-      return p;
-    }
-
-    // Inject $ before the first numeric amount when missing
-    if (/\d/.test(p)) {
-      return `$${p}`;
-    }
-    return p;
-  });
-
-  // Handle shorthand ranges like "$120K - $160" or "$112K - $187"
-  if (normalized.length === 2) {
-    const hasK0 = /k$/i.test(normalized[0]);
-    const hasK1 = /k$/i.test(normalized[1]);
-    const isBareNum0 = /^[$€£]?\d{2,3}$/.test(normalized[0]);
-    const isBareNum1 = /^[$€£]?\d{2,3}$/.test(normalized[1]);
-
-    if (hasK0 && isBareNum1) {
-      normalized[1] = `${normalized[1]}K`;
-    } else if (hasK1 && isBareNum0) {
-      normalized[0] = `${normalized[0]}K`;
-    }
-
-    normalized[0] = normalized[0].replace(/k$/i, "K");
-    normalized[1] = normalized[1].replace(/k$/i, "K");
+  if (hasMonthlyWord) {
+    multiplier = 12;
+  } else if (hasWeeklyWord) {
+    multiplier = 52;
+  } else if (hasHourlyWord) {
+    isHourly = true;
+  } else if (hasAnnualWord) {
+    isHourly = false;
+  } else if (anyHasK || anyOver1000) {
+    isHourly = false;
+  } else if (allUnder350) {
+    // Under 350 without k or 000 -> hourly!
+    isHourly = true;
   }
 
-  let joined = normalized
-    .join(" - ")
-    .replace(/\${2,}/g, "$")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-
-  if (!joined || !/\d/.test(joined)) return null;
-
-  if (isHourly && !joined.includes("/hr") && !/k/i.test(joined)) {
-    joined = `${joined}/hr`;
+  function fmtThousand(val: number, hadK: boolean): string {
+    if (hadK) {
+      return `${val}K`;
+    }
+    if (val >= 1000) {
+      const k = val / 1000;
+      return Number.isInteger(k) ? `${k}K` : `${Number(k.toFixed(1))}K`;
+    }
+    return `${val}K`;
   }
 
-  return joined;
+  if (isHourly) {
+    if (parsedParts.length >= 2) {
+      const min = Math.min(parsedParts[0].num, parsedParts[1].num);
+      const max = Math.max(parsedParts[0].num, parsedParts[1].num);
+      if (min === max) return `${currency}${min}/Hr`;
+      return `${currency}${min}-${currency}${max}/Hr`;
+    } else {
+      return `${currency}${parsedParts[0].num}/Hr`;
+    }
+  } else {
+    // Annualized (including converted monthly * 12 and weekly * 52)
+    if (parsedParts.length >= 2) {
+      const p0 = parsedParts[0];
+      const p1 = parsedParts[1];
+      const rawN0 = p0.hasK
+        ? p0.num * 1000
+        : p0.num >= 1000 || multiplier > 1
+          ? p0.num
+          : p0.num * 1000;
+      const rawN1 = p1.hasK
+        ? p1.num * 1000
+        : p1.num >= 1000 || multiplier > 1
+          ? p1.num
+          : p1.num * 1000;
+      const n0 = rawN0 * multiplier;
+      const n1 = rawN1 * multiplier;
+      const minNum = Math.min(n0, n1);
+      const maxNum = Math.max(n0, n1);
+      const v0Str = fmtThousand(minNum, false);
+      const v1Str = fmtThousand(maxNum, false);
+      if (v0Str === v1Str) return `${currency}${v0Str}`;
+      return `${currency}${v0Str}-${currency}${v1Str}`;
+    } else {
+      const p0 = parsedParts[0];
+      const rawN0 = p0.hasK
+        ? p0.num * 1000
+        : p0.num >= 1000 || multiplier > 1
+          ? p0.num
+          : p0.num * 1000;
+      const n0 = rawN0 * multiplier;
+      const v0Str = fmtThousand(n0, false);
+      return `${currency}${v0Str}`;
+    }
+  }
 }
 
 const DESCRIPTION_CHROME_RE =
@@ -386,6 +484,15 @@ export function cleanOpportunityDescription(
 ): string | null {
   if (!description) return null;
   const cleaned = description
+    .replace(
+      /(?:^|\n)\s*(?:(?:january|february|march|april|may|june|july|august|september|october|november|december|[a-z]{3})\s+\d{1,2}\s+)?job\s+alert[:\s-][^\n]*(?:\n|$)/gi,
+      " "
+    )
+    .replace(/(?:^|\n)\s*Job alert[^\n]*(?:\n|$)/gi, " ")
+    .replace(
+      /(?:^|\n)\s*(?:(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\s*based on your saved search[^\n]*(?:\n|$)|based on your saved search[^\n]*(?:\n|$))/gi,
+      " "
+    )
     .replace(DESCRIPTION_CHROME_RE, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
@@ -457,7 +564,7 @@ Extraction rules (metadata must be robust):
 - For DIRECT_RECRUITER, put exactly one job in "jobs" when a role is discussed.
 - companyDomain: inferred hiring-company website (e.g. "hpe.com"). Never use glassdoor/indeed/linkedin as the company domain.
 - location: city/region/remote text if present, else null.
-- salary: explicit compensation text if present (keep human-readable string with $ amounts, e.g. "$120k - $150k"). Omit platform notes like "(Employer est.)", "DOE", or "per hour" from the salary field — put pay-period context in description if needed. Else null.
+- salary: explicit compensation text if present (keep human-readable string with $ amounts, e.g. "$120k - $150k" or "$15 - $20/hr"). For hourly pay, always include "/hr". Omit platform notes like "(Employer est.)" or "DOE". Else null.
 - salaryMax: estimated annualized MAXIMUM numeric value when salary is present (e.g. "$120k" -> 120000, "$50/hr" -> 104000), else null.
 - postedAt: relative posting age if stated (e.g. "2 days ago", "Just posted"), else null.
 - description: provide a 1–2 sentence summary of core responsibilities, required skills, tools, and domain competencies in the posting's own language. Do not repeat the job title or company name verbatim (e.g., avoid "Role title at Company X"). STRIP OUT tracking chrome such as "Applied on [Date]", "View application", "Unsubscribe", "Easy Apply", and platform disclaimers — never leave those phrases in description.

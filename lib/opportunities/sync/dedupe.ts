@@ -113,13 +113,11 @@ export async function persistSyncOpportunity(
   const targetTitle =
     firstJob?.title || classification.role_title || "";
 
-  if (targetCompany || targetTitle) {
+  if (isDirectEmail && targetCompany && targetCompany.toLowerCase() !== "unknown company") {
     await prisma.jobOpportunity.updateMany({
       where: {
         accountId: account.id,
-        ...(targetCompany
-          ? { company: { equals: targetCompany, mode: "insensitive" } }
-          : {}),
+        company: { equals: targetCompany, mode: "insensitive" },
         ...(targetTitle
           ? { title: { equals: targetTitle, mode: "insensitive" } }
           : {}),
@@ -132,7 +130,7 @@ export async function persistSyncOpportunity(
           ? {
               recipientEmail: resolvedRecipientEmail,
               recipientName: resolvedRecipientName,
-              applicationType: isDirectEmail ? "DIRECT_EMAIL" : undefined,
+              applicationType: "DIRECT_EMAIL",
             }
           : {}),
       },

@@ -15,9 +15,11 @@ import { toast } from "sonner";
 
 import {
   clearCustomLlmKey,
-  clearJinaApiKey,
+  clearHasDataApiKey,
+  clearScrapingAntApiKey,
   saveCustomLlmKey,
-  saveJinaApiKey,
+  saveHasDataApiKey,
+  saveScrapingAntApiKey,
   updateBridgeSecret,
   updateLlmProvider,
   updateOllamaUrl,
@@ -69,6 +71,8 @@ type AiModelsCardProps = {
   cloudProvider?: CloudLlmProvider;
   cloudModel?: string | null;
   maskedApiKey?: string | null;
+  maskedScrapingAntApiKey?: string | null;
+  maskedHasDataApiKey?: string | null;
   maskedJinaApiKey?: string | null;
 };
 
@@ -177,9 +181,13 @@ export function AiModelsCard({
   cloudProvider: initialCloudProvider = "OPENROUTER",
   cloudModel: initialCloudModel = null,
   maskedApiKey: initialMaskedApiKey = null,
+  maskedScrapingAntApiKey: initialMaskedScrapingAntApiKey = null,
+  maskedHasDataApiKey: initialMaskedHasDataApiKey = null,
   maskedJinaApiKey: initialMaskedJinaApiKey = null,
 }: AiModelsCardProps) {
   const router = useRouter();
+  const effectiveMaskedScrapingAntKey =
+    initialMaskedScrapingAntApiKey ?? initialMaskedJinaApiKey ?? null;
   const [url, setUrl] = useState(localOllamaUrl);
   const [selectedModel, setSelectedModel] = useState(ollamaModel);
   const [devModels, setDevModels] = useState<string[]>([]);
@@ -226,15 +234,25 @@ export function AiModelsCard({
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [isEditingKey, setIsEditingKey] = useState(!initialMaskedApiKey);
 
-  const [jinaAccordionOpen, setJinaAccordionOpen] = useState<boolean>(
-    Boolean(initialMaskedJinaApiKey)
+  const [scrapingAntAccordionOpen, setScrapingAntAccordionOpen] = useState<boolean>(
+    Boolean(effectiveMaskedScrapingAntKey)
   );
-  const [jinaApiKeyInput, setJinaApiKeyInput] = useState("");
-  const [maskedJinaKey, setMaskedJinaKey] = useState<string | null>(
-    initialMaskedJinaApiKey ?? null
+  const [scrapingAntApiKeyInput, setScrapingAntApiKeyInput] = useState("");
+  const [maskedScrapingAntKey, setMaskedScrapingAntKey] = useState<string | null>(
+    effectiveMaskedScrapingAntKey
   );
-  const [isSavingJinaKey, setIsSavingJinaKey] = useState(false);
-  const [isClearingJinaKey, setIsClearingJinaKey] = useState(false);
+  const [isSavingScrapingAntKey, setIsSavingScrapingAntKey] = useState(false);
+  const [isClearingScrapingAntKey, setIsClearingScrapingAntKey] = useState(false);
+
+  const [hasDataAccordionOpen, setHasDataAccordionOpen] = useState<boolean>(
+    Boolean(initialMaskedHasDataApiKey)
+  );
+  const [hasDataApiKeyInput, setHasDataApiKeyInput] = useState("");
+  const [maskedHasDataKey, setMaskedHasDataKey] = useState<string | null>(
+    initialMaskedHasDataApiKey
+  );
+  const [isSavingHasDataKey, setIsSavingHasDataKey] = useState(false);
+  const [isClearingHasDataKey, setIsClearingHasDataKey] = useState(false);
 
   const useOllama = llmProvider === "LOCAL_OLLAMA";
   const disabled = !accountId || pending;
@@ -266,8 +284,14 @@ export function AiModelsCard({
   }, [initialMaskedApiKey]);
 
   useEffect(() => {
-    setMaskedJinaKey(initialMaskedJinaApiKey ?? null);
-  }, [initialMaskedJinaApiKey]);
+    setMaskedScrapingAntKey(
+      initialMaskedScrapingAntApiKey ?? initialMaskedJinaApiKey ?? null
+    );
+  }, [initialMaskedScrapingAntApiKey, initialMaskedJinaApiKey]);
+
+  useEffect(() => {
+    setMaskedHasDataKey(initialMaskedHasDataApiKey);
+  }, [initialMaskedHasDataApiKey]);
 
   useEffect(() => {
     setUrl(localOllamaUrl);
@@ -547,52 +571,102 @@ export function AiModelsCard({
     });
   }
 
-  function handleSaveJinaKey() {
+  function handleSaveScrapingAntKey() {
     if (!accountId) return;
-    const key = jinaApiKeyInput.trim();
+    const key = scrapingAntApiKeyInput.trim();
     if (!key) {
-      toast.error("Please enter a Jina API key");
+      toast.error("Please enter a ScrapingAnt API key");
       return;
     }
 
-    setIsSavingJinaKey(true);
+    setIsSavingScrapingAntKey(true);
     startTransition(async () => {
       try {
-        const result = await saveJinaApiKey(accountId, key);
+        const result = await saveScrapingAntApiKey(accountId, key);
         if (!result.ok) {
           toast.error(result.error);
           return;
         }
-        setMaskedJinaKey(result.data?.maskedJinaApiKey ?? null);
-        setJinaApiKeyInput("");
-        toast.success("Jina Reader API key encrypted and saved");
+        setMaskedScrapingAntKey(result.data?.maskedScrapingAntApiKey ?? null);
+        setScrapingAntApiKeyInput("");
+        toast.success("ScrapingAnt API key encrypted and saved");
         router.refresh();
       } catch {
-        toast.error("Failed to save Jina API key");
+        toast.error("Failed to save ScrapingAnt API key");
       } finally {
-        setIsSavingJinaKey(false);
+        setIsSavingScrapingAntKey(false);
       }
     });
   }
 
-  function handleClearJinaKey() {
+  function handleClearScrapingAntKey() {
     if (!accountId) return;
-    setIsClearingJinaKey(true);
+    setIsClearingScrapingAntKey(true);
     startTransition(async () => {
       try {
-        const result = await clearJinaApiKey(accountId);
+        const result = await clearScrapingAntApiKey(accountId);
         if (!result.ok) {
           toast.error(result.error);
           return;
         }
-        setMaskedJinaKey(null);
-        setJinaApiKeyInput("");
-        toast.success("Jina API key cleared; reverted to public free tier");
+        setMaskedScrapingAntKey(null);
+        setScrapingAntApiKeyInput("");
+        toast.success("ScrapingAnt API key cleared; direct fetching only");
         router.refresh();
       } catch {
-        toast.error("Failed to clear Jina API key");
+        toast.error("Failed to clear ScrapingAnt API key");
       } finally {
-        setIsClearingJinaKey(false);
+        setIsClearingScrapingAntKey(false);
+      }
+    });
+  }
+
+  function handleSaveHasDataKey() {
+    if (!accountId) return;
+    const key = hasDataApiKeyInput.trim();
+    if (!key) {
+      toast.error("Please enter a HasData API key");
+      return;
+    }
+
+    setIsSavingHasDataKey(true);
+    startTransition(async () => {
+      try {
+        const result = await saveHasDataApiKey(accountId, key);
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        setMaskedHasDataKey(result.data?.maskedHasDataApiKey ?? null);
+        setHasDataApiKeyInput("");
+        toast.success("HasData API key encrypted and saved");
+        router.refresh();
+      } catch {
+        toast.error("Failed to save HasData API key");
+      } finally {
+        setIsSavingHasDataKey(false);
+      }
+    });
+  }
+
+  function handleClearHasDataKey() {
+    if (!accountId) return;
+    setIsClearingHasDataKey(true);
+    startTransition(async () => {
+      try {
+        const result = await clearHasDataApiKey(accountId);
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        setMaskedHasDataKey(null);
+        setHasDataApiKeyInput("");
+        toast.success("HasData API key cleared; direct fetching only");
+        router.refresh();
+      } catch {
+        toast.error("Failed to clear HasData API key");
+      } finally {
+        setIsClearingHasDataKey(false);
       }
     });
   }
@@ -1507,47 +1581,47 @@ export function AiModelsCard({
       </CardContent>
     </Card>
 
-    {/* Web Scraping & Enrichment (Jina Reader) Card */}
+    {/* Web Scraping & Enrichment (ScrapingAnt Proxy) Card */}
     <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
       <CardHeader
         className="cursor-pointer select-none transition-colors hover:bg-muted/10 pb-5"
-        onClick={() => setJinaAccordionOpen((prev) => !prev)}
+        onClick={() => setScrapingAntAccordionOpen((prev) => !prev)}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <ChevronDown
               className={cn(
                 "h-5 w-5 text-muted-foreground transition-transform duration-200",
-                jinaAccordionOpen && "rotate-180"
+                scrapingAntAccordionOpen && "rotate-180"
               )}
             />
             <div>
               <CardTitle className="text-lg tracking-tight">
-                Web Scraping & Enrichment (Jina Reader)
+                ScrapingAnt Proxy (Optional BYOK)
               </CardTitle>
               <CardDescription>
-                Bypasses anti-bot challenges on aggregator links (Glassdoor, LinkedIn) to extract full job specs.
+                Used as a fast 1-credit failover to hydrate single-page job boards (like JobLeads) when direct fetching is blocked. Free tier includes 10,000 monthly credits.
               </CardDescription>
             </div>
           </div>
-          {maskedJinaKey ? (
+          {maskedScrapingAntKey ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               Custom Key Active
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-              Free Tier (20 RPM)
+              Direct Fetch (No Proxy)
             </span>
           )}
         </div>
       </CardHeader>
 
-      {jinaAccordionOpen && (
+      {scrapingAntAccordionOpen && (
         <CardContent className="space-y-5 border-t border-border/50 pt-5 animate-in fade-in-50 duration-200">
           {!accountId ? (
             <p className="text-sm text-muted-foreground">
-              Connect an account to configure Jina Reader settings.
+              Connect an account to configure ScrapingAnt settings.
             </p>
           ) : (
             <>
@@ -1559,32 +1633,32 @@ export function AiModelsCard({
                       Current Enrichment Mode
                     </p>
                     <p className="text-sm font-medium text-foreground">
-                      {maskedJinaKey ? (
-                        <>Custom Key Configured (<code className="font-mono text-xs">{maskedJinaKey}</code>)</>
+                      {maskedScrapingAntKey ? (
+                        <>Custom Key Configured (<code className="font-mono text-xs">{maskedScrapingAntKey}</code>)</>
                       ) : (
-                        "Default (Free Unauthenticated - 20 RPM)"
+                        "Direct Fetch Only (No Proxy Failover)"
                       )}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {maskedJinaKey
-                        ? `Active Key: ${maskedJinaKey}`
-                        : "Using public free tier (20 requests/minute). Add a personal key for higher limits."}
+                      {maskedScrapingAntKey
+                        ? `Active Key: ${maskedScrapingAntKey}`
+                        : "Direct ATS & JSON-LD fetch only. Add a free ScrapingAnt key to enable fast 1-credit failover."}
                     </p>
                   </div>
 
-                  {maskedJinaKey ? (
+                  {maskedScrapingAntKey ? (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       className="h-9 shrink-0 text-xs text-rose-500 border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-500/20"
-                      disabled={disabled || isClearingJinaKey}
+                      disabled={disabled || isClearingScrapingAntKey}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleClearJinaKey();
+                        handleClearScrapingAntKey();
                       }}
                     >
-                      {isClearingJinaKey ? (
+                      {isClearingScrapingAntKey ? (
                         <>
                           <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                           Clearing…
@@ -1600,26 +1674,26 @@ export function AiModelsCard({
               {/* Key Input */}
               <div className="space-y-2">
                 <Label
-                  htmlFor="jina-api-key"
+                  htmlFor="scrapingant-api-key"
                   className="text-sm font-medium tracking-tight"
                 >
-                  {maskedJinaKey ? "Replace Jina API Key" : "Jina API Key"}
+                  {maskedScrapingAntKey ? "Replace ScrapingAnt API Key" : "ScrapingAnt API Key"}
                 </Label>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <Input
-                    id="jina-api-key"
+                    id="scrapingant-api-key"
                     type="password"
-                    placeholder="jina_..."
-                    value={jinaApiKeyInput}
-                    disabled={disabled || isSavingJinaKey}
-                    onChange={(e) => setJinaApiKeyInput(e.target.value)}
+                    placeholder={maskedScrapingAntKey ? `••••••••${maskedScrapingAntKey.slice(-4)}` : "ant-..."}
+                    value={scrapingAntApiKeyInput}
+                    disabled={disabled || isSavingScrapingAntKey}
+                    onChange={(e) => setScrapingAntApiKeyInput(e.target.value)}
                     className="h-10 border-border/80 bg-background font-mono text-xs"
                     autoComplete="off"
                     spellCheck={false}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        handleSaveJinaKey();
+                        handleSaveScrapingAntKey();
                       }
                     }}
                   />
@@ -1627,10 +1701,10 @@ export function AiModelsCard({
                     type="button"
                     size="sm"
                     className="h-10 shrink-0 text-xs"
-                    disabled={disabled || isSavingJinaKey || !jinaApiKeyInput.trim()}
-                    onClick={handleSaveJinaKey}
+                    disabled={disabled || isSavingScrapingAntKey || !scrapingAntApiKeyInput.trim()}
+                    onClick={handleSaveScrapingAntKey}
                   >
-                    {isSavingJinaKey ? (
+                    {isSavingScrapingAntKey ? (
                       <>
                         <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                         Saving…
@@ -1641,7 +1715,168 @@ export function AiModelsCard({
                   </Button>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Get a free key from <a href="https://jina.ai" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">jina.ai</a> to increase your rate limit to 10M tokens. Keys are stored encrypted with AES-256-GCM.
+                  Get a free key from{" "}
+                  <a
+                    href="https://scrapingant.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-foreground"
+                  >
+                    scrapingant.com
+                  </a>{" "}
+                  (&quot;Get Free API Key&quot; for 10,000 free monthly requests). Keys are stored encrypted with AES-256-GCM.
+                </p>
+              </div>
+            </>
+          )}
+        </CardContent>
+      )}
+    </Card>
+
+    {/* HasData Web Scraping & Spec Hydration Card */}
+    <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
+      <CardHeader
+        className="cursor-pointer select-none transition-colors hover:bg-muted/10 pb-5"
+        onClick={() => setHasDataAccordionOpen((prev) => !prev)}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <ChevronDown
+              className={cn(
+                "h-5 w-5 text-muted-foreground transition-transform duration-200",
+                hasDataAccordionOpen && "rotate-180"
+              )}
+            />
+            <div>
+              <CardTitle className="text-lg tracking-tight">
+                HasData Web Scraping (Optional BYOK)
+              </CardTitle>
+              <CardDescription>
+                Used for on-demand extraction of Glassdoor and Indeed postings when tailoring resumes or hydrating job specs. Never consumed during background sync.
+              </CardDescription>
+            </div>
+          </div>
+          {maskedHasDataKey ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Custom Key Active
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+              On-Demand Direct Only
+            </span>
+          )}
+        </div>
+      </CardHeader>
+
+      {hasDataAccordionOpen && (
+        <CardContent className="space-y-5 border-t border-border/50 pt-5 animate-in fade-in-50 duration-200">
+          {!accountId ? (
+            <p className="text-sm text-muted-foreground">
+              Connect an account to configure HasData settings.
+            </p>
+          ) : (
+            <>
+              {/* Status Readout */}
+              <div className="rounded-xl border border-border/80 bg-background p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Current Hydration Mode
+                    </p>
+                    <p className="text-sm font-medium text-foreground">
+                      {maskedHasDataKey ? (
+                        <>Custom Key Configured (<code className="font-mono text-xs">{maskedHasDataKey}</code>)</>
+                      ) : (
+                        "On-Demand Direct Only (No HasData Key)"
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {maskedHasDataKey
+                        ? `Active Key: ${maskedHasDataKey}`
+                        : "Glassdoor and Indeed postings save as minimal leads during sync. Add a HasData key to unlock on-demand spec extraction."}
+                    </p>
+                  </div>
+
+                  {maskedHasDataKey ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 shrink-0 text-xs text-rose-500 border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-500/20"
+                      disabled={disabled || isClearingHasDataKey}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleClearHasDataKey();
+                      }}
+                    >
+                      {isClearingHasDataKey ? (
+                        <>
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          Clearing…
+                        </>
+                      ) : (
+                        "Clear Key"
+                      )}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Key Input */}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="hasdata-api-key"
+                  className="text-sm font-medium tracking-tight"
+                >
+                  {maskedHasDataKey ? "Replace HasData API Key" : "HasData API Key"}
+                </Label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    id="hasdata-api-key"
+                    type="password"
+                    placeholder={maskedHasDataKey ? `••••••••${maskedHasDataKey.slice(-4)}` : "hd-..."}
+                    value={hasDataApiKeyInput}
+                    disabled={disabled || isSavingHasDataKey}
+                    onChange={(e) => setHasDataApiKeyInput(e.target.value)}
+                    className="h-10 border-border/80 bg-background font-mono text-xs"
+                    autoComplete="off"
+                    spellCheck={false}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSaveHasDataKey();
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-10 shrink-0 text-xs"
+                    disabled={disabled || isSavingHasDataKey || !hasDataApiKeyInput.trim()}
+                    onClick={handleSaveHasDataKey}
+                  >
+                    {isSavingHasDataKey ? (
+                      <>
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        Saving…
+                      </>
+                    ) : (
+                      "Save Key"
+                    )}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Get an API key from{" "}
+                  <a
+                    href="https://hasdata.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-foreground"
+                  >
+                    hasdata.com
+                  </a>
+                  . Used strictly on-demand when tailoring or hydrating specs; zero credits consumed during sync. Keys are stored encrypted with AES-256-GCM.
                 </p>
               </div>
             </>

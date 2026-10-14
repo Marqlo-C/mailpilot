@@ -14,6 +14,8 @@ import {
   DEFAULT_RESUME_PREFERENCES,
   parseAccountRules,
 } from "@/lib/validations/rules";
+import { resolveDecryptedHasDataKey } from "@/lib/llm/vault";
+import { fetchViaHasData } from "@/lib/opportunities/context/hasdata";
 import {
   loadMasterProfile,
   loadStoredDraft,
@@ -47,6 +49,9 @@ export async function buildOpportunityResumePreview(
       title: true,
       company: true,
       description: true,
+      applyUrl: true,
+      salary: true,
+      location: true,
       tailoredResumePdf: true,
       tailoredResumeData: true,
       tailorConfig: true,
@@ -71,7 +76,54 @@ export async function buildOpportunityResumePreview(
   const profile = await loadMasterProfile(accountId);
   const accountRules = parseAccountRules(account?.settings?.rules);
 
-  const { context } = await resolveOpportunityContext(opportunityId);
+  let { context } = await resolveOpportunityContext(opportunityId);
+
+  // On-demand HasData hydration for Glassdoor and Indeed when context is MINIMAL_LEAD
+  const targetUrl = context.applyUrl || opportunity.applyUrl;
+  const isGlassdoorOrIndeed = Boolean(
+    targetUrl && /glassdoor\.com|indeed\.com/i.test(targetUrl)
+  );
+
+  if (context.richness === "MINIMAL_LEAD" && isGlassdoorOrIndeed && targetUrl) {
+    const hasDataApiKey = resolveDecryptedHasDataKey(accountRules);
+    if (hasDataApiKey) {
+      try {
+        const platform = /glassdoor\.com/i.test(targetUrl)
+          ? "glassdoor"
+          : "indeed";
+        const hasDataResult = await fetchViaHasData(
+          targetUrl,
+          hasDataApiKey,
+          platform
+        );
+        if (
+          hasDataResult.data?.description &&
+          hasDataResult.data.description.length > (context.jobDescription?.length ?? 0)
+        ) {
+          await prisma.jobOpportunity.update({
+            where: { id: opportunityId },
+            data: {
+              description: hasDataResult.data.description,
+              ...(hasDataResult.data.salary && !opportunity.salary
+                ? { salary: hasDataResult.data.salary }
+                : {}),
+              ...(hasDataResult.data.location && !opportunity.location
+                ? { location: hasDataResult.data.location }
+                : {}),
+              ...(hasDataResult.data.company &&
+              (!opportunity.company || opportunity.company === "Unknown Company")
+                ? { company: hasDataResult.data.company }
+                : {}),
+            },
+          });
+          const reResolved = await resolveOpportunityContext(opportunityId);
+          context = reResolved.context;
+        }
+      } catch (err) {
+        console.warn("[resume] On-demand HasData hydration failed:", err);
+      }
+    }
+  }
 
   const tailored = await tailorResumeForJob(
     [context.roleTitle, context.company, context.jobDescription],
@@ -145,6 +197,89 @@ export async function getOpportunityResumeState(
   const resume = previewFromCache(opportunity);
 
   return { resume, defaultIncludeSummary, defaultAttachPdf };
+}
+
+/**
+ * On-demand spec hydration helper for an opportunity.
+ * Upgrades a MINIMAL_LEAD on Glassdoor or Indeed to RICH_SPEC using the account's HasData BYOK key.
+ */
+export async function hydrateOpportunitySpec(
+  accountId: string,
+  opportunityId: string
+): Promise<{ ok: boolean; upgraded: boolean; message: string }> {
+  const opportunity = await prisma.jobOpportunity.findFirst({
+    where: { id: opportunityId, accountId },
+    select: {
+      id: true,
+      applyUrl: true,
+      description: true,
+      salary: true,
+      location: true,
+      company: true,
+    },
+  });
+  if (!opportunity) {
+    return { ok: false, upgraded: false, message: "Opportunity not found" };
+  }
+
+  const { context } = await resolveOpportunityContext(opportunityId);
+  const targetUrl = context.applyUrl || opportunity.applyUrl;
+  if (!targetUrl || !/glassdoor\.com|indeed\.com/i.test(targetUrl)) {
+    return {
+      ok: true,
+      upgraded: false,
+      message: "Not a Glassdoor or Indeed listing",
+    };
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { settings: true },
+  });
+  const rules = parseAccountRules(account?.settings?.rules);
+  const hasDataKey = resolveDecryptedHasDataKey(rules);
+  if (!hasDataKey) {
+    return {
+      ok: false,
+      upgraded: false,
+      message: "No HasData API key configured in Settings",
+    };
+  }
+
+  const platform = /glassdoor\.com/i.test(targetUrl) ? "glassdoor" : "indeed";
+  const result = await fetchViaHasData(targetUrl, hasDataKey, platform);
+  if (
+    result.data?.description &&
+    result.data.description.length > (context.jobDescription?.length ?? 0)
+  ) {
+    await prisma.jobOpportunity.update({
+      where: { id: opportunityId },
+      data: {
+        description: result.data.description,
+        ...(result.data.salary && !opportunity.salary
+          ? { salary: result.data.salary }
+          : {}),
+        ...(result.data.location && !opportunity.location
+          ? { location: result.data.location }
+          : {}),
+        ...(result.data.company &&
+        (!opportunity.company || opportunity.company === "Unknown Company")
+          ? { company: result.data.company }
+          : {}),
+      },
+    });
+    return {
+      ok: true,
+      upgraded: true,
+      message: `Successfully hydrated ${result.data.description.length} chars via HasData`,
+    };
+  }
+
+  return {
+    ok: false,
+    upgraded: false,
+    message: result.errorMsg || "Failed to extract spec from HasData",
+  };
 }
 
 /**

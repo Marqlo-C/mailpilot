@@ -10,6 +10,7 @@ import {
   dispatchOpportunityEmail,
   getDailySendLimit,
   getOpportunityResumeState,
+  hydrateOpportunitySpec,
   prepareOpportunityDraft,
   prepareOpportunityResume,
   refineOpportunityDraft,
@@ -428,6 +429,37 @@ export async function prepareOpportunityResumeForReview(
       ok: false,
       error:
         error instanceof Error ? error.message : "Failed to prepare resume",
+    };
+  }
+}
+
+/** On-Demand spec hydration via HasData BYOK key. */
+export async function hydrateOpportunitySpecAction(
+  opportunityId: string
+): Promise<ActionResult<{ upgraded: boolean; message: string }>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+
+  try {
+    const result = await hydrateOpportunitySpec(
+      opportunity.accountId,
+      opportunityId
+    );
+    if (!result.ok) {
+      return { ok: false, error: result.message };
+    }
+    revalidatePath("/jobs");
+    return { ok: true, data: { upgraded: result.upgraded, message: result.message } };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to hydrate spec",
     };
   }
 }

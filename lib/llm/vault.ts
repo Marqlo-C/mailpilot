@@ -19,11 +19,43 @@ export function maskApiKey(rawKey: string): string {
     return "sk-...";
   }
   const clean = rawKey.trim();
-  const prefix = clean.startsWith("jina_") ? "jina_" : "sk-";
+  const prefix = clean.startsWith("ant-")
+    ? "ant-"
+    : clean.startsWith("jina_")
+      ? "jina_"
+      : "sk-";
   if (clean.length <= 4) {
     return `${prefix}...`;
   }
   return `${prefix}...${clean.slice(-4)}`;
+}
+
+/**
+ * Masks a ScrapingAnt API key for safe client presentation, e.g. "ant-...39aF".
+ */
+export function maskScrapingAntApiKey(rawKey: string): string {
+  if (!rawKey || typeof rawKey !== "string") {
+    return "ant-...";
+  }
+  const clean = rawKey.trim();
+  if (clean.length <= 4) {
+    return "ant-...";
+  }
+  return `ant-...${clean.slice(-4)}`;
+}
+
+/**
+ * Masks a HasData API key for safe client presentation, e.g. "hd-...1234".
+ */
+export function maskHasDataApiKey(rawKey: string): string {
+  if (!rawKey || typeof rawKey !== "string") {
+    return "hd-...";
+  }
+  const clean = rawKey.trim();
+  if (clean.length <= 4) {
+    return "hd-...";
+  }
+  return `hd-...${clean.slice(-4)}`;
 }
 
 /**
@@ -86,3 +118,59 @@ export function resolveDecryptedAccountKey(
     return null;
   }
 }
+
+/**
+ * Resolves and decrypts the ScrapingAnt API key from AccountSettings.rules.
+ * Returns null if no custom key is configured or if decryption fails.
+ */
+export function resolveDecryptedScrapingAntKey(
+  rules: Partial<AccountRules> | null | undefined
+): string | null {
+  if (!rules?.encryptedScrapingAntApiKey) {
+    return null;
+  }
+
+  try {
+    const decrypted = decryptToken(rules.encryptedScrapingAntApiKey).trim();
+    if (!decrypted) {
+      console.warn("[vault] Decrypted ScrapingAnt API key was empty string. Returning null.");
+      return null;
+    }
+    return decrypted;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.error(
+      `[vault] Failed to decrypt ScrapingAnt API key: ${reason}`
+    );
+    return null;
+  }
+}
+
+/**
+ * Resolves and decrypts the HasData API key from AccountSettings.rules.
+ * Returns null if no custom key is configured or if decryption fails.
+ */
+export function resolveDecryptedHasDataKey(
+  rules: Partial<AccountRules> | null | undefined
+): string | null {
+  if (!rules?.encryptedHasDataApiKey) {
+    return null;
+  }
+
+  try {
+    const decrypted = decryptToken(rules.encryptedHasDataApiKey).trim();
+    if (!decrypted) {
+      console.warn("[vault] Decrypted HasData API key was empty string. Returning null.");
+      return null;
+    }
+    return decrypted;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.error(
+      `[vault] Failed to decrypt HasData API key: ${reason}`
+    );
+    return null;
+  }
+}
+
+

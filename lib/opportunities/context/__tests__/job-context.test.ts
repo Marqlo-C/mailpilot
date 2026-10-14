@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   extractCleanSnippet,
   sanitizeJobDescription,
+  stripPortalPreambles,
 } from "../scrubber";
 import { resolveJobOpportunity } from "../lens";
 
@@ -29,6 +30,62 @@ describe("Job Context Domain", () => {
 
       expect(snippet.length).toBeLessThanOrEqual(300);
       expect(snippet.endsWith(".")).toBe(true);
+    });
+
+    it("filters synthesized placeholder sentences and consecutive duplicate strings", () => {
+      const text = `
+        About the role: We are looking for an experienced product designer to join our multidisciplinary team.
+        Synthesized from single-job classification fields.
+        In this role, you will lead design thinking workshops and craft responsive user journeys.
+        In this role, you will lead design thinking workshops and craft responsive user journeys.
+        Responsibilities include design systems maintenance and user research.
+      `;
+
+      const snippet = extractCleanSnippet(text, 150, 500);
+      expect(snippet).not.toContain("Synthesized from single-job classification fields.");
+      expect(snippet).toContain("We are looking for an experienced product designer");
+      const count = (snippet.match(/lead design thinking workshops/g) || []).length;
+      expect(count).toBe(1);
+    });
+
+    it("falls back to synthesized role opportunity string when snippet is solely alert or marketing noise", () => {
+      const noiseOnly = "Job alert: Software Engineer in Austin. #1 Job Platform in North America.";
+      const snippet = extractCleanSnippet(noiseOnly, 100, 300, {
+        roleTitle: "Staff Software Engineer",
+        company: "Acme Cloud",
+      });
+      expect(snippet).toBe("Opportunity for Staff Software Engineer at Acme Cloud.");
+    });
+
+    it("falls back to synthesized role string when company is missing or unknown", () => {
+      const noiseOnly = "Jobs recommended for you based on your activity.";
+      const snippet = extractCleanSnippet(noiseOnly, 100, 300, {
+        roleTitle: "Director of Product",
+        company: null,
+      });
+      expect(snippet).toBe("Opportunity for Director of Product.");
+    });
+
+    it("cleans leading Job alert: prefix while preserving legitimate description body", () => {
+      const text = "Job alert: We are seeking an experienced Clinical Research Coordinator to manage ongoing trials.";
+      const snippet = extractCleanSnippet(text, 50, 300);
+      expect(snippet).not.toContain("Job alert:");
+      expect(snippet).toContain("We are seeking an experienced Clinical Research Coordinator");
+    });
+
+    it("returns empty string when text begins with Job alert: and remaining text is < 30 chars without fallbackContext", () => {
+      const text = "Job alert: Short notice";
+      const snippet = extractCleanSnippet(text, 100, 300);
+      expect(snippet).toBe("");
+    });
+
+    it("falls back to synthesized role string when text begins with Job alert: and remaining text is < 30 chars with fallbackContext", () => {
+      const text = "Job alert: New jobs";
+      const snippet = extractCleanSnippet(text, 100, 300, {
+        roleTitle: "Bioinformatics Specialist",
+        company: "Genomics Labs",
+      });
+      expect(snippet).toBe("Opportunity for Bioinformatics Specialist at Genomics Labs.");
     });
 
     it("respects maxChars hard cap", () => {
@@ -89,10 +146,113 @@ describe("Job Context Domain", () => {
       expect(cleaned).toContain("Responsibilities:");
     });
 
+    it("drops leading corporate marketing boilerplates while preserving core role sections", () => {
+      const text = `
+        About the Company:
+        Founded in 2012, Acme Global Technologies is a worldwide leader in enterprise operations with offices across 20 countries. We are driven by a commitment to innovation and customer success.
+
+        About the Role:
+        We are seeking a Clinical Operations Lead to oversee hospital trials and ensure adherence to safety standards.
+
+        Responsibilities:
+        - Monitor active protocol execution
+        - Coordinate cross-functional research teams
+
+        Qualifications:
+        - 5+ years experience in clinical research operations
+        - Bachelor degree in life sciences or related discipline
+      `;
+
+      const cleaned = sanitizeJobDescription(text, 4000);
+      expect(cleaned).not.toContain("Founded in 2012, Acme Global Technologies");
+      expect(cleaned).toContain("About the Role:");
+      expect(cleaned).toContain("Clinical Operations Lead");
+      expect(cleaned).toContain("Responsibilities:");
+      expect(cleaned).toContain("Qualifications:");
+    });
+
+    it("drops trailing benefit itemizations (+17 benefits, Company Discounts)", () => {
+      const text = `
+        Role Overview:
+        Design and scale customer engagement platforms for modern organizations.
+
+        Responsibilities:
+        - Build resilient backend APIs
+        - Partner with cross-functional product stakeholders
+
+        Qualifications:
+        - 4+ years software engineering experience
+
+        Benefits:
+        - Comprehensive medical, dental, and vision coverage
+        - 401(k) matching up to 5%
+        - Company Discounts on partner services
+        +17 benefits
+      `;
+
+      const cleaned = sanitizeJobDescription(text, 4000);
+      expect(cleaned).toContain("Role Overview:");
+      expect(cleaned).toContain("Responsibilities:");
+      expect(cleaned).toContain("Qualifications:");
+      expect(cleaned).not.toContain("+17 benefits");
+      expect(cleaned).not.toContain("Company Discounts on partner services");
+      expect(cleaned).not.toContain("401(k) matching");
+    });
+
+    it("drops trailing benefit chips like 401(K) Match and Company Discounts", () => {
+      const text = `
+        About the Role:
+        Oversee digital inventory and operations strategy.
+        
+        Responsibilities:
+        - Direct cross-functional team execution
+        - Manage logistics milestones
+        
+        Qualifications:
+        - 6+ years operations experience
+        
+        401(K) Match | Stock Purchase Plan | +10
+        Company Discounts
+      `;
+
+      const cleaned = sanitizeJobDescription(text, 4000);
+      expect(cleaned).toContain("About the Role:");
+      expect(cleaned).toContain("Qualifications:");
+      expect(cleaned).not.toContain("401(K) Match");
+      expect(cleaned).not.toContain("Stock Purchase Plan");
+      expect(cleaned).not.toContain("Company Discounts");
+    });
+
     it("respects length limits", () => {
       const long = "Detailed role requirement and specification. ".repeat(200);
       const cleaned = sanitizeJobDescription(long, 4000);
       expect(cleaned.length).toBeLessThanOrEqual(4000);
+    });
+  });
+
+  describe("stripPortalPreambles", () => {
+    it("strips leading aggregator alert headers and recommendation banners", () => {
+      const raw = `
+        Job alert: Senior Systems Analyst in Seattle, WA
+        Jobs recommended for you based on your activity
+        #1 Job Platform in North America
+        Why it matches: Fits your target location and role preference
+        
+        About the Role:
+        We are seeking a Senior Systems Analyst to modernize our data warehousing pipelines.
+        
+        Responsibilities:
+        - Maintain enterprise ETL workflows
+        - Collaborate with domain stakeholders
+      `;
+
+      const cleaned = stripPortalPreambles(raw);
+      expect(cleaned).not.toContain("Job alert: Senior Systems Analyst");
+      expect(cleaned).not.toContain("Jobs recommended for you");
+      expect(cleaned).not.toContain("#1 Job Platform");
+      expect(cleaned).not.toContain("Why it matches:");
+      expect(cleaned).toContain("About the Role:");
+      expect(cleaned).toContain("Senior Systems Analyst");
     });
   });
 
@@ -141,6 +301,28 @@ describe("Job Context Domain", () => {
         postedAt: null,
       });
       expect(withNull.postedAt).toBeNull();
+    });
+
+    it("rejects non-http apply URLs and normalizes them to null", () => {
+      const normalized = resolveJobOpportunity({
+        company: "Acme Corp",
+        title: "Systems Engineer",
+        applyUrl: "Confidential Technology Specialist Longview, TX Easy Apply Just posted",
+      });
+      expect(normalized.applyUrl).toBeNull();
+    });
+
+    it("synthesizes job description fallback when description is only a Job alert banner", () => {
+      const normalized = resolveJobOpportunity({
+        company: "Glassdoor",
+        title: "Software Engineer",
+        location: "Austin, TX",
+        salary: "$120K - $150K",
+        description: "Job alert: Software Engineer",
+      });
+      expect(normalized.jobDescription).toBe(
+        "Opportunity for Software Engineer at Glassdoor. Located in Austin, TX. Compensated at $120K-$150K."
+      );
     });
   });
 });

@@ -17,7 +17,7 @@ import {
   cloudProviderSchema,
   PROVIDER_ENDPOINTS,
 } from "@/lib/llm/provider.ssot";
-import { encryptAccountKey, maskApiKey } from "@/lib/llm/vault";
+import { encryptAccountKey, maskApiKey, maskScrapingAntApiKey, maskHasDataApiKey } from "@/lib/llm/vault";
 import { encryptToken } from "@/lib/crypto";
 
 type ActionResult<T = undefined> =
@@ -532,8 +532,120 @@ export async function clearCustomLlmKey(
 }
 
 /**
- * Encrypts and persists a customer-provided Jina Reader API key in AccountSettings.rules.
- * Never stores or returns the plaintext API key.
+ * Encrypts and persists a customer-provided ScrapingAnt API key on AccountSettings.rules,
+ * or clears it if rawKey is null or empty.
+ */
+export async function saveScrapingAntApiKey(
+  accountId: string,
+  rawKey: string | null
+): Promise<ActionResult<{ maskedScrapingAntApiKey: string | null }>> {
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { settings: true },
+  });
+  if (!account) return { ok: false, error: "Account not found" };
+
+  const rules = parseAccountRules(account.settings?.rules);
+
+  const trimmed = rawKey?.trim() ?? "";
+  const encrypted = trimmed ? encryptToken(trimmed) : null;
+  const masked = trimmed ? maskScrapingAntApiKey(trimmed) : null;
+
+  const updatedRules = accountRulesSchema.parse({
+    ...rules,
+    encryptedScrapingAntApiKey: encrypted,
+    maskedScrapingAntApiKey: masked,
+  });
+
+  const { matchScoreThreshold: _deprecated, ...rulesToSave } = updatedRules;
+
+  await prisma.accountSettings.upsert({
+    where: { accountId },
+    create: {
+      accountId,
+      rules: rulesToSave as Prisma.InputJsonValue,
+    },
+    update: {
+      rules: rulesToSave as Prisma.InputJsonValue,
+    },
+  });
+
+  revalidatePath("/settings");
+  return { ok: true, data: { maskedScrapingAntApiKey: masked } };
+}
+
+/**
+ * Clears the customer-provided ScrapingAnt API key from AccountSettings.rules.
+ */
+export async function clearScrapingAntApiKey(
+  accountId: string
+): Promise<ActionResult<{ cleared: true }>> {
+  const result = await saveScrapingAntApiKey(accountId, null);
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+  return { ok: true, data: { cleared: true } };
+}
+
+/**
+ * Encrypts and persists a customer-provided HasData API key on AccountSettings.rules,
+ * or clears it if rawKey is null or empty.
+ */
+export async function saveHasDataApiKey(
+  accountId: string,
+  rawKey: string | null
+): Promise<ActionResult<{ maskedHasDataApiKey: string | null }>> {
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { settings: true },
+  });
+  if (!account) return { ok: false, error: "Account not found" };
+
+  const rules = parseAccountRules(account.settings?.rules);
+
+  const trimmed = rawKey?.trim() ?? "";
+  const encrypted = trimmed ? encryptToken(trimmed) : null;
+  const masked = trimmed ? maskHasDataApiKey(trimmed) : null;
+
+  const updatedRules = accountRulesSchema.parse({
+    ...rules,
+    encryptedHasDataApiKey: encrypted,
+    maskedHasDataApiKey: masked,
+  });
+
+  const { matchScoreThreshold: _deprecated, ...rulesToSave } = updatedRules;
+
+  await prisma.accountSettings.upsert({
+    where: { accountId },
+    create: {
+      accountId,
+      rules: rulesToSave as Prisma.InputJsonValue,
+    },
+    update: {
+      rules: rulesToSave as Prisma.InputJsonValue,
+    },
+  });
+
+  revalidatePath("/settings");
+  return { ok: true, data: { maskedHasDataApiKey: masked } };
+}
+
+/**
+ * Clears the customer-provided HasData API key from AccountSettings.rules.
+ */
+export async function clearHasDataApiKey(
+  accountId: string
+): Promise<ActionResult<{ cleared: true }>> {
+  const result = await saveHasDataApiKey(accountId, null);
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+  return { ok: true, data: { cleared: true } };
+}
+
+
+/**
+ * @deprecated Use saveScrapingAntApiKey. Retained for backwards compatibility.
  */
 export async function saveJinaApiKey(
   accountId: string,
@@ -578,8 +690,7 @@ export async function saveJinaApiKey(
 }
 
 /**
- * Clears the customer-provided Jina Reader API key from AccountSettings.rules,
- * reverting link enrichment to the public free tier.
+ * @deprecated Use clearScrapingAntApiKey. Retained for backwards compatibility.
  */
 export async function clearJinaApiKey(
   accountId: string
@@ -609,4 +720,5 @@ export async function clearJinaApiKey(
   revalidatePath("/settings");
   return { ok: true, data: { cleared: true } };
 }
+
 

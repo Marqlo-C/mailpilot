@@ -251,6 +251,8 @@ export const JOB_BOARD_KEYWORDS = [
   "workday",
   "greenhouse",
   "lever",
+  "studysmarter",
+  "vaia",
 ] as const;
 
 /** Major job board and aggregator domains (universal + specialized) */
@@ -267,6 +269,9 @@ export const UNIVERSAL_JOB_BOARD_DOMAINS = [
   "snagajob.com",
   "wellfound.com",
   "dice.com",
+  "studysmarter.de",
+  "studysmarter.com",
+  "vaia.com",
 ] as const;
 
 /** Enterprise ATS sender domains */

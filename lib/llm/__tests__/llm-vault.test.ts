@@ -1,8 +1,13 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { encryptToken } from "@/lib/crypto";
 import {
   encryptAccountKey,
   maskApiKey,
+  maskHasDataApiKey,
+  maskScrapingAntApiKey,
   resolveDecryptedAccountKey,
+  resolveDecryptedHasDataKey,
+  resolveDecryptedScrapingAntKey,
 } from "../vault";
 import {
   CLOUD_LLM_PROVIDERS,
@@ -21,11 +26,17 @@ describe("LLM Vault & Multi-Provider SSOT", () => {
       expect(maskApiKey("gsk_1234567890abcdef")).toBe("sk-...cdef");
       expect(maskApiKey("secret-token-key-9999")).toBe("sk-...9999");
       expect(maskApiKey("jina_abcdef1234567890")).toBe("jina_...7890");
+      expect(maskScrapingAntApiKey("7d97aada1292445e989d631f78bedca9")).toBe("ant-...dca9");
+      expect(maskHasDataApiKey("hd_live_9876543210abcdef")).toBe("hd-...cdef");
     });
 
     it("handles short or empty keys gracefully", () => {
       expect(maskApiKey("abc")).toBe("sk-...");
       expect(maskApiKey("")).toBe("sk-...");
+      expect(maskScrapingAntApiKey("abc")).toBe("ant-...");
+      expect(maskScrapingAntApiKey("")).toBe("ant-...");
+      expect(maskHasDataApiKey("abc")).toBe("hd-...");
+      expect(maskHasDataApiKey("")).toBe("hd-...");
     });
   });
 
@@ -74,6 +85,44 @@ describe("LLM Vault & Multi-Provider SSOT", () => {
         encryptedApiKey: "invalid:corrupted:tag",
       } as any);
       expect(credentials).toBeNull();
+    });
+
+    it("decrypts ScrapingAnt key when present and valid", () => {
+      const rawKey = "7d97aada1292445e989d631f78bedca9";
+      const encrypted = encryptToken(rawKey);
+      const decrypted = resolveDecryptedScrapingAntKey({
+        encryptedScrapingAntApiKey: encrypted,
+      } as any);
+      expect(decrypted).toBe(rawKey);
+    });
+
+    it("returns null when ScrapingAnt key is not configured or invalid", () => {
+      expect(resolveDecryptedScrapingAntKey(null)).toBeNull();
+      expect(resolveDecryptedScrapingAntKey({})).toBeNull();
+      expect(
+        resolveDecryptedScrapingAntKey({
+          encryptedScrapingAntApiKey: "invalid:corrupted:token",
+        } as any)
+      ).toBeNull();
+    });
+
+    it("decrypts HasData key when present and valid", () => {
+      const rawKey = "hd_live_1234567890abcdef";
+      const encrypted = encryptToken(rawKey);
+      const decrypted = resolveDecryptedHasDataKey({
+        encryptedHasDataApiKey: encrypted,
+      } as any);
+      expect(decrypted).toBe(rawKey);
+    });
+
+    it("returns null when HasData key is not configured or invalid", () => {
+      expect(resolveDecryptedHasDataKey(null)).toBeNull();
+      expect(resolveDecryptedHasDataKey({})).toBeNull();
+      expect(
+        resolveDecryptedHasDataKey({
+          encryptedHasDataApiKey: "invalid:corrupted:token",
+        } as any)
+      ).toBeNull();
     });
   });
 

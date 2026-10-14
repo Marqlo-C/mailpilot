@@ -83,7 +83,7 @@ describe("Matching Domain", () => {
     expect(result.reason).toContain("Product Management");
     expect(result.reason).toContain("Innovate Inc");
     expect(result.reason).toContain("8 years in Product");
-    expect(result.reason).toContain("$160K - $200K");
+    expect(result.reason).toContain("$160K-$200K");
   });
 
   it("evaluates rich specifications against candidate skills", async () => {
