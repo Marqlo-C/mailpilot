@@ -16,6 +16,12 @@ import {
 } from "@/lib/validations/rules";
 import { resolveDecryptedHasDataKey } from "@/lib/llm/vault";
 import { fetchViaHasData } from "@/lib/opportunities/context/hasdata";
+import { loadCandidateProfileSummary } from "@/lib/llm/classification";
+import {
+  extractMatchCandidateLens,
+  evaluateOpportunityMatch,
+} from "@/lib/matching";
+import { resolveJobOpportunity } from "@/lib/opportunities/context";
 import {
   loadMasterProfile,
   loadStoredDraft,
@@ -252,10 +258,42 @@ export async function hydrateOpportunitySpec(
     result.data?.description &&
     result.data.description.length > (context.jobDescription?.length ?? 0)
   ) {
+    let newScore: number | undefined;
+    let newReason: string | undefined;
+
+    try {
+      const candidateProfile = await loadCandidateProfileSummary(accountId);
+      if (candidateProfile) {
+        const candidateLens = extractMatchCandidateLens(
+          candidateProfile,
+          candidateProfile.persona
+        );
+        const normalized = resolveJobOpportunity({
+          company: result.data.company || opportunity.company,
+          title: context.roleTitle,
+          description: result.data.description,
+          location: result.data.location || opportunity.location,
+          salary: result.data.salary || opportunity.salary,
+          applyUrl: targetUrl,
+        });
+        const evaluated = evaluateOpportunityMatch({
+          opportunity: normalized,
+          candidate: candidateLens,
+          mode: "HEURISTIC",
+        });
+        newScore = evaluated.score;
+        newReason = evaluated.reason;
+      }
+    } catch {
+      // Non-fatal match re-evaluation
+    }
+
     await prisma.jobOpportunity.update({
       where: { id: opportunityId },
       data: {
         description: result.data.description,
+        ...(newScore !== undefined ? { matchScore: newScore } : {}),
+        ...(newReason ? { matchReason: newReason } : {}),
         ...(result.data.salary && !opportunity.salary
           ? { salary: result.data.salary }
           : {}),

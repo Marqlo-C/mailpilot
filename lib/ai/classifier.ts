@@ -178,7 +178,7 @@ export function heuristicMatchScore(
   company?: string,
   profile?: CandidateProfileSummary | null
 ): number {
-  const hay = `${title} ${company ?? ""}`.toLowerCase();
+  const hay = title.toLowerCase();
   const p = profile ? ensureCandidateProfileForScoring(profile) : null;
 
   if (!p || (p.targetTitles.length === 0 && p.skills.length === 0)) {
@@ -574,6 +574,7 @@ Extraction rules (metadata must be robust):
 - applicationType: DIRECT_EMAIL only when a real recruiter email exists; QUICK_APPLY for LinkedIn Easy Apply / Glassdoor / Indeed; otherwise EXTERNAL_LINK.
 
 Match Score (0-100) — compare each role against the Candidate Profile AND Persona above:
+- ROLE FIT VS EMPLOYER: Evaluate candidate alignment strictly on role title, job responsibilities, required skills, and leveling. NEVER penalize or evaluate whether the employer/company name matches candidate skills or target titles (e.g. an engineering, design, data, finance, or operations role at an insurance, automotive, healthcare, or retail employer is a valid role in that candidate's profession, not an employer mismatch).
 - Strong overlap with the candidate's target titles, skills, education, or experience MUST score 75-100.
 - Adjacent / stretch roles relative to that profile score 40-74.
 - Roles clearly outside the candidate's field / preferences MUST score below 30.

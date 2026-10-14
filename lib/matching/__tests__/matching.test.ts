@@ -190,4 +190,142 @@ describe("Matching Domain", () => {
     expect(gapResult.missingRequirements.length).toBeGreaterThan(0);
     expect(gapResult.score).toBeLessThan(strongResult.score);
   });
+
+  it("prevents scoring inversion for career switchers: 5+ year role scores below Jr role", async () => {
+    const careerSwitcherProfile: MasterProfileInput = {
+      ...getEmptyMasterProfileData(),
+      fullName: "Jordan Lee",
+      email: "jordan@example.com",
+      experiences: [
+        {
+          role: "Operations Analyst",
+          company: "Retail Inc",
+          location: null,
+          category: "Work",
+          startDate: "2021-01",
+          endDate: "2024-01",
+          bullets: [],
+          displayOrder: 0,
+        },
+      ],
+      skills: [
+        {
+          label: "Core",
+          parentCategory: null,
+          items: [
+            { name: "Python", proficiency: null },
+            { name: "SQL", proficiency: null },
+            { name: "Git", proficiency: null },
+          ],
+        },
+      ],
+      summary: "Career switcher transition to software engineering with 1 year Python experience.",
+    };
+
+    const careerSwitcherPersona: CandidatePersona = {
+      archetype: "Career Switcher",
+      seniorityTier: "Career Switcher",
+      leadershipScope: "Individual Contributor / Practitioner",
+      distinctionAnchor: "None / Production Tenure",
+      inFieldYears: 1,
+      calendarYears: 3,
+      titleFamily: "Software Engineering",
+      timelineContext: "1 year in Software Engineering",
+      toneGuidance: "Pragmatic, growth-oriented",
+    };
+
+    const switcherCandidate = extractMatchCandidateLens(
+      careerSwitcherProfile,
+      careerSwitcherPersona
+    );
+
+    // 1. Role A: 5+ year role with generic "Requirements:" heading
+    const seniorOpportunity = resolveJobOpportunity({
+      company: "Extron",
+      title: "Embedded Linux Firmware Engineer",
+      description: `
+        Requirements:
+        - 5+ years of experience in embedded systems and Linux firmware
+        - Proficient in C, C++, and Linux kernel drivers
+        - Hands-on experience with hardware bringup
+      `,
+      salary: "$140K - $170K",
+    });
+
+    const seniorResult = await evaluateOpportunityMatch({
+      opportunity: seniorOpportunity,
+      candidate: switcherCandidate,
+      mode: "HEURISTIC",
+    });
+
+    // 2. Role B: Jr. role matching candidate's 1-year inField profile
+    const juniorOpportunity = resolveJobOpportunity({
+      company: "Revenued",
+      title: "Junior Python Developer",
+      description: `
+        Requirements:
+        - 1+ years of experience with Python development
+        - Familiarity with SQL and Git version control
+        - Strong written and verbal communication skills
+      `,
+      salary: "$75K - $90K",
+    });
+
+    const juniorResult = await evaluateOpportunityMatch({
+      opportunity: juniorOpportunity,
+      candidate: switcherCandidate,
+      mode: "HEURISTIC",
+    });
+
+    // Verify 5+ year role is marked as REACH and heavily penalized
+    expect(seniorResult.seniorityFit).toBe("REACH");
+    expect(seniorResult.reason).toContain("5+ years of experience");
+    expect(seniorResult.score).toBeLessThanOrEqual(45);
+
+    // Verify Jr role is ALIGNED and outscores the 5+ year role (no inversion)
+    expect(juniorResult.seniorityFit).toBe("ALIGNED");
+    expect(juniorResult.matchedSkills).toContain("Python");
+    expect(juniorResult.score).toBeGreaterThanOrEqual(75);
+    expect(juniorResult.score).toBeGreaterThan(seniorResult.score);
+  });
+
+  it("maintains company neutrality: employer name does not degrade match score or claim domain mismatch", async () => {
+    const candidate = extractMatchCandidateLens(mockProfile, mockPersona);
+
+    const techOpportunity = resolveJobOpportunity({
+      company: "TechSoftware Corp",
+      title: "Senior Product Manager",
+      description: `
+        Requirements:
+        - 5+ years experience in product management
+        - Deep expertise in Product Roadmap and Data Analysis
+      `,
+    });
+
+    const nonTechOpportunity = resolveJobOpportunity({
+      company: "Mercury Insurance",
+      title: "Senior Product Manager",
+      description: `
+        Requirements:
+        - 5+ years experience in product management
+        - Deep expertise in Product Roadmap and Data Analysis
+      `,
+    });
+
+    const techResult = await evaluateOpportunityMatch({
+      opportunity: techOpportunity,
+      candidate,
+      mode: "HEURISTIC",
+    });
+
+    const nonTechResult = await evaluateOpportunityMatch({
+      opportunity: nonTechOpportunity,
+      candidate,
+      mode: "HEURISTIC",
+    });
+
+    // The match scores must be identical regardless of company name
+    expect(nonTechResult.score).toBe(techResult.score);
+    expect(nonTechResult.reason).not.toContain("company are not directly related");
+  });
 });
