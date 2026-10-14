@@ -15,18 +15,18 @@ import type {
   SeniorityFit,
 } from "./schema.ssot";
 
-const SENIOR_ROLE_REGEX = /\b(lead|staff|principal|director|head|vp|vice\s+president|executive|chief)\b/i;
+const SENIOR_ROLE_REGEX = /\b(senior|sr\.?|lead|staff|principal|director|head|vp|vice\s+president|executive|chief)\b/i;
 const JUNIOR_ROLE_REGEX = /\b(intern|junior|jr|entry|associate|trainee)\b/i;
 
 /** Universal Section Segmentation regexes */
 const MANDATORY_SECTION_REGEX =
-  /(?:minimum|basic|required|mandatory)\s+(?:qualifications|requirements|skills|criteria):?([\s\S]*?)(?=(?:preferred|desired|bonus|nice to have|additional|benefits|what we offer|equal opportunity|$))/i;
+  /(?:(?:minimum|basic|required|mandatory)\s+(?:qualifications|requirements|skills|criteria)|(?:core|key)\s+(?:requirements|qualifications)|requirements|qualifications|must\s+haves?|what\s+you(?:'ll|\s+will)?\s+need):?([\s\S]*?)(?=(?:preferred|desired|bonus|nice\s+to\s+have|additional|benefits|what\s+we\s+offer|equal\s+opportunity|$))/i;
 
 const PREFERRED_SECTION_REGEX =
-  /(?:preferred|desired|bonus|nice to have|additional)\s+(?:qualifications|requirements|skills):?([\s\S]*?)(?=(?:benefits|what we offer|equal opportunity|$))/i;
+  /(?:preferred|desired|bonus|nice\s+to\s+have|additional)\s+(?:qualifications|requirements|skills):?([\s\S]*?)(?=(?:benefits|what\s+we\s+offer|equal\s+opportunity|$))/i;
 
 const GENERIC_REQUIREMENTS_REGEX =
-  /(?:requirements|qualifications|skills|must have|what you need):?([\s\S]{1,800})/i;
+  /(?:requirements|qualifications|skills|must\s+have|what\s+you\s+need):?([\s\S]{1,1200})/i;
 
 /** Universal Depth & Tenure Detection regexes */
 const TENURE_REGEX = /\b(\d+)\+?\s*(?:years?|yrs?)\b/gi;
@@ -52,7 +52,10 @@ function evaluateSeniorityFit(
     lowerTier.includes("early") ||
     lowerTier.includes("junior") ||
     lowerTier.includes("entry") ||
-    lowerTier.includes("intern");
+    lowerTier.includes("intern") ||
+    lowerTier.includes("career switcher") ||
+    lowerTier.includes("new grad") ||
+    lowerTier.includes("student");
 
   if (isSeniorJob && isCandidateEarly) {
     return "REACH";
@@ -87,6 +90,8 @@ export function composeMatchReason(params: {
   seniorityTier?: string | null;
   timelineContext?: string | null;
   titleFamily?: string | null;
+  tenureFloor?: number | null;
+  inFieldYears?: number | null;
 }): string {
   const {
     score,
@@ -101,6 +106,8 @@ export function composeMatchReason(params: {
     seniorityTier,
     timelineContext,
     titleFamily,
+    tenureFloor,
+    inFieldYears,
   } = params;
 
   const sentences: string[] = [];
@@ -119,6 +126,17 @@ export function composeMatchReason(params: {
     }
 
     if (seniorityFit === "REACH") {
+      if (
+        tenureFloor !== null &&
+        tenureFloor !== undefined &&
+        inFieldYears !== null &&
+        inFieldYears !== undefined &&
+        inFieldYears < tenureFloor
+      ) {
+        sentences.push(
+          `Posting requires ${tenureFloor}+ years of experience, exceeding your verified in-field trajectory (${inFieldYears} yr${inFieldYears === 1 ? "" : "s"}).`
+        );
+      }
       sentences.push(
         "Scope represents a career stretch requiring higher seniority or leadership expectations."
       );
@@ -169,6 +187,17 @@ export function composeMatchReason(params: {
 
   // 3. Seniority & Leveling Assessment
   if (seniorityFit === "REACH") {
+    if (
+      tenureFloor !== null &&
+      tenureFloor !== undefined &&
+      inFieldYears !== null &&
+      inFieldYears !== undefined &&
+      inFieldYears < tenureFloor
+    ) {
+      sentences.push(
+        `Posting requires ${tenureFloor}+ years of experience, exceeding your verified in-field trajectory (${inFieldYears} yr${inFieldYears === 1 ? "" : "s"}).`
+      );
+    }
     sentences.push(
       "Scope represents a career stretch requiring higher seniority or leadership expectations."
     );
@@ -285,8 +314,9 @@ export function evaluateOpportunityMatch(params: {
 
   // 2b. Universal Depth & Tenure Floor Detection
   let mandatoryTenureFloor: number | null = null;
-  if (mandatoryBlock) {
-    const tenureMatches = Array.from(mandatoryBlock.matchAll(TENURE_REGEX));
+  const tenureSourceText = mandatoryBlock || activeReqBlock || jobDescription;
+  if (tenureSourceText) {
+    const tenureMatches = Array.from(tenureSourceText.matchAll(TENURE_REGEX));
     for (const m of tenureMatches) {
       const parsedYears = parseInt(m[1], 10);
       if (!isNaN(parsedYears) && parsedYears > 0 && parsedYears <= 25) {
@@ -297,9 +327,8 @@ export function evaluateOpportunityMatch(params: {
     }
   }
 
-  // If candidate inFieldYears is below an explicitly parsed mandatory tenure floor, classify seniorityFit as REACH
+  // If candidate inFieldYears is below a parsed mandatory/required tenure floor, classify seniorityFit as REACH
   if (
-    isExplicitMandatory &&
     mandatoryTenureFloor !== null &&
     candidate.inFieldYears !== null &&
     candidate.inFieldYears !== undefined &&
@@ -356,10 +385,16 @@ export function evaluateOpportunityMatch(params: {
         }
       }
 
+      // Filter out generic soft skills, boilerplate education, and company culture statements
+      const isGenericBoilerplate =
+        /\b(?:communication|written\s+and\s+verbal|team\s+player|interpersonal|passion(?:ate)?|fast[- ]paced|bachelor|degree|equal\s+opportunity|eagerness|self[- ]starter|attention\s+to\s+detail|collaborative|problem[- ]solving)\b/i.test(
+          lineLower
+        );
+
       const covered = candidate.skills.some((s) =>
         lineLower.includes(s.toLowerCase())
       );
-      if (!covered) {
+      if (!covered && !isGenericBoilerplate) {
         missingRequirements.push(line);
         if (DEPTH_MODIFIERS_REGEX.test(line)) {
           deepMissingCount++;
@@ -388,6 +423,21 @@ export function evaluateOpportunityMatch(params: {
   );
   if (hasTitleOverlap) baseScore += 5;
 
+  // Early-career / Junior alignment bonus: when junior/early candidate aligns with entry/junior role
+  const isEarlyCandidate =
+    candidate.seniorityTier?.toLowerCase().includes("early") ||
+    candidate.seniorityTier?.toLowerCase().includes("junior") ||
+    candidate.seniorityTier?.toLowerCase().includes("entry") ||
+    candidate.seniorityTier?.toLowerCase().includes("intern") ||
+    candidate.seniorityTier?.toLowerCase().includes("career switcher") ||
+    candidate.seniorityTier?.toLowerCase().includes("new grad") ||
+    candidate.seniorityTier?.toLowerCase().includes("student");
+
+  const isJuniorRole = JUNIOR_ROLE_REGEX.test(opportunity.roleTitle);
+  if (isJuniorRole && isEarlyCandidate) {
+    baseScore += 8;
+  }
+
   // Mandatory / Minimum priority & penalties
   if (isExplicitMandatory) {
     // High priority for skills matched in mandatory section
@@ -411,7 +461,15 @@ export function evaluateOpportunityMatch(params: {
   }
 
   // Seniority penalty / adjustment
-  if (seniorityFit === "REACH") baseScore -= 18;
+  if (seniorityFit === "REACH") {
+    const tenureGap =
+      mandatoryTenureFloor !== null &&
+      candidate.inFieldYears !== null &&
+      candidate.inFieldYears !== undefined
+        ? Math.max(0, mandatoryTenureFloor - candidate.inFieldYears)
+        : 0;
+    baseScore -= tenureGap >= 3 ? 28 : 18;
+  }
   if (seniorityFit === "OVERQUALIFIED") baseScore -= 10;
 
   const score = Math.max(10, Math.min(98, Math.round(baseScore)));
@@ -431,6 +489,8 @@ export function evaluateOpportunityMatch(params: {
     seniorityTier: candidate.seniorityTier,
     timelineContext: candidate.timelineContext,
     titleFamily: candidate.titleFamily,
+    tenureFloor: mandatoryTenureFloor,
+    inFieldYears: candidate.inFieldYears,
   });
 
   return {

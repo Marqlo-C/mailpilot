@@ -30,6 +30,7 @@ SPEC.md
 switch-ollama.sh
 .pc_ollama_cache
 .scraper-failures.json
+test-hasdata-*.json
 .glassdoor-hasdata-sample.*
 
 # Debug

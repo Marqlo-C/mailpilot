@@ -22,10 +22,15 @@ import { logCompactSyncCard, logStory, syncLog } from "@/lib/logging";
 import {
   buildSynthesizedJobOverview,
   extractCleanSnippet,
+  resolveJobOpportunity,
   sanitizeJobDescription,
   scrapeJobPostingJsonLd,
   unwrapTrackingUrl,
 } from "@/lib/opportunities/context";
+import {
+  extractMatchCandidateLens,
+  evaluateOpportunityMatch,
+} from "@/lib/matching";
 import { JOB_BOARD_KEYWORDS } from "@/lib/constants/job-sources";
 import { prisma } from "@/lib/prisma";
 import { parseFromHeader, type ClassifiableAccount } from "@/lib/sync";
@@ -404,6 +409,39 @@ export async function processSyncMessage(
     job.description = scrubbed || buildSynthesizedJobOverview(fallbackContext);
   }
 
+  // Evaluate inbound jobs that already carry a rich specification (>= 300 chars)
+  if (candidateProfile) {
+    const candidateLens = extractMatchCandidateLens(
+      candidateProfile,
+      candidateProfile.persona
+    );
+    for (const job of classification.jobs) {
+      if (
+        job.description &&
+        job.description.length >= 300 &&
+        (!job.matchScore ||
+          job.matchScore === 0 ||
+          /company are not directly related/i.test(job.matchReason || ""))
+      ) {
+        const normalized = resolveJobOpportunity({
+          company: job.company,
+          title: job.title,
+          description: job.description,
+          location: job.location,
+          salary: job.salary,
+          applyUrl: job.applyUrl,
+        });
+        const evaluated = evaluateOpportunityMatch({
+          opportunity: normalized,
+          candidate: candidateLens,
+          mode: "HEURISTIC",
+        });
+        job.matchScore = evaluated.score;
+        job.matchReason = evaluated.reason;
+      }
+    }
+  }
+
   // Link Parser Enrichment: hydrate thin jobs (< 300 chars) via public JSON-LD in parallel pools
   const thinJobs = classification.jobs.filter(
     (job) =>
@@ -488,6 +526,29 @@ export async function processSyncMessage(
           }
           if (enriched.salary && !job.salary) {
             job.salary = normalizeSalaryDisplay(enriched.salary);
+          }
+
+          // Recalculate matchScore and matchReason with the newly hydrated rich spec
+          if (candidateProfile && job.description && job.description.length >= 300) {
+            const candidateLens = extractMatchCandidateLens(
+              candidateProfile,
+              candidateProfile.persona
+            );
+            const normalized = resolveJobOpportunity({
+              company: job.company,
+              title: job.title,
+              description: job.description,
+              location: job.location,
+              salary: job.salary,
+              applyUrl: job.applyUrl,
+            });
+            const evaluated = evaluateOpportunityMatch({
+              opportunity: normalized,
+              candidate: candidateLens,
+              mode: "HEURISTIC",
+            });
+            job.matchScore = evaluated.score;
+            job.matchReason = evaluated.reason;
           }
         }
 
