@@ -4,7 +4,11 @@ import {
   sanitizeJobDescription,
   stripPortalPreambles,
 } from "../scrubber";
-import { resolveJobOpportunity } from "../lens";
+import {
+  isUnspecifiedPostedAt,
+  normalizePostedAt,
+  resolveJobOpportunity,
+} from "../lens";
 
 describe("Job Context Domain", () => {
   describe("extractCleanSnippet", () => {
@@ -323,6 +327,84 @@ describe("Job Context Domain", () => {
       expect(normalized.jobDescription).toBe(
         "Opportunity for Software Engineer at Glassdoor. Located in Austin, TX. Compensated at $120K-$150K."
       );
+    });
+
+    it("normalizes placeholder postedAt values (like 'Posted: Not specified') to null", () => {
+      const unspecifiedOpportunity = resolveJobOpportunity({
+        company: "Acme Corp",
+        title: "Platform Engineer",
+        postedAt: "Posted: Not specified",
+      });
+      expect(unspecifiedOpportunity.postedAt).toBeNull();
+
+      const notSpecifiedOpportunity = resolveJobOpportunity({
+        company: "Acme Corp",
+        title: "Platform Engineer",
+        postedAt: "Not specified",
+      });
+      expect(notSpecifiedOpportunity.postedAt).toBeNull();
+    });
+  });
+
+  describe("isUnspecifiedPostedAt", () => {
+    it("returns true for undefined, null, empty strings, and placeholders", () => {
+      expect(isUnspecifiedPostedAt(undefined)).toBe(true);
+      expect(isUnspecifiedPostedAt(null)).toBe(true);
+      expect(isUnspecifiedPostedAt("")).toBe(true);
+      expect(isUnspecifiedPostedAt("   ")).toBe(true);
+      expect(isUnspecifiedPostedAt("Not specified")).toBe(true);
+      expect(isUnspecifiedPostedAt("posted: not specified")).toBe(true);
+      expect(isUnspecifiedPostedAt("Posted: Unspecified")).toBe(true);
+      expect(isUnspecifiedPostedAt("unknown")).toBe(true);
+      expect(isUnspecifiedPostedAt("n/a")).toBe(true);
+      expect(isUnspecifiedPostedAt("none")).toBe(true);
+      expect(isUnspecifiedPostedAt("tbd")).toBe(true);
+    });
+
+    it("returns false for valid dates and relative times", () => {
+      expect(isUnspecifiedPostedAt("Just posted")).toBe(false);
+      expect(isUnspecifiedPostedAt("1 day ago")).toBe(false);
+      expect(isUnspecifiedPostedAt("2026-10-14")).toBe(false);
+      expect(isUnspecifiedPostedAt("Reposted 3 days ago")).toBe(false);
+    });
+  });
+
+  describe("normalizePostedAt", () => {
+    it("converts ISO date strings into relative distance", () => {
+      const pastDateIso = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+      const normalized = normalizePostedAt(pastDateIso);
+      expect(normalized).toMatch(/\d+[dhmsmoy]\s+ago/);
+    });
+
+    it("strips leading 'Posted: ' and 'Posted ' prefixes", () => {
+      expect(normalizePostedAt("Posted: 3 days ago")).toBe("3 days ago");
+      expect(normalizePostedAt("Posted 2 weeks ago")).toBe("2 weeks ago");
+      expect(normalizePostedAt("Posted: Today")).toBe("Today");
+    });
+
+    it("normalizes and formats 'Reposted: ' prefixes", () => {
+      expect(normalizePostedAt("Reposted: 4 days ago")).toBe("Reposted 4 days ago");
+      expect(normalizePostedAt("reposted 2 days ago")).toBe("Reposted 2 days ago");
+    });
+
+    it("extracts clean posted/reposted relative dates from fallback spec text", () => {
+      const fallbackSpecWithRepost =
+        "Acme Corp • San Francisco, CA\nReposted 3 days ago\nWe are looking for a staff engineer.";
+      expect(normalizePostedAt(null, fallbackSpecWithRepost)).toBe("Reposted 3 days ago");
+
+      const fallbackSpecWithPosted =
+        "Engineering Department\nPosted 5 days ago\nMinimum qualifications include...";
+      expect(normalizePostedAt("Posted: Not specified", fallbackSpecWithPosted)).toBe("5 days ago");
+
+      const fallbackSpecWithToday =
+        "Job Description\nPosted today\nCompetitive benefits and perks.";
+      expect(normalizePostedAt(undefined, fallbackSpecWithToday)).toBe("Today");
+    });
+
+    it("returns null when no valid date or fallback pattern is found", () => {
+      expect(normalizePostedAt(null, null)).toBeNull();
+      expect(normalizePostedAt("Not specified", "No dates mentioned here")).toBeNull();
+      expect(normalizePostedAt(undefined, "Company was founded 10 years ago in Austin")).toBeNull();
     });
   });
 });

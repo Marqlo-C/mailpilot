@@ -14,11 +14,11 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
-  Hexagon,
   Mail,
   MapPin,
   RotateCcw,
   Send,
+  Sparkle,
   Sparkles,
   ThumbsDown,
   Trash2,
@@ -63,7 +63,10 @@ import {
   daysRemainingUntilPurge,
   isUserArchived,
 } from "@/lib/opportunities/lifecycle";
-import { normalizeSalaryDisplay } from "@/lib/ai/classifier";
+import {
+  cleanOpportunityDescription,
+  normalizeSalaryDisplay,
+} from "@/lib/ai/classifier";
 import { formatDistanceToNow } from "@/lib/format-distance";
 import { cn } from "@/lib/utils";
 
@@ -289,8 +292,11 @@ export function OpportunityCard({
       ? opportunity.applyUrl.trim()
       : null;
 
+  const displayDescription = cleanOpportunityDescription(opportunity.description);
+
   return (
     <article
+      data-opportunity-card=""
       {...itemRest}
       style={itemStyle}
       className={cn(
@@ -462,25 +468,32 @@ export function OpportunityCard({
           isSelected && "opacity-55"
         )}
       >
-        {opportunity.description ? (
+        {displayDescription ? (
           <p className="min-h-[2.5rem] line-clamp-2 px-6 text-xs leading-relaxed text-foreground/80 sm:px-7 dark:text-foreground/85">
-            {opportunity.description}
+            {displayDescription}
           </p>
         ) : null}
 
         {opportunity.matchReason ? (
           <div className="mt-auto flex items-start gap-2 px-4 pt-3 sm:px-5">
-            <div className="flex w-full items-start gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 p-2.5 dark:bg-muted/10">
+            <div
+              data-match-reason-box=""
+              className="flex w-full items-start gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 p-2.5 dark:bg-muted/10"
+            >
               {opportunity.classificationMethod === "HEURISTIC" ? (
-                <Hexagon
-                  aria-label="Heuristic analysis"
-                  className="mt-0.5 h-4 w-4 shrink-0 text-blue-500"
-                />
+                <span title="Deterministic spec evaluation" className="mt-0.5 shrink-0 inline-flex">
+                  <Sparkles
+                    aria-label="Deterministic spec evaluation"
+                    className="h-4 w-4 text-blue-500"
+                  />
+                </span>
               ) : (
-                <Sparkles
-                  aria-label="AI analysis"
-                  className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/80"
-                />
+                <span title="AI triage analysis" className="mt-0.5 shrink-0 inline-flex">
+                  <Sparkle
+                    aria-label="AI triage analysis"
+                    className="h-4 w-4 text-muted-foreground/80"
+                  />
+                </span>
               )}
               <p className="text-xs leading-relaxed text-muted-foreground">
                 {opportunity.matchReason}

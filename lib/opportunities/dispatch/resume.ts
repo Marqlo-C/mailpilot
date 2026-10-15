@@ -16,12 +16,17 @@ import {
 } from "@/lib/validations/rules";
 import { resolveDecryptedHasDataKey } from "@/lib/llm/vault";
 import { fetchViaHasData } from "@/lib/opportunities/context/hasdata";
+import { normalizeSalaryDisplay, parseSalaryMax } from "@/lib/ai/classifier";
 import { loadCandidateProfileSummary } from "@/lib/llm/classification";
 import {
   extractMatchCandidateLens,
   evaluateOpportunityMatch,
 } from "@/lib/matching";
-import { resolveJobOpportunity } from "@/lib/opportunities/context";
+import {
+  isUnspecifiedPostedAt,
+  normalizePostedAt,
+  resolveJobOpportunity,
+} from "@/lib/opportunities/context";
 import {
   loadMasterProfile,
   loadStoredDraft,
@@ -58,6 +63,7 @@ export async function buildOpportunityResumePreview(
       applyUrl: true,
       salary: true,
       location: true,
+      postedAt: true,
       tailoredResumePdf: true,
       tailoredResumeData: true,
       tailorConfig: true,
@@ -106,12 +112,61 @@ export async function buildOpportunityResumePreview(
           hasDataResult.data?.description &&
           hasDataResult.data.description.length > (context.jobDescription?.length ?? 0)
         ) {
+          const newSalary = normalizeSalaryDisplay(hasDataResult.data.salary);
+          const shouldUpdateSalary = Boolean(
+            newSalary && (!opportunity.salary || !normalizeSalaryDisplay(opportunity.salary))
+          );
+          const newPostedAt = normalizePostedAt(
+            hasDataResult.data.datePosted,
+            hasDataResult.data.description
+          );
+          const shouldUpdatePostedAt = Boolean(
+            newPostedAt && isUnspecifiedPostedAt(opportunity.postedAt)
+          );
+
+          let newScore: number | undefined;
+          let newReason: string | undefined;
+          try {
+            const candidateProfile = await loadCandidateProfileSummary(accountId);
+            if (candidateProfile) {
+              const candidateLens = extractMatchCandidateLens(
+                candidateProfile,
+                candidateProfile.persona
+              );
+              const normalized = resolveJobOpportunity({
+                company: hasDataResult.data.company || opportunity.company,
+                title: context.roleTitle,
+                description: hasDataResult.data.description,
+                location: hasDataResult.data.location || opportunity.location,
+                salary: shouldUpdateSalary && newSalary ? newSalary : opportunity.salary,
+                postedAt: shouldUpdatePostedAt && newPostedAt ? newPostedAt : opportunity.postedAt,
+                applyUrl: targetUrl,
+              });
+              const evaluated = evaluateOpportunityMatch({
+                opportunity: normalized,
+                candidate: candidateLens,
+                mode: "HEURISTIC",
+              });
+              newScore = evaluated.score;
+              newReason = evaluated.reason;
+            }
+          } catch {
+            // Non-fatal match re-evaluation
+          }
+
           await prisma.jobOpportunity.update({
             where: { id: opportunityId },
             data: {
               description: hasDataResult.data.description,
-              ...(hasDataResult.data.salary && !opportunity.salary
-                ? { salary: hasDataResult.data.salary }
+              ...(newScore !== undefined
+                ? { matchScore: newScore, classificationMethod: "HEURISTIC" }
+                : {}),
+              ...(newReason ? { matchReason: newReason } : {}),
+              ...(shouldUpdateSalary && newSalary
+                ? { salary: newSalary, salaryMax: parseSalaryMax(newSalary) }
+                : {}),
+              ...(shouldUpdatePostedAt && newPostedAt
+                ? { postedAt: newPostedAt }
                 : {}),
               ...(hasDataResult.data.location && !opportunity.location
                 ? { location: hasDataResult.data.location }
@@ -222,6 +277,7 @@ export async function hydrateOpportunitySpec(
       salary: true,
       location: true,
       company: true,
+      postedAt: true,
     },
   });
   if (!opportunity) {
@@ -258,6 +314,18 @@ export async function hydrateOpportunitySpec(
     result.data?.description &&
     result.data.description.length > (context.jobDescription?.length ?? 0)
   ) {
+    const newSalary = normalizeSalaryDisplay(result.data.salary);
+    const shouldUpdateSalary = Boolean(
+      newSalary && (!opportunity.salary || !normalizeSalaryDisplay(opportunity.salary))
+    );
+    const newPostedAt = normalizePostedAt(
+      result.data.datePosted,
+      result.data.description
+    );
+    const shouldUpdatePostedAt = Boolean(
+      newPostedAt && isUnspecifiedPostedAt(opportunity.postedAt)
+    );
+
     let newScore: number | undefined;
     let newReason: string | undefined;
 
@@ -273,7 +341,8 @@ export async function hydrateOpportunitySpec(
           title: context.roleTitle,
           description: result.data.description,
           location: result.data.location || opportunity.location,
-          salary: result.data.salary || opportunity.salary,
+          salary: shouldUpdateSalary && newSalary ? newSalary : opportunity.salary,
+          postedAt: shouldUpdatePostedAt && newPostedAt ? newPostedAt : opportunity.postedAt,
           applyUrl: targetUrl,
         });
         const evaluated = evaluateOpportunityMatch({
@@ -292,10 +361,15 @@ export async function hydrateOpportunitySpec(
       where: { id: opportunityId },
       data: {
         description: result.data.description,
-        ...(newScore !== undefined ? { matchScore: newScore } : {}),
+        ...(newScore !== undefined
+          ? { matchScore: newScore, classificationMethod: "HEURISTIC" }
+          : {}),
         ...(newReason ? { matchReason: newReason } : {}),
-        ...(result.data.salary && !opportunity.salary
-          ? { salary: result.data.salary }
+        ...(shouldUpdateSalary && newSalary
+          ? { salary: newSalary, salaryMax: parseSalaryMax(newSalary) }
+          : {}),
+        ...(shouldUpdatePostedAt && newPostedAt
+          ? { postedAt: newPostedAt }
           : {}),
         ...(result.data.location && !opportunity.location
           ? { location: result.data.location }

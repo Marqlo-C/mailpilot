@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { extractMatchCandidateLens } from "../lens";
-import { evaluateOpportunityMatch } from "../evaluator";
+import {
+  evaluateOpportunityMatch,
+  formatUserFacingTrajectory,
+} from "../evaluator";
 import { resolveJobOpportunity } from "@/lib/opportunities/context";
 import {
   getEmptyMasterProfileData,
@@ -327,5 +330,85 @@ describe("Matching Domain", () => {
     // The match scores must be identical regardless of company name
     expect(nonTechResult.score).toBe(techResult.score);
     expect(nonTechResult.reason).not.toContain("company are not directly related");
+  });
+
+  describe("formatUserFacingTrajectory & Persona Prompt Leak Sanitization", () => {
+    it("strips LLM system prompt directives, role span dumps, and graduation dates from match reason", async () => {
+      const switcherLens = extractMatchCandidateLens(mockProfile, {
+        ...mockPersona,
+        archetype: "Career Switcher",
+        seniorityTier: "Career Switcher",
+        inFieldYears: 1,
+        calendarYears: 9,
+        timelineContext:
+          "Career switcher: over 8 years of professional experience in an earlier field, then nearly a year in the current field. Do NOT treat the combined about 9 years of calendar time as in-field seniority. Roles span 2013–2026 (latest: Mobility Team Backend Engineer at EcoCAR| MioCar, UC Davis). Most recent graduation around 2026 (less than a year ago).",
+      });
+
+      const opportunity = resolveJobOpportunity({
+        company: "General Matter",
+        title: "Product Manager",
+        description: `
+          Requirements:
+          - Product Roadmap execution
+          - Data Analysis and Cross-Functional Leadership
+        `,
+        salary: "$120K - $150K",
+      });
+
+      const result = await evaluateOpportunityMatch({
+        opportunity,
+        candidate: switcherLens,
+        mode: "HEURISTIC",
+      });
+
+      // Verify that internal LLM directives and candidate history dumps are stripped
+      expect(result.reason).not.toMatch(/Do NOT treat/i);
+      expect(result.reason).not.toMatch(/Roles span/i);
+      expect(result.reason).not.toMatch(/EcoCAR/i);
+      expect(result.reason).not.toMatch(/Most recent graduation/i);
+
+      // Verify clean, human-readable career switcher trajectory is present
+      expect(result.reason).toContain(
+        "Leveling and scope align with your verified trajectory (career switcher background with nearly a year in current field)."
+      );
+    });
+
+    it("formats clean trajectory phrases across different candidate profiles", () => {
+      // 1. Career switcher with raw LLM instructions
+      const dirtySwitcher = formatUserFacingTrajectory({
+        timelineContext:
+          "Career switcher: over 8 years of professional experience in an earlier field, then nearly a year in the current field. Do NOT treat the combined about 9 years of calendar time as in-field seniority. Roles span 2013–2026 (latest: Engineer at X). Most recent graduation around 2026.",
+        seniorityTier: "Career Switcher",
+        inFieldYears: 1,
+      });
+      expect(dirtySwitcher).toBe(
+        "career switcher background with nearly a year in current field"
+      );
+
+      // 2. Concise custom timeline context (e.g., manually configured or clean)
+      const cleanCustom = formatUserFacingTrajectory({
+        timelineContext: "8 years in Product",
+        seniorityTier: "Senior",
+        inFieldYears: 8,
+      });
+      expect(cleanCustom).toBe("8 years in Product");
+
+      // 3. Fallback to in-field tenure when timelineContext is absent
+      const tenureFallback = formatUserFacingTrajectory({
+        timelineContext: null,
+        seniorityTier: "Mid-Level Professional",
+        inFieldYears: 4,
+      });
+      expect(tenureFallback).toBe("4 yrs in-field tenure");
+
+      // 4. Student / intern trajectory
+      const studentClean = formatUserFacingTrajectory({
+        timelineContext:
+          "Student / intern: about 1 year of practical experience. Roles span 2023–Present (latest: Intern at ABC). Most recent graduation around 2025.",
+        seniorityTier: "Student / Intern",
+        inFieldYears: 1,
+      });
+      expect(studentClean).toBe("about 1 year of practical experience");
+    });
   });
 });

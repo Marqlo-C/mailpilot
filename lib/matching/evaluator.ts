@@ -73,6 +73,69 @@ function computeMatchTier(score: number): MatchTier {
 }
 
 /**
+ * Strips LLM-directed prompt instructions and internal candidate metadata
+ * (e.g. "Do NOT treat...", role span dumps, graduation dates) from timelineContext,
+ * formatting a clean, concise, human-readable alignment phrase for user-facing copy.
+ */
+export function formatUserFacingTrajectory(params: {
+  timelineContext?: string | null;
+  seniorityTier?: string | null;
+  inFieldYears?: number | null;
+}): string | null {
+  const { timelineContext, seniorityTier, inFieldYears } = params;
+
+  if (timelineContext && timelineContext.trim()) {
+    // 1. Strip system prompt directives and internal persona guidance
+    let cleaned = timelineContext
+      .replace(/\bdo not\b[^.]*(\.|$)/gi, "")
+      .replace(/\bin-field seniority reflects[^.]*(\.|$)/gi, "")
+      .replace(/\broles span\b[^.]*(\.|$)/gi, "")
+      .replace(/\bmost recent graduation\b[^.]*(\.|$)/gi, "")
+      .replace(/\([^)]*calendar span[^)]*\)\.?/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // Strip leading/trailing punctuation
+    cleaned = cleaned.replace(/^[\s,.;:-]+|[\s,.;:-]+$/g, "");
+
+    // 2. Career switcher pattern
+    const switcherMatch = cleaned.match(
+      /career switcher:?.*?then\s+([^.]*?)\s+in the current field/i
+    );
+    if (switcherMatch) {
+      const tenure = switcherMatch[1].trim();
+      return `career switcher background with ${tenure} in current field`;
+    }
+
+    if (/^career switcher\b/i.test(cleaned)) {
+      if (inFieldYears !== null && inFieldYears !== undefined && inFieldYears > 0) {
+        return `career switcher background with ${inFieldYears} yr${inFieldYears === 1 ? "" : "s"} in current field`;
+      }
+      return "career switcher background";
+    }
+
+    // 3. Student / intern pattern
+    if (/^student\s*\/\s*intern:?\s*/i.test(cleaned)) {
+      const practical = cleaned.replace(/^student\s*\/\s*intern:?\s*/i, "").trim();
+      if (practical) {
+        return practical;
+      }
+      return "student / intern practical experience";
+    }
+
+    if (cleaned.length > 0) {
+      return cleaned;
+    }
+  }
+
+  if (inFieldYears !== null && inFieldYears !== undefined && inFieldYears > 0) {
+    return `${inFieldYears} yr${inFieldYears === 1 ? "" : "s"} in-field tenure`;
+  }
+
+  return null;
+}
+
+/**
  * Modular rationale engine that explains exact match percentage,
  * skill alignment, leveling fit, and gaps.
  */
@@ -144,18 +207,25 @@ export function composeMatchReason(params: {
       sentences.push(
         "Position requirements are below current professional leveling."
       );
-    } else if (timelineContext) {
-      sentences.push(
-        `Leveling aligns with your verified trajectory (${timelineContext}).`
-      );
-    } else if (seniorityTier) {
-      sentences.push(
-        `Leveling aligns with your verified ${seniorityTier} trajectory.`
-      );
     } else {
-      sentences.push(
-        "Leveling and scope align with current verified trajectory."
-      );
+      const trajectory = formatUserFacingTrajectory({
+        timelineContext,
+        seniorityTier,
+        inFieldYears,
+      });
+      if (trajectory) {
+        sentences.push(
+          `Leveling aligns with your verified trajectory (${trajectory}).`
+        );
+      } else if (seniorityTier) {
+        sentences.push(
+          `Leveling aligns with your verified ${seniorityTier} trajectory.`
+        );
+      } else {
+        sentences.push(
+          "Leveling and scope align with current verified trajectory."
+        );
+      }
     }
 
     if (salary) {
@@ -205,18 +275,25 @@ export function composeMatchReason(params: {
     sentences.push(
       "Position requirements are below current professional leveling."
     );
-  } else if (timelineContext && score >= 75) {
-    sentences.push(
-      `Leveling and scope align with your verified trajectory (${timelineContext}).`
-    );
-  } else if (seniorityTier && score >= 75) {
-    sentences.push(
-      `Leveling and scope align with your verified ${seniorityTier} trajectory.`
-    );
   } else if (score >= 75) {
-    sentences.push(
-      "Leveling and scope align with current verified trajectory."
-    );
+    const trajectory = formatUserFacingTrajectory({
+      timelineContext,
+      seniorityTier,
+      inFieldYears,
+    });
+    if (trajectory) {
+      sentences.push(
+        `Leveling and scope align with your verified trajectory (${trajectory}).`
+      );
+    } else if (seniorityTier) {
+      sentences.push(
+        `Leveling and scope align with your verified ${seniorityTier} trajectory.`
+      );
+    } else {
+      sentences.push(
+        "Leveling and scope align with current verified trajectory."
+      );
+    }
   }
 
   // 4. Gap Analysis

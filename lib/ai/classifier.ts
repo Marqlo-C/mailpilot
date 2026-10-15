@@ -476,14 +476,34 @@ export function detectAlreadyApplied(
 }
 
 /**
- * Strips applied-on timestamps, unsubscribe chrome, and platform disclaimers
- * from opportunity descriptions.
+ * Strips applied-on timestamps, unsubscribe chrome, platform disclaimers,
+ * and raw or entity-encoded HTML tags from opportunity descriptions.
  */
 export function cleanOpportunityDescription(
   description: string | null | undefined
 ): string | null {
   if (!description) return null;
   const cleaned = description
+    // Strip script/style tags
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+    // Convert closing block elements and line breaks to whitespace
+    .replace(/<\/(?:div|p|li|tr|th|td|h[1-6]|section|article)>/gi, " ")
+    .replace(/<br\s*\/?>/gi, " ")
+    // Strip raw HTML tags
+    .replace(/<[^>]+>/g, " ")
+    // Unescape common HTML entities that might mask encoded tags or punctuation
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&#x2F;/gi, "/")
+    .replace(/&[a-z0-9#]+;/gi, " ")
+    // Second tag-stripping pass to eliminate unescaped or nested tags (e.g. &lt;strong&gt; or <<strong>>)
+    .replace(/<[^>]+>/g, " ")
+    // Strip platform / alert chrome
     .replace(
       /(?:^|\n)\s*(?:(?:january|february|march|april|may|june|july|august|september|october|november|december|[a-z]{3})\s+\d{1,2}\s+)?job\s+alert[:\s-][^\n]*(?:\n|$)/gi,
       " "

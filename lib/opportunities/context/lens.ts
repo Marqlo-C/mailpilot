@@ -21,6 +21,76 @@ import { formatDistanceToNow } from "@/lib/format-distance";
 import { normalizeSalaryDisplay, parseSalaryMax } from "@/lib/ai/classifier";
 
 /**
+ * Checks whether a given posted date string is unspecified, placeholder, or empty.
+ */
+export function isUnspecifiedPostedAt(value: string | null | undefined): boolean {
+  if (!value || !value.trim()) return true;
+  const cleaned = value.trim().toLowerCase();
+  return (
+    cleaned === "not specified" ||
+    cleaned === "posted: not specified" ||
+    cleaned === "posted: unspecified" ||
+    cleaned === "unspecified" ||
+    cleaned === "unknown" ||
+    cleaned === "n/a" ||
+    cleaned === "none" ||
+    cleaned === "tbd" ||
+    /^posted:\s*(?:not\s*specified|unspecified|unknown|n\/?a|none|tbd)$/i.test(cleaned)
+  );
+}
+
+/**
+ * Normalizes a postedAt candidate string or extracts a posted/reposted relative date
+ * from fallback spec text.
+ */
+export function normalizePostedAt(
+  dateStr?: string | null,
+  textFallback?: string | null
+): string | null {
+  // 1. Evaluate primary candidate date string
+  if (dateStr && !isUnspecifiedPostedAt(dateStr)) {
+    let trimmed = dateStr.trim();
+
+    // Check if ISO date string (YYYY-MM-DD...)
+    const parsedDate = Date.parse(trimmed);
+    if (!isNaN(parsedDate) && /^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+      return formatDistanceToNow(new Date(parsedDate), { addSuffix: true });
+    }
+
+    // Clean leading "Posted: " or "Posted " if present
+    if (/^posted\s*:\s*/i.test(trimmed)) {
+      trimmed = trimmed.replace(/^posted\s*:\s*/i, "");
+    } else if (/^posted\s+/i.test(trimmed)) {
+      trimmed = trimmed.replace(/^posted\s+/i, "");
+    }
+
+    // Clean leading "Reposted: " if present
+    if (/^reposted\s*:\s*/i.test(trimmed)) {
+      trimmed = trimmed.replace(/^reposted\s*:\s*/i, "Reposted ");
+    }
+
+    if (trimmed && !isUnspecifiedPostedAt(trimmed)) {
+      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    }
+  }
+
+  // 2. Evaluate fallback spec / header text if dateStr was absent or unspecified
+  if (textFallback && typeof textFallback === "string") {
+    const match = textFallback.match(
+      /\b(reposted|posted)\s*(?:on\s+|:\s*)?(\d+\+?\s+(?:minutes?|hours?|days?|weeks?|months?)\s+ago|yesterday|today|just\s+now|just\s+posted)\b/i
+    );
+    if (match) {
+      const isReposted = match[1].toLowerCase() === "reposted";
+      const timePart = match[2].trim();
+      const formattedTime = timePart.charAt(0).toUpperCase() + timePart.slice(1);
+      return isReposted ? `Reposted ${timePart}` : formattedTime;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Maps raw database records or partial scraper payloads into the canonical
  * NormalizedJobOpportunity contract.
  */
@@ -85,13 +155,7 @@ export function resolveJobOpportunity(
     applicationType === "DIRECT_EMAIL" ||
     Boolean(opportunity.recipientEmail?.trim());
 
-  let formattedPostedAt = opportunity.postedAt?.trim() || null;
-  if (formattedPostedAt) {
-    const parsedDate = Date.parse(formattedPostedAt);
-    if (!isNaN(parsedDate) && /^\d{4}-\d{2}-\d{2}/.test(formattedPostedAt)) {
-      formattedPostedAt = formatDistanceToNow(new Date(parsedDate), { addSuffix: true });
-    }
-  }
+  const formattedPostedAt = normalizePostedAt(opportunity.postedAt);
 
   const salaryMax =
     typeof opportunity.salaryMax === "number"

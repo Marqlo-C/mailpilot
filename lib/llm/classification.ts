@@ -94,6 +94,7 @@ export const extractedJobSchema = z.object({
     (v) => (v == null ? null : v),
     z.string().nullable().optional()
   ),
+  classificationMethod: z.enum(["AI", "HEURISTIC", "HYBRID"]).optional(),
 });
 
 export type ExtractedJob = z.infer<typeof extractedJobSchema>;

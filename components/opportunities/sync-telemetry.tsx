@@ -131,6 +131,20 @@ export function SyncTelemetry({
     );
   }
 
+  const syncProgressLabel = useMemo(() => {
+    if (!isSyncing) return null;
+    if (lastSyncProcessed && lastSyncProcessed > 0) {
+      if (totalToProcess && totalToProcess >= lastSyncProcessed) {
+        return `${lastSyncProcessed} / ${totalToProcess}`;
+      }
+      if (pendingCount > 0 && pendingCount >= lastSyncProcessed) {
+        return `${lastSyncProcessed} / ${pendingCount}`;
+      }
+      return `${lastSyncProcessed}`;
+    }
+    return null;
+  }, [isSyncing, lastSyncProcessed, totalToProcess, pendingCount]);
+
   if (overlay && !presence.mounted) return null;
   const restCircleClass = !dotRest
     ? ""
@@ -164,19 +178,6 @@ export function SyncTelemetry({
       ? "inline whitespace-nowrap"
       : "hidden whitespace-nowrap"
     : "";
-  const syncProgressLabel = useMemo(() => {
-    if (!isSyncing) return null;
-    if (lastSyncProcessed && lastSyncProcessed > 0) {
-      if (totalToProcess && totalToProcess >= lastSyncProcessed) {
-        return `${lastSyncProcessed} / ${totalToProcess}`;
-      }
-      if (pendingCount > 0 && pendingCount >= lastSyncProcessed) {
-        return `${lastSyncProcessed} / ${pendingCount}`;
-      }
-      return `${lastSyncProcessed}`;
-    }
-    return null;
-  }, [isSyncing, lastSyncProcessed, totalToProcess, pendingCount]);
 
   const statusLabel = !connected
     ? "Offline"

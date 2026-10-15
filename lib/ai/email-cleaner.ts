@@ -114,6 +114,7 @@ export function cleanEmailPayload(rawHtmlOrText: string): string {
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
+    .replace(/<[^>]+>/g, " ")
     .replace(/https?:\/\/\S*(?:\/pixel|track\/open)\S*/gi, " ")
     .replace(/\n\s*\n+/g, "\n\n")
     .trim();

@@ -25,6 +25,7 @@ import {
   normalizeSalaryDisplay,
   parseSalaryMax,
 } from "@/lib/ai/classifier";
+import { normalizePostedAt } from "@/lib/opportunities/context";
 import {
   getCompanyLogoUrl,
   inferDomainFromUrl,
@@ -1028,13 +1029,20 @@ export async function persistClassifiedEmail(input: {
           ? existing.logoUrl
           : logoUrl;
 
-      const resolvedSalary = normalizeSalaryDisplay(job.salary ?? existing.salary);
+      const resolvedSalary =
+        normalizeSalaryDisplay(job.salary) ?? normalizeSalaryDisplay(existing.salary);
       const resolvedSalaryMax =
         typeof job.salaryMax === "number"
           ? job.salaryMax
           : resolvedSalary
             ? parseSalaryMax(resolvedSalary)
             : existing.salaryMax;
+
+      const resolvedPostedAt =
+        normalizePostedAt(job.postedAt) ?? normalizePostedAt(existing.postedAt);
+
+      const jobClassificationMethod =
+        job.classificationMethod ?? classificationMethod ?? "AI";
 
       await prisma.jobOpportunity.update({
         where: { id: existing.id },
@@ -1044,7 +1052,7 @@ export async function persistClassifiedEmail(input: {
           location: job.location ?? existing.location,
           salary: resolvedSalary,
           salaryMax: resolvedSalaryMax,
-          postedAt: job.postedAt ?? existing.postedAt,
+          postedAt: resolvedPostedAt,
           // Keep the freshest sighting timestamp without inventing duplicates.
           receivedAt:
             emailDate > existing.receivedAt ? emailDate : existing.receivedAt,
@@ -1068,7 +1076,7 @@ export async function persistClassifiedEmail(input: {
           ...(resolvedStatus === "APPLIED"
             ? { previousStatus: null, dismissedAt: null }
             : {}),
-          ...(classificationMethod ? { classificationMethod } : {}),
+          ...(jobClassificationMethod ? { classificationMethod: jobClassificationMethod } : {}),
         },
       });
 
@@ -1087,6 +1095,9 @@ export async function persistClassifiedEmail(input: {
         : initialSalary
           ? parseSalaryMax(initialSalary)
           : null;
+    const initialPostedAt = normalizePostedAt(job.postedAt);
+    const jobClassificationMethod =
+      job.classificationMethod ?? classificationMethod ?? "AI";
 
     await prisma.jobOpportunity.create({
       data: {
@@ -1097,7 +1108,7 @@ export async function persistClassifiedEmail(input: {
         location: job.location ?? null,
         salary: initialSalary,
         salaryMax: initialSalaryMax,
-        postedAt: job.postedAt ?? null,
+        postedAt: initialPostedAt,
         receivedAt: emailDate,
         description: job.description ?? null,
         applyUrl: validApplyUrl,
@@ -1111,7 +1122,7 @@ export async function persistClassifiedEmail(input: {
         status: initialStatus,
         appliedAt: isAlreadyApplied ? emailDate ?? new Date() : null,
         isArchived: false,
-        classificationMethod: classificationMethod ?? "AI",
+        classificationMethod: jobClassificationMethod,
       },
     });
 

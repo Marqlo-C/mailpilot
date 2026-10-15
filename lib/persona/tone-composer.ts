@@ -71,9 +71,9 @@ export function buildTimelineContext(params: TimelineContextParams): string {
       )} in the current field`
     );
     timelineParts.push(
-      `Do NOT treat the combined ${formatHumanYears(
-        calendarYears
-      )} of calendar time as in-field seniority`
+      `In-field seniority reflects ${formatHumanYears(
+        inFieldYears
+      )} rather than combined calendar span`
     );
   } else if (seniorityTier === "Student / Intern") {
     if (inFieldYears > 0) {

@@ -273,12 +273,20 @@ export function extractJsonLdJobPosting(html: string): ScrapedJobPosting | null 
           }
 
           let salary: string | undefined;
-          if (item.baseSalary?.value) {
-            const val = item.baseSalary.value;
-            if (val.minValue && val.maxValue) {
-              salary = `$${val.minValue} - $${val.maxValue}`;
-            } else if (val.value) {
-              salary = `$${val.value}`;
+          const salaryObj = item.baseSalary || item.estimatedSalary;
+          if (typeof salaryObj === "string" && salaryObj.trim()) {
+            salary = salaryObj.trim();
+          } else if (salaryObj && typeof salaryObj === "object") {
+            const val = salaryObj.value || salaryObj;
+            if (typeof val === "object" && val !== null) {
+              const unit = typeof val.unitText === "string" ? ` / ${val.unitText.toLowerCase()}` : "";
+              if (val.minValue != null && val.maxValue != null) {
+                salary = `$${val.minValue} - $${val.maxValue}${unit}`;
+              } else if (val.value != null) {
+                salary = `$${val.value}${unit}`;
+              }
+            } else if (typeof val === "number" || typeof val === "string") {
+              salary = `$${val}`;
             }
           }
 
@@ -397,11 +405,30 @@ export function extractNuxtData(html: string): ScrapedJobPosting | null {
 
     const description = uniqueParagraphs.join("\n\n").slice(0, 4000);
 
+    // 4. Detect Date Posted candidate
+    const dateCandidate = nuxtArray.find(
+      (item): item is string =>
+        typeof item === "string" &&
+        /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2})?/.test(item.trim())
+    );
+    const datePosted = dateCandidate ? dateCandidate.trim() : undefined;
+
+    // 5. Detect Salary candidate
+    const salaryCandidate = nuxtArray.find(
+      (item): item is string =>
+        typeof item === "string" &&
+        item.length < 50 &&
+        /\$\s*\d{1,3}(?:,\d{3})*(?:\s*-\s*\$?\d{1,3}(?:,\d{3})*)?/i.test(item.trim())
+    );
+    const salary = salaryCandidate ? salaryCandidate.trim() : undefined;
+
     return {
       title,
       company,
       location,
+      salary,
       description,
+      datePosted,
     };
   } catch {
     return null;
@@ -835,6 +862,7 @@ export async function scrapeJobPostingJsonLd(
       if (text.length >= 500 && isLegitimateJobContent(text)) {
         return {
           data: {
+            ...(parsed ?? {}),
             description: text.slice(0, 4000),
             applyUrl: url,
           },
