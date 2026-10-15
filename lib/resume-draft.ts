@@ -4,10 +4,16 @@ import { z } from "zod";
 
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
 import {
+  buildResumeContactLine,
+  cleanProjectUrl,
   formatEducationDates,
   formatEducationTitle,
   formatExperienceHeading,
   formatSchoolName,
+  getProjectBaseName,
+  isAuthenticContactItem,
+  normalizeProjectName,
+  sanitizeResumeContactLine,
 } from "@/lib/utils/format";
 import type { TailorResult } from "@/lib/resume-tailor";
 import {
@@ -29,7 +35,6 @@ import {
   sortExperiencesReverseChronological,
 } from "@/lib/resume-draft/lens";
 import type { ResumeExportConfig } from "@/lib/resume-draft/schema.ssot";
-import { buildResumeContactLine } from "@/lib/utils/format";
 import {
   skillCategoryLabel,
   skillGroupsFromUnknown,
@@ -38,6 +43,14 @@ import {
 export * from "./resume-draft/schema.ssot";
 export * from "./resume-draft/lens";
 export * from "./resume-draft/budget";
+export {
+  cleanProjectUrl,
+  getProjectBaseName,
+  isAuthenticContactItem,
+  isAuthenticLocation,
+  normalizeProjectName,
+  sanitizeResumeContactLine,
+} from "@/lib/utils/format";
 
 function node(
   partial: Omit<ResumeDraftNode, "selected"> & { selected?: boolean }
@@ -91,7 +104,9 @@ export function digestTailoredResume(input: {
       type: "header",
       section: "contact",
       content: profile.fullName,
-      metadata: { contactLine: buildResumeContactLine(profile) },
+      metadata: {
+        contactLine: sanitizeResumeContactLine(buildResumeContactLine(profile)),
+      },
     })
   );
 
@@ -159,7 +174,7 @@ export function digestTailoredResume(input: {
               id: headerId,
               type: "project_header",
               section: "projects",
-              content: project.name,
+              content: normalizeProjectName(project.name),
               metadata: {
                 description: project.description,
                 technologies: project.technologies,
@@ -430,16 +445,18 @@ export function draftToPdfInput(
           item.type === "project_bullet" && item.parentId === headerNode.id
       )
       .map((item) => item.content);
+    const rawLink = asString(headerNode.metadata?.link);
+    const link = rawLink ? cleanProjectUrl(rawLink) : null;
     projects.push({
       id: headerNode.id,
-      name: headerNode.content,
+      name: normalizeProjectName(headerNode.content),
       description: asString(headerNode.metadata?.description),
       technologies: Array.isArray(headerNode.metadata?.technologies)
         ? headerNode.metadata.technologies.filter(
             (item): item is string => typeof item === "string"
           )
         : [],
-      link: asString(headerNode.metadata?.link) || null,
+      link: link || null,
       bullets,
     });
   }
@@ -484,9 +501,10 @@ export function draftToPdfInput(
 
   return {
     headerName: header?.content.trim() || profile?.fullName || "",
-    contactLine:
+    contactLine: sanitizeResumeContactLine(
       asString(header?.metadata?.contactLine) ||
-      (profile ? buildResumeContactLine(profile) : ""),
+        (profile ? buildResumeContactLine(profile) : "")
+    ),
     experiences,
     projects,
     tailoredSummary: summary?.content.trim() || null,

@@ -10,7 +10,16 @@ import {
   sortEducationReverseChronological,
   digestTailoredResume,
   draftToPdfInput,
+  normalizeProjectName,
+  cleanProjectUrl,
+  getProjectBaseName,
+  isAuthenticContactItem,
+  isAuthenticLocation,
+  sanitizeResumeContactLine,
 } from "../index";
+import { buildResumeContactLine } from "@/lib/utils/format";
+import { isResumeHeaderLink, isDisallowedContactHost } from "@/lib/utils/url";
+import { compileResumeDocx } from "@/lib/resume-docx";
 import {
   BANNED_SUMMARY_PERSONA_TERMS,
   sanitizeTailoredSummary,
@@ -329,6 +338,18 @@ describe("Resume Drafting & Tailoring Architecture", () => {
       expect(prompt).toContain("FUNCTIONAL CROSSOVER & GROUND TRUTH");
       expect(prompt).toContain("UNBENDING GROUND TRUTH: Never invent tools, languages, platforms, certifications, systems");
     });
+
+    it("instructs structural pattern over rigid literal template tags", () => {
+      const prompt = buildReframeSystemPrompt(false);
+      expect(prompt).toContain(
+        "[Strong Action Verb] + [Quantifiable Impact / Scope / Metric] + [Method / Technical Approach]"
+      );
+      expect(prompt).toContain("STRUCTURAL PATTERN OVER RIGID TAGS");
+      expect(prompt).toContain(
+        'Do NOT force awkward literal template tags like "as measured by" or "by doing"'
+      );
+      expect(prompt).toContain("Action + Metric + Method");
+    });
   });
 
   describe("Digestion & PDF Input Compilation", () => {
@@ -407,6 +428,52 @@ describe("Resume Drafting & Tailoring Architecture", () => {
       expect(compiled.experiences.length).toBe(2);
       expect(compiled.sectionOrder).toBeDefined();
       expect(compiled.disabledSections).toContain("interests");
+    });
+
+    it("normalizes unformatted repo slugs into clean Title Case in digestTailoredResume and draftToPdfInput", () => {
+      const profileWithSlugs: MasterProfileInput = {
+        ...baseProfile,
+        projects: [
+          {
+            id: "proj-slug-1",
+            name: "wildfire-response-system",
+            description: "Emergency dispatch coordination system",
+            technologies: ["TypeScript", "FastAPI"],
+            link: "https://github.com/org/wildfire-response-system.git",
+            bullets: ["Dispatched units"],
+          },
+          {
+            id: "proj-slug-2",
+            name: "https://github.com/org/distributed-kv-store.git",
+            description: "KV database engine",
+            technologies: ["Rust"],
+            link: null,
+            bullets: ["Built raft store"],
+          },
+        ],
+      };
+
+      const tailoredResultWithSlugs: TailorResult = {
+        ...sampleTailorResult,
+        selectedProjects: profileWithSlugs.projects,
+      };
+
+      const draft = digestTailoredResume({
+        opportunityId: "opp-slugs",
+        profile: profileWithSlugs,
+        tailored: tailoredResultWithSlugs,
+        includeSummary: false,
+      });
+
+      // Verify draft nodes have normalized Title Case names
+      const projectHeaderNodes = draft.nodes.filter((n) => n.type === "project_header");
+      expect(projectHeaderNodes[0].content).toBe("Wildfire Response System");
+      expect(projectHeaderNodes[1].content).toBe("Distributed KV Store");
+
+      // Verify draftToPdfInput compiles clean Title Case project names
+      const compiled = draftToPdfInput(draft, profileWithSlugs);
+      expect(compiled.projects[0].name).toBe("Wildfire Response System");
+      expect(compiled.projects[1].name).toBe("Distributed KV Store");
     });
   });
 
@@ -618,5 +685,335 @@ describe("Resume Drafting & Tailoring Architecture", () => {
       expect(result.strategyRationale?.featuredExperiencesReasoning).toContain("recommend measuring");
     });
   });
+
+  describe("normalizeProjectName Pure Utility", () => {
+    it("strips GitHub and GitLab URLs, .git suffixes, and query/hashes", () => {
+      expect(
+        normalizeProjectName("https://github.com/marqlott/distributed-kv-store.git")
+      ).toBe("Distributed KV Store");
+      expect(
+        normalizeProjectName("http://gitlab.com/org/subgroup/wildfire-response-system/")
+      ).toBe("Wildfire Response System");
+      expect(
+        normalizeProjectName("github.com/user/embergency-wildfire-app?ref=main#readme")
+      ).toBe("Embergency Wildfire App");
+      expect(
+        normalizeProjectName("user/real-time-api-gateway")
+      ).toBe("Real Time API Gateway");
+    });
+
+    it("de-kebabs and de-snakes raw slugs into clean titles", () => {
+      expect(normalizeProjectName("wildfire-response-system")).toBe(
+        "Wildfire Response System"
+      );
+      expect(normalizeProjectName("embergency-wildfire-app")).toBe(
+        "Embergency Wildfire App"
+      );
+      expect(normalizeProjectName("real_time_metrics_pipeline")).toBe(
+        "Real Time Metrics Pipeline"
+      );
+    });
+
+    it("preserves technical and domain acronyms with accurate casing", () => {
+      expect(normalizeProjectName("distributed-kv-store")).toBe(
+        "Distributed KV Store"
+      );
+      expect(normalizeProjectName("rest-api-cli-tools")).toBe(
+        "REST API CLI Tools"
+      );
+      expect(normalizeProjectName("ci-cd-pipeline-orchestrator")).toBe(
+        "CI/CD Pipeline Orchestrator"
+      );
+      expect(normalizeProjectName("saas-iot-telemetry-sdk")).toBe(
+        "SaaS IoT Telemetry SDK"
+      );
+      expect(normalizeProjectName("p2p-sql-db-query-engine")).toBe(
+        "P2P SQL DB Query Engine"
+      );
+      expect(normalizeProjectName("sla-monitoring-daemon")).toBe(
+        "SLA Monitoring Daemon"
+      );
+    });
+
+    it("preserves already polished titles and brand camelCase without corruption", () => {
+      expect(normalizeProjectName("Distributed KV Store")).toBe(
+        "Distributed KV Store"
+      );
+      expect(normalizeProjectName("Embergency Wildfire App")).toBe(
+        "Embergency Wildfire App"
+      );
+      expect(normalizeProjectName("FastAPI Telematics Pipeline")).toBe(
+        "FastAPI Telematics Pipeline"
+      );
+      expect(normalizeProjectName("GraphQL & React Native Hub")).toBe(
+        "GraphQL & React Native Hub"
+      );
+      expect(normalizeProjectName("PyTorch Image Classifier")).toBe(
+        "PyTorch Image Classifier"
+      );
+    });
+
+    it("handles empty or null inputs gracefully", () => {
+      expect(normalizeProjectName("")).toBe("");
+      expect(normalizeProjectName(null)).toBe("");
+      expect(normalizeProjectName(undefined)).toBe("");
+      expect(normalizeProjectName("   ")).toBe("");
+    });
+
+    it("handles double hyphens and trailing branch/archive flags cleanly", () => {
+      expect(
+        normalizeProjectName("https://github.com/owner/wildfire--response-system/tree/main")
+      ).toBe("Wildfire Response System");
+      expect(
+        normalizeProjectName("https://github.com/owner/distributed-kv-store/blob/master")
+      ).toBe("Distributed KV Store");
+      expect(
+        normalizeProjectName("https://github.com/owner/ci--cd--pipeline/archive/v1.0.tar.gz")
+      ).toBe("CI/CD Pipeline");
+      expect(
+        normalizeProjectName("real_time--metrics__stream")
+      ).toBe("Real Time Metrics Stream");
+    });
+  });
+
+  describe("Contact Line Sanitation & Rogue Ingestion Bleed Prevention", () => {
+    it("validates authentic email addresses, phone numbers, verified URLs, and locations", () => {
+      expect(isAuthenticContactItem("alex@example.com")).toBe(true);
+      expect(isAuthenticContactItem("user.name+tag@sub.domain.org")).toBe(true);
+      expect(isAuthenticContactItem("555-0100")).toBe(true);
+      expect(isAuthenticContactItem("(555) 123-4567")).toBe(true);
+      expect(isAuthenticContactItem("+1 555-123-4567")).toBe(true);
+      expect(isAuthenticContactItem("portfolio.example.com")).toBe(true);
+      expect(isAuthenticContactItem("https://github.com/alextaylor")).toBe(true);
+      expect(isAuthenticContactItem("linkedin.com/in/alextaylor")).toBe(true);
+      expect(isAuthenticContactItem("San Francisco, CA")).toBe(true);
+      expect(isAuthenticContactItem("Austin, TX")).toBe(true);
+      expect(isAuthenticContactItem("London, UK")).toBe(true);
+      expect(isAuthenticContactItem("Remote")).toBe(true);
+      expect(isAuthenticContactItem("San Francisco Bay Area")).toBe(true);
+    });
+
+    it("strictly rejects serialized skills, programming languages, and tools from contact items", () => {
+      expect(isAuthenticContactItem("Docker")).toBe(false);
+      expect(isAuthenticContactItem("Kubernetes")).toBe(false);
+      expect(isAuthenticContactItem("React")).toBe(false);
+      expect(isAuthenticContactItem("React.js")).toBe(false);
+      expect(isAuthenticContactItem("Node.js")).toBe(false);
+      expect(isAuthenticContactItem("Python")).toBe(false);
+      expect(isAuthenticContactItem("Python, Java, C++")).toBe(false);
+      expect(isAuthenticContactItem("AWS")).toBe(false);
+      expect(isAuthenticContactItem("FastAPI")).toBe(false);
+      expect(isAuthenticContactItem("GraphQL")).toBe(false);
+      expect(isAuthenticContactItem("CI/CD")).toBe(false);
+      expect(isAuthenticContactItem("SQL")).toBe(false);
+      expect(isAuthenticContactItem("TypeScript")).toBe(false);
+    });
+
+    it("sanitizes composite contact lines by removing rogue skills and keyword bleed", () => {
+      const contaminated =
+        "alex@example.com • 555-0100 • San Francisco, CA • portfolio.example.com • Docker • React.js • Kubernetes";
+      const sanitized = sanitizeResumeContactLine(contaminated);
+      expect(sanitized).toBe(
+        "alex@example.com • 555-0100 • San Francisco, CA • portfolio.example.com"
+      );
+    });
+
+    it("supports pipe and middle-dot delimited contact strings", () => {
+      const pipeContaminated =
+        "alex@example.com | 555-0100 | Austin, TX | github.com/alextaylor | Python | AWS";
+      const sanitized = sanitizeResumeContactLine(pipeContaminated);
+      expect(sanitized).toBe(
+        "alex@example.com • 555-0100 • Austin, TX • github.com/alextaylor"
+      );
+    });
+
+    it("prevents rogue skills in profile.links from entering buildResumeContactLine", () => {
+      const profileWithRogueLinks: MasterProfileInput = {
+        fullName: "Alex Taylor",
+        email: "alex@example.com",
+        phone: "555-0100",
+        location: "San Francisco, CA",
+        summary: "Engineer",
+        links: [
+          { label: "Portfolio", url: "https://portfolio.example.com" },
+          { label: "SkillBleed1", url: "Docker" },
+          { label: "SkillBleed2", url: "React.js" },
+          { label: "SkillBleed3", url: "Python" },
+        ],
+        skills: [],
+        experiences: [],
+        projects: [],
+        education: [],
+        certifications: [],
+        awards: [],
+        interests: [],
+      };
+
+      const line = buildResumeContactLine(profileWithRogueLinks);
+      expect(line).toContain("alex@example.com");
+      expect(line).toContain("555-0100");
+      expect(line).toContain("San Francisco, CA");
+      expect(line).toContain("portfolio.example.com");
+      expect(line).not.toContain("Docker");
+      expect(line).not.toContain("React.js");
+      expect(line).not.toContain("Python");
+    });
+
+    it("strictly rejects third-party framework/tool domains and bare roots like Socket.io", () => {
+      expect(isDisallowedContactHost("socket.io")).toBe(true);
+      expect(isDisallowedContactHost("https://Socket.io")).toBe(true);
+      expect(isDisallowedContactHost("react.dev")).toBe(true);
+      expect(isDisallowedContactHost("nextjs.org")).toBe(true);
+      expect(isDisallowedContactHost("prisma.io")).toBe(true);
+
+      expect(isResumeHeaderLink("https://Socket.io")).toBe(false);
+      expect(isResumeHeaderLink("Socket.io")).toBe(false);
+      expect(isResumeHeaderLink("https://react.dev")).toBe(false);
+      expect(isResumeHeaderLink("https://github.com")).toBe(false); // bare root rejected
+      expect(isResumeHeaderLink("https://linkedin.com")).toBe(false); // bare root rejected
+
+      expect(isAuthenticContactItem("Socket.io")).toBe(false);
+      expect(isAuthenticContactItem("https://Socket.io")).toBe(false);
+      expect(isAuthenticContactItem("github.com")).toBe(false);
+
+      // Authentic profile links still pass cleanly
+      expect(isResumeHeaderLink("https://github.com/Marqlo-C")).toBe(true);
+      expect(isResumeHeaderLink("https://linkedin.com/in/marq-lott")).toBe(true);
+      expect(isResumeHeaderLink("https://marqlo-c.github.io")).toBe(true);
+      expect(isAuthenticContactItem("github.com/Marqlo-C")).toBe(true);
+      expect(isAuthenticContactItem("linkedin.com/in/marq-lott")).toBe(true);
+      expect(isAuthenticContactItem("marqlo-c.github.io")).toBe(true);
+
+      // Sanitizing the real-world contaminated contact line
+      const realWorldContaminated =
+        "marquiseclott@gmail.com • (213) 817-0484 • Sacramento, CA • linkedin.com/in/marq-lott • marqlo-c.github.io • github.com/Marqlo-C • Socket.io";
+      const sanitized = sanitizeResumeContactLine(realWorldContaminated);
+      expect(sanitized).toBe(
+        "marquiseclott@gmail.com • (213) 817-0484 • Sacramento, CA • linkedin.com/in/marq-lott • marqlo-c.github.io • github.com/Marqlo-C"
+      );
+      expect(sanitized).not.toContain("Socket.io");
+    });
+  });
+
+  describe("WYSIWYG Parity & Project Link Cleanliness", () => {
+    it("cleanProjectUrl strips protocol, www, .git extension, and trailing slashes", () => {
+      expect(cleanProjectUrl("https://github.com/example/kv.git")).toBe(
+        "github.com/example/kv"
+      );
+      expect(cleanProjectUrl("http://www.myproject.io/")).toBe("myproject.io");
+      expect(cleanProjectUrl("https://gitlab.com/group/iot-telemetry.git/")).toBe(
+        "gitlab.com/group/iot-telemetry"
+      );
+    });
+
+    it("getProjectBaseName strips subtitles, taglines, and separators", () => {
+      expect(
+        getProjectBaseName("SafeHaven – Disguised Domestic Violence Safety Platform")
+      ).toBe("SafeHaven");
+      expect(
+        getProjectBaseName("Embergency – Wildfire Response Assistant")
+      ).toBe("Embergency");
+      expect(getProjectBaseName("Mailpilot")).toBe("Mailpilot");
+    });
+
+    it("draftToPdfInput produces clean, protocol-free project links when provided and preserves null without synthetic backfills", () => {
+      const profileWithPool: MasterProfileInput = {
+        ...baseProfile,
+        projects: [
+          {
+            id: "repo-1",
+            name: "SafeHaven",
+            description: "Safety app",
+            technologies: ["Next.js"],
+            link: "https://github.com/Marqlo-C/SafeHaven.git",
+            bullets: [],
+          },
+        ],
+      };
+
+      const draft = digestTailoredResume({
+        opportunityId: "opp-wysiwyg",
+        profile: profileWithPool,
+        tailored: {
+          ...sampleTailorResult,
+          selectedProjects: [
+            {
+              id: "p1",
+              name: "SafeHaven – Disguised Domestic Violence Safety Platform",
+              description: "Covert platform",
+              technologies: ["Next.js"],
+              link: null, // extracted from resume text without explicit link
+              bullets: ["Built real-time crisis chat"],
+            },
+            {
+              id: "p2",
+              name: "Mailpilot",
+              description: "Dashboard",
+              technologies: ["Next.js", "TypeScript"],
+              link: "https://github.com/Marqlo-C/mailpilot.git",
+              bullets: ["Built dashboard"],
+            },
+          ],
+        },
+        includeSummary: true,
+      });
+
+      const compiled = draftToPdfInput(draft, profileWithPool);
+      expect(compiled.projects.length).toBe(2);
+      expect(compiled.projects[0]!.name).toBe(
+        "SafeHaven – Disguised Domestic Violence Safety Platform"
+      );
+      // Link should NOT be synthetically backfilled when null on the project
+      expect(compiled.projects[0]!.link).toBeNull();
+      // When explicitly provided, link is cleaned
+      expect(compiled.projects[1]!.link).toBe("github.com/Marqlo-C/mailpilot");
+    });
+
+    it("compileResumeDocx sanitizes contact headers and renders clean project headings without repo clutter", async () => {
+      const draft = digestTailoredResume({
+        opportunityId: "opp-docx",
+        profile: {
+          ...baseProfile,
+          links: [
+            { label: "LinkedIn", url: "https://linkedin.com/in/marq-lott" },
+            { label: "Website", url: "https://Socket.io" }, // Rogue tech domain
+          ],
+        },
+        tailored: {
+          ...sampleTailorResult,
+          selectedProjects: [
+            {
+              id: "p1",
+              name: "Mailpilot",
+              description: "Dashboard",
+              technologies: ["Next.js", "TypeScript"],
+              link: "https://github.com/Marqlo-C/mailpilot",
+              bullets: ["Developed Next.js dashboard"],
+            },
+          ],
+        },
+        includeSummary: false,
+      });
+
+      const docxBuffer = await compileResumeDocx(draft);
+      expect(docxBuffer).toBeInstanceOf(Buffer);
+      expect(docxBuffer.length).toBeGreaterThan(100);
+
+      // Read XML from docx archive using JSZip
+      const JSZip = (await import("jszip")).default;
+      const zip = await JSZip.loadAsync(docxBuffer);
+      const docXml = await zip.file("word/document.xml")?.async("string");
+      expect(docXml).toBeDefined();
+
+      // Verify Socket.io is NOT in docx
+      expect(docXml).not.toContain("Socket.io");
+
+      // Verify project heading renders title and technologies cleanly without repo link clutter
+      expect(docXml).toContain("Mailpilot");
+      expect(docXml).toContain("Next.js, TypeScript");
+      expect(docXml).not.toContain("github.com/Marqlo-C/mailpilot");
+    });
+  });
 });
+
 

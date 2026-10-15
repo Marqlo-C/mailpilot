@@ -4,6 +4,7 @@ import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
 import { isPlaceholderEmail } from "@/lib/profile-consolidation";
 import { interpretSkillGroups, isCourseworkLabel } from "@/lib/skill-groups";
 import type { SkillGroup, SkillItem } from "@/lib/types/resume-draft";
+import { normalizeProjectName } from "@/lib/utils/format";
 import { githubProfileRoot, isVerifiedProfileUrl, normalizeProfileUrl } from "@/lib/utils/url";
 import {
   awardsSchema,
@@ -186,6 +187,7 @@ function sanitizeResumeLlmJson(json: unknown): unknown {
           : {};
       return {
         ...p,
+        name: typeof p.name === "string" ? normalizeProjectName(p.name) : p.name,
         description: p.description ?? "",
         technologies: coerceTechnologyList(p.technologies),
         bullets: Array.isArray(p.bullets) ? p.bullets : [],
@@ -1177,7 +1179,7 @@ export async function parseResumeToStructuredProfile(
   });
 
   const projects = parsed.projects.map((p) => ({
-    name: p.name,
+    name: normalizeProjectName(p.name),
     description: p.description,
     technologies: p.technologies,
     link: p.link ?? null,

@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 
 import { activeResumeNodes } from "@/lib/resume-draft";
-import { categorizeProfileUrl, normalizeProfileUrl } from "@/lib/utils/url";
+import { sanitizeResumeContactLine } from "@/lib/utils/format";
 import { skillCategoryLabel } from "@/lib/skill-groups";
 import type {
   ResumeDraftNode,
@@ -106,19 +106,6 @@ function skillLine(groups: ResumeDraftNode[]): string {
   return bodyParagraph(runs.join("") || run(""));
 }
 
-function headerContactLine(value: unknown): string {
-  if (typeof value !== "string") return "";
-  return value
-    .split(" • ")
-    .map((part) => part.trim())
-    .filter((part) => {
-      if (!part) return false;
-      const kind = categorizeProfileUrl(normalizeProfileUrl(part));
-      return kind !== "handshake" && kind !== "indeed";
-    })
-    .join(" • ");
-}
-
 /** Styled OOXML resume built from checked draft nodes. */
 export async function compileResumeDocx(
   draft: TailoredResumeDraft
@@ -143,7 +130,11 @@ export async function compileResumeDocx(
           size: 36,
         })}</w:p>`
       );
-      const contact = headerContactLine(item.metadata?.contactLine);
+      const contact = sanitizeResumeContactLine(
+        typeof item.metadata?.contactLine === "string"
+          ? item.metadata.contactLine
+          : null
+      );
       if (contact) {
         body.push(
           `<w:p><w:pPr>${spacing(0, 80)}</w:pPr>${run(contact, {

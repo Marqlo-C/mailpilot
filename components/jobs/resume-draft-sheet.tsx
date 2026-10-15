@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { skillCategoryLabel } from "@/lib/skill-groups";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/types/resume-draft";
 import { cn } from "@/lib/utils";
+import { sanitizeResumeContactLine } from "@/lib/utils/format";
 
 const SHEET_WIDTH = 816;
 
@@ -429,7 +430,7 @@ export function ResumeDraftSheet({
                   typeof node.metadata?.contactLine === "string" &&
                   node.metadata.contactLine ? (
                     <p className="mb-2.5 text-[12px] text-[#374151]">
-                      {node.metadata.contactLine}
+                      {sanitizeResumeContactLine(node.metadata.contactLine)}
                     </p>
                   ) : null}
                   {refineForm(node.id)}

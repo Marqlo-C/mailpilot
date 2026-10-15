@@ -12,10 +12,16 @@ import {
   extractProfileLinksFromText,
   githubProfileRoot,
   githubProfileUrlInText,
+  isDisallowedContactHost,
   isGithubProfileUrl,
+  isResumeHeaderLink,
   isVerifiedProfileUrl,
   normalizeProfileUrl,
 } from "@/lib/utils/url";
+import {
+  getProjectBaseName,
+  normalizeProjectName,
+} from "@/lib/utils/format";
 
 /** True when an address is missing or a synthetic placeholder. */
 export function isPlaceholderEmail(email?: string | null): boolean {
@@ -192,6 +198,7 @@ export function enrichLinksFromRawText(
 
   for (const raw of extractProfileLinksFromText(text)) {
     if (!isVerifiedProfileUrl(raw)) continue;
+    if (!isResumeHeaderLink(raw)) continue;
     const kind = categorizeProfileUrl(raw);
     if (kind === "github") {
       const root = githubProfileRoot(raw);
@@ -201,13 +208,12 @@ export function enrichLinksFromRawText(
     }
     if (kind === "linkedin" && !/linkedin\.com\/(?:in|pub)\//i.test(raw)) continue;
     const label = accountLabelForUrl(raw);
-    if (label === "Website" && !isVerifiedProfileUrl(raw)) continue;
+    if (label === "Website" && !isResumeHeaderLink(raw)) continue;
     found.push({ label, url: normalizeProfileUrl(raw) });
   }
 
   const keptExisting = existingLinks.filter(
-    (item) =>
-      item.label.trim().toLowerCase() !== "website" || isVerifiedProfileUrl(item.url)
+    (item) => !isDisallowedContactHost(item.url) && isResumeHeaderLink(item.url)
   );
   const seen = new Set(
     keptExisting.map((l) => ensureAbsoluteUrl(l.url).toLowerCase())
@@ -382,17 +388,37 @@ export function consolidateProfiles(
     }
   }
 
-  const projects: ProjectInput[] = [...existing.projects];
+  const projects: ProjectInput[] = existing.projects.map((p) => ({
+    ...p,
+    name: normalizeProjectName(p.name),
+  }));
 
   for (const incProj of incoming.projects) {
-    const incNameNorm = normalizeString(incProj.name);
-    const existingIndex = projects.findIndex(
-      (p) =>
-        normalizeString(p.name) === incNameNorm ||
-        (Boolean(p.link) &&
-          Boolean(incProj.link) &&
-          (p.link ?? "").toLowerCase() === (incProj.link ?? "").toLowerCase())
-    );
+    const cleanIncName = normalizeProjectName(incProj.name);
+    const incNameNorm = normalizeString(cleanIncName);
+    const incBaseNorm = normalizeString(getProjectBaseName(cleanIncName));
+
+    const existingIndex = projects.findIndex((p) => {
+      const pNorm = normalizeString(p.name);
+      if (pNorm === incNameNorm) return true;
+      if (
+        Boolean(p.link) &&
+        Boolean(incProj.link) &&
+        (p.link ?? "").toLowerCase() === (incProj.link ?? "").toLowerCase()
+      ) {
+        return true;
+      }
+      const pBaseNorm = normalizeString(getProjectBaseName(p.name));
+      if (
+        pBaseNorm &&
+        incBaseNorm &&
+        pBaseNorm === incBaseNorm &&
+        pBaseNorm.length >= 3
+      ) {
+        return true;
+      }
+      return false;
+    });
 
     if (existingIndex >= 0) {
       const match = projects[existingIndex]!;
@@ -405,6 +431,7 @@ export function consolidateProfiles(
 
       projects[existingIndex] = {
         ...match,
+        name: cleanIncName || match.name,
         description: match.description || incProj.description,
         technologies: mergeStringBuckets(
           match.technologies,
@@ -414,7 +441,10 @@ export function consolidateProfiles(
         bullets: [...match.bullets, ...newBullets],
       };
     } else {
-      projects.push(incProj);
+      projects.push({
+        ...incProj,
+        name: cleanIncName,
+      });
     }
   }
 
@@ -467,11 +497,15 @@ export function consolidateProfiles(
     }
   }
 
-  const linkUrls = new Set(
-    existing.links.map((l) => ensureAbsoluteUrl(l.url).toLowerCase())
+  const cleanExistingLinks = existing.links.filter(
+    (l) => !isDisallowedContactHost(l.url) && isVerifiedProfileUrl(l.url)
   );
-  const mergedLinks = [...existing.links];
+  const linkUrls = new Set(
+    cleanExistingLinks.map((l) => ensureAbsoluteUrl(l.url).toLowerCase())
+  );
+  const mergedLinks = [...cleanExistingLinks];
   for (const l of incoming.links) {
+    if (isDisallowedContactHost(l.url) || !isVerifiedProfileUrl(l.url)) continue;
     const key = ensureAbsoluteUrl(l.url).toLowerCase();
     if (!linkUrls.has(key)) {
       mergedLinks.push({ ...l, url: ensureAbsoluteUrl(l.url) });

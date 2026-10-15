@@ -1,5 +1,6 @@
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
 import type { AccountRules } from "@/lib/validations/rules";
+import { normalizeProjectName } from "@/lib/utils/format";
 
 export type ProjectItem = {
   id?: string;
@@ -317,7 +318,7 @@ export async function syncGitHubProjects(
     });
 
     projects.push({
-      name: repo.name,
+      name: normalizeProjectName(repo.name),
       description: repo.description || "Open-source repository on GitHub",
       link: repo.html_url,
       technologies:
