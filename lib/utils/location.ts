@@ -3,7 +3,7 @@
  * Resolves variations like "Sacramento, CA", "Sacramento", and "Sacramento, California".
  */
 
-const US_STATES_AND_TERRITORIES: Record<string, string> = {
+export const US_STATES_AND_TERRITORIES: Record<string, string> = {
   alabama: "AL",
   alaska: "AK",
   arizona: "AZ",
@@ -62,7 +62,7 @@ const US_STATES_AND_TERRITORIES: Record<string, string> = {
   northernmarianas: "MP",
 };
 
-const VALID_STATE_CODES = new Set(Object.values(US_STATES_AND_TERRITORIES));
+export const VALID_STATE_CODES = new Set(Object.values(US_STATES_AND_TERRITORIES));
 
 export type ParsedLocation = {
   city: string;

@@ -7,8 +7,12 @@ import {
   View,
   Image,
   StyleSheet,
+  Font,
   renderToBuffer,
 } from "@react-pdf/renderer";
+
+// Disable automatic mid-word hyphenation splitting across lines globally
+Font.registerHyphenationCallback((word) => [word]);
 
 import type {
   MasterProfileInput,
@@ -22,14 +26,18 @@ import {
   RESUME_SECTION_KEYS,
 } from "@/lib/resume-draft/schema.ssot";
 import {
+  buildResumeContactLine,
   cleanDisplayUrl,
   dedupeContactItems,
   formatEducationDates,
   formatEducationTitle,
   formatExperienceHeading,
   formatSchoolName,
+  sanitizeResumeContactLine,
 } from "@/lib/utils/format";
 import { categorizeProfileUrl, isResumeHeaderLink } from "@/lib/utils/url";
+
+export { buildResumeContactLine, sanitizeResumeContactLine };
 
 /** @deprecated Prefer cleanDisplayUrl from @/lib/utils/format */
 export const cleanContactUrl = cleanDisplayUrl;
@@ -78,15 +86,20 @@ const styles = StyleSheet.create({
   roleHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 2,
   },
   roleTitle: {
     fontFamily: "Helvetica-Bold",
     fontSize: 10,
+    flex: 1,
+    marginRight: 8,
   },
   muted: {
     color: "#4B5563",
     fontSize: 9,
+    textAlign: "right",
+    flexShrink: 0,
   },
   bullet: {
     marginLeft: 8,
@@ -126,10 +139,6 @@ const INVERTED_LOGO_PATH = path.join(
   "public/logos/transparent-logo.png"
 );
 
-import { buildResumeContactLine } from "@/lib/utils/format";
-export { buildResumeContactLine };
-
-
 function ResumeDocument({
   profile,
   experiences,
@@ -147,7 +156,9 @@ function ResumeDocument({
   sectionOrder,
   disabledSections,
 }: PdfInput) {
-  const contact = contactLine?.trim() || buildResumeContactLine(profile);
+  const contact = sanitizeResumeContactLine(
+    contactLine?.trim() || buildResumeContactLine(profile)
+  );
   const displayName = headerName?.trim() || profile.fullName;
   const educationRows = education ?? profile.education;
   const certificationRows = certifications ?? profile.certifications ?? [];
@@ -257,28 +268,27 @@ function ResumeDocument({
         return (
           <View key="projects" style={styles.section}>
             <Text style={styles.heading}>Projects</Text>
-            {projects.map((proj) => (
-              <View key={proj.name} style={{ marginBottom: 6 }}>
-                <View style={styles.roleHeader}>
-                  <Text style={styles.roleTitle}>
-                    {proj.name}
-                    {proj.link
-                      ? ` · ${cleanDisplayUrl(proj.link) || proj.link}`
-                      : ""}
-                  </Text>
-                  {proj.technologies.length > 0 ? (
-                    <Text style={styles.muted}>
-                      {proj.technologies.slice(0, 4).join(", ")}
+            {projects.map((proj) => {
+              return (
+                <View key={proj.name} style={{ marginBottom: 6 }}>
+                  <View style={styles.roleHeader}>
+                    <Text style={styles.roleTitle}>
+                      <Text style={{ fontFamily: "Helvetica-Bold" }}>{proj.name}</Text>
                     </Text>
-                  ) : null}
+                    {proj.technologies.length > 0 ? (
+                      <Text style={styles.muted}>
+                        {proj.technologies.slice(0, 4).join(", ")}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {proj.bullets.map((bullet, idx) => (
+                    <Text key={idx} style={styles.bullet}>
+                      • {bullet}
+                    </Text>
+                  ))}
                 </View>
-                {proj.bullets.map((bullet, idx) => (
-                  <Text key={idx} style={styles.bullet}>
-                    • {bullet}
-                  </Text>
-                ))}
-              </View>
-            ))}
+              );
+            })}
           </View>
         );
 

@@ -21,6 +21,7 @@ import {
   serializeRevisionSummary,
 } from "@/lib/profile/revision-diff";
 import { normalizeProfileUrl } from "@/lib/utils/url";
+import { normalizeProjectName } from "@/lib/utils/format";
 import { encryptPhoneAtRest, decryptPhoneAtRest } from "@/lib/crypto";
 import {
   listProfileRevisions,
@@ -506,7 +507,7 @@ export async function updateMasterProfile(
         await tx.project.createMany({
           data: payload.projects.map((p) => ({
             profileId: profile.id,
-            name: p.name,
+            name: normalizeProjectName(p.name),
             description: p.description,
             technologies: p.technologies,
             link: p.link ?? null,
@@ -1080,10 +1081,11 @@ export async function importGitHubProjects(
       });
 
       for (const project of projects) {
+        const cleanName = normalizeProjectName(project.name);
         const existing = await tx.project.findFirst({
           where: {
             profileId: account.profile!.id,
-            name: project.name,
+            name: cleanName,
           },
         });
 
@@ -1091,6 +1093,7 @@ export async function importGitHubProjects(
           await tx.project.update({
             where: { id: existing.id },
             data: {
+              name: cleanName,
               description: project.description,
               technologies: project.technologies,
               link: project.link,
@@ -1101,7 +1104,7 @@ export async function importGitHubProjects(
           await tx.project.create({
             data: {
               profileId: account.profile!.id,
-              name: project.name,
+              name: cleanName,
               description: project.description,
               technologies: project.technologies,
               link: project.link,

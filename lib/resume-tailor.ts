@@ -374,9 +374,13 @@ export function buildReframeSystemPrompt(
   return `You are an expert resume editor specializing in the Google XYZ resume framework. Reframe the chosen bullets to highlight alignment with the target role description.
 
 GOOGLE XYZ FRAMEWORK:
-1. Reframe approximately 60%–70% of bullets into the Google XYZ pattern:
-   "Accomplished [X] as measured by [Y] by doing [Z]"
-   (e.g., "Decreased process turnaround time by 18% [Y] by establishing structured review workflows [Z], accelerating delivery cycle [X]").
+1. Follow Google's core XYZ structural formula for approximately 60%–70% of bullets:
+   [Strong Action Verb] + [Quantifiable Impact / Scope / Metric] + [Method / Technical Approach]
+   ("Accomplished [X] as measured by [Y] by doing [Z]").
+   - STRUCTURAL PATTERN OVER RIGID TAGS: Do NOT force awkward literal template tags like "as measured by" or "by doing" unless they read naturally. Outcome-driven, fluid phrasing following Action + Metric + Method is strongly preferred.
+   - Example of natural XYZ:
+     "Engineered real-time vehicle telematics pipeline across 11 FastAPI endpoints, capturing 100% of fleet sensor events via automated userscript instrumentation."
+     (e.g., "Decreased process turnaround time by 18% across 11 core workflows by establishing structured review gates and automated validation.")
 2. Leave the remaining 30%–40% focused on core domain responsibilities, operational execution, methodology, or tools.
 
 ${metricDirective}
@@ -1139,15 +1143,23 @@ export async function tailorResumeForJob(
       const reframed = reframeResult
         ? reframeSchema.safeParse(reframeResult)
         : null;
+
+      if (reframeResult && !reframed?.success) {
+        console.warn(
+          "[ResumeTailor] Stage B reframe validation failed:",
+          reframed?.error?.issues
+        );
+      }
+
       if (reframed?.success) {
         const reframedMap = new Map(
-          reframed.data.reframedBullets.map((b) => [b.id, b.rawText])
+          reframed.data.reframedBullets.map((b) => [b.id.trim(), b.rawText.trim()])
         );
         selectedExperience = selectedExperience.map((exp) => ({
           ...exp,
           bullets: exp.bullets.map((b) => ({
             ...b,
-            rawText: reframedMap.get(b.id) || b.rawText,
+            rawText: reframedMap.get(b.id.trim()) || b.rawText,
           })),
         }));
         selectedProjects = selectedProjects.map((proj) => ({
@@ -1155,13 +1167,16 @@ export async function tailorResumeForJob(
           bullets: dedupeAndCapProjectBullets(
             proj.bullets.map(
               (text, idx) =>
-                reframedMap.get(`${proj.id ?? proj.name}-b-${idx}`) || text
+                reframedMap.get(`${proj.id ?? proj.name}-b-${idx}`.trim()) || text
             )
           ),
         }));
       }
-    } catch {
-      // Keep original selected bullet text if reframe fails.
+    } catch (err) {
+      console.warn(
+        "[ResumeTailor] Stage B reframe call failed, keeping original bullets:",
+        err instanceof Error ? err.message : String(err)
+      );
     }
   }
 

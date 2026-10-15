@@ -14,6 +14,7 @@ import {
   type ResumePageBudget,
   type ResumeSectionKey,
 } from "./schema.ssot";
+import { normalizeProjectName } from "@/lib/utils/format";
 
 /**
  * ============================================================================
@@ -313,9 +314,13 @@ export function resolveResumeDraftLens(input: {
     disabledSections,
   });
 
-  // Apply strict reverse-chronological ordering to experiences and education
+  // Apply strict reverse-chronological ordering to experiences and education, and normalize project names
   const normalizedProfile: MasterProfileInput = {
     ...profile,
+    projects: profile.projects.map((p) => ({
+      ...p,
+      name: normalizeProjectName(p.name),
+    })),
     experiences: sortExperiencesReverseChronological(profile.experiences),
     education: sortEducationReverseChronological(profile.education),
   };

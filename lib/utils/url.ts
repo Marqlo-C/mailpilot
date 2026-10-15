@@ -35,11 +35,133 @@ const FILE_EXTENSIONS = new Set([
   "html",
   "css",
   "js",
+  "ts",
+  "jsx",
+  "tsx",
+  "py",
+  "java",
+  "cpp",
+  "c",
+  "go",
+  "rs",
+  "rb",
+  "php",
+  "sh",
   "json",
   "xml",
   "csv",
   "svg",
+  "yaml",
+  "yml",
+  "md",
+  "sql",
 ]);
+
+/** Third-party tech tools, frameworks, package registries, search engines, and vendor doc domains that must NEVER appear in candidate contact headers. */
+export const DISALLOWED_CONTACT_DOMAINS = new Set([
+  // Libraries, Frameworks & Tooling
+  "socket.io",
+  "react.dev",
+  "reactjs.org",
+  "nextjs.org",
+  "vuejs.org",
+  "angular.io",
+  "nodejs.org",
+  "expressjs.com",
+  "nestjs.com",
+  "prisma.io",
+  "graphql.org",
+  "apollo.io",
+  "tailwindcss.com",
+  "getbootstrap.com",
+  "sass-lang.com",
+  "redux.js.org",
+  "svelte.dev",
+  "jquery.com",
+  "vitest.dev",
+  "jestjs.io",
+  "cypress.io",
+  "playwright.dev",
+  "webpack.js.org",
+  "vitejs.dev",
+  "rollupjs.org",
+  "trpc.io",
+  "zod.dev",
+  "pydantic.dev",
+
+  // Package Registries & Repositories
+  "npmjs.com",
+  "npmjs.org",
+  "pypi.org",
+  "python.org",
+  "rubygems.org",
+  "crates.io",
+  "pkg.go.dev",
+  "golang.org",
+  "nuget.org",
+  "packagist.org",
+  "maven.org",
+  "pub.dev",
+
+  // Databases & Infrastructure
+  "docker.com",
+  "kubernetes.io",
+  "terraform.io",
+  "ansible.com",
+  "postgresql.org",
+  "postgres.org",
+  "mysql.com",
+  "mongodb.com",
+  "redis.io",
+  "sqlite.org",
+  "apache.org",
+  "kafka.apache.org",
+  "elastic.co",
+  "rabbitmq.com",
+  "nginx.org",
+  "nginx.com",
+
+  // Cloud & Hosting Root Providers
+  "aws.amazon.com",
+  "cloud.google.com",
+  "azure.com",
+  "azure.microsoft.com",
+  "vercel.com",
+  "netlify.com",
+  "heroku.com",
+  "render.com",
+  "fly.io",
+  "digitalocean.com",
+  "cloudflare.com",
+
+  // Developer Portals & References
+  "developer.mozilla.org",
+  "w3schools.com",
+  "w3.org",
+  "stackoverflow.com",
+  "stackexchange.com",
+  "wikipedia.org",
+  "medium.com",
+  "dev.to",
+  "hashnode.dev",
+  "substack.com",
+
+  // Search & Big Tech Corporate Roots
+  "google.com",
+  "microsoft.com",
+  "apple.com",
+]);
+
+export function isDisallowedContactHost(value: string): boolean {
+  const host = hostOf(value);
+  if (!host) return true;
+  for (const domain of DISALLOWED_CONTACT_DOMAINS) {
+    if (host === domain || host.endsWith(`.${domain}`)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 function stripEdgePunctuation(value: string): string {
   return value.replace(/^[<(]+/, "").replace(/[.,;:)]+$/g, "").trim();
@@ -153,7 +275,9 @@ export function extractProfileLinksFromText(rawText: string): string[] {
     const cleaned = stripEdgePunctuation(candidate);
     const normalized = normalizeProfileUrl(cleaned);
     if (!normalized || !/^https?:\/\//i.test(normalized)) return;
-    const tld = hostOf(normalized).split(".").pop() ?? "";
+    const host = hostOf(normalized);
+    if (isDisallowedContactHost(host)) return;
+    const tld = host.split(".").pop() ?? "";
     if (FILE_EXTENSIONS.has(tld)) return;
     const key = normalized.replace(/\/+$/, "").toLowerCase();
     if (!unique.has(key)) unique.set(key, normalized.replace(/\/+$/, ""));
@@ -218,10 +342,34 @@ export function githubProfileUrlInText(text: string): string | null {
   return null;
 }
 
-/** Handshake and Indeed stay on the profile and stay out of resume headers. */
-export function isResumeHeaderLink(url: string): boolean {
-  const kind = categorizeProfileUrl(url);
-  return kind !== "handshake" && kind !== "indeed";
+/**
+ * Determines whether a URL is an authentic, candidate-owned personal link
+ * suitable for inclusion in the resume contact header.
+ * Rejects third-party tools, vendor domains, package registries, search engines,
+ * platform roots without usernames (e.g., bare github.com), and employment search portals (Handshake, Indeed, Glassdoor).
+ */
+export function isResumeHeaderLink(url: string | null | undefined): boolean {
+  if (!url || typeof url !== "string") return false;
+  const normalized = normalizeProfileUrl(url);
+  if (!normalized || !isVerifiedProfileUrl(normalized)) return false;
+
+  const host = hostOf(normalized);
+  if (isDisallowedContactHost(host)) return false;
+
+  const kind = categorizeProfileUrl(normalized);
+  if (kind === "handshake" || kind === "indeed" || kind === "glassdoor") {
+    return false;
+  }
+
+  if (kind === "github") {
+    return githubProfileRoot(normalized) !== null;
+  }
+
+  if (kind === "linkedin") {
+    return /linkedin\.com\/(?:in|pub)\/[a-z0-9_-]+/i.test(normalized);
+  }
+
+  return true;
 }
 
 export function accountLabelForUrl(url: string): string {
