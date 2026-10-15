@@ -16,6 +16,10 @@ import {
 } from "@/lib/validations/profile";
 import type { AccountRules } from "@/lib/validations/rules";
 import { cleanDisplayUrl } from "@/lib/utils/format";
+import {
+  calculateElasticPageBudget,
+  isCareerSwitcherOrEarlyTenure,
+} from "@/lib/resume-draft";
 
 export type StrategyRationale = {
   roleFitAnalysis: string;
@@ -33,6 +37,7 @@ export type TailorResult = {
   coverLetter: string;
   selectedBullets: string[];
   jobRequirements: string[];
+  warningFlags?: string[];
 };
 
 export type DraftContextualEmailParams = {
@@ -82,13 +87,13 @@ const strategyRationaleSchema = z.object({
   featuredProjectsReasoning: z.string(),
 });
 
-const tailorSchema = z.object({
-  tailoredSummary: z.string().optional(),
+export const tailorSchema = z.object({
+  tailoredSummary: z.string().nullable().optional(),
   tailoredSkills: skillsSchema.optional(),
   selectedBulletIds: z.array(z.string()).default([]),
   selectedProjectIds: z.array(z.string()).default([]),
   strategyRationale: strategyRationaleSchema.optional(),
-  coverLetter: z.string(),
+  coverLetter: z.string().default(""),
   jobRequirements: z.array(z.string()).default([]),
 });
 
@@ -168,12 +173,69 @@ function formatProfessionalTenureYears(years: number): string {
   return `${rounded} year${rounded === 1 ? "" : "s"} of professional experience`;
 }
 
+/** Strict blacklist of persona system diagnostic terms forbidden in candidate summaries. */
+export const BANNED_SUMMARY_PERSONA_TERMS = [
+  "career switcher",
+  "career switch",
+  "career change",
+  "career transition",
+  "title family",
+  "in-field tenure",
+  "calendar years",
+  "calendar year",
+  "discipline switch",
+  "transitional candidate",
+  "verified trajectory",
+  "earlier field",
+  "previous field",
+  "do not treat",
+  "legacy time",
+] as const;
+
+const BANNED_SUMMARY_REGEXES: RegExp[] = [
+  ...BANNED_SUMMARY_PERSONA_TERMS.map(
+    (term) => new RegExp(`\\b${term.replace(/\s+/g, "\\s+")}\\b`, "i")
+  ),
+  /\bcareer\s+switch(?:er|ing)?\b/i,
+  /\bcareer\s+transition(?:ing)?\b/i,
+  /\bdo\s+not\s+treat\b/i,
+  /\blegacy\s+(?:time|experience|seniority)\b/i,
+];
+
+/**
+ * Sanitizes candidate summary copy ensuring zero leakage of persona diagnostic terms.
+ */
+export function sanitizeTailoredSummary(
+  summary: string | null | undefined
+): string | null {
+  if (!summary || !summary.trim()) return null;
+
+  const sentences = summary
+    .replace(/([.?!])\s+/g, "$1|SPLIT|")
+    .split("|SPLIT|")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const cleanSentences = sentences.filter((sentence) => {
+    return !BANNED_SUMMARY_REGEXES.some((regex) => regex.test(sentence));
+  });
+
+  if (cleanSentences.length === 0) {
+    return null;
+  }
+
+  return cleanSentences.join(" ").replace(/\s+/g, " ").trim();
+}
+
 /** Stage A: lean selection of bullets/projects/skills within a page budget. */
 export function buildTailoredStrategySystemPrompt(input: {
   seniorityTier: string;
   timelineContext: string;
   professionalYears: number;
   includeSummary?: boolean;
+  inventMetrics?: boolean;
+  projectsDisabled?: boolean;
+  isCareerSwitcherOrEarlyTenure?: boolean;
 }): string {
   const tenurePhrase = formatProfessionalTenureYears(input.professionalYears);
   const timeline = input.timelineContext.trim() || "No additional timeline context.";
@@ -181,12 +243,33 @@ export function buildTailoredStrategySystemPrompt(input: {
   const summaryBlock = includeSummary
     ? `2. SUMMARY CONSTRAINTS:
    - Draft a punchy, confident 2-sentence executive summary highlighting alignment with the target role requirements and concrete, verifiable achievements.
+   - Write strictly as a practicing professional in the target discipline.
+   - NEVER refer to yourself as a "career switcher" or mention career transitions, "in-field tenure", "title family", or "calendar years" in the summary. Natural career stages like "student", "intern", or "recent graduate" are permissible when applicable, but never system diagnostic terms.
    - NEVER quote raw profile telemetry or internal transition metrics (e.g., do NOT write "transitioning from an earlier field" or cite "13 years in a previous field").
    - NEVER adopt inflated seniority titles (e.g., Senior, Lead, Staff, Principal) if the candidate's verified tenure indicates early career or career switcher.`
     : `2. SUMMARY OMITTED:
    - The candidate has opted to omit the Summary section.
    - Set tailoredSummary to null.
-   - Maximize signal in Experience and Projects using the expanded bullet budget.`;
+   - Since the summary is omitted, fill the single-page budget by featuring 2–3 relevant projects alongside relevant experiences with strong signal, avoiding empty vertical space on the sheet.`;
+
+  let projectDirective: string;
+  if (input.projectsDisabled) {
+    projectDirective = `3. PROJECT INTEGRITY: The candidate has opted to omit the Projects section. Set selectedProjectIds to [].`;
+  } else if (input.isCareerSwitcherOrEarlyTenure) {
+    projectDirective = `3. PROJECT INTEGRITY: For career switchers or early-tenure candidates, select 2–3 distinct practical projects that directly demonstrate target-discipline capability and tools matching the target job description. Only feature distinct projects with concrete outcomes. Prefer 2–4 strong bullets per project.`;
+  } else {
+    projectDirective = `3. PROJECT INTEGRITY: Select 1–3 distinct projects demonstrating key competencies requested by the job description. Feature 2–4 strong bullets per project. Skip empty placeholders and profile-only pages.`;
+  }
+
+  const metricGuidance = input.inventMetrics === false
+    ? `9. METRIC INTEGRITY: Do NOT invent metrics or unverified numbers. In strategyRationale (under featuredExperiencesReasoning or roleFitAnalysis), include constructive advice on what metrics the candidate could measure themselves for un-metricized achievements.`
+    : `9. METRIC INTEGRITY: Modest, realistic metrics calibrated to candidate leveling (${input.seniorityTier}) may be synthesized when source bullets lack metrics using domain-native impact dimensions (efficiency, quality, volume, satisfaction). Never invent inflated enterprise revenue.`;
+
+  const crossoverDirective = `10. FUNCTIONAL CROSSOVER & MULTI-ROLE CONTINUITY:
+    - When evaluating candidate work experiences outside the target role's immediate title family (e.g. prior operations, logistics, support, or analysis work), do NOT reject or drop those roles simply because domain keywords differ from the target job posting.
+    - Evaluate and select out-of-family roles through universal functional crossover: workflow orchestration, process automation, data accuracy, SLA/deadline adherence, root-cause troubleshooting, risk mitigation, and cross-functional coordination.
+    - Ground Truth vs. Framing Agility: NEVER invent tools, platforms, or responsibilities absent from the source bullet. Translate raw operational tasks into rigorous, outcome-driven language.
+    - For candidates with under 2 years in their current field or career switchers, do NOT drop preceding history to leave a half-empty page. Ensure you select 2–3 high-ownership bullets from prior roles to demonstrate professional accountability, scale, and execution.`;
 
   return `You are a senior talent strategist evaluating a candidate's master database for an opening at your organization.
 
@@ -199,16 +282,18 @@ CRITICAL FACTUAL & SENIORITY CONSTRAINTS:
    - NEVER adopt seniority designations, ownership claims, or scale metrics from the target job posting unless that exact achievement is explicitly present in the candidate's master database.
    - Do not describe the candidate at a higher career level than their verified tenure and persona allow, even if the posting or recruiter message implies a more senior bar.
 ${summaryBlock}
-3. PROJECT INTEGRITY: Only feature distinct projects with concrete, verifiable outcomes. Skip empty placeholders and profile-only pages. Prefer 2–4 strong bullets per project.
+${projectDirective}
 4. TRUTH INTEGRITY: Only select IDs that exist in the candidate's database. Never invent experience, metrics, or tools.
 5. SKILLS: Return tailoredSkills as groups of { "label": string, "items": string[] }. Reorder items so competencies requested by the job description appear first. Preserve the candidate's category labels. Do not invent categories or skills that are not in the profile.
-6. STRICT BUDGET: Select at most the specified bullet budget across all experiences to guarantee the document fits the page target.
+6. DOCUMENT BUDGET: Allocate 2–4 strong bullets per featured role and 2–4 strong bullets per featured project to create a complete, well-proportioned single-page document. Do not leave large empty gaps on the page.
 7. STRATEGY RATIONALE: Provide explicit recruiter-style reasoning for role fit, skill prioritization, featured experiences, and featured projects.
 8. CREDENTIALS: Certifications, honors, and interests are separate profile sections. Never invent them, and do not fold them into skills or education.
+${metricGuidance}
+${crossoverDirective}
 
 Return ONLY valid JSON:
 {
-  "tailoredSummary": string,
+  "tailoredSummary": string | null,
   "tailoredSkills": [
     { "label": "Category", "items": ["Skill"] }
   ],
@@ -254,16 +339,63 @@ function isGitHubMetaProject(
   return false;
 }
 
-const REFRAME_SYSTEM_PROMPT = `You are a resume editor. Reframe these chosen bullets to highlight alignment with the target role description.
+/**
+ * Builds the Stage B bullet reframing prompt incorporating Google XYZ formatting,
+ * universal 4-dimensional metric taxonomy, and strict metric integrity controls.
+ */
+export function buildReframeSystemPrompt(
+  optionsOrInventMetrics:
+    | boolean
+    | {
+        inventMetrics?: boolean;
+        seniorityTier?: string;
+      } = {}
+): string {
+  const options =
+    typeof optionsOrInventMetrics === "boolean"
+      ? { inventMetrics: optionsOrInventMetrics }
+      : optionsOrInventMetrics;
+  const inventMetrics = options.inventMetrics === true;
+
+  const metricDirective = inventMetrics
+    ? `METRIC SYNTHESIS PERMITTED (UNIVERSAL 4-DIMENSIONAL TAXONOMY):
+- If a source bullet lacks concrete metrics, you MAY synthesize a modest, plausible metric calibrated strictly to the candidate's verified leveling (${options.seniorityTier || "Mid-Level Professional"}).
+- Synthesized metrics MUST adapt directly to the NATIVE DISCIPLINE of that specific bullet across the 4 universal impact dimensions:
+  1. Efficiency & Velocity: Turnaround time reduction (~10–20%), process cycle time speedup, queue clearing.
+  2. Quality & Accuracy: Compliance rates (e.g., 98%+ verification accuracy), error rate reduction, protocol adherence.
+  3. Volume & Throughput: Items/records/tickets/cases processed, stakeholders or units coordinated, asset volume handled.
+  4. Satisfaction & Adoption: User/client/stakeholder feedback scores, workflow adoption rate, retention/renewal stability.
+- STRICT DOMAIN DISCIPLINE: Never inject software/code tools, tech jargon, or foreign domain concepts into non-technical or legacy roles (e.g., never assign coding or cloud metrics to an administrative, logistical, or client-facing bullet).
+- MODESTY & SENIORITY BAR: Keep synthesized metrics modest and realistic. NEVER invent massive corporate revenue, multi-million-dollar numbers, enterprise-scale claims, or unrealistic executive impact.`
+    : `METRIC INTEGRITY (STRICT - NO INVENTED NUMBERS):
+- If the source bullet already has numbers, latencies, percentages, or scale, NEVER change or overwrite those metrics. Refine only sentence flow, action verbs, and Google XYZ structure.
+- If a source bullet has NO metrics, do NOT invent any numbers, percentages, or dollar amounts. Instead, emphasize qualitative execution scope, problem-solving impact, and procedural rigor.`;
+
+  return `You are an expert resume editor specializing in the Google XYZ resume framework. Reframe the chosen bullets to highlight alignment with the target role description.
+
+GOOGLE XYZ FRAMEWORK:
+1. Reframe approximately 60%–70% of bullets into the Google XYZ pattern:
+   "Accomplished [X] as measured by [Y] by doing [Z]"
+   (e.g., "Decreased process turnaround time by 18% [Y] by establishing structured review workflows [Z], accelerating delivery cycle [X]").
+2. Leave the remaining 30%–40% focused on core domain responsibilities, operational execution, methodology, or tools.
+
+${metricDirective}
+
+FUNCTIONAL CROSSOVER & GROUND TRUTH:
+- For bullets from earlier or cross-discipline roles, apply framing agility to highlight universal operational strengths (workflow orchestration, process automation, data accuracy, SLA/deadline adherence, troubleshooting, risk mitigation, and cross-functional delivery).
+- UNBENDING GROUND TRUTH: Never invent tools, languages, platforms, certifications, systems, or responsibilities absent from the source bullet.
 
 STRICT CONSTRAINTS:
-1. TRUTH PRESERVATION: Never invent tools, methods, credentials, certifications, systems, or responsibilities not substantiated by the source text.
+1. TRUTH PRESERVATION: Never change or overwrite existing numbers, metrics, or substantiated tools from the source text.
 2. ACTION-ORIENTED: Start each bullet with a strong action verb matching the candidate's verified level.
 3. NO DUPLICATES: Do NOT generate duplicate bullets for the same technology or metric claim. Maintain a strict 1:1 mapping with the input bullet IDs.
-4. LENGTH: Keep each bullet between 16 and 28 words.
+4. LENGTH: Keep each bullet concise, between 16 and 32 words.
 
 Return ONLY valid JSON:
 { "reframedBullets": [{ "id": string, "rawText": string }] }`;
+}
+
+export const REFRAME_SYSTEM_PROMPT = buildReframeSystemPrompt({});
 
 const reframeSchema = z.object({
   reframedBullets: z.array(
@@ -305,18 +437,21 @@ function dedupeAndCapProjectBullets(bullets: string[]): string[] {
 
 function fallbackStrategyRationale(
   companyName?: string | null,
-  roleTitle?: string | null
+  roleTitle?: string | null,
+  inventMetrics?: boolean
 ): StrategyRationale {
   const role = roleTitle?.trim() || "the target role";
   const company = companyName?.trim() || "the company";
   return {
-    roleFitAnalysis: `Selected verified profile evidence that best maps to ${role} at ${company}, staying within the candidate's documented scope.`,
+    roleFitAnalysis: `Selected verified profile evidence that best maps to ${role} at ${company}, translating functional crossovers while staying within the candidate's documented scope.`,
     selectedSkillsReasoning:
       "Prioritized skills that appear in both the job requirements and the candidate's master skill inventory.",
     featuredExperiencesReasoning:
-      "Featured roles with the strongest evidence of shipped work relevant to this posting while respecting the page budget.",
+      inventMetrics === false
+        ? "Featured roles highlighting core competencies and execution rigor. For unquantified achievements, recommend measuring turnaround times, accuracy rates, and stakeholder volumes."
+        : "Featured roles with the strongest evidence of operational impact relevant to this posting while respecting the page budget.",
     featuredProjectsReasoning:
-      "Included distinct implementation-heavy projects that reinforce the same stack and outcomes as the target role.",
+      "Included distinct implementation-heavy projects that reinforce practical execution and outcomes for the target role.",
   };
 }
 
@@ -626,6 +761,10 @@ export type TailorOptions = {
   dbClient?: PersonaDbClient | null;
   /** When false, omit professional summary and expand experience/project budget. */
   includeSummary?: boolean;
+  /** Whether the tailor is permitted to synthesize realistic metrics when none exist in source. */
+  inventMetrics?: boolean;
+  /** Soft target page budget ('auto', 1, or 2). */
+  targetPages?: "auto" | 1 | 2;
   accountId?: string | null;
   accountRules?: Partial<AccountRules> | null;
 };
@@ -635,7 +774,15 @@ export async function tailorResumeForJob(
   profile: MasterProfileInput,
   options: TailorOptions = {}
 ): Promise<TailorResult> {
-  const includeSummary = options.includeSummary === true;
+  const disabledSections =
+    options.accountRules?.resumePreferences?.disabledSections ?? [];
+  const includeSummary =
+    (options.includeSummary ??
+      options.accountRules?.resumePreferences?.includeSummary ??
+      false) &&
+    !disabledSections.includes("summary");
+  const projectsDisabled = disabledSections.includes("projects");
+
   const profileWithPersona = profile as ProfileWithPersonaCache;
   const persona = await getCachedOrSynthesizePersona(
     profileWithPersona,
@@ -643,13 +790,24 @@ export async function tailorResumeForJob(
   );
 
   const careerYears = estimateCareerYears(profile);
+  const switcherOrEarlyTenure = isCareerSwitcherOrEarlyTenure(persona, profile);
   const roleCount = profile.experiences.length;
-  const targetPages = careerYears >= 7 && roleCount >= 4 ? 2 : 1;
-  const baseBulletBudget = targetPages === 2 ? 12 : 7;
-  // Omitting summary frees vertical space — allow +2 bullets on the page.
-  const bulletBudgetMax = includeSummary
-    ? baseBulletBudget
-    : baseBulletBudget + 2;
+  const inventMetrics =
+    options.inventMetrics ??
+    options.accountRules?.resumePreferences?.inventMetrics ??
+    false;
+
+  const targetPagesPref =
+    options.targetPages ??
+    options.accountRules?.resumePreferences?.maxPages ??
+    "auto";
+
+  const githubHandle = extractGitHubHandle(profile);
+  const eligibleProjects = projectsDisabled
+    ? []
+    : profile.projects.filter(
+        (p) => !isGitHubMetaProject(p.name, githubHandle)
+      );
 
   const bulletLibrary = profile.experiences.flatMap((exp) =>
     exp.bullets.map((b) => ({
@@ -660,14 +818,23 @@ export async function tailorResumeForJob(
     }))
   );
 
-  const githubHandle = extractGitHubHandle(profile);
-  const eligibleProjects = profile.projects.filter(
-    (p) => !isGitHubMetaProject(p.name, githubHandle)
-  );
+  const budget = calculateElasticPageBudget({
+    targetPages: targetPagesPref,
+    careerYears,
+    roleCount,
+    projectCount: eligibleProjects.length,
+    hasSummary: includeSummary,
+    totalSourceBullets: bulletLibrary.length,
+    matchedRequirementsCount: jobRequirements.length,
+    isCareerSwitcher: switcherOrEarlyTenure,
+  });
+  const targetPages = budget.targetPages;
+  const bulletBudgetMax = budget.bulletBudgetMax;
   const projectLibrary = eligibleProjects.map((p) => ({
     id: p.id,
     name: p.name,
-    tech: p.technologies.slice(0, 5),
+    description: p.description?.slice(0, 160) || null,
+    tech: p.technologies.slice(0, 8),
   }));
 
   const customInstruction = options.customInstruction?.trim() || null;
@@ -698,6 +865,7 @@ export async function tailorResumeForJob(
     targetPages,
     bulletBudgetMax,
     includeSummary,
+    projectsDisabled,
     bulletLibrary,
     projectLibrary,
     ...(previousSelectedBulletIds.length > 0
@@ -718,6 +886,9 @@ export async function tailorResumeForJob(
       timelineContext: persona.timelineContext,
       professionalYears: careerYears,
       includeSummary,
+      inventMetrics,
+      projectsDisabled,
+      isCareerSwitcherOrEarlyTenure: switcherOrEarlyTenure,
     }),
     userPrompt: stageAUserPrompt,
     llmProvider: options.llmProvider ?? "OPENROUTER",
@@ -726,50 +897,71 @@ export async function tailorResumeForJob(
     allowCloudFallback: options.allowCloudFallback,
     accountId: options.accountId,
     accountRules: options.accountRules,
+  }).catch((err) => {
+    console.warn(
+      "[ResumeTailor] Stage A LLM call failed, falling back to heuristics:",
+      err instanceof Error ? err.message : String(err)
+    );
+    return null;
   });
 
   const parsed = result ? tailorSchema.safeParse(result) : null;
+  if (result && !parsed?.success) {
+    console.warn(
+      "[ResumeTailor] LLM response validation failed:",
+      parsed?.error?.issues
+    );
+  }
 
-  const rawSelectedIds = parsed?.success
-    ? parsed.data.selectedBulletIds
-    : heuristicBulletIds(jobRequirements, profile);
-  const selectedIds = new Set(rawSelectedIds.slice(0, bulletBudgetMax));
+  // 1. Resolve selected projects within page budget
+  const maxProjectCount = targetPages === 1 ? (includeSummary ? 2 : 3) : 4;
+  const desiredProjectCount = switcherOrEarlyTenure
+    ? (includeSummary ? 2 : Math.min(3, eligibleProjects.length))
+    : (includeSummary ? 1 : Math.min(2, eligibleProjects.length));
 
-  let selectedExperience = profile.experiences
-    .map((exp) => {
-      const bullets = exp.bullets.filter((b) => selectedIds.has(b.id));
-      return {
-        ...exp,
-        bullets: bullets.slice(0, 5),
-      };
-    })
-    .filter((exp) => exp.bullets.length > 0);
+  let selectedProjIds: string[] = [];
+  if (!projectsDisabled && eligibleProjects.length > 0) {
+    if (parsed?.success && parsed.data.selectedProjectIds.length > 0) {
+      selectedProjIds = [...parsed.data.selectedProjectIds];
+    }
+    // If fewer than desired projects selected (or if parsing failed/empty), backfill from heuristic rankings
+    if (selectedProjIds.length < desiredProjectCount) {
+      const heuristicIds = heuristicProjectIds(
+        jobRequirements,
+        eligibleProjects,
+        desiredProjectCount
+      );
+      for (const id of heuristicIds) {
+        if (!selectedProjIds.includes(id) && selectedProjIds.length < desiredProjectCount) {
+          selectedProjIds.push(id);
+        }
+      }
+    }
+    selectedProjIds = selectedProjIds.slice(0, maxProjectCount);
+  }
 
-  // Enforce global bullet budget after role mapping.
-  let remaining = bulletBudgetMax;
-  selectedExperience = selectedExperience
-    .map((exp) => {
-      const bullets = exp.bullets.slice(0, Math.max(0, remaining));
-      remaining -= bullets.length;
-      return { ...exp, bullets };
-    })
-    .filter((exp) => exp.bullets.length > 0);
-
-  const selectedProjIdSet = new Set(
-    parsed?.success ? parsed.data.selectedProjectIds : []
-  );
+  const selectedProjIdSet = new Set(selectedProjIds);
   let selectedProjects = eligibleProjects
-    .filter((p) => p.id && selectedProjIdSet.has(p.id))
+    .filter((p) => (p.id ? selectedProjIdSet.has(p.id) : selectedProjIdSet.has(p.name)))
+    .slice(0, maxProjectCount)
     .map((p) => ({
       ...p,
-      bullets: dedupeAndCapProjectBullets(p.bullets).slice(0, 4),
+      bullets: dedupeAndCapProjectBullets(p.bullets).slice(
+        0,
+        budget.bulletsPerProjectMax ?? 3
+      ),
     }))
     .filter((p) => p.bullets.length > 0 || p.description?.trim());
 
-  // Ensure every featured project has 2–4 bullets when source material allows.
+  // Ensure every featured project has 2–3 bullets when source material allows.
   selectedProjects = selectedProjects.map((p) => {
     const capped = dedupeAndCapProjectBullets(p.bullets);
-    if (capped.length >= 2) return { ...p, bullets: capped.slice(0, 4) };
+    if (capped.length >= 2) {
+      return {
+        ...p,
+        bullets: capped.slice(0, budget.bulletsPerProjectMax ?? 3),
+      };
+    }
     const fromDescription = p.description?.trim()
       ? [p.description.trim()]
       : [];
@@ -777,10 +969,124 @@ export async function tailorResumeForJob(
       ...p,
       bullets: dedupeAndCapProjectBullets([...capped, ...fromDescription]).slice(
         0,
-        4
+        budget.bulletsPerProjectMax ?? 3
       ),
     };
   });
+
+  // Calculate total bullets consumed by selected projects
+  const projectBulletCount = selectedProjects.reduce(
+    (acc, p) => acc + p.bullets.length,
+    0
+  );
+
+  // 2. Partition bullet budget for work experience.
+  // Reserve at least 3 bullets for experience so work history is preserved.
+  const experienceBulletBudget =
+    selectedProjects.length > 0
+      ? Math.max(3, bulletBudgetMax - projectBulletCount)
+      : bulletBudgetMax;
+
+  let rawSelectedIds = parsed?.success
+    ? [...parsed.data.selectedBulletIds]
+    : heuristicBulletIds(jobRequirements, profile);
+
+  // If the model selected bullets from only 1 experience but there are multiple experiences
+  // in the master profile and available experience budget, backfill bullets from other experiences
+  const selectedExpIdsInRaw = new Set<string>();
+  for (const bid of rawSelectedIds) {
+    const parentExp = profile.experiences.find((e) =>
+      e.bullets.some((b) => b.id === bid)
+    );
+    const expKey = parentExp?.id || (parentExp ? `${parentExp.company}-${parentExp.role}` : null);
+    if (expKey) selectedExpIdsInRaw.add(expKey);
+  }
+
+  if (
+    selectedExpIdsInRaw.size < Math.min(2, profile.experiences.length) &&
+    experienceBulletBudget > rawSelectedIds.length
+  ) {
+    // 1. Try any remaining heuristic bullets first
+    const allHeuristicIds = heuristicBulletIds(jobRequirements, profile);
+    for (const hid of allHeuristicIds) {
+      if (!rawSelectedIds.includes(hid)) {
+        const parentExp = profile.experiences.find((e) =>
+          e.bullets.some((b) => b.id === hid)
+        );
+        const expKey = parentExp?.id || (parentExp ? `${parentExp.company}-${parentExp.role}` : null);
+        if (expKey && !selectedExpIdsInRaw.has(expKey)) {
+          rawSelectedIds.push(hid);
+          selectedExpIdsInRaw.add(expKey);
+          if (
+            rawSelectedIds.length >= experienceBulletBudget ||
+            selectedExpIdsInRaw.size >= Math.min(2, profile.experiences.length)
+          ) {
+            break;
+          }
+        }
+      }
+    }
+
+    // 2. If unrepresented experiences remain (e.g. cross-discipline / legacy roles with distinct vocabulary),
+    // pick their highest-ownership bullets (preferring metrics / quantified outcomes)
+    if (
+      selectedExpIdsInRaw.size < Math.min(2, profile.experiences.length) &&
+      experienceBulletBudget > rawSelectedIds.length
+    ) {
+      for (const exp of profile.experiences) {
+        const expKey = exp.id || `${exp.company}-${exp.role}`;
+        if (!selectedExpIdsInRaw.has(expKey)) {
+          const sortedBullets = [...exp.bullets].sort((a, b) => {
+            if (a.hasMetric && !b.hasMetric) return -1;
+            if (!a.hasMetric && b.hasMetric) return 1;
+            return 0;
+          });
+          for (const bullet of sortedBullets) {
+            if (!rawSelectedIds.includes(bullet.id)) {
+              rawSelectedIds.push(bullet.id);
+              selectedExpIdsInRaw.add(expKey);
+              // For switchers or when space is available, include up to 2 crossover bullets
+              if (rawSelectedIds.length + 1 <= experienceBulletBudget) {
+                const secondBullet = sortedBullets.find((b) => b.id !== bullet.id);
+                if (secondBullet && !rawSelectedIds.includes(secondBullet.id)) {
+                  rawSelectedIds.push(secondBullet.id);
+                }
+              }
+              break;
+            }
+          }
+          if (
+            rawSelectedIds.length >= experienceBulletBudget ||
+            selectedExpIdsInRaw.size >= Math.min(2, profile.experiences.length)
+          ) {
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  const selectedIds = new Set(rawSelectedIds.slice(0, experienceBulletBudget));
+
+  let selectedExperience = profile.experiences
+    .map((exp) => {
+      const bullets = exp.bullets.filter((b) => selectedIds.has(b.id));
+      return {
+        ...exp,
+        bullets: bullets.slice(0, budget.bulletsPerRoleMax ?? 4),
+      };
+    })
+    .filter((exp) => exp.bullets.length > 0);
+
+  // Enforce experience bullet budget after role mapping.
+  let remaining = experienceBulletBudget;
+  selectedExperience = selectedExperience
+    .map((exp) => {
+      const bullets = exp.bullets.slice(0, Math.max(0, remaining));
+      remaining -= bullets.length;
+      return { ...exp, bullets };
+    })
+    .filter((exp) => exp.bullets.length > 0);
 
   // Stage B: reframe experience + project bullets (small payload, 1:1 IDs).
   const experienceBulletsToReframe = selectedExperience.flatMap((exp) =>
@@ -818,7 +1124,10 @@ export async function tailorResumeForJob(
 
     try {
       const reframeResult = await callLLMWithFallback({
-        systemPrompt: REFRAME_SYSTEM_PROMPT,
+        systemPrompt: buildReframeSystemPrompt({
+          inventMetrics,
+          seniorityTier: persona.seniorityTier,
+        }),
         userPrompt: stageBUserPrompt,
         llmProvider: options.llmProvider ?? "OPENROUTER",
         localOllamaUrl: options.localOllamaUrl,
@@ -859,7 +1168,10 @@ export async function tailorResumeForJob(
   // Final project bullet hygiene after reframe.
   selectedProjects = selectedProjects.map((p) => ({
     ...p,
-    bullets: dedupeAndCapProjectBullets(p.bullets),
+    bullets: dedupeAndCapProjectBullets(p.bullets).slice(
+      0,
+      budget.bulletsPerProjectMax ?? 3
+    ),
   }));
 
   const selectedBullets = selectedExperience.flatMap((e) =>
@@ -880,16 +1192,17 @@ export async function tailorResumeForJob(
       ? parsed.data.jobRequirements
       : jobRequirements;
 
-  const tailoredSummary = includeSummary
+  const rawSummary = includeSummary
     ? parsed?.success
       ? parsed.data.tailoredSummary ?? null
       : null
     : null;
+  const tailoredSummary = sanitizeTailoredSummary(rawSummary);
 
   const strategyRationale =
     parsed?.success && parsed.data.strategyRationale
       ? parsed.data.strategyRationale
-      : fallbackStrategyRationale(options.companyName, options.roleTitle);
+      : fallbackStrategyRationale(options.companyName, options.roleTitle, inventMetrics);
 
   return {
     selectedExperience,
@@ -900,6 +1213,7 @@ export async function tailorResumeForJob(
     coverLetter,
     selectedBullets,
     jobRequirements: requirements,
+    warningFlags: budget.warningFlags,
   };
 }
 
@@ -960,6 +1274,50 @@ function heuristicBulletIds(
     .sort((a, b) => b.score - a.score)
     .slice(0, 12)
     .map((s) => s.id);
+}
+
+const COMMON_STOP_WORDS = new Set([
+  "and", "the", "for", "with", "are", "you", "our", "all", "that", "this",
+  "from", "your", "will", "have", "been", "has", "not", "but", "can", "they",
+  "more", "into", "their", "here", "were", "what", "when", "where", "how",
+  "who", "which", "why", "per", "also", "some", "such", "than", "then",
+  "about", "would", "like", "just", "role", "team", "company", "work",
+  "join", "help", "need", "looking", "seeking", "experienced",
+]);
+
+export function heuristicProjectIds(
+  requirements: string[],
+  projects: MasterProfileInput["projects"],
+  limit: number = 2
+): string[] {
+  if (!projects || projects.length === 0) return [];
+  const reqText = requirements.join(" ").toLowerCase();
+  const tokens = reqText
+    .split(/[^a-z0-9+#.]/)
+    .map((t) => t.replace(/^\.+|\.+$/g, ""))
+    .filter((t) => t.length > 2 && !COMMON_STOP_WORDS.has(t));
+
+  const scored = projects.map((p) => {
+    let score = 0;
+    const nameDesc = `${p.name} ${p.description ?? ""}`.toLowerCase();
+    const tech = p.technologies.map((t) => t.toLowerCase()).join(" ");
+    const bullets = p.bullets.map((b) => b.toLowerCase()).join(" ");
+
+    for (const token of tokens) {
+      if (tech.includes(token)) score += 4;
+      if (nameDesc.includes(token)) score += 2;
+      if (bullets.includes(token)) score += 1;
+    }
+    // Give slight boost for having detailed bullets
+    if (p.bullets.length > 0) score += 1;
+    return { id: p.id ?? p.name, score };
+  });
+
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((s) => s.id)
+    .filter((id): id is string => Boolean(id));
 }
 
 function defaultCoverLetter(

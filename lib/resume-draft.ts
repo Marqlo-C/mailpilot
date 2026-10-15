@@ -23,11 +23,21 @@ import {
   type WorkExperienceInput,
 } from "@/lib/validations/profile";
 import type { AccountRules } from "@/lib/validations/rules";
-import { buildResumeContactLine } from "@/lib/pdf-generator";
+import type { CandidatePersona } from "@/lib/persona/schema.ssot";
+import {
+  resolveResumeDraftLens,
+  sortExperiencesReverseChronological,
+} from "@/lib/resume-draft/lens";
+import type { ResumeExportConfig } from "@/lib/resume-draft/schema.ssot";
+import { buildResumeContactLine } from "@/lib/utils/format";
 import {
   skillCategoryLabel,
   skillGroupsFromUnknown,
 } from "@/lib/skill-groups";
+
+export * from "./resume-draft/schema.ssot";
+export * from "./resume-draft/lens";
+export * from "./resume-draft/budget";
 
 function node(
   partial: Omit<ResumeDraftNode, "selected"> & { selected?: boolean }
@@ -48,10 +58,33 @@ export function digestTailoredResume(input: {
   profile: MasterProfileInput;
   tailored: TailorResult;
   includeSummary: boolean;
+  persona?: CandidatePersona | null;
+  rules?: Partial<AccountRules> | null;
+  exportOverrides?: Partial<ResumeExportConfig> | null;
 }): TailoredResumeDraft {
-  const { opportunityId, profile, tailored, includeSummary } = input;
+  const {
+    opportunityId,
+    profile,
+    tailored,
+    includeSummary,
+    persona,
+    rules,
+    exportOverrides,
+  } = input;
+
+  const resolved = resolveResumeDraftLens({
+    profile,
+    persona,
+    rules,
+    draftOverrides: {
+      includeSummary,
+      ...exportOverrides,
+    },
+  });
+
   const nodes: ResumeDraftNode[] = [];
 
+  // Contact header always sits at the top of the resume
   nodes.push(
     node({
       id: `header:${opportunityId}`,
@@ -62,196 +95,238 @@ export function digestTailoredResume(input: {
     })
   );
 
-  const summary = tailored.tailoredSummary?.trim() || profile.summary?.trim() || "";
-  if (includeSummary && summary) {
-    nodes.push(
-      node({
-        id: `summary:${opportunityId}`,
-        type: "summary",
-        section: "summary",
-        content: summary,
-      })
-    );
-  }
-
   const tailoredGroups = skillGroupsFromUnknown(tailored.tailoredSkills);
   const skillGroups =
     tailoredGroups.length > 0
       ? tailoredGroups
       : skillGroupsFromUnknown(profile.skills);
-  skillGroups.forEach((group, index) => {
-    const content = group.items.map((item) => item.name).join(", ");
-    const slug =
-      group.label
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "") || `group-${index}`;
-    nodes.push(
-      node({
-        id: `skills:${slug}:${index}:${opportunityId}`,
-        type: "skill_group",
-        section: "skills",
-        content,
-        metadata: {
-          categoryLabel: group.label,
-          parentCategory: group.parentCategory ?? null,
-        },
-      })
-    );
-  });
 
   const experiences =
     tailored.selectedExperience.length > 0
-      ? tailored.selectedExperience
-      : profile.experiences;
+      ? sortExperiencesReverseChronological(tailored.selectedExperience)
+      : resolved.profile.experiences;
 
-  experiences.forEach((exp, index) => {
-    const headerId = `exp:${exp.id ?? index}:${opportunityId}`;
-    nodes.push(
-      node({
-        id: headerId,
-        type: "experience_header",
-        section: "experience",
-        content: formatExperienceHeading(exp.role, exp.company, exp.location),
-        metadata: {
-          company: exp.company,
-          role: exp.role,
-          location: exp.location ?? null,
-          category: exp.category || "Work",
-          startDate: exp.startDate,
-          endDate: exp.endDate ?? null,
-          displayOrder: exp.displayOrder ?? index,
-        },
-      })
-    );
-    exp.bullets.forEach((bullet, bulletIndex) => {
-      nodes.push(
-        node({
-          id: `exp-bullet:${bullet.id || bulletIndex}:${headerId}`,
-          type: "experience_bullet",
-          section: "experience",
-          parentId: headerId,
-          content: bullet.rawText,
-          metadata: {
-            bulletId: bullet.id,
-            technologies: bullet.technologies,
-            hasMetric: bullet.hasMetric,
-          },
-        })
-      );
-    });
-  });
+  const projects = tailored.selectedProjects;
+  const education = resolved.profile.education;
+  const summary = tailored.tailoredSummary?.trim() || profile.summary?.trim() || "";
 
-  tailored.selectedProjects.forEach((project, index) => {
-    const headerId = `proj:${project.id ?? index}:${opportunityId}`;
-    nodes.push(
-      node({
-        id: headerId,
-        type: "project_header",
-        section: "projects",
-        content: project.name,
-        metadata: {
-          description: project.description,
-          technologies: project.technologies,
-          link: project.link ?? null,
-        },
-      })
-    );
-    const bullets =
-      project.bullets.length > 0
-        ? project.bullets
-        : project.description
-          ? [project.description]
-          : [];
-    bullets.forEach((text, bulletIndex) => {
-      nodes.push(
-        node({
-          id: `proj-bullet:${bulletIndex}:${headerId}`,
-          type: "project_bullet",
-          section: "projects",
-          parentId: headerId,
-          content: text,
-        })
-      );
-    });
-  });
+  // Append sections strictly following resolved.sectionOrder
+  for (const section of resolved.sectionOrder) {
+    switch (section) {
+      case "summary": {
+        if (resolved.includeSummary && summary) {
+          nodes.push(
+            node({
+              id: `summary:${opportunityId}`,
+              type: "summary",
+              section: "summary",
+              content: summary,
+            })
+          );
+        }
+        break;
+      }
 
-  profile.certifications.forEach((item, index) => {
-    const detail = [item.issuer, item.date].filter(Boolean).join(" · ");
-    nodes.push(
-      node({
-        id: `cert:${index}:${opportunityId}`,
-        type: "certification_item",
-        section: "certifications",
-        content: detail ? `${item.name} — ${detail}` : item.name,
-        metadata: {
-          name: item.name,
-          issuer: item.issuer ?? null,
-          date: item.date ?? null,
-          url: item.url ?? null,
-        },
-      })
-    );
-  });
+      case "skills": {
+        skillGroups.forEach((group, index) => {
+          const content = group.items.map((item) => item.name).join(", ");
+          const slug =
+            group.label
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-|-$/g, "") || `group-${index}`;
+          nodes.push(
+            node({
+              id: `skills:${slug}:${index}:${opportunityId}`,
+              type: "skill_group",
+              section: "skills",
+              content,
+              metadata: {
+                categoryLabel: group.label,
+                parentCategory: group.parentCategory ?? null,
+              },
+            })
+          );
+        });
+        break;
+      }
 
-  profile.awards.forEach((item, index) => {
-    const detail = [item.issuer, item.date].filter(Boolean).join(" · ");
-    const headline = detail ? `${item.title} — ${detail}` : item.title;
-    nodes.push(
-      node({
-        id: `award:${index}:${opportunityId}`,
-        type: "award_item",
-        section: "awards",
-        content: item.description ? `${headline}. ${item.description}` : headline,
-        metadata: {
-          title: item.title,
-          issuer: item.issuer ?? null,
-          date: item.date ?? null,
-          description: item.description ?? null,
-        },
-      })
-    );
-  });
+      case "projects": {
+        projects.forEach((project, index) => {
+          const headerId = `proj:${project.id ?? index}:${opportunityId}`;
+          nodes.push(
+            node({
+              id: headerId,
+              type: "project_header",
+              section: "projects",
+              content: project.name,
+              metadata: {
+                description: project.description,
+                technologies: project.technologies,
+                link: project.link ?? null,
+              },
+            })
+          );
+          const bullets =
+            project.bullets.length > 0
+              ? project.bullets
+              : project.description
+                ? [project.description]
+                : [];
+          bullets.forEach((text, bulletIndex) => {
+            nodes.push(
+              node({
+                id: `proj-bullet:${bulletIndex}:${headerId}`,
+                type: "project_bullet",
+                section: "projects",
+                parentId: headerId,
+                content: text,
+              })
+            );
+          });
+        });
+        break;
+      }
 
-  profile.interests.forEach((interest, index) => {
-    nodes.push(
-      node({
-        id: `interest:${index}:${opportunityId}`,
-        type: "interest_item",
-        section: "interests",
-        content: interest,
-      })
-    );
-  });
+      case "experience": {
+        experiences.forEach((exp, index) => {
+          const headerId = `exp:${exp.id ?? index}:${opportunityId}`;
+          nodes.push(
+            node({
+              id: headerId,
+              type: "experience_header",
+              section: "experience",
+              content: formatExperienceHeading(exp.role, exp.company, exp.location),
+              metadata: {
+                company: exp.company,
+                role: exp.role,
+                location: exp.location ?? null,
+                category: exp.category || "Work",
+                startDate: exp.startDate,
+                endDate: exp.endDate ?? null,
+                displayOrder: exp.displayOrder ?? index,
+              },
+            })
+          );
+          exp.bullets.forEach((bullet, bulletIndex) => {
+            nodes.push(
+              node({
+                id: `exp-bullet:${bullet.id || bulletIndex}:${headerId}`,
+                type: "experience_bullet",
+                section: "experience",
+                parentId: headerId,
+                content: bullet.rawText,
+                metadata: {
+                  bulletId: bullet.id,
+                  technologies: bullet.technologies,
+                  hasMetric: bullet.hasMetric,
+                },
+              })
+            );
+          });
+        });
+        break;
+      }
 
-  profile.education.forEach((ed, index) => {
-    const degree = formatEducationTitle(ed.degree, ed.fieldOfStudy);
-    const school = formatSchoolName(ed.institution, ed.subSchool);
-    nodes.push(
-      node({
-        id: `edu:${ed.id ?? index}:${opportunityId}`,
-        type: "education_item",
-        section: "education",
-        content: `${[degree, school].filter(Boolean).join(" — ")}${
-          formatEducationDates(ed) ? ` (${formatEducationDates(ed)})` : ""
-        }`,
-        metadata: {
-          institution: ed.institution,
-          subSchool: ed.subSchool ?? null,
-          degree: ed.degree,
-          fieldOfStudy: ed.fieldOfStudy ?? null,
-          startDate: ed.startDate ?? null,
-          graduationDate: ed.graduationDate ?? null,
-          status: ed.status ?? "GRADUATED",
-        },
-      })
-    );
-  });
+      case "education": {
+        education.forEach((ed, index) => {
+          const degree = formatEducationTitle(ed.degree, ed.fieldOfStudy);
+          const school = formatSchoolName(ed.institution, ed.subSchool);
+          nodes.push(
+            node({
+              id: `edu:${ed.id ?? index}:${opportunityId}`,
+              type: "education_item",
+              section: "education",
+              content: `${[degree, school].filter(Boolean).join(" — ")}${
+                formatEducationDates(ed) ? ` (${formatEducationDates(ed)})` : ""
+              }`,
+              metadata: {
+                institution: ed.institution,
+                subSchool: ed.subSchool ?? null,
+                degree: ed.degree,
+                fieldOfStudy: ed.fieldOfStudy ?? null,
+                startDate: ed.startDate ?? null,
+                graduationDate: ed.graduationDate ?? null,
+                status: ed.status ?? "GRADUATED",
+              },
+            })
+          );
+        });
+        break;
+      }
+
+      case "certifications": {
+        profile.certifications.forEach((item, index) => {
+          const detail = [item.issuer, item.date].filter(Boolean).join(" · ");
+          nodes.push(
+            node({
+              id: `cert:${index}:${opportunityId}`,
+              type: "certification_item",
+              section: "certifications",
+              content: detail ? `${item.name} — ${detail}` : item.name,
+              metadata: {
+                name: item.name,
+                issuer: item.issuer ?? null,
+                date: item.date ?? null,
+                url: item.url ?? null,
+              },
+            })
+          );
+        });
+        break;
+      }
+
+      case "awards": {
+        profile.awards.forEach((item, index) => {
+          const detail = [item.issuer, item.date].filter(Boolean).join(" · ");
+          const headline = detail ? `${item.title} — ${detail}` : item.title;
+          nodes.push(
+            node({
+              id: `award:${index}:${opportunityId}`,
+              type: "award_item",
+              section: "awards",
+              content: item.description ? `${headline}. ${item.description}` : headline,
+              metadata: {
+                title: item.title,
+                issuer: item.issuer ?? null,
+                date: item.date ?? null,
+                description: item.description ?? null,
+              },
+            })
+          );
+        });
+        break;
+      }
+
+      case "interests": {
+        profile.interests.forEach((interest, index) => {
+          nodes.push(
+            node({
+              id: `interest:${index}:${opportunityId}`,
+              type: "interest_item",
+              section: "interests",
+              content: interest,
+            })
+          );
+        });
+        break;
+      }
+    }
+  }
 
   return tailoredResumeDraftSchema.parse({
     opportunityId,
     nodes,
-    exportConfig: { includeSummary, pageBudget: "auto" },
+    exportConfig: {
+      includeSummary: resolved.includeSummary,
+      pageBudget: resolved.pageBudget,
+      sectionOrder: resolved.sectionOrder,
+      disabledSections: resolved.disabledSections,
+      orderingMode: resolved.orderingMode,
+      inclusionMode: resolved.inclusionMode,
+      inventMetrics: resolved.inventMetrics,
+      warningFlags: tailored.warningFlags ?? [],
+    },
     updatedAt: new Date().toISOString(),
   });
 }
@@ -290,6 +365,9 @@ export function draftToPdfInput(
   certifications: MasterProfileInput["certifications"];
   awards: MasterProfileInput["awards"];
   interests: MasterProfileInput["interests"];
+  sectionOrder?: string[] | null;
+  disabledSections?: string[] | null;
+  warningFlags?: string[];
 } {
   const active = activeResumeNodes(draft);
   const header = active.find((item) => item.type === "header");
@@ -419,6 +497,9 @@ export function draftToPdfInput(
     certifications,
     awards,
     interests,
+    sectionOrder: draft.exportConfig.sectionOrder ?? null,
+    disabledSections: draft.exportConfig.disabledSections ?? null,
+    warningFlags: draft.exportConfig.warningFlags ?? [],
   };
 }
 

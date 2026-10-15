@@ -19,6 +19,25 @@ export const resumePreferencesSchema = z.object({
   attachPdfByDefault: z.boolean().default(true),
   /** Soft page target for resume layout (`auto` leaves budgeting to the tailor). */
   maxPages: resumePageBudgetSchema.default("auto"),
+  /** Canonical section order for resume layout. */
+  sectionOrder: z
+    .array(z.string())
+    .default([
+      "summary",
+      "skills",
+      "experience",
+      "projects",
+      "education",
+      "certifications",
+    ]),
+  /** Sections omitted from the resume layout by default. */
+  disabledSections: z.array(z.string()).default([]),
+  /** Whether section order is determined manually or optimized for candidate career profile. */
+  orderingMode: z.enum(["MANUAL", "AI_OPTIMAL"]).default("AI_OPTIMAL"),
+  /** Whether content inclusion is determined manually or optimized by AI. */
+  inclusionMode: z.enum(["MANUAL", "AI_OPTIMAL"]).default("AI_OPTIMAL"),
+  /** Whether the tailor is permitted to synthesize realistic metrics when none exist in source. */
+  inventMetrics: z.boolean().default(false),
 });
 
 export type ResumePreferences = z.infer<typeof resumePreferencesSchema>;
@@ -27,6 +46,18 @@ export const DEFAULT_RESUME_PREFERENCES: ResumePreferences = {
   includeSummary: false,
   attachPdfByDefault: true,
   maxPages: "auto",
+  sectionOrder: [
+    "summary",
+    "skills",
+    "experience",
+    "projects",
+    "education",
+    "certifications",
+  ],
+  disabledSections: [],
+  orderingMode: "AI_OPTIMAL",
+  inclusionMode: "AI_OPTIMAL",
+  inventMetrics: false,
 };
 
 /** @deprecated Heuristic classification modes are decommissioned. */

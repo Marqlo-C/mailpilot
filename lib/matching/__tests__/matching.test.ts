@@ -226,7 +226,7 @@ describe("Matching Domain", () => {
     };
 
     const careerSwitcherPersona: CandidatePersona = {
-      archetype: "Career Switcher",
+      archetype: "Cross-Disciplinary Hybrid",
       seniorityTier: "Career Switcher",
       leadershipScope: "Individual Contributor / Practitioner",
       distinctionAnchor: "None / Production Tenure",
@@ -336,7 +336,7 @@ describe("Matching Domain", () => {
     it("strips LLM system prompt directives, role span dumps, and graduation dates from match reason", async () => {
       const switcherLens = extractMatchCandidateLens(mockProfile, {
         ...mockPersona,
-        archetype: "Career Switcher",
+        archetype: "Cross-Disciplinary Hybrid",
         seniorityTier: "Career Switcher",
         inFieldYears: 1,
         calendarYears: 9,

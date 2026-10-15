@@ -319,6 +319,8 @@ export async function renderDraftPdf(
       certifications: compiled.certifications,
       awards: compiled.awards,
       interests: compiled.interests,
+      sectionOrder: compiled.sectionOrder,
+      disabledSections: compiled.disabledSections,
     }
   );
 }
