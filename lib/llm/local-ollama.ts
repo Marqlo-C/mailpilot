@@ -526,8 +526,11 @@ export function parseJsonObject(raw: string): Record<string, unknown> | null {
 
   try {
     const parsed: unknown = JSON.parse(unfenced);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
+    if (parsed && typeof parsed === "object") {
+      if (!Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+      return { reframedBullets: parsed, items: parsed };
     }
   } catch {
     // Attempt best-effort brace extraction if output is surrounded by extra text
@@ -543,6 +546,20 @@ export function parseJsonObject(raw: string): Record<string, unknown> | null {
           !Array.isArray(parsedSliced)
         ) {
           return parsedSliced as Record<string, unknown>;
+        }
+      } catch {
+        // Fall through to repair attempts
+      }
+    }
+
+    const firstBracket = unfenced.indexOf("[");
+    const lastBracket = unfenced.lastIndexOf("]");
+    if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+      try {
+        const sliced = unfenced.slice(firstBracket, lastBracket + 1);
+        const parsedSliced: unknown = JSON.parse(sliced);
+        if (Array.isArray(parsedSliced)) {
+          return { reframedBullets: parsedSliced, items: parsedSliced };
         }
       } catch {
         // Fall through to repair attempts

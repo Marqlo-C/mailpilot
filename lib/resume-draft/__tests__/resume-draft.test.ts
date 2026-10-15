@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import * as dispatcher from "@/lib/llm/dispatcher";
 import {
   calculateElasticPageBudget,
   DEFAULT_SECTION_ORDER,
@@ -349,6 +350,210 @@ describe("Resume Drafting & Tailoring Architecture", () => {
         'Do NOT force awkward literal template tags like "as measured by" or "by doing"'
       );
       expect(prompt).toContain("Action + Metric + Method");
+    });
+
+    it("Mode A (inventMetrics: false): enforces XYZ structure on qualitative bullets with zero fabricated numbers", () => {
+      const prompt = buildReframeSystemPrompt(false);
+      expect(prompt).toContain(
+        "[Strong Action Verb] + [Outcome / Verified Impact] + [Method / Tooling]"
+      );
+      expect(prompt).toContain("STRICT - NO INVENTED NUMBERS");
+      expect(prompt).toContain("do NOT invent any numbers");
+      expect(prompt).toContain(
+        "You MUST STILL RESTRUCTURE the bullet into the Google XYZ pattern"
+      );
+      expect(prompt).toContain("NEVER leave the bullet un-reframed");
+    });
+
+    it("Mode A (inventMetrics: false): preserves existing metric bullets into XYZ structure with original numbers intact", () => {
+      const prompt = buildReframeSystemPrompt(false);
+      expect(prompt).toContain("keeping all verified figures intact");
+      expect(prompt).toContain("NEVER change or overwrite those metrics");
+    });
+
+    it("Mode B (inventMetrics: true): permits modest, domain-native metric synthesis across 4 dimensions", () => {
+      const prompt = buildReframeSystemPrompt(true);
+      expect(prompt).toContain("METRIC SYNTHESIS PERMITTED");
+      expect(prompt).toContain(
+        "modest, plausible metric calibrated strictly to the candidate's verified leveling"
+      );
+      expect(prompt).toContain("Efficiency & Velocity");
+      expect(prompt).toContain("Quality & Accuracy");
+      expect(prompt).toContain("Volume & Throughput");
+      expect(prompt).toContain("Satisfaction & Adoption");
+    });
+
+    it("Stage B reframe updates selectedExperience and selectedProjects, and digestTailoredResume constructs nodes with reframed text", async () => {
+      const testProfile: MasterProfileInput = {
+        ...baseProfile,
+        experiences: [
+          {
+            id: "exp-1",
+            company: "Acme Corp",
+            role: "Backend Engineer",
+            location: "San Francisco, CA",
+            category: "Work",
+            startDate: "2022-01",
+            bullets: [
+              {
+                id: "b-exp-1",
+                rawText: "Worked on distributed cache service",
+                technologies: ["Go"],
+                hasMetric: false,
+              },
+            ],
+            displayOrder: 0,
+          },
+        ],
+        projects: [
+          {
+            id: "proj-1",
+            name: "CloudTelemetry",
+            description: "Telemetry app",
+            technologies: ["TypeScript"],
+            bullets: ["Wrote telemetry handlers"],
+            link: null,
+          },
+        ],
+      };
+
+      vi.spyOn(dispatcher, "callLLMWithFallback").mockImplementation(async (opts) => {
+        // Stage A call
+        if (opts.systemPrompt.includes("Tailoring Strategy Engine")) {
+          return {
+            selectedBulletIds: ["b-exp-1"],
+            selectedProjectIds: ["proj-1"],
+            strategyRationale: {
+              roleFitAnalysis: "Strong match",
+              selectedSkillsReasoning: "Relevant skills",
+              featuredExperiencesReasoning: "Matches backend requirements",
+              featuredProjectsReasoning: "Demonstrates practical execution",
+            },
+            jobRequirements: ["Go", "Distributed Systems"],
+          };
+        }
+        // Stage B call
+        if (opts.systemPrompt.includes("Google XYZ resume framework")) {
+          return {
+            reframedBullets: [
+              {
+                id: "b-exp-1",
+                rawText:
+                  "Engineered distributed caching layer ensuring sub-10ms query latency across 12 nodes by implementing Redis cluster sharding.",
+              },
+              {
+                id: "proj-1-b-0",
+                rawText:
+                  "Architected real-time telemetry streaming pipeline capturing 100% of event streams by authoring custom WebSocket dispatchers.",
+              },
+            ],
+          };
+        }
+        return null;
+      });
+
+      try {
+        const result = await tailorResumeForJob(
+          ["Go", "Distributed Systems"],
+          testProfile,
+          { inventMetrics: true }
+        );
+
+        // Verify that bullets were transformed to the Google XYZ reframed text
+        expect(result.selectedExperience[0]!.bullets[0]!.rawText).toBe(
+          "Engineered distributed caching layer ensuring sub-10ms query latency across 12 nodes by implementing Redis cluster sharding."
+        );
+        expect(result.selectedProjects[0]!.bullets[0]).toBe(
+          "Architected real-time telemetry streaming pipeline capturing 100% of event streams by authoring custom WebSocket dispatchers."
+        );
+
+        // Verify digestTailoredResume receives the reframed text into the draft nodes
+        const draft = digestTailoredResume({
+          opportunityId: "opp-xyz-test",
+          profile: testProfile,
+          tailored: result,
+          includeSummary: false,
+        });
+
+        const expNode = draft.nodes.find((n) => n.id.startsWith("exp-bullet"));
+        expect(expNode?.content).toBe(
+          "Engineered distributed caching layer ensuring sub-10ms query latency across 12 nodes by implementing Redis cluster sharding."
+        );
+
+        const projNode = draft.nodes.find((n) => n.id.startsWith("proj-bullet"));
+        expect(projNode?.content).toBe(
+          "Architected real-time telemetry streaming pipeline capturing 100% of event streams by authoring custom WebSocket dispatchers."
+        );
+      } finally {
+        vi.restoreAllMocks();
+      }
+    });
+
+    it("Stage B reframe gracefully parses alternative schema variations like { bullets: [...] } and transforms bullets", async () => {
+      const testProfile: MasterProfileInput = {
+        ...baseProfile,
+        experiences: [
+          {
+            id: "exp-2",
+            company: "Legacy Co",
+            role: "Software Developer",
+            location: "Oakland, CA",
+            category: "Work",
+            startDate: "2021-01",
+            bullets: [
+              {
+                id: "b-alt-1",
+                rawText: "Built microservices in Go",
+                technologies: ["Go"],
+                hasMetric: false,
+              },
+            ],
+            displayOrder: 0,
+          },
+        ],
+      };
+
+      vi.spyOn(dispatcher, "callLLMWithFallback").mockImplementation(async (opts) => {
+        if (opts.systemPrompt.includes("Tailoring Strategy Engine")) {
+          return {
+            selectedBulletIds: ["b-alt-1"],
+            selectedProjectIds: [],
+            strategyRationale: {
+              roleFitAnalysis: "Fit",
+              selectedSkillsReasoning: "Skills",
+              featuredExperiencesReasoning: "Exp",
+              featuredProjectsReasoning: "Proj",
+            },
+            jobRequirements: ["Go"],
+          };
+        }
+        if (opts.systemPrompt.includes("Google XYZ resume framework")) {
+          // Model returns { bullets: [...] } with { id, text }
+          return {
+            bullets: [
+              {
+                id: "b-alt-1",
+                text: "Developed 8 containerized Go microservices eliminating database bottlenecks by establishing connection pooling.",
+              },
+            ],
+          };
+        }
+        return null;
+      });
+
+      try {
+        const result = await tailorResumeForJob(
+          ["Go"],
+          testProfile,
+          { inventMetrics: false }
+        );
+
+        expect(result.selectedExperience[0]!.bullets[0]!.rawText).toBe(
+          "Developed 8 containerized Go microservices eliminating database bottlenecks by establishing connection pooling."
+        );
+      } finally {
+        vi.restoreAllMocks();
+      }
     });
   });
 

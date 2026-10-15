@@ -72,6 +72,7 @@ export const tailoredResumeDataSchema = z.object({
 
 export const tailorConfigSchema = z.object({
   includeSummary: z.boolean().default(false),
+  inventMetrics: z.boolean().optional(),
 });
 
 export function normalizeProvider(value: string | null | undefined): LlmProvider {
@@ -264,7 +265,7 @@ export function previewFromCache(row: {
 export async function persistOpportunityResumeCache(
   opportunityId: string,
   preview: OpportunityResumePreview,
-  options: { writePdf?: boolean } = {}
+  options: { writePdf?: boolean; inventMetrics?: boolean } = {}
 ): Promise<void> {
   const writePdf = options.writePdf === true && Boolean(preview.pdfBase64);
   const payload = preview.draft
@@ -294,6 +295,7 @@ export async function persistOpportunityResumeCache(
       tailoredAt: new Date(),
       tailorConfig: {
         includeSummary: preview.includeSummary === true,
+        inventMetrics: options.inventMetrics === true,
       } as Prisma.InputJsonValue,
     },
   });
