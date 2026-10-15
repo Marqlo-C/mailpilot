@@ -1,382 +1,110 @@
 # MailPilot
 
-MailPilot is a Next.js dashboard that connects to Gmail, detects newsletter subscriptions for one-click unsubscribe, and triages job-related emails into actionable workflows.
-
-## Features
-
-- **Multi-account Gmail linking** with Google OAuth
-- **Subscription management** with RFC 8058 one-click unsubscribe, mailto fallback, and cleanup options
-- **Job radar** that classifies inbox activity into leads, interviews, assessments, offers, and rejections
-- **AI-assisted processing** with multi-provider routing (OpenRouter, OpenAI, Groq, DeepSeek, Anthropic, Gemini, or local Ollama)
-- **Persistent profile + automation settings** for account-level and profile-level behavior
-- **Background inbox sync** through Gmail watch notifications and webhook processing
-- **Object storage via Vercel Blob** for serving login background media
-
-## Inbox sync pipeline
-
-MailPilot uses **two Gmail bookmarks** for different jobs:
-
-| Watermark | Owner | Purpose |
-| --- | --- | --- |
-| `Account.historyId` | Gmail History API (`processInboxDelta`) | “What changed in the mailbox since this tip?” — subscriptions + classification on added messages |
-| `Account.lastSyncedAt` | Sync Inbox (`syncInboxOpportunities`) | Time cursor for the job-oriented search query (`after:…` + 10‑minute overlap) |
-
-### Automatic path (Pub/Sub)
-
-1. Gmail watch → Pub/Sub → `POST /api/webhooks/gmail`
-2. `processInboxDelta(email, notificationHistoryId)` digests `messageAdded` history, upserts subscriptions, classifies job mail, advances **`historyId` only**
-3. Does **not** stamp `lastSyncedAt` (avoids shrinking the Sync Inbox window when a webhook finishes mid-flight)
-
-### Sync Inbox path (Job Radar → Sync Inbox)
-
-Runs in `after()` from `syncInboxOpportunities` (**delta-first**):
-
-1. Snapshot `runStartedAt = new Date()` (not written yet)
-2. **`processInboxDelta`** — catch missed Pub/Sub, update subscriptions / `historyId`
-   - If History API returns **404** (expired `historyId`), renew the watch and set `historyExpired` so the job query uses a **lookback** window (default 14 days) instead of a thin incremental `after:`
-3. **Job Gmail search** + ≤10 `PENDING_AI` drain — dedupe against delta ids, `EmailMessage` (keep `PENDING_AI`), and `JobApplication`
-4. Classify / persist (heartbeat renewed per AI chunk; stale-lock constants unchanged)
-5. On **success only**, commit `lastSyncedAt = runStartedAt` so mail that arrived during the run stays inside the next incremental window (+ overlap)
-
-Settings → **Sync** still calls `triggerManualSync` → `processInboxDelta` alone (kept for isolated delta testing). Prefer Sync Inbox for day-to-day recovery.
-
-### Opportunity dedupe (ingest)
-
-`persistClassifiedEmail` (used by delta, Sync Inbox, and historical scan) matches jobs in order:
-
-1. **Same email** (`emailMessageId`) — `applyUrl` match, else title + `isLocationCompatible`
-2. **Cross-email** — same company + title + compatible location; **suppress** (no update/create) if DISMISSED or user-archived
-3. **Insert** — only when neither tier matches
-
-Location helpers live in `lib/utils/location.ts` (`parseLocation`, `isLocationCompatible`).
-
-## Email Ingestion, Deduplication & Retention Lifecycle
-
-### Dual watermarks and the ingestion window
-
-Two bookmarks cover different jobs:
-
-- **`historyId`** is the Gmail History API tip. Delta sync asks “what was added since this id?” and advances `historyId` when that pass finishes. It does not move `lastSyncedAt`.
-- **`lastSyncedAt`** is the time cursor for the job-oriented Gmail search. An incremental sweep uses `after:lastSyncedAt` plus a short overlap so mail near the boundary is not skipped.
-
-`lastSyncedAt` advances only when the whole Sync Inbox pass succeeds. The handler snapshots `runStartedAt` before digestion and writes that snapshot at the end. Mail that arrives while the run is in flight stays inside the next incremental window. A failed pass leaves the previous cursor in place so the same mail is tried again.
-
-### Manual AI queue flush
-
-Messages waiting on a model are stored as `PENDING_AI`, including the extracted `rawBody`. Deleting those rows while they are still inside the Gmail query window makes the next sync treat them as new: the `messageId` dedupe shield is gone, so Gmail is fetched again and the queue refills.
-
-The flush does not delete the row and does not touch `lastSyncedAt` or `historyId`. `flushPendingAiMessages` sets `emailCategory` to `IRRELEVANT` and `rawBody` to null on `PENDING_AI` messages that have no `JobOpportunity`. The raw text is released immediately, classification stops, and the `messageId` row still blocks re-ingestion.
-
-The status pill that reads “N emails awaiting classification” has a circled **X** beside that label (`Dismiss awaiting emails`). It runs the flush for the active account and drops the counter as soon as the update succeeds.
-
-### Automated retention purge
-
-`dismissedRetentionDays` on account rules (default 30) is the hard age boundary. During sync housekeeping, `purgeExpiredDismissed`:
-
-1. Deletes `DISMISSED` opportunities whose `dismissedAt` is older than that window. User-archived History cards are not dismissed, so they stay.
-2. Deletes `EmailMessage` rows older than the same cutoff when they are `IRRELEVANT` or `JOB_BOARD_DIGEST` and no `JobOpportunity` points at them.
-
-After a dismissed opportunity is removed, its source email becomes eligible for that second delete only if it is unlinked and in one of those two categories.
-
-Active pipeline cards (`Leads`, `Action Required`, `Applied`) and user-archived cards in **History** keep their source `EmailMessage`. The email delete requires `opportunities: { none: {} }`, so any linked opportunity — including one that is still inside the retention window — blocks deletion.
-
-## Multi-Tier Core Architectures
-
-MailPilot utilizes three distinct, complementary 3-tier engines to guarantee reliability, zero duplicate data, and token efficiency:
-
-### 1. Inbound Signal Triage Engine (`lib/ai/prefilter.ts`)
-Filters noise (promotions, deals, DevOps alerts, newsletters) before ingestion without hardcoded brand whitelists:
-* **Tier 1 (Ironclad Lifecycle Pass):** Application confirmations, interview invitations, assessments, and rejections bypass commercial filtering with 100% priority.
-* **Tier 2 (Vector Balance Scoring):** Computes competing scores for Hiring Intent ($+H$) and Commercial/System Noise ($+N$). Clear commercial noise ($N \ge 2, H = 0$) drops in 0ms; clear hiring ($H \ge 2, N = 0$) advances directly.
-* **Tier 3 (Structural Reality Gate):** Borderline messages ($H > 0, N > 0$) must demonstrate concrete evidence—an ATS URL, compensation range, or authenticated recruiter sender—to enter the classification pipeline.
-
-### 2. LLM Provider Failover Chain (`lib/llm/dispatcher.ts`)
-Ensures resilient, cost-effective inference with circuit-breaker protection:
-* **Tier 1 (Local Ollama):** Executes private, zero-cost inference. If the endpoint is offline or fails health checks, an in-memory circuit breaker opens, bypassing network timeouts on subsequent messages in 0ms.
-* **Tier 2 (Cloud LLM / BYOK Fallback):** When Ollama is offline or times out (and `allowCloudFallback: true` or a valid API key exists), execution transparently escalates to account-configured cloud models (OpenRouter, Gemini, Groq, OpenAI, Anthropic) with candidate rotation on HTTP 429/403.
-* **Tier 3 (Grand Heuristic Engine):** If cloud providers rate-limit, fail, or lack API keys, processing drops synchronously to the zero-token in-memory deterministic parser (`< 2ms`), ensuring sync passes never deadlock or fail.
-
-### 3. Opportunity Deduplication Engine (`lib/opportunity-sync.ts`)
-Prevents pipeline card duplication across rescans and multi-job digests:
-* **Tier 1 (Same-Origin Match):** Matches against existing opportunities tied to the same `emailMessageId` via `applyUrl` or normalized title. Updates the existing opportunity in place.
-* **Tier 2 (Cross-Email Entity Match):** Matches across different emails by checking `Company + Role Title + Location` compatibility. Attaches to and updates the active card.
-* **Tier 3 (Deterministic Insert):** Executes `prisma.jobOpportunity.create` only when Tier 1 and Tier 2 yield no existing record.
-
-### 4. LinkParser & Enrichment Architecture (`lib/opportunities/context/`)
-Guarantees fast, cost-effective context enrichment with strict credit boundaries:
-* **Background Sync Pacing (Zero Credit Waste):** During automated inbox sync passes, Glassdoor and Indeed links fast-exit immediately in 0ms without external proxy calls, persisting as `MINIMAL_LEAD` records. LinkedIn postings resolve via a fast 2-tier unauthenticated path (public guest API endpoint with Googlebot Schema.org JSON-LD fallback), while direct ATS links use standard fetch or 1-credit ScrapingAnt proxy failover.
-* **On-Demand Hydration (HasData BYOK):** Full job specifications for Glassdoor and Indeed are hydrated strictly on-demand when the user clicks to tailor a resume or hydrate a spec. The system calls `fetchViaHasData` using the customer's encrypted BYOK key, upgrading the listing from `MINIMAL_LEAD` to `RICH_SPEC` in PostgreSQL before generating tailored resume drafts.
-
-## Tech Stack
-
-- **Framework:** Next.js 15 (App Router), React 19, TypeScript
-- **Database:** PostgreSQL + Prisma
-- **UI:** Tailwind CSS + Radix UI
-- **Integrations:** Gmail API, Google Pub/Sub, Vercel Blob, Multi-Provider LLM Engine (BYOK: OpenRouter, OpenAI, Groq, DeepSeek, Anthropic, Gemini), optional Ollama
-
-## Project Structure
-
-- `/app` – pages, API routes, and server actions
-- `/components` – UI components and feature views
-- `/lib` – core domain logic (sync, Gmail, LLM routing, validations)
-- `/lib/logging` – Pino logger + scoped helpers (`syncLog`, `dedupeLog`, `syncLockLog`, `logStory`)
-- `/prisma` – Prisma schema
-- `/scripts` – maintenance scripts
-
-## Prerequisites
-
-- Node.js 20+
-- npm
-- PostgreSQL database
-- Google Cloud project with Gmail API and Pub/Sub configured
-- Cloud LLM API key (OpenRouter, OpenAI, Groq, DeepSeek, Anthropic, or Gemini configured per-account in Settings → AI & Models, or local Ollama)
-
-## Local Setup
-
-1. Install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-2. Copy environment file:
-
-   ```bash
-   cp .env.example .env.local
-   ```
-
-3. Fill in all required values in `.env.local`.
-
-4. Generate Prisma client / apply schema:
-
-   ```bash
-   npx prisma db push
-   ```
-
-5. Start development server:
-
-   ```bash
-   npm run dev
-   ```
-
-6. Open `http://localhost:3000`.
-
-## Logging
-
-Server logs use **Pino** (`lib/logging/`).
-
-| Environment | Default level | Sync / Dedupe stories |
-| --- | --- | --- |
-| `production` (`VERCEL_ENV=production`) | `warn` | hidden |
-| `preview` | `debug` | shown |
-| local `next dev` | `debug` (+ pretty) | shown |
-
-Override with `LOG_LEVEL`. Scoped helpers: `syncLog`, `dedupeLog`, `syncLockLog`, plus `logStory()` for plain-English multi-line lines.
-
-## Environment Variables
-
-Use `.env.example` as the source of truth. Key variables:
-
-- `DATABASE_URL` – PostgreSQL connection string
-- `TOKEN_ENCRYPTION_KEY` – 64-char hex key for token encryption
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` – Google OAuth config
-- `GMAIL_PUBSUB_TOPIC` – Gmail watch topic (`projects/{project}/topics/{topic}`)
-- `GMAIL_WEBHOOK_SECRET` – shared secret for `/api/webhooks/gmail`
-- `OPENROUTER_API_KEY` – optional development fallback (production customer keys are managed securely per-account in Settings → AI & Models)
-- `BLOB_READ_WRITE_TOKEN` – Vercel Blob token used by server routes for private object access
-- `CRON_SECRET` – bearer token for protected cron endpoints
-- `GITHUB_TOKEN` – optional (higher API limits for sync flows)
-
-## Scripts
-
-- `npm run dev` – start local dev server
-- `npm run build` – Run Vitest unit tests + Next.js production build
-- `npm run start` – run production server
-- `npm run lint` – run ESLint
-- `npm test` – run Vitest unit test suite (zero-token, offline)
-- `npm run test:watch` – run Vitest in interactive watch mode
-- `npm run cleanup:duplicates` – clean duplicate records
-- `npm run ollama:bridge` – run local Ollama bridge helper
-
-## Testing & CI/CD
-
-MailPilot uses [Vitest](https://vitest.dev/) for fast, deterministic unit testing. All test suites run completely offline without requiring a live database connection or network calls (~200ms total runtime).
-
-### Test Commands
-
-```bash
-# Run all unit tests once
-npm test
-
-# Run tests in watch mode during development
-npm run test:watch
+> **Distributed, Privacy-First Career Automation Platform & Real-Time Telemetry Pipeline**
+
+[![Next.js](https://img.shields.io/badge/Next.js-15_(App_Router)-000000?style=flat-square&logo=nextdotjs)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5_Strict-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
+[![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3.4-38B2AC?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
+[![Vitest](https://img.shields.io/badge/Vitest-258_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Security](https://img.shields.io/badge/Security-AES--256--GCM_Vaulted-green?style=flat-square&logo=security)](https://nodejs.org/api/crypto.html)
+
+---
+
+## Table of Contents
+
+- [1. System Vision & Problem Space](#1-system-vision--problem-space)
+- [2. End-to-End System Architecture](#2-end-to-end-system-architecture)
+- [3. The Decoupled Domain Architecture (SSOT & Lenses)](#3-the-decoupled-domain-architecture-ssot--lenses)
+- [4. Multi-Tier Inference Router & Local Circuit Breaker](#4-multi-tier-inference-router--local-circuit-breaker)
+- [5. Web Scraping & Anti-Bot Evasion Engine](#5-web-scraping--anti-bot-evasion-engine)
+- [6. Cryptography, Privacy & Security Guardrails](#6-cryptography-privacy--security-guardrails)
+- [7. Line-Addressable Resume Tailoring & Page Budgeting](#7-line-addressable-resume-tailoring--page-budgeting)
+- [8. Technology Stack Matrix](#8-technology-stack-matrix)
+- [9. Test Suite, Verification & Local Development](#9-test-suite-verification--local-development)
+
+---
+
+## 1. System Vision & Problem Space
+
+Modern personal inboxes are bombarded with high-velocity automated noise: transactional receipts, marketing blasts, newsletters, and promotional feeds. Buried within this stream are high-stakes, time-critical career opportunities: recruiter reachouts, direct interview invitations, take-home assessments, and job application status changes.
+
+**MailPilot** transforms the unstructured personal inbox into an autonomous, real-time career intelligence platform and telemetry pipeline. Built on a serverless, decoupled architecture, MailPilot executes two primary operational missions:
+
+1. **Autonomous Subscription Management & RFC 8058 Engine:**
+   - Detects recurring newsletters, mailing lists, and marketing campaigns without hardcoded sender whitelists.
+   - Executes RFC 8058 one-click unsubscriptions via authenticated HTTP `POST` requests and automated `mailto:` command fallbacks.
+   - Provides batch cleanup and automated retention purging for unlinked commercial correspondence.
+
+2. **Career Opportunity Extraction & Line-Addressable Tailoring:**
+   - Receives inbound messages via Google Cloud Pub/Sub webhooks with sub-second delta synchronization.
+   - Routes payloads through a zero-token 3-tier pre-filtering triage gate ($H$ vs $N$ vector scoring).
+   - Ingests opportunities via a multi-tier inference router (Local Ollama via Cloudflare Tunnel $\to$ Cloud BYOK $\to$ 2ms Grand Heuristic).
+   - Resolves unstructured job text into canonical, anti-corruption data lenses.
+   - Synthesizes 4-dimensional candidate personas and tailors line-addressable resume drafts with elastic 1-page Letter layout budgeting.
+
+### Multi-Tenant Data Isolation & Privacy-First Architecture
+MailPilot is designed from the ground up for strict multi-tenancy and data privacy:
+- **Transient Email Storage Policy:** Raw inbound email message bodies are scrubbed in memory during triage; `EmailMessage.rawBody` is permanently cleared (`null`) upon database persistence.
+- **Zero Plaintext Credentials:** Cloud API keys, Google OAuth tokens, and candidate contact coordinates are encrypted at rest using **AES-256-GCM** authenticated envelopes.
+- **Career Agnosticism & Ground Truth:** Application logic, classification heuristics, and tailoring prompts treat every candidate discipline, industry, and career level completely neutrally with zero hardcoded profession bias.
+
+---
+
+## 2. End-to-End System Architecture
+
+The following diagram illustrates the complete asynchronous lifecycle of inbound messages through MailPilot: from Google Cloud Pub/Sub webhook triggers to multi-tier classification, link enrichment, decoupled anti-corruption lenses, and downstream execution engines.
+
+```mermaid
+flowchart TD
+  subgraph Ingest["1. Ingestion & Webhook Subsystem"]
+    GW["Gmail Push / Watch API"] -->|Push Notification| PS["Google Cloud Pub/Sub"]
+    PS -->|POST /api/webhooks/gmail| WH["Webhook Handler (Next.js 15 after())"]
+    WH -->|History Delta Cursor| DT["processInboxDelta()"]
+    DT -->|Watermark: historyId| ACC["Account Ledger"]
+  end
+
+  subgraph Triage["2. Signal Triage & Multi-Tier Inference"]
+    DT -->|Raw Message Buffer| PF["Zero-Token Pre-filter (lib/ai/prefilter.ts)"]
+    PF -->|RFC 8058 Headers| UNSUB["One-Click Unsubscribe Engine"]
+    PF -->|Ironclad Lifecycle Pass| ROUTER{"Inference Router (dispatcher.ts)"}
+    PF -->|Vector Scoring: H vs N| ROUTER
+    PF -->|Commercial Noise| DROP["0ms Noise Drop / Purge"]
+
+    ROUTER -->|Tier 1: Cloudflare Tunnel| OLL["Local Ollama (Circuit Breaker)"]
+    OLL -.->|Trip / Failover| BYOK["Tier 2: Cloud BYOK (AES-256-GCM Vault)"]
+    BYOK -.->|Rate Limit / Outage| HEUR["Tier 3: Grand Heuristic Engine (< 2ms)"]
+  end
+
+  subgraph Context["3. Context Enrichment & Anti-Bot Scrapers"]
+    ROUTER -->|Classified Opportunity| ENRICH{"Link Enrichment (context/)"}
+    ENRICH -->|Schema.org AST| JLD["JSON-LD Scraper"]
+    ENRICH -->|Nuxt 3 State AST| NUXT["__NUXT_DATA__ Parser"]
+    ENRICH -->|Unauthenticated 2-Tier| LI["LinkedIn Public Guest API"]
+    ENRICH -->|Residential BYOK Fallback| PROXY["HasData / ScrapingAnt Proxy"]
+  end
+
+  subgraph Lens["4. Persistence & Anti-Corruption Lenses"]
+    JLD & NUXT & LI & PROXY --> DED["3-Tier Deduplication Engine"]
+    HEUR --> DED
+    DED -->|Store Normalized Row| DB[("PostgreSQL via Prisma")]
+    DB --> RJO["resolveJobOpportunity() (context/lens.ts)"]
+    DB --> MCL["extractMatchCandidateLens() (matching/lens.ts)"]
+    DB --> PFL["PersonaFactLens() (persona/lens.ts)"]
+  end
+
+  subgraph Consumer["5. Decoupled Execution Domains"]
+    RJO & MCL --> MATCH["Match Evaluator (lib/matching/)"]
+    RJO & PFL --> TAILOR["Tailored Resume Engine (lib/resume-tailor.ts)"]
+    RJO --> DISP["Email Dispatcher (composer.ts)"]
+    TAILOR --> DRAFT["Intermediate Draft Tree (lib/resume-draft/)"]
+    DRAFT --> EXPORT["Export: PDF (@react-pdf) / DOCX (JSZip)"]
+  end
 ```
 
-All pushes and pull requests to `main` are automatically validated by GitHub Actions (`.github/workflows/ci.yml`) across typecheck, lint, Vitest unit tests, and a dry-run production build.
-
-## Production Notes
-
-- Secure `/api/webhooks/gmail` with `?token=` matching `GMAIL_WEBHOOK_SECRET`
-- Protect cron routes with `Authorization: ******
-- Ensure all OAuth tokens are encrypted via `TOKEN_ENCRYPTION_KEY`
-
-## Tailored Resume Architecture: Intermediate Document Tree Flow
-
-Tailoring used to digest a job and immediately freeze the result into a base64 PDF. That buffer could not be edited line by line, and a later model pass had to see the whole document, which drifted unrelated bullets. The draft is now a line-addressable tree stored on `JobOpportunity.tailoredResumeData`. PDF and DOCX compilation happens only when you export or send.
-
-1. **Digestion.** `tailorResumeForJob` still chooses summary, skills, experiences, and projects. `digestTailoredResume` maps that result plus the master profile into a `TailoredResumeDraft` (`lib/types/resume-draft.ts`) and saves it. This step does not render a PDF.
-2. **Draft workspace.** The review dialog shows a Letter sheet (8.5in by at least 11in, with the same padding, type size, and section rules as the PDF). Each node is click-to-edit. A checkbox sets `selected` so a line stays in the tree but drops out of export. Up and down reorder sibling nodes.
-3. **Surgical AI refinement.** `refineSingleResumeNode` sends only that node's `content` and the instruction to the model, then writes the returned string back onto that one node.
-4. **Export compilation.** `compileResumeDocument` keeps nodes with `selected === true` whose parent is also selected, then builds a PDF (cached on `tailoredResumePdf`) or a DOCX download.
-
-`ResumeDraftNode` fields: `id`, `type` (`header`, `summary`, `skill_group`, `experience_header`, `experience_bullet`, `project_header`, `project_bullet`, `education_item`), `section`, optional `parentId`, `content`, `selected`, and optional `metadata`. `TailoredResumeDraft` also stores `opportunityId`, `exportConfig` (`includeSummary`, `pageBudget`), and `updatedAt`.
-
-## Status
-
-MailPilot is currently in early access.
-
-## Persona Engine Architecture
-
-The MailPilot Persona Engine translates grounded candidate facts (`MasterProfileInput`) into multi-dimensional identity descriptors and prompt guardrails (`CandidatePersona`). It runs on deterministic, zero-token TypeScript heuristics without calling external LLMs.
-
-### Decoupled Data Flow
-
-```
-┌──────────────────────────────────────────────┐
-│  Ground Truth: MasterProfileInput (Database) │
-└──────────────────────┬───────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────┐
-│  Adapter Lens: PersonaFactLens (lens.ts)     │  <-- Buffers schema changes
-└──────────────────────┬───────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────┐
-│  Interlocking Matrix (matrix.ts)             │
-│  - Seniority Tier (6 tiers)                  │
-│  - Disciplinary Archetype (4 archetypes)     │
-│  - Leadership Scope (3 scopes)               │
-│  - Distinction Anchor (3 anchors)            │
-└──────────────────────┬───────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────┐
-│  Tone Composer (tone-composer.ts)            │  <-- 4-Layer Modular Voice Stack
-└──────────────────────┬───────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────┐
-│  Contract: CandidatePersona                  │
-└───────────┬───────────────────┬──────────────┘
-            │                   │
-            ▼                   ▼
-     [ Match Scoring ]   [ Email Responding ]   [ Resume Tailoring ]
-```
-
-### Module Layout & Modification Guide
-
-| File | Role | When to Edit |
-| :--- | :--- | :--- |
-| `lib/persona/schema.ssot.ts` | **Single Source of Truth** | **First stop.** Edit when adding/modifying dimensions or altering fact requirements. |
-| `lib/persona/lens.ts` | **Adapter Layer** | Edit when `MasterProfileInput` changes to update fact extraction. |
-| `lib/persona/matrix.ts` | **Classification Heuristics** | Edit to refine tenure parsing, title-family grouping, or archetype classification rules. |
-| `lib/persona/tone-composer.ts` | **Voice & Prompt Synthesis** | Edit to adjust LLM prompt phrasing, posture ceilings, or proof guardrails. |
-| `lib/persona/cache.ts` | **Persistence & Staleness** | Edit to alter caching rules or decimal-tenure auto-healing checks. |
-| `lib/persona/index.ts` | **Public Facade** | Exports the clean consumer API. |
-
-### How to Edit LLM Prompt Guidance
-
-To alter the tone or guardrails passed downstream to LLM generation:
-1. Open **`lib/persona/tone-composer.ts`**.
-2. Locate `composeToneGuidance()`.
-3. Adjust the corresponding layer:
-   - **Layer 1 (Seniority Guardrail):** Modifies base humility vs. peer posture.
-   - **Layer 2 (Agency Dial):** Modifies task-level vs. autonomous founder voice.
-   - **Layer 3 (Narrative Angle):** Modifies applied builder vs. hybrid vs. specialist angles.
-   - **Layer 4 (Proof Anchor):** Modifies how the candidate substantiates claims (projects/certs vs. honors).
-
-## Modular Multi-Provider LLM Engine & Account-Scoped BYOK
-
-MailPilot provides a decoupled, multi-provider LLM domain (`lib/llm/`) with account-scoped customer API keys (BYOK). Reliance on global server-wide API keys is removed in favor of per-account AES-256-GCM encrypted credentials stored in `AccountSettings.rules`.
-
-### Multi-Provider Architecture & Flow
-
-```
-┌──────────────────────────────────────────────┐
-│  Inference Request (dispatcher.ts)           │
-└──────────────────────┬───────────────────────┘
-                       │
-        ┌──────────────┴──────────────┐
-        ▼                             ▼
-┌──────────────────┐        ┌──────────────────┐
-│  LOCAL_OLLAMA    │        │  Cloud Provider  │
-│  - 2s tag probe  │        │  (BYOK)          │
-│  - Adaptive time │        └─────────┬────────┘
-│  - Stream decode │                  │
-└───────┬──────────┘                  ▼
-        │ (failover if      ┌──────────────────┐
-        │  allowed)         │  Account Vault   │
-        └──────────────────►│  (vault.ts)      │
-                            │  - AES-256-GCM   │
-                            │  - Masked UI     │
-                            └─────────┬────────┘
-                                      │
-            ┌─────────────────────────┴────────────────────────┐
-            ▼                                                  ▼
-┌───────────────────────────────┐              ┌───────────────────────────────┐
-│  OpenAI-Compatible Client     │              │  Anthropic Native Client      │
-│  (/chat/completions)          │              │  (/messages)                  │
-│  - OpenRouter                 │              │  - Claude 3.5 Haiku / Sonnet  │
-│  - OpenAI                     │              │  - x-api-key headers          │
-│  - Groq                       │              └───────────────────────────────┘
-│  - DeepSeek                   │
-│  - Gemini (OpenAI-compat)     │
-└───────────────────────────────┘
-```
-
-### Module Layout & Roles
-
-| File | Role | Description |
-| :--- | :--- | :--- |
-| `lib/llm/provider.ssot.ts` | **Single Source of Truth** | Defines all supported providers (`OPENROUTER`, `OPENAI`, `GROQ`, `DEEPSEEK`, `ANTHROPIC`, `GEMINI`, `LOCAL_OLLAMA`), endpoints, default models, and Zod contracts. |
-| `lib/llm/vault.ts` | **Credential Vault** | Encrypts customer API keys with AES-256-GCM, generates safe UI display masks (`sk-...1234`), and decrypts credentials with zero plaintext leaks. |
-| `lib/llm/local-ollama.ts` | **Local Inference** | Encapsulates `/api/tags` health check pings, adaptive payload timeouts, and stream parsing. |
-| `lib/llm/client.ts` | **Multi-Cloud Client** | Standardizes outbound requests across OpenAI-compatible endpoints (`/chat/completions`) and Anthropic's native Messages API (`/messages`). |
-| `lib/llm/dispatcher.ts` | **Router & Dispatcher** | Core routing logic: tries local Ollama first when configured, fails over to BYOK cloud provider if permitted, and resolves account credentials. |
-| `lib/llm/classification.ts` | **Job Classifier** | Profile-aware email classification, job extraction, and heuristic application confirmation. |
-| `lib/llm/index.ts` | **Public Barrel** | Backwards-compatible facade re-exporting the entire LLM domain. |
-
-### BYOK Configuration & Security
-
-- Customer API keys are managed per-account via **Settings → AI & Models**.
-- Server actions `updateCustomLlmKey` and `clearCustomLlmKey` encrypt keys before persistence and only expose masked versions to the client.
-- Global `OPENROUTER_API_KEY` is not required for production; it is only checked as an optional fallback in local development or test runners.
-
-## Security & Encryption at Rest
-
-MailPilot protects vaulted credentials and sensitive candidate contact data using authenticated symmetric encryption:
-
-* **Engine:** AES-256-GCM (`lib/crypto.ts`)
-* **Key Derivation:** Single master `TOKEN_ENCRYPTION_KEY` (64-character hex / 32-byte secret)
-* **Mechanics:** 12-byte random initialization vector (IV) per invocation and 16-byte authentication tag
-* **Storage Format:** Stored strictly as `iv:authTag:ciphertext` in PostgreSQL
-
-### Encrypted Assets
-
-| Asset | Location | Storage Type | Decryption / Verification Boundary |
-| :--- | :--- | :--- | :--- |
-| **Google OAuth Access & Refresh Tokens** | `Account.encryptedAccess`, `Account.encryptedRefresh` | Database column | Decrypted in memory by serverless workers during Gmail sync / push renewal. |
-| **BYOK Cloud LLM API Keys** | `AccountSettings.rules.encryptedApiKey` | Vaulted JSON field | Decrypted in server memory per inference request; never serialized to client UI (masked as `sk-...[last4]`). |
-| **Local Ollama Bridge CLI Secret** | `AccountSettings.rules.encryptedBridgeSecret` | Vaulted JSON field | Decrypted in memory and validated against terminal pings using constant-time `crypto.timingSafeEqual`. |
-| **Candidate Phone Number** | `UserProfile.phone` | Database column | Encrypted at rest; decrypted on demand when viewing profile editor or generating tailored resume exports. |
-
-### Verification Principles
-* **Timing-Safe Authentication:** Incoming verification tokens are never stored or matched via raw ciphertext lookups; secrets are decrypted into backend memory and compared with timing-safe buffers (`crypto.timingSafeEqual`) to eliminate side-channel timing attacks.
-
-## Ingestion, Classification & Decoupled Opportunity Pipeline
-
-MailPilot features a resilient, decoupled ingestion and matching pipeline built around three domain contracts (`lib/persona/`, `lib/opportunities/context/`, and `lib/matching/`). Anti-corruption adapter lenses isolate external ingestion sources and database models from downstream evaluation and UI rendering.
+### Ingestion, Classification & Decoupled Opportunity Pipeline
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -431,36 +159,412 @@ MailPilot features a resilient, decoupled ingestion and matching pipeline built 
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Sizing Boundaries & Content Scrubber
+---
 
-To protect LLM context windows and maximize inference speed, MailPilot enforces strict character boundaries on inbound content:
+## 3. The Decoupled Domain Architecture (SSOT & Lenses)
 
-* **Inbound Snippet (Smart Ramp-Up):**
-  - Managed by `extractCleanSnippet()` in `lib/opportunities/context/scrubber.ts`.
-  - Enforces a minimum of 500 characters and a ceiling of 1,500 characters.
-  - Automatically ramps up to natural sentence boundaries (`[.!?]`), avoiding abrupt word chops.
-* **Job Description Scrubber:**
-  - Managed by `sanitizeJobDescription()` in `lib/opportunities/context/scrubber.ts`.
-  - Strips legal disclaimers, Equal Opportunity Employer (EEO) statements, benefits headers, and company culture boilerplate.
-  - Hard caps payload between 4,000 and 6,000 characters (default 4,000) at clean paragraph or section boundaries.
+MailPilot enforces strict domain decoupling through **Single Source of Truth (SSOT)** schemas and **Anti-Corruption Lenses**. Domain logic never imports raw Prisma database models directly; instead, dedicated adapter lenses sanitize, normalize, and buffer changes between storage models and business logic.
 
-### Transient Email Storage Policy
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                              PRISMA DATABASE                                 │
+│          Account · JobOpportunity · UserProfile · WorkExperience             │
+└──────┬──────────────────────┬────────────────────────┬───────────────────────┘
+       │                      │                        │
+       ▼                      ▼                        ▼
+┌──────────────┐      ┌──────────────┐         ┌──────────────┐
+│  Persona     │      │ Job Context  │         │  Candidate   │
+│  Fact Lens   │      │ Lens Layer   │         │  Match Lens  │
+│  (lens.ts)   │      │ (lens.ts)    │         │  (lens.ts)   │
+└──────┬───────┘      └──────┬───────┘         └──────┬───────┘
+       │                      │                        │
+       ▼                      ▼                        ▼
+┌──────────────┐      ┌──────────────┐         ┌──────────────┐
+│ Candidate    │      │ Normalized   │         │ Match        │
+│ Persona      │      │ Job Opp      │         │ Candidate    │
+│ (schema.ssot)│      │ (schema.ssot)│         │ (schema.ssot)│
+└──────┬───────┘      └──────┬───────┘         └──────┬───────┘
+       │                     │                        │
+       └─────────────────┐   │   ┌────────────────────┘
+                         ▼   ▼   ▼
+               ┌───────────────────────────┐
+               │    Evaluator & Tailor     │
+               │   (Domain-Neutral Core)   │
+               └───────────────────────────┘
+```
 
-In accordance with strict privacy principles and storage limits:
-- **`EmailMessage.rawBody` is set to `null`:** Inbound email bodies are scrubbed in memory during classification and never permanently retained in the database.
-- **On-Demand Email Fetching:** When viewing original email threads in the UI (e.g. "View Original Email" modal), live message text is fetched on the fly via `GET /api/gmail/message?id=<messageId>` using transient Google OAuth tokens.
+### 1. Candidate Persona Engine (`lib/persona/`)
+Translates grounded candidate facts into deterministic multi-dimensional posture descriptors without external LLM calls. It utilizes an interlocking classification matrix:
 
-### Architecture Modification Guide
+```
+┌──────────────────────────────────────────────┐
+│  Ground Truth: MasterProfileInput (Database) │
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│  Adapter Lens: PersonaFactLens (lens.ts)     │  <-- Buffers schema changes
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│  Interlocking Matrix (matrix.ts)             │
+│  - Seniority Tier (6 tiers)                  │
+│  - Disciplinary Archetype (4 archetypes)     │
+│  - Leadership Scope (3 scopes)               │
+│  - Distinction Anchor (3 anchors)            │
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│  Tone Composer (tone-composer.ts)            │  <-- 4-Layer Modular Voice Stack
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│  Contract: CandidatePersona                  │
+└───────────┬───────────────────┬──────────────┘
+            │                   │
+            ▼                   ▼
+     [ Match Scoring ]   [ Email Responding ]   [ Resume Tailoring ]
+```
 
-Future developers should make edits within the designated Single Source of Truth (SSOT) files and adapter lenses:
+- **Seniority Tier:** Deterministic mapping across 6 tiers (`Student / Early Career`, `Career Switcher`, `Mid-Level Professional`, `Senior Practitioner`, `Staff / Principal Specialist`, `Executive / Organizational Leader`).
+- **Disciplinary Archetype:** Evaluates candidate role history into 4 archetypes (`Deep-Domain Specialist`, `Applied Builder / Generalist`, `Cross-Disciplinary Hybrid`, `Strategic / Operations Leader`).
+- **Leadership Scope:** Individual Contributor, Technical/Operational Lead, or Executive/Director.
+- **Distinction Anchor:** Grounded proof anchor (`Elite / Accredited Pedigree`, `Enterprise Scale / Brand Name`, `Production Tenure / Self-Directed Output`).
+- **4-Layer Modular Voice Stack (`tone-composer.ts`):** Synthesizes downstream prompt guidance across Seniority Guardrails, Agency Dials, Narrative Angles, and Proof Anchors.
 
-| Domain | Contract (SSOT) | Adapter Lens | Purpose & Future Developer Guidelines |
+### 2. Job Context Domain (`lib/opportunities/context/`)
+Isolates opportunity persistence from evaluation. The adapter `resolveJobOpportunity()` yields a canonical `NormalizedJobOpportunity` with strict sizing boundaries:
+- **Smart Snippet Extraction (`extractCleanSnippet`):** Enforces a minimum of 500 characters and a ceiling of 1,500 characters, ramping up to natural sentence boundaries (`[.!?]`) to eliminate word truncation.
+- **Job Description Scrubber (`sanitizeJobDescription`):** Strips legal boilerplate, Equal Opportunity Employer (EEO) statements, benefits headers, and company culture fluff. Hard-caps payloads between 4,000 and 6,000 characters (default 4,000) at clean paragraph breaks.
+
+### 3. Match Scoring Lens (`lib/matching/`)
+Consumes `MatchCandidateLens` to evaluate alignment between candidate credentials and job specifications without exposing private candidate contact information or raw database entities:
+- **Tenure Flooring & Leveling Check:** Compares required job seniority against the candidate's verified leveling.
+- **Taxonomy Normalization:** Cross-references required technologies, operational methodologies, and domain keywords against candidate competencies.
+- **Fit Tier Output:** Produces standardized `HIGH`, `MID`, or `LOW` fit ratings accompanied by a bulleted factual rationale.
+
+---
+
+## 4. Multi-Tier Inference Router & Local Circuit Breaker
+
+MailPilot features an account-scoped multi-tier inference router (`lib/llm/dispatcher.ts`) engineered for zero token waste, local privacy, and continuous synchronization uptime.
+
+```
+┌──────────────────────────────────────────────┐
+│  Inference Request (dispatcher.ts)           │
+└──────────────────────┬───────────────────────┘
+                       │
+        ┌──────────────┴──────────────┐
+        ▼                             ▼
+┌──────────────────┐        ┌──────────────────┐
+│  LOCAL_OLLAMA    │        │  Cloud Provider  │
+│  - 2s tag probe  │        │  (BYOK)          │
+│  - Adaptive time │        └─────────┬────────┘
+│  - Stream decode │                  │
+└───────┬──────────┘                  ▼
+        │ (failover if      ┌──────────────────┐
+        │  allowed)         │  Account Vault   │
+        └──────────────────►│  (vault.ts)      │
+                            │  - AES-256-GCM   │
+                            │  - Masked UI     │
+                            └─────────┬────────┘
+                                      │
+            ┌─────────────────────────┴────────────────────────┐
+            ▼                                                  ▼
+┌───────────────────────────────┐              ┌───────────────────────────────┐
+│  OpenAI-Compatible Client     │              │  Anthropic Native Client      │
+│  (/chat/completions)          │              │  (/messages)                  │
+│  - OpenRouter                 │              │  - Claude 3.5 Haiku / Sonnet  │
+│  - OpenAI                     │              │  - x-api-key headers          │
+│  - Groq                       │              └───────────────────────────────┘
+│  - DeepSeek                   │
+│  - Gemini (OpenAI-compat)     │
+└───────────────────────────────┘
+```
+
+### The 3-Tier Fallback Hierarchy
+
+| Tier | Engine | Transport / Protocol | Latency | Token Cost | Behavior / Circuit Breaker Guardrail |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Tier 1** | **Local Ollama** | Cloudflare Tunnel / Localhost HTTP | ~400ms – 2s | **$0.00** (Free) | Probes `/api/tags` with adaptive payload timeouts (45s–180s idle, 120s–600s hard cap). If unreachable, trips an in-memory circuit breaker (`isOllamaCircuitTripped`) to bypass subsequent calls in **0ms**. |
+| **Tier 2** | **Cloud BYOK** | HTTPS REST (`/chat/completions` or `/messages`) | ~600ms – 1.8s | BYOK (Direct) | Account-scoped AES-256-GCM decrypted keys. Automatic model targeting across OpenRouter, OpenAI, Groq, DeepSeek, Anthropic, or Gemini. Handles HTTP 429 rate limits gracefully. |
+| **Tier 3** | **Grand Heuristic** | Zero-token TypeScript regex & JSON-LD AST | **< 2ms** | **$0.00** (Free) | Synchronous deterministic pattern matcher. Guarantees that inbox synchronization and opportunity extraction **never fail or stall** during total model outages or depleted API credits. |
+
+### Real-Time ASCII Telemetry Pipeline
+All model invocations are monitored via a standardized 66-column terminal ASCII telemetry logger (`lib/logging/table-logger.ts`):
+
+```text
+┌────────────────────────────────────────────────────────────────┐
+│ SCOPE: EngineTelemetry                                         │
+│ ENGINE: CLOUD_BYOK          PROVIDER: OPENROUTER               │
+│ MODEL: google/gemini-2.5-flash                                 │
+│ PHASE: COMPLETE             DURATION: 312ms                    │
+│ PROMPT: 4,191 chars         OUTPUT: 842 chars                  │
+└────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5. Web Scraping & Anti-Bot Evasion Engine
+
+Inbound emails frequently contain abbreviated link digests (`< 300 chars`) pointing to external job boards. MailPilot utilizes a cost-aware, multi-stage link parsing engine (`lib/opportunities/context/`) designed to extract rich specifications while protecting proxy credits:
+
+### Pacing & Hydration Strategy
+- **Background Sync Pacing (Zero Credit Waste):** During automated inbox sync passes, Glassdoor and Indeed links fast-exit immediately in **0ms** without triggering external proxy calls, persisting as `MINIMAL_LEAD` records.
+- **On-Demand Spec Hydration (HasData BYOK):** When a user opens an opportunity to tailor a resume or clicks *Hydrate Spec*, MailPilot executes `fetchViaHasData` using the customer's encrypted HasData BYOK key, upgrading the record from `MINIMAL_LEAD` to `RICH_SPEC` (saving up to 4,000+ characters of parsed requirements to PostgreSQL).
+
+### Multi-Stage Scraping Pipeline
+
+```mermaid
+flowchart TD
+  URL["Inbound Job URL"] --> PROTO{"Direct ATS vs Portal?"}
+  PROTO -->|Direct ATS| DIRECT["Direct HTTP Request (User-Agent: MailPilot/1.0)"]
+  PROTO -->|Glassdoor / Indeed| GATE{"Sync Mode?"}
+
+  GATE -->|Background Pass| MIN["0ms Fast Exit: MINIMAL_LEAD"]
+  GATE -->|User On-Demand| HASDATA["fetchViaHasData (HasData BYOK Proxy)"]
+
+  DIRECT --> STATUS{"HTTP Status"}
+  STATUS -->|200 OK| PARSE{"Payload Extraction"}
+  STATUS -->|403 / 429 Bot Wall| SCRAPINGANT["ScrapingAnt BYOK Proxy Fallback"]
+
+  PARSE --> JLD["Schema.org JSON-LD AST Parser"]
+  PARSE --> NUXT["Nuxt 3 __NUXT_DATA__ State Parser"]
+  PARSE --> LI["LinkedIn Guest API (/jobs-guest/api/jobPosting/)"]
+
+  JLD & NUXT & LI & HASDATA & SCRAPINGANT --> SANITIZE["sanitizeJobDescription() (4,000 chars)"]
+  SANITIZE --> DB[("PostgreSQL RICH_SPEC")]
+```
+
+1. **Schema.org JSON-LD Extraction (`json-ld.ts`):** Parses `<script type="application/ld+json">` AST blocks, extracting structured `JobPosting` entities (title, hiring organization, base salary, date posted, employment type).
+2. **Nuxt 3 SSR State Parser (`nuxt.ts`):** De-serializes `<script id="__NUXT_DATA__">` JSON arrays. Resolves recursive object index pointers to extract full job descriptions from modern Nuxt 3 applications without headless Chrome overhead.
+3. **LinkedIn Public Guest API (`linkedin.ts`):** Resolves LinkedIn URLs via a 2-tier public unauthenticated pipeline (`https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{id}`) with fallback to Googlebot-emulated Schema.org parsing.
+4. **Proxy BYOK Fallback (`hasdata.ts`, `scrapingant.ts`):** Transparent residential rotating proxy failover for Cloudflare and DataDome protected career portals.
+
+---
+
+## 6. Cryptography, Privacy & Security Guardrails
+
+### 1. Authenticated Symmetric Encryption (AES-256-GCM)
+All vaulted customer secrets and sensitive candidate metadata are encrypted at rest using Node.js `crypto` (`lib/crypto.ts`):
+- **Cipher:** AES-256-GCM (Authenticated Encryption with Associated Data).
+- **Key Derivation:** Master 64-character hexadecimal key (`TOKEN_ENCRYPTION_KEY`, 256-bit entropy).
+- **Envelope Mechanics:** 12-byte cryptographically secure random Initialization Vector (IV) and 16-byte authentication tag generated per write.
+- **Storage Envelope:** Persisted strictly as `iv:authTag:ciphertext` in PostgreSQL.
+
+| Asset | Storage Target | Decryption Boundary | Masking / Protection |
 | :--- | :--- | :--- | :--- |
-| **Persona** | `lib/persona/schema.ssot.ts` | `lib/persona/lens.ts` | Edit when adding candidate persona dimensions (archetypes, tone guidance, seniority tiers). Never import raw Prisma models into tailor logic. |
-| **Job Context** | `lib/opportunities/context/schema.ssot.ts` | `lib/opportunities/context/lens.ts` | Edit when updating canonical job opportunity representations. `resolveJobOpportunity()` is the sole entrypoint mapping DB rows to the pipeline. |
-| **Match Scoring** | `lib/matching/schema.ssot.ts` | `lib/matching/lens.ts` | Edit when adjusting matching criteria, fit tiers (`HIGH`, `MID`, `LOW`), or seniority alignment. Evaluators consume `MatchCandidateLens`. |
-| **AI Classification** | `lib/llm/classification.ts` | N/A | 2-Tier AI classification pipeline (Tier 1: Local Ollama, Tier 2: Cloud BYOK) parsing opportunities without regex/footer guessing. |
+| **Google OAuth Access & Refresh Tokens** | `Account.encryptedAccess`, `Account.encryptedRefresh` | Memory of serverless worker during delta sync / watch renewal | Plaintext never exposed to browser; automatic token refresh. |
+| **Cloud LLM API Keys** | `AccountSettings.rules.accountApiKey` | Decrypted per inference request in server memory | UI display mask: `sk-...[last4]`. |
+| **Scraping Proxy Keys** | `AccountSettings.rules.hasDataApiKey` | Decrypted per scraping request in server memory | UI display mask: `hd-...[last4]`. |
+| **Candidate Phone Number** | `UserProfile.phone` | Decrypted in server actions during profile editing / PDF export | Never serialized to unauthenticated API routes. |
 
+* **Constant-Time Verification:** Secret tokens and hashes are validated using `crypto.timingSafeEqual` to eliminate side-channel timing attacks.
 
+### 2. Hardened Server-Side Request Forgery (SSRF) Protection (`lib/ssrf.ts`)
+MailPilot prevents internal network probing and cloud metadata extraction by performing DNS pre-resolution validation on all user-supplied and email-extracted URLs before dispatching HTTP requests:
+- **Protocol Enforcement:** Strictly allows `http:` and `https:`. Rejects `file:`, `gopher:`, `ftp:`, and javascript schemes.
+- **Blocked IP Ranges (Pre-Resolution Guardrails):**
+  - **Loopback:** `127.0.0.0/8`, `::1`
+  - **Private RFC 1918:** `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`
+  - **AWS / Cloud Instance Metadata:** `169.254.169.254`
+  - **Link-Local:** `169.254.0.0/16`, `fe80::/10`
+  - **Carrier-Grade NAT:** `100.64.0.0/10`
+  - **Broadcast & Reserved:** `0.0.0.0/8`, `240.0.0.0/4`, `255.255.255.255/32`
 
+### 3. RFC 8058 One-Click Unsubscribe Engine
+- Inspects email headers for `List-Unsubscribe` and `List-Unsubscribe-Post`.
+- Dispatches an automated HTTP `POST` request with body `List-Unsubscribe=One-Click` in compliance with RFC 8058.
+- Falls back to automated `mailto:` subject/body generation and batch Gmail label trash assignment.
 
+---
+
+## 7. Line-Addressable Resume Tailoring & Page Budgeting
+
+Earlier resume tailoring architectures digested job specs and immediately froze the result into a static base64 PDF buffer. That legacy pattern created severe drawbacks: individual bullets could not be edited, subsequent AI refinement passes hallucinated and drifted unrelated sections, and page length could not be guaranteed.
+
+MailPilot solves this with a **Line-Addressable Intermediate Document Tree (`TailoredResumeDraft`)**:
+
+```mermaid
+flowchart LR
+  subgraph Input["1. Ground Truth Inputs"]
+    MP["Master Profile Ledger"]
+    SPEC["Sanitized Job Spec (4,000 chars)"]
+    RULES["Account Preferences & Rules"]
+  end
+
+  subgraph StageA["2. Strategy & Budget Allocation"]
+    MP & SPEC & RULES --> STRAT["Tailoring Strategy Engine (Stage A)"]
+    STRAT --> BUDGET["Elastic Page Budgeter (budget.ts)"]
+    BUDGET -->|Classify Density| DENSE{"Density Calculator"}
+    DENSE -->|Early Tenure / Switcher| SPARSE["SPARSE: 2-3 Projects First"]
+    DENSE -->|Standard Career| BALANCED["BALANCED: 3-5 Bullets / Role"]
+  end
+
+  subgraph StageB["3. Dual-Mode Google XYZ Reframing"]
+    SPARSE & BALANCED --> REFRAME["Bullet Reframing Engine (Stage B)"]
+    REFRAME -->|inventMetrics: false| MODEA["Mode A: Strict Metric Preservation (XYZ)"]
+    REFRAME -->|inventMetrics: true| MODEB["Mode B: 4D Metric Synthesis (XYZ)"]
+  end
+
+  subgraph DraftTree["4. Line-Addressable Node Tree"]
+    MODEA & MODEB --> DIGEST["digestTailoredResume()"]
+    DIGEST --> TREE[("TailoredResumeDraft (JSON Node Tree)")]
+    TREE <-->|Click-to-Edit / Reorder| UI["Interactive WYSIWYG Workspace"]
+    TREE <-->|Surgical 1-Line Rewrite| REFINE["refineResumeLine()"]
+    TREE -->|Gated by selected: true| COMP["Draft Compiler"]
+  end
+
+  subgraph Output["5. Multi-Format Layout Engines"]
+    COMP --> PDF["@react-pdf/renderer (Strict 1-Page Letter Layout)"]
+    COMP --> DOCX["compileResumeDocx (JSZip OpenXML Engine)"]
+  end
+```
+
+### 1. Two-Stage Decoupled LLM Tailoring
+- **Stage A: Strategy & Selection:** Selects relevant evidence from the candidate's master profile, extracts key job requirements, generates strategy rationale, and allocates bullet budgets according to target page constraints.
+- **Stage B: Focused Bullet Reframing:** Sends only the selected experience and project bullets to the model with 1:1 ID tracking for Google XYZ restructuring.
+
+### 2. Dual-Mode Google XYZ Reframing Engine
+Restructures all selected bullets into Google's core XYZ structural pattern:
+$$\text{[Strong Action Verb]} + \text{[Impact / Scope / Metric]} + \text{[Method / Technical Approach]}$$
+
+- **Mode A: Strict Metric Preservation (`inventMetrics: false`):**
+  - Preserves all existing numbers, latencies, percentages, and scale verbatim. Never erases or alters substantiated metrics.
+  - If a bullet lacks numbers, it is **never skipped or left in raw form**; it is restructured around verified qualitative operational scope and problem-solving impact using only facts substantiated in the source document.
+- **Mode B: Believable Metric Synthesis (`inventMetrics: true`):**
+  - Adapts synthesized metrics across the 4 universal impact dimensions calibrated strictly to candidate leveling:
+    1. *Efficiency & Velocity:* Turnaround time reduction (~10–20%), cycle speedup.
+    2. *Quality & Accuracy:* Compliance rates (98%+ verification accuracy), error reduction.
+    3. *Volume & Throughput:* Items/records/tickets processed, units coordinated.
+    4. *Satisfaction & Adoption:* Retention stability, feedback scores, workflow adoption.
+
+### 3. Elastic Page Budgeting (`budget.ts`)
+Calculates dynamic bullet allocations to guarantee strict 1-page Letter layout geometry:
+- **Career Switcher / Early Tenure Detection:** When candidate in-field tenure is $\le 2$ years, the budgeter classifies density as `SPARSE`, reorders sections to place practical projects before legacy experience, and expands project bullet limits (2–3 bullets each).
+- **Dense Veteran Profiles:** Caps bullet counts per role (3–4 max) and project counts (1–2 max) to ensure dense profiles fit cleanly on 1 page without text overflow.
+
+### 4. Interactive Review Workspace & Multi-Format Compilation
+- **Intermediate Node Tree:** Stored as `ResumeDraftNode[]` (`id`, `type`, `section`, `content`, `selected`, `metadata`).
+- **Surgical AI Refinement (`refineResumeLine`):** Sends only the selected node's text and a custom prompt to the model, rewriting that specific line in 300ms without touching the rest of the document.
+- **Streamlined Heading Layout:** Eliminates repository link clutter from project headers; candidate GitHub and portfolio presence is anchored cleanly in the contact header bar.
+- **Export Engines:**
+  - `@react-pdf/renderer`: Produces print-ready PDF buffers (612 $\times$ 792 pt Letter geometry, 18pt padding, zero mid-word hyphenation splits).
+  - JSZip OpenXML Engine (`compileResumeDocx`): Produces native Microsoft Word `.docx` documents.
+
+---
+
+## 8. Technology Stack Matrix
+
+| Layer | Technology | Version / Specification | Architectural Responsibility |
+| :--- | :--- | :--- | :--- |
+| **Framework** | **Next.js** | 15 (App Router, Server Actions) | Unified web framework with React 19 Server Components and Route Handlers. |
+| **Serverless Runtime** | **Node.js** | v20+ on Vercel Serverless | Non-blocking background worker execution using Next.js 15 `after()`. |
+| **Database** | **PostgreSQL** | v16 (Neon / Supabase) | Multi-tenant relational persistence with connection pooling. |
+| **ORM** | **Prisma** | v6 | Type-safe query building, relation mapping, and migrations. |
+| **Styling & Components**| **Tailwind CSS / shadcn** | Tailwind v3.4, Radix UI | Mobile-first responsive design, dense desktop data tables, Lucide icons. |
+| **Cryptography** | **Node.js Crypto** | AES-256-GCM / timingSafeEqual | Authenticated envelope encryption at rest; timing-safe secret comparisons. |
+| **Document Generation**| **React-PDF & JSZip** | `@react-pdf/renderer` v4 | Dynamic vector PDF rendering and binary `.docx` XML generation. |
+| **Inference Router** | **Multi-Provider BYOK** | Local Ollama + Cloud REST | Multi-tier failover: Ollama (Tunnel) $\to$ OpenRouter $\to$ Grand Heuristic. |
+| **Scraping & Parsing** | **Cheerio & Custom AST** | Cheerio v1.0, Nuxt AST | Schema.org JSON-LD extraction, Nuxt 3 state un-flattening, LinkedIn Guest API. |
+| **Logging & Telemetry**| **Pino & TableLogger** | Pino v9 + 66-col ASCII | Structured JSON logging in production; formatted ASCII telemetry in dev. |
+| **Testing** | **Vitest** | v4.1 (Zero-Token Mocks) | Deterministic, offline unit and integration test suite. |
+
+---
+
+## 9. Test Suite, Verification & Local Development
+
+### Deterministic Test Suite
+MailPilot maintains a comprehensive, zero-token test suite using **Vitest**. All tests execute completely offline without network calls or live database dependencies:
+
+```bash
+# Run the complete test suite (18 suites, 258 tests)
+npx vitest run
+
+# Run tests in interactive watch mode
+npm run test:watch
+
+# Execute strict TypeScript typecheck
+npx tsc --noEmit
+```
+
+```text
+ ✓ lib/opportunities/context/__tests__/job-context.test.ts (28 tests)
+ ✓ lib/__tests__/ssrf.test.ts (3 tests)
+ ✓ lib/matching/__tests__/matching.test.ts (8 tests)
+ ✓ lib/ai/__tests__/salary.test.ts (14 tests)
+ ✓ lib/llm/__tests__/local-ollama-circuit.test.ts (14 tests)
+ ✓ lib/__tests__/account-encryption.test.ts (7 tests)
+ ✓ lib/llm/__tests__/classification-normalizer.test.ts (16 tests)
+ ✓ lib/llm/__tests__/llm-vault.test.ts (13 tests)
+ ✓ lib/llm/__tests__/llm-ratelimit.test.ts (4 tests)
+ ✓ lib/persona/__tests__/persona.test.ts (3 tests)
+ ✓ lib/opportunities/context/__tests__/hasdata.test.ts (6 tests)
+ ✓ lib/__tests__/crypto.test.ts (2 tests)
+ ✓ lib/__tests__/company-logo.test.ts (11 tests)
+ ✓ lib/utils/__tests__/location.test.ts (9 tests)
+ ✓ lib/ai/__tests__/prefilter.test.ts (10 tests)
+ ✓ lib/logging/__tests__/table-logger.test.ts (15 tests)
+ ✓ lib/opportunities/context/__tests__/json-ld.test.ts (41 tests)
+ ✓ lib/resume-draft/__tests__/resume-draft.test.ts (54 tests)
+
+Test Files  18 passed (18)
+     Tests  258 passed (258)
+  Duration  1.04s
+```
+
+### Prerequisites
+- **Node.js:** v20.0.0 or higher
+- **npm:** v10.0.0 or higher
+- **PostgreSQL:** v15+ instance (local or hosted on Neon / Supabase)
+- **Google Cloud Platform:** Project with Gmail API and Cloud Pub/Sub enabled
+
+### Local Setup Instructions
+
+1. **Clone the repository and install dependencies:**
+   ```bash
+   git clone https://github.com/Marqlo-C/MailPilot.git
+   cd MailPilot
+   npm install
+   ```
+
+2. **Configure environment variables:**
+   ```bash
+   cp .env.example .env.local
+   ```
+   Populate `.env.local` using the environment configuration table below.
+
+3. **Push Prisma database schema:**
+   ```bash
+   npx prisma db push
+   ```
+
+4. **Launch development server:**
+   ```bash
+   npm run dev
+   ```
+   Open `http://localhost:3000` in your browser.
+
+### Key Environment Variables
+
+| Variable | Description | Source / Requirement |
+| :--- | :--- | :--- |
+| `DATABASE_URL` | PostgreSQL connection string (with connection pooling) | Required |
+| `TOKEN_ENCRYPTION_KEY` | 64-character hexadecimal key (256-bit AES-GCM master secret) | Required |
+| `GOOGLE_CLIENT_ID` | GCP OAuth 2.0 Client ID | Required |
+| `GOOGLE_CLIENT_SECRET` | GCP OAuth 2.0 Client Secret | Required |
+| `GOOGLE_REDIRECT_URI` | GCP OAuth callback URI (`http://localhost:3000/api/auth/callback`) | Required |
+| `GMAIL_PUBSUB_TOPIC` | Google Pub/Sub topic (`projects/{project}/topics/{topic}`) | Required |
+| `GMAIL_WEBHOOK_SECRET`| Shared secret verifying `/api/webhooks/gmail?token=` requests | Required |
+| `CRON_SECRET` | Bearer token securing scheduled background maintenance endpoints | Required |
+| `BLOB_READ_WRITE_TOKEN`| Vercel Blob access token for private object storage | Optional |
+| `OPENROUTER_API_KEY` | Optional development fallback (production keys are managed per-account) | Optional |
+
+---
+
+## License
+
+This project is proprietary software. All rights reserved.

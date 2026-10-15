@@ -36,6 +36,7 @@ import {
   renderDraftPdf,
   resolveOpportunityContext,
   saveDraft,
+  tailorConfigSchema,
   type OpportunityResumePreview,
   type OpportunityResumeState,
 } from "./composer";
@@ -48,11 +49,9 @@ export async function buildOpportunityResumePreview(
     previousSelectedBulletIds?: string[] | null;
     includeSummary?: boolean;
     forceRegenerate?: boolean;
+    inventMetrics?: boolean;
   } = {}
 ): Promise<OpportunityResumePreview | null> {
-  const includeSummary = options.includeSummary === true;
-  const forceRegenerate = options.forceRegenerate === true;
-
   const opportunity = await prisma.jobOpportunity.findFirst({
     where: { id: opportunityId, accountId },
     select: {
@@ -73,20 +72,44 @@ export async function buildOpportunityResumePreview(
     throw new Error("Opportunity not found");
   }
 
-  if (!forceRegenerate) {
-    const cached = previewFromCache(opportunity);
-    if (cached) {
-      return cached;
-    }
-    return null;
-  }
-
   const account = await prisma.account.findUnique({
     where: { id: accountId },
     include: { settings: true },
   });
-  const profile = await loadMasterProfile(accountId);
   const accountRules = parseAccountRules(account?.settings?.rules);
+
+  const includeSummary =
+    options.includeSummary !== undefined
+      ? options.includeSummary
+      : (accountRules.resumePreferences?.includeSummary ?? false);
+  const inventMetrics =
+    options.inventMetrics !== undefined
+      ? options.inventMetrics
+      : (accountRules.resumePreferences?.inventMetrics ?? false);
+  const forceRegenerate = options.forceRegenerate === true;
+
+  if (!forceRegenerate) {
+    const cached = previewFromCache(opportunity);
+    if (cached) {
+      const config = tailorConfigSchema.safeParse(opportunity.tailorConfig ?? {});
+      const cachedIncludeSummary = config.success
+        ? config.data.includeSummary
+        : cached.includeSummary;
+      const cachedInventMetrics = config.success
+        ? config.data.inventMetrics
+        : undefined;
+
+      const summaryMatches = cachedIncludeSummary === includeSummary;
+      const metricsMatch =
+        cachedInventMetrics === undefined || cachedInventMetrics === inventMetrics;
+
+      if (summaryMatches && metricsMatch) {
+        return cached;
+      }
+    }
+  }
+
+  const profile = await loadMasterProfile(accountId);
 
   let { context } = await resolveOpportunityContext(opportunityId);
 
@@ -201,8 +224,10 @@ export async function buildOpportunityResumePreview(
       previousSelectedBulletIds: options.previousSelectedBulletIds,
       dbClient: prisma,
       includeSummary,
-      inventMetrics: accountRules.resumePreferences?.inventMetrics ?? false,
+      inventMetrics,
       targetPages: accountRules.resumePreferences?.maxPages ?? "auto",
+      accountId,
+      accountRules,
     }
   );
 
@@ -227,7 +252,7 @@ export async function buildOpportunityResumePreview(
     draft,
   };
 
-  await persistOpportunityResumeCache(opportunityId, preview);
+  await persistOpportunityResumeCache(opportunityId, preview, { inventMetrics });
   return preview;
 }
 
@@ -407,11 +432,13 @@ export async function prepareOpportunityResume(
   options: {
     includeSummary?: boolean;
     forceRegenerate?: boolean;
+    inventMetrics?: boolean;
   } = {}
 ): Promise<OpportunityResumePreview | null> {
   return buildOpportunityResumePreview(accountId, opportunityId, {
-    includeSummary: options.includeSummary === true,
+    includeSummary: options.includeSummary,
     forceRegenerate: options.forceRegenerate === true,
+    inventMetrics: options.inventMetrics,
   });
 }
 
@@ -421,7 +448,8 @@ export async function refineOpportunityResume(
   opportunityId: string,
   instruction: string,
   previousExperiences?: WorkExperienceInput[] | null,
-  includeSummary = false
+  includeSummary = false,
+  inventMetrics?: boolean
 ): Promise<OpportunityResumePreview> {
   const trimmed = instruction.trim();
   if (!trimmed) {
@@ -435,6 +463,7 @@ export async function refineOpportunityResume(
     customInstruction: trimmed,
     previousSelectedBulletIds,
     includeSummary,
+    inventMetrics,
     forceRegenerate: true,
   });
   if (!preview) {

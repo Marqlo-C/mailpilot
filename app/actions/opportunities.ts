@@ -467,7 +467,8 @@ export async function hydrateOpportunitySpecAction(
 /** Explicit Generate / Regenerate — always runs tailor and persists cache. */
 export async function generateOpportunityResumeAction(
   opportunityId: string,
-  includeSummary = false
+  includeSummary = false,
+  inventMetrics?: boolean
 ): Promise<ActionResult<OpportunityResumePreview>> {
   const opportunity = await prisma.jobOpportunity.findUnique({
     where: { id: opportunityId },
@@ -481,7 +482,7 @@ export async function generateOpportunityResumeAction(
     const data = await prepareOpportunityResume(
       opportunity.accountId,
       opportunityId,
-      { includeSummary, forceRegenerate: true }
+      { includeSummary, forceRegenerate: true, inventMetrics }
     );
     if (!data) {
       return { ok: false, error: "Failed to generate resume" };
@@ -498,9 +499,10 @@ export async function generateOpportunityResumeAction(
 
 export async function regenerateOpportunityResumeAction(
   opportunityId: string,
-  includeSummary = false
+  includeSummary = false,
+  inventMetrics?: boolean
 ): Promise<ActionResult<OpportunityResumePreview>> {
-  return generateOpportunityResumeAction(opportunityId, includeSummary);
+  return generateOpportunityResumeAction(opportunityId, includeSummary, inventMetrics);
 }
 
 export async function updateResumeDraftNodeAction(

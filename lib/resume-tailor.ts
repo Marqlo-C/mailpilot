@@ -368,10 +368,10 @@ export function buildReframeSystemPrompt(
 - STRICT DOMAIN DISCIPLINE: Never inject software/code tools, tech jargon, or foreign domain concepts into non-technical or legacy roles (e.g., never assign coding or cloud metrics to an administrative, logistical, or client-facing bullet).
 - MODESTY & SENIORITY BAR: Keep synthesized metrics modest and realistic. NEVER invent massive corporate revenue, multi-million-dollar numbers, enterprise-scale claims, or unrealistic executive impact.`
     : `METRIC INTEGRITY (STRICT - NO INVENTED NUMBERS):
-- If the source bullet already has numbers, latencies, percentages, or scale, NEVER change or overwrite those metrics. Refine only sentence flow, action verbs, and Google XYZ structure.
-- If a source bullet has NO metrics, do NOT invent any numbers, percentages, or dollar amounts. Instead, emphasize qualitative execution scope, problem-solving impact, and procedural rigor.`;
+- If the source bullet already has numbers, latencies, percentages, or scale, NEVER change or overwrite those metrics. Refine sentence flow, action verbs, and Google XYZ structure while keeping all verified figures intact.
+- If a source bullet has NO metrics, do NOT invent any numbers, percentages, or dollar amounts. Instead, emphasize qualitative execution scope, problem-solving impact, and procedural rigor. You MUST STILL RESTRUCTURE the bullet into the Google XYZ pattern ([Strong Action Verb] + [Outcome / Verified Impact] + [Method / Tooling]) using verified facts from the source text. NEVER leave the bullet un-reframed.`;
 
-  return `You are an expert resume editor specializing in the Google XYZ resume framework. Reframe the chosen bullets to highlight alignment with the target role description.
+  return `You are an expert resume editor specializing in the Google XYZ resume framework. Reframe EVERY chosen bullet to highlight alignment with the target role description.
 
 GOOGLE XYZ FRAMEWORK:
 1. Follow Google's core XYZ structural formula for approximately 60%–70% of bullets:
@@ -381,7 +381,10 @@ GOOGLE XYZ FRAMEWORK:
    - Example of natural XYZ:
      "Engineered real-time vehicle telematics pipeline across 11 FastAPI endpoints, capturing 100% of fleet sensor events via automated userscript instrumentation."
      (e.g., "Decreased process turnaround time by 18% across 11 core workflows by establishing structured review gates and automated validation.")
-2. Leave the remaining 30%–40% focused on core domain responsibilities, operational execution, methodology, or tools.
+2. For qualitative bullets (or when metric synthesis is disabled), apply the same structural XYZ pattern:
+   [Strong Action Verb] + [Outcome / Verified Impact] + [Method / Tooling]
+   (e.g., "Standardized cross-region configuration delivery ensuring continuous cluster synchronization by authoring declarative infrastructure templates.")
+   DO NOT leave any bullet untouched or in raw source form. Every bullet must be actively restructured into the XYZ pattern.
 
 ${metricDirective}
 
@@ -392,8 +395,8 @@ FUNCTIONAL CROSSOVER & GROUND TRUTH:
 STRICT CONSTRAINTS:
 1. TRUTH PRESERVATION: Never change or overwrite existing numbers, metrics, or substantiated tools from the source text.
 2. ACTION-ORIENTED: Start each bullet with a strong action verb matching the candidate's verified level.
-3. NO DUPLICATES: Do NOT generate duplicate bullets for the same technology or metric claim. Maintain a strict 1:1 mapping with the input bullet IDs.
-4. LENGTH: Keep each bullet concise, between 16 and 32 words.
+3. NO DUPLICATES & 1:1 MAPPING: Maintain a strict 1:1 mapping with the input bullet IDs. Every input ID must appear in reframedBullets with its reframed text.
+4. LENGTH: Keep each bullet concise, between 16 and 34 words.
 
 Return ONLY valid JSON:
 { "reframedBullets": [{ "id": string, "rawText": string }] }`;
@@ -401,14 +404,33 @@ Return ONLY valid JSON:
 
 export const REFRAME_SYSTEM_PROMPT = buildReframeSystemPrompt({});
 
-const reframeSchema = z.object({
-  reframedBullets: z.array(
-    z.object({
-      id: z.string(),
-      rawText: z.string(),
-    })
-  ),
-});
+const bulletItemSchema = z
+  .object({
+    id: z.union([z.string(), z.number()]).transform((val) => String(val)),
+    rawText: z.string().optional(),
+    text: z.string().optional(),
+    bullet: z.string().optional(),
+    content: z.string().optional(),
+  })
+  .transform((val) => ({
+    id: val.id,
+    rawText: (val.rawText ?? val.text ?? val.bullet ?? val.content ?? "").trim(),
+  }));
+
+const reframeSchema = z.union([
+  z.object({
+    reframedBullets: z.array(bulletItemSchema),
+  }),
+  z.object({
+    bullets: z.array(bulletItemSchema),
+  }).transform((val) => ({ reframedBullets: val.bullets })),
+  z.object({
+    reframed_bullets: z.array(bulletItemSchema),
+  }).transform((val) => ({ reframedBullets: val.reframed_bullets })),
+  z.object({
+    items: z.array(bulletItemSchema),
+  }).transform((val) => ({ reframedBullets: val.items })),
+]);
 
 function normalizeBulletKey(text: string): string {
   return text
@@ -1102,9 +1124,9 @@ export async function tailorResumeForJob(
       company: exp.company,
     }))
   );
-  const projectBulletsToReframe = selectedProjects.flatMap((proj) =>
+  const projectBulletsToReframe = selectedProjects.flatMap((proj, pIdx) =>
     proj.bullets.map((text, idx) => ({
-      id: `${proj.id ?? proj.name}-b-${idx}`,
+      id: proj.id ? `${proj.id}-b-${idx}` : `proj-${pIdx}-b-${idx}`,
       rawText: text,
       kind: "project" as const,
       projectName: proj.name,
@@ -1126,6 +1148,11 @@ export async function tailorResumeForJob(
       bullets: bulletsToReframe,
     });
 
+    console.log(
+      `[Tailor:Reframe] Starting reframe for ${bulletsToReframe.length} bullets. inventMetrics =`,
+      inventMetrics
+    );
+
     try {
       const reframeResult = await callLLMWithFallback({
         systemPrompt: buildReframeSystemPrompt({
@@ -1140,41 +1167,79 @@ export async function tailorResumeForJob(
         accountId: options.accountId,
         accountRules: options.accountRules,
       });
-      const reframed = reframeResult
-        ? reframeSchema.safeParse(reframeResult)
-        : null;
 
-      if (reframeResult && !reframed?.success) {
+      if (!reframeResult) {
         console.warn(
-          "[ResumeTailor] Stage B reframe validation failed:",
-          reframed?.error?.issues
+          "[Tailor:Reframe] LLM returned null or empty result. Keeping original bullets."
         );
-      }
+      } else {
+        const reframed = reframeSchema.safeParse(reframeResult);
+        if (!reframed.success) {
+          console.error(
+            "[Tailor:Reframe] Stage B reframe validation failed:",
+            reframed.error.issues,
+            "Raw result keys:",
+            Object.keys(reframeResult)
+          );
+        } else {
+          console.log(
+            `[Tailor:Reframe] Successfully reframed ${reframed.data.reframedBullets.length} bullets.`
+          );
+          const reframedList = reframed.data.reframedBullets;
+          const reframedMap = new Map<string, string>();
+          for (const b of reframedList) {
+            const text = b.rawText.trim();
+            if (!text) continue;
+            reframedMap.set(b.id.trim(), text);
+            reframedMap.set(b.id.trim().toLowerCase(), text);
+          }
 
-      if (reframed?.success) {
-        const reframedMap = new Map(
-          reframed.data.reframedBullets.map((b) => [b.id.trim(), b.rawText.trim()])
-        );
-        selectedExperience = selectedExperience.map((exp) => ({
-          ...exp,
-          bullets: exp.bullets.map((b) => ({
-            ...b,
-            rawText: reframedMap.get(b.id.trim()) || b.rawText,
-          })),
-        }));
-        selectedProjects = selectedProjects.map((proj) => ({
-          ...proj,
-          bullets: dedupeAndCapProjectBullets(
-            proj.bullets.map(
-              (text, idx) =>
-                reframedMap.get(`${proj.id ?? proj.name}-b-${idx}`.trim()) || text
-            )
-          ),
-        }));
+          // Index fallback if 1:1 counts match
+          const indexMap = new Map<string, string>();
+          if (reframedList.length === bulletsToReframe.length) {
+            bulletsToReframe.forEach((orig, idx) => {
+              const reframedText = reframedList[idx]?.rawText?.trim();
+              if (reframedText) {
+                indexMap.set(orig.id, reframedText);
+              }
+            });
+          }
+
+          selectedExperience = selectedExperience.map((exp) => ({
+            ...exp,
+            bullets: exp.bullets.map((b) => ({
+              ...b,
+              rawText:
+                reframedMap.get(b.id.trim()) ??
+                reframedMap.get(b.id.trim().toLowerCase()) ??
+                indexMap.get(b.id) ??
+                b.rawText,
+            })),
+          }));
+
+          selectedProjects = selectedProjects.map((proj, pIdx) => ({
+            ...proj,
+            bullets: dedupeAndCapProjectBullets(
+              proj.bullets.map((text, idx) => {
+                const primaryId = proj.id
+                  ? `${proj.id}-b-${idx}`
+                  : `proj-${pIdx}-b-${idx}`;
+                const legacyNameId = `${proj.name}-b-${idx}`;
+                return (
+                  reframedMap.get(primaryId) ??
+                  reframedMap.get(primaryId.toLowerCase()) ??
+                  reframedMap.get(legacyNameId) ??
+                  indexMap.get(primaryId) ??
+                  text
+                );
+              })
+            ),
+          }));
+        }
       }
     } catch (err) {
-      console.warn(
-        "[ResumeTailor] Stage B reframe call failed, keeping original bullets:",
+      console.error(
+        "[Tailor:Reframe] Error during reframe:",
         err instanceof Error ? err.message : String(err)
       );
     }
