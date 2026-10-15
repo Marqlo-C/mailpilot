@@ -149,4 +149,47 @@ describe("cleanEmailPayload Anchor Pre-filtering", () => {
     expect(blocks[1]).toContain("Product Manager");
     expect(extractCardApplyUrl(blocks[1])).toBe("https://boards.greenhouse.io/datadog/222");
   });
+
+  describe("cleanOpportunityDescription HTML & Artifact Stripping", () => {
+    it("strips raw nested HTML tags and line breaks without hardcoding specific content", async () => {
+      const { cleanOpportunityDescription } = await import("../classifier");
+
+      const dirty = "<strong><strong>Our Journey<br><br></strong></strong>We are looking for an engineer.";
+      const cleaned = cleanOpportunityDescription(dirty);
+
+      expect(cleaned).not.toContain("<strong>");
+      expect(cleaned).not.toContain("</strong>");
+      expect(cleaned).not.toContain("<br>");
+      expect(cleaned).toBe("Our Journey We are looking for an engineer.");
+    });
+
+    it("strips entity-encoded HTML tags and normalizes entities", async () => {
+      const { cleanOpportunityDescription } = await import("../classifier");
+
+      const encoded = "&lt;strong&gt;&lt;strong&gt;Company Mission&lt;br&gt;&lt;br&gt;&lt;/strong&gt;&lt;/strong&gt;Building next-gen tools &amp; infrastructure.";
+      const cleaned = cleanOpportunityDescription(encoded);
+
+      expect(cleaned).not.toContain("&lt;");
+      expect(cleaned).not.toContain("&gt;");
+      expect(cleaned).not.toContain("<strong>");
+      expect(cleaned).not.toContain("</strong>");
+      expect(cleaned).not.toContain("<br>");
+      expect(cleaned).toBe("Company Mission Building next-gen tools & infrastructure.");
+    });
+
+    it("strips mixed block elements and handles empty tag-only strings", async () => {
+      const { cleanOpportunityDescription } = await import("../classifier");
+
+      const mixed = "<div><p>Key Responsibilities:</p><ul><li>Lead project roadmap</li><li>Collaborate with stakeholders</li></ul></div>";
+      const cleaned = cleanOpportunityDescription(mixed);
+
+      expect(cleaned).not.toMatch(/<[^>]+>/);
+      expect(cleaned).toContain("Key Responsibilities: Lead project roadmap Collaborate with stakeholders");
+
+      // Returns null when input is empty or only tags
+      expect(cleanOpportunityDescription("   <strong><br><br></strong>   ")).toBeNull();
+      expect(cleanOpportunityDescription(null)).toBeNull();
+      expect(cleanOpportunityDescription("")).toBeNull();
+    });
+  });
 });

@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
   type MutableRefObject,
@@ -474,6 +475,71 @@ export function OpportunitiesView({
         )
       : { insertBeforeId: null as string | null, insertAfterLast: false };
 
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+
+    function syncMatchReasonHeights() {
+      if (!grid) return;
+      const isTwoCol = window.matchMedia("(min-width: 768px)").matches;
+      const cards = grid.querySelectorAll<HTMLElement>("article[data-opportunity-card]");
+      if (!cards || cards.length === 0) return;
+
+      if (!isTwoCol) {
+        cards.forEach((card) => {
+          const box = card.querySelector<HTMLElement>("[data-match-reason-box]");
+          if (box) box.style.minHeight = "";
+        });
+        return;
+      }
+
+      // Group cards in pairs for each 2-card row
+      for (let i = 0; i < cards.length; i += 2) {
+        const cardA = cards[i];
+        const cardB = cards[i + 1];
+        const boxA = cardA?.querySelector<HTMLElement>("[data-match-reason-box]");
+        const boxB = cardB?.querySelector<HTMLElement>("[data-match-reason-box]");
+
+        if (boxA) boxA.style.minHeight = "";
+        if (boxB) boxB.style.minHeight = "";
+
+        if (boxA && boxB) {
+          const hA = boxA.offsetHeight;
+          const hB = boxB.offsetHeight;
+          const maxHeight = Math.max(hA, hB);
+          if (maxHeight > 0) {
+            boxA.style.minHeight = `${maxHeight}px`;
+            boxB.style.minHeight = `${maxHeight}px`;
+          }
+        }
+      }
+    }
+
+    syncMatchReasonHeights();
+
+    let rafId: number;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(syncMatchReasonHeights);
+    });
+
+    observer.observe(grid);
+
+    const handleResize = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(syncMatchReasonHeights);
+    };
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [paginatedJobs]);
+
   return (
     <div className="mt-0" onPointerDown={onBackgroundPointerDown}>
       <DragGhost
@@ -541,6 +607,7 @@ export function OpportunitiesView({
         </div>
       ) : (
         <div
+          ref={gridRef}
           className="grid min-w-0 gap-3 md:grid-cols-2"
           data-dnd-list
           data-dnd-previewing={drag?.previewFullIds ? "true" : undefined}

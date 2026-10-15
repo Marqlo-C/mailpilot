@@ -16,12 +16,15 @@ import {
 } from "@/lib/llm/classification";
 import {
   normalizeSalaryDisplay,
+  parseSalaryMax,
   type CandidateProfileSummary,
 } from "@/lib/ai/classifier";
 import { logCompactSyncCard, logStory, syncLog } from "@/lib/logging";
 import {
   buildSynthesizedJobOverview,
   extractCleanSnippet,
+  isUnspecifiedPostedAt,
+  normalizePostedAt,
   resolveJobOpportunity,
   sanitizeJobDescription,
   scrapeJobPostingJsonLd,
@@ -394,6 +397,13 @@ export async function processSyncMessage(
 
     if (job.salary) {
       job.salary = normalizeSalaryDisplay(job.salary);
+      if (job.salary && typeof job.salaryMax !== "number") {
+        job.salaryMax = parseSalaryMax(job.salary);
+      }
+    }
+
+    if (job.postedAt) {
+      job.postedAt = normalizePostedAt(job.postedAt);
     }
 
     // 4. Pre-scrub descriptions BEFORE database persistence
@@ -429,6 +439,7 @@ export async function processSyncMessage(
           description: job.description,
           location: job.location,
           salary: job.salary,
+          postedAt: job.postedAt,
           applyUrl: job.applyUrl,
         });
         const evaluated = evaluateOpportunityMatch({
@@ -438,6 +449,7 @@ export async function processSyncMessage(
         });
         job.matchScore = evaluated.score;
         job.matchReason = evaluated.reason;
+        job.classificationMethod = "HEURISTIC";
       }
     }
   }
@@ -524,8 +536,25 @@ export async function processSyncMessage(
           ) {
             job.location = enriched.location;
           }
-          if (enriched.salary && !job.salary) {
+          if (enriched.salary && (!job.salary || !normalizeSalaryDisplay(job.salary))) {
             job.salary = normalizeSalaryDisplay(enriched.salary);
+          }
+          if (job.salary && typeof job.salaryMax !== "number") {
+            job.salaryMax = parseSalaryMax(job.salary);
+          }
+
+          if (isUnspecifiedPostedAt(job.postedAt)) {
+            const backfilledPostedAt = normalizePostedAt(
+              enriched.datePosted,
+              enriched.description
+            );
+            if (backfilledPostedAt) {
+              job.postedAt = backfilledPostedAt;
+            } else {
+              job.postedAt = null;
+            }
+          } else {
+            job.postedAt = normalizePostedAt(job.postedAt);
           }
 
           // Recalculate matchScore and matchReason with the newly hydrated rich spec
@@ -540,6 +569,7 @@ export async function processSyncMessage(
               description: job.description,
               location: job.location,
               salary: job.salary,
+              postedAt: job.postedAt,
               applyUrl: job.applyUrl,
             });
             const evaluated = evaluateOpportunityMatch({
@@ -549,6 +579,7 @@ export async function processSyncMessage(
             });
             job.matchScore = evaluated.score;
             job.matchReason = evaluated.reason;
+            job.classificationMethod = "HEURISTIC";
           }
         }
 

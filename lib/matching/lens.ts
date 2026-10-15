@@ -11,7 +11,10 @@
 
 import type { MasterProfileInput } from "@/lib/validations/profile";
 import type { CandidatePersona } from "@/lib/persona";
-import type { CandidateProfileSummary } from "@/lib/ai/classifier";
+import type {
+  CandidateProfileSummary,
+  CandidatePersonaSummary,
+} from "@/lib/ai/classifier";
 import { flattenSkillItems, skillGroupsFromUnknown } from "@/lib/skill-groups";
 import type { MatchCandidateLens } from "./schema.ssot";
 
@@ -20,7 +23,7 @@ import type { MatchCandidateLens } from "./schema.ssot";
  */
 export function extractMatchCandidateLens(
   profile?: MasterProfileInput | CandidateProfileSummary | null,
-  persona?: CandidatePersona | null
+  persona?: CandidatePersona | CandidatePersonaSummary | null
 ): MatchCandidateLens {
   let skills: string[] = [];
   let recentRoles: string[] = [];
@@ -56,12 +59,15 @@ export function extractMatchCandidateLens(
   const seniorityTier =
     persona?.seniorityTier ??
     (profile && "persona" in profile ? profile.persona?.seniorityTier ?? null : null);
-  const inFieldYears = persona?.inFieldYears ?? 0;
-  const archetype = persona?.archetype ?? null;
+  const inFieldYears =
+    (persona && "inFieldYears" in persona ? persona.inFieldYears : 0) ?? 0;
+  const archetype =
+    (persona && "archetype" in persona ? persona.archetype : null) ?? null;
   const timelineContext =
     persona?.timelineContext ??
     (profile && "persona" in profile ? profile.persona?.timelineContext ?? null : null);
-  const titleFamily = persona?.titleFamily ?? null;
+  const titleFamily =
+    (persona && "titleFamily" in persona ? persona.titleFamily : null) ?? null;
 
   return {
     skills,
