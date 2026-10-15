@@ -201,6 +201,8 @@ export async function buildOpportunityResumePreview(
       previousSelectedBulletIds: options.previousSelectedBulletIds,
       dbClient: prisma,
       includeSummary,
+      inventMetrics: accountRules.resumePreferences?.inventMetrics ?? false,
+      targetPages: accountRules.resumePreferences?.maxPages ?? "auto",
     }
   );
 
@@ -210,6 +212,7 @@ export async function buildOpportunityResumePreview(
     profile,
     tailored,
     includeSummary,
+    rules: accountRules,
   });
   const compiled = draftToPdfInput(draft, profile);
 

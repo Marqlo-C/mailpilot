@@ -18,6 +18,10 @@ import type {
 import { skillGroupsFromUnknown } from "@/lib/skill-groups";
 import type { SkillGroup } from "@/lib/types/resume-draft";
 import {
+  DEFAULT_SECTION_ORDER,
+  RESUME_SECTION_KEYS,
+} from "@/lib/resume-draft/schema.ssot";
+import {
   cleanDisplayUrl,
   dedupeContactItems,
   formatEducationDates,
@@ -113,6 +117,8 @@ type PdfInput = {
   certifications?: MasterProfileInput["certifications"] | null;
   awards?: MasterProfileInput["awards"] | null;
   interests?: MasterProfileInput["interests"] | null;
+  sectionOrder?: string[] | null;
+  disabledSections?: string[] | null;
 };
 
 const INVERTED_LOGO_PATH = path.join(
@@ -120,47 +126,9 @@ const INVERTED_LOGO_PATH = path.join(
   "public/logos/transparent-logo.png"
 );
 
-type ProfileContactExtras = {
-  linkedinUrl?: string | null;
-  githubUrl?: string | null;
-  portfolioUrl?: string | null;
-  websiteUrl?: string | null;
-  linkedWebsite?: string | null;
-  linkedGithub?: string | null;
-  linkedLinkedin?: string | null;
-};
+import { buildResumeContactLine } from "@/lib/utils/format";
+export { buildResumeContactLine };
 
-/**
- * Builds a single contact header line from profile fields.
- * URL-like values are sanitized; duplicates are removed case-insensitively.
- */
-export function buildResumeContactLine(profile: MasterProfileInput): string {
-  const extras = profile as MasterProfileInput & ProfileContactExtras;
-  const linkUrls = (profile.links ?? [])
-    .map((link) => link.url)
-    .filter((url) => isResumeHeaderLink(url))
-    .filter((url) => {
-      const kind = categorizeProfileUrl(url);
-      return (
-        kind === "github" ||
-        kind === "linkedin" ||
-        kind === "portfolio" ||
-        kind === "website"
-      );
-    });
-  const contactElements = dedupeContactItems([
-    profile.email,
-    profile.phone,
-    profile.location,
-    cleanDisplayUrl(extras.linkedinUrl ?? extras.linkedLinkedin),
-    cleanDisplayUrl(extras.githubUrl ?? extras.linkedGithub),
-    cleanDisplayUrl(
-      extras.portfolioUrl || extras.websiteUrl || extras.linkedWebsite
-    ),
-    ...linkUrls.map((url) => cleanDisplayUrl(url)),
-  ]);
-  return contactElements.join(" • ");
-}
 
 function ResumeDocument({
   profile,
@@ -176,6 +144,8 @@ function ResumeDocument({
   certifications,
   awards,
   interests,
+  sectionOrder,
+  disabledSections,
 }: PdfInput) {
   const contact = contactLine?.trim() || buildResumeContactLine(profile);
   const displayName = headerName?.trim() || profile.fullName;
@@ -197,25 +167,42 @@ function ResumeDocument({
       ? resolvedGroups
       : skillGroupsFromUnknown(profile.skills);
 
-  return (
-    <Document>
-      <Page size="LETTER" style={styles.page}>
-        <View style={styles.headerRow}>
-          <Text style={styles.name}>{displayName}</Text>
-          {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image */}
-          <Image src={INVERTED_LOGO_PATH} style={styles.brandMark} />
-        </View>
-        {contact ? <Text style={styles.contact}>{contact}</Text> : null}
+  const disabledSet = new Set(
+    (disabledSections ?? []).map((s) => s.toLowerCase())
+  );
+  const rawOrder =
+    sectionOrder && sectionOrder.length > 0
+      ? sectionOrder
+      : [...DEFAULT_SECTION_ORDER, "awards", "interests"];
 
-        {showSummary ? (
-          <View style={styles.section}>
+  const effectiveOrder: string[] = [];
+  for (const item of rawOrder) {
+    const key = item.toLowerCase();
+    if (!disabledSet.has(key) && !effectiveOrder.includes(key)) {
+      effectiveOrder.push(key);
+    }
+  }
+  for (const key of RESUME_SECTION_KEYS) {
+    if (!disabledSet.has(key) && !effectiveOrder.includes(key)) {
+      effectiveOrder.push(key);
+    }
+  }
+
+  const renderSection = (key: string) => {
+    switch (key) {
+      case "summary":
+        if (!showSummary) return null;
+        return (
+          <View key="summary" style={styles.section}>
             <Text style={styles.heading}>Summary</Text>
             <Text>{tailoredSummary || profile.summary}</Text>
           </View>
-        ) : null}
+        );
 
-        {renderedGroups.length > 0 ? (
-          <View style={styles.section}>
+      case "skills":
+        if (renderedGroups.length === 0) return null;
+        return (
+          <View key="skills" style={styles.section}>
             <Text style={styles.heading}>Skills</Text>
             <Text style={styles.skills}>
               {renderedGroups.flatMap((group, index) => {
@@ -238,31 +225,37 @@ function ResumeDocument({
               })}
             </Text>
           </View>
-        ) : null}
+        );
 
-        <View style={styles.section}>
-          <Text style={styles.heading}>Experience</Text>
-          {experiences.map((exp) => (
-            <View key={`${exp.company}-${exp.role}`} style={{ marginBottom: 8 }}>
-              <View style={styles.roleHeader}>
-                <Text style={styles.roleTitle}>
-                  {formatExperienceHeading(exp.role, exp.company, exp.location) || exp.role}
-                </Text>
-                <Text style={styles.muted}>
-                  {exp.startDate} – {exp.endDate ?? "Present"}
-                </Text>
+      case "experience":
+        if (experiences.length === 0) return null;
+        return (
+          <View key="experience" style={styles.section}>
+            <Text style={styles.heading}>Experience</Text>
+            {experiences.map((exp) => (
+              <View key={`${exp.company}-${exp.role}`} style={{ marginBottom: 8 }}>
+                <View style={styles.roleHeader}>
+                  <Text style={styles.roleTitle}>
+                    {formatExperienceHeading(exp.role, exp.company, exp.location) || exp.role}
+                  </Text>
+                  <Text style={styles.muted}>
+                    {exp.startDate} – {exp.endDate ?? "Present"}
+                  </Text>
+                </View>
+                {exp.bullets.map((b) => (
+                  <Text key={b.id} style={styles.bullet}>
+                    • {b.rawText}
+                  </Text>
+                ))}
               </View>
-              {exp.bullets.map((b) => (
-                <Text key={b.id} style={styles.bullet}>
-                  • {b.rawText}
-                </Text>
-              ))}
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        );
 
-        {projects && projects.length > 0 ? (
-          <View style={styles.section}>
+      case "projects":
+        if (!projects || projects.length === 0) return null;
+        return (
+          <View key="projects" style={styles.section}>
             <Text style={styles.heading}>Projects</Text>
             {projects.map((proj) => (
               <View key={proj.name} style={{ marginBottom: 6 }}>
@@ -287,10 +280,12 @@ function ResumeDocument({
               </View>
             ))}
           </View>
-        ) : null}
+        );
 
-        {educationRows.length > 0 ? (
-          <View style={styles.section}>
+      case "education":
+        if (educationRows.length === 0) return null;
+        return (
+          <View key="education" style={styles.section}>
             <Text style={styles.heading}>Education</Text>
             {educationRows.map((ed) => {
               const degreeText = formatEducationTitle(ed.degree, ed.fieldOfStudy);
@@ -306,10 +301,12 @@ function ResumeDocument({
               );
             })}
           </View>
-        ) : null}
+        );
 
-        {certificationRows.length > 0 ? (
-          <View style={styles.section}>
+      case "certifications":
+        if (certificationRows.length === 0) return null;
+        return (
+          <View key="certifications" style={styles.section}>
             <Text style={styles.heading}>Certifications & Licenses</Text>
             {certificationRows.map((item) => (
               <Text key={item.name} style={{ marginBottom: 3 }}>
@@ -319,10 +316,12 @@ function ResumeDocument({
               </Text>
             ))}
           </View>
-        ) : null}
+        );
 
-        {awardRows.length > 0 ? (
-          <View style={styles.section}>
+      case "awards":
+        if (awardRows.length === 0) return null;
+        return (
+          <View key="awards" style={styles.section}>
             <Text style={styles.heading}>Honors & Awards</Text>
             {awardRows.map((item) => (
               <Text key={item.title} style={{ marginBottom: 3 }}>
@@ -333,14 +332,32 @@ function ResumeDocument({
               </Text>
             ))}
           </View>
-        ) : null}
+        );
 
-        {interestRows.length > 0 ? (
-          <View style={styles.section}>
+      case "interests":
+        if (interestRows.length === 0) return null;
+        return (
+          <View key="interests" style={styles.section}>
             <Text style={styles.heading}>Interests</Text>
             <Text>{interestRows.join(", ")}</Text>
           </View>
-        ) : null}
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <Document>
+      <Page size="LETTER" style={styles.page}>
+        <View style={styles.headerRow}>
+          <Text style={styles.name}>{displayName}</Text>
+          {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image */}
+          <Image src={INVERTED_LOGO_PATH} style={styles.brandMark} />
+        </View>
+        {contact ? <Text style={styles.contact}>{contact}</Text> : null}
+        {effectiveOrder.map((sectionKey) => renderSection(sectionKey))}
       </Page>
     </Document>
   );
@@ -364,6 +381,8 @@ export async function generateTailoredResumePdf(
     certifications?: MasterProfileInput["certifications"] | null;
     awards?: MasterProfileInput["awards"] | null;
     interests?: MasterProfileInput["interests"] | null;
+    sectionOrder?: string[] | null;
+    disabledSections?: string[] | null;
   }
 ): Promise<Buffer> {
   const buffer = await renderToBuffer(
@@ -381,6 +400,8 @@ export async function generateTailoredResumePdf(
       certifications={overrides?.certifications}
       awards={overrides?.awards}
       interests={overrides?.interests}
+      sectionOrder={overrides?.sectionOrder}
+      disabledSections={overrides?.disabledSections}
     />
   );
   return Buffer.from(buffer);

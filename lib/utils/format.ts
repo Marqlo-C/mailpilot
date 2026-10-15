@@ -1,7 +1,4 @@
-/**
- * Shared display formatting for contact lines and URLs.
- * Agnostic — no candidate-, domain-, or username-specific logic.
- */
+import { categorizeProfileUrl, isResumeHeaderLink } from "./url";
 
 /** Strip protocol / www / trailing punctuation for human-readable URL display. */
 export function cleanDisplayUrl(url: string | null | undefined): string {
@@ -123,3 +120,52 @@ export function dedupeContactItems(
 
   return result;
 }
+
+type ProfileContactExtras = {
+  linkedinUrl?: string | null;
+  githubUrl?: string | null;
+  portfolioUrl?: string | null;
+  websiteUrl?: string | null;
+  linkedWebsite?: string | null;
+  linkedGithub?: string | null;
+  linkedLinkedin?: string | null;
+};
+
+/**
+ * Builds a single contact header line from profile fields.
+ * URL-like values are sanitized; duplicates are removed case-insensitively.
+ */
+export function buildResumeContactLine(profile: {
+  email?: string | null;
+  phone?: string | null;
+  location?: string | null;
+  links?: Array<{ name?: string | null; url: string }> | null;
+  [key: string]: unknown;
+}): string {
+  const extras = profile as ProfileContactExtras;
+  const linkUrls = (profile.links ?? [])
+    .map((link) => link.url)
+    .filter((url) => isResumeHeaderLink(url))
+    .filter((url) => {
+      const kind = categorizeProfileUrl(url);
+      return (
+        kind === "github" ||
+        kind === "linkedin" ||
+        kind === "portfolio" ||
+        kind === "website"
+      );
+    });
+  const contactElements = dedupeContactItems([
+    profile.email,
+    profile.phone,
+    profile.location,
+    cleanDisplayUrl(extras.linkedinUrl ?? extras.linkedLinkedin),
+    cleanDisplayUrl(extras.githubUrl ?? extras.linkedGithub),
+    cleanDisplayUrl(
+      extras.portfolioUrl || extras.websiteUrl || extras.linkedWebsite
+    ),
+    ...linkUrls.map((url) => cleanDisplayUrl(url)),
+  ]);
+  return contactElements.join(" • ");
+}
+

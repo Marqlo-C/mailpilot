@@ -17,7 +17,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AccountSummary } from "@/lib/data";
 import type { AccountRules } from "@/lib/validations/rules";
 
-type SettingsTab = "accounts" | "profile" | "automation" | "ai" | "ui";
+type SettingsTab =
+  | "accounts"
+  | "profile"
+  | "outbound"
+  | "automation"
+  | "ai"
+  | "ui";
 
 type SettingsViewProps = {
   accounts: AccountSummary[];
@@ -91,6 +97,12 @@ export function SettingsView({
               Profile
             </TabsTrigger>
             <TabsTrigger
+              value="outbound"
+              className={segmentedTabsTriggerClassName}
+            >
+              Outbound
+            </TabsTrigger>
+            <TabsTrigger
               value="automation"
               className={segmentedTabsTriggerClassName}
             >
@@ -125,6 +137,13 @@ export function SettingsView({
             accountId={activeAccountId}
             profile={profile}
           />
+        </TabsContent>
+
+        <TabsContent
+          value="outbound"
+          forceMount
+          className="mt-0 space-y-4 data-[state=inactive]:hidden"
+        >
           <ResumeTailoringDefaultsCard
             accountId={activeAccountId}
             rules={rules}
