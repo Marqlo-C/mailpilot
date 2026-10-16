@@ -464,11 +464,11 @@ export async function hydrateOpportunitySpecAction(
   }
 }
 
-/** Explicit Generate / Regenerate — always runs tailor and persists cache. */
 export async function generateOpportunityResumeAction(
   opportunityId: string,
   includeSummary = false,
-  inventMetrics?: boolean
+  inventMetrics?: boolean,
+  devModelOverride?: string | null
 ): Promise<ActionResult<OpportunityResumePreview>> {
   const opportunity = await prisma.jobOpportunity.findUnique({
     where: { id: opportunityId },
@@ -482,7 +482,7 @@ export async function generateOpportunityResumeAction(
     const data = await prepareOpportunityResume(
       opportunity.accountId,
       opportunityId,
-      { includeSummary, forceRegenerate: true, inventMetrics }
+      { includeSummary, forceRegenerate: true, inventMetrics, devModelOverride }
     );
     if (!data) {
       return { ok: false, error: "Failed to generate resume" };
@@ -500,9 +500,15 @@ export async function generateOpportunityResumeAction(
 export async function regenerateOpportunityResumeAction(
   opportunityId: string,
   includeSummary = false,
-  inventMetrics?: boolean
+  inventMetrics?: boolean,
+  devModelOverride?: string | null
 ): Promise<ActionResult<OpportunityResumePreview>> {
-  return generateOpportunityResumeAction(opportunityId, includeSummary, inventMetrics);
+  return generateOpportunityResumeAction(
+    opportunityId,
+    includeSummary,
+    inventMetrics,
+    devModelOverride
+  );
 }
 
 export async function updateResumeDraftNodeAction(
@@ -619,7 +625,9 @@ export async function refineOpportunityResumeAction(
   opportunityId: string,
   instruction: string,
   previousExperiences?: WorkExperienceInput[] | null,
-  includeSummary = false
+  includeSummary = false,
+  inventMetrics?: boolean,
+  devModelOverride?: string | null
 ): Promise<ActionResult<OpportunityResumePreview>> {
   const opportunity = await prisma.jobOpportunity.findUnique({
     where: { id: opportunityId },
@@ -638,7 +646,9 @@ export async function refineOpportunityResumeAction(
       opportunityId,
       instruction,
       previous,
-      includeSummary
+      includeSummary,
+      inventMetrics,
+      devModelOverride
     );
     return { ok: true, data };
   } catch (error) {

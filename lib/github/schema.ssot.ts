@@ -41,6 +41,7 @@ export interface GitHubSyncOptions {
   llmProvider?: LlmProvider;
   localOllamaUrl?: string | null;
   ollamaModel?: string | null;
+  devModelOverride?: string | null;
   allowCloudFallback?: boolean;
   accountId?: string | null;
   accountRules?: Partial<AccountRules> | null;

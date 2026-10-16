@@ -22,6 +22,7 @@ import {
   saveScrapingAntApiKey,
   updateBridgeSecret,
   updateLlmProvider,
+  updateOllamaModel,
   updateOllamaUrl,
   updateRule,
 } from "@/app/actions/settings";
@@ -107,6 +108,16 @@ function generateBridgeSecret(): string {
 }
 
 export const DEV_OLLAMA_MODEL_STORAGE_KEY = "mailpilot_dev_ollama_model";
+
+export function getDevOllamaModelOverride(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const val = localStorage.getItem(DEV_OLLAMA_MODEL_STORAGE_KEY)?.trim();
+    return val || null;
+  } catch {
+    return null;
+  }
+}
 
 function TerminalBlock({
   title,
@@ -1290,9 +1301,13 @@ export function AiModelsCard({
                     onChange={(e) => {
                       const next = e.target.value;
                       setSelectedModel(next);
-                      if (!accountId || !url.trim()) return;
+                      if (!accountId) return;
                       startTransition(async () => {
-                        await updateOllamaUrl(accountId, url, next);
+                        if (url.trim()) {
+                          await updateOllamaUrl(accountId, url, next);
+                        } else {
+                          await updateOllamaModel(accountId, next);
+                        }
                         router.refresh();
                       });
                     }}

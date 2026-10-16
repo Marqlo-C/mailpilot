@@ -776,6 +776,7 @@ export type TailorOptions = {
   llmProvider?: LlmProvider;
   localOllamaUrl?: string | null;
   ollamaModel?: string | null;
+  devModelOverride?: string | null;
   allowCloudFallback?: boolean;
   jobText?: string;
   companyName?: string | null;
@@ -943,6 +944,7 @@ export async function tailorResumeForJob(
     llmProvider: options.llmProvider ?? "OPENROUTER",
     localOllamaUrl: effectiveLocalOllamaUrl,
     ollamaModel: effectiveOllamaModel,
+    devModelOverride: options.devModelOverride,
     allowCloudFallback: options.allowCloudFallback,
     accountId: options.accountId,
     accountRules: options.accountRules,
@@ -1002,10 +1004,10 @@ export async function tailorResumeForJob(
     }))
     .filter((p) => p.bullets.length > 0 || p.description?.trim());
 
-  // Ensure every featured project has 2–3 bullets when source material allows.
+  // Ensure every featured project has bullets within budget without appending description to existing bullets.
   selectedProjects = selectedProjects.map((p) => {
     const capped = dedupeAndCapProjectBullets(p.bullets);
-    if (capped.length >= 2) {
+    if (capped.length > 0) {
       return {
         ...p,
         bullets: capped.slice(0, budget.bulletsPerProjectMax ?? 3),
@@ -1016,10 +1018,7 @@ export async function tailorResumeForJob(
       : [];
     return {
       ...p,
-      bullets: dedupeAndCapProjectBullets([...capped, ...fromDescription]).slice(
-        0,
-        budget.bulletsPerProjectMax ?? 3
-      ),
+      bullets: fromDescription.slice(0, budget.bulletsPerProjectMax ?? 3),
     };
   });
 
@@ -1186,9 +1185,13 @@ export async function tailorResumeForJob(
         llmProvider: options.llmProvider ?? "OPENROUTER",
         localOllamaUrl: effectiveLocalOllamaUrl,
         ollamaModel: effectiveOllamaModel,
+        devModelOverride: options.devModelOverride,
         allowCloudFallback: options.allowCloudFallback,
         accountId: options.accountId,
         accountRules: options.accountRules,
+        ollamaOptions: {
+          temperature: 0.1,
+        },
       });
 
       if (!reframeResult) {

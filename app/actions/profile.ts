@@ -133,6 +133,8 @@ export async function extractResumeDraft(
   try {
     const accountId = String(formData.get("accountId") ?? "");
     const file = formData.get("file");
+    const devModelOverride =
+      String(formData.get("devModelOverride") ?? "").trim() || undefined;
     if (!accountId) {
       return { ok: false, error: "accountId is required" };
     }
@@ -181,6 +183,7 @@ export async function extractResumeDraft(
       accountEmail: account.email,
       accountId: account.id,
       accountRules: rules,
+      devModelOverride,
     });
 
     const links = enrichLinksFromRawText(text, draft.links);
@@ -222,6 +225,8 @@ export async function applyResumeUpload(
   let profileDraft = extracted.data.profile;
   const sourceText = extracted.data.sourceText;
   const overwriteAll = String(formData.get("overwriteAll") ?? "") === "true";
+  const devModelOverride =
+    String(formData.get("devModelOverride") ?? "").trim() || undefined;
 
   // 2. GitHub handle from the new document, or from the form when merging.
   const documentGithub = githubProfileUrlInText(sourceText);
@@ -258,6 +263,7 @@ export async function applyResumeUpload(
         ollamaModel: account?.settings?.ollamaModel,
         allowCloudFallback: rules.allowCloudFallback,
         accountRules: rules,
+        devModelOverride,
       });
 
       const linkedGithub = `https://github.com/${username}`;
@@ -1030,7 +1036,8 @@ export async function updateLinkedAccounts(
  */
 export async function importGitHubProjects(
   accountId: string,
-  githubHandleOrUrl: string
+  githubHandleOrUrl: string,
+  devModelOverride?: string | null
 ): Promise<ActionResult<{ imported: number }>> {
   const handle = githubHandleOrUrl.trim();
   if (!handle) {
@@ -1074,6 +1081,7 @@ export async function importGitHubProjects(
       ollamaModel: account.settings?.ollamaModel,
       allowCloudFallback: rules.allowCloudFallback,
       accountRules: rules,
+      devModelOverride,
     });
     const linkedGithub = `https://github.com/${username}`;
 
