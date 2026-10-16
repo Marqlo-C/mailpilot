@@ -12,3 +12,11 @@ export const SETTINGS_ROW_CLASSNAME =
 /** Native selects inside settings cards (bg-card, not global background). */
 export const SETTINGS_SELECT_CLASSNAME =
   "h-9 cursor-pointer rounded-md border border-border/50 bg-card px-3 text-sm text-foreground shadow-sm outline-none transition-colors hover:bg-card focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+
+export {
+  BOXY_ACTION_BTN_BASE,
+  BOXY_ACTION_BTN_SECONDARY,
+  BOXY_ACTION_BTN_PRIMARY,
+  BOXY_ACTION_BTN_DESTRUCTIVE,
+} from "@/components/ui/action-button-styles";
+

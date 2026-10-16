@@ -2,10 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Unlink } from "lucide-react";
+import { Unlink } from "lucide-react";
 
 import { unlinkAccountCredentials } from "@/app/actions/accounts";
-import { logoutSession } from "@/app/actions/auth";
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,10 +15,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  PRIMARY_ACTION_BTN_CLASSNAME,
-  PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME,
-} from "@/components/ui/primary-action-btn";
 import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
 import type { AccountSummary } from "@/lib/data";
 import { cn } from "@/lib/utils";
@@ -113,34 +108,13 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
           </ul>
         )}
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-2">
-            <a
-              href="/api/auth/google?intent=link"
-              className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
-            >
-              Link Gmail account
-            </a>
-            <a
-              href="/api/auth/google?intent=link&forceConsent=true"
-              className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
-            >
-              Re-authorize Scopes
-            </a>
-          </div>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => {
-              startTransition(async () => {
-                await logoutSession();
-              });
-            }}
-            className={cn(PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href="/api/auth/google?intent=link&forceConsent=true"
+            className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
           >
-            <LogOut className="h-3.5 w-3.5" />
-            Log Out Session
-          </button>
+            Re-authorize Scopes
+          </a>
         </div>
 
         <p className="text-xs text-muted-foreground">

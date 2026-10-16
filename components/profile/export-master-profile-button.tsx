@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { FileDown, Loader2 } from "lucide-react";
+import { CloudDownload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { exportMasterProfilePdfAction } from "@/app/actions/profile";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-type ExportMasterResumeButtonProps = {
+export type ExportMasterProfileButtonProps = {
   accountId: string;
   variant?: "default" | "secondary" | "outline" | "ghost";
   size?: "default" | "sm" | "lg" | "icon";
@@ -15,17 +16,19 @@ type ExportMasterResumeButtonProps = {
   label?: string;
 };
 
+export type ExportMasterResumeButtonProps = ExportMasterProfileButtonProps;
+
 /**
  * Downloads the unpruned Master Profile as a standalone, comprehensive PDF
  * without consuming LLM tokens.
  */
-export function ExportMasterResumeButton({
+export function ExportMasterProfileButton({
   accountId,
   variant = "outline",
   size = "sm",
   className,
-  label = "Export Master Resume",
-}: ExportMasterResumeButtonProps) {
+  label = "Export Master Profile",
+}: ExportMasterProfileButtonProps) {
   const [isExporting, setIsExporting] = useState(false);
 
   async function handleExport() {
@@ -53,11 +56,11 @@ export function ExportMasterResumeButton({
       document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
 
-      toast.success("Master resume exported successfully");
+      toast.success("Master profile exported successfully");
     } catch (err) {
-      console.error("Export master resume failed:", err);
+      console.error("Export master profile failed:", err);
       toast.error(
-        err instanceof Error ? err.message : "Failed to export PDF"
+        err instanceof Error ? err.message : "Failed to export master profile PDF"
       );
     } finally {
       setIsExporting(false);
@@ -69,16 +72,18 @@ export function ExportMasterResumeButton({
       type="button"
       variant={variant}
       size={size}
-      className={className}
+      className={cn("gap-2 [&_svg]:size-3.5 [&_svg]:shrink-0", className)}
       disabled={isExporting}
       onClick={handleExport}
     >
       {isExporting ? (
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        <Loader2 className="size-3.5 shrink-0 animate-spin" />
       ) : (
-        <FileDown className="mr-2 h-4 w-4" />
+        <CloudDownload className="size-3.5 shrink-0" />
       )}
       {label}
     </Button>
   );
 }
+
+export const ExportMasterResumeButton = ExportMasterProfileButton;

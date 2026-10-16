@@ -3,10 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  CloudUpload,
   FileText,
   FolderGit2,
   Loader2,
-  Upload,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -40,6 +40,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 type ResumeUploadDialogProps = {
   accountId: string;
@@ -47,6 +48,7 @@ type ResumeUploadDialogProps = {
   /** When set, opening the dialog loads this profile into the review editor. */
   initialProfile?: MasterProfileInput | null;
   triggerVariant?: "outline" | "secondary" | "default";
+  triggerClassName?: string;
 };
 
 export function ResumeUploadDialog({
@@ -54,6 +56,7 @@ export function ResumeUploadDialog({
   triggerLabel = "Upload / Re-parse Resume",
   initialProfile = null,
   triggerVariant = "outline",
+  triggerClassName,
 }: ResumeUploadDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -170,8 +173,13 @@ export function ResumeUploadDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button type="button" variant={triggerVariant} size="sm">
-          {editMode ? null : <Upload className="h-4 w-4" />}
+        <Button
+          type="button"
+          variant={triggerVariant}
+          size="sm"
+          className={cn("gap-2 [&_svg]:size-3.5 [&_svg]:shrink-0", triggerClassName)}
+        >
+          {editMode ? null : <CloudUpload className="size-3.5 shrink-0" />}
           {triggerLabel}
         </Button>
       </DialogTrigger>

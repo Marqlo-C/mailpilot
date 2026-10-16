@@ -20,6 +20,7 @@ import {
   calculateElasticPageBudget,
   isCareerSwitcherOrEarlyTenure,
 } from "@/lib/resume-draft";
+import { prisma } from "@/lib/prisma";
 
 export type StrategyRationale = {
   roleFitAnalysis: string;
@@ -823,6 +824,28 @@ export async function tailorResumeForJob(
     options.accountRules?.resumePreferences?.inventMetrics ??
     false;
 
+  let effectiveOllamaModel = options.ollamaModel;
+  let effectiveLocalOllamaUrl = options.localOllamaUrl;
+  if ((!effectiveOllamaModel || !effectiveLocalOllamaUrl) && options.accountId) {
+    try {
+      const client = (options.dbClient ?? prisma) as typeof prisma;
+      const settings = await client.accountSettings?.findUnique({
+        where: { accountId: options.accountId },
+        select: { ollamaModel: true, localOllamaUrl: true },
+      });
+      if (settings) {
+        if (!effectiveOllamaModel && settings.ollamaModel) {
+          effectiveOllamaModel = settings.ollamaModel;
+        }
+        if (!effectiveLocalOllamaUrl && settings.localOllamaUrl) {
+          effectiveLocalOllamaUrl = settings.localOllamaUrl;
+        }
+      }
+    } catch {
+      // Ignore DB lookup errors
+    }
+  }
+
   const targetPagesPref =
     options.targetPages ??
     options.accountRules?.resumePreferences?.maxPages ??
@@ -918,8 +941,8 @@ export async function tailorResumeForJob(
     }),
     userPrompt: stageAUserPrompt,
     llmProvider: options.llmProvider ?? "OPENROUTER",
-    localOllamaUrl: options.localOllamaUrl,
-    ollamaModel: options.ollamaModel,
+    localOllamaUrl: effectiveLocalOllamaUrl,
+    ollamaModel: effectiveOllamaModel,
     allowCloudFallback: options.allowCloudFallback,
     accountId: options.accountId,
     accountRules: options.accountRules,
@@ -1161,8 +1184,8 @@ export async function tailorResumeForJob(
         }),
         userPrompt: stageBUserPrompt,
         llmProvider: options.llmProvider ?? "OPENROUTER",
-        localOllamaUrl: options.localOllamaUrl,
-        ollamaModel: options.ollamaModel,
+        localOllamaUrl: effectiveLocalOllamaUrl,
+        ollamaModel: effectiveOllamaModel,
         allowCloudFallback: options.allowCloudFallback,
         accountId: options.accountId,
         accountRules: options.accountRules,

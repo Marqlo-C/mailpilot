@@ -190,10 +190,35 @@ export async function callLLMWithFallback(
   // PATH A: LOCAL OLLAMA EXECUTION
   // --------------------------------------------------------------------------
   if (provider === "LOCAL_OLLAMA") {
-    const baseUrl = resolveOllamaBaseUrl(options.localOllamaUrl);
+    let localOllamaUrl = options.localOllamaUrl;
+    let ollamaModel = options.ollamaModel;
+
+    if ((!localOllamaUrl || !ollamaModel) && options.accountId?.trim()) {
+      try {
+        const settings = await prisma.accountSettings.findUnique({
+          where: { accountId: options.accountId.trim() },
+          select: { localOllamaUrl: true, ollamaModel: true },
+        });
+        if (settings) {
+          if (!localOllamaUrl && settings.localOllamaUrl) {
+            localOllamaUrl = settings.localOllamaUrl;
+          }
+          if (!ollamaModel && settings.ollamaModel) {
+            ollamaModel = settings.ollamaModel;
+          }
+        }
+      } catch (e) {
+        console.warn(
+          "[dispatcher] Failed to query accountSettings for Ollama configuration:",
+          e
+        );
+      }
+    }
+
+    const baseUrl = resolveOllamaBaseUrl(localOllamaUrl);
     const allowFallback = isCloudFallbackEnabled(options);
     const resolvedModel = resolveOllamaModel(
-      options.ollamaModel,
+      ollamaModel,
       options.devModelOverride
     );
 
@@ -263,7 +288,7 @@ export async function callLLMWithFallback(
         baseUrl,
         options.systemPrompt,
         options.userPrompt,
-        options.ollamaModel,
+        resolvedModel,
         options.ollamaOptions,
         options.devModelOverride
       );
