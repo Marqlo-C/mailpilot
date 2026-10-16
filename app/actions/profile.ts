@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import { extractTextFromFile } from "@/lib/document-parser";
-import { syncGitHubProjects, normalizeGitHubUsername } from "@/lib/github-sync";
+import { syncGitHubProjects, normalizeGitHubUsername } from "@/lib/github";
 import { parseLinkedInArchive } from "@/lib/linkedin-archive-parser";
 import {
   consolidateProfiles,
@@ -247,7 +247,9 @@ export async function applyResumeUpload(
 
       const username = normalizeGitHubUsername(targetGithubHandle);
       const rules = parseAccountRules(account?.settings?.rules);
+      const effectiveAccountId = account?.id ?? accountId;
       const githubProjects = await syncGitHubProjects(username, {
+        accountId: effectiveAccountId,
         llmProvider:
           account?.settings?.llmProvider === "LOCAL_OLLAMA"
             ? "LOCAL_OLLAMA"
@@ -255,7 +257,6 @@ export async function applyResumeUpload(
         localOllamaUrl: account?.settings?.localOllamaUrl,
         ollamaModel: account?.settings?.ollamaModel,
         allowCloudFallback: rules.allowCloudFallback,
-        accountId: account?.id ?? accountId,
         accountRules: rules,
       });
 
@@ -1064,6 +1065,7 @@ export async function importGitHubProjects(
 
     const rules = parseAccountRules(account.settings?.rules);
     const projects = await syncGitHubProjects(username, {
+      accountId,
       llmProvider:
         account.settings?.llmProvider === "LOCAL_OLLAMA"
           ? "LOCAL_OLLAMA"
@@ -1071,7 +1073,6 @@ export async function importGitHubProjects(
       localOllamaUrl: account.settings?.localOllamaUrl,
       ollamaModel: account.settings?.ollamaModel,
       allowCloudFallback: rules.allowCloudFallback,
-      accountId: account.id,
       accountRules: rules,
     });
     const linkedGithub = `https://github.com/${username}`;
