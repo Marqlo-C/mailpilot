@@ -81,6 +81,12 @@ export class OllamaUnreachableError extends Error {
   }
 }
 
+export type OllamaGenerationOptions = {
+  num_ctx?: number;
+  num_predict?: number;
+  temperature?: number;
+};
+
 /**
  * Resolves the Ollama model for inference.
  * Dev runtime override takes precedence, then DB-configured model, then default.
@@ -90,8 +96,9 @@ export function resolveOllamaModel(
   devOverride?: string | null
 ): string {
   const isDev = process.env.NODE_ENV === "development";
+  const isTest = process.env.NODE_ENV === "test";
   const devTrimmed = devOverride?.trim();
-  if (isDev && devTrimmed) {
+  if ((isDev || isTest) && devTrimmed) {
     return devTrimmed;
   }
 
@@ -300,11 +307,7 @@ export async function callOllamaJson(
   systemPrompt: string,
   userPrompt: string,
   model?: string | null,
-  options?: {
-    num_ctx: number;
-    num_predict: number;
-    temperature: number;
-  },
+  options?: OllamaGenerationOptions,
   devModelOverride?: string | null
 ): Promise<Record<string, unknown> | null> {
   const resolvedModel = resolveOllamaModel(model, devModelOverride);
@@ -357,11 +360,7 @@ async function callOllamaGenerateOnce(
   systemPrompt: string,
   userPrompt: string,
   timeouts: { idleTimeoutMs: number; hardCapMs: number },
-  options?: {
-    num_ctx: number;
-    num_predict: number;
-    temperature: number;
-  }
+  options?: OllamaGenerationOptions
 ): Promise<Record<string, unknown> | null> {
   const startTime = Date.now();
   const promptChars = systemPrompt.length + userPrompt.length;
@@ -412,7 +411,10 @@ async function callOllamaGenerateOnce(
         format: "json",
         stream: true,
         options: {
-          temperature: options?.temperature ?? 0,
+          temperature:
+            typeof options?.temperature === "number"
+              ? options.temperature
+              : 0.5,
           num_ctx: options?.num_ctx ?? 8192,
           num_predict: options?.num_predict ?? 4096,
         },

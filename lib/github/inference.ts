@@ -13,14 +13,21 @@ CORE OBJECTIVE:
 Translate raw repository documentation and manifests into concrete, authoritative engineering bullets that describe mechanisms, data flows, protocols, and architectural trade-offs.
 
 STRICT CONSTRAINTS & BANS:
-1. NO INTRODUCTORY OR DESCRIPTION BULLETS: Never write a bullet that simply summarizes what the app or tool is (e.g., do NOT write "Architected a tool that helps users..."). Every single bullet must describe a specific technical mechanism, problem solved, or subsystem implemented.
-2. NO NAME-DROPPING WITHOUT MECHANISM: Never write vague statements like "Used Python to do X" or "leveraged threads for caching". You MUST specify the technical primitive: data structures (bitboards, heaps, ASTs, circular buffers), networking/protocols (WebSockets, SSE, zero-copy, HTTP/2), concurrency models (mutexes, thread pools, async event loops), or algorithmic approaches (epsilon-greedy decay, Q-target freezing, geospatial indexing).
-3. NATURAL, DIVERSE VERBS: Do NOT default to a repetitive loop of "Architected / Engineered / Implemented". Select verbs that describe the exact systems action:
+1. NO INTRODUCTORY OR DESCRIPTION BULLETS: Never write a bullet that simply summarizes what the app or tool is or repeats the repository description/tagline (e.g., do NOT write "Architected a tool that helps users..." or "Engineered a high-performance cache..."). Bullet 0 must NOT be an introductory summary. Every single bullet must describe a specific technical mechanism, problem solved, or subsystem implemented.
+2. BANNED TRIVIAL TASKS:
+   Never generate bullets for low-signal chores or basic developer tasks:
+   - Setting up environment variables or local configuration files (e.g., creating config files, setting ports, configuring local tokens, .env files).
+   - Basic filesystem hygiene (e.g., creating folders, organizing assets into directories, cleaning up repositories).
+   - Generating superficial demonstration artifacts (e.g., screen recordings, screenshots, simple demo scripts, sample videos).
+   - Generic development tooling (e.g., installing dependencies, configuring code linters, code formatting, git hooks, npm scripts).
+   Every bullet must describe core architectural design, algorithms, concurrency models, protocol implementations, or data structures.
+3. NO NAME-DROPPING WITHOUT MECHANISM: Never write vague statements like "Used Python to do X" or "leveraged threads for caching". You MUST specify the technical primitive: data structures (bitboards, heaps, ASTs, circular buffers), networking/protocols (WebSockets, SSE, zero-copy, HTTP/2), concurrency models (mutexes, thread pools, async event loops), or algorithmic approaches (epsilon-greedy decay, Q-target freezing, geospatial indexing).
+4. NATURAL, DIVERSE VERBS: Do NOT default to a repetitive loop of "Architected / Engineered / Implemented". Select verbs that describe the exact systems action:
    - Concurrency & Routing: Dispatched, Multiplexed, Sharded, Throttled, Decoupled, Synchronized, Isolated.
    - Data & Storage: Serialized, Materialized, Ingested, Partitioned, Normalized, Indexed.
    - Optimization & Testing: Profiled, Benchmarked, Vectorized, Quantized, Hardened.
-4. GROUNDED SPECIFICS: Actively extract concrete constraints, dimensions, and operational parameters from the README (e.g., frame rates, episode bounds, reward formulations, latency bounds, HTTP status codes, schema models, tensor dimensions).
-5. NO FAKE BUSINESS ROI: Never invent commercial revenue, user growth percentages, or fake organizational metrics. Ground all results strictly in computational efficiency, data integrity, protocol conformance, or automated pipeline reliability.
+5. GROUNDED SPECIFICS: Actively extract concrete constraints, dimensions, and operational parameters from the README (e.g., frame rates, episode bounds, reward formulations, latency bounds, HTTP status codes, schema models, tensor dimensions).
+6. NO FAKE BUSINESS ROI: Never invent commercial revenue, user growth percentages, or fake organizational metrics. Ground all results strictly in computational efficiency, data integrity, protocol conformance, or automated pipeline reliability.
 
 FORMAT & LENGTH:
 - Each bullet must be 18 to 36 words, dense with technical specificity.
@@ -68,28 +75,24 @@ export async function analyzeRepoArtifacts(
 
   if (!readmeDigest && manifestTechnologies.length === 0) {
     return {
-      bullets: [
-        description
-          ? `Engineered and maintained ${repoName}: ${description.replace(/\.$/, "")}.`
-          : `Engineered and maintained the ${repoName} codebase.`,
-      ],
+      bullets: [],
       technologies: manifestTechnologies,
     };
   }
 
-  // Fold description into technical context rather than an isolated summary field
   const promptPayload: Record<string, unknown> = {
     repository: repoName,
-    technicalContext: description
-      ? `Repository context: ${description}`
-      : "Open-source systems repository",
     scaleTier: `Tier ${scaleBudget.tier} (${scaleBudget.targetScope})`,
     repositoryScale: `Tier ${scaleBudget.tier} (${scaleBudget.targetScope})`,
-    targetBulletDensity: `Author between ${scaleBudget.minBullets} and ${scaleBudget.maxBullets} high-density engineering bullets. Each bullet MUST describe a concrete technical mechanism or architectural subsystem—do NOT write a repository summary bullet.`,
+    targetBulletDensity: `Author between ${scaleBudget.minBullets} and ${scaleBudget.maxBullets} high-density engineering bullets. Each bullet MUST describe a concrete technical mechanism or architectural subsystem—do NOT author Bullet 0 as a repository synopsis or repeat the description.`,
     targetBulletCount: `${scaleBudget.minBullets} to ${scaleBudget.maxBullets} high-density engineering bullets`,
     categorizedSystemsDependencies: domainGroups,
     readmeDigest: readmeDigest || "No README available",
   };
+
+  if (description) {
+    promptPayload.technicalScope = `Repository scope (do NOT repeat as a bullet): ${description}`;
+  }
 
   if (verifiedTopology) {
     promptPayload.verifiedArchitecturalTopology = `Verified architectural topology: ${verifiedTopology}`;
@@ -104,9 +107,13 @@ export async function analyzeRepoArtifacts(
       llmProvider: llmOptions?.llmProvider ?? "LOCAL_OLLAMA",
       localOllamaUrl: llmOptions?.localOllamaUrl,
       ollamaModel: llmOptions?.ollamaModel,
+      devModelOverride: llmOptions?.devModelOverride,
       allowCloudFallback: llmOptions?.allowCloudFallback,
       accountId: llmOptions?.accountId,
       accountRules: llmOptions?.accountRules,
+      ollamaOptions: {
+        temperature: 0.5,
+      },
     });
 
     if (
@@ -142,10 +149,6 @@ export async function analyzeRepoArtifacts(
   if (verifiedTopology) {
     fallbackBullets.push(
       `Engineered ${repoName} subsystem topology featuring ${verifiedTopology.toLowerCase().replace(/\.$/, "")}.`
-    );
-  } else if (description) {
-    fallbackBullets.push(
-      `Implemented core computational pipeline for ${repoName}, addressing ${description.replace(/\.$/, "")}.`
     );
   } else {
     fallbackBullets.push(

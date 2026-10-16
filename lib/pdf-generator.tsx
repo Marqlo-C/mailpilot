@@ -269,6 +269,13 @@ function ResumeDocument({
           <View key="projects" style={styles.section}>
             <Text style={styles.heading}>Projects</Text>
             {projects.map((proj) => {
+              const displayBullets =
+                proj.bullets.length > 0
+                  ? proj.bullets
+                  : proj.description?.trim()
+                    ? [proj.description.trim()]
+                    : [];
+
               return (
                 <View key={proj.name} style={{ marginBottom: 6 }}>
                   <View style={styles.roleHeader}>
@@ -281,7 +288,7 @@ function ResumeDocument({
                       </Text>
                     ) : null}
                   </View>
-                  {proj.bullets.map((bullet, idx) => (
+                  {displayBullets.map((bullet, idx) => (
                     <Text key={idx} style={styles.bullet}>
                       • {bullet}
                     </Text>

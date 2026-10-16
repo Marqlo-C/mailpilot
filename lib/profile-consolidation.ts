@@ -420,6 +420,20 @@ export function consolidateProfiles(
       return false;
     });
 
+    const finalDesc =
+      (existingIndex >= 0 ? projects[existingIndex]!.description : null) ||
+      incProj.description;
+    const finalDescNorm = finalDesc ? normalizeString(finalDesc) : "";
+
+    const isDescriptionBullet = (bullet: string) => {
+      if (!finalDescNorm) return false;
+      const bNorm = normalizeString(bullet);
+      return (
+        bNorm === finalDescNorm ||
+        (finalDescNorm.length >= 10 && bNorm.startsWith(finalDescNorm))
+      );
+    };
+
     if (existingIndex >= 0) {
       const match = projects[existingIndex]!;
       const existingBullets = new Set(
@@ -429,21 +443,30 @@ export function consolidateProfiles(
         (b) => !existingBullets.has(normalizeString(b))
       );
 
+      const combinedBullets = [...match.bullets, ...newBullets].filter(
+        (b) => !isDescriptionBullet(b)
+      );
+
       projects[existingIndex] = {
         ...match,
         name: cleanIncName || match.name,
-        description: match.description || incProj.description,
+        description: finalDesc,
         technologies: mergeStringBuckets(
           match.technologies,
           incProj.technologies
         ),
         link: match.link || incProj.link,
-        bullets: [...match.bullets, ...newBullets],
+        bullets: combinedBullets,
       };
     } else {
+      const filteredBullets = incProj.bullets.filter(
+        (b) => !isDescriptionBullet(b)
+      );
+
       projects.push({
         ...incProj,
         name: cleanIncName,
+        bullets: filteredBullets,
       });
     }
   }

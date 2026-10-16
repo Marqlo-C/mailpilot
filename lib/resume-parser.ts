@@ -1083,6 +1083,7 @@ export type ParseResumeOptions = {
   llmProvider?: LlmProvider;
   localOllamaUrl?: string | null;
   ollamaModel?: string | null;
+  devModelOverride?: string | null;
   allowCloudFallback?: boolean;
   /** Used only when the document itself contains no real email address. */
   accountEmail?: string | null;
@@ -1108,6 +1109,7 @@ export async function parseResumeToStructuredProfile(
     llmProvider: options.llmProvider ?? "OPENROUTER",
     localOllamaUrl: options.localOllamaUrl,
     ollamaModel: options.ollamaModel,
+    devModelOverride: options.devModelOverride,
     allowCloudFallback: options.allowCloudFallback,
     accountId: options.accountId,
     accountRules: options.accountRules,

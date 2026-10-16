@@ -46,6 +46,7 @@ import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
 import { ResumeDraftSheet } from "@/components/jobs/resume-draft-sheet";
 import { Button } from "@/components/ui/button";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
+import { getDevOllamaModelOverride } from "@/components/settings/ai-models-card";
 import { CancelTaskButton } from "@/components/ui/cancel-task-button";
 import { ViewEmailDialog } from "@/components/dialogs/view-email-dialog";
 import { Input } from "@/components/ui/input";
@@ -304,8 +305,14 @@ export function OpportunityDraftDialog({
     void (async () => {
       setResumeError(null);
       try {
+        const devModel = getDevOllamaModelOverride();
         const result = await abortablePromise(
-          generateOpportunityResumeAction(opportunity.id, summaryPreference),
+          generateOpportunityResumeAction(
+            opportunity.id,
+            summaryPreference,
+            undefined,
+            devModel || undefined
+          ),
           signal
         );
         if (signal.aborted) return;
@@ -342,12 +349,15 @@ export function OpportunityDraftDialog({
     const signal = startTask(TASK_RESUME);
     void (async () => {
       try {
+        const devModel = getDevOllamaModelOverride();
         const result = await abortablePromise(
           refineOpportunityResumeAction(
             opportunity.id,
             refinePrompt.trim(),
             resume?.experiences ?? null,
-            includeSummary
+            includeSummary,
+            undefined,
+            devModel || undefined
           ),
           signal
         );

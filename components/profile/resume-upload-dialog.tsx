@@ -16,6 +16,7 @@ import {
   importGitHubProjects,
   saveMasterProfile,
 } from "@/app/actions/profile";
+import { getDevOllamaModelOverride } from "@/components/settings/ai-models-card";
 import {
   educationProgressLabel,
   formatEducationDates,
@@ -103,6 +104,11 @@ export function ResumeUploadDialog({
       formData.append("overwriteAll", "true");
     }
 
+    const devModel = getDevOllamaModelOverride();
+    if (devModel) {
+      formData.append("devModelOverride", devModel);
+    }
+
     setSelectedFile(null);
     setGithubInput("");
     setOverwriteAll(false);
@@ -137,9 +143,15 @@ export function ResumeUploadDialog({
       return;
     }
 
+    const devModel = getDevOllamaModelOverride();
+
     startTransition(async () => {
       const toastId = toast.loading("Syncing GitHub repositories…");
-      const result = await importGitHubProjects(accountId, handle);
+      const result = await importGitHubProjects(
+        accountId,
+        handle,
+        devModel || undefined
+      );
       if (!result.ok) {
         toast.error(result.error, { id: toastId });
         return;

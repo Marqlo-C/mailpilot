@@ -44,6 +44,8 @@ export {
 export {
   normalizeGitHubUsername,
   adaptRepoToProjectItem,
+  sanitizeBulletString,
+  LOW_SIGNAL_CHORE_REGEX,
 } from "./lens";
 
 // Main Syncer Orchestration

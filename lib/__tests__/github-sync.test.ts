@@ -15,10 +15,14 @@ import {
   analyzeRepoArtifacts,
   syncGitHubProjects,
   normalizeGitHubUsername,
+  sanitizeBulletString,
+  LOW_SIGNAL_CHORE_REGEX,
   DEEP_ANALYSIS_SYSTEM_PROMPT,
   FILTER_OUT_REGEX,
   PRIORITY_REGEX,
 } from "@/lib/github";
+import { consolidateProfiles } from "@/lib/profile-consolidation";
+import { getEmptyMasterProfileData } from "@/lib/validations/profile";
 
 describe("GitHub Syncer & Elastic Ingestion Architecture", () => {
   beforeEach(() => {
@@ -487,6 +491,344 @@ Respectful collaboration is strictly required.
       expect(projects[0].origin).toBe("GITHUB_INFERRED");
       expect(projects[0].technologies).toContain("TypeScript");
       expect(projects[0].technologies).toContain("ioredis");
+    });
+  });
+
+  describe("Syntax Artifact & Quote Sanitization (sanitizeBulletString)", () => {
+    it("strips unclosed or mismatched backticks while preserving matched inline code", () => {
+      // Unpaired single backtick
+      expect(
+        sanitizeBulletString("`Architected a distributed event broker in Go.")
+      ).toBe("Architected a distributed event broker in Go.");
+
+      // Balanced pairs preserved
+      expect(
+        sanitizeBulletString("Engineered `FastKV` engine with `zero-copy` memory buffers.")
+      ).toBe("Engineered `FastKV` engine with `zero-copy` memory buffers.");
+
+      // Three backticks (one matched pair, one orphan)
+      expect(
+        sanitizeBulletString("Implemented `FastKV` transactional store with `Redis.")
+      ).toBe("Implemented `FastKV` transactional store with Redis.");
+    });
+
+    it("strips leading/trailing quotes and quotes from code symbols and package names", () => {
+      // Outer quotes
+      expect(
+        sanitizeBulletString('"Architected lock-free queues utilizing mutex-free ring buffers."')
+      ).toBe("Architected lock-free queues utilizing mutex-free ring buffers.");
+
+      // Quoted package names and symbols
+      expect(
+        sanitizeBulletString("Integrated 'express' and 'ws' gateway with 'ioredis' persistence.")
+      ).toBe("Integrated express and ws gateway with ioredis persistence.");
+
+      // Quoted file path
+      expect(
+        sanitizeBulletString("Refactored 'apps/web/package.json' workspace dependencies.")
+      ).toBe("Refactored apps/web/package.json workspace dependencies.");
+
+      // Preserves English contractions
+      expect(
+        sanitizeBulletString("Hardened worker's event loop to prevent unhandled rejections.")
+      ).toBe("Hardened worker's event loop to prevent unhandled rejections.");
+    });
+
+    it("cleans up orphan punctuation marks and ensures terminal punctuation", () => {
+      // Orphan comma/colon before period
+      expect(
+        sanitizeBulletString("Engineered gateway caching layer , .")
+      ).toBe("Engineered gateway caching layer.");
+
+      expect(
+        sanitizeBulletString("Instrumented telemetry pipelines : .")
+      ).toBe("Instrumented telemetry pipelines.");
+
+      // Duplicate periods
+      expect(
+        sanitizeBulletString("Dispatched streaming events across worker pool..")
+      ).toBe("Dispatched streaming events across worker pool.");
+
+      // Missing terminal punctuation
+      expect(
+        sanitizeBulletString("Synchronized distributed state across nodes")
+      ).toBe("Synchronized distributed state across nodes.");
+
+      // Leading bullet marker
+      expect(
+        sanitizeBulletString("• Architected event-driven architecture.")
+      ).toBe("Architected event-driven architecture.");
+    });
+  });
+
+  describe("Clean Isolation of Repository Description from Bullets", () => {
+    it("ensures adaptRepoToProjectItem populates description exclusively and omits it from bullets", () => {
+      const repo = {
+        name: "turbocache",
+        description: "A lightning-fast distributed cache with LRU eviction",
+        html_url: "https://github.com/dev/turbocache",
+        fork: false,
+        archived: false,
+        language: "Rust",
+        topics: ["cache", "rust"],
+        stargazers_count: 100,
+        forks_count: 10,
+      };
+
+      const rawBullets = [
+        "A lightning-fast distributed cache with LRU eviction.", // Echo of repo description
+        "Engineered zero-copy memory maps for high-throughput LRU eviction.",
+        "Implemented deterministic hash ring partitioning across 8 cluster nodes.",
+      ];
+
+      const item = adaptRepoToProjectItem({
+        repo,
+        bullets: rawBullets,
+        manifestTechnologies: ["tokio", "serde"],
+      });
+
+      // Description is strictly preserved in metadata field
+      expect(item.description).toBe("A lightning-fast distributed cache with LRU eviction");
+
+      // Bullets contain ONLY the technical engineering bullets (echo is filtered out)
+      expect(item.bullets).toHaveLength(2);
+      expect(item.bullets[0]).toBe(
+        "Engineered zero-copy memory maps for high-throughput LRU eviction."
+      );
+      expect(item.bullets[1]).toBe(
+        "Implemented deterministic hash ring partitioning across 8 cluster nodes."
+      );
+      expect(item.bullets[0]).not.toContain("A lightning-fast distributed cache");
+    });
+
+    it("filters out bullets that wrap repo name with description", () => {
+      const repo = {
+        name: "mesh-router",
+        description: "Real-time edge packet router",
+        html_url: "https://github.com/dev/mesh-router",
+        fork: false,
+        archived: false,
+        language: "Go",
+        topics: [],
+        stargazers_count: 10,
+        forks_count: 2,
+      };
+
+      const item = adaptRepoToProjectItem({
+        repo,
+        bullets: [
+          "Engineered and maintained mesh-router: Real-time edge packet router.",
+          "Multiplexed ingress UDP packets with zero-allocation ring buffers.",
+        ],
+      });
+
+      expect(item.bullets).toHaveLength(1);
+      expect(item.bullets[0]).toBe(
+        "Multiplexed ingress UDP packets with zero-allocation ring buffers."
+      );
+    });
+
+    it("returns empty bullets when repository has zero README and zero manifests", async () => {
+      const result = await analyzeRepoArtifacts({
+        repoName: "empty-skeleton",
+        description: "Placeholder repository without documentation",
+        readme: null,
+        manifestTechnologies: [],
+        repoSize: 10,
+      });
+
+      expect(result.bullets).toEqual([]);
+      expect(result.technologies).toEqual([]);
+    });
+
+    it("does not interpolate description into heuristic fallback bullets", async () => {
+      const mockLLM = vi.mocked(callLLMWithFallback);
+      mockLLM.mockRejectedValueOnce(new Error("LLM failure"));
+
+      const result = await analyzeRepoArtifacts({
+        repoName: "sensor-pipeline",
+        description: "High-throughput sensor ingestion system",
+        readme: "# sensor-pipeline\n## Architecture\nIngests telemetry.",
+        manifestTechnologies: ["express", "ioredis"],
+        repoSize: 4500,
+      });
+
+      for (const bullet of result.bullets) {
+        // Must NOT contain the description phrase or "addressing <description>"
+        expect(bullet).not.toContain("addressing High-throughput sensor ingestion system");
+        expect(bullet).not.toBe("High-throughput sensor ingestion system");
+      }
+    });
+  });
+
+  describe("Ban on Low-Signal Developer Setup and Hygiene Chores", () => {
+    it("specifies explicit negative constraints in DEEP_ANALYSIS_SYSTEM_PROMPT", () => {
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).toContain("BANNED TRIVIAL TASKS");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).toContain("Setting up environment variables");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).toContain("Basic filesystem hygiene");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).toContain("superficial demonstration artifacts");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).toContain("Generic development tooling");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).toContain("NO INTRODUCTORY OR DESCRIPTION BULLETS");
+    });
+
+    it("filters out low-signal chore bullets during adaptRepoToProjectItem", () => {
+      const repo = {
+        name: "data-service",
+        description: "Data transformation microservice",
+        html_url: "https://github.com/dev/data-service",
+        fork: false,
+        archived: false,
+        language: "TypeScript",
+        topics: [],
+        stargazers_count: 5,
+        forks_count: 0,
+      };
+
+      const mixedBullets = [
+        "Configured environment variables and .env files for local dev.",
+        "Created folders and organized assets into clean directories.",
+        "Recorded screen recordings and demo scripts demonstrating features.",
+        "Configured code linters and eslint rules for repository code formatting.",
+        "Architected stream transform pipelines processing 50MB/s with bounded memory.",
+        "Benchmarked throughput across partitioned Kafka topics achieving sub-10ms p99.",
+      ];
+
+      const item = adaptRepoToProjectItem({
+        repo,
+        bullets: mixedBullets,
+      });
+
+      expect(item.bullets).toHaveLength(2);
+      expect(item.bullets[0]).toBe(
+        "Architected stream transform pipelines processing 50MB/s with bounded memory."
+      );
+      expect(item.bullets[1]).toBe(
+        "Benchmarked throughput across partitioned Kafka topics achieving sub-10ms p99."
+      );
+    });
+
+    it("detects chore patterns with LOW_SIGNAL_CHORE_REGEX", () => {
+      expect(LOW_SIGNAL_CHORE_REGEX.test("Setting up environment variables for development")).toBe(true);
+      expect(LOW_SIGNAL_CHORE_REGEX.test("Configured .env files and port bindings")).toBe(true);
+      expect(LOW_SIGNAL_CHORE_REGEX.test("Creating folders for project structure")).toBe(true);
+      expect(LOW_SIGNAL_CHORE_REGEX.test("Filesystem hygiene and cleaning up repositories")).toBe(true);
+      expect(LOW_SIGNAL_CHORE_REGEX.test("Generated screen recordings and screenshots")).toBe(true);
+      expect(LOW_SIGNAL_CHORE_REGEX.test("Configuring code linters and prettier")).toBe(true);
+      expect(LOW_SIGNAL_CHORE_REGEX.test("Installing dependencies and packages")).toBe(true);
+
+      // Does NOT match genuine engineering bullets
+      expect(LOW_SIGNAL_CHORE_REGEX.test("Architected distributed storage ring")).toBe(false);
+      expect(LOW_SIGNAL_CHORE_REGEX.test("Benchmarked latency under heavy concurrent load")).toBe(false);
+    });
+  });
+
+  describe("Profile Consolidation Separation of Description and Bullets", () => {
+    it("ensures mergeProjects strips description matches from bullets", () => {
+      const existing = getEmptyMasterProfileData();
+      existing.fullName = "Systems Engineer";
+      existing.projects = [
+        {
+          name: "KV Cache",
+          description: "High-performance key-value cache",
+          technologies: ["TypeScript"],
+          link: "https://github.com/dev/kv-cache",
+          bullets: ["High-performance key-value cache", "Implemented LRU eviction."],
+        },
+      ];
+
+      const incoming = getEmptyMasterProfileData();
+      incoming.projects = [
+        {
+          name: "KV Cache",
+          description: "High-performance key-value cache",
+          technologies: ["Go"],
+          link: "https://github.com/dev/kv-cache",
+          bullets: [
+            "High-performance key-value cache.",
+            "Engineered concurrent shard locking with sync.RWMutex.",
+          ],
+        },
+      ];
+
+      const consolidated = consolidateProfiles(existing, incoming);
+      const proj = consolidated.projects.find((p) => p.name === "KV Cache");
+      expect(proj).toBeDefined();
+      expect(proj!.description).toBe("High-performance key-value cache");
+
+      // The description bullet must NOT be present in bullets
+      expect(proj!.bullets).not.toContain("High-performance key-value cache");
+      expect(proj!.bullets).not.toContain("High-performance key-value cache.");
+      expect(proj!.bullets).toContain("Implemented LRU eviction.");
+      expect(proj!.bullets).toContain(
+        "Engineered concurrent shard locking with sync.RWMutex."
+      );
+    });
+  });
+
+  describe("Dev Model Override & Sampling Options", () => {
+    it("forwards devModelOverride and sets temperature to 0.5 in analyzeRepoArtifacts", async () => {
+      const mockLLM = vi.mocked(callLLMWithFallback);
+      mockLLM.mockResolvedValueOnce({
+        bullets: ["Engineered low-latency IPC pipeline."],
+        extractedTechnologies: ["Rust"],
+      });
+
+      await analyzeRepoArtifacts({
+        repoName: "custom-kernel",
+        description: "Custom microkernel",
+        readme: "# Kernel\nDetailed architecture docs.",
+        manifestTechnologies: ["Rust"],
+        llmOptions: {
+          devModelOverride: "gemma2:27b",
+        },
+      });
+
+      expect(mockLLM).toHaveBeenCalledWith(
+        expect.objectContaining({
+          devModelOverride: "gemma2:27b",
+          ollamaOptions: { temperature: 0.5 },
+        })
+      );
+    });
+
+    it("forwards devModelOverride from syncGitHubProjects options to inference", async () => {
+      const mockLLM = vi.mocked(callLLMWithFallback);
+      mockLLM.mockResolvedValueOnce({
+        bullets: ["Architected consensus protocol engine."],
+        extractedTechnologies: ["Go"],
+      });
+
+      vi.spyOn(globalThis, "fetch").mockImplementationOnce(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => [
+          {
+            name: "raft-node",
+            description: "Distributed raft node",
+            html_url: "https://github.com/developer/raft-node",
+            fork: false,
+            archived: false,
+            language: "Go",
+            topics: [],
+            stargazers_count: 10,
+            forks_count: 1,
+            default_branch: "main",
+            size: 2000,
+          },
+        ],
+      } as unknown as Response));
+
+      await syncGitHubProjects("developer", {
+        devModelOverride: "mistral:latest",
+        rawFetcher: vi.fn().mockResolvedValue(null),
+      });
+
+      expect(mockLLM).toHaveBeenCalledWith(
+        expect.objectContaining({
+          devModelOverride: "mistral:latest",
+          ollamaOptions: { temperature: 0.5 },
+        })
+      );
     });
   });
 });

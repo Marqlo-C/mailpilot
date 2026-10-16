@@ -67,9 +67,9 @@ export type CallLLMOptions = {
   openRouterModels?: string[];
   /** Local generation limits. Omitted calls keep Ollama defaults. */
   ollamaOptions?: {
-    num_ctx: number;
-    num_predict: number;
-    temperature: number;
+    num_ctx?: number;
+    num_predict?: number;
+    temperature?: number;
   };
 
   /** Account identifier for BYOK credential resolution */

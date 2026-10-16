@@ -50,6 +50,7 @@ export async function buildOpportunityResumePreview(
     includeSummary?: boolean;
     forceRegenerate?: boolean;
     inventMetrics?: boolean;
+    devModelOverride?: string | null;
   } = {}
 ): Promise<OpportunityResumePreview | null> {
   const opportunity = await prisma.jobOpportunity.findFirst({
@@ -219,6 +220,7 @@ export async function buildOpportunityResumePreview(
       llmProvider: normalizeProvider(account?.settings?.llmProvider),
       localOllamaUrl: account?.settings?.localOllamaUrl,
       ollamaModel: account?.settings?.ollamaModel,
+      devModelOverride: options.devModelOverride,
       allowCloudFallback: accountRules.allowCloudFallback,
       customInstruction: options.customInstruction,
       previousSelectedBulletIds: options.previousSelectedBulletIds,
@@ -433,12 +435,14 @@ export async function prepareOpportunityResume(
     includeSummary?: boolean;
     forceRegenerate?: boolean;
     inventMetrics?: boolean;
+    devModelOverride?: string | null;
   } = {}
 ): Promise<OpportunityResumePreview | null> {
   return buildOpportunityResumePreview(accountId, opportunityId, {
     includeSummary: options.includeSummary,
     forceRegenerate: options.forceRegenerate === true,
     inventMetrics: options.inventMetrics,
+    devModelOverride: options.devModelOverride,
   });
 }
 
@@ -449,7 +453,8 @@ export async function refineOpportunityResume(
   instruction: string,
   previousExperiences?: WorkExperienceInput[] | null,
   includeSummary = false,
-  inventMetrics?: boolean
+  inventMetrics?: boolean,
+  devModelOverride?: string | null
 ): Promise<OpportunityResumePreview> {
   const trimmed = instruction.trim();
   if (!trimmed) {
@@ -465,6 +470,7 @@ export async function refineOpportunityResume(
     includeSummary,
     inventMetrics,
     forceRegenerate: true,
+    devModelOverride,
   });
   if (!preview) {
     throw new Error("Failed to refine resume");
