@@ -6,7 +6,7 @@ import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { resetMasterProfile, updateMasterProfile } from "@/app/actions/profile";
-import { ExportMasterResumeButton } from "@/components/profile/export-master-resume-button";
+import { ExportMasterProfileButton } from "@/components/profile/export-master-profile-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -1079,7 +1079,7 @@ export function ManualProfileEditor({
               </Button>
               <div className="flex items-center gap-3">
                 {profile ? (
-                  <ExportMasterResumeButton accountId={accountId} variant="outline" />
+                  <ExportMasterProfileButton accountId={accountId} variant="outline" />
                 ) : null}
                 {error ? (
                   <p className="max-w-sm text-left text-sm text-destructive">

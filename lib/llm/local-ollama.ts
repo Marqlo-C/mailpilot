@@ -100,6 +100,11 @@ export function resolveOllamaModel(
     return configuredTrimmed;
   }
 
+  const envModel = process.env.OLLAMA_MODEL?.trim();
+  if (envModel) {
+    return envModel;
+  }
+
   return DEFAULT_OLLAMA_MODEL;
 }
 

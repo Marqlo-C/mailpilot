@@ -1173,7 +1173,7 @@ export async function exportMasterProfilePdfAction(
     const safeName = (profile.fullName || "Candidate")
       .trim()
       .replace(/\s+/g, "_");
-    const filename = `${safeName}_Master_Resume.pdf`;
+    const filename = `${safeName}_Master_Profile.pdf`;
 
     return {
       ok: true,
@@ -1189,7 +1189,7 @@ export async function exportMasterProfilePdfAction(
       error:
         error instanceof Error
           ? error.message
-          : "Failed to export master resume PDF",
+          : "Failed to export master profile PDF",
     };
   }
 }

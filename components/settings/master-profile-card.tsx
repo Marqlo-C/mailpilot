@@ -1,8 +1,6 @@
 "use client";
 
 import { PersonaViewer } from "@/components/profile/persona-viewer";
-import { ResumeUploadDialog } from "@/components/profile/resume-upload-dialog";
-import { ExportMasterResumeButton } from "@/components/profile/export-master-resume-button";
 import { ManualProfileEditor } from "@/components/profile/manual-profile-editor";
 import { ProfileRevisionsMenu } from "@/components/profile/profile-revisions-menu";
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
@@ -122,14 +120,7 @@ export function MasterProfileCard({
 
         {accountId ? (
           <div className="flex flex-wrap gap-2">
-            {profile ? (
-              <ExportMasterResumeButton accountId={accountId} />
-            ) : null}
             <ManualProfileEditor accountId={accountId} profile={profile} />
-            <ResumeUploadDialog
-              accountId={accountId}
-              triggerLabel="Import Resume"
-            />
             {profile ? <ProfileRevisionsMenu accountId={accountId} /> : null}
           </div>
         ) : null}

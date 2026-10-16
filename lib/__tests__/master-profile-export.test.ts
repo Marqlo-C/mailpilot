@@ -183,7 +183,7 @@ describe("Master Profile PDF Export", () => {
       expect(res.ok).toBe(true);
       if (!res.ok || !res.data) throw new Error("Expected ok result");
 
-      expect(res.data.filename).toBe("Jordan_Lee_Master_Resume.pdf");
+      expect(res.data.filename).toBe("Jordan_Lee_Master_Profile.pdf");
       expect(res.data.pdfBase64).toBeDefined();
 
       const decoded = Buffer.from(res.data.pdfBase64, "base64");

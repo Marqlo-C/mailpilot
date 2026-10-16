@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { LogOut, PlusCircle } from "lucide-react";
 
+import { logoutSession } from "@/app/actions/auth";
+import { ExportMasterProfileButton } from "@/components/profile/export-master-profile-button";
+import { ResumeUploadDialog } from "@/components/profile/resume-upload-dialog";
 import { AccountsCard } from "@/components/settings/accounts-card";
 import { AiModelsCard } from "@/components/settings/ai-models-card";
 import { ApplicationAutomationCard } from "@/components/settings/application-automation-card";
@@ -10,6 +14,10 @@ import { ExcludedTitlesCard } from "@/components/settings/excluded-titles-card";
 import { MasterProfileCard } from "@/components/settings/master-profile-card";
 import type { ProfileSnapshotData } from "@/components/settings/master-profile-card";
 import { ResumeTailoringDefaultsCard } from "@/components/settings/resume-tailoring-defaults-card";
+import {
+  BOXY_ACTION_BTN_SECONDARY,
+  BOXY_ACTION_BTN_DESTRUCTIVE,
+} from "@/components/settings/settings-chrome";
 import { UiRailCard } from "@/components/settings/ui-rail-card";
 import { DismissedRetentionSetting } from "@/components/settings/retention-setting";
 import { useTabRailClasses } from "@/components/ui/segmented-tabs";
@@ -60,10 +68,17 @@ export function SettingsView({
   errorBanner,
 }: SettingsViewProps) {
   const [tab, setTab] = useState<SettingsTab>("accounts");
+  const [isLoggingOut, startLogoutTransition] = useTransition();
   const {
     listClassName: segmentedTabsListClassName,
     triggerClassName: segmentedTabsTriggerClassName,
   } = useTabRailClasses();
+
+  function handleLogout() {
+    startLogoutTransition(async () => {
+      await logoutSession();
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -82,7 +97,7 @@ export function SettingsView({
         value={tab}
         onValueChange={(value) => setTab(value as SettingsTab)}
       >
-        <div className="mb-1 flex items-center gap-1.5 pt-1">
+        <div className="mb-1 flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
           <TabsList className={segmentedTabsListClassName}>
             <TabsTrigger
               value="accounts"
@@ -115,6 +130,44 @@ export function SettingsView({
               UI
             </TabsTrigger>
           </TabsList>
+
+          {/* Conditional Tab Rail Action Buttons */}
+          {tab === "profile" && activeAccountId ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {profile ? (
+                <ExportMasterProfileButton
+                  accountId={activeAccountId}
+                  className={BOXY_ACTION_BTN_SECONDARY}
+                />
+              ) : null}
+              <ResumeUploadDialog
+                accountId={activeAccountId}
+                triggerLabel="Import Resume"
+                triggerClassName={BOXY_ACTION_BTN_SECONDARY}
+              />
+            </div>
+          ) : null}
+
+          {tab === "accounts" ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href="/api/auth/google?intent=link"
+                className={BOXY_ACTION_BTN_SECONDARY}
+              >
+                <PlusCircle className="size-3.5 shrink-0" />
+                Add Gmail Account
+              </a>
+              <button
+                type="button"
+                disabled={isLoggingOut}
+                onClick={handleLogout}
+                className={BOXY_ACTION_BTN_DESTRUCTIVE}
+              >
+                <LogOut className="size-3.5 shrink-0" />
+                {isLoggingOut ? "Logging out…" : "Log Out Session"}
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <TabsContent

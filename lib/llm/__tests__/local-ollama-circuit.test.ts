@@ -7,6 +7,8 @@ import {
   OllamaUnreachableError,
   OllamaInvalidJsonError,
   parseJsonObject,
+  resolveOllamaModel,
+  DEFAULT_OLLAMA_MODEL,
 } from "../local-ollama";
 import { classifyJobEmail } from "../classification";
 import * as dispatcher from "../dispatcher";
@@ -183,6 +185,34 @@ describe("Local Ollama Circuit Breaker & Offline Handling", () => {
         is_job_related: true,
         jobs: [{ title: "Principal Architect" }],
       });
+    });
+  });
+
+  describe("resolveOllamaModel Dynamic Configuration", () => {
+    it("respects devOverride in development mode", () => {
+      vi.stubEnv("NODE_ENV", "development");
+      const model = resolveOllamaModel("db-model:latest", "dev-override:latest");
+      expect(model).toBe("dev-override:latest");
+    });
+
+    it("prioritizes configured model over env and default", () => {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("OLLAMA_MODEL", "env-model:latest");
+      const model = resolveOllamaModel("db-model:latest", null);
+      expect(model).toBe("db-model:latest");
+    });
+
+    it("falls back to process.env.OLLAMA_MODEL if no configured model is supplied", () => {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("OLLAMA_MODEL", "env-model:latest");
+      const model = resolveOllamaModel(null, null);
+      expect(model).toBe("env-model:latest");
+    });
+
+    it("falls back to DEFAULT_OLLAMA_MODEL when nothing is configured", () => {
+      delete process.env.OLLAMA_MODEL;
+      const model = resolveOllamaModel(null, null);
+      expect(model).toBe(DEFAULT_OLLAMA_MODEL);
     });
   });
 });
