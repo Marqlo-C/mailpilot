@@ -21,7 +21,9 @@ import {
   serializeRevisionSummary,
 } from "@/lib/profile/revision-diff";
 import { normalizeProfileUrl } from "@/lib/utils/url";
-import { normalizeProjectName } from "@/lib/utils/format";
+import { buildResumeContactLine, normalizeProjectName } from "@/lib/utils/format";
+import { loadMasterProfileForDraft } from "@/lib/master-profile";
+import { generateTailoredResumePdf } from "@/lib/pdf-generator";
 import { encryptPhoneAtRest, decryptPhoneAtRest } from "@/lib/crypto";
 import {
   listProfileRevisions,
@@ -1128,3 +1130,67 @@ export async function importGitHubProjects(
     };
   }
 }
+
+/**
+ * Exports the unpruned Master Profile as a comprehensive, multi-page PDF document
+ * containing all experiences, projects, skills, education, and credentials without calling the LLM.
+ */
+export async function exportMasterProfilePdfAction(
+  accountId: string
+): Promise<ActionResult<{ pdfBase64: string; filename: string }>> {
+  if (!accountId) {
+    return { ok: false, error: "accountId is required" };
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+  });
+  if (!account) {
+    return { ok: false, error: "Account not found" };
+  }
+
+  try {
+    const profile = await loadMasterProfileForDraft(accountId);
+
+    const pdfBuffer = await generateTailoredResumePdf(
+      profile,
+      profile.experiences,
+      profile.projects,
+      profile.summary ?? null,
+      profile.skills,
+      Boolean(profile.summary),
+      {
+        headerName: profile.fullName,
+        contactLine: buildResumeContactLine(profile),
+        education: profile.education,
+        skillGroups: profile.skills,
+        certifications: profile.certifications,
+        awards: profile.awards,
+        interests: profile.interests,
+      }
+    );
+
+    const safeName = (profile.fullName || "Candidate")
+      .trim()
+      .replace(/\s+/g, "_");
+    const filename = `${safeName}_Master_Resume.pdf`;
+
+    return {
+      ok: true,
+      data: {
+        pdfBase64: pdfBuffer.toString("base64"),
+        filename,
+      },
+    };
+  } catch (error) {
+    console.error("exportMasterProfilePdfAction failed", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to export master resume PDF",
+    };
+  }
+}
+

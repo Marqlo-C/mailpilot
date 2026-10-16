@@ -1,5 +1,5 @@
 import fs from "fs";
-import { beforeAll, describe, it, expect, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, it, expect, vi } from "vitest";
 import { encryptToken } from "@/lib/crypto";
 import {
   extractJsonLdJobPosting,
@@ -816,6 +816,15 @@ describe("JSON-LD Link Parser", () => {
   });
 
   describe("recordScraperFailure", () => {
+    beforeEach(() => {
+      vi.stubEnv("NODE_ENV", "test");
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.restoreAllMocks();
+    });
+
     it("writes failure to file when in dev mode", () => {
       const existsSpy = vi.spyOn(fs, "existsSync").mockReturnValue(false);
       const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementation(() => {});
@@ -837,9 +846,6 @@ describe("JSON-LD Link Parser", () => {
           timestamp: "2026-10-13T00:00:00.000Z",
         },
       ]);
-
-      existsSpy.mockRestore();
-      writeSpy.mockRestore();
     });
 
     it("updates existing failure if URL already exists", () => {
@@ -868,10 +874,6 @@ describe("JSON-LD Link Parser", () => {
       expect(writtenPayload).toHaveLength(1);
       expect(writtenPayload[0].status).toBe(429);
       expect(writtenPayload[0].reason).toBe("Rate Limited");
-
-      existsSpy.mockRestore();
-      readSpy.mockRestore();
-      writeSpy.mockRestore();
     });
 
     it("skips recording in production environment", () => {
@@ -887,9 +889,6 @@ describe("JSON-LD Link Parser", () => {
       });
 
       expect(writeSpy).not.toHaveBeenCalled();
-
-      vi.unstubAllEnvs();
-      writeSpy.mockRestore();
     });
   });
 });

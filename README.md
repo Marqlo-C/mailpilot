@@ -455,6 +455,13 @@ Calculates dynamic bullet allocations to guarantee strict 1-page Letter layout g
   - `@react-pdf/renderer`: Produces print-ready PDF buffers (612 $\times$ 792 pt Letter geometry, 18pt padding, zero mid-word hyphenation splits).
   - JSZip OpenXML Engine (`compileResumeDocx`): Produces native Microsoft Word `.docx` documents.
 
+### 5. Offline Master Resume Export (Zero LLM Overhead)
+Candidates can export their complete, canonical Master Profile at any time without triggering LLM calls or paying inference tokens:
+- **Comprehensive Unpruned Document:** In contrast to job-tailored drafts which adhere to 1-page Letter budgeting, the Master Resume export includes 100% of the candidate's work experiences, projects, credentials, skill groups, honors, and interests in an unpruned, natural multi-page flow.
+- **Server Action Architecture (`exportMasterProfilePdfAction`):** Loads the account's master profile via `loadMasterProfileForDraft(accountId)` and routes directly into `@react-pdf/renderer` via `generateTailoredResumePdf()`.
+- **Contact Line Sanitization:** Utilizes `buildResumeContactLine(profile)` to format an authentic, single-line contact bar and eliminate rogue technical skills or unverified links from header rows.
+- **Instant Client-Side Delivery:** Converts the returned base64 binary buffer into an ephemeral client-side Blob stream for immediate download (`<Name>_Master_Resume.pdf`).
+
 ---
 
 ## 8. Technology Stack Matrix
