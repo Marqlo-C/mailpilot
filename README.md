@@ -128,8 +128,8 @@ flowchart TD
                    ▼
       ┌─────────────────────────┐            ┌─────────────────────────┐
       │   Primary Classifier    │            │    PENDING_AI Parking   │
-      │   (Local / Cloud LLM)   │──[Fail]───▶│   (Preserves Unaltered  │
-      │                         │            │    Raw Mail for Retry)  │
+      │   (Local / Cloud LLM)   │──[Fail]───▶│   (Queues Message ID    │
+      │                         │            │   for Safe Re-Fetch)    │
       └────────────┬────────────┘            └─────────────────────────┘
                    │
                    ▼
@@ -288,10 +288,10 @@ While general profile parsing across MailPilot remains strictly career-agnostic,
   - `schema.ssot.ts`: Single source of truth defining `ProjectItem`, `GitHubRawRepo`, `RepoComplexityScale`, and the `determineRepoScale()` complexity evaluator.
   - `prefilter.ts`: Semantic markdown AST scrubber (`extractSemanticMarkdownDigest`) that strips non-technical boilerplate (shield badges, raw HTML images, sponsor links, HTML comments), completely eliminates installation/licensing clutter, and prioritizes architectural sections (`architecture`, `system design`, `data flow`, `components`, `protocols`, `concurrency`, `pipeline`, `benchmarks`, `performance`, `security`, `storage`, `api specification`, `models`).
   - `manifests.ts`: Probes root and nested manifests (`package.json`, `requirements.txt`, `pyproject.toml`, `go.mod`, `Cargo.toml`), filters out dev/linter tooling noise, and organizes packages into systems domains (`groupDependenciesByDomain`: *"Networking & Protocols"*, *"State, Storage & Persistence"*, *"Concurrency, Queues & Messaging"*, *"Architecture & Web Frameworks"*, *"Math, Compute & ML"*, *"Telemetry, Hardening & Security"*).
-  - `topology.ts`: Deterministically deduces cross-manifest architectural topologies (`deduceArchitecturalTopology`), detecting decoupled backends, real-time WebSocket/Redis pub-sub pipelines, and message broker queues.
+  - `topology.ts`: Deterministically deduces cross-manifest architectural topologies (`deduceArchitecturalTopology`), detecting decoupled backends (e.g., *"Decoupled service layer pairing an asynchronous Python backend with a TypeScript web frontend"*), real-time WebSocket/Redis pub-sub pipelines, and distributed message broker queues.
   - `inference.ts`: Coordinates multi-tier inference through `DEEP_ANALYSIS_SYSTEM_PROMPT`. Strictly bans introductory repository summary bullets, mandates diverse engineering action verbs (*Dispatched, Multiplexed, Sharded, Ingested, Serialized, Partitioned, Profiled, Benchmarked*), prohibits fake commercial ROI, and enforces deterministic systems-action fallbacks.
   - `lens.ts`: Adapts raw GitHub repo payloads and inference outputs into normalized `ProjectItem` entities with sanitized Title Case names.
-  - `syncer.ts`: End-to-end orchestrator (`syncGitHubProjects`) managing rate limits, concurrent manifest fetching, and multi-tier LLM failover.
+  - `syncer.ts`: End-to-end orchestrator (`syncGitHubProjects`) managing rate limits, concurrent manifest fetching, and multi-tier LLM failover. Forwards `accountId` and account rules through to `callLLMWithFallback`, ensuring BYOK cloud inference works seamlessly if local Ollama is offline, backed by a deterministic heuristic fallback engine that generates decisive engineering bullets if all models are unavailable.
 
 - **Dynamic 3-Tier Repository Complexity Budgeting:**
   - *Tier 1: Utility / Small Component* (`repo.size < 3000` KB or 1 manifest): Calibrates to a 2,500-character digest budget and targets 2–3 concise atomic bullets for CLI tools and localized algorithms.
@@ -418,8 +418,9 @@ All vaulted customer secrets and sensitive candidate metadata are encrypted at r
 | Asset | Storage Target | Decryption Boundary | Masking / Protection |
 | :--- | :--- | :--- | :--- |
 | **Google OAuth Access & Refresh Tokens** | `Account.encryptedAccess`, `Account.encryptedRefresh` | Memory of serverless worker during delta sync / watch renewal | Plaintext never exposed to browser; automatic token refresh. |
-| **Cloud LLM API Keys** | `AccountSettings.rules.accountApiKey` | Decrypted per inference request in server memory | UI display mask: `sk-...[last4]`. |
-| **Scraping Proxy Keys** | `AccountSettings.rules.hasDataApiKey` | Decrypted per scraping request in server memory | UI display mask: `hd-...[last4]`. |
+| **Cloud LLM API Keys** | `AccountSettings.rules.encryptedAccountApiKey` | Decrypted per inference request in server memory | UI display mask: `sk-...[last4]`. |
+| **Scraping Proxy Keys (HasData)** | `AccountSettings.rules.encryptedHasDataApiKey` | Decrypted per scraping request in server memory | UI display mask: `hd-...[last4]`. |
+| **Scraping Proxy Keys (ScrapingAnt)** | `AccountSettings.rules.encryptedScrapingAntApiKey` | Decrypted per scraping request in server memory | UI display mask: `ant-...[last4]`. |
 | **Candidate Phone Number** | `UserProfile.phone` | Decrypted in server actions during profile editing / PDF export | Never serialized to unauthenticated API routes. |
 
 * **Constant-Time Verification:** Secret tokens and hashes are validated using `crypto.timingSafeEqual` to eliminate side-channel timing attacks.
@@ -523,29 +524,6 @@ Candidates can export their complete, canonical Master Profile at any time witho
 - **Contact Line Sanitization:** Utilizes `buildResumeContactLine(profile)` to format an authentic, single-line contact bar and eliminate rogue technical skills or unverified links from header rows.
 - **Instant Client-Side Delivery:** Converts the returned base64 binary buffer into an ephemeral client-side Blob stream for immediate download (`<Name>_Master_Profile.pdf`).
 
-### 6. GitHub Repository Syncer & Elastic Systems Engineering Ingestion (`lib/github/`)
-While general profile parsing across MailPilot remains strictly career-agnostic, GitHub repository synchronization operates as our **dedicated software & systems engineering domain**. Synthesized project bullet points adopt an authentic, authoritative, jargon-forward register spoken directly to senior technical reviewers:
-
-- **Engineering Tone & Ground Truth Prompting (`DEEP_ANALYSIS_SYSTEM_PROMPT`):**
-  - Synthesizes technical bullets utilizing precise systems terminology: concurrency, state consistency, protocols (HTTP, WebSockets, gRPC), caching layers, schema design, latency bounds, and telemetry.
-  - Mandates decisive engineering action verbs: *Architected, Engineered, Implemented, Benchmarked, Hardened, Instrumented, Containerized, Decoupled, Orchestrated, Optimized*.
-  - Strict ban on fake commercial metrics (no fabricated dollar revenue or synthetic user counts); metrics calibrate strictly to verified systems realities (latencies, throughput, test counts, container footprints, schema entity counts).
-- **Semantic Markdown Digesting (`extractSemanticMarkdownDigest`):**
-  - Replaces static character truncations (`slice(0, 4000)`) with high-density semantic AST extraction.
-  - Strips non-technical boilerplate in memory: badge/shield links (`[![...](...)]`), HTML comments, raw image tags, and sponsor/funding banners.
-  - Chunks markdown by headings (`#`, `##`, `###`), completely filters out non-technical sections (`installation`, `getting started`, `how to run`, `prerequisites`, `license`, `contributing`, `code of conduct`), and prioritizes architectural sections (`architecture`, `system design`, `data flow`, `components`, `protocols`, `concurrency`, `pipeline`, `benchmarks`, `performance`, `security`).
-- **Dynamic 3-Tier Repository Complexity Budgeting (`determineRepoScale`):**
-  - *Tier 1: Utility / Small Component* (`repo.size < 3000` KB or 1 manifest): Calibrates to a 2,500-character digest budget and targets 2–3 concise atomic bullets for CLI tools and algorithms.
-  - *Tier 2: Mid-Scale Application / Service* (`repo.size` between 3,000 KB and 15,000 KB, or 2 manifests): Calibrates to a 5,500-character digest budget and targets 4–6 atomic bullets for containerized apps and background workers.
-  - *Tier 3: Flagship / Distributed Architecture* (`repo.size >= 15000` KB or presence of monorepo subdirectories like `apps/`, `services/`, `packages/`, `backend/`): Calibrates to a 10,000-character digest budget and targets 6–10 atomic bullets delivering comprehensive subsystem coverage across data ingestion, persistence, protocols, and security.
-- **Cross-Manifest Architectural Deduction (`deduceArchitecturalTopology`):**
-  - Evaluates combinations of detected manifests across root and nested subdirectories (`apps/`, `backend/`, `services/`).
-  - Deduces verified architectural topologies (e.g., *"Decoupled service layer pairing an asynchronous Python backend with a TypeScript web frontend"*, or *"Distributed real-time messaging pipeline coordinating WebSocket gateways through Redis pub/sub state synchronization"*).
-  - Injects verified topologies directly into the LLM prompt payload as verified ground truth.
-- **Multi-Tier Inference & Heuristic Resilience:**
-  - Forwards `accountId` and account rules through `syncGitHubProjects` to `callLLMWithFallback`, ensuring BYOK cloud inference works seamlessly if local Ollama is offline.
-  - Heuristic fallback engine generates decisive engineering bullets without generic filler (*"worked on code"*, *"helped users"*).
-
 ---
 
 ## 8. Performance & Systems Optimization
@@ -565,7 +543,7 @@ flowchart TD
     B --> D["WebP Poster Frame<br/>(~18 KB WebP)"]
     C --> E["Vercel Blob<br/>Private Object Store"]
     D --> E
-    E --> F["Authenticated Proxy<br/>(/api/login-background)"]
+    E --> F["Server-Side Media Proxy<br/>(/api/login-background)"]
     F -->|"&nbsp;&nbsp;asset=poster&nbsp;&nbsp;"| G["Static Poster Frame<br/>(Zero CLS Byte 0)"]
     F -->|"&nbsp;&nbsp;asset=video&nbsp;&nbsp;"| H["Progressive Media Stream<br/>(HTTP 206 Range)"]
     G -.->|"&nbsp;&nbsp;onCanPlay&nbsp;&nbsp;"| H
@@ -585,8 +563,8 @@ flowchart TD
 | **Cryptography** | **Node.js Crypto** | AES-256-GCM / timingSafeEqual | Authenticated envelope encryption at rest; timing-safe secret comparisons. |
 | **Document Generation**| **React-PDF & JSZip** | `@react-pdf/renderer` v4 | Dynamic vector PDF rendering and binary `.docx` XML generation. |
 | **Inference Router** | **Multi-Provider BYOK** | Local Ollama + Cloud REST | Multi-tier failover: Ollama (Tunnel) $\to$ OpenRouter $\to$ PENDING_AI parking (with heuristic fallback for GitHub repo sync). |
-| **Scraping & Parsing** | **Cheerio & Custom AST** | Cheerio v1.0, Nuxt AST | Schema.org JSON-LD extraction, Nuxt 3 state un-flattening, LinkedIn Guest API. |
-| **Logging & Telemetry**| **Pino & TableLogger** | Pino v9 + 66-col ASCII | Structured JSON logging in production; formatted ASCII telemetry in dev. |
+| **Scraping & Parsing** | **Custom AST & JSON Parsers** | Native AST & JSON-LD Regex | Schema.org JSON-LD extraction, Nuxt 3 state un-flattening, LinkedIn Guest API. |
+| **Logging & Telemetry**| **Pino & TableLogger** | Pino v10 + 66-col ASCII | Structured JSON logging in production; formatted ASCII telemetry in dev. |
 | **Testing** | **Vitest** | v4.1 (Zero-Token Mocks) | Deterministic, offline unit and integration test suite. |
 
 ---
@@ -612,7 +590,7 @@ npx tsc --noEmit
  ✓ lib/__tests__/ssrf.test.ts (3 tests)
  ✓ lib/matching/__tests__/matching.test.ts (8 tests)
  ✓ lib/ai/__tests__/salary.test.ts (14 tests)
- ✓ lib/llm/__tests__/local-ollama-circuit.test.ts (14 tests)
+ ✓ lib/llm/__tests__/local-ollama-circuit.test.ts (18 tests)
  ✓ lib/__tests__/account-encryption.test.ts (7 tests)
  ✓ lib/llm/__tests__/classification-normalizer.test.ts (16 tests)
  ✓ lib/llm/__tests__/llm-vault.test.ts (13 tests)
@@ -627,11 +605,12 @@ npx tsc --noEmit
  ✓ lib/opportunities/context/__tests__/json-ld.test.ts (41 tests)
  ✓ lib/resume-draft/__tests__/resume-draft.test.ts (54 tests)
  ✓ lib/__tests__/master-profile-export.test.ts (3 tests)
- ✓ lib/__tests__/github-sync.test.ts (15 tests)
+ ✓ lib/__tests__/github-sync.test.ts (28 tests)
+ ✓ app/api/login-background/__tests__/route.test.ts (5 tests)
 
-Test Files  20 passed (20)
-     Tests  280 passed (280)
-  Duration  2.21s
+Test Files  21 passed (21)
+     Tests  298 passed (298)
+  Duration  2.4s
 ```
 
 ### Prerequisites
@@ -674,11 +653,12 @@ Test Files  20 passed (20)
 | `TOKEN_ENCRYPTION_KEY` | 64-character hexadecimal key (256-bit AES-GCM master secret) | Required |
 | `GOOGLE_CLIENT_ID` | GCP OAuth 2.0 Client ID | Required |
 | `GOOGLE_CLIENT_SECRET` | GCP OAuth 2.0 Client Secret | Required |
-| `GOOGLE_REDIRECT_URI` | GCP OAuth callback URI (`http://localhost:3000/api/auth/callback`) | Required |
+| `GOOGLE_REDIRECT_URI` | GCP OAuth callback URI (`http://localhost:3000/api/auth/callback/google`) | Required |
 | `GMAIL_PUBSUB_TOPIC` | Google Pub/Sub topic (`projects/{project}/topics/{topic}`) | Required |
 | `GMAIL_WEBHOOK_SECRET`| Shared secret verifying `/api/webhooks/gmail?token=` requests | Required |
 | `CRON_SECRET` | Bearer token securing scheduled background maintenance endpoints | Required |
 | `BLOB_READ_WRITE_TOKEN`| Vercel Blob access token for private object storage | Optional |
+| `GITHUB_TOKEN` | Optional GitHub personal access token for higher rate limits during repository sync | Optional |
 | `OPENROUTER_API_KEY` | Optional development fallback (production keys are managed per-account) | Optional |
 
 ---
