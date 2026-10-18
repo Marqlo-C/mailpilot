@@ -16,6 +16,7 @@ import { logStory, syncLockLog, syncLog } from "@/lib/logging";
 import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
 import { runOpportunitySync } from "@/lib/opportunity-sync";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit } from "@/lib/ratelimit";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -98,6 +99,14 @@ export async function syncInboxOpportunities(
 
   if (!account || !account.isActive) {
     return { ok: false, error: "Account not found or inactive" };
+  }
+
+  const rateLimit = await checkRateLimit(`sync:${accountId}`, "strict");
+  if (!rateLimit.success) {
+    return {
+      ok: false,
+      error: "Sync rate limit reached. Please wait a few seconds before syncing again.",
+    };
   }
 
   if (account.isSyncing) {
@@ -285,6 +294,14 @@ export async function flushPendingAiMessages(
     account.persistentProfileId === sessionAccount?.persistentProfileId;
   if (account.id !== sessionAccountId && !sameProfile) {
     return { ok: false, error: "Unauthorized" };
+  }
+
+  const rateLimit = await checkRateLimit(`flush:${account.id}`, "strict");
+  if (!rateLimit.success) {
+    return {
+      ok: false,
+      error: "Flush rate limit reached. Please wait a few seconds before trying again.",
+    };
   }
 
   const flushed = await prisma.emailMessage.updateMany({

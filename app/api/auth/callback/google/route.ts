@@ -19,6 +19,7 @@ import {
 } from "@/lib/google";
 import { ensurePersistentProfile } from "@/lib/persistent-profile";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
 import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
 
 export const runtime = "nodejs";
@@ -67,6 +68,27 @@ function cookieOpts(maxAge = AUTH_COOKIE_MAX_AGE) {
  * PersistentProfile based on OAuth intent (login = isolated user, link = same user).
  */
 export async function GET(req: NextRequest) {
+  const ip = getClientIp(req);
+  const rateLimit = await checkRateLimit(ip, "standard");
+  if (!rateLimit.success) {
+    const retryAfter = Math.max(
+      1,
+      Math.ceil((rateLimit.reset - Date.now()) / 1000)
+    );
+    return NextResponse.json(
+      { error: "Too many requests. Please try again later." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": retryAfter.toString(),
+          "X-RateLimit-Limit": rateLimit.limit.toString(),
+          "X-RateLimit-Remaining": rateLimit.remaining.toString(),
+          "X-RateLimit-Reset": rateLimit.reset.toString(),
+        },
+      }
+    );
+  }
+
   const url = req.nextUrl;
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");

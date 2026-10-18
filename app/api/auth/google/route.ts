@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 
 import { getAuthorizationUrl } from "@/lib/google";
+import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,27 @@ export type OAuthIntent = "login" | "link";
  * - `forceConsent=true`: force Google permission consent (refresh token / scope changes)
  */
 export async function GET(req: NextRequest) {
+  const ip = getClientIp(req);
+  const rateLimit = await checkRateLimit(ip, "standard");
+  if (!rateLimit.success) {
+    const retryAfter = Math.max(
+      1,
+      Math.ceil((rateLimit.reset - Date.now()) / 1000)
+    );
+    return NextResponse.json(
+      { error: "Too many requests. Please try again later." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": retryAfter.toString(),
+          "X-RateLimit-Limit": rateLimit.limit.toString(),
+          "X-RateLimit-Remaining": rateLimit.remaining.toString(),
+          "X-RateLimit-Reset": rateLimit.reset.toString(),
+        },
+      }
+    );
+  }
+
   try {
     const intent: OAuthIntent =
       req.nextUrl.searchParams.get("intent") === "link" ? "link" : "login";

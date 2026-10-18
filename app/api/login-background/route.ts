@@ -3,6 +3,8 @@ import { existsSync, createReadStream, statSync } from "node:fs";
 import { Readable } from "node:stream";
 import path from "node:path";
 
+import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
+
 export const runtime = "nodejs";
 
 const LOGIN_BG_BLOBS = [
@@ -18,6 +20,24 @@ const LOGIN_POSTER_BLOBS = [
 ].filter((b): b is string => Boolean(b));
 
 export async function GET(request: Request) {
+  const ip = getClientIp(request);
+  const rateLimit = await checkRateLimit(ip, "standard");
+  if (!rateLimit.success) {
+    const retryAfter = Math.max(
+      1,
+      Math.ceil((rateLimit.reset - Date.now()) / 1000)
+    );
+    return new Response("Too Many Requests", {
+      status: 429,
+      headers: {
+        "Retry-After": retryAfter.toString(),
+        "X-RateLimit-Limit": rateLimit.limit.toString(),
+        "X-RateLimit-Remaining": rateLimit.remaining.toString(),
+        "X-RateLimit-Reset": rateLimit.reset.toString(),
+      },
+    });
+  }
+
   const { searchParams } = new URL(request.url);
   const asset = searchParams.get("asset");
   const isPoster = asset === "poster";
