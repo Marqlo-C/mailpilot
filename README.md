@@ -574,6 +574,7 @@ Test Files  22 passed (22)
 - **npm:** v10.0.0 or higher
 - **PostgreSQL:** v15+ instance (local or hosted on Neon / Supabase)
 - **Google Cloud Platform:** Project with Gmail API and Cloud Pub/Sub enabled
+- **Upstash Redis:** (Optional) Serverless Redis instance for token-bucket rate limiting
 
 ### Local Setup Instructions
 
@@ -613,6 +614,8 @@ Test Files  22 passed (22)
 | `GMAIL_PUBSUB_TOPIC` | Google Pub/Sub topic (`projects/{project}/topics/{topic}`) | Required |
 | `GMAIL_WEBHOOK_SECRET`| Shared secret verifying `/api/webhooks/gmail?token=` requests | Required |
 | `CRON_SECRET` | Bearer token securing scheduled background maintenance endpoints | Required |
+| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST API endpoint URL for token-bucket rate limiting | Optional (Fails open in dev) |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST API bearer token | Optional (Fails open in dev) |
 | `BLOB_READ_WRITE_TOKEN`| Vercel Blob access token for private object storage | Optional |
 | `GITHUB_TOKEN` | Optional GitHub personal access token for higher rate limits during repository sync | Optional |
 | `OPENROUTER_API_KEY` | Optional development fallback (production keys are managed per-account) | Optional |
