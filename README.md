@@ -59,7 +59,7 @@ MailPilot is designed from the ground up for strict multi-tenancy and data priva
 The following diagram illustrates the complete asynchronous lifecycle of inbound messages through MailPilot: from Google Cloud Pub/Sub webhook triggers to multi-tier classification, link enrichment, decoupled anti-corruption lenses, and downstream execution engines.
 
 ```mermaid
-%%{init: {'flowchart': {'padding': 18, 'nodeSpacing': 30, 'rankSpacing': 40}}}%%
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
 flowchart TD
   subgraph Ingest["1. Ingestion Subsystem"]
     GW["Gmail Push / Watch API"] -->|Push Event| PS["Google Cloud Pub/Sub"]
@@ -378,7 +378,7 @@ Inbound emails frequently contain abbreviated link digests (`< 300 chars`) point
 ### Multi-Stage Scraping Pipeline
 
 ```mermaid
-%%{init: {'flowchart': {'padding': 18, 'nodeSpacing': 30, 'rankSpacing': 40}}}%%
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
 flowchart TD
   URL["Inbound Job URL"] --> PROTO(["Direct ATS vs Portal?"])
   PROTO -->|Direct ATS| DIRECT["Direct HTTP Request<br/>(MailPilot/1.0)"]
@@ -449,7 +449,7 @@ Earlier resume tailoring architectures digested job specs and immediately froze 
 MailPilot solves this with a **Line-Addressable Intermediate Document Tree (`TailoredResumeDraft`)**:
 
 ```mermaid
-%%{init: {'flowchart': {'padding': 18, 'nodeSpacing': 30, 'rankSpacing': 40}}}%%
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
 flowchart TD
   subgraph Input["1. Ground Truth Inputs"]
     MP["Master Profile Ledger"]
@@ -558,7 +558,7 @@ While general profile parsing across MailPilot remains strictly career-agnostic,
 - **Event-Driven Cross-Fade:** Synchronized HTML5 `onCanPlay` with CSS opacity transitions, providing a zero-flicker handoff from static poster to looping background video.
 
 ```mermaid
-%%{init: {'flowchart': {'padding': 18, 'nodeSpacing': 30, 'rankSpacing': 40}}}%%
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
 flowchart TD
     A["Raw 4K Video Loop<br/>(color-spin)"] --> B["Asset Optimization<br/>(ffmpeg + cwebp)"]
     B --> C["Fast-Start MP4<br/>(moov at byte 36)"]
