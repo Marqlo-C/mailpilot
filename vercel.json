@@ -7,24 +7,20 @@
       "schedule": "0 4 * * *"
     }
   ],
-  "security": {
-    "waf": {
-      "rules": [
+  "routes": [
+    {
+      "src": "^/(login|api/auth/.*)",
+      "has": [
         {
-          "name": "Challenge unverified bots on auth endpoints",
-          "action": "challenge",
-          "condition": {
-            "all": [
-              {
-                "path": "^/(login|api/auth/.*)"
-              },
-              {
-                "isBot": true
-              }
-            ]
-          }
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(curl|wget|python|postman|axios|go-http-client).*"
         }
-      ]
+      ],
+      "continue": true,
+      "mitigate": {
+        "action": "deny"
+      }
     }
-  }
+  ]
 }
