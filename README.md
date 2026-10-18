@@ -62,50 +62,50 @@ The following diagram illustrates the complete asynchronous lifecycle of inbound
 flowchart TD
   subgraph Ingest["1. Ingestion & Webhook Subsystem"]
     GW["Gmail Push / Watch API"] -->|Push Notification| PS["Google Cloud Pub/Sub"]
-    PS -->|POST /api/webhooks/gmail| WH["Webhook Handler (Next.js 15 after())"]
+    PS -->|POST /api/webhooks/gmail| WH["Webhook Handler<br/>(Next.js 15 after())"]
     WH -->|History Delta Cursor| DT["processInboxDelta()"]
     DT -->|Watermark: historyId| ACC["Account Ledger"]
 
-    GH["GitHub REST & Raw API"] -->|Sync Handle / Repos| GHI["GitHub Ingestion (lib/github/)"]
-    GHI -->|Systems AST Digest & Manifests| GHP["DEEP_ANALYSIS_SYSTEM_PROMPT"]
+    GH["GitHub REST & Raw API"] -->|Sync Handle / Repos| GHI["GitHub Ingestion<br/>(lib/github/)"]
+    GHI -->|Systems AST & Manifests| GHP["DEEP_ANALYSIS_SYSTEM_PROMPT"]
     GHP -->|ProjectItem Schema Lens| UPJ["UserProfile.projects"]
   end
 
   subgraph Triage["2. Signal Triage & Multi-Tier Inference"]
-    DT -->|Raw Message Buffer| PF["Zero-Token Pre-filter (lib/ai/prefilter.ts)"]
+    DT -->|Raw Message Buffer| PF["Zero-Token Pre-filter<br/>(lib/ai/prefilter.ts)"]
     PF -->|RFC 8058 Headers| UNSUB["One-Click Unsubscribe Engine"]
-    PF -->|Ironclad Lifecycle Pass| ROUTER{"Inference Router (dispatcher.ts)"}
+    PF -->|Ironclad Lifecycle Pass| ROUTER{"Inference Router<br/>(dispatcher.ts)"}
     PF -->|Vector Scoring: H vs N| ROUTER
     PF -->|Commercial Noise| DROP["0ms Noise Drop / Purge"]
 
-    ROUTER -->|Tier 1: Cloudflare Tunnel| OLL["Local Ollama (Circuit Breaker)"]
-    OLL -.->|Trip / Failover| BYOK["Tier 2: Cloud BYOK (AES-256-GCM Vault)"]
-    BYOK -.->|Rate Limit / Outage| PARK["Offline Parking: PENDING_AI Queue"]
+    ROUTER -->|Tier 1: Tunnel| OLL["Local Ollama<br/>(Circuit Breaker)"]
+    OLL -.->|Trip / Failover| BYOK["Tier 2: Cloud BYOK<br/>(AES-256-GCM Vault)"]
+    BYOK -.->|Rate Limit / Outage| PARK["Offline Parking<br/>(PENDING_AI Queue)"]
   end
 
   subgraph Context["3. Context Enrichment & Anti-Bot Scrapers"]
-    ROUTER -->|Classified Opportunity| ENRICH{"Link Enrichment (context/)"}
+    ROUTER -->|Classified Opportunity| ENRICH{"Link Enrichment<br/>(context/)"}
     ENRICH -->|Schema.org AST| JLD["JSON-LD Scraper"]
     ENRICH -->|Nuxt 3 State AST| NUXT["__NUXT_DATA__ Parser"]
     ENRICH -->|Unauthenticated 2-Tier| LI["LinkedIn Public Guest API"]
-    ENRICH -->|Residential BYOK Fallback| PROXY["HasData / ScrapingAnt Proxy"]
+    ENRICH -->|Residential Fallback| PROXY["HasData / ScrapingAnt<br/>Proxy Fallback"]
   end
 
   subgraph Lens["4. Persistence & Anti-Corruption Lenses"]
     JLD & NUXT & LI & PROXY --> DED["3-Tier Deduplication Engine"]
     DED -->|Store Normalized Row| DB[("PostgreSQL via Prisma")]
     UPJ --> DB
-    DB --> RJO["resolveJobOpportunity() (context/lens.ts)"]
-    DB --> MCL["extractMatchCandidateLens() (matching/lens.ts)"]
-    DB --> PFL["PersonaFactLens() (persona/lens.ts)"]
+    DB --> RJO["resolveJobOpportunity()<br/>(context/lens.ts)"]
+    DB --> MCL["extractMatchCandidateLens()<br/>(matching/lens.ts)"]
+    DB --> PFL["PersonaFactLens()<br/>(persona/lens.ts)"]
   end
 
   subgraph Consumer["5. Decoupled Execution Domains"]
-    RJO & MCL --> MATCH["Match Evaluator (lib/matching/)"]
-    RJO & PFL --> TAILOR["Tailored Resume Engine (lib/resume-tailor.ts)"]
-    RJO --> DISP["Email Dispatcher (composer.ts)"]
-    TAILOR --> DRAFT["Intermediate Draft Tree (lib/resume-draft/)"]
-    DRAFT --> EXPORT["Export: PDF (@react-pdf) / DOCX (JSZip)"]
+    RJO & MCL --> MATCH["Match Evaluator<br/>(lib/matching/)"]
+    RJO & PFL --> TAILOR["Tailored Resume Engine<br/>(lib/resume-tailor.ts)"]
+    RJO --> DISP["Email Dispatcher<br/>(composer.ts)"]
+    TAILOR --> DRAFT["Intermediate Draft Tree<br/>(lib/resume-draft/)"]
+    DRAFT --> EXPORT["Export: PDF (@react-pdf)<br/>& DOCX (JSZip)"]
   end
 ```
 
@@ -379,21 +379,21 @@ Inbound emails frequently contain abbreviated link digests (`< 300 chars`) point
 ```mermaid
 flowchart TD
   URL["Inbound Job URL"] --> PROTO{"Direct ATS vs Portal?"}
-  PROTO -->|Direct ATS| DIRECT["Direct HTTP Request (User-Agent: MailPilot/1.0)"]
+  PROTO -->|Direct ATS| DIRECT["Direct HTTP Request<br/>(User-Agent: MailPilot/1.0)"]
   PROTO -->|Glassdoor / Indeed| GATE{"Sync Mode?"}
 
-  GATE -->|Background Pass| MIN["0ms Fast Exit: MINIMAL_LEAD"]
-  GATE -->|User On-Demand| HASDATA["fetchViaHasData (HasData BYOK Proxy)"]
+  GATE -->|Background Pass| MIN["0ms Fast Exit<br/>(MINIMAL_LEAD)"]
+  GATE -->|User On-Demand| HASDATA["fetchViaHasData<br/>(HasData BYOK Proxy)"]
 
   DIRECT --> STATUS{"HTTP Status"}
   STATUS -->|200 OK| PARSE{"Payload Extraction"}
-  STATUS -->|403 / 429 Bot Wall| SCRAPINGANT["ScrapingAnt BYOK Proxy Fallback"]
+  STATUS -->|403 / 429 Bot Wall| SCRAPINGANT["ScrapingAnt BYOK<br/>Proxy Fallback"]
 
-  PARSE --> JLD["Schema.org JSON-LD AST Parser"]
-  PARSE --> NUXT["Nuxt 3 __NUXT_DATA__ State Parser"]
-  PARSE --> LI["LinkedIn Guest API (/jobs-guest/api/jobPosting/)"]
+  PARSE --> JLD["Schema.org JSON-LD<br/>AST Parser"]
+  PARSE --> NUXT["Nuxt 3 State Parser<br/>(__NUXT_DATA__)"]
+  PARSE --> LI["LinkedIn Guest API<br/>(/jobs-guest/api/)"]
 
-  JLD & NUXT & LI & HASDATA & SCRAPINGANT --> SANITIZE["sanitizeJobDescription() (4,000 chars)"]
+  JLD & NUXT & LI & HASDATA & SCRAPINGANT --> SANITIZE["sanitizeJobDescription()<br/>(4,000 chars clean text)"]
   SANITIZE --> DB[("PostgreSQL RICH_SPEC")]
 ```
 
@@ -447,38 +447,38 @@ Earlier resume tailoring architectures digested job specs and immediately froze 
 MailPilot solves this with a **Line-Addressable Intermediate Document Tree (`TailoredResumeDraft`)**:
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Input["1. Ground Truth Inputs"]
     MP["Master Profile Ledger"]
-    SPEC["Sanitized Job Spec (4,000 chars)"]
-    RULES["Account Preferences & Rules"]
+    SPEC["Sanitized Job Spec<br/>(4,000 chars)"]
+    RULES["Account Preferences<br/>& Rules"]
   end
 
   subgraph StageA["2. Strategy & Budget Allocation"]
-    MP & SPEC & RULES --> STRAT["Tailoring Strategy Engine (Stage A)"]
-    STRAT --> BUDGET["Elastic Page Budgeter (budget.ts)"]
+    MP & SPEC & RULES --> STRAT["Tailoring Strategy Engine<br/>(Stage A)"]
+    STRAT --> BUDGET["Elastic Page Budgeter<br/>(budget.ts)"]
     BUDGET -->|Classify Density| DENSE{"Density Calculator"}
-    DENSE -->|Early Tenure / Switcher| SPARSE["SPARSE: 2-3 Projects First"]
-    DENSE -->|Standard Career| BALANCED["BALANCED: 3-5 Bullets / Role"]
+    DENSE -->|Early Career / Switcher| SPARSE["SPARSE Layout<br/>(2-3 Projects First)"]
+    DENSE -->|Standard Career| BALANCED["BALANCED Layout<br/>(3-5 Bullets / Role)"]
   end
 
   subgraph StageB["3. Dual-Mode Google XYZ Reframing"]
-    SPARSE & BALANCED --> REFRAME["Bullet Reframing Engine (Stage B)"]
-    REFRAME -->|inventMetrics: false| MODEA["Mode A: Strict Metric Preservation (XYZ)"]
-    REFRAME -->|inventMetrics: true| MODEB["Mode B: 4D Metric Synthesis (XYZ)"]
+    SPARSE & BALANCED --> REFRAME["Bullet Reframing Engine<br/>(Stage B)"]
+    REFRAME -->|inventMetrics: false| MODEA["Mode A: Metric Preservation<br/>(Google XYZ Format)"]
+    REFRAME -->|inventMetrics: true| MODEB["Mode B: Metric Synthesis<br/>(Google XYZ Format)"]
   end
 
   subgraph DraftTree["4. Line-Addressable Node Tree"]
     MODEA & MODEB --> DIGEST["digestTailoredResume()"]
-    DIGEST --> TREE[("TailoredResumeDraft (JSON Node Tree)")]
-    TREE <-->|Click-to-Edit / Reorder| UI["Interactive WYSIWYG Workspace"]
-    TREE <-->|Surgical 1-Line Rewrite| REFINE["refineResumeLine()"]
-    TREE -->|Gated by selected: true| COMP["Draft Compiler"]
+    DIGEST --> TREE[("TailoredResumeDraft<br/>(JSON Node Tree)")]
+    TREE <-->|Click-to-Edit / Reorder| UI["Interactive WYSIWYG<br/>Workspace"]
+    TREE <-->|1-Line Rewrite| REFINE["refineResumeLine()<br/>(Surgical Rewrite)"]
+    TREE -->|selected: true| COMP["Draft Compiler"]
   end
 
   subgraph Output["5. Multi-Format Layout Engines"]
-    COMP --> PDF["@react-pdf/renderer (Strict 1-Page Letter Layout)"]
-    COMP --> DOCX["compileResumeDocx (JSZip OpenXML Engine)"]
+    COMP --> PDF["@react-pdf/renderer<br/>(Strict 1-Page Letter)"]
+    COMP --> DOCX["compileResumeDocx<br/>(JSZip OpenXML Engine)"]
   end
 ```
 
@@ -556,15 +556,15 @@ While general profile parsing across MailPilot remains strictly career-agnostic,
 
 ```mermaid
 flowchart TD
-    A["Raw 4K Video Loop (color-spin-trimmed-comp.mp4)"] --> B["Asset Optimization (ffmpeg + cwebp)"]
-    B --> C["Fast-Start MP4 (moov atom hoisted to byte 36)"]
-    B --> D["WebP Poster Frame (~18 KB at 85 quality)"]
-    C --> E["Vercel Blob Private Object Store"]
+    A["Raw 4K Video Loop<br/>(color-spin-trimmed-comp.mp4)"] --> B["Asset Optimization<br/>(ffmpeg + cwebp)"]
+    B --> C["Fast-Start MP4<br/>(moov hoisted to byte 36)"]
+    B --> D["WebP Poster Frame<br/>(~18 KB at 85 quality)"]
+    C --> E["Vercel Blob<br/>Private Object Store"]
     D --> E
-    E --> F["Authenticated Proxy Handler (/api/login-background)"]
-    F -->|"asset=poster"| G["Static Image Frame (Zero CLS byte 0 paint)"]
-    F -->|"asset=video (HTTP 206 Range)"| H["Progressive Media Stream (Zero-wait playback)"]
-    G -.->|"onCanPlay (700ms CSS opacity handoff)"| H
+    E --> F["Authenticated Proxy Handler<br/>(/api/login-background)"]
+    F -->|"asset=poster"| G["Static Image Frame<br/>(Zero CLS byte 0 paint)"]
+    F -->|"asset=video (HTTP 206)"| H["Progressive Media Stream<br/>(Zero-wait playback)"]
+    G -.->|"onCanPlay (700ms cross-fade)"| H
 ```
 
 ---
