@@ -9,6 +9,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3.4-38B2AC?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
 [![Vitest](https://img.shields.io/badge/Vitest-308_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Vercel WAF](https://img.shields.io/badge/Vercel-Edge_WAF_Mitigation-000000?style=flat-square&logo=vercel)](https://vercel.com/)
 [![Upstash](https://img.shields.io/badge/Upstash-Redis_Rate_Limiting-00E599?style=flat-square&logo=redis)](https://upstash.com/)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM_Vaulted-green?style=flat-square&logo=security)](https://nodejs.org/api/crypto.html)
 
@@ -369,6 +370,10 @@ MailPilot prevents internal network probing and cloud metadata extraction by per
 - Dispatches an automated HTTP `POST` request with body `List-Unsubscribe=One-Click` in compliance with RFC 8058.
 - Falls back to automated `mailto:` subject/body generation and batch Gmail label trash assignment.
 
+### 4. Edge Bot Mitigation & Token-Bucket Rate Limiting
+- **Vercel Edge Bot Mitigation (`vercel.json`):** Evaluates incoming traffic directly on Vercel's Edge network before invoking serverless execution. Employs case-insensitive regex pattern matching against known automated crawler and script user-agents (`curl`, `wget`, `python`, `postman`, `axios`, `go-http-client`) on authentication routes (`^/(login|api/auth/.*)`), issuing edge-level denials without consuming serverless function execution quotas on the Vercel Hobby plan.
+- **Upstash Redis Token-Bucket Limiting (`lib/ratelimit.ts`):** Upstash-backed multi-tier rate limiter protecting both public API routes (`standard` tier: 30 tokens, 10/10s refill) and heavy server mutations (`strict` tier: 5 tokens, 1/12s refill) over stateless HTTP REST with graceful fail-open isolation (see [Section 8](#edge-bot-mitigation--token-bucket-rate-limiting) for complete pipeline flow and diagram).
+
 ---
 
 ## 7. Line-Addressable Resume Tailoring & Page Budgeting
@@ -478,6 +483,7 @@ flowchart TD
 ```
 
 ### Edge Bot Mitigation & Token-Bucket Rate Limiting
+- **Vercel Edge Route Mitigation (`vercel.json`):** Intercepts incoming requests at Vercel's global edge network layer prior to invoking serverless compute. Evaluates request headers against automated crawler/script patterns (`curl`, `wget`, `python`, `postman`, `axios`, `go-http-client`) across sensitive authentication paths (`^/(login|api/auth/.*)`), applying `mitigate.action: "deny"` to reject bot traffic with 0ms serverless function execution—fully compatible with Vercel Hobby tier constraints.
 - **Token Bucket Algorithm:** Accommodates legitimate burst traffic up to bucket capacity (30 tokens for general API endpoints, 5 tokens for mutating actions) while refilling deterministically (10 tokens every 10 seconds for API, 1 token every 12 seconds for sensitive actions) to protect public routes and prevent serverless execution exhaustion.
 - **Stateless HTTP REST (`@upstash/redis`):** Bypasses TCP socket pool exhaustion, lifecycle leaks, and connection-handshake latency on Vercel Hobby serverless functions by issuing rate limit queries over stateless HTTP REST pipelines.
 - **Fail-Open Dev Isolation:** Unblocks local offline development workflows when Redis credentials are not configured, and gracefully degrades during third-party connectivity hiccups to prevent operational downtime.
@@ -485,7 +491,8 @@ flowchart TD
 ```mermaid
 %%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
 flowchart TD
-    Client(["Client / Browser"]) -->|"&nbsp;&nbsp;Inbound Request&nbsp;&nbsp;"| WAF["Vercel Edge WAF / Bot Challenge"]
+    Client(["Client / Browser"]) -->|"&nbsp;&nbsp;Inbound Request&nbsp;&nbsp;"| WAF["Vercel Edge WAF<br/>Route Header Inspection"]
+    WAF -->|"&nbsp;&nbsp;Automated Script / Bot&nbsp;&nbsp;"| EdgeDeny["Edge Deny (0ms Compute)"]
     WAF -->|"&nbsp;&nbsp;Verified Traffic&nbsp;&nbsp;"| NextApp["Next.js Serverless Function"]
     NextApp -->|"&nbsp;&nbsp;Stateless REST&nbsp;&nbsp;"| Upstash{"Upstash Rate Limiter<br/>Token Bucket"}
     Upstash -->|"&nbsp;&nbsp;Allowed&nbsp;&nbsp;"| Handler["Execute API / Service Layer"]
@@ -500,7 +507,7 @@ flowchart TD
 | :--- | :--- | :--- | :--- |
 | **Framework** | **Next.js** | 15 (App Router, Server Actions) | Unified web framework with React 19 Server Components and Route Handlers. |
 | **Serverless Runtime** | **Node.js** | v20+ on Vercel Serverless | Non-blocking background worker execution using Next.js 15 `after()`. |
-| **Edge Infrastructure** | **Vercel Edge WAF** | Managed Edge Firewall | Edge-level bot mitigation and challenge rules on sensitive auth routes (`^/(login|api/auth/.*)`). |
+| **Edge Infrastructure** | **Vercel Edge WAF** | Managed Edge Firewall / Route Rules | Edge-level bot mitigation and header deny rules on sensitive auth routes (`^/(login|api/auth/.*)`). |
 | **Rate Limiting & Security** | **Upstash Redis** | `@upstash/ratelimit` & `@upstash/redis` | Serverless token-bucket rate limiting via stateless HTTP REST with fail-open isolation. |
 | **Database** | **PostgreSQL** | v16 (Neon / Supabase) | Multi-tenant relational persistence with connection pooling. |
 | **ORM** | **Prisma** | v6 | Type-safe query building, relation mapping, and migrations. |
