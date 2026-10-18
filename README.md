@@ -112,54 +112,22 @@ flowchart TD
 
 ### Ingestion, Classification & Decoupled Opportunity Pipeline
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       Gmail Webhook / Sync Trigger                          │
-│               (/api/webhooks/gmail · runOpportunitySync)                    │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Serial Ingestion Loop                             │
-│                  - Throttled Pacing: 350ms delay/message                    │
-│                  - 2-Tier AI Pipeline with PENDING_AI Backlog Drain         │
-└──────────────────┬──────────────────────────────────────────────────────────┘
-                   │
-                   ▼
-      ┌─────────────────────────┐            ┌─────────────────────────┐
-      │   Primary Classifier    │            │    PENDING_AI Parking   │
-      │   (Local / Cloud LLM)   │──[Fail]───▶│   (Queues Message ID    │
-      │                         │            │   for Safe Re-Fetch)    │
-      └────────────┬────────────┘            └─────────────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    Persistence & Deduplication Engine                       │
-│    - Transient Storage Policy: EmailMessage.rawBody = null                  │
-│    - Smart Snippet Extraction: Min 500, Max 1,500 chars (Sentence Ramp-Up)  │
-│    - 3-Tier Deduplication:                                                  │
-│        Tier 1: Same email + applyUrl or normalized title                    │
-│        Tier 2: Same company + roleTitle + location-compatible               │
-│        Tier 3: Insert new verified JobOpportunity (AI-Classified)           │
-│    - Sync Watermark: Commit lastSyncedAt ONLY on pass completion            │
-└─────────────────────────────────────┬───────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Anti-Corruption Lens Layer                          │
-│                                                                             │
-│   resolveJobOpportunity()            extractMatchCandidateLens()            │
-│   (lib/opportunities/context/lens.ts) (lib/matching/lens.ts)                │
-└──────────────────┬──────────────────────────────────────┬───────────────────┘
-                   │                                      │
-                   ▼                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Decoupled Domain Consumers                        │
-│                                                                             │
-│   1. Standardized 2-Pill Job Card UI (`components/opportunities/`)          │
-│   2. Match Scoring Evaluator (`lib/matching/evaluator.ts`)                  │
-│   3. Resume Tailoring Engine (`lib/resume-tailor.ts`)                       │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
+flowchart TD
+  TRIG["Gmail Webhook / Sync Trigger<br/>(/api/webhooks/gmail · runOpportunitySync)"] --> INGEST["Serial Ingestion Loop<br/>• Throttled Pacing: 350ms delay/message<br/>• 2-Tier AI Pipeline with PENDING_AI Backlog Drain"]
+
+  INGEST --> CLF["Primary Classifier<br/>(Local Ollama / Cloud LLM)"]
+  CLF -.->|"&nbsp;&nbsp;Model Offline / Rate-Limited&nbsp;&nbsp;"| PARK["PENDING_AI Parking Queue<br/>(Queues Message ID for Safe Zero-Storage Retry)"]
+
+  CLF --> DEDUP["Persistence & 3-Tier Deduplication Engine<br/>• Transient Storage: EmailMessage.rawBody = null<br/>• Snippet Extraction: Min 500, Max 1,500 chars (Sentence Ramp-Up)<br/>• Tier 1: Same email + applyUrl or normalized title<br/>• Tier 2: Same company + roleTitle + location-compatible<br/>• Tier 3: Insert new verified JobOpportunity (AI-Classified)<br/>• Sync Watermark: Commit lastSyncedAt ONLY on pass completion"]
+
+  DEDUP --> LENS_JOB["resolveJobOpportunity()<br/>(lib/opportunities/context/lens.ts)"]
+  DEDUP --> LENS_MATCH["extractMatchCandidateLens()<br/>(lib/matching/lens.ts)"]
+
+  LENS_JOB --> UI["1. Standardized 2-Pill Job Card UI<br/>(components/opportunities/)"]
+  LENS_JOB & LENS_MATCH --> MATCH["2. Match Scoring Evaluator<br/>(lib/matching/evaluator.ts)"]
+  LENS_JOB --> TAILOR["3. Resume Tailoring Engine<br/>(lib/resume-tailor.ts)"]
 ```
 
 ---
@@ -168,68 +136,55 @@ flowchart TD
 
 MailPilot enforces strict domain decoupling through **Single Source of Truth (SSOT)** schemas and **Anti-Corruption Lenses**. Domain logic never imports raw Prisma database models directly; instead, dedicated adapter lenses sanitize, normalize, and buffer changes between storage models and business logic.
 
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              PRISMA DATABASE                                 │
-│          Account · JobOpportunity · UserProfile · WorkExperience             │
-└──────┬──────────────────────┬────────────────────────┬───────────────────────┘
-       │                      │                        │
-       ▼                      ▼                        ▼
-┌──────────────┐      ┌──────────────┐         ┌──────────────┐
-│  Persona     │      │ Job Context  │         │  Candidate   │
-│  Fact Lens   │      │ Lens Layer   │         │  Match Lens  │
-│  (lens.ts)   │      │ (lens.ts)    │         │  (lens.ts)   │
-└──────┬───────┘      └──────┬───────┘         └──────┬───────┘
-       │                      │                        │
-       ▼                      ▼                        ▼
-┌──────────────┐      ┌──────────────┐         ┌──────────────┐
-│ Candidate    │      │ Normalized   │         │ Match        │
-│ Persona      │      │ Job Opp      │         │ Candidate    │
-│ (schema.ssot)│      │ (schema.ssot)│         │ (schema.ssot)│
-└──────┬───────┘      └──────┬───────┘         └──────┬───────┘
-       │                     │                        │
-       └─────────────────┐   │   ┌────────────────────┘
-                         ▼   ▼   ▼
-               ┌───────────────────────────┐
-               │    Evaluator & Tailor     │
-               │   (Domain-Neutral Core)   │
-               └───────────────────────────┘
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
+flowchart TD
+  DB[("Prisma Database<br/>Account · JobOpportunity · UserProfile · WorkExperience")]
+
+  subgraph Lenses["Anti-Corruption Adapter Lenses"]
+    PFL["Persona Fact Lens<br/>(lib/persona/lens.ts)"]
+    JCL["Job Context Lens Layer<br/>(lib/opportunities/context/lens.ts)"]
+    CML["Candidate Match Lens<br/>(lib/matching/lens.ts)"]
+  end
+
+  subgraph SSOT["Normalized SSOT Domain Contracts"]
+    CP["Candidate Persona<br/>(schema.ssot.ts)"]
+    NJO["Normalized Job Opp<br/>(schema.ssot.ts)"]
+    MC["Match Candidate<br/>(schema.ssot.ts)"]
+  end
+
+  CORE["Evaluator & Tailor Core<br/>(Domain-Neutral Engine)"]
+
+  DB --> PFL & JCL & CML
+  PFL --> CP
+  JCL --> NJO
+  CML --> MC
+  CP & NJO & MC --> CORE
 ```
 
 ### 1. Candidate Persona Engine (`lib/persona/`)
 Translates grounded candidate facts into deterministic multi-dimensional posture descriptors without external LLM calls. It utilizes an interlocking classification matrix:
 
-```
-┌──────────────────────────────────────────────┐
-│  Ground Truth: MasterProfileInput (Database) │
-└──────────────────────┬───────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────┐
-│  Adapter Lens: PersonaFactLens (lens.ts)     │  <-- Buffers schema changes
-└──────────────────────┬───────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────┐
-│  Interlocking Matrix (matrix.ts)             │
-│  - Seniority Tier (6 tiers)                  │
-│  - Disciplinary Archetype (4 archetypes)     │
-│  - Leadership Scope (3 scopes)               │
-│  - Distinction Anchor (3 anchors)            │
-└──────────────────────┬───────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────┐
-│  Tone Composer (tone-composer.ts)            │  <-- 4-Layer Modular Voice Stack
-└──────────────────────┬───────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────┐
-│  Contract: CandidatePersona                  │
-└───────────┬───────────────────┬──────────────┘
-            │                   │
-            ▼                   ▼
-     [ Match Scoring ]   [ Email Responding ]   [ Resume Tailoring ]
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
+flowchart TD
+  GT[("Ground Truth: MasterProfileInput<br/>(Database)")]
+  LENS["Adapter Lens: PersonaFactLens<br/>(lens.ts)"]
+  MATRIX["Interlocking Classification Matrix<br/>(matrix.ts)<br/>• Seniority Tier (6 tiers)<br/>• Disciplinary Archetype (4 archetypes)<br/>• Leadership Scope (3 scopes)<br/>• Distinction Anchor (3 anchors)"]
+  TONE["Tone Composer<br/>(tone-composer.ts)<br/>4-Layer Modular Voice Stack"]
+  CONTRACT["Contract: CandidatePersona<br/>(schema.ssot.ts)"]
+
+  MS["Match Scoring<br/>(lib/matching/)"]
+  ER["Email Responding<br/>(lib/opportunities/dispatch/)"]
+  RT["Resume Tailoring<br/>(lib/resume-tailor.ts)"]
+
+  GT --> LENS
+  LENS -->|"&nbsp;&nbsp;Buffers schema changes&nbsp;&nbsp;"| MATRIX
+  MATRIX --> TONE
+  TONE -->|"&nbsp;&nbsp;Assembles voice posture&nbsp;&nbsp;"| CONTRACT
+  CONTRACT --> MS
+  CONTRACT --> ER
+  CONTRACT --> RT
 ```
 
 - **Seniority Tier:** Deterministic mapping across 6 tiers (`Student / Early Career`, `Career Switcher`, `Mid-Level Professional`, `Senior Practitioner`, `Staff / Principal Specialist`, `Executive / Organizational Leader`).
@@ -252,36 +207,28 @@ Consumes `MatchCandidateLens` to evaluate alignment between candidate credential
 ### 4. GitHub Technical Ingestion & Deep Inference Domain (`lib/github/`)
 While general profile parsing across MailPilot remains strictly career-agnostic, repository synchronization serves as our **dedicated software & systems engineering domain**. It adopts an authentic, authoritative register spoken directly to senior technical reviewers:
 
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                         GitHub REST & Raw Content APIs                       │
-│                     (repos?type=owner · raw.githubusercontent)               │
-└──────────────────────────────────────┬───────────────────────────────────────┘
-                                       │
-                                       ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                    Modular GitHub Domain (lib/github/)                       │
-│                                                                              │
-│   schema.ssot.ts       prefilter.ts          manifests.ts      topology.ts   │
-│   (3-Tier Budget)      (AST & Noise Scrubber)(Domain Groups)   (Deduction)   │
-└──────────────────────────────────────┬───────────────────────────────────────┘
-                                       │
-                                       ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                    Deep Systems Inference (inference.ts)                     │
-│               - DEEP_ANALYSIS_SYSTEM_PROMPT (Systems Constraints)            │
-│               - Diverse Systems Verbs (Multiplexed, Sharded, Ingested)       │
-│               - Ban on Summary Bullets & Fake Commercial ROI                 │
-└──────────────────────────────────────┬───────────────────────────────────────┘
-                                       │
-                                       ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                       Anti-Corruption Lens (lens.ts)                         │
-│                    adaptRepoToProjectItem() -> ProjectItem                   │
-└──────────────────────────────────────┬───────────────────────────────────────┘
-                                       │
-                                       ▼
-                     [ UserProfile.projects (Prisma) ]
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
+flowchart TD
+  API["GitHub REST & Raw Content APIs<br/>(repos?type=owner · raw.githubusercontent)"]
+
+  subgraph Domain["Modular GitHub Domain (lib/github/)"]
+    SSOT["schema.ssot.ts<br/>(3-Tier Budget & Scale)"]
+    PRE["prefilter.ts<br/>(AST & Noise Scrubber)"]
+    MAN["manifests.ts<br/>(Domain Dep Groups)"]
+    TOP["topology.ts<br/>(Architectural Deduction)"]
+  end
+
+  INF["Deep Systems Inference<br/>(inference.ts)<br/>• DEEP_ANALYSIS_SYSTEM_PROMPT<br/>• Diverse Systems Verbs (Multiplexed, Sharded)<br/>• Ban on Summary Bullets & Fake Commercial ROI"]
+
+  LENS["Anti-Corruption Lens<br/>(lens.ts)<br/>adaptRepoToProjectItem() &rarr; ProjectItem"]
+
+  DB[("UserProfile.projects<br/>(Prisma Persistence)")]
+
+  API --> SSOT & PRE & MAN & TOP
+  SSOT & PRE & MAN & TOP --> INF
+  INF --> LENS
+  LENS --> DB
 ```
 
 - **Sub-Module Architecture:**
@@ -309,37 +256,17 @@ While general profile parsing across MailPilot remains strictly career-agnostic,
 
 MailPilot features an account-scoped multi-tier inference router (`lib/llm/dispatcher.ts`) engineered for zero token waste, local privacy, and continuous synchronization uptime.
 
-```
-┌──────────────────────────────────────────────┐
-│  Inference Request (dispatcher.ts)           │
-└──────────────────────┬───────────────────────┘
-                       │
-        ┌──────────────┴──────────────┐
-        ▼                             ▼
-┌──────────────────┐        ┌──────────────────┐
-│  LOCAL_OLLAMA    │        │  Cloud Provider  │
-│  - 2s tag probe  │        │  (BYOK)          │
-│  - Adaptive time │        └─────────┬────────┘
-│  - Stream decode │                  │
-└───────┬──────────┘                  ▼
-        │ (failover if      ┌──────────────────┐
-        │  allowed)         │  Account Vault   │
-        └──────────────────►│  (vault.ts)      │
-                            │  - AES-256-GCM   │
-                            │  - Masked UI     │
-                            └─────────┬────────┘
-                                      │
-            ┌─────────────────────────┴────────────────────────┐
-            ▼                                                  ▼
-┌───────────────────────────────┐              ┌───────────────────────────────┐
-│  OpenAI-Compatible Client     │              │  Anthropic Native Client      │
-│  (/chat/completions)          │              │  (/messages)                  │
-│  - OpenRouter                 │              │  - Claude 3.5 Haiku / Sonnet  │
-│  - OpenAI                     │              │  - x-api-key headers          │
-│  - Groq                       │              └───────────────────────────────┘
-│  - DeepSeek                   │
-│  - Gemini (OpenAI-compat)     │
-└───────────────────────────────┘
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
+flowchart TD
+  REQ["Inference Request<br/>(dispatcher.ts)"] --> OLL["LOCAL_OLLAMA<br/>• 2s tag probe<br/>• Adaptive timeout<br/>• Stream decoder"]
+  REQ --> CLOUD["Cloud Provider<br/>(BYOK)"]
+
+  OLL -.->|"&nbsp;&nbsp;Failover (if allowed)&nbsp;&nbsp;"| VAULT
+  CLOUD --> VAULT["Account Vault<br/>(vault.ts)<br/>• AES-256-GCM<br/>• Masked UI"]
+
+  VAULT --> OAICLIENT["OpenAI-Compatible Client<br/>(/chat/completions)<br/>• OpenRouter<br/>• OpenAI<br/>• Groq<br/>• DeepSeek<br/>• Gemini (compat)"]
+  VAULT --> ANTHRO["Anthropic Native Client<br/>(/messages)<br/>• Claude 3.5 Haiku / Sonnet<br/>• x-api-key headers"]
 ```
 
 ### The 3-Tier Fallback Hierarchy
