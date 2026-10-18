@@ -22,6 +22,7 @@ import {
   isInsufficientScopeError,
 } from "@/lib/google";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit } from "@/lib/ratelimit";
 import {
   APPLICATION_STATUSES,
   type ApplicationStatus,
@@ -56,6 +57,14 @@ export async function sendSingleApplication(
     };
   }
   const accountId = application.accountId;
+
+  const rateLimit = await checkRateLimit(`dispatch:${accountId}`, "strict");
+  if (!rateLimit.success) {
+    return {
+      ok: false,
+      error: "Rate limit reached. Please wait a few seconds before dispatching again.",
+    };
+  }
 
   if (
     !extractRecruiterEmail({

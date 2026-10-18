@@ -8,7 +8,8 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3.4-38B2AC?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-298_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-308_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Upstash](https://img.shields.io/badge/Upstash-Redis_Rate_Limiting-00E599?style=flat-square&logo=redis)](https://upstash.com/)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM_Vaulted-green?style=flat-square&logo=security)](https://nodejs.org/api/crypto.html)
 
 ---
@@ -476,6 +477,21 @@ flowchart TD
     G -.->|"&nbsp;&nbsp;onCanPlay&nbsp;&nbsp;"| H
 ```
 
+### Edge Bot Mitigation & Token-Bucket Rate Limiting
+- **Token Bucket Algorithm:** Accommodates legitimate burst traffic up to bucket capacity (30 tokens for general API endpoints, 5 tokens for mutating actions) while refilling deterministically (10 tokens every 10 seconds for API, 1 token every 12 seconds for sensitive actions) to protect public routes and prevent serverless execution exhaustion.
+- **Stateless HTTP REST (`@upstash/redis`):** Bypasses TCP socket pool exhaustion, lifecycle leaks, and connection-handshake latency on Vercel Hobby serverless functions by issuing rate limit queries over stateless HTTP REST pipelines.
+- **Fail-Open Dev Isolation:** Unblocks local offline development workflows when Redis credentials are not configured, and gracefully degrades during third-party connectivity hiccups to prevent operational downtime.
+
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
+flowchart TD
+    Client(["Client / Browser"]) -->|"&nbsp;&nbsp;Inbound Request&nbsp;&nbsp;"| WAF["Vercel Edge WAF / Bot Challenge"]
+    WAF -->|"&nbsp;&nbsp;Verified Traffic&nbsp;&nbsp;"| NextApp["Next.js Serverless Function"]
+    NextApp -->|"&nbsp;&nbsp;Stateless REST&nbsp;&nbsp;"| Upstash{"Upstash Rate Limiter<br/>Token Bucket"}
+    Upstash -->|"&nbsp;&nbsp;Allowed&nbsp;&nbsp;"| Handler["Execute API / Service Layer"]
+    Upstash -->|"&nbsp;&nbsp;Denied&nbsp;&nbsp;"| Resp429["429 Too Many Requests<br/>(Retry-After Header)"]
+```
+
 ---
 
 ## 9. Technology Stack Matrix
@@ -484,6 +500,8 @@ flowchart TD
 | :--- | :--- | :--- | :--- |
 | **Framework** | **Next.js** | 15 (App Router, Server Actions) | Unified web framework with React 19 Server Components and Route Handlers. |
 | **Serverless Runtime** | **Node.js** | v20+ on Vercel Serverless | Non-blocking background worker execution using Next.js 15 `after()`. |
+| **Edge Infrastructure** | **Vercel Edge WAF** | Managed Edge Firewall | Edge-level bot mitigation and challenge rules on sensitive auth routes (`^/(login|api/auth/.*)`). |
+| **Rate Limiting & Security** | **Upstash Redis** | `@upstash/ratelimit` & `@upstash/redis` | Serverless token-bucket rate limiting via stateless HTTP REST with fail-open isolation. |
 | **Database** | **PostgreSQL** | v16 (Neon / Supabase) | Multi-tenant relational persistence with connection pooling. |
 | **ORM** | **Prisma** | v6 | Type-safe query building, relation mapping, and migrations. |
 | **Object Storage** | **Vercel Blob** | `@vercel/blob` v2.8 | Private object store for progressive HTTP 206 background video streaming and WebP poster delivery. |
@@ -505,7 +523,7 @@ flowchart TD
 MailPilot maintains a comprehensive, zero-token test suite using **Vitest**. All tests execute completely offline without network calls or live database dependencies:
 
 ```bash
-# Run the complete test suite (21 suites, 298 tests)
+# Run the complete test suite (22 suites, 308 tests)
 npx vitest run
 
 # Run tests in interactive watch mode
@@ -536,11 +554,12 @@ npx tsc --noEmit
  ✓ lib/resume-draft/__tests__/resume-draft.test.ts (54 tests)
  ✓ lib/__tests__/master-profile-export.test.ts (3 tests)
  ✓ lib/__tests__/github-sync.test.ts (28 tests)
- ✓ app/api/login-background/__tests__/route.test.ts (5 tests)
+ ✓ lib/__tests__/ratelimit.test.ts (9 tests)
+ ✓ app/api/login-background/__tests__/route.test.ts (6 tests)
 
-Test Files  21 passed (21)
-     Tests  298 passed (298)
-  Duration  2.4s
+Test Files  22 passed (22)
+     Tests  308 passed (308)
+  Duration  3.2s
 ```
 
 ### Prerequisites

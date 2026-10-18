@@ -141,4 +141,25 @@ describe("Login Background Route Handler (/api/login-background)", () => {
     expect(res.status).toBe(404);
     expect(await res.text()).toBe("Login background asset not found");
   });
+
+  it("returns 429 Too Many Requests when rate limit is exceeded", async () => {
+    const ratelimitModule = await import("@/lib/ratelimit");
+    vi.spyOn(ratelimitModule, "checkRateLimit").mockResolvedValueOnce({
+      success: false,
+      limit: 30,
+      remaining: 0,
+      reset: Date.now() + 5000,
+    });
+
+    const req = new Request("http://localhost:3000/api/login-background", {
+      headers: { "x-forwarded-for": "198.51.100.1" },
+    });
+    const res = await GET(req);
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBeDefined();
+    expect(res.headers.get("X-RateLimit-Limit")).toBe("30");
+    expect(res.headers.get("X-RateLimit-Remaining")).toBe("0");
+    expect(await res.text()).toBe("Too Many Requests");
+  });
 });

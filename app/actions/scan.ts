@@ -13,6 +13,7 @@ import {
 import { scanHistoricalEmails } from "@/lib/historical-scan";
 import { syncLockLog } from "@/lib/logging";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit } from "@/lib/ratelimit";
 import {
   SCAN_DAY_OPTIONS,
   type ScanDays,
@@ -55,6 +56,14 @@ export async function triggerHistoricalScan(
 
   if (!account || !account.isActive) {
     return { ok: false, error: "Account not found or inactive" };
+  }
+
+  const rateLimit = await checkRateLimit(`scan:${account.id}`, "strict");
+  if (!rateLimit.success) {
+    return {
+      ok: false,
+      error: "Scan rate limit reached. Please wait a few seconds before scanning again.",
+    };
   }
 
   if (account.isSyncing) {
