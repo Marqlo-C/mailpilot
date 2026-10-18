@@ -68,7 +68,7 @@ flowchart TD
 
     GH["GitHub REST & Raw API"] -->|Sync Handle / Repos| GHI["GitHub Ingestion (lib/github/)"]
     GHI -->|Systems AST Digest & Manifests| GHP["DEEP_ANALYSIS_SYSTEM_PROMPT"]
-    GHP -->|ProjectItem[] Lens| UPJ["UserProfile.projects"]
+    GHP -->|ProjectItem Schema Lens| UPJ["UserProfile.projects"]
   end
 
   subgraph Triage["2. Signal Triage & Multi-Tier Inference"]
