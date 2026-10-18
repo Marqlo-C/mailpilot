@@ -8,7 +8,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3.4-38B2AC?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-280_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-298_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM_Vaulted-green?style=flat-square&logo=security)](https://nodejs.org/api/crypto.html)
 
 ---
@@ -22,8 +22,9 @@
 - [5. Web Scraping & Anti-Bot Evasion Engine](#5-web-scraping--anti-bot-evasion-engine)
 - [6. Cryptography, Privacy & Security Guardrails](#6-cryptography-privacy--security-guardrails)
 - [7. Line-Addressable Resume Tailoring & Page Budgeting](#7-line-addressable-resume-tailoring--page-budgeting)
-- [8. Technology Stack Matrix](#8-technology-stack-matrix)
-- [9. Test Suite, Verification & Local Development](#9-test-suite-verification--local-development)
+- [8. Performance & Systems Optimization](#8-performance--systems-optimization)
+- [9. Technology Stack Matrix](#9-technology-stack-matrix)
+- [10. Test Suite, Verification & Local Development](#10-test-suite-verification--local-development)
 
 ---
 
@@ -41,7 +42,7 @@ Modern personal inboxes are bombarded with high-velocity automated noise: transa
 2. **Career Opportunity Extraction & Line-Addressable Tailoring:**
    - Receives inbound messages via Google Cloud Pub/Sub webhooks with sub-second delta synchronization.
    - Routes payloads through a zero-token 3-tier pre-filtering triage gate ($H$ vs $N$ vector scoring).
-   - Ingests opportunities via a multi-tier inference router (Local Ollama via Cloudflare Tunnel $\to$ Cloud BYOK $\to$ 2ms Grand Heuristic).
+   - Ingests opportunities via a 2-tier inference router (Local Ollama via Cloudflare Tunnel $\to$ Cloud BYOK) with resilient offline parking (`PENDING_AI`) that drains automatically when models return, eliminating synthetic heuristic pollution.
    - Resolves unstructured job text into canonical, anti-corruption data lenses.
    - Synthesizes 4-dimensional candidate personas and tailors line-addressable resume drafts with elastic 1-page Letter layout budgeting.
 
@@ -79,7 +80,7 @@ flowchart TD
 
     ROUTER -->|Tier 1: Cloudflare Tunnel| OLL["Local Ollama (Circuit Breaker)"]
     OLL -.->|Trip / Failover| BYOK["Tier 2: Cloud BYOK (AES-256-GCM Vault)"]
-    BYOK -.->|Rate Limit / Outage| HEUR["Tier 3: Grand Heuristic Engine (< 2ms)"]
+    BYOK -.->|Rate Limit / Outage| PARK["Offline Parking: PENDING_AI Queue"]
   end
 
   subgraph Context["3. Context Enrichment & Anti-Bot Scrapers"]
@@ -92,7 +93,6 @@ flowchart TD
 
   subgraph Lens["4. Persistence & Anti-Corruption Lenses"]
     JLD & NUXT & LI & PROXY --> DED["3-Tier Deduplication Engine"]
-    HEUR --> DED
     DED -->|Store Normalized Row| DB[("PostgreSQL via Prisma")]
     UPJ --> DB
     DB --> RJO["resolveJobOpportunity() (context/lens.ts)"]
@@ -121,20 +121,17 @@ flowchart TD
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           Serial Ingestion Loop                             │
 │                  - Throttled Pacing: 350ms delay/message                    │
-│                  - 3 Modes: AI_WITH_HEURISTIC_FALLBACK, AI_ONLY,            │
-│                             HEURISTIC_ONLY                                  │
-└──────────────────┬──────────────────────────────────────┬───────────────────┘
-                   │                                      │
-                   ▼                                      ▼
+│                  - 2-Tier AI Pipeline with PENDING_AI Backlog Drain         │
+└──────────────────┬──────────────────────────────────────────────────────────┘
+                   │
+                   ▼
       ┌─────────────────────────┐            ┌─────────────────────────┐
-      │   Primary Classifier    │            │  Grand Heuristic Engine │
-      │   (Local / Cloud LLM)   │──[Fail]───▶│   (Zero-Token Regex &   │
-      │                         │            │     JSON-LD Scraper)    │
-      └────────────┬────────────┘            └────────────┬────────────┘
-                   │                                      │
-                   └──────────────────┬───────────────────┘
-                                      │
-                                      ▼
+      │   Primary Classifier    │            │    PENDING_AI Parking   │
+      │   (Local / Cloud LLM)   │──[Fail]───▶│   (Preserves Unaltered  │
+      │                         │            │    Raw Mail for Retry)  │
+      └────────────┬────────────┘            └─────────────────────────┘
+                   │
+                   ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Persistence & Deduplication Engine                       │
 │    - Transient Storage Policy: EmailMessage.rawBody = null                  │
@@ -142,7 +139,7 @@ flowchart TD
 │    - 3-Tier Deduplication:                                                  │
 │        Tier 1: Same email + applyUrl or normalized title                    │
 │        Tier 2: Same company + roleTitle + location-compatible               │
-│        Tier 3: Insert new JobOpportunity (AI or [Heuristic])                │
+│        Tier 3: Insert new verified JobOpportunity (AI-Classified)           │
 │    - Sync Watermark: Commit lastSyncedAt ONLY on pass completion            │
 └─────────────────────────────────────┬───────────────────────────────────────┘
                                        │
@@ -350,7 +347,9 @@ MailPilot features an account-scoped multi-tier inference router (`lib/llm/dispa
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Tier 1** | **Local Ollama** | Cloudflare Tunnel / Localhost HTTP | ~400ms – 2s | **$0.00** (Free) | Probes `/api/tags` with adaptive payload timeouts (45s–180s idle, 120s–600s hard cap). If unreachable, trips an in-memory circuit breaker (`isOllamaCircuitTripped`) to bypass subsequent calls in **0ms**. |
 | **Tier 2** | **Cloud BYOK** | HTTPS REST (`/chat/completions` or `/messages`) | ~600ms – 1.8s | BYOK (Direct) | Account-scoped AES-256-GCM decrypted keys. Automatic model targeting across OpenRouter, OpenAI, Groq, DeepSeek, Anthropic, or Gemini. Handles HTTP 429 rate limits gracefully. |
-| **Tier 3** | **Grand Heuristic** | Zero-token TypeScript regex & JSON-LD AST | **< 2ms** | **$0.00** (Free) | Synchronous deterministic pattern matcher. Guarantees that inbox synchronization and opportunity extraction **never fail or stall** during total model outages or depleted API credits. |
+| **Offline** | **PENDING_AI Parking** | Database Queue State (`EmailMessage`) | **< 1ms** | **$0.00** | When both model tiers are offline or rate-limited, raw messages are parked as `PENDING_AI` to be classified cleanly when models recover, permanently eliminating synthetic heuristic opportunity pollution. |
+
+*(Deterministic heuristic engines are retained strictly for specialized non-AI subsystems: GitHub repository CAR bullet extraction fallback, RFC 8058 header parsing, and localized structural extraction)*
 
 ### Real-Time ASCII Telemetry Pipeline
 All model invocations are monitored via a standardized 66-column terminal ASCII telemetry logger (`lib/logging/table-logger.ts`):
@@ -546,7 +545,31 @@ While general profile parsing across MailPilot remains strictly career-agnostic,
 
 ---
 
-## 8. Technology Stack Matrix
+## 8. ⚡ Performance & Systems Optimization
+
+### Media Streaming & Perceived Latency (Auth Portal)
+- **Problem:** Object-stored background video assets introduced a 2–3s blank pop-in and delayed First Contentful Paint (FCP) due to trailing container metadata (`moov` atom at EOF) and cold-start latency.
+- **Fast-Start Container Relocation (`movflags +faststart`):** Hoisted the MP4 container index to byte 36 via `ffmpeg` using stream copy (`-c copy`), enabling progressive HTTP 206 range-request streaming without awaiting the full payload buffer.
+- **Zero-Latency Poster Ingestion:** Extracted an ultra-compact (~18 KB) WebP poster frame from frame 0, rendering immediately on byte 0 to eliminate initial layout shift (CLS).
+- **Container Stream Optimization & Quality Preservation:** Preserved native 4K video frames without lossy re-encoding, retaining vivid color reproduction while eliminating container buffering lag.
+- **Event-Driven Cross-Fade:** Synchronized HTML5 `onCanPlay` with CSS opacity transitions, providing a zero-flicker handoff from static poster to looping background video.
+
+```mermaid
+flowchart TD
+    A["Raw 4K Video Loop (color-spin-trimmed-comp.mp4)"] --> B["Asset Optimization (ffmpeg + cwebp)"]
+    B --> C["Fast-Start MP4 (moov atom hoisted to byte 36)"]
+    B --> D["WebP Poster Frame (~18 KB at 85 quality)"]
+    C --> E["Vercel Blob Private Object Store"]
+    D --> E
+    E --> F["Authenticated Proxy Handler (/api/login-background)"]
+    F -->|"asset=poster"| G["Static Image Frame (Zero CLS byte 0 paint)"]
+    F -->|"asset=video (HTTP 206 Range)"| H["Progressive Media Stream (Zero-wait playback)"]
+    G -.->|"onCanPlay (700ms CSS opacity handoff)"| H
+```
+
+---
+
+## 9. Technology Stack Matrix
 
 | Layer | Technology | Version / Specification | Architectural Responsibility |
 | :--- | :--- | :--- | :--- |
@@ -557,20 +580,20 @@ While general profile parsing across MailPilot remains strictly career-agnostic,
 | **Styling & Components**| **Tailwind CSS / shadcn** | Tailwind v3.4, Radix UI | Mobile-first responsive design, dense desktop data tables, Lucide icons. |
 | **Cryptography** | **Node.js Crypto** | AES-256-GCM / timingSafeEqual | Authenticated envelope encryption at rest; timing-safe secret comparisons. |
 | **Document Generation**| **React-PDF & JSZip** | `@react-pdf/renderer` v4 | Dynamic vector PDF rendering and binary `.docx` XML generation. |
-| **Inference Router** | **Multi-Provider BYOK** | Local Ollama + Cloud REST | Multi-tier failover: Ollama (Tunnel) $\to$ OpenRouter $\to$ Grand Heuristic. |
+| **Inference Router** | **Multi-Provider BYOK** | Local Ollama + Cloud REST | Multi-tier failover: Ollama (Tunnel) $\to$ OpenRouter $\to$ PENDING_AI parking (with heuristic fallback for GitHub repo sync). |
 | **Scraping & Parsing** | **Cheerio & Custom AST** | Cheerio v1.0, Nuxt AST | Schema.org JSON-LD extraction, Nuxt 3 state un-flattening, LinkedIn Guest API. |
 | **Logging & Telemetry**| **Pino & TableLogger** | Pino v9 + 66-col ASCII | Structured JSON logging in production; formatted ASCII telemetry in dev. |
 | **Testing** | **Vitest** | v4.1 (Zero-Token Mocks) | Deterministic, offline unit and integration test suite. |
 
 ---
 
-## 9. Test Suite, Verification & Local Development
+## 10. Test Suite, Verification & Local Development
 
 ### Deterministic Test Suite
 MailPilot maintains a comprehensive, zero-token test suite using **Vitest**. All tests execute completely offline without network calls or live database dependencies:
 
 ```bash
-# Run the complete test suite (20 suites, 277 tests)
+# Run the complete test suite (21 suites, 298 tests)
 npx vitest run
 
 # Run tests in interactive watch mode
