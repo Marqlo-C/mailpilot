@@ -54,3 +54,7 @@ next-env.d.ts
 HISTORICAL_SPEC_SCAN.md
 repomix*
 repomix-output*
+
+# Media & Videos (Vercel Blob storage)
+*.mp4
+public/videos/*.mp4
