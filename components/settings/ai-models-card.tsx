@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { WaveToggle } from "@/components/ui/wave-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
@@ -713,7 +713,8 @@ export function AiModelsCard({
               Disabling clears the bridge secret and stored tunnel URL.
             </p>
           </div>
-          <Switch
+          <WaveToggle
+            id="use-local-ollama"
             checked={useOllama}
             disabled={disabled}
             onCheckedChange={(checked) => {
@@ -1380,7 +1381,8 @@ export function AiModelsCard({
               Use your own API key (OpenRouter, OpenAI, Anthropic, Gemini, Groq). When Local Ollama is active, this will only be used as a secondary fallback if Ollama is unreachable or times out.
             </p>
           </div>
-          <Switch
+          <WaveToggle
+            id="allow-cloud-fallback"
             checked={allowCloudFallback}
             disabled={disabled}
             onCheckedChange={(checked) => {

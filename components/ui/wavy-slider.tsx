@@ -4,42 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-/** Brand teal for active wave stroke / thumb / origin. */
-const BRAND_TEAL = "#1ab5af";
-
-/** Wave geometry in CSS pixels — constant across all slider lengths. */
-const WAVE_HALF_PX = 7;
-const WAVE_MID_Y = 6;
-const WAVE_AMP_Y = 3;
-const WAVE_VB_H = 12;
-/** One T-segment length (peak → trough). */
-const WAVE_SEGMENT_PX = WAVE_HALF_PX * 2;
-/**
- * Full visual period (peak → trough → peak). Animating by only one segment
- * caused a harsh phase snap every loop.
- */
-const WAVE_PERIOD_PX = WAVE_SEGMENT_PX * 2;
-/** Idle crawl speed — slow enough to read as one continuous ribbon. */
-const WAVE_CYCLE_MS = 1900;
-
-/**
- * Build a squiggle path for an exact pixel width without stretching.
- * Longer tracks get more cycles; amplitude stays fixed.
- * Extends one full period left so a phase translate never shows a gap.
- */
-function buildWavePath(widthPx: number): string {
-  const width = Math.max(WAVE_SEGMENT_PX, Math.ceil(widthPx));
-  const startX = -WAVE_PERIOD_PX;
-  let d = `M ${startX} ${WAVE_MID_Y} Q ${startX + WAVE_HALF_PX} ${WAVE_MID_Y - WAVE_AMP_Y}, ${startX + WAVE_SEGMENT_PX} ${WAVE_MID_Y}`;
-  for (
-    let x = startX + WAVE_SEGMENT_PX * 2;
-    x <= width + WAVE_PERIOD_PX;
-    x += WAVE_SEGMENT_PX
-  ) {
-    d += ` T ${x} ${WAVE_MID_Y}`;
-  }
-  return d;
-}
+import {
+  BRAND_TEAL,
+  WAVE_HALF_PX,
+  WAVE_SEGMENT_PX,
+  WAVE_SLIDER_VB_H as WAVE_VB_H,
+  buildWavePath,
+  getSynchronizedWavePhase,
+} from "@/lib/constants/wave-geometry";
 
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined") return false;
@@ -146,13 +118,11 @@ export function WavySlider({
     }
 
     setWaving(true);
-    const start = performance.now();
     const tick = (now: number) => {
       const g = waveGroupRef.current;
       if (g) {
-        // Linear phase; full period so the loop seams invisibly.
-        const phase =
-          (((now - start) / WAVE_CYCLE_MS) % 1) * WAVE_PERIOD_PX;
+        // Globally synchronized phase; full period so the loop seams invisibly.
+        const phase = getSynchronizedWavePhase(now);
         g.setAttribute("transform", `translate(${-phase} 0)`);
       }
       waveRafRef.current = requestAnimationFrame(tick);

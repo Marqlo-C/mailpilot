@@ -26,7 +26,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { WaveToggle } from "@/components/ui/wave-toggle";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -192,33 +192,17 @@ export function ResumeTailoringDefaultsCard({
             Outbound Dispatch & Length
           </h3>
 
-          <div
-            className={cn(
-              "flex items-start justify-between gap-4",
-              SETTINGS_ROW_CLASSNAME
-            )}
-          >
-            <div className="min-w-0 space-y-0.5">
-              <Label
-                htmlFor="resume-attach-pdf-default"
-                className="text-sm font-medium"
-              >
-                Attach Tailored Resume to Outbound Drafts by Default
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Automatically generate and attach the tailored PDF when sending
-                opportunity replies.
-              </p>
-            </div>
-            <Switch
-              id="resume-attach-pdf-default"
-              checked={prefs.attachPdfByDefault}
-              disabled={disabled}
-              onCheckedChange={(checked) =>
-                persist({ ...prefs, attachPdfByDefault: checked })
-              }
-            />
-          </div>
+          <WaveToggle
+            id="resume-attach-pdf-default"
+            className={SETTINGS_ROW_CLASSNAME}
+            label="Attach Tailored Resume to Outbound Drafts by Default"
+            description="Automatically generate and attach the tailored PDF when sending opportunity replies."
+            checked={prefs.attachPdfByDefault}
+            disabled={disabled}
+            onCheckedChange={(checked) =>
+              persist({ ...prefs, attachPdfByDefault: checked })
+            }
+          />
 
           <div
             className={cn(
@@ -238,7 +222,7 @@ export function ResumeTailoringDefaultsCard({
                 and work experiences.
               </p>
             </div>
-            <Switch
+            <WaveToggle
               id="resume-include-summary-default"
               checked={prefs.includeSummary}
               disabled={disabled}
@@ -444,7 +428,7 @@ export function ResumeTailoringDefaultsCard({
                 prohibited.
               </p>
             </div>
-            <Switch
+            <WaveToggle
               id="resume-invent-metrics"
               checked={prefs.inventMetrics}
               disabled={disabled}
@@ -540,7 +524,7 @@ export function ResumeTailoringDefaultsCard({
                       </Button>
                     </div>
 
-                    <Switch
+                    <WaveToggle
                       checked={!isOmitted}
                       disabled={disabled}
                       aria-label={`Include ${meta.label} section`}

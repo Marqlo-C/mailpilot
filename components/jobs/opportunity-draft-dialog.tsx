@@ -54,7 +54,7 @@ import { Label } from "@/components/ui/label";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
 import { selectCheckboxClassName } from "@/components/ui/select-checkbox";
 import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
-import { Switch } from "@/components/ui/switch";
+import { WaveToggle } from "@/components/ui/wave-toggle";
 import {
   Tooltip,
   TooltipContent,
@@ -1273,7 +1273,7 @@ export function OpportunityDraftDialog({
 
               {attachResume ? (
                 <div className="flex shrink-0 items-center gap-2">
-                  <Switch
+                  <WaveToggle
                     id="opp-include-summary"
                     checked={includeSummary}
                     onCheckedChange={setIncludeSummary}
