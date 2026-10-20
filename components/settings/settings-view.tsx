@@ -44,7 +44,6 @@ type SettingsViewProps = {
   localOllamaUrl: string;
   ollamaModel: string;
   isDev?: boolean;
-  connectedBanner?: string | null;
   errorBanner?: string | null;
 };
 
@@ -64,7 +63,6 @@ export function SettingsView({
   localOllamaUrl,
   ollamaModel,
   isDev = false,
-  connectedBanner,
   errorBanner,
 }: SettingsViewProps) {
   const [tab, setTab] = useState<SettingsTab>("accounts");
@@ -82,11 +80,6 @@ export function SettingsView({
 
   return (
     <div className="space-y-4">
-      {connectedBanner ? (
-        <div className="rounded-lg border border-primary/30 bg-card/80 px-4 py-3 text-sm text-primary shadow-sm backdrop-blur-sm">
-          Connected {connectedBanner}
-        </div>
-      ) : null}
       {errorBanner ? (
         <div className="rounded-lg border border-destructive/30 bg-card/80 px-4 py-3 text-sm text-destructive shadow-sm backdrop-blur-sm">
           OAuth error: {errorBanner}
@@ -97,7 +90,7 @@ export function SettingsView({
         value={tab}
         onValueChange={(value) => setTab(value as SettingsTab)}
       >
-        <div className="mb-1 flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-1.5 flex flex-col gap-2 pt-1 md:pt-0 sm:flex-row sm:items-center sm:justify-between">
           <TabsList className={segmentedTabsListClassName}>
             <TabsTrigger
               value="accounts"

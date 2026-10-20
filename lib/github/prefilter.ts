@@ -1,8 +1,8 @@
 export const FILTER_OUT_REGEX =
-  /(?:installation|getting started|how to run|prerequisites|requirements|license|contributing|contributors|code of conduct|badges|sponsors)/i;
+  /(?:installation|getting started|how to run|how to use|quick\s*start|usage|prerequisites|requirements|dependencies|local setup|running locally|development setup|license|contributing|contributors|code of conduct|badges|sponsors|troubleshooting|faq)/i;
 
 export const PRIORITY_REGEX =
-  /(?:architecture|system design|data flow|components|protocols|concurrency|pipeline|benchmarks|performance|security|storage|api specification|models)/i;
+  /(?:architecture|system design|data flow|components|protocols|concurrency|pipeline|benchmarks|performance|security|storage|api specification|models|rate limit|waf|telemetry|infrastructure|internals|implementation)/i;
 
 interface SectionChunk {
   heading: string;
@@ -11,10 +11,28 @@ interface SectionChunk {
 }
 
 /**
+ * Truncates text cleanly at sentence or word boundaries up to maxLen.
+ */
+function cleanTruncate(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  if (maxLen <= 0) return "";
+  const sliced = text.slice(0, maxLen);
+  const sentenceMatch = sliced.match(/^([\s\S]*[.!?])(?:\s|$)/);
+  if (sentenceMatch && sentenceMatch[1].length >= maxLen * 0.4) {
+    return sentenceMatch[1].trim();
+  }
+  const wordMatch = sliced.match(/^([\s\S]*\S)\s+\S*$/);
+  if (wordMatch && wordMatch[1].length >= maxLen * 0.3) {
+    return wordMatch[1].trim();
+  }
+  return sliced.trimEnd();
+}
+
+/**
  * Strips non-technical boilerplate (badges, raw images, sponsor links, HTML comments),
  * chunks content by markdown headings, filters out non-technical sections (installation,
- * licenses, contributing guidelines), and synthesizes a high-density digest prioritizing
- * architectural and systems specifications up to budget.
+ * licenses, contributing guidelines), and synthesizes a high-density digest using proportional
+ * section budgeting to ensure all architectural and technical sections are represented up to budget.
  */
 export function extractSemanticMarkdownDigest(
   rawMarkdown: string,
@@ -80,50 +98,127 @@ export function extractSemanticMarkdownDigest(
 
   const introSummary = introLines.join("\n").trim();
 
-  const prioritySections: SectionChunk[] = [];
-  const neutralSections: SectionChunk[] = [];
+  const candidateSections: {
+    heading: string;
+    content: string;
+    fullLength: number;
+    isPriority: boolean;
+  }[] = [];
 
   for (const sec of sections) {
     if (FILTER_OUT_REGEX.test(sec.heading)) {
       continue;
     }
-    if (PRIORITY_REGEX.test(sec.heading)) {
-      prioritySections.push(sec);
-    } else {
-      neutralSections.push(sec);
-    }
+    const trimmed = sec.content.trim();
+    if (!trimmed) continue;
+    const header = `## ${sec.heading}\n`;
+    candidateSections.push({
+      heading: sec.heading,
+      content: trimmed,
+      fullLength: header.length + trimmed.length,
+      isPriority: PRIORITY_REGEX.test(sec.heading),
+    });
   }
 
-  if (sections.length === 0) {
+  if (candidateSections.length === 0) {
     return introSummary.slice(0, budget).trim();
   }
 
-  let digest = introSummary;
+  // 2. Allocate a small slice for introductory summary (up to ~500–600 chars)
+  let introPortion = introSummary;
+  if (introPortion.length > 600) {
+    introPortion = cleanTruncate(introPortion, 600);
+  }
+  if (introPortion.length >= budget - 100) {
+    introPortion = cleanTruncate(introPortion, Math.max(0, budget - 100));
+  }
 
-  const appendSection = (sec: SectionChunk) => {
-    const trimmed = sec.content.trim();
-    if (!trimmed) return;
-    const block = `${digest ? "\n\n" : ""}## ${sec.heading}\n${trimmed}`;
-    if (digest.length + block.length <= budget) {
-      digest += block;
-    } else {
-      const remaining = budget - digest.length;
-      if (remaining > 120) {
-        const slice = block.slice(0, remaining).replace(/\s+\S*$/, "");
-        digest += slice;
+  const introOverhead = introPortion ? introPortion.length + 2 : 0;
+  const budgetForSections = Math.max(0, budget - introOverhead);
+
+  // 3. Distribute remaining budget proportionally across surviving candidate sections (1.4x weighting for priority)
+  const separatorOverhead = Math.max(0, (candidateSections.length - 1) * 2);
+  const availableContentBudget = Math.max(0, budgetForSections - separatorOverhead);
+
+  const allocations = new Array(candidateSections.length).fill(0);
+  let unallocatedBudget = availableContentBudget;
+  let activeIndices = candidateSections.map((_, i) => i);
+
+  while (activeIndices.length > 0 && unallocatedBudget > 0) {
+    const totalWeight = activeIndices.reduce(
+      (sum, idx) => sum + (candidateSections[idx].isPriority ? 1.4 : 1.0),
+      0
+    );
+    let anyCapped = false;
+    const remainingIndices: number[] = [];
+
+    for (const idx of activeIndices) {
+      const weight = candidateSections[idx].isPriority ? 1.4 : 1.0;
+      const share = Math.floor((unallocatedBudget * weight) / totalWeight);
+      const fullLen = candidateSections[idx].fullLength;
+
+      if (fullLen <= share) {
+        allocations[idx] = fullLen;
+        unallocatedBudget -= fullLen;
+        anyCapped = true;
+      } else {
+        remainingIndices.push(idx);
       }
     }
-  };
 
-  for (const sec of prioritySections) {
-    if (digest.length >= budget) break;
-    appendSection(sec);
+    if (!anyCapped || remainingIndices.length === 0) {
+      const remainingWeight = remainingIndices.reduce(
+        (sum, idx) => sum + (candidateSections[idx].isPriority ? 1.4 : 1.0),
+        0
+      );
+      for (const idx of remainingIndices) {
+        const weight = candidateSections[idx].isPriority ? 1.4 : 1.0;
+        const share = Math.min(
+          candidateSections[idx].fullLength,
+          Math.floor((unallocatedBudget * weight) / remainingWeight)
+        );
+        allocations[idx] = share;
+      }
+      break;
+    }
+
+    activeIndices = remainingIndices;
   }
 
-  for (const sec of neutralSections) {
-    if (digest.length >= budget) break;
-    appendSection(sec);
+  // 4. Render sections cleanly with sentence/word truncation
+  const sectionBlocks: string[] = [];
+  for (let i = 0; i < candidateSections.length; i++) {
+    const sec = candidateSections[i];
+    const alloc = allocations[i];
+    if (alloc <= 0) continue;
+
+    const header = `## ${sec.heading}\n`;
+    if (alloc <= header.length) {
+      continue;
+    }
+
+    const contentBudget = alloc - header.length;
+    const trimmedContent = sec.content;
+    let sectionContent =
+      trimmedContent.length <= contentBudget
+        ? trimmedContent
+        : cleanTruncate(trimmedContent, contentBudget);
+
+    const fenceCount = (sectionContent.match(/```/g) || []).length;
+    if (fenceCount % 2 !== 0) {
+      sectionContent += "\n```";
+    }
+
+    if (sectionContent) {
+      sectionBlocks.push(`${header}${sectionContent}`);
+    }
   }
 
-  return digest.trim();
+  let digest = introPortion;
+  if (sectionBlocks.length > 0) {
+    const sectionsJoined = sectionBlocks.join("\n\n");
+    digest = digest ? `${digest}\n\n${sectionsJoined}` : sectionsJoined;
+  }
+
+  return digest.slice(0, budget).trim();
 }

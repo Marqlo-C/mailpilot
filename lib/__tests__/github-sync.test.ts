@@ -93,6 +93,95 @@ Please read CONTRIBUTING.md before opening pull requests.
       expect(digest).not.toContain("Prerequisites");
       expect(digest).not.toContain("Contributing");
     });
+
+    it("filters out expanded setup, usage, dependencies, and troubleshooting sections", () => {
+      const rawMarkdown = `# EdgeMesh
+EdgeMesh is a distributed edge proxy.
+
+## How to Use
+Run \`edgemesh start\` in your terminal.
+
+## Quickstart
+Follow these 3 easy steps.
+
+## Usage
+edgemesh --port 8080
+
+## Dependencies
+Requires libssl and cmake.
+
+## Local Setup
+npm run dev
+
+## Running Locally
+docker run -p 8080:8080 edgemesh
+
+## Development Setup
+Install git and docker.
+
+## Troubleshooting
+If port 8080 is in use, change the port.
+
+## FAQ
+Q: Can I use this on macOS? A: Yes.
+
+## WAF & Rate Limiting
+Engineered with token-bucket rate limiting and edge IP challenge verification.
+
+## Telemetry Infrastructure
+Streams metrics via OpenTelemetry gRPC exporters.
+`;
+
+      const digest = extractSemanticMarkdownDigest(rawMarkdown, 5000);
+
+      expect(digest).toContain("## WAF & Rate Limiting");
+      expect(digest).toContain("token-bucket rate limiting");
+      expect(digest).toContain("## Telemetry Infrastructure");
+      expect(digest).toContain("OpenTelemetry gRPC exporters");
+
+      expect(digest).not.toContain("How to Use");
+      expect(digest).not.toContain("Quickstart");
+      expect(digest).not.toContain("Usage");
+      expect(digest).not.toContain("Dependencies");
+      expect(digest).not.toContain("Local Setup");
+      expect(digest).not.toContain("Running Locally");
+      expect(digest).not.toContain("Development Setup");
+      expect(digest).not.toContain("Troubleshooting");
+      expect(digest).not.toContain("FAQ");
+    });
+
+    it("proportionally allocates character budgets across all surviving sections instead of linear front-loading", () => {
+      const largeSectionBody = Array.from(
+        { length: 25 },
+        (_, i) =>
+          `Cluster Node Subsystem #${i + 1}: Manages partition queue with dedicated worker threads, applying rate-limiting tokens and telemetry emission over gRPC channels.`
+      ).join(" "); // ~4,000 characters
+
+      const rawMarkdown = `# DistributedCore
+DistributedCore is a fault-tolerant distributed computing engine.
+
+## Core Architecture
+${largeSectionBody}
+
+## WAF & Rate Limiting
+Engineered with token-bucket rate limiting and edge IP challenge verification.
+
+## Telemetry Infrastructure
+Streams metrics via OpenTelemetry gRPC exporters with sub-millisecond precision.
+`;
+
+      // Constrained budget of 1,800 characters:
+      // Greedy linear scanning would have eaten all 1,800 chars on Core Architecture, starving WAF and Telemetry.
+      const digest = extractSemanticMarkdownDigest(rawMarkdown, 1800);
+
+      expect(digest.length).toBeLessThanOrEqual(1800);
+      expect(digest).toContain("DistributedCore is a fault-tolerant");
+      expect(digest).toContain("## Core Architecture");
+      expect(digest).toContain("## WAF & Rate Limiting");
+      expect(digest).toContain("token-bucket rate limiting");
+      expect(digest).toContain("## Telemetry Infrastructure");
+      expect(digest).toContain("OpenTelemetry gRPC exporters");
+    });
   });
 
   describe("Dynamic 3-Tier Repository Complexity Budgeting", () => {

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X } from "lucide-react";
+import { Plus, ShieldBan, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -69,14 +69,20 @@ export function ExcludedTitlesCard({
 
   return (
     <Card className={SETTINGS_CARD_CLASSNAME}>
-      <CardHeader>
-        <CardTitle>Excluded Job Titles</CardTitle>
-        <CardDescription>
-          Roles flagged with &quot;Less like this&quot; — matching listings score
-          low and stay soft-hidden.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 p-3.5 space-y-0">
+        <ShieldBan
+          className="h-8 w-8 -translate-y-0.5 text-primary shrink-0"
+          aria-hidden="true"
+        />
+        <div className="space-y-0.5 min-w-0">
+          <CardTitle>Excluded Job Titles</CardTitle>
+          <CardDescription className="text-xs">
+            Roles flagged with &quot;Less like this&quot; — matching listings score
+            low and stay soft-hidden.
+          </CardDescription>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 pt-4">
         {!accountId ? (
           <p className="text-sm text-muted-foreground">
             Connect an account to manage excluded titles.

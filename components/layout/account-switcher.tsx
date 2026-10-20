@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { setActiveAccount } from "@/app/actions/accounts";
 import { logoutSession } from "@/app/actions/auth";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -59,7 +60,14 @@ export function AccountSwitcher({
           title={collapsed ? label : undefined}
         >
           <span className="flex min-w-0 items-center gap-2">
-            <UserCog className="h-3.5 w-3.5 shrink-0" />
+            <Avatar className="h-4 w-4 shrink-0">
+              {active?.picture ? (
+                <AvatarImage src={active.picture} alt="" referrerPolicy="no-referrer" />
+              ) : null}
+              <AvatarFallback className="bg-transparent">
+                <UserCog className="h-3.5 w-3.5" />
+              </AvatarFallback>
+            </Avatar>
             {collapsed ? null : <span className="truncate">{label}</span>}
           </span>
           {collapsed ? null : (
@@ -86,12 +94,24 @@ export function AccountSwitcher({
                   router.refresh();
                 });
               }}
-              className="justify-between"
+              className="justify-between gap-2"
             >
-              <span className="truncate">{account.email}</span>
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Avatar className="h-4 w-4 shrink-0 border border-border/60">
+                  {account.picture ? (
+                    <AvatarImage src={account.picture} alt="" referrerPolicy="no-referrer" />
+                  ) : null}
+                  <AvatarFallback className="bg-transparent text-muted-foreground">
+                    <UserCog className="h-3 w-3" />
+                  </AvatarFallback>
+                </Avatar>
+                <span className="truncate">
+                  {account.name ? `${account.name} (${account.email})` : account.email}
+                </span>
+              </div>
               <Check
                 className={cn(
-                  "h-4 w-4",
+                  "h-4 w-4 shrink-0",
                   account.id === activeAccountId ? "opacity-100" : "opacity-0"
                 )}
               />

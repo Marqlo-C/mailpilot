@@ -3,8 +3,10 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Bot,
   Check,
   ChevronDown,
+  Cloud,
   Copy,
   Loader2,
   RefreshCw,
@@ -685,15 +687,19 @@ export function AiModelsCard({
   return (
     <div className="space-y-4">
       <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
-        <CardHeader className="border-b border-border/50 pb-5">
-          <CardTitle className="text-lg tracking-tight">
-            Local AI & Ollama Bridge
-          </CardTitle>
-          <CardDescription>
-            Run private inference locally on your machine via secure CLI bridge.
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 p-3.5 space-y-0">
+          <Bot
+            className="h-8 w-8 -translate-y-0.5 scale-[1.15] origin-center text-primary shrink-0"
+            aria-hidden="true"
+          />
+          <div className="space-y-0.5 min-w-0">
+            <CardTitle>Local AI & Ollama Bridge</CardTitle>
+            <CardDescription className="text-xs">
+              Run private inference locally on your machine via secure CLI bridge.
+            </CardDescription>
+          </div>
         </CardHeader>
-      <CardContent className="space-y-6 pt-6">
+      <CardContent className="space-y-6 pt-4">
         {!accountId && (
           <p className="text-sm text-muted-foreground">
             Connect an account to configure AI routing.
@@ -1332,30 +1338,32 @@ export function AiModelsCard({
 
     {/* Cloud AI Provider & Credentials Card */}
     <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
-      <CardHeader className="border-b border-border/50 pb-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-lg tracking-tight">
-              Cloud AI Provider & Credentials
-            </CardTitle>
-            <CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/50 p-3.5 space-y-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <Cloud
+            className="h-8 w-8 -translate-y-0.5 text-primary shrink-0"
+            aria-hidden="true"
+          />
+          <div className="space-y-0.5 min-w-0">
+            <CardTitle>Cloud AI Provider & Credentials</CardTitle>
+            <CardDescription className="text-xs">
               Account-scoped Bring-Your-Own-Key (BYOK). Keys are encrypted with AES-256-GCM.
             </CardDescription>
           </div>
-          {maskedApiKey ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Key Active
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              No Key Configured
-            </span>
-          )}
         </div>
+        {maskedApiKey ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Key Active
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400 shrink-0">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            No Key Configured
+          </span>
+        )}
       </CardHeader>
-      <CardContent className="space-y-5 pt-6">
+      <CardContent className="space-y-5 pt-4">
         {!accountId && (
           <p className="text-sm text-muted-foreground">
             Connect an account to configure cloud credentials.
@@ -1599,33 +1607,33 @@ export function AiModelsCard({
     {/* Web Scraping & Enrichment (ScrapingAnt Proxy) Card */}
     <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
       <CardHeader
-        className="cursor-pointer select-none transition-colors hover:bg-muted/10 pb-5"
+        className="cursor-pointer select-none transition-colors hover:bg-muted/10 p-3.5 space-y-0"
         onClick={() => setScrapingAntAccordionOpen((prev) => !prev)}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
             <ChevronDown
               className={cn(
-                "h-5 w-5 text-muted-foreground transition-transform duration-200",
+                "h-5 w-5 text-muted-foreground transition-transform duration-200 shrink-0",
                 scrapingAntAccordionOpen && "rotate-180"
               )}
             />
-            <div>
-              <CardTitle className="text-lg tracking-tight">
+            <div className="space-y-0.5 min-w-0">
+              <CardTitle>
                 ScrapingAnt Proxy (Optional BYOK)
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs">
                 Used as a fast 1-credit failover to hydrate single-page job boards (like JobLeads) when direct fetching is blocked. Free tier includes 10,000 monthly credits.
               </CardDescription>
             </div>
           </div>
           {maskedScrapingAntKey ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               Custom Key Active
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground shrink-0">
               Direct Fetch (No Proxy)
             </span>
           )}
@@ -1751,33 +1759,33 @@ export function AiModelsCard({
     {/* HasData Web Scraping & Spec Hydration Card */}
     <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
       <CardHeader
-        className="cursor-pointer select-none transition-colors hover:bg-muted/10 pb-5"
+        className="cursor-pointer select-none transition-colors hover:bg-muted/10 p-3.5 space-y-0"
         onClick={() => setHasDataAccordionOpen((prev) => !prev)}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
             <ChevronDown
               className={cn(
-                "h-5 w-5 text-muted-foreground transition-transform duration-200",
+                "h-5 w-5 text-muted-foreground transition-transform duration-200 shrink-0",
                 hasDataAccordionOpen && "rotate-180"
               )}
             />
-            <div>
-              <CardTitle className="text-lg tracking-tight">
+            <div className="space-y-0.5 min-w-0">
+              <CardTitle>
                 HasData Web Scraping (Optional BYOK)
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs">
                 Used for on-demand extraction of Glassdoor and Indeed postings when tailoring resumes or hydrating job specs. Never consumed during background sync.
               </CardDescription>
             </div>
           </div>
           {maskedHasDataKey ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               Custom Key Active
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground shrink-0">
               On-Demand Direct Only
             </span>
           )}

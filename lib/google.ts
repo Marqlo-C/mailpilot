@@ -86,6 +86,8 @@ export type GoogleTokens = {
   scope?: string | null;
   /** Google OpenID subject from id_token when available. */
   googleSub?: string | null;
+  name?: string | null;
+  picture?: string | null;
 };
 
 export type WatchResult = {
@@ -146,15 +148,37 @@ export async function exchangeCodeForTokens(
   }
 
   let googleSub: string | null = null;
+  let name: string | null = null;
+  let picture: string | null = null;
+
   if (tokens.id_token) {
     try {
       const ticket = await oauth2Client.verifyIdToken({
         idToken: tokens.id_token,
         audience: requireEnv("GOOGLE_CLIENT_ID"),
       });
-      googleSub = ticket.getPayload()?.sub ?? null;
+      const payload = ticket.getPayload();
+      googleSub = payload?.sub ?? null;
+      name = payload?.name ?? null;
+      picture = payload?.picture ?? null;
     } catch (error) {
       console.warn("Failed to verify Google id_token for sub", error);
+    }
+  }
+
+  if ((!name || !picture) && tokens.access_token) {
+    try {
+      oauth2Client.setCredentials({ access_token: tokens.access_token });
+      const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
+      const userinfo = await oauth2.userinfo.get();
+      if (!name && userinfo.data.name) {
+        name = userinfo.data.name;
+      }
+      if (!picture && userinfo.data.picture) {
+        picture = userinfo.data.picture;
+      }
+    } catch (err) {
+      console.warn("Failed to fetch userinfo from Google API", err);
     }
   }
 
@@ -166,6 +190,8 @@ export async function exchangeCodeForTokens(
       : new Date(Date.now() + 3600 * 1000),
     scope: tokens.scope ?? null,
     googleSub,
+    name,
+    picture,
   };
 }
 

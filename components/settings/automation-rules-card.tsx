@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Zap } from "lucide-react";
 
 import { updateRule } from "@/app/actions/settings";
 import {
@@ -45,13 +46,19 @@ export function AutomationRulesCard({
 
   return (
     <Card className={SETTINGS_CARD_CLASSNAME}>
-      <CardHeader>
-        <CardTitle>Automation Rules</CardTitle>
-        <CardDescription>
-          Control how rejections and unsubscribe cleanup behave.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 p-3.5 space-y-0">
+        <Zap
+          className="h-8 w-8 -translate-y-0.5 text-primary shrink-0"
+          aria-hidden="true"
+        />
+        <div className="space-y-0.5 min-w-0">
+          <CardTitle>Automation Rules</CardTitle>
+          <CardDescription className="text-xs">
+            Control how rejections and unsubscribe cleanup behave.
+          </CardDescription>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 pt-4">
         {!accountId && (
           <p className="text-sm text-muted-foreground">
             Connect an account to edit automation rules.
