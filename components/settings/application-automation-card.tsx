@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { WaveToggle } from "@/components/ui/wave-toggle";
 import { WavySlider } from "@/components/ui/wavy-slider";
 import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile";
 import type { AccountRules } from "@/lib/validations/rules";
@@ -87,23 +87,13 @@ export function ApplicationAutomationCard({
           </p>
         )}
 
-        <div
-          className={cn(
-            "flex items-center justify-between gap-4",
-            SETTINGS_ROW_CLASSNAME
-          )}
-        >
-          <div>
-            <p className="text-sm font-medium">
-              {autoSend ? "Auto-Send" : "Manual Review"}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Auto-send dispatches email leads that meet the match threshold.
-            </p>
-          </div>
-          <Switch
+        <div className={SETTINGS_ROW_CLASSNAME}>
+          <WaveToggle
+            id="applicationMode"
             checked={autoSend}
             disabled={disabled}
+            label={autoSend ? "Auto-Send" : "Manual Review"}
+            description="Auto-send dispatches email leads that meet the match threshold."
             onCheckedChange={(checked) =>
               patch(
                 "applicationMode",

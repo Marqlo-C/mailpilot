@@ -92,7 +92,7 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
                           {account.name ? (
                             <>
                               <span>{account.name}</span>
-                              <span className="ml-1.5 font-normal text-muted-foreground">
+                              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                                 ({account.email})
                               </span>
                             </>
