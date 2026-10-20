@@ -16,6 +16,7 @@ import {
 } from "@/lib/validations/rules";
 import { resolveDecryptedHasDataKey } from "@/lib/llm/vault";
 import { fetchViaHasData } from "@/lib/opportunities/context/hasdata";
+import { refreshHasDataUsageAfterUse } from "@/lib/hasdata";
 import { normalizeSalaryDisplay, parseSalaryMax } from "@/lib/ai/classifier";
 import { loadCandidateProfileSummary } from "@/lib/llm/classification";
 import {
@@ -203,6 +204,9 @@ export async function buildOpportunityResumePreview(
           });
           const reResolved = await resolveOpportunityContext(opportunityId);
           context = reResolved.context;
+          refreshHasDataUsageAfterUse(accountId).catch((err) => {
+            console.warn("[resume] Background HasData usage refresh failed:", err);
+          });
         }
       } catch (err) {
         console.warn("[resume] On-demand HasData hydration failed:", err);
@@ -409,6 +413,9 @@ export async function hydrateOpportunitySpec(
           ? { company: result.data.company }
           : {}),
       },
+    });
+    refreshHasDataUsageAfterUse(accountId).catch((err) => {
+      console.warn("[resume] Background HasData usage refresh failed:", err);
     });
     return {
       ok: true,

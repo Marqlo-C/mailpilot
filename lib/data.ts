@@ -1,11 +1,12 @@
 import { cookies } from "next/headers";
-import type {
-  Account,
-  AccountSettings,
-  JobApplication,
-  JobOpportunity,
-  Subscription,
-  SubscriptionHistory,
+import {
+  type Account,
+  type AccountSettings,
+  type JobApplication,
+  type JobOpportunity,
+  Prisma,
+  type Subscription,
+  type SubscriptionHistory,
 } from "@prisma/client";
 
 import { getAuthenticatedAccountId, getSessionToken } from "@/lib/auth";
@@ -13,10 +14,15 @@ import { ACTIVE_ACCOUNT_COOKIE } from "@/lib/constants";
 import {
   ensurePersistentProfileForAccount,
   mergeRulesWithPermanentSettings,
+  persistProfileScopedRules,
 } from "@/lib/persistent-profile";
 import { prisma } from "@/lib/prisma";
 import { resolveMatchThreshold } from "@/lib/validations/profile";
-import { parseAccountRules, type AccountRules } from "@/lib/validations/rules";
+import {
+  accountRulesSchema,
+  parseAccountRules,
+  type AccountRules,
+} from "@/lib/validations/rules";
 import { decryptToken } from "@/lib/crypto";
 
 export type AccountSummary = Pick<
@@ -159,6 +165,70 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
       accountRules,
       durable.permanentSettings
     );
+
+    // Passive durable sync:
+    const durableRules = parseAccountRules(durable.permanentSettings?.rules);
+    const hasDurableKeys = Boolean(
+      durableRules.encryptedApiKey ||
+      durableRules.encryptedScrapingAntApiKey ||
+      durableRules.encryptedHasDataApiKey
+    );
+    const hasAccountKeys = Boolean(
+      accountRules.encryptedApiKey ||
+      accountRules.encryptedScrapingAntApiKey ||
+      accountRules.encryptedHasDataApiKey
+    );
+
+    // 1. If legacy AccountSettings has keys but durable profile doesn't, backfill to durable profile
+    if (hasAccountKeys && !hasDurableKeys && selected.id) {
+      persistProfileScopedRules(selected.id, {
+        encryptedApiKey: accountRules.encryptedApiKey,
+        maskedApiKey: accountRules.maskedApiKey,
+        cloudProvider: accountRules.cloudProvider,
+        cloudModel: accountRules.cloudModel,
+        allowCloudFallback: accountRules.allowCloudFallback,
+        encryptedScrapingAntApiKey: accountRules.encryptedScrapingAntApiKey,
+        maskedScrapingAntApiKey: accountRules.maskedScrapingAntApiKey,
+        encryptedHasDataApiKey: accountRules.encryptedHasDataApiKey,
+        maskedHasDataApiKey: accountRules.maskedHasDataApiKey,
+        encryptedJinaApiKey: accountRules.encryptedJinaApiKey,
+        maskedJinaApiKey: accountRules.maskedJinaApiKey,
+        scrapingAntUsage: accountRules.scrapingAntUsage,
+        hasDataUsage: accountRules.hasDataUsage,
+      }).catch((err) => {
+        console.warn("[data] Passive backfill of durable profile keys failed:", err);
+      });
+    }
+
+    // 2. If durable profile has keys but current AccountSettings is empty (e.g. freshly linked inbox), backfill AccountSettings
+    if (hasDurableKeys && !hasAccountKeys && selected.settings) {
+      const mergedAccountRules = accountRulesSchema.parse({
+        ...accountRules,
+        encryptedApiKey: durableRules.encryptedApiKey,
+        maskedApiKey: durableRules.maskedApiKey,
+        cloudProvider: durableRules.cloudProvider ?? accountRules.cloudProvider,
+        cloudModel: durableRules.cloudModel ?? accountRules.cloudModel,
+        allowCloudFallback:
+          durableRules.allowCloudFallback || accountRules.allowCloudFallback,
+        encryptedScrapingAntApiKey: durableRules.encryptedScrapingAntApiKey,
+        maskedScrapingAntApiKey: durableRules.maskedScrapingAntApiKey,
+        scrapingAntUsage: durableRules.scrapingAntUsage,
+        hasDataUsage: durableRules.hasDataUsage,
+        encryptedHasDataApiKey: durableRules.encryptedHasDataApiKey,
+        maskedHasDataApiKey: durableRules.maskedHasDataApiKey,
+        encryptedJinaApiKey: durableRules.encryptedJinaApiKey,
+        maskedJinaApiKey: durableRules.maskedJinaApiKey,
+      });
+      const { matchScoreThreshold: _drop, ...rulesToSave } = mergedAccountRules;
+      prisma.accountSettings
+        .update({
+          where: { accountId: selected.id },
+          data: { rules: rulesToSave as Prisma.InputJsonValue },
+        })
+        .catch((err) => {
+          console.warn("[data] Passive sync of durable keys to accountSettings failed:", err);
+        });
+    }
     if (!rules.bridgeSecret && rules.encryptedBridgeSecret) {
       try {
         rules.bridgeSecret = decryptToken(rules.encryptedBridgeSecret).trim();

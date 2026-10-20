@@ -131,13 +131,48 @@ export const accountRulesSchema = z.object({
   encryptedScrapingAntApiKey: z.string().nullable().default(null),
   /** Safe display mask (e.g. ant-...39aF) for Settings UI */
   maskedScrapingAntApiKey: z.string().nullable().default(null),
+  /** Cached ScrapingAnt API subscription & usage overview */
+  scrapingAntUsage: z
+    .object({
+      planName: z.string(),
+      startDate: z.string(),
+      endDate: z.string(),
+      planTotalCredits: z.number(),
+      remainedCredits: z.number(),
+      concurrencyLimit: z.number().nullable().default(null),
+      fetchedAt: z.string(),
+    })
+    .nullable()
+    .default(null),
   /** AES-256-GCM encrypted HasData API key for Glassdoor/Indeed on-demand scraping (never sent to client) */
   encryptedHasDataApiKey: z.string().nullable().default(null),
   /** Safe display mask (e.g. hd-...1234) for Settings UI */
   maskedHasDataApiKey: z.string().nullable().default(null),
+  /** Cached HasData API subscription & credit usage overview */
+  hasDataUsage: z
+    .object({
+      planName: z.string().default("Active"),
+      totalCredits: z.number(),
+      availableCredits: z.number(),
+      concurrentRequests: z.number().default(0),
+      availableConcurrency: z.number().nullable().default(null),
+      startDate: z.string().nullable().default(null),
+      endDate: z.string().nullable().default(null),
+      fetchedAt: z.string(),
+    })
+    .nullable()
+    .default(null),
   /** Defaults for on-demand tailored resume generation. */
   resumePreferences: resumePreferencesSchema.default(DEFAULT_RESUME_PREFERENCES),
 });
+
+export type ScrapingAntUsage = z.infer<
+  typeof accountRulesSchema
+>["scrapingAntUsage"];
+
+export type HasDataUsage = z.infer<
+  typeof accountRulesSchema
+>["hasDataUsage"];
 
 export type AccountRules = Omit<
   z.infer<typeof accountRulesSchema>,

@@ -73,6 +73,7 @@ export type ProcessSyncMessageResult = {
   opportunitiesUpserted: number;
   tier: "OLLAMA" | "CLOUD" | "NONE";
   ollamaDownForSync: boolean;
+  usedScrapingAnt?: boolean;
 };
 
 export async function processSyncMessage(
@@ -462,6 +463,7 @@ export async function processSyncMessage(
   );
 
   const enrichedUrls = new Set<string>();
+  let usedScrapingAnt = false;
 
   if (thinJobs.length > 0) {
     for (let i = 0; i < thinJobs.length; i++) {
@@ -484,6 +486,9 @@ export async function processSyncMessage(
           job.applyUrl!,
           rules
         );
+        if (telemetry.includes("ScrapingAnt")) {
+          usedScrapingAnt = true;
+        }
 
         if (enriched) {
           if (
@@ -653,5 +658,6 @@ export async function processSyncMessage(
     opportunitiesUpserted: dedupeResult.opportunitiesUpserted,
     tier,
     ollamaDownForSync,
+    usedScrapingAnt,
   };
 }

@@ -27,6 +27,7 @@ import {
   RATE_LIMIT_BASE_MS,
 } from "./candidates";
 import { processSyncMessage } from "./processor";
+import { refreshScrapingAntUsageAfterSync } from "@/lib/scrapingant";
 
 export * from "./candidates";
 export * from "./dedupe";
@@ -197,6 +198,8 @@ export async function runOpportunitySync(
       },
     });
 
+    let didUseScrapingAnt = false;
+
     for (let i = 0; i < targetIds.length; i++) {
       const messageId = targetIds[i];
 
@@ -239,6 +242,9 @@ export async function runOpportunitySync(
         updatedCount += processResult.updatedCount;
         skippedCount += processResult.skippedCount;
         ollamaDownForSync = processResult.ollamaDownForSync;
+        if (processResult.usedScrapingAnt) {
+          didUseScrapingAnt = true;
+        }
 
         if (processResult.tier === "OLLAMA") {
           ollamaCount++;
@@ -287,6 +293,10 @@ export async function runOpportunitySync(
         syncTotal: null,
       },
     });
+
+    if (didUseScrapingAnt) {
+      void refreshScrapingAntUsageAfterSync(accountId);
+    }
 
     logStory(syncLog, "Step 3/4 done — classification finished", {
       "messages attempted": targetIds.length,

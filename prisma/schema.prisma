@@ -35,6 +35,9 @@ model PermanentSettings {
   matchScoreThreshold Int    @default(75)
   maxAutoSendsPerDay  Int    @default(5)
 
+  /// Profile-scoped rules (e.g. BYOK credentials) that survive inbox unlinks/re-links
+  rules               Json   @default("{}")
+
   updatedAt DateTime @updatedAt
 }
 

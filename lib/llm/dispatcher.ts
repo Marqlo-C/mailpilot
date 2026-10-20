@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { mergeRulesWithPermanentSettings } from "@/lib/persistent-profile";
 import { parseAccountRules, type AccountRules } from "@/lib/validations/rules";
 import {
   type CloudLlmProvider,
@@ -124,18 +125,29 @@ async function resolveCredentials(
   // 3. Database lookup if accountId is passed
   if (options.accountId?.trim()) {
     try {
-      const settings = await prisma.accountSettings.findUnique({
-        where: { accountId: options.accountId.trim() },
-        select: { rules: true },
+      const account = await prisma.account.findUnique({
+        where: { id: options.accountId.trim() },
+        select: {
+          settings: { select: { rules: true } },
+          persistentProfile: {
+            select: {
+              permanentSettings: { select: { rules: true } },
+            },
+          },
+        },
       });
-      if (settings?.rules) {
-        const rules = parseAccountRules(settings.rules);
-        const fromDb = resolveDecryptedAccountKey(rules);
+      if (account) {
+        const accountRules = parseAccountRules(account.settings?.rules);
+        const mergedRules = mergeRulesWithPermanentSettings(
+          accountRules,
+          account.persistentProfile?.permanentSettings
+        );
+        const fromDb = resolveDecryptedAccountKey(mergedRules);
         if (fromDb) return fromDb;
       }
     } catch (e) {
       console.warn(
-        "[dispatcher] Failed to query accountSettings for BYOK credentials:",
+        "[dispatcher] Failed to query account for BYOK credentials:",
         e
       );
     }
