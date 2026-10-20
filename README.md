@@ -8,7 +8,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3.4-38B2AC?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-310_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-332_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
 [![Vercel WAF](https://img.shields.io/badge/Vercel-Edge_WAF_Mitigation-000000?style=flat-square&logo=vercel)](https://vercel.com/)
 [![Upstash](https://img.shields.io/badge/Upstash-Redis_Rate_Limiting-00E599?style=flat-square&logo=redis)](https://upstash.com/)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM_Vaulted-green?style=flat-square&logo=security)](https://nodejs.org/api/crypto.html)
@@ -347,14 +347,47 @@ All vaulted customer secrets and sensitive candidate metadata are encrypted at r
 | Asset | Storage Target | Decryption Boundary | Masking / Protection |
 | :--- | :--- | :--- | :--- |
 | **Google OAuth Access & Refresh Tokens** | `Account.encryptedAccess`, `Account.encryptedRefresh` | Memory of serverless worker during delta sync / watch renewal | Plaintext never exposed to browser; automatic token refresh. |
-| **Cloud LLM API Keys** | `AccountSettings.rules.encryptedAccountApiKey` | Decrypted per inference request in server memory | UI display mask: `sk-...[last4]`. |
-| **Scraping Proxy Keys (HasData)** | `AccountSettings.rules.encryptedHasDataApiKey` | Decrypted per scraping request in server memory | UI display mask: `hd-...[last4]`. |
-| **Scraping Proxy Keys (ScrapingAnt)** | `AccountSettings.rules.encryptedScrapingAntApiKey` | Decrypted per scraping request in server memory | UI display mask: `ant-...[last4]`. |
+| **Cloud LLM API Keys** | `AccountSettings.rules.encryptedApiKey`<br/>`PermanentSettings.rules.encryptedApiKey` | Decrypted per inference request in server memory | UI display mask: `sk-...[last4]`. Durable across inbox unlinks. |
+| **Scraping Proxy Keys (HasData)** | `AccountSettings.rules.encryptedHasDataApiKey`<br/>`PermanentSettings.rules.encryptedHasDataApiKey` | Decrypted per scraping request in server memory | UI display mask: `hd-...[last4]`. Durable across inbox unlinks. |
+| **Scraping Proxy Keys (ScrapingAnt)** | `AccountSettings.rules.encryptedScrapingAntApiKey`<br/>`PermanentSettings.rules.encryptedScrapingAntApiKey` | Decrypted per scraping request in server memory | UI display mask: `ant-...[last4]`. Durable across inbox unlinks. |
 | **Candidate Phone Number** | `UserProfile.phone` | Decrypted in server actions during profile editing / PDF export | Never serialized to unauthenticated API routes. |
 
 * **Constant-Time Verification:** Secret tokens and hashes are validated using `crypto.timingSafeEqual` to eliminate side-channel timing attacks.
 
-### 2. Hardened Server-Side Request Forgery (SSRF) Protection (`lib/ssrf.ts`)
+### 2. Durable Profile-Scoped Credential Persistence (`lib/persistent-profile.ts`)
+To eliminate credential loss and key fragmentation across inbox lifecycle events (such as unlinking a mailbox, re-authenticating expired Google OAuth tokens, or managing multiple inboxes under a single candidate identity), MailPilot decouples customer BYOK keys from transient inbox rows into a durable identity boundary:
+
+- **Identity Anchor (`PersistentProfile` & `PermanentSettings`):**
+  Each user is anchored to a durable `PersistentProfile` keyed to their Google identity (`googleSub` / primary email), backed by a 1-to-1 `PermanentSettings` record containing a profile-scoped `rules Json` store.
+- **Dual-Persisted Key Synchronization (`persistProfileScopedRules`):**
+  When a candidate configures or rotates credentials (Cloud LLM API keys: OpenRouter, OpenAI, Groq, DeepSeek, Anthropic, Gemini; or Web Scraping proxy keys: HasData, ScrapingAnt), credentials are synchronously vaulted to both `AccountSettings.rules` (active inbox) and `PermanentSettings.rules` (durable profile).
+- **Inbox Reconnect & Multi-Inbox Immunity:**
+  - Upon active account resolution (`getActiveAccount()` in `lib/data.ts`), `mergeRulesWithPermanentSettings()` automatically injects durable profile credentials into active sessions.
+  - If a user unlinks, rotates, or re-links an inbox, all vaulted keys, models, and scraping quotas persist intact without requiring re-entry.
+  - A passive migration routine automatically detects and backfills legacy per-inbox credentials into the durable profile upon first load.
+- **Strict Decryption Boundaries:**
+  All profile-scoped secrets in `PermanentSettings.rules` enforce the identical AES-256-GCM envelope specification (`iv:authTag:ciphertext`). Client UI components receive strictly masked fingerprints (`sk-...[last4]`, `ant-...[last4]`, `hd-...[last4]`), with plaintext decryption occurring strictly in serverless memory at the time of inference or scraping execution.
+
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
+flowchart TD
+  User(["Candidate / UI"]) -->|"&nbsp;&nbsp;Save / Rotate Keys&nbsp;&nbsp;"| Action["Settings Server Action<br/>(settings.ts)"]
+  Action --> Encrypt["AES-256-GCM Encrypt<br/>(iv:authTag:ciphertext)"]
+
+  subgraph DurableIdentity["Durable Identity Boundary"]
+    Encrypt -->|"&nbsp;&nbsp;persistProfileScopedRules()&nbsp;&nbsp;"| PS[("PermanentSettings.rules<br/>(PersistentProfile)")]
+  end
+
+  subgraph TransientInbox["Transient Mailbox Boundary"]
+    Encrypt -->|"&nbsp;&nbsp;Account Update&nbsp;&nbsp;"| AS[("AccountSettings.rules<br/>(Active Inbox)")]
+  end
+
+  AS & PS -->|"&nbsp;&nbsp;mergeRulesWithPermanentSettings()&nbsp;&nbsp;"| Resolve["Active Account Resolver<br/>(getActiveAccount)"]
+  Resolve -->|"&nbsp;&nbsp;Decrypt in Server Memory&nbsp;&nbsp;"| Dispatch["Inference & Scraping Engines<br/>(Cloud LLM / Scraping Proxies)"]
+  PS -.->|"&nbsp;&nbsp;Auto-Restore on Reconnect&nbsp;&nbsp;"| AS
+```
+
+### 3. Hardened Server-Side Request Forgery (SSRF) Protection (`lib/ssrf.ts`)
 MailPilot prevents internal network probing and cloud metadata extraction by performing DNS pre-resolution validation on all user-supplied and email-extracted URLs before dispatching HTTP requests:
 - **Protocol Enforcement:** Strictly allows `http:` and `https:`. Rejects `file:`, `gopher:`, `ftp:`, and javascript schemes.
 - **Blocked IP Ranges (Pre-Resolution Guardrails):**
@@ -365,12 +398,12 @@ MailPilot prevents internal network probing and cloud metadata extraction by per
   - **Carrier-Grade NAT:** `100.64.0.0/10`
   - **Broadcast & Reserved:** `0.0.0.0/8`, `240.0.0.0/4`, `255.255.255.255/32`
 
-### 3. RFC 8058 One-Click Unsubscribe Engine
+### 4. RFC 8058 One-Click Unsubscribe Engine
 - Inspects email headers for `List-Unsubscribe` and `List-Unsubscribe-Post`.
 - Dispatches an automated HTTP `POST` request with body `List-Unsubscribe=One-Click` in compliance with RFC 8058.
 - Falls back to automated `mailto:` subject/body generation and batch Gmail label trash assignment.
 
-### 4. Edge Bot Mitigation & Token-Bucket Rate Limiting
+### 5. Edge Bot Mitigation & Token-Bucket Rate Limiting
 - **Vercel Edge Bot Mitigation (`vercel.json`):** Evaluates incoming traffic directly on Vercel's Edge network before invoking serverless execution. Employs case-insensitive regex pattern matching against known automated crawler and script user-agents (`curl`, `wget`, `python`, `postman`, `axios`, `go-http-client`) on authentication routes (`^/(login|api/auth/.*)`), issuing edge-level denials without consuming serverless function execution quotas on the Vercel Hobby plan.
 - **Upstash Redis Token-Bucket Limiting (`lib/ratelimit.ts`):** Upstash-backed multi-tier rate limiter protecting both public API routes (`standard` tier: 30 tokens, 10/10s refill) and heavy server mutations (`strict` tier: 5 tokens, 1/12s refill) over stateless HTTP REST with graceful fail-open isolation (see [Section 8](#edge-bot-mitigation--token-bucket-rate-limiting) for complete pipeline flow and diagram).
 
@@ -530,7 +563,7 @@ flowchart TD
 MailPilot maintains a comprehensive, zero-token test suite using **Vitest**. All tests execute completely offline without network calls or live database dependencies:
 
 ```bash
-# Run the complete test suite (22 suites, 310 tests)
+# Run the complete test suite (25 suites, 332 tests)
 npx vitest run
 
 # Run tests in interactive watch mode
@@ -542,31 +575,34 @@ npx tsc --noEmit
 
 ```text
  ✓ lib/opportunities/context/__tests__/job-context.test.ts (28 tests)
- ✓ lib/__tests__/ssrf.test.ts (3 tests)
- ✓ lib/matching/__tests__/matching.test.ts (8 tests)
- ✓ lib/ai/__tests__/salary.test.ts (14 tests)
- ✓ lib/llm/__tests__/local-ollama-circuit.test.ts (18 tests)
- ✓ lib/__tests__/account-encryption.test.ts (7 tests)
- ✓ lib/llm/__tests__/classification-normalizer.test.ts (16 tests)
- ✓ lib/llm/__tests__/llm-vault.test.ts (13 tests)
- ✓ lib/llm/__tests__/llm-ratelimit.test.ts (4 tests)
- ✓ lib/persona/__tests__/persona.test.ts (3 tests)
- ✓ lib/opportunities/context/__tests__/hasdata.test.ts (6 tests)
- ✓ lib/__tests__/crypto.test.ts (2 tests)
- ✓ lib/__tests__/company-logo.test.ts (11 tests)
- ✓ lib/utils/__tests__/location.test.ts (9 tests)
- ✓ lib/ai/__tests__/prefilter.test.ts (10 tests)
  ✓ lib/logging/__tests__/table-logger.test.ts (15 tests)
  ✓ lib/opportunities/context/__tests__/json-ld.test.ts (41 tests)
- ✓ lib/resume-draft/__tests__/resume-draft.test.ts (54 tests)
- ✓ lib/__tests__/master-profile-export.test.ts (3 tests)
- ✓ lib/__tests__/github-sync.test.ts (30 tests)
+ ✓ lib/ai/__tests__/prefilter.test.ts (10 tests)
+ ✓ lib/llm/__tests__/local-ollama-circuit.test.ts (18 tests)
+ ✓ lib/llm/__tests__/classification-normalizer.test.ts (16 tests)
+ ✓ lib/__tests__/scrapingant.test.ts (6 tests)
  ✓ lib/__tests__/ratelimit.test.ts (9 tests)
+ ✓ lib/matching/__tests__/matching.test.ts (8 tests)
+ ✓ lib/__tests__/github-sync.test.ts (30 tests)
  ✓ app/api/login-background/__tests__/route.test.ts (6 tests)
+ ✓ lib/llm/__tests__/llm-ratelimit.test.ts (4 tests)
+ ✓ lib/llm/__tests__/llm-vault.test.ts (13 tests)
+ ✓ lib/ai/__tests__/salary.test.ts (14 tests)
+ ✓ lib/resume-draft/__tests__/resume-draft.test.ts (54 tests)
+ ✓ lib/__tests__/ssrf.test.ts (3 tests)
+ ✓ lib/__tests__/hasdata-usage.test.ts (9 tests)
+ ✓ lib/__tests__/account-encryption.test.ts (7 tests)
+ ✓ lib/persona/__tests__/persona.test.ts (3 tests)
+ ✓ lib/__tests__/company-logo.test.ts (11 tests)
+ ✓ lib/__tests__/crypto.test.ts (2 tests)
+ ✓ lib/utils/__tests__/location.test.ts (9 tests)
+ ✓ lib/opportunities/context/__tests__/hasdata.test.ts (6 tests)
+ ✓ lib/__tests__/persistent-profile.test.ts (7 tests)
+ ✓ lib/__tests__/master-profile-export.test.ts (3 tests)
 
-Test Files  22 passed (22)
-     Tests  310 passed (310)
-  Duration  3.2s
+Test Files  25 passed (25)
+     Tests  332 passed (332)
+  Duration  3.4s
 ```
 
 ### Prerequisites
