@@ -165,18 +165,21 @@ export function ResumeTailoringDefaultsCard({
 
   return (
     <Card className={SETTINGS_CARD_CLASSNAME}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-primary" />
-          Resume & Dispatch Defaults
-        </CardTitle>
-        <CardDescription>
-          Global defaults for resume tailoring, section layout, and outbound
-          opportunity dispatch. Individual drafts inherit these settings with
-          per-draft overrides available in the workspace.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 p-3.5 space-y-0">
+        <FileText
+          className="h-8 w-8 -translate-y-0.5 text-primary shrink-0"
+          aria-hidden="true"
+        />
+        <div className="space-y-0.5 min-w-0">
+          <CardTitle>Resume & Dispatch Defaults</CardTitle>
+          <CardDescription className="text-xs">
+            Global defaults for resume tailoring, section layout, and outbound
+            opportunity dispatch. Individual drafts inherit these settings with
+            per-draft overrides available in the workspace.
+          </CardDescription>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 pt-4">
         {!accountId ? (
           <p className="text-sm text-muted-foreground">
             Connect an account to configure resume defaults.

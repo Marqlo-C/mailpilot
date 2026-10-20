@@ -59,6 +59,8 @@ model SubscriptionHistory {
 model Account {
   id                  String             @id @default(cuid())
   email               String             @unique
+  name                String?
+  picture             String?
   /// Nullable so "Unlink Gmail" can clear credentials without deleting history.
   encryptedAccess     String?
   encryptedRefresh    String?

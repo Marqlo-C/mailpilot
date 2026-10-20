@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { updateDismissedRetention } from "@/app/actions/settings";
@@ -35,14 +36,20 @@ export function DismissedRetentionSetting({
 
   return (
     <Card className={SETTINGS_CARD_CLASSNAME}>
-      <CardHeader>
-        <CardTitle>Dismissed Items Auto-Delete</CardTitle>
-        <CardDescription>
-          Dismissed items in History are permanently purged after this window.
-          User-archived items stay until you dismiss or restore them.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 p-3.5 space-y-0">
+        <Trash2
+          className="h-8 w-8 -translate-y-0.5 text-primary shrink-0"
+          aria-hidden="true"
+        />
+        <div className="space-y-0.5 min-w-0">
+          <CardTitle>Dismissed Items Auto-Delete</CardTitle>
+          <CardDescription className="text-xs">
+            Dismissed items in History are permanently purged after this window.
+            User-archived items stay until you dismiss or restore them.
+          </CardDescription>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Label htmlFor="dismissed-retention" className="text-sm font-medium">
             Retention window

@@ -1,5 +1,7 @@
 "use client";
 
+import { SlidersHorizontal } from "lucide-react";
+
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
 import {
   Card,
@@ -26,14 +28,20 @@ export function UiRailCard() {
 
   return (
     <Card className={SETTINGS_CARD_CLASSNAME}>
-      <CardHeader>
-        <CardTitle>Tab rail</CardTitle>
-        <CardDescription>
-          Light rail or dark rail on Job Radar, Subscriptions, and Settings.
-          Saved for this account on this device.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 p-3.5 space-y-0">
+        <SlidersHorizontal
+          className="h-8 w-8 -translate-y-0.5 scale-[0.88] origin-center text-primary shrink-0"
+          aria-hidden="true"
+        />
+        <div className="space-y-0.5 min-w-0">
+          <CardTitle>Tab rail</CardTitle>
+          <CardDescription className="text-xs">
+            Light rail or dark rail on Job Radar, Subscriptions, and Settings.
+            Saved for this account on this device.
+          </CardDescription>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 pt-4">
         <div
           className={listClassName}
           role="radiogroup"

@@ -6,7 +6,7 @@ import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ connected?: string; error?: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const params = await searchParams;
   const [accounts, active] = await Promise.all([
@@ -21,8 +21,8 @@ export default async function SettingsPage({
     profileResult.ok && profileResult.data ? profileResult.data : null;
 
   return (
-    <div className="space-y-4">
-      <div className="pb-3 md:-mt-[2.875rem]">
+    <div className="space-y-3">
+      <div className="flex flex-col justify-end pb-2 pl-0.5 md:pb-0 md:-mt-[4.25rem] md:h-[4.25rem]">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
           Settings
         </h1>
@@ -42,7 +42,6 @@ export default async function SettingsPage({
         localOllamaUrl={active?.settings?.localOllamaUrl ?? ""}
         ollamaModel={active?.settings?.ollamaModel ?? "llama3.1:8b"}
         isDev={process.env.NODE_ENV === "development"}
-        connectedBanner={params.connected ?? null}
         errorBanner={params.error ?? null}
       />
     </div>

@@ -8,7 +8,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3.4-38B2AC?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-308_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-310_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
 [![Vercel WAF](https://img.shields.io/badge/Vercel-Edge_WAF_Mitigation-000000?style=flat-square&logo=vercel)](https://vercel.com/)
 [![Upstash](https://img.shields.io/badge/Upstash-Redis_Rate_Limiting-00E599?style=flat-square&logo=redis)](https://upstash.com/)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM_Vaulted-green?style=flat-square&logo=security)](https://nodejs.org/api/crypto.html)
@@ -530,7 +530,7 @@ flowchart TD
 MailPilot maintains a comprehensive, zero-token test suite using **Vitest**. All tests execute completely offline without network calls or live database dependencies:
 
 ```bash
-# Run the complete test suite (22 suites, 308 tests)
+# Run the complete test suite (22 suites, 310 tests)
 npx vitest run
 
 # Run tests in interactive watch mode
@@ -560,12 +560,12 @@ npx tsc --noEmit
  ✓ lib/opportunities/context/__tests__/json-ld.test.ts (41 tests)
  ✓ lib/resume-draft/__tests__/resume-draft.test.ts (54 tests)
  ✓ lib/__tests__/master-profile-export.test.ts (3 tests)
- ✓ lib/__tests__/github-sync.test.ts (28 tests)
+ ✓ lib/__tests__/github-sync.test.ts (30 tests)
  ✓ lib/__tests__/ratelimit.test.ts (9 tests)
  ✓ app/api/login-background/__tests__/route.test.ts (6 tests)
 
 Test Files  22 passed (22)
-     Tests  308 passed (308)
+     Tests  310 passed (310)
   Duration  3.2s
 ```
 

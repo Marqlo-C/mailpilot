@@ -1,5 +1,6 @@
 "use client";
 
+import { UserRound } from "lucide-react";
 import { PersonaViewer } from "@/components/profile/persona-viewer";
 import { ManualProfileEditor } from "@/components/profile/manual-profile-editor";
 import { ProfileRevisionsMenu } from "@/components/profile/profile-revisions-menu";
@@ -88,45 +89,29 @@ export function MasterProfileCard({
   const skillGroups = skillGroupsFromUnknown(profile?.skills);
   return (
     <Card className={cn(SETTINGS_CARD_CLASSNAME)}>
-      <CardHeader className="gap-4 border-b border-border/50 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 space-y-2">
-          <CardTitle className="text-xl tracking-tight">Master Profile</CardTitle>
-          {profile ? (
-            <>
-              <div className="space-y-1">
-                <p className="text-lg font-semibold">{profile.fullName}</p>
-                <p className="text-sm text-muted-foreground">{profile.email}</p>
-                <p className="text-sm text-muted-foreground">
-                  {[profile.phone, profile.location].filter(Boolean).join(" · ") ||
-                    "No phone / location"}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {profile.updatedAt ? (
-                  <CardDescription>
-                    <span suppressHydrationWarning>
-                      Updated {formatUpdatedAtUtc(profile.updatedAt)}
-                    </span>
-                  </CardDescription>
-                ) : null}
-              </div>
-            </>
-          ) : (
-            <CardDescription>
-              No profile data yet. Click Edit Fields or Import Resume to begin.
+      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/50 p-3.5 space-y-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <UserRound
+            className="h-8 w-8 -translate-y-0.5 text-primary shrink-0"
+            aria-hidden="true"
+          />
+          <div className="space-y-0.5 min-w-0">
+            <CardTitle>Master Profile</CardTitle>
+            <CardDescription className="text-xs">
+              Universal resume profile, skills, and background history used for tailoring.
             </CardDescription>
-          )}
+          </div>
         </div>
 
         {accountId ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <ManualProfileEditor accountId={accountId} profile={profile} />
             {profile ? <ProfileRevisionsMenu accountId={accountId} /> : null}
           </div>
         ) : null}
       </CardHeader>
 
-      <CardContent className="space-y-3 pt-6">
+      <CardContent className="space-y-3 pt-4">
         {!accountId ? (
           <p className="text-sm text-muted-foreground">
             Connect a Gmail account to manage your master profile.
@@ -140,6 +125,29 @@ export function MasterProfileCard({
           </div>
         ) : (
           <>
+            <div className="flex flex-col gap-3 rounded-lg border border-border/50 bg-card/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 space-y-0.5">
+                <div className="flex flex-wrap items-baseline gap-1.5">
+                  <p className="text-sm font-semibold text-foreground">{profile.fullName}</p>
+                  {profile.email ? (
+                    <span className="text-xs text-muted-foreground">({profile.email})</span>
+                  ) : null}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {[profile.phone, profile.location].filter(Boolean).join(" · ") ||
+                    "No phone / location"}
+                </p>
+              </div>
+              {profile.updatedAt ? (
+                <span
+                  className="text-[11px] text-muted-foreground shrink-0"
+                  suppressHydrationWarning
+                >
+                  Updated {formatUpdatedAtUtc(profile.updatedAt)}
+                </span>
+              ) : null}
+            </div>
+
             <PersonaViewer profile={profile} />
 
             <details className="group rounded-lg border border-border/70 bg-background/50 open:bg-background/70">
@@ -167,6 +175,14 @@ export function MasterProfileCard({
                     </dd>
                   </div>
                   <div>
+                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Location
+                    </dt>
+                    <dd className="mt-1 font-medium">
+                      {profile.location || "—"}
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-3">
                     <dt className="text-xs uppercase tracking-wide text-muted-foreground">
                       Summary
                     </dt>

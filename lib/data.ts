@@ -23,6 +23,8 @@ export type AccountSummary = Pick<
   Account,
   | "id"
   | "email"
+  | "name"
+  | "picture"
   | "isActive"
   | "historyId"
   | "updatedAt"
@@ -63,6 +65,8 @@ export async function listAccounts(): Promise<AccountSummary[]> {
         select: {
           id: true,
           email: true,
+          name: true,
+          picture: true,
           isActive: true,
           historyId: true,
           updatedAt: true,
@@ -85,6 +89,8 @@ export async function listAccounts(): Promise<AccountSummary[]> {
       select: {
         id: true,
         email: true,
+        name: true,
+        picture: true,
         isActive: true,
         historyId: true,
         updatedAt: true,
@@ -182,6 +188,8 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
     return {
       id: selected.id,
       email: selected.email,
+      name: selected.name,
+      picture: selected.picture,
       isActive: selected.isActive,
       historyId: selected.historyId,
       updatedAt: selected.updatedAt,

@@ -164,6 +164,8 @@ export async function GET(req: NextRequest) {
     };
 
     const sharedCredentials = {
+      name: tokens.name ?? null,
+      picture: tokens.picture ?? null,
       encryptedAccess,
       encryptedRefresh,
       tokenExpiry: tokens.expiryDate,
@@ -259,12 +261,7 @@ export async function GET(req: NextRequest) {
       });
 
       const response = clearOAuthStateCookie(
-        NextResponse.redirect(
-          new URL(
-            `/settings?connected=${encodeURIComponent(email)}`,
-            url.origin
-          )
-        )
+        NextResponse.redirect(new URL("/settings", url.origin))
       );
 
       // Keep the original user session; switch active mailbox to the linked one.
@@ -325,9 +322,7 @@ export async function GET(req: NextRequest) {
       seedRules: rules,
     });
 
-    const redirectPath = isReturningUser
-      ? "/"
-      : `/settings?connected=${encodeURIComponent(email)}`;
+    const redirectPath = isReturningUser ? "/" : "/settings";
 
     const response = clearOAuthStateCookie(
       NextResponse.redirect(new URL(redirectPath, url.origin))
