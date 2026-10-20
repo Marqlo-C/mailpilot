@@ -1552,7 +1552,7 @@ export function AiModelsCard({
                       readOnly
                       type="text"
                       value={maskedApiKey}
-                      className="h-9 border-border/80 bg-background font-mono text-xs text-muted-foreground"
+                      className="h-9 border-border/80 bg-card/75 font-mono text-xs text-muted-foreground"
                     />
                   </div>
                   <div className="flex items-center gap-2">
@@ -1594,7 +1594,7 @@ export function AiModelsCard({
                       value={apiKeyInput}
                       disabled={disabled}
                       onChange={(e) => setApiKeyInput(e.target.value)}
-                      className="h-10 border-border/80 bg-background font-mono text-xs"
+                      className="h-10 border-border/80 bg-card/75 font-mono text-xs transition-[box-shadow,border-color] focus-visible:border-border focus-visible:ring-0 focus-visible:shadow"
                       autoComplete="off"
                       spellCheck={false}
                     />
@@ -1711,14 +1711,14 @@ export function AiModelsCard({
                   }}
                   className="flex cursor-pointer select-none items-start justify-between gap-3 p-3.5 transition-colors hover:bg-muted/20"
                 >
-                  <div className="flex items-start gap-2.5 min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src="/icons/ScrapingAnt Lucide Icon.png"
                       alt="ScrapingAnt"
-                      className="size-8 shrink-0 object-contain dark:invert mt-0.5"
-                      width={32}
-                      height={32}
+                      className="size-[26px] shrink-0 object-contain dark:invert"
+                      width={26}
+                      height={26}
                     />
                     <div className="space-y-0.5 min-w-0">
                       <h3 className="text-sm font-semibold tracking-tight text-foreground">
@@ -1753,100 +1753,92 @@ export function AiModelsCard({
                   <div className="space-y-4 border-t border-border/50 bg-muted/10 p-3.5 animate-in fade-in-50 duration-200">
                     {/* ScrapingAnt API Key Field */}
                     <div className="space-y-2 rounded-xl border border-border/70 bg-card/75 p-3.5">
-                      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-                        <Label
-                          htmlFor="scrapingant-api-key"
-                          className="text-sm font-semibold tracking-tight shrink-0"
-                        >
-                          API Key:
-                        </Label>
-
-                        <div className="flex min-w-0 flex-1 items-center gap-2">
-                          <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/50 bg-background/80 pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:ring-1 focus-within:ring-ring focus-within:shadow">
-                            <KeyRound
-                              className="pointer-events-none size-4 shrink-0 text-foreground/45"
-                              aria-hidden
-                            />
-                            <input
-                              id="scrapingant-api-key"
-                              type="password"
-                              placeholder={
-                                maskedScrapingAntKey
-                                  ? `Current: ${maskedScrapingAntKey}, enter a new key to replace...`
-                                  : "ant-..."
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/50 bg-card/75 pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow">
+                          <KeyRound
+                            className="pointer-events-none size-4 shrink-0 text-foreground/45"
+                            aria-hidden
+                          />
+                          <input
+                            id="scrapingant-api-key"
+                            type="password"
+                            aria-label="ScrapingAnt API key"
+                            placeholder={
+                              maskedScrapingAntKey
+                                ? `Current: ${maskedScrapingAntKey}, enter a new key to replace...`
+                                : "ant-..."
+                            }
+                            value={scrapingAntApiKeyInput}
+                            disabled={disabled || isSavingScrapingAntKey}
+                            onChange={(e) => setScrapingAntApiKeyInput(e.target.value)}
+                            className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 font-mono text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
+                            autoComplete="off"
+                            spellCheck={false}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleSaveScrapingAntKey();
                               }
-                              value={scrapingAntApiKeyInput}
-                              disabled={disabled || isSavingScrapingAntKey}
-                              onChange={(e) => setScrapingAntApiKeyInput(e.target.value)}
-                              className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 font-mono text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
-                              autoComplete="off"
-                              spellCheck={false}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  handleSaveScrapingAntKey();
-                                }
-                              }}
-                            />
-                            {scrapingAntApiKeyInput ? (
-                              <button
-                                type="button"
-                                aria-label="Clear API key input"
-                                onClick={() => setScrapingAntApiKeyInput("")}
-                                className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
-                              >
-                                <X className="size-4" aria-hidden />
-                              </button>
-                            ) : null}
-                          </div>
-                          {maskedScrapingAntKey ? (
+                            }}
+                          />
+                          {scrapingAntApiKeyInput ? (
                             <button
                               type="button"
-                              className={cn(SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME, "shrink-0")}
-                              disabled={disabled || isClearingScrapingAntKey}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleClearScrapingAntKey();
-                              }}
+                              aria-label="Clear API key input"
+                              onClick={() => setScrapingAntApiKeyInput("")}
+                              className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
                             >
-                              {isClearingScrapingAntKey ? (
-                                <>
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  <span>Deleting…</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                  <span>Delete</span>
-                                </>
-                              )}
+                              <X className="size-4" aria-hidden />
                             </button>
                           ) : null}
+                        </div>
+                        {maskedScrapingAntKey ? (
                           <button
                             type="button"
-                            className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "shrink-0")}
-                            disabled={
-                              disabled ||
-                              isSavingScrapingAntKey ||
-                              !scrapingAntApiKeyInput.trim()
-                            }
-                            onClick={handleSaveScrapingAntKey}
+                            className={cn(SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME, "shrink-0")}
+                            disabled={disabled || isClearingScrapingAntKey}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleClearScrapingAntKey();
+                            }}
                           >
-                            {isSavingScrapingAntKey ? (
+                            {isClearingScrapingAntKey ? (
                               <>
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                <span>Saving…</span>
-                              </>
-                            ) : maskedScrapingAntKey ? (
-                              <>
-                                <Redo2 className="h-3.5 w-3.5" />
-                                <span>Replace</span>
+                                <span>Deleting…</span>
                               </>
                             ) : (
-                              "Save"
+                              <>
+                                <Trash2 className="h-3.5 w-3.5" />
+                                <span>Delete</span>
+                              </>
                             )}
                           </button>
-                        </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "shrink-0")}
+                          disabled={
+                            disabled ||
+                            isSavingScrapingAntKey ||
+                            !scrapingAntApiKeyInput.trim()
+                          }
+                          onClick={handleSaveScrapingAntKey}
+                        >
+                          {isSavingScrapingAntKey ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <span>Saving…</span>
+                            </>
+                          ) : maskedScrapingAntKey ? (
+                            <>
+                              <Redo2 className="h-3.5 w-3.5" />
+                              <span>Replace</span>
+                            </>
+                          ) : (
+                            "Save"
+                          )}
+                        </button>
                       </div>
 
                       {!maskedScrapingAntKey ? (
@@ -1892,14 +1884,14 @@ export function AiModelsCard({
                   }}
                   className="flex cursor-pointer select-none items-start justify-between gap-3 p-3.5 transition-colors hover:bg-muted/20"
                 >
-                  <div className="flex items-start gap-2.5 min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src="/icons/HasData Lucide Icon.png"
                       alt="HasData"
-                      className="size-8 shrink-0 object-contain dark:invert mt-0.5"
-                      width={32}
-                      height={32}
+                      className="size-[26px] shrink-0 object-contain dark:invert"
+                      width={26}
+                      height={26}
                     />
                     <div className="space-y-0.5 min-w-0">
                       <h3 className="text-sm font-semibold tracking-tight text-foreground">
@@ -1934,100 +1926,92 @@ export function AiModelsCard({
                   <div className="space-y-4 border-t border-border/50 bg-muted/10 p-3.5 animate-in fade-in-50 duration-200">
                     {/* HasData API Key Field */}
                     <div className="space-y-2 rounded-xl border border-border/70 bg-card/75 p-3.5">
-                      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-                        <Label
-                          htmlFor="hasdata-api-key"
-                          className="text-sm font-semibold tracking-tight shrink-0"
-                        >
-                          API Key:
-                        </Label>
-
-                        <div className="flex min-w-0 flex-1 items-center gap-2">
-                          <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/50 bg-background/80 pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:ring-1 focus-within:ring-ring focus-within:shadow">
-                            <KeyRound
-                              className="pointer-events-none size-4 shrink-0 text-foreground/45"
-                              aria-hidden
-                            />
-                            <input
-                              id="hasdata-api-key"
-                              type="password"
-                              placeholder={
-                                maskedHasDataKey
-                                  ? `Current: ${maskedHasDataKey}, enter a new key to replace...`
-                                  : "hd-..."
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/50 bg-card/75 pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow">
+                          <KeyRound
+                            className="pointer-events-none size-4 shrink-0 text-foreground/45"
+                            aria-hidden
+                          />
+                          <input
+                            id="hasdata-api-key"
+                            type="password"
+                            aria-label="HasData API key"
+                            placeholder={
+                              maskedHasDataKey
+                                ? `Current: ${maskedHasDataKey}, enter a new key to replace...`
+                                : "hd-..."
+                            }
+                            value={hasDataApiKeyInput}
+                            disabled={disabled || isSavingHasDataKey}
+                            onChange={(e) => setHasDataApiKeyInput(e.target.value)}
+                            className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 font-mono text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
+                            autoComplete="off"
+                            spellCheck={false}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleSaveHasDataKey();
                               }
-                              value={hasDataApiKeyInput}
-                              disabled={disabled || isSavingHasDataKey}
-                              onChange={(e) => setHasDataApiKeyInput(e.target.value)}
-                              className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 font-mono text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
-                              autoComplete="off"
-                              spellCheck={false}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  handleSaveHasDataKey();
-                                }
-                              }}
-                            />
-                            {hasDataApiKeyInput ? (
-                              <button
-                                type="button"
-                                aria-label="Clear API key input"
-                                onClick={() => setHasDataApiKeyInput("")}
-                                className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
-                              >
-                                <X className="size-4" aria-hidden />
-                              </button>
-                            ) : null}
-                          </div>
-                          {maskedHasDataKey ? (
+                            }}
+                          />
+                          {hasDataApiKeyInput ? (
                             <button
                               type="button"
-                              className={cn(SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME, "shrink-0")}
-                              disabled={disabled || isClearingHasDataKey}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleClearHasDataKey();
-                              }}
+                              aria-label="Clear API key input"
+                              onClick={() => setHasDataApiKeyInput("")}
+                              className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
                             >
-                              {isClearingHasDataKey ? (
-                                <>
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  <span>Deleting…</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                  <span>Delete</span>
-                                </>
-                              )}
+                              <X className="size-4" aria-hidden />
                             </button>
                           ) : null}
+                        </div>
+                        {maskedHasDataKey ? (
                           <button
                             type="button"
-                            className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "shrink-0")}
-                            disabled={
-                              disabled ||
-                              isSavingHasDataKey ||
-                              !hasDataApiKeyInput.trim()
-                            }
-                            onClick={handleSaveHasDataKey}
+                            className={cn(SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME, "shrink-0")}
+                            disabled={disabled || isClearingHasDataKey}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleClearHasDataKey();
+                            }}
                           >
-                            {isSavingHasDataKey ? (
+                            {isClearingHasDataKey ? (
                               <>
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                <span>Saving…</span>
-                              </>
-                            ) : maskedHasDataKey ? (
-                              <>
-                                <Redo2 className="h-3.5 w-3.5" />
-                                <span>Replace</span>
+                                <span>Deleting…</span>
                               </>
                             ) : (
-                              "Save"
+                              <>
+                                <Trash2 className="h-3.5 w-3.5" />
+                                <span>Delete</span>
+                              </>
                             )}
                           </button>
-                        </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "shrink-0")}
+                          disabled={
+                            disabled ||
+                            isSavingHasDataKey ||
+                            !hasDataApiKeyInput.trim()
+                          }
+                          onClick={handleSaveHasDataKey}
+                        >
+                          {isSavingHasDataKey ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <span>Saving…</span>
+                            </>
+                          ) : maskedHasDataKey ? (
+                            <>
+                              <Redo2 className="h-3.5 w-3.5" />
+                              <span>Replace</span>
+                            </>
+                          ) : (
+                            "Save"
+                          )}
+                        </button>
                       </div>
 
                       {!maskedHasDataKey ? (
