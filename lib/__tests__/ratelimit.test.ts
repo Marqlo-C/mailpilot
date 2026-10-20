@@ -17,6 +17,9 @@ describe("Rate Limiting Utility (lib/ratelimit.ts)", () => {
         limit: 999,
       });
       expect(result).toEqual(BYPASS_RATE_LIMIT_RESULT);
+
+      const nullResult = await checkRateLimit("test-identifier", "standard", null);
+      expect(nullResult).toEqual(BYPASS_RATE_LIMIT_RESULT);
     });
 
     it("checks rate limit using custom limiter and returns success result", async () => {

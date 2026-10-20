@@ -17,9 +17,10 @@ export const BYPASS_RATE_LIMIT_RESULT: RateLimitResult = {
   limit: 999,
 };
 
+const isTest = process.env.NODE_ENV === "test" || Boolean(process.env.VITEST);
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
-const isConfigured = Boolean(redisUrl && redisToken);
+const isConfigured = Boolean(!isTest && redisUrl && redisToken);
 
 const redis = isConfigured
   ? new Redis({
