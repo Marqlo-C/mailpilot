@@ -8,10 +8,15 @@ import {
   ChevronDown,
   Cloud,
   Copy,
+  KeyRound,
   Loader2,
+  Redo2,
   RefreshCw,
   Shield,
   Terminal,
+  Trash2,
+  Worm,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -37,6 +42,8 @@ import {
   SETTINGS_CARD_CLASSNAME,
   SETTINGS_ROW_CLASSNAME,
 } from "@/components/settings/settings-chrome";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
+import { SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -49,6 +56,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WaveToggle } from "@/components/ui/wave-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrapingAntControlPanel } from "@/components/settings/scrapingant-control-panel";
+import { HasDataControlPanel } from "@/components/settings/hasdata-control-panel";
+import type { ScrapingAntUsage, HasDataUsage } from "@/lib/validations/rules";
 import { cn } from "@/lib/utils";
 
 const PROVIDER_LABELS: Record<CloudLlmProvider, string> = {
@@ -75,7 +85,9 @@ type AiModelsCardProps = {
   cloudModel?: string | null;
   maskedApiKey?: string | null;
   maskedScrapingAntApiKey?: string | null;
+  scrapingAntUsage?: ScrapingAntUsage | null;
   maskedHasDataApiKey?: string | null;
+  hasDataUsage?: HasDataUsage | null;
   maskedJinaApiKey?: string | null;
 };
 
@@ -195,12 +207,20 @@ export function AiModelsCard({
   cloudModel: initialCloudModel = null,
   maskedApiKey: initialMaskedApiKey = null,
   maskedScrapingAntApiKey: initialMaskedScrapingAntApiKey = null,
+  scrapingAntUsage: initialScrapingAntUsage = null,
   maskedHasDataApiKey: initialMaskedHasDataApiKey = null,
+  hasDataUsage: initialHasDataUsage = null,
   maskedJinaApiKey: initialMaskedJinaApiKey = null,
 }: AiModelsCardProps) {
   const router = useRouter();
   const effectiveMaskedScrapingAntKey =
     initialMaskedScrapingAntApiKey ?? initialMaskedJinaApiKey ?? null;
+  const [scrapingAntUsage, setScrapingAntUsage] = useState<ScrapingAntUsage | null>(
+    initialScrapingAntUsage
+  );
+  const [hasDataUsage, setHasDataUsage] = useState<HasDataUsage | null>(
+    initialHasDataUsage
+  );
   const [url, setUrl] = useState(localOllamaUrl);
   const [selectedModel, setSelectedModel] = useState(ollamaModel);
   const [devModels, setDevModels] = useState<string[]>([]);
@@ -247,8 +267,14 @@ export function AiModelsCard({
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [isEditingKey, setIsEditingKey] = useState(!initialMaskedApiKey);
 
-  const [scrapingAntAccordionOpen, setScrapingAntAccordionOpen] = useState<boolean>(
+  const [scrapingApisAccordionOpen, setScrapingApisAccordionOpen] = useState<boolean>(
+    Boolean(effectiveMaskedScrapingAntKey || initialMaskedHasDataApiKey)
+  );
+  const [scrapingAntSubOpen, setScrapingAntSubOpen] = useState<boolean>(
     Boolean(effectiveMaskedScrapingAntKey)
+  );
+  const [hasDataSubOpen, setHasDataSubOpen] = useState<boolean>(
+    Boolean(initialMaskedHasDataApiKey)
   );
   const [scrapingAntApiKeyInput, setScrapingAntApiKeyInput] = useState("");
   const [maskedScrapingAntKey, setMaskedScrapingAntKey] = useState<string | null>(
@@ -257,9 +283,6 @@ export function AiModelsCard({
   const [isSavingScrapingAntKey, setIsSavingScrapingAntKey] = useState(false);
   const [isClearingScrapingAntKey, setIsClearingScrapingAntKey] = useState(false);
 
-  const [hasDataAccordionOpen, setHasDataAccordionOpen] = useState<boolean>(
-    Boolean(initialMaskedHasDataApiKey)
-  );
   const [hasDataApiKeyInput, setHasDataApiKeyInput] = useState("");
   const [maskedHasDataKey, setMaskedHasDataKey] = useState<string | null>(
     initialMaskedHasDataApiKey
@@ -303,8 +326,16 @@ export function AiModelsCard({
   }, [initialMaskedScrapingAntApiKey, initialMaskedJinaApiKey]);
 
   useEffect(() => {
+    setScrapingAntUsage(initialScrapingAntUsage);
+  }, [initialScrapingAntUsage]);
+
+  useEffect(() => {
     setMaskedHasDataKey(initialMaskedHasDataApiKey);
   }, [initialMaskedHasDataApiKey]);
+
+  useEffect(() => {
+    setHasDataUsage(initialHasDataUsage);
+  }, [initialHasDataUsage]);
 
   useEffect(() => {
     setUrl(localOllamaUrl);
@@ -601,6 +632,9 @@ export function AiModelsCard({
           return;
         }
         setMaskedScrapingAntKey(result.data?.maskedScrapingAntApiKey ?? null);
+        if (result.data?.scrapingAntUsage) {
+          setScrapingAntUsage(result.data.scrapingAntUsage);
+        }
         setScrapingAntApiKeyInput("");
         toast.success("ScrapingAnt API key encrypted and saved");
         router.refresh();
@@ -623,6 +657,7 @@ export function AiModelsCard({
           return;
         }
         setMaskedScrapingAntKey(null);
+        setScrapingAntUsage(null);
         setScrapingAntApiKeyInput("");
         toast.success("ScrapingAnt API key cleared; direct fetching only");
         router.refresh();
@@ -651,6 +686,9 @@ export function AiModelsCard({
           return;
         }
         setMaskedHasDataKey(result.data?.maskedHasDataApiKey ?? null);
+        if (result.data?.hasDataUsage) {
+          setHasDataUsage(result.data.hasDataUsage);
+        }
         setHasDataApiKeyInput("");
         toast.success("HasData API key encrypted and saved");
         router.refresh();
@@ -673,6 +711,7 @@ export function AiModelsCard({
           return;
         }
         setMaskedHasDataKey(null);
+        setHasDataUsage(null);
         setHasDataApiKeyInput("");
         toast.success("HasData API key cleared; direct fetching only");
         router.refresh();
@@ -1606,303 +1645,418 @@ export function AiModelsCard({
       </CardContent>
     </Card>
 
-    {/* Web Scraping & Enrichment (ScrapingAnt Proxy) Card */}
+    {/* Bot Bypass & Web Scraping Card */}
     <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
       <CardHeader
         className="cursor-pointer select-none transition-colors hover:bg-muted/10 p-3.5 space-y-0"
-        onClick={() => setScrapingAntAccordionOpen((prev) => !prev)}
+        onClick={() => setScrapingApisAccordionOpen((prev) => !prev)}
       >
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <ChevronDown
-              className={cn(
-                "h-5 w-5 text-muted-foreground transition-transform duration-200 shrink-0",
-                scrapingAntAccordionOpen && "rotate-180"
-              )}
+          <div className="flex items-center gap-3 min-w-0">
+            <Worm
+              className="h-8 w-8 -translate-y-0.5 text-primary shrink-0"
+              aria-hidden="true"
             />
             <div className="space-y-0.5 min-w-0">
               <CardTitle>
-                ScrapingAnt Proxy (Optional BYOK)
+                Bot Bypass & Web Scraping
               </CardTitle>
               <CardDescription className="text-xs">
-                Used as a fast 1-credit failover to hydrate single-page job boards (like JobLeads) when direct fetching is blocked. Free tier includes 10,000 monthly credits.
+                Configure failover and on-demand proxies for rich job spec hydration and ATS block bypass.
               </CardDescription>
             </div>
           </div>
-          {maskedScrapingAntKey ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Custom Key Active
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground shrink-0">
-              Direct Fetch (No Proxy)
-            </span>
-          )}
-        </div>
-      </CardHeader>
-
-      {scrapingAntAccordionOpen && (
-        <CardContent className="space-y-5 border-t border-border/50 pt-5 animate-in fade-in-50 duration-200">
-          {!accountId ? (
-            <p className="text-sm text-muted-foreground">
-              Connect an account to configure ScrapingAnt settings.
-            </p>
-          ) : (
-            <>
-              {/* Status Readout */}
-              <div className="rounded-xl border border-border/80 bg-background p-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Current Enrichment Mode
-                    </p>
-                    <p className="text-sm font-medium text-foreground">
-                      {maskedScrapingAntKey ? (
-                        <>Custom Key Configured (<code className="font-mono text-xs">{maskedScrapingAntKey}</code>)</>
-                      ) : (
-                        "Direct Fetch Only (No Proxy Failover)"
-                      )}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {maskedScrapingAntKey
-                        ? `Active Key: ${maskedScrapingAntKey}`
-                        : "Direct ATS & JSON-LD fetch only. Add a free ScrapingAnt key to enable fast 1-credit failover."}
-                    </p>
-                  </div>
-
-                  {maskedScrapingAntKey ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 shrink-0 text-xs text-rose-500 border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-500/20"
-                      disabled={disabled || isClearingScrapingAntKey}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleClearScrapingAntKey();
-                      }}
-                    >
-                      {isClearingScrapingAntKey ? (
-                        <>
-                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                          Clearing…
-                        </>
-                      ) : (
-                        "Clear Key"
-                      )}
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* Key Input */}
-              <div className="space-y-2">
-                <Label
-                  htmlFor="scrapingant-api-key"
-                  className="text-sm font-medium tracking-tight"
-                >
-                  {maskedScrapingAntKey ? "Replace ScrapingAnt API Key" : "ScrapingAnt API Key"}
-                </Label>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Input
-                    id="scrapingant-api-key"
-                    type="password"
-                    placeholder={maskedScrapingAntKey ? `••••••••${maskedScrapingAntKey.slice(-4)}` : "ant-..."}
-                    value={scrapingAntApiKeyInput}
-                    disabled={disabled || isSavingScrapingAntKey}
-                    onChange={(e) => setScrapingAntApiKeyInput(e.target.value)}
-                    className="h-10 border-border/80 bg-background font-mono text-xs"
-                    autoComplete="off"
-                    spellCheck={false}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleSaveScrapingAntKey();
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-10 shrink-0 text-xs"
-                    disabled={disabled || isSavingScrapingAntKey || !scrapingAntApiKeyInput.trim()}
-                    onClick={handleSaveScrapingAntKey}
-                  >
-                    {isSavingScrapingAntKey ? (
-                      <>
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                        Saving…
-                      </>
-                    ) : (
-                      "Save Key"
-                    )}
-                  </Button>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Get a free key from{" "}
-                  <a
-                    href="https://scrapingant.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-foreground"
-                  >
-                    scrapingant.com
-                  </a>{" "}
-                  (&quot;Get Free API Key&quot; for 10,000 free monthly requests). Keys are stored encrypted with AES-256-GCM.
-                </p>
-              </div>
-            </>
-          )}
-        </CardContent>
-      )}
-    </Card>
-
-    {/* HasData Web Scraping & Spec Hydration Card */}
-    <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
-      <CardHeader
-        className="cursor-pointer select-none transition-colors hover:bg-muted/10 p-3.5 space-y-0"
-        onClick={() => setHasDataAccordionOpen((prev) => !prev)}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2.5 shrink-0">
+            {!scrapingApisAccordionOpen ? (
+              maskedScrapingAntKey || maskedHasDataKey ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground shrink-0">
+                  Direct Fetch (No Proxy)
+                </span>
+              )
+            ) : null}
             <ChevronDown
               className={cn(
                 "h-5 w-5 text-muted-foreground transition-transform duration-200 shrink-0",
-                hasDataAccordionOpen && "rotate-180"
+                scrapingApisAccordionOpen && "rotate-180"
               )}
             />
-            <div className="space-y-0.5 min-w-0">
-              <CardTitle>
-                HasData Web Scraping (Optional BYOK)
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Used for on-demand extraction of Glassdoor and Indeed postings when tailoring resumes or hydrating job specs. Never consumed during background sync.
-              </CardDescription>
-            </div>
           </div>
-          {maskedHasDataKey ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Custom Key Active
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground shrink-0">
-              On-Demand Direct Only
-            </span>
-          )}
         </div>
       </CardHeader>
 
-      {hasDataAccordionOpen && (
-        <CardContent className="space-y-5 border-t border-border/50 pt-5 animate-in fade-in-50 duration-200">
+      {scrapingApisAccordionOpen && (
+        <CardContent className="space-y-3.5 border-t border-border/50 p-4 animate-in fade-in-50 duration-200">
           {!accountId ? (
             <p className="text-sm text-muted-foreground">
-              Connect an account to configure HasData settings.
+              Connect an account to configure scraping API settings.
             </p>
           ) : (
             <>
-              {/* Status Readout */}
-              <div className="rounded-xl border border-border/80 bg-background p-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Current Hydration Mode
-                    </p>
-                    <p className="text-sm font-medium text-foreground">
-                      {maskedHasDataKey ? (
-                        <>Custom Key Configured (<code className="font-mono text-xs">{maskedHasDataKey}</code>)</>
-                      ) : (
-                        "On-Demand Direct Only (No HasData Key)"
-                      )}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {maskedHasDataKey
-                        ? `Active Key: ${maskedHasDataKey}`
-                        : "Glassdoor and Indeed postings save as minimal leads during sync. Add a HasData key to unlock on-demand spec extraction."}
-                    </p>
+              {/* ScrapingAnt Sub Dropdown Card */}
+              <div className="overflow-hidden rounded-xl border border-border/70 bg-card/60 shadow-xs transition-colors">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setScrapingAntSubOpen((prev) => !prev)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setScrapingAntSubOpen((prev) => !prev);
+                    }
+                  }}
+                  className="flex cursor-pointer select-none items-start justify-between gap-3 p-3.5 transition-colors hover:bg-muted/20"
+                >
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/icons/ScrapingAnt Lucide Icon.png"
+                      alt="ScrapingAnt"
+                      className="size-8 shrink-0 object-contain dark:invert mt-0.5"
+                      width={32}
+                      height={32}
+                    />
+                    <div className="space-y-0.5 min-w-0">
+                      <h3 className="text-sm font-semibold tracking-tight text-foreground">
+                        ScrapingAnt Proxy
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Used as a fast 1-credit failover to hydrate single-page job boards (like JobLeads) when direct fetching is blocked. Free tier includes 10,000 monthly credits.
+                      </p>
+                    </div>
                   </div>
-
-                  {maskedHasDataKey ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 shrink-0 text-xs text-rose-500 border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-500/20"
-                      disabled={disabled || isClearingHasDataKey}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleClearHasDataKey();
-                      }}
-                    >
-                      {isClearingHasDataKey ? (
-                        <>
-                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                          Clearing…
-                        </>
-                      ) : (
-                        "Clear Key"
+                  <div className="flex items-center gap-2.5 shrink-0 pt-0.5">
+                    {maskedScrapingAntKey ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        Active
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground shrink-0">
+                        Direct Fetch (No Proxy)
+                      </span>
+                    )}
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0",
+                        scrapingAntSubOpen && "rotate-180"
                       )}
-                    </Button>
-                  ) : null}
+                    />
+                  </div>
                 </div>
+
+                {scrapingAntSubOpen && (
+                  <div className="space-y-4 border-t border-border/50 bg-muted/10 p-3.5 animate-in fade-in-50 duration-200">
+                    {/* ScrapingAnt API Key Field */}
+                    <div className="space-y-2 rounded-xl border border-border/70 bg-card/75 p-3.5">
+                      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+                        <Label
+                          htmlFor="scrapingant-api-key"
+                          className="text-sm font-semibold tracking-tight shrink-0"
+                        >
+                          API Key:
+                        </Label>
+
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/50 bg-background/80 pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:ring-1 focus-within:ring-ring focus-within:shadow">
+                            <KeyRound
+                              className="pointer-events-none size-4 shrink-0 text-foreground/45"
+                              aria-hidden
+                            />
+                            <input
+                              id="scrapingant-api-key"
+                              type="password"
+                              placeholder={
+                                maskedScrapingAntKey
+                                  ? `Current: ${maskedScrapingAntKey}, enter a new key to replace...`
+                                  : "ant-..."
+                              }
+                              value={scrapingAntApiKeyInput}
+                              disabled={disabled || isSavingScrapingAntKey}
+                              onChange={(e) => setScrapingAntApiKeyInput(e.target.value)}
+                              className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 font-mono text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
+                              autoComplete="off"
+                              spellCheck={false}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleSaveScrapingAntKey();
+                                }
+                              }}
+                            />
+                            {scrapingAntApiKeyInput ? (
+                              <button
+                                type="button"
+                                aria-label="Clear API key input"
+                                onClick={() => setScrapingAntApiKeyInput("")}
+                                className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
+                              >
+                                <X className="size-4" aria-hidden />
+                              </button>
+                            ) : null}
+                          </div>
+                          {maskedScrapingAntKey ? (
+                            <button
+                              type="button"
+                              className={cn(SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME, "shrink-0")}
+                              disabled={disabled || isClearingScrapingAntKey}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleClearScrapingAntKey();
+                              }}
+                            >
+                              {isClearingScrapingAntKey ? (
+                                <>
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  <span>Deleting…</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <span>Delete</span>
+                                </>
+                              )}
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "shrink-0")}
+                            disabled={
+                              disabled ||
+                              isSavingScrapingAntKey ||
+                              !scrapingAntApiKeyInput.trim()
+                            }
+                            onClick={handleSaveScrapingAntKey}
+                          >
+                            {isSavingScrapingAntKey ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <span>Saving…</span>
+                              </>
+                            ) : maskedScrapingAntKey ? (
+                              <>
+                                <Redo2 className="h-3.5 w-3.5" />
+                                <span>Replace</span>
+                              </>
+                            ) : (
+                              "Save"
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {!maskedScrapingAntKey ? (
+                        <p className="text-[11px] text-muted-foreground">
+                          Get a free key from{" "}
+                          <a
+                            href="https://scrapingant.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline hover:text-foreground"
+                          >
+                            scrapingant.com
+                          </a>
+                          .
+                        </p>
+                      ) : null}
+                    </div>
+
+                    {/* ScrapingAnt Usage & Plan Control Panel */}
+                    {maskedScrapingAntKey ? (
+                      <ScrapingAntControlPanel
+                        accountId={accountId}
+                        initialUsage={scrapingAntUsage}
+                        maskedApiKey={maskedScrapingAntKey}
+                        disabled={disabled}
+                      />
+                    ) : null}
+                  </div>
+                )}
               </div>
 
-              {/* Key Input */}
-              <div className="space-y-2">
-                <Label
-                  htmlFor="hasdata-api-key"
-                  className="text-sm font-medium tracking-tight"
+              {/* HasData Sub Dropdown Card */}
+              <div className="overflow-hidden rounded-xl border border-border/70 bg-card/60 shadow-xs transition-colors">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setHasDataSubOpen((prev) => !prev)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setHasDataSubOpen((prev) => !prev);
+                    }
+                  }}
+                  className="flex cursor-pointer select-none items-start justify-between gap-3 p-3.5 transition-colors hover:bg-muted/20"
                 >
-                  {maskedHasDataKey ? "Replace HasData API Key" : "HasData API Key"}
-                </Label>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Input
-                    id="hasdata-api-key"
-                    type="password"
-                    placeholder={maskedHasDataKey ? `••••••••${maskedHasDataKey.slice(-4)}` : "hd-..."}
-                    value={hasDataApiKeyInput}
-                    disabled={disabled || isSavingHasDataKey}
-                    onChange={(e) => setHasDataApiKeyInput(e.target.value)}
-                    className="h-10 border-border/80 bg-background font-mono text-xs"
-                    autoComplete="off"
-                    spellCheck={false}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleSaveHasDataKey();
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-10 shrink-0 text-xs"
-                    disabled={disabled || isSavingHasDataKey || !hasDataApiKeyInput.trim()}
-                    onClick={handleSaveHasDataKey}
-                  >
-                    {isSavingHasDataKey ? (
-                      <>
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                        Saving…
-                      </>
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/icons/HasData Lucide Icon.png"
+                      alt="HasData"
+                      className="size-8 shrink-0 object-contain dark:invert mt-0.5"
+                      width={32}
+                      height={32}
+                    />
+                    <div className="space-y-0.5 min-w-0">
+                      <h3 className="text-sm font-semibold tracking-tight text-foreground">
+                        HasData Web Scraping
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Used for on-demand extraction of Glassdoor and Indeed postings when tailoring resumes or hydrating job specs. Never consumed during background sync.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5 shrink-0 pt-0.5">
+                    {maskedHasDataKey ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        Active
+                      </span>
                     ) : (
-                      "Save Key"
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground shrink-0">
+                        On-Demand Direct Only
+                      </span>
                     )}
-                  </Button>
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0",
+                        hasDataSubOpen && "rotate-180"
+                      )}
+                    />
+                  </div>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Get an API key from{" "}
-                  <a
-                    href="https://hasdata.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-foreground"
-                  >
-                    hasdata.com
-                  </a>
-                  . Used strictly on-demand when tailoring or hydrating specs; zero credits consumed during sync. Keys are stored encrypted with AES-256-GCM.
-                </p>
+
+                {hasDataSubOpen && (
+                  <div className="space-y-4 border-t border-border/50 bg-muted/10 p-3.5 animate-in fade-in-50 duration-200">
+                    {/* HasData API Key Field */}
+                    <div className="space-y-2 rounded-xl border border-border/70 bg-card/75 p-3.5">
+                      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+                        <Label
+                          htmlFor="hasdata-api-key"
+                          className="text-sm font-semibold tracking-tight shrink-0"
+                        >
+                          API Key:
+                        </Label>
+
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/50 bg-background/80 pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:ring-1 focus-within:ring-ring focus-within:shadow">
+                            <KeyRound
+                              className="pointer-events-none size-4 shrink-0 text-foreground/45"
+                              aria-hidden
+                            />
+                            <input
+                              id="hasdata-api-key"
+                              type="password"
+                              placeholder={
+                                maskedHasDataKey
+                                  ? `Current: ${maskedHasDataKey}, enter a new key to replace...`
+                                  : "hd-..."
+                              }
+                              value={hasDataApiKeyInput}
+                              disabled={disabled || isSavingHasDataKey}
+                              onChange={(e) => setHasDataApiKeyInput(e.target.value)}
+                              className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 font-mono text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
+                              autoComplete="off"
+                              spellCheck={false}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleSaveHasDataKey();
+                                }
+                              }}
+                            />
+                            {hasDataApiKeyInput ? (
+                              <button
+                                type="button"
+                                aria-label="Clear API key input"
+                                onClick={() => setHasDataApiKeyInput("")}
+                                className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
+                              >
+                                <X className="size-4" aria-hidden />
+                              </button>
+                            ) : null}
+                          </div>
+                          {maskedHasDataKey ? (
+                            <button
+                              type="button"
+                              className={cn(SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME, "shrink-0")}
+                              disabled={disabled || isClearingHasDataKey}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleClearHasDataKey();
+                              }}
+                            >
+                              {isClearingHasDataKey ? (
+                                <>
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  <span>Deleting…</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <span>Delete</span>
+                                </>
+                              )}
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "shrink-0")}
+                            disabled={
+                              disabled ||
+                              isSavingHasDataKey ||
+                              !hasDataApiKeyInput.trim()
+                            }
+                            onClick={handleSaveHasDataKey}
+                          >
+                            {isSavingHasDataKey ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <span>Saving…</span>
+                              </>
+                            ) : maskedHasDataKey ? (
+                              <>
+                                <Redo2 className="h-3.5 w-3.5" />
+                                <span>Replace</span>
+                              </>
+                            ) : (
+                              "Save"
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {!maskedHasDataKey ? (
+                        <p className="text-[11px] text-muted-foreground">
+                          Get a free key from{" "}
+                          <a
+                            href="https://hasdata.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline hover:text-foreground"
+                          >
+                            hasdata.com
+                          </a>
+                          .
+                        </p>
+                      ) : null}
+                    </div>
+
+                    {/* HasData Usage & Plan Control Panel */}
+                    {maskedHasDataKey ? (
+                      <HasDataControlPanel
+                        accountId={accountId}
+                        initialUsage={hasDataUsage}
+                        maskedApiKey={maskedHasDataKey}
+                        disabled={disabled}
+                      />
+                    ) : null}
+                  </div>
+                )}
               </div>
             </>
           )}

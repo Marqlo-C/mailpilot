@@ -20,7 +20,10 @@ import {
 import { ensurePersistentProfile } from "@/lib/persistent-profile";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
-import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
+import {
+  DEFAULT_ACCOUNT_RULES,
+  parseAccountRules,
+} from "@/lib/validations/rules";
 
 export const runtime = "nodejs";
 
@@ -143,6 +146,7 @@ export async function GET(req: NextRequest) {
         id: true,
         encryptedRefresh: true,
         persistentProfileId: true,
+        settings: { select: { rules: true } },
       },
     });
 
@@ -157,8 +161,12 @@ export async function GET(req: NextRequest) {
       return clearOAuthStateCookie(NextResponse.redirect(retry));
     }
 
+    const existingRules = existingAccount?.settings?.rules
+      ? parseAccountRules(existingAccount.settings.rules)
+      : null;
+
     const rules = {
-      ...DEFAULT_ACCOUNT_RULES,
+      ...(existingRules ?? DEFAULT_ACCOUNT_RULES),
       rejectionLabelName: REJECTION_LABEL_NAME,
       rejectionLabelId: label.id,
     };

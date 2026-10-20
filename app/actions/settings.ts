@@ -5,7 +5,10 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 
 import { getActiveAccount } from "@/lib/data";
-import { ensurePersistentProfileForAccount } from "@/lib/persistent-profile";
+import {
+  ensurePersistentProfileForAccount,
+  persistProfileScopedRules,
+} from "@/lib/persistent-profile";
 import { prisma } from "@/lib/prisma";
 import {
   accountRulesSchema,
@@ -19,6 +22,15 @@ import {
 } from "@/lib/llm/provider.ssot";
 import { encryptAccountKey, maskApiKey, maskScrapingAntApiKey, maskHasDataApiKey } from "@/lib/llm/vault";
 import { encryptToken } from "@/lib/crypto";
+import {
+  fetchScrapingAntUsageFromApi,
+  getOrRefreshScrapingAntUsage,
+} from "@/lib/scrapingant";
+import {
+  fetchHasDataUsageFromApi,
+  getOrRefreshHasDataUsage,
+} from "@/lib/hasdata";
+import type { ScrapingAntUsage, HasDataUsage } from "@/lib/validations/rules";
 
 type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -39,6 +51,8 @@ const ruleKeySchema = z.enum([
   "cloudProvider",
   "cloudModel",
   "resumePreferences",
+  "scrapingAntUsage",
+  "hasDataUsage",
 ]);
 
 const retentionDaysSchema = z.union([
@@ -122,6 +136,16 @@ export async function updateRule(
         applicationMode: rulesWithoutThreshold.applicationMode,
         maxAutoSendsPerDay: rulesWithoutThreshold.maxAutoSendsPerDay,
       },
+    });
+  }
+
+  if (
+    parsedKey.data === "allowCloudFallback" ||
+    parsedKey.data === "cloudProvider" ||
+    parsedKey.data === "cloudModel"
+  ) {
+    await persistProfileScopedRules(accountId, {
+      [parsedKey.data]: value,
     });
   }
 
@@ -471,6 +495,14 @@ export async function updateCustomLlmKey(
     data: { rules: rulesToSave as Prisma.InputJsonValue },
   });
 
+  await persistProfileScopedRules(accountId, {
+    cloudProvider: provider,
+    cloudModel: resolvedModel,
+    encryptedApiKey,
+    maskedApiKey,
+    allowCloudFallback: true,
+  });
+
   revalidatePath("/settings");
   return {
     ok: true,
@@ -527,6 +559,12 @@ export async function clearCustomLlmKey(
     data: { rules: rulesToSave as Prisma.InputJsonValue },
   });
 
+  await persistProfileScopedRules(accountId, {
+    encryptedApiKey: null,
+    maskedApiKey: null,
+    cloudModel: null,
+  });
+
   revalidatePath("/settings");
   return { ok: true, data: { cleared: true } };
 }
@@ -538,7 +576,12 @@ export async function clearCustomLlmKey(
 export async function saveScrapingAntApiKey(
   accountId: string,
   rawKey: string | null
-): Promise<ActionResult<{ maskedScrapingAntApiKey: string | null }>> {
+): Promise<
+  ActionResult<{
+    maskedScrapingAntApiKey: string | null;
+    scrapingAntUsage?: ScrapingAntUsage | null;
+  }>
+> {
   const account = await prisma.account.findUnique({
     where: { id: accountId },
     include: { settings: true },
@@ -550,11 +593,13 @@ export async function saveScrapingAntApiKey(
   const trimmed = rawKey?.trim() ?? "";
   const encrypted = trimmed ? encryptToken(trimmed) : null;
   const masked = trimmed ? maskScrapingAntApiKey(trimmed) : null;
+  const usage = trimmed ? await fetchScrapingAntUsageFromApi(trimmed) : null;
 
   const updatedRules = accountRulesSchema.parse({
     ...rules,
     encryptedScrapingAntApiKey: encrypted,
     maskedScrapingAntApiKey: masked,
+    scrapingAntUsage: usage,
   });
 
   const { matchScoreThreshold: _deprecated, ...rulesToSave } = updatedRules;
@@ -570,8 +615,20 @@ export async function saveScrapingAntApiKey(
     },
   });
 
+  await persistProfileScopedRules(accountId, {
+    encryptedScrapingAntApiKey: encrypted,
+    maskedScrapingAntApiKey: masked,
+    scrapingAntUsage: usage,
+  });
+
   revalidatePath("/settings");
-  return { ok: true, data: { maskedScrapingAntApiKey: masked } };
+  return {
+    ok: true,
+    data: {
+      maskedScrapingAntApiKey: masked,
+      scrapingAntUsage: usage,
+    },
+  };
 }
 
 /**
@@ -588,13 +645,39 @@ export async function clearScrapingAntApiKey(
 }
 
 /**
+ * Retrieves or forces a refresh of the ScrapingAnt account plan and credit usage.
+ */
+export async function getScrapingAntUsageAction(
+  accountId: string,
+  force?: boolean
+): Promise<ActionResult<ScrapingAntUsage | null>> {
+  try {
+    const data = await getOrRefreshScrapingAntUsage({ accountId, force });
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to load ScrapingAnt usage",
+    };
+  }
+}
+
+/**
  * Encrypts and persists a customer-provided HasData API key on AccountSettings.rules,
  * or clears it if rawKey is null or empty.
  */
 export async function saveHasDataApiKey(
   accountId: string,
   rawKey: string | null
-): Promise<ActionResult<{ maskedHasDataApiKey: string | null }>> {
+): Promise<
+  ActionResult<{
+    maskedHasDataApiKey: string | null;
+    hasDataUsage?: HasDataUsage | null;
+  }>
+> {
   const account = await prisma.account.findUnique({
     where: { id: accountId },
     include: { settings: true },
@@ -606,11 +689,13 @@ export async function saveHasDataApiKey(
   const trimmed = rawKey?.trim() ?? "";
   const encrypted = trimmed ? encryptToken(trimmed) : null;
   const masked = trimmed ? maskHasDataApiKey(trimmed) : null;
+  const usage = trimmed ? await fetchHasDataUsageFromApi(trimmed) : null;
 
   const updatedRules = accountRulesSchema.parse({
     ...rules,
     encryptedHasDataApiKey: encrypted,
     maskedHasDataApiKey: masked,
+    hasDataUsage: usage,
   });
 
   const { matchScoreThreshold: _deprecated, ...rulesToSave } = updatedRules;
@@ -626,8 +711,20 @@ export async function saveHasDataApiKey(
     },
   });
 
+  await persistProfileScopedRules(accountId, {
+    encryptedHasDataApiKey: encrypted,
+    maskedHasDataApiKey: masked,
+    hasDataUsage: usage,
+  });
+
   revalidatePath("/settings");
-  return { ok: true, data: { maskedHasDataApiKey: masked } };
+  return {
+    ok: true,
+    data: {
+      maskedHasDataApiKey: masked,
+      hasDataUsage: usage,
+    },
+  };
 }
 
 /**
@@ -641,6 +738,27 @@ export async function clearHasDataApiKey(
     return { ok: false, error: result.error };
   }
   return { ok: true, data: { cleared: true } };
+}
+
+/**
+ * Retrieves or forces a refresh of the HasData account plan and credit usage.
+ */
+export async function getHasDataUsageAction(
+  accountId: string,
+  force?: boolean
+): Promise<ActionResult<HasDataUsage | null>> {
+  try {
+    const data = await getOrRefreshHasDataUsage({ accountId, force });
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to load HasData usage",
+    };
+  }
 }
 
 
@@ -685,6 +803,11 @@ export async function saveJinaApiKey(
     },
   });
 
+  await persistProfileScopedRules(accountId, {
+    encryptedJinaApiKey: encrypted,
+    maskedJinaApiKey: masked,
+  });
+
   revalidatePath("/settings");
   return { ok: true, data: { maskedJinaApiKey: masked } };
 }
@@ -715,6 +838,11 @@ export async function clearJinaApiKey(
     data: {
       rules: rulesToSave as Prisma.InputJsonValue,
     },
+  });
+
+  await persistProfileScopedRules(accountId, {
+    encryptedJinaApiKey: null,
+    maskedJinaApiKey: null,
   });
 
   revalidatePath("/settings");

@@ -239,7 +239,9 @@ export function SettingsView({
             cloudModel={rules.cloudModel ?? null}
             maskedApiKey={rules.maskedApiKey ?? null}
             maskedScrapingAntApiKey={rules.maskedScrapingAntApiKey ?? null}
+            scrapingAntUsage={rules.scrapingAntUsage ?? null}
             maskedHasDataApiKey={rules.maskedHasDataApiKey ?? null}
+            hasDataUsage={rules.hasDataUsage ?? null}
           />
         </TabsContent>
 

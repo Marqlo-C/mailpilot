@@ -25,13 +25,15 @@ const FLYOUT_TEXT_LAYOUT =
 /** Destructive secondary tone — outline CTAs (row Delete Snapshot). */
 const SECONDARY_DESTRUCTIVE_ACTION_TONE = {
   text: "text-[#c21f10]",
-  borderSoft: "border-[#c21f10]/45",
-  hoverBorder: "hover:border-[#c21f10]",
-  hoverBg: "hover:bg-[#c21f10]/12",
+  borderSoft: "border-[#c21f10]",
+  hoverText: "hover:text-[#C21E11]",
+  hoverBorder: "hover:border-[#C21E11]",
+  hoverBg: "hover:bg-[#C21E11]/15",
   darkText: "dark:text-[#fb6230]",
-  darkBorderSoft: "dark:border-[#fb6230]/45",
+  darkBorderSoft: "dark:border-[#fb6230]",
+  darkHoverText: "dark:hover:text-[#fb6230]",
   darkHoverBorder: "dark:hover:border-[#fb6230]",
-  darkHoverBg: "dark:hover:bg-[#fb6230]/12",
+  darkHoverBg: "dark:hover:bg-[#fb6230]/15",
 } as const;
 
 const SECONDARY_OUTLINE_LAYOUT =
@@ -69,10 +71,12 @@ export const SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME = [
   SECONDARY_OUTLINE_LAYOUT,
   SECONDARY_DESTRUCTIVE_ACTION_TONE.borderSoft,
   SECONDARY_DESTRUCTIVE_ACTION_TONE.text,
+  SECONDARY_DESTRUCTIVE_ACTION_TONE.hoverText,
   SECONDARY_DESTRUCTIVE_ACTION_TONE.hoverBorder,
   SECONDARY_DESTRUCTIVE_ACTION_TONE.hoverBg,
   SECONDARY_DESTRUCTIVE_ACTION_TONE.darkBorderSoft,
   SECONDARY_DESTRUCTIVE_ACTION_TONE.darkText,
+  SECONDARY_DESTRUCTIVE_ACTION_TONE.darkHoverText,
   SECONDARY_DESTRUCTIVE_ACTION_TONE.darkHoverBorder,
   SECONDARY_DESTRUCTIVE_ACTION_TONE.darkHoverBg,
 ].join(" ");

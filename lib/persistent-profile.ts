@@ -1,10 +1,17 @@
 import { createHash } from "crypto";
-import type { Account, PermanentSettings, PersistentProfile } from "@prisma/client";
+import {
+  type Account,
+  type PermanentSettings,
+  type PersistentProfile,
+  Prisma,
+} from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile";
 import {
+  accountRulesSchema,
   DEFAULT_ACCOUNT_RULES,
+  parseAccountRules,
   type AccountRules,
 } from "@/lib/validations/rules";
 
@@ -136,18 +143,134 @@ export async function ensurePersistentProfileForAccount(
 
 /**
  * Merges AccountSettings.rules with PermanentSettings for UI/dispatch consumers.
+ * Inherits durable profile-scoped BYOK & proxy API keys when present.
  * Match threshold is intentionally excluded — resolve via resolveMatchThreshold.
  */
 export function mergeRulesWithPermanentSettings(
   accountRules: AccountRules,
-  permanent: PermanentSettings | null | undefined
+  permanent:
+    | Partial<PermanentSettings>
+    | { rules?: unknown; applicationMode?: string; maxAutoSendsPerDay?: number }
+    | null
+    | undefined
 ): AccountRules {
   if (!permanent) return accountRules;
+
+  const permanentRules = parseAccountRules(permanent.rules);
+
   return {
     ...accountRules,
-    applicationMode: permanent.applicationMode as AccountRules["applicationMode"],
-    maxAutoSendsPerDay: permanent.maxAutoSendsPerDay,
+    applicationMode:
+      (permanent.applicationMode as AccountRules["applicationMode"]) ??
+      accountRules.applicationMode,
+    maxAutoSendsPerDay:
+      permanent.maxAutoSendsPerDay ?? accountRules.maxAutoSendsPerDay,
+    // BYOK Cloud LLM credentials
+    encryptedApiKey:
+      accountRules.encryptedApiKey ?? permanentRules.encryptedApiKey,
+    maskedApiKey: accountRules.maskedApiKey ?? permanentRules.maskedApiKey,
+    cloudProvider:
+      accountRules.encryptedApiKey
+        ? accountRules.cloudProvider
+        : (permanentRules.cloudProvider ?? accountRules.cloudProvider),
+    cloudModel: accountRules.cloudModel ?? permanentRules.cloudModel,
+    allowCloudFallback:
+      accountRules.allowCloudFallback || permanentRules.allowCloudFallback,
+    // Scraping proxy credentials
+    encryptedScrapingAntApiKey:
+      accountRules.encryptedScrapingAntApiKey ??
+      permanentRules.encryptedScrapingAntApiKey,
+    maskedScrapingAntApiKey:
+      accountRules.maskedScrapingAntApiKey ??
+      permanentRules.maskedScrapingAntApiKey,
+    scrapingAntUsage: (() => {
+      const a = accountRules.scrapingAntUsage;
+      const b = permanentRules.scrapingAntUsage;
+      if (!a) return b ?? null;
+      if (!b) return a;
+      return new Date(a.fetchedAt).getTime() >= new Date(b.fetchedAt).getTime()
+        ? a
+        : b;
+    })(),
+    encryptedHasDataApiKey:
+      accountRules.encryptedHasDataApiKey ??
+      permanentRules.encryptedHasDataApiKey,
+    maskedHasDataApiKey:
+      accountRules.maskedHasDataApiKey ?? permanentRules.maskedHasDataApiKey,
+    hasDataUsage: (() => {
+      const a = accountRules.hasDataUsage;
+      const b = permanentRules.hasDataUsage;
+      if (!a) return b ?? null;
+      if (!b) return a;
+      return new Date(a.fetchedAt).getTime() >= new Date(b.fetchedAt).getTime()
+        ? a
+        : b;
+    })(),
+    // Deprecated Jina proxy credentials
+    encryptedJinaApiKey:
+      accountRules.encryptedJinaApiKey ?? permanentRules.encryptedJinaApiKey,
+    maskedJinaApiKey:
+      accountRules.maskedJinaApiKey ?? permanentRules.maskedJinaApiKey,
   };
+}
+
+/**
+ * Persists profile-scoped rules (BYOK LLM and proxy credentials) directly
+ * on the durable PermanentSettings record for an account or profile.
+ */
+export async function persistProfileScopedRules(
+  target: string | { accountId?: string; persistentProfileId?: string },
+  rulesPatch: Partial<AccountRules>
+): Promise<void> {
+  let profileId: string | null = null;
+
+  if (typeof target === "string") {
+    const account = await prisma.account.findUnique({
+      where: { id: target },
+      select: { id: true, email: true, persistentProfileId: true },
+    });
+    if (!account) return;
+    const profile = await ensurePersistentProfileForAccount(account);
+    profileId = profile.id;
+  } else if (target.persistentProfileId) {
+    profileId = target.persistentProfileId;
+  } else if (target.accountId) {
+    const account = await prisma.account.findUnique({
+      where: { id: target.accountId },
+      select: { id: true, email: true, persistentProfileId: true },
+    });
+    if (!account) return;
+    const profile = await ensurePersistentProfileForAccount(account);
+    profileId = profile.id;
+  }
+
+  if (!profileId) return;
+
+  const permanent = await prisma.permanentSettings.findUnique({
+    where: { persistentProfileId: profileId },
+  });
+
+  const currentRules = parseAccountRules(permanent?.rules);
+  const updatedRules = accountRulesSchema.parse({
+    ...currentRules,
+    ...rulesPatch,
+  });
+
+  const { matchScoreThreshold: _deprecated, ...rulesToSave } = updatedRules;
+
+  await prisma.permanentSettings.upsert({
+    where: { persistentProfileId: profileId },
+    create: {
+      persistentProfileId: profileId,
+      applicationMode: DEFAULT_ACCOUNT_RULES.applicationMode,
+      matchScoreThreshold: DEFAULT_MATCH_THRESHOLD,
+      maxAutoSendsPerDay: DEFAULT_ACCOUNT_RULES.maxAutoSendsPerDay,
+      rules: rulesToSave as Prisma.InputJsonValue,
+    },
+    update: {
+      rules: rulesToSave as Prisma.InputJsonValue,
+    },
+  });
 }
 
 /**
