@@ -8,8 +8,11 @@ import {
   CreditCard,
   ExternalLink,
   Info,
+  KeyRound,
   Loader2,
+  Redo2,
   RefreshCw,
+  Trash2,
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -26,6 +29,9 @@ type HasDataControlPanelProps = {
   initialUsage?: HasDataUsage | null;
   maskedApiKey?: string | null;
   disabled?: boolean;
+  onReplaceKey?: () => void;
+  onDeleteKey?: () => void;
+  isDeletingKey?: boolean;
 };
 
 function formatIsoDate(iso: string): string {
@@ -58,6 +64,9 @@ export function HasDataControlPanel({
   initialUsage = null,
   maskedApiKey,
   disabled = false,
+  onReplaceKey,
+  onDeleteKey,
+  isDeletingKey = false,
 }: HasDataControlPanelProps) {
   const [usage, setUsage] = useState<HasDataUsage | null>(initialUsage);
   const [isRefreshing, startRefresh] = useTransition();
@@ -114,29 +123,69 @@ export function HasDataControlPanel({
   if (!usage) {
     return (
       <div className="rounded-xl border border-border/80 bg-background/60 bg-global-radial p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Your Usage Stats:
             </p>
-            <p className="text-sm font-medium text-foreground">
-              Usage & Subscription Telemetry
-            </p>
+            {maskedApiKey && (
+              <div className="flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 font-mono text-[11px] font-medium text-primary">
+                  <KeyRound className="h-3 w-3 shrink-0" />
+                  {maskedApiKey}
+                </span>
+                <div className="flex items-center gap-0.5">
+                  {onDeleteKey && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={disabled || isDeletingKey}
+                      onClick={onDeleteKey}
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 shrink-0"
+                      title="Delete active key"
+                      aria-label="Delete active key"
+                    >
+                      {isDeletingKey ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-500" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  )}
+                  {onReplaceKey && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={disabled}
+                      onClick={onReplaceKey}
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
+                      title="Replace active key"
+                      aria-label="Replace active key"
+                    >
+                      <Redo2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
             disabled={disabled || isRefreshing}
             onClick={handleManualRefresh}
-            className="h-8 gap-1.5 text-xs font-medium"
+            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
+            title="Fetch plan and credit balance"
+            aria-label="Fetch plan and credit balance"
           >
             {isRefreshing ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
-            {isRefreshing ? "Fetching…" : "Fetch Plan & Usage"}
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -165,9 +214,52 @@ export function HasDataControlPanel({
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Your Usage Stats:
           </p>
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-            {usage.planName} Plan
-          </span>
+          {maskedApiKey ? (
+            <div className="flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 font-mono text-[11px] font-medium text-primary">
+                <KeyRound className="h-3 w-3 shrink-0" />
+                {maskedApiKey}
+              </span>
+              <div className="flex items-center gap-0.5">
+                {onDeleteKey && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled || isDeletingKey}
+                    onClick={onDeleteKey}
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 shrink-0"
+                    title="Delete active key"
+                    aria-label="Delete active key"
+                  >
+                    {isDeletingKey ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-500" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                )}
+                {onReplaceKey && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={onReplaceKey}
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
+                    title="Replace active key"
+                    aria-label="Replace active key"
+                  >
+                    <Redo2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+              {usage.planName} Plan
+            </span>
+          )}
           {isExhausted ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[11px] font-medium text-rose-600 dark:text-rose-400">
               <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
@@ -193,7 +285,7 @@ export function HasDataControlPanel({
             size="sm"
             disabled={disabled || isRefreshing}
             onClick={handleManualRefresh}
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/40 shrink-0"
+            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
             title="Refresh HasData credit balance and concurrency metrics"
             aria-label="Refresh HasData credit balance and concurrency metrics"
           >
