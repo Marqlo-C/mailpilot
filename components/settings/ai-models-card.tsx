@@ -13,8 +13,10 @@ import {
   Redo2,
   RefreshCw,
   Shield,
+  ShieldUser,
   Terminal,
   Trash2,
+  Wifi,
   Worm,
   X,
 } from "lucide-react";
@@ -45,6 +47,7 @@ import {
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
 import { SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -745,7 +748,7 @@ export function AiModelsCard({
           </p>
         )}
 
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-border/80 bg-background px-4 py-3.5">
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-border/80 bg-card/60 px-4 py-3.5 shadow-xs">
           <div className="space-y-0.5">
             <p className="text-sm font-medium tracking-tight">Use Local Ollama</p>
             <p className="text-xs text-muted-foreground">
@@ -790,369 +793,342 @@ export function AiModelsCard({
 
         {useOllama && mounted && (
           <div className="space-y-5">
-            {/* Setup methods */}
-            <Tabs defaultValue="automated" className="w-full">
-              <TabsList className="grid h-10 w-full grid-cols-2 rounded-lg bg-muted/60 p-1">
-                <TabsTrigger
-                  value="automated"
-                  className="rounded-md text-xs font-medium data-[state=active]:shadow-sm sm:text-sm"
-                >
-                  Automated Bridge
-                </TabsTrigger>
-                <TabsTrigger
-                  value="manual"
-                  className="rounded-md text-xs font-medium data-[state=active]:shadow-sm sm:text-sm"
-                >
-                  Manual Setup
-                </TabsTrigger>
-              </TabsList>
+            {/* Secondary Card Wrapper */}
+            <div className="rounded-xl border border-border/80 bg-card/50 dark:bg-card/40 p-5 shadow-sm space-y-5">
+              <Tabs defaultValue="automated" className="w-full space-y-5">
+                {/* Single Top Tab Rail */}
+                <div className="flex border-b border-border/60 pb-3">
+                  <TabsList className="grid h-10 w-full sm:w-auto grid-cols-2 rounded-lg bg-muted/60 p-1">
+                    <TabsTrigger
+                      value="automated"
+                      className="rounded-md px-4 text-xs font-medium data-[state=active]:shadow-sm sm:text-sm"
+                    >
+                      Automated Bridge (Recommended)
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="manual"
+                      className="rounded-md px-4 text-xs font-medium data-[state=active]:shadow-sm sm:text-sm"
+                    >
+                      Manual Setup
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
-              <TabsContent value="automated" className="mt-4 space-y-4">
-                <p className="text-xs text-muted-foreground">
-                  Recommended — one command tunnels your local Ollama to
-                  production with a personal CLI secret. Prerequisite: only the{" "}
-                  <a
-                    href="https://ollama.com"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-foreground underline underline-offset-2 hover:text-primary"
-                  >
-                    Ollama desktop app
-                  </a>{" "}
-                  is required (no Node.js).
-                </p>
+                {/* Automated Bridge Tab Content */}
+                <TabsContent value="automated" className="mt-0 space-y-5 focus-visible:outline-none">
+                  {/* Header row with inline Rotate Secret on the right */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground">
+                        One-Click Bridge Commands
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        Select your operating system and paste into your terminal.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs border-border/80 self-start sm:self-auto hover:bg-muted/60"
+                      disabled={disabled || pending}
+                      onClick={() => handleGenerateSecret(hasSecret)}
+                    >
+                      {pending ? (
+                        <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                      ) : (
+                        <KeyRound className="size-3.5 text-muted-foreground" />
+                      )}
+                      <span>{hasSecret ? "Rotate Secret" : "Generate Secret"}</span>
+                    </Button>
+                  </div>
 
-                {/* Secret (required before command unlocks) */}
-                {!hasSecret ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={disabled}
-                    onClick={() => handleGenerateSecret(false)}
-                  >
-                    {pending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                    Generate Bridge Secret
-                  </Button>
-                ) : (
-                  <div className="flex flex-col gap-2 rounded-xl border border-border/80 bg-muted/15 p-3 sm:flex-row sm:items-center">
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <Input
-                        readOnly
-                        type={revealSecret ? "text" : "password"}
-                        value={bridgeSecret}
-                        className="h-8 border-border/80 bg-background font-mono text-xs"
-                        onFocus={() => setRevealSecret(true)}
-                        autoComplete="off"
-                        spellCheck={false}
+                  {/* Side-by-side CLI command blocks */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* macOS / Linux Box */}
+                    <div className="rounded-lg border border-border bg-slate-950 p-3.5 text-slate-100 flex flex-col justify-between space-y-3">
+                      <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
+                        <span className="font-medium text-slate-300">macOS / Linux</span>
+                        <div className="flex items-center gap-1.5">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] text-slate-400 border-slate-700 bg-slate-900"
+                          >
+                            bash / zsh
+                          </Badge>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={!hasSecret || !accountEmail}
+                            onClick={() => void copyOsCommand("mac")}
+                            className="size-6 text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"
+                            aria-label="Copy macOS command"
+                          >
+                            {copiedOsCommand === "mac" ? (
+                              <Check className="size-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="size-3.5" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                      <code className="text-xs font-mono break-all text-teal-300 leading-relaxed select-all">
+                        {macBridgeCommand}
+                      </code>
+                    </div>
+
+                    {/* Windows Box */}
+                    <div className="rounded-lg border border-border bg-slate-950 p-3.5 text-slate-100 flex flex-col justify-between space-y-3">
+                      <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
+                        <span className="font-medium text-slate-300">Windows</span>
+                        <div className="flex items-center gap-1.5">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] text-slate-400 border-slate-700 bg-slate-900"
+                          >
+                            PowerShell
+                          </Badge>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={!hasSecret || !accountEmail}
+                            onClick={() => void copyOsCommand("win")}
+                            className="size-6 text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"
+                            aria-label="Copy Windows command"
+                          >
+                            {copiedOsCommand === "win" ? (
+                              <Check className="size-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="size-3.5" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                      <code className="text-xs font-mono break-all text-teal-300 leading-relaxed select-all">
+                        {winBridgeCommand}
+                      </code>
+                    </div>
+                  </div>
+
+                  {/* Comprehensive Chat-Friendly Setup & Security Guide */}
+                  <div className="rounded-lg border border-border/70 bg-muted/40 p-4 space-y-3 text-xs leading-relaxed">
+                    <div className="font-medium text-foreground text-sm">
+                      Getting Started with Local Ollama
+                    </div>
+
+                    <ol className="list-decimal list-inside space-y-1.5 text-muted-foreground pl-0.5">
+                      <li>
+                        Install and launch the official{" "}
+                        <a
+                          href="https://ollama.com/download"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-teal-600 dark:text-teal-400 underline underline-offset-2 hover:text-teal-500"
+                        >
+                          Ollama desktop app
+                        </a>.
+                      </li>
+                      <li>
+                        Open your terminal and run{" "}
+                        <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground">
+                          ollama run llama3.1:8b
+                        </code>
+                        . Mail Pilot is calibrated for llama3.1:8b so it can reliably parse and organize your emails without errors.
+                      </li>
+                      <li>
+                        Copy the command for your operating system above, paste it into your terminal, and leave that window running in the background.
+                      </li>
+                    </ol>
+
+                    <div className="mt-3 rounded-md border border-dashed border-border/80 bg-card/40 p-3 space-y-1">
+                      <p className="font-medium text-xs text-foreground flex items-center gap-1.5">
+                        <ShieldUser className="size-3.5 text-muted-foreground" />
+                        <span>Why rotating your secret matters</span>
+                      </p>
+                      <p className="text-[11px] text-muted-foreground leading-normal">
+                        Your secret acts like a private handshake between your personal machine and your Mail Pilot account. If you ever switch Wi-Fi networks, run Mail Pilot in a public workspace, or suspect your terminal was exposed, click Rotate Secret above to instantly revoke old tunnel tokens and lock down your connection.
+                      </p>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Manual Setup Tab Content */}
+                <TabsContent value="manual" className="mt-0 space-y-5 focus-visible:outline-none">
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Run Ollama with an open bind, start a Quick Tunnel, then paste
+                    the public URL below.
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        macOS / Linux
+                      </p>
+                      <TerminalBlock
+                        title="1 · serve"
+                        code={macosServe}
+                        copied={copiedSnippet === "mac-serve"}
+                        onCopy={() => void copySnippet("mac-serve", macosServe)}
+                      />
+                      <TerminalBlock
+                        title="2 · tunnel"
+                        code={cloudflaredMac}
+                        copied={copiedSnippet === "mac-tun"}
+                        onCopy={() =>
+                          void copySnippet("mac-tun", cloudflaredMac)
+                        }
                       />
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 shrink-0"
-                      disabled={disabled}
-                      onClick={() => void copySecret()}
-                    >
-                      {copiedSecret ? (
-                        <Check className="h-3.5 w-3.5" />
-                      ) : (
-                        <Copy className="h-3.5 w-3.5" />
-                      )}
-                      Copy Secret
-                    </Button>
-                  </div>
-                )}
-
-                {/* Platform switcher & secret rotation */}
-                <div className="flex items-center justify-between gap-3 pt-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                      Platform
-                    </span>
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setBridgeOs("mac")}
-                        className={cn(
-                          "rounded-md px-2.5 py-1 font-mono text-xs transition-colors",
-                          bridgeOs === "mac"
-                            ? "bg-foreground/10 font-medium text-foreground"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        macOS / Linux
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setBridgeOs("win")}
-                        className={cn(
-                          "rounded-md px-2.5 py-1 font-mono text-xs transition-colors",
-                          bridgeOs === "win"
-                            ? "bg-foreground/10 font-medium text-foreground"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                         Windows
-                      </button>
+                      </p>
+                      <TerminalBlock
+                        title="1 · serve"
+                        code={windowsServe}
+                        copied={copiedSnippet === "win-serve"}
+                        onCopy={() =>
+                          void copySnippet("win-serve", windowsServe)
+                        }
+                      />
+                      <TerminalBlock
+                        title="2 · tunnel"
+                        code={cloudflaredWin}
+                        copied={copiedSnippet === "win-tun"}
+                        onCopy={() =>
+                          void copySnippet("win-tun", cloudflaredWin)
+                        }
+                      />
                     </div>
                   </div>
 
-                  {hasSecret ? (
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => handleGenerateSecret(true)}
-                      className="text-[11px] text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+                  <div className="space-y-2 rounded-xl border border-border/80 bg-card/70 p-4 shadow-xs">
+                    <Label
+                      htmlFor="ollama-url"
+                      className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
                     >
-                      Rotate Secret
-                    </button>
-                  ) : null}
-                </div>
-
-                {/* Command block */}
-                <div className="group relative rounded-lg border border-zinc-800/80 bg-zinc-950 p-3.5 shadow-inner">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex select-all items-start gap-2.5 break-all font-mono text-xs leading-relaxed text-zinc-300">
-                      <span className="select-none text-zinc-600">$</span>
-                      <span>{activeBridgeCommand}</span>
+                      Tunnel URL
+                    </Label>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        id="ollama-url"
+                        value={url}
+                        disabled={disabled}
+                        onChange={(e) => setUrl(e.target.value)}
+                        placeholder="https://xxxx.trycloudflare.com"
+                        className="h-9 border-border/80 bg-background font-mono text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 shrink-0"
+                        disabled={disabled || verifying || !url.trim()}
+                        onClick={() => {
+                          if (!accountId) return;
+                          startTransition(async () => {
+                            const result = await updateOllamaUrl(
+                              accountId,
+                              url,
+                              selectedModel
+                            );
+                            if (!result.ok) {
+                              toast.error(result.error);
+                              return;
+                            }
+                            const ok =
+                              (await handleVerifyConnection(url)) ===
+                              "connected";
+                            if (ok) {
+                              toast.success("Tunnel saved and verified");
+                            } else {
+                              toast.success("Tunnel URL saved");
+                              toast.error("Could not reach Ollama");
+                            }
+                          });
+                        }}
+                      >
+                        {pending || verifying ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : null}
+                        Save URL
+                      </Button>
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 shrink-0 p-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
-                      disabled={!hasSecret || !accountEmail}
-                      onClick={() => void copyOsCommand(bridgeOs)}
-                    >
-                      {copiedOsCommand === bridgeOs ? (
-                        <Check className="h-3.5 w-3.5 text-emerald-400" />
-                      ) : (
-                        <Copy className="h-3.5 w-3.5" />
+                  </div>
+                </TabsContent>
+
+                {/* Bridge Status Bar with Primary Wifi CTA */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-lg border border-border/80 bg-card p-4 shadow-xs">
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className={cn(
+                        "relative flex h-2.5 w-2.5 rounded-full shrink-0",
+                        isConnected
+                          ? "bg-emerald-500"
+                          : displayStatus === "checking"
+                            ? "bg-teal-500"
+                            : "bg-amber-500"
                       )}
-                    </Button>
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-muted-foreground">
-                  Run this from any terminal window. No repo cloning or Node.js
-                  required — only the Ollama desktop app.
-                </p>
-
-                <ol className="list-decimal space-y-1.5 pl-5 text-xs text-muted-foreground">
-                  <li>
-                    Open the{" "}
-                    <a
-                      href="https://ollama.com"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-foreground underline underline-offset-2 hover:text-primary"
                     >
-                      Ollama desktop app
-                    </a>{" "}
-                    (or ensure it is running).
-                  </li>
-                  <li>Click Generate Bridge Secret above.</li>
-                  <li>
-                    Copy and run the{" "}
-                    {bridgeOs === "mac" ? "macOS / Linux" : "Windows"} command
-                    in your terminal.
-                  </li>
-                  <li>
-                    Keep the terminal open — it registers models with MailPilot
-                    automatically. Check Connection is optional.
-                  </li>
-                </ol>
-
-                <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-400/90">
-                  <span className="mt-0.5 shrink-0 text-sm" aria-hidden>
-                    ⚠️
-                  </span>
-                  <div className="space-y-1.5 leading-relaxed">
-                    <p>
-                      <span className="font-medium text-foreground">
-                        Why secrets matter:
-                      </span>{" "}
-                      <span className="text-[11px] text-muted-foreground">
-                        Your bridge secret authenticates your terminal against
-                        your MailPilot account so nobody else can hijack your
-                        LLM pipeline or alter where your requests route.
-                      </span>
-                    </p>
-                    <p>
-                      <span className="font-medium text-foreground">
-                        Best practice:
-                      </span>{" "}
-                      <span className="text-[11px] text-muted-foreground">
-                        Regenerate your secret regularly, especially after
-                        testing or switching networks, to instantly invalidate
-                        previous tunnel sessions.
-                      </span>
-                    </p>
+                      <span
+                        className={cn(
+                          "absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping",
+                          isConnected
+                            ? "bg-emerald-400"
+                            : displayStatus === "checking"
+                              ? "bg-teal-400"
+                              : "bg-amber-400"
+                        )}
+                      />
+                    </span>
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="text-xs font-semibold text-foreground">
+                        {isConnected
+                          ? "Local Ollama Connected & Active"
+                          : displayStatus === "checking"
+                            ? "Verifying Bridge Connection…"
+                            : "Waiting for bridge connection"}
+                      </p>
+                      <p className="truncate font-mono text-[11px] text-muted-foreground">
+                        {isConnected
+                          ? `Tunnel registered and listening via ${url.trim() || "local endpoint"}`
+                          : "Run either command above to connect your local GPU/CPU"}
+                      </p>
+                      {statusMessage && (
+                        <p className="text-xs text-muted-foreground">{statusMessage}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </TabsContent>
 
-              <TabsContent value="manual" className="mt-5 space-y-5">
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  Run Ollama with an open bind, start a Quick Tunnel, then paste
-                  the public URL below.
-                </p>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      macOS / Linux
-                    </p>
-                    <TerminalBlock
-                      title="1 · serve"
-                      code={macosServe}
-                      copied={copiedSnippet === "mac-serve"}
-                      onCopy={() => void copySnippet("mac-serve", macosServe)}
-                    />
-                    <TerminalBlock
-                      title="2 · tunnel"
-                      code={cloudflaredMac}
-                      copied={copiedSnippet === "mac-tun"}
-                      onCopy={() =>
-                        void copySnippet("mac-tun", cloudflaredMac)
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Windows
-                    </p>
-                    <TerminalBlock
-                      title="1 · serve"
-                      code={windowsServe}
-                      copied={copiedSnippet === "win-serve"}
-                      onCopy={() =>
-                        void copySnippet("win-serve", windowsServe)
-                      }
-                    />
-                    <TerminalBlock
-                      title="2 · tunnel"
-                      code={cloudflaredWin}
-                      copied={copiedSnippet === "win-tun"}
-                      onCopy={() =>
-                        void copySnippet("win-tun", cloudflaredWin)
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2 rounded-xl border border-border/80 bg-muted/15 p-4">
-                  <Label
-                    htmlFor="ollama-url"
-                    className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    className="w-full sm:w-auto h-9 gap-2 text-xs font-medium shadow-sm"
+                    disabled={disabled || verifying}
+                    onClick={() => {
+                      void handleVerifyConnection().then((status) => {
+                        if (status === "connected") {
+                          toast.success("Ollama connected");
+                        } else {
+                          toast.error("Could not reach Ollama");
+                        }
+                      });
+                    }}
                   >
-                    Tunnel URL
-                  </Label>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Input
-                      id="ollama-url"
-                      value={url}
-                      disabled={disabled}
-                      onChange={(e) => setUrl(e.target.value)}
-                      placeholder="https://xxxx.trycloudflare.com"
-                      className="h-9 border-border/80 bg-background font-mono text-xs"
+                    <Wifi
+                      className={cn(
+                        "size-4 shrink-0",
+                        verifying && "animate-pulse text-teal-300"
+                      )}
+                      aria-hidden="true"
                     />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 shrink-0"
-                      disabled={disabled || verifying || !url.trim()}
-                      onClick={() => {
-                        if (!accountId) return;
-                        startTransition(async () => {
-                          const result = await updateOllamaUrl(
-                            accountId,
-                            url,
-                            selectedModel
-                          );
-                          if (!result.ok) {
-                            toast.error(result.error);
-                            return;
-                          }
-                          const ok =
-                            (await handleVerifyConnection(url)) ===
-                            "connected";
-                          if (ok) {
-                            toast.success("Tunnel saved and verified");
-                          } else {
-                            toast.success("Tunnel URL saved");
-                            toast.error("Could not verify yet");
-                          }
-                        });
-                      }}
-                    >
-                      {pending || verifying ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : null}
-                      Save URL
-                    </Button>
-                  </div>
+                    <span>{verifying ? "Verifying Bridge..." : "Check Connection"}</span>
+                  </Button>
                 </div>
-              </TabsContent>
-            </Tabs>
-
-            {/* Status — outside tabs */}
-            <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0 space-y-1.5">
-                <div className="flex items-center gap-2.5">
-                  <StatusDot status={displayStatus} />
-                  <span className="text-sm font-medium tracking-tight">
-                    {displayStatus === "connected" && "Connected"}
-                    {displayStatus === "checking" && "Verifying tunnel…"}
-                    {displayStatus === "waiting" && "Waiting for bridge"}
-                    {displayStatus === "error" && "Offline / unreachable"}
-                  </span>
-                </div>
-                <p className="truncate font-mono text-[11px] text-muted-foreground">
-                  {isConnected
-                    ? url.trim() || "—"
-                    : "Run the bridge command in a terminal (it registers automatically)."}
-                </p>
-                {statusMessage && (
-                  <p className="text-xs text-muted-foreground">{statusMessage}</p>
-                )}
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-9 shrink-0"
-                disabled={disabled || verifying}
-                onClick={() => {
-                  void handleVerifyConnection().then((status) => {
-                    if (status === "connected") {
-                      toast.success("Ollama connected");
-                    } else {
-                      toast.error("Could not reach Ollama");
-                    }
-                  });
-                }}
-              >
-                {verifying ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Checking…
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4" />
-                    Check Connection
-                  </>
-                )}
-              </Button>
+              </Tabs>
             </div>
 
             {isDev ? (
