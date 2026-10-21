@@ -27,9 +27,8 @@ describe("Bridge Scripts Generator", () => {
       // Clean execution with stderr redirection without exit code 2
       expect(script).toContain("Start-Process -FilePath $cfPath");
       expect(script).toContain("-RedirectStandardError $tempLog");
-      expect(script).toContain("tunnel --url http://127.0.0.1:11434");
-      // Does not pass invalid extra flags that cause cloudflared exit code 2
-      expect(script).not.toContain("--http-host-header");
+      expect(script).toContain("tunnel --url http://127.0.0.1:11434 --http-host-header localhost:11434");
+      expect(script).toContain("--http-host-header localhost:11434");
 
       // Regex matching tunnel URL
       expect(script).toContain("trycloudflare");

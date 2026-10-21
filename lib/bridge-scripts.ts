@@ -259,7 +259,7 @@ if (-not (Test-Path $cfPath)) {
 
 Write-Host "Launching Cloudflare Quick Tunnel..." -ForegroundColor Cyan
 $tempLog = [System.IO.Path]::GetTempFileName()
-$proc = Start-Process -FilePath $cfPath -ArgumentList "tunnel --url http://127.0.0.1:11434" -RedirectStandardError $tempLog -NoNewWindow -PassThru
+$proc = Start-Process -FilePath $cfPath -ArgumentList "tunnel --url http://127.0.0.1:11434 --http-host-header localhost:11434" -RedirectStandardError $tempLog -NoNewWindow -PassThru
 
 $tunnelUrl = $null
 for ($i = 0; $i -lt 30; $i++) {
