@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "@/lib/format-distance";
 import type { ScrapingAntUsage } from "@/lib/validations/rules";
 import { cn } from "@/lib/utils";
+import { WavyMeter } from "@/components/ui/wavy-meter";
 
 type ScrapingAntControlPanelProps = {
   accountId: string | null;
@@ -155,13 +156,6 @@ export function ScrapingAntControlPanel({
   const isExhausted = remainedCredits <= 0;
   const isLowBalance = !isExhausted && usagePercentage >= 90;
 
-  // Progress bar color based on percentage used
-  const progressColorClass = isExhausted
-    ? "bg-rose-500"
-    : isLowBalance
-      ? "bg-amber-500"
-      : "bg-emerald-500";
-
   return (
     <div className="rounded-xl border border-border/80 bg-background/50 p-4 space-y-4 shadow-sm backdrop-blur-sm">
       {/* Top Header Row */}
@@ -236,13 +230,13 @@ export function ScrapingAntControlPanel({
           </span>
         </div>
 
-        {/* Bar representation of usage */}
-        <div className="h-2.5 w-full overflow-hidden rounded-full border border-border/80 bg-muted/40">
-          <div
-            className={cn("h-full rounded-full transition-all duration-500 ease-out", progressColorClass)}
-            style={{ width: `${Math.max(1, usagePercentage)}%` }}
-          />
-        </div>
+        {/* Wavy liquid usage meter */}
+        <WavyMeter
+          value={usagePercentage}
+          accountId={accountId}
+          tone={isExhausted ? "destructive" : isLowBalance ? "warning" : "default"}
+          aria-label="ScrapingAnt API credit usage meter"
+        />
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-[11px] text-muted-foreground gap-1 pt-0.5">
           <span>

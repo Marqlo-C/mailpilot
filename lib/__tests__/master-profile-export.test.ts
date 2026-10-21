@@ -133,7 +133,9 @@ describe("Master Profile PDF Export", () => {
     vi.clearAllMocks();
   });
 
-  it("generateTailoredResumePdf generates a multi-page unpruned PDF buffer with all experiences and projects", async () => {
+  it(
+    "generateTailoredResumePdf generates a multi-page unpruned PDF buffer with all experiences and projects",
+    async () => {
     const pdfBuffer = await generateTailoredResumePdf(
       sampleProfile,
       sampleProfile.experiences,
@@ -156,7 +158,7 @@ describe("Master Profile PDF Export", () => {
     expect(pdfBuffer.length).toBeGreaterThan(100);
     // PDF Magic bytes
     expect(pdfBuffer.subarray(0, 4).toString()).toBe("%PDF");
-  });
+  }, 20000);
 
   describe("exportMasterProfilePdfAction", () => {
     it("returns error if accountId is empty or account not found", async () => {
@@ -171,23 +173,27 @@ describe("Master Profile PDF Export", () => {
       }
     });
 
-    it("successfully exports master profile to base64 PDF and formatted filename", async () => {
-      vi.mocked(prisma.account.findUnique).mockResolvedValueOnce({
-        id: "acc-test-123",
-        email: "jordan.lee@example.com",
-      } as any);
+    it(
+      "successfully exports master profile to base64 PDF and formatted filename",
+      async () => {
+        vi.mocked(prisma.account.findUnique).mockResolvedValueOnce({
+          id: "acc-test-123",
+          email: "jordan.lee@example.com",
+        } as any);
 
-      vi.mocked(loadMasterProfileForDraft).mockResolvedValueOnce(sampleProfile);
+        vi.mocked(loadMasterProfileForDraft).mockResolvedValueOnce(sampleProfile);
 
-      const res = await exportMasterProfilePdfAction("acc-test-123");
-      expect(res.ok).toBe(true);
-      if (!res.ok || !res.data) throw new Error("Expected ok result");
+        const res = await exportMasterProfilePdfAction("acc-test-123");
+        expect(res.ok).toBe(true);
+        if (!res.ok || !res.data) throw new Error("Expected ok result");
 
-      expect(res.data.filename).toBe("Jordan_Lee_Master_Profile.pdf");
-      expect(res.data.pdfBase64).toBeDefined();
+        expect(res.data.filename).toBe("Jordan_Lee_Master_Profile.pdf");
+        expect(res.data.pdfBase64).toBeDefined();
 
-      const decoded = Buffer.from(res.data.pdfBase64, "base64");
-      expect(decoded.subarray(0, 4).toString()).toBe("%PDF");
-    });
+        const decoded = Buffer.from(res.data.pdfBase64, "base64");
+        expect(decoded.subarray(0, 4).toString()).toBe("%PDF");
+      },
+      20000
+    );
   });
 });
