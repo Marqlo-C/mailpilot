@@ -19,6 +19,8 @@ import {
   BOXY_ACTION_BTN_DESTRUCTIVE,
 } from "@/components/settings/settings-chrome";
 import { UiRailCard } from "@/components/settings/ui-rail-card";
+import { UiMeterCard } from "@/components/settings/ui-meter-card";
+import { UiToggleCard } from "@/components/settings/ui-toggle-card";
 import { DismissedRetentionSetting } from "@/components/settings/retention-setting";
 import { useTabRailClasses } from "@/components/ui/segmented-tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -251,6 +253,8 @@ export function SettingsView({
           className="mt-0 space-y-4 data-[state=inactive]:hidden"
         >
           <UiRailCard />
+          <UiMeterCard accountId={activeAccountId} />
+          <UiToggleCard accountId={activeAccountId} />
         </TabsContent>
       </Tabs>
     </div>

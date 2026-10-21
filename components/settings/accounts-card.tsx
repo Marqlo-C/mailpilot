@@ -8,7 +8,6 @@ import { unlinkAccountCredentials } from "@/app/actions/accounts";
 import { GoogleCloudIcon } from "@/components/icons/google-cloud-icon";
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
 import {
   Card,
@@ -37,9 +36,10 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
   const [pending, startTransition] = useTransition();
 
   return (
-    <Card className={SETTINGS_CARD_CLASSNAME}>
-      <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 p-3.5 space-y-0">
-        <UsersRound
+    <div className="space-y-2.5">
+      <Card className={SETTINGS_CARD_CLASSNAME}>
+        <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 p-3.5 space-y-0">
+          <UsersRound
           className="h-8 w-8 -translate-y-0.5 text-primary shrink-0"
           aria-hidden="true"
         />
@@ -53,21 +53,12 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
       </CardHeader>
       <CardContent className="space-y-4 p-3.5">
         <TooltipProvider delayDuration={200}>
-          <div className="space-y-2">
-            <Badge
-              variant="secondary"
-              className="inline-flex items-center gap-1.5 text-[11px] opacity-65"
-            >
-              <span>Authentication: Secured via Google OAuth 2.0</span>
-              <GoogleCloudIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
-            </Badge>
-
-            {accounts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No accounts linked yet. Connect Gmail to start watching your inbox.
-              </p>
-            ) : (
-              <ul className="space-y-3">
+          {accounts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No accounts linked yet. Connect Gmail to start watching your inbox.
+            </p>
+          ) : (
+            <ul className="space-y-3">
               {accounts.map((account) => (
                 <li
                   key={account.id}
@@ -172,10 +163,15 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
               ))}
             </ul>
           )}
-          </div>
         </TooltipProvider>
 
       </CardContent>
     </Card>
-  );
+
+    <div className="flex items-center justify-end gap-1.5 px-1 text-[11px] text-muted-foreground">
+      <span>Authentication secured via Google OAuth 2.0</span>
+      <GoogleCloudIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+    </div>
+  </div>
+);
 }
