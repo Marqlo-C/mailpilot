@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { accountRulesSchema, parseAccountRules } from "@/lib/validations/rules";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 export async function POST(request: Request) {
   try {
@@ -82,10 +83,11 @@ export async function POST(request: Request) {
     const endpoint = `${targetUrl.replace(/\/+$/, "")}/api/tags`;
     const res = await fetch(endpoint, {
       headers: {
-        "User-Agent": "MailPilot-Bridge/1.0",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         Accept: "application/json",
       },
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!res.ok) {
