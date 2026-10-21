@@ -412,21 +412,15 @@ export function AiModelsCard({
 
     setVerifying(true);
     try {
-      const candidate = (overrideUrl ?? url).trim();
       const payload: { url?: string } = {};
-      // Only forward real Cloudflare tunnels; never the schema default localhost
+      // Send empty body in automated mode so server reads active tunnel directly from DB.
+      // In manual mode (explicit overrideUrl supplied), send it if not localhost.
       if (
-        candidate &&
-        (() => {
-          try {
-            const host = new URL(candidate).hostname.toLowerCase();
-            return host.endsWith(".trycloudflare.com");
-          } catch {
-            return false;
-          }
-        })()
+        overrideUrl &&
+        !overrideUrl.includes("localhost") &&
+        !overrideUrl.includes("127.0.0.1")
       ) {
-        payload.url = candidate;
+        payload.url = overrideUrl.trim();
       }
 
       const res = await fetch("/api/ollama/verify", {
@@ -457,7 +451,7 @@ export function AiModelsCard({
         ) {
           const next = data.models[0]!;
           setSelectedModel(next);
-          const active = data.activeUrl ?? candidate;
+          const active = data.activeUrl ?? overrideUrl ?? url;
           if (active.trim()) {
             await updateOllamaUrl(accountId, active.trim(), next);
           }
