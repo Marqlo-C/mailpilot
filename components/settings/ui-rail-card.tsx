@@ -17,8 +17,8 @@ import {
 import type { TabRailVariant } from "@/lib/ui/tab-rail-preference";
 
 const OPTIONS: { value: TabRailVariant; label: string }[] = [
-  { value: "light", label: "Light rail" },
-  { value: "dark", label: "Dark rail" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
 ];
 
 export function UiRailCard() {

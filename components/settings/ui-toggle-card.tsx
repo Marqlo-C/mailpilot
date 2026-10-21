@@ -21,8 +21,8 @@ import {
 } from "@/lib/ui/wave-toggle-preference";
 
 const OPTIONS: { value: WaveToggleVariant; label: string }[] = [
-  { value: "light", label: "Light toggle" },
-  { value: "dark", label: "Dark toggle" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
 ];
 
 export function UiToggleCard({ accountId }: { accountId: string | null }) {
