@@ -1,321 +1,207 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { z } from "zod";
 
 import { getAuthenticatedAccountId } from "@/lib/auth";
-import {
-  normalizeOllamaBaseUrl,
-  ollamaBaseUrlFromEnv,
-  OllamaUnreachableError,
-  probeOllamaTagsWithRetry,
-} from "@/lib/llm";
 import { prisma } from "@/lib/prisma";
-import {
-  accountRulesSchema,
-  parseAccountRules,
-} from "@/lib/validations/rules";
+import { accountRulesSchema, parseAccountRules } from "@/lib/validations/rules";
 
 export const dynamic = "force-dynamic";
-
-const verifyBodySchema = z.object({
-  // Empty string from clients must not hard-fail as 400
-  url: z.preprocess((val) => {
-    if (typeof val !== "string") return undefined;
-    const trimmed = val.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
-  }, z.string().url().optional()),
-});
-
-export type OllamaConnectionStatus =
-  | "connected"
-  | "waiting"
-  | "offline"
-  | "error";
-
-/**
- * Allow Cloudflare Quick Tunnels and local Ollama during development.
- * Blocks other hosts to reduce SSRF risk from the verify proxy.
- */
-function isAllowedOllamaUrl(raw: string): boolean {
-  try {
-    const parsed = new URL(raw);
-    const host = parsed.hostname.toLowerCase();
-    if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
-      return parsed.protocol === "http:" || parsed.protocol === "https:";
-    }
-    if (host.endsWith(".trycloudflare.com") && parsed.protocol === "https:") {
-      return true;
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-/** True only for a registered Cloudflare Quick Tunnel (not the schema default localhost). */
-function isRegisteredTunnelUrl(raw: string): boolean {
-  try {
-    const parsed = new URL(raw);
-    return (
-      parsed.protocol === "https:" &&
-      parsed.hostname.toLowerCase().endsWith(".trycloudflare.com")
-    );
-  } catch {
-    return false;
-  }
-}
-
-async function persistBridgeStatus(
-  accountId: string,
-  opts: {
-    connected: boolean;
-    models: string[];
-    localOllamaUrl?: string | null;
-    setLocalProvider?: boolean;
-  }
-): Promise<void> {
-  const settings = await prisma.accountSettings.findUnique({
-    where: { accountId },
-  });
-  if (!settings) return;
-
-  const current = parseAccountRules(settings.rules);
-  const validated = accountRulesSchema.parse({
-    ...current,
-    availableModels: opts.models,
-    bridgeConnected: opts.connected,
-  });
-
-  await prisma.accountSettings.update({
-    where: { accountId },
-    data: {
-      rules: validated as Prisma.InputJsonValue,
-      ...(opts.localOllamaUrl !== undefined
-        ? { localOllamaUrl: opts.localOllamaUrl }
-        : {}),
-      ...(opts.setLocalProvider && opts.connected
-        ? { llmProvider: "LOCAL_OLLAMA" as const }
-        : {}),
-    },
-  });
-}
-
-/**
- * Cloud→tunnel probes are flaky from Vercel. If the bridge CLI already
- * registered models (bridgeConnected + availableModels), keep that state —
- * do not force the user to re-verify from localhost/dev.
- */
-async function handleUnreachable(
-  accountId: string,
-  error: string,
-  status: OllamaConnectionStatus
-): Promise<NextResponse> {
-  const settings = await prisma.accountSettings.findUnique({
-    where: { accountId },
-  });
-  const rules = settings ? parseAccountRules(settings.rules) : null;
-  const cliModels = rules?.availableModels ?? [];
-  const storedUrl = settings?.localOllamaUrl?.trim() ?? "";
-  const trustCli =
-    Boolean(rules?.bridgeConnected) &&
-    cliModels.length > 0 &&
-    storedUrl.length > 0 &&
-    isRegisteredTunnelUrl(storedUrl);
-
-  if (!trustCli) {
-    // Never clear localOllamaUrl — wiping it forces a full CLI re-run.
-    await persistBridgeStatus(accountId, { connected: false, models: [] });
-  }
-
-  if (trustCli) {
-    return NextResponse.json({
-      connected: true,
-      status: "connected" satisfies OllamaConnectionStatus,
-      models: cliModels,
-      activeUrl: storedUrl.replace(/\/+$/, ""),
-      cleared: false,
-      trustedCli: true,
-      error:
-        "Cloud could not reach the tunnel, but your bridge CLI registration is still active.",
-    });
-  }
-
-  return NextResponse.json({
-    connected: false,
-    status,
-    models: [],
-    cleared: false,
-    error,
-  });
-}
 
 export async function POST(request: Request) {
   try {
     const accountId = await getAuthenticatedAccountId();
     if (!accountId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { connected: false, error: "Unauthorized session" },
+        { status: 401 }
+      );
     }
 
-    const raw: unknown = await request.json().catch(() => ({}));
-    const parsed = verifyBodySchema.safeParse(raw);
-    if (!parsed.success) {
-      // Treat bad/empty body like missing tunnel (no 400 loop in Network tab)
-      return NextResponse.json({
-        connected: false,
-        status: "waiting" satisfies OllamaConnectionStatus,
-        models: [],
-        error:
-          "Bridge tunnel not found. Run the terminal command, then Check Connection.",
-      });
+    const body: unknown = await request.json().catch(() => ({}));
+    const clientSuppliedUrl =
+      typeof (body as { url?: unknown })?.url === "string"
+        ? (body as { url: string }).url.trim()
+        : undefined;
+
+    const account = await prisma.account.findUnique({
+      where: { id: accountId },
+      include: { settings: true },
+    });
+
+    if (!account) {
+      return NextResponse.json(
+        { connected: false, error: "Account not found" },
+        { status: 404 }
+      );
     }
 
-    // Same AccountSettings row the bridge registers via accountId (session cookie).
-    // Also re-resolve by email so casing / multi-path writes can't diverge.
-    const account = await prisma.account.findFirst({
-      where: { id: accountId, isActive: true },
-      select: {
-        id: true,
-        email: true,
-        settings: { select: { localOllamaUrl: true } },
+    // Prioritize the active registered tunnel URL from database over stale browser state
+    let targetUrl = account.settings?.localOllamaUrl?.trim();
+
+    // If client explicitly sent a non-empty URL that differs from localhost, use it (manual mode)
+    if (
+      clientSuppliedUrl &&
+      !clientSuppliedUrl.includes("localhost") &&
+      !clientSuppliedUrl.includes("127.0.0.1")
+    ) {
+      targetUrl = clientSuppliedUrl;
+    }
+
+    // In local dev, allow localhost fallback if no tunnel is registered
+    const isDev = process.env.NODE_ENV === "development";
+    if (!targetUrl && isDev) {
+      const devUrl =
+        (clientSuppliedUrl &&
+        (clientSuppliedUrl.includes("localhost") ||
+          clientSuppliedUrl.includes("127.0.0.1"))
+          ? clientSuppliedUrl
+          : null) ||
+        (account.settings?.localOllamaUrl?.trim() &&
+        (account.settings.localOllamaUrl.includes("localhost") ||
+          account.settings.localOllamaUrl.includes("127.0.0.1"))
+          ? account.settings.localOllamaUrl.trim()
+          : null) ||
+        "http://127.0.0.1:11434";
+      targetUrl = devUrl;
+    }
+
+    if (!targetUrl) {
+      return NextResponse.json(
+        {
+          connected: false,
+          status: "waiting",
+          models: [],
+          error:
+            "No active bridge tunnel found. Run the terminal command on your Ollama host first.",
+        },
+        { status: 200 }
+      );
+    }
+
+    // Ping Ollama tags through the public Cloudflare tunnel
+    const endpoint = `${targetUrl.replace(/\/+$/, "")}/api/tags`;
+    const res = await fetch(endpoint, {
+      headers: {
+        "User-Agent": "MailPilot-Bridge/1.0",
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(6000),
+    });
+
+    if (!res.ok) {
+      return NextResponse.json(
+        {
+          connected: false,
+          status: "error",
+          models: [],
+          error: `Tunnel reachable but Ollama returned HTTP ${res.status}. Is the Ollama app active?`,
+        },
+        { status: 200 }
+      );
+    }
+
+    const data: unknown = await res.json().catch(() => null);
+    const modelsRaw =
+      data &&
+      typeof data === "object" &&
+      "models" in data &&
+      Array.isArray((data as { models?: unknown }).models)
+        ? (data as { models: unknown[] }).models
+        : [];
+    const models = modelsRaw
+      .map((m: unknown) => {
+        if (typeof m === "string") return m;
+        if (
+          m &&
+          typeof m === "object" &&
+          "name" in m &&
+          typeof (m as { name?: unknown }).name === "string"
+        ) {
+          return (m as { name: string }).name;
+        }
+        return null;
+      })
+      .filter((name: string | null): name is string => Boolean(name));
+
+    const currentRules = parseAccountRules(account.settings?.rules);
+    const updatedRules = accountRulesSchema.parse({
+      ...currentRules,
+      bridgeConnected: true,
+      availableModels: models.length > 0 ? models : currentRules.availableModels,
+    });
+
+    // Persist verified state and discovered models into AccountSettings
+    await prisma.accountSettings.upsert({
+      where: { accountId },
+      update: {
+        llmProvider: "LOCAL_OLLAMA",
+        localOllamaUrl: targetUrl,
+        rules: updatedRules as Prisma.InputJsonValue,
+      },
+      create: {
+        accountId,
+        llmProvider: "LOCAL_OLLAMA",
+        localOllamaUrl: targetUrl,
+        rules: updatedRules as Prisma.InputJsonValue,
       },
     });
 
-    const settingsByEmail =
-      account?.email != null
-        ? await prisma.accountSettings.findFirst({
-            where: {
-              account: {
-                email: { equals: account.email, mode: "insensitive" },
-              },
-            },
-            select: { localOllamaUrl: true, accountId: true },
-          })
-        : null;
-
-    const rawStored =
-      account?.settings?.localOllamaUrl?.trim() ||
-      settingsByEmail?.localOllamaUrl?.trim() ||
-      "";
-    // Prefer a registered Cloudflare tunnel; also accept local Ollama hosts.
-    const storedTunnel = isRegisteredTunnelUrl(rawStored) ? rawStored : "";
-    const payloadUrl = parsed.data.url?.trim() || "";
-    const payloadTunnel = isRegisteredTunnelUrl(payloadUrl) ? payloadUrl : "";
-
-    const isDev = process.env.NODE_ENV === "development";
-    const storedLocal =
-      rawStored && isAllowedOllamaUrl(normalizeOllamaBaseUrl(rawStored))
-        ? normalizeOllamaBaseUrl(rawStored)
-        : "";
-    const payloadLocal =
-      payloadUrl &&
-      !isRegisteredTunnelUrl(payloadUrl) &&
-      isAllowedOllamaUrl(normalizeOllamaBaseUrl(payloadUrl))
-        ? normalizeOllamaBaseUrl(payloadUrl)
-        : "";
-
-    // Tunnel first in prod; in dev fall back to direct 127.0.0.1 when no tunnel.
-    const targetUrl =
-      payloadTunnel ||
-      storedTunnel ||
-      (isDev ? payloadLocal || storedLocal || ollamaBaseUrlFromEnv() : undefined);
-
-    if (!targetUrl) {
-      await persistBridgeStatus(accountId, { connected: false, models: [] });
-      // 200 (not 400): missing tunnel is an expected bridge state, not a client error
-      return NextResponse.json({
-        success: false,
-        connected: false,
-        status: "waiting" satisfies OllamaConnectionStatus,
-        models: [],
-        error:
-          "Bridge tunnel not found. Make sure the terminal command registered successfully with your email.",
-      });
-    }
-
-    const hadStoredUrl = storedTunnel.length > 0 || storedLocal.length > 0;
-    const base = normalizeOllamaBaseUrl(targetUrl);
-
-    if (!isAllowedOllamaUrl(base)) {
-      return handleUnreachable(
-        accountId,
-        "URL not allowed. Use a *.trycloudflare.com tunnel or localhost.",
-        "error"
-      );
-    }
-
-    let models: string[];
-    try {
-      // Quick Tunnels are flaky from serverless — retry with a longer timeout.
-      const probe = await probeOllamaTagsWithRetry(base, {
-        timeoutMs: isRegisteredTunnelUrl(base) ? 12_000 : 6_000,
-        attempts: isRegisteredTunnelUrl(base) ? 3 : 2,
-      });
-      models = probe.models;
-    } catch (err) {
-      const isTimeout =
-        err instanceof Error &&
-        (err.name === "AbortError" ||
-          err.name === "TimeoutError" ||
-          /timeout|aborted/i.test(err.message));
-      const detail =
-        err instanceof OllamaUnreachableError
-          ? err.message.replace(/^Local Ollama instance unreachable at [^:]+:\s*/, "")
-          : err instanceof Error
-            ? err.message
-            : "Failed to reach tunnel endpoint.";
-      return handleUnreachable(
-        accountId,
-        isTimeout
-          ? "Connection timed out. Check that your terminal bridge is running."
-          : detail || "Failed to reach tunnel endpoint.",
-        hadStoredUrl ? "offline" : "waiting"
-      );
-    }
-
-    await persistBridgeStatus(accountId, {
-      connected: true,
-      models,
-      localOllamaUrl: base,
-      setLocalProvider: true,
-    });
-
-    console.info("[Ollama:Verify]", {
-      connected: true,
-      reachable: true,
-      url: base,
-      modelsCount: models.length,
-    });
-
-    return NextResponse.json({
-      success: true,
-      connected: true,
-      status: "connected" satisfies OllamaConnectionStatus,
-      activeUrl: base,
-      models,
-    });
-  } catch (err) {
+    return NextResponse.json(
+      {
+        connected: true,
+        status: "connected",
+        activeUrl: targetUrl,
+        models: models.length > 0 ? models : currentRules.availableModels,
+      },
+      { status: 200 }
+    );
+  } catch (err: unknown) {
     const isTimeout =
       err instanceof Error &&
-      (err.name === "AbortError" || err.name === "TimeoutError");
-    const message = isTimeout
-      ? "Connection timed out. Check that your terminal bridge is running."
-      : "Failed to reach tunnel endpoint.";
+      (err.name === "AbortError" ||
+        err.name === "TimeoutError" ||
+        /timeout|aborted/i.test(err.message));
 
+    // If cloud probe fails (e.g. timeout reaching trycloudflare.com from Vercel),
+    // check if the bridge CLI registration is already active in the DB
     try {
       const accountId = await getAuthenticatedAccountId();
       if (accountId) {
-        return handleUnreachable(accountId, message, "offline");
+        const account = await prisma.account.findUnique({
+          where: { id: accountId },
+          include: { settings: true },
+        });
+        const rules = parseAccountRules(account?.settings?.rules);
+        const storedUrl = account?.settings?.localOllamaUrl?.trim();
+        if (rules.bridgeConnected && rules.availableModels.length > 0 && storedUrl) {
+          return NextResponse.json(
+            {
+              connected: true,
+              status: "connected",
+              activeUrl: storedUrl,
+              models: rules.availableModels,
+              trustedCli: true,
+              error:
+                "Cloud could not reach the tunnel, but your bridge CLI registration is still active.",
+            },
+            { status: 200 }
+          );
+        }
       }
     } catch {
-      // fall through
+      // Ignore fallback lookup error
     }
 
-    return NextResponse.json({
-      connected: false,
-      status: "offline" satisfies OllamaConnectionStatus,
-      models: [],
-      cleared: false,
-      error: message,
-    });
+    return NextResponse.json(
+      {
+        connected: false,
+        status: "offline",
+        models: [],
+        error: isTimeout
+          ? "Connection timed out. Check that the terminal bridge is still running on your host machine."
+          : "Could not reach Ollama through the public tunnel.",
+      },
+      { status: 200 }
+    );
   }
 }
