@@ -41,28 +41,32 @@ const LIGHT_THEME = {
   guideStroke: "currentColor",
   guideOpacity: "opacity-20 dark:opacity-25",
   guideClassName: "text-muted-foreground",
-  meniscusColor: "bg-white/40 shadow-[0_0_4px_rgba(255,255,255,0.7)]",
+  meniscusColor: "bg-white/70 shadow-[0_0_5px_rgba(255,255,255,0.85)]",
   tones: {
     default: {
-      chamberBg: "",
+      // Matches the exact light teal chamber used in the light toggle switch well
+      chamberBg:
+        "bg-teal-500/15 dark:bg-teal-950/45 shadow-[inset_0_1px_2px_rgba(13,148,136,0.22)]",
       top: "#2dd4bf", // vibrant teal/turquoise crest
       bottom: BRAND_TEAL, // tactile brand teal base (#1ab5af)
-      crestStroke: "rgba(255, 255, 255, 0.85)",
-      crestHighlight: null,
+      crestStroke: "#ffffff", // clean white waterline matching light toggle
+      crestHighlight: "#ffffff", // luminous surface highlight
     },
     warning: {
-      chamberBg: "",
+      chamberBg:
+        "bg-amber-500/15 dark:bg-amber-950/45 shadow-[inset_0_1px_2px_rgba(180,83,9,0.2)]",
       top: "#fde047", // amber-300 crest
       bottom: "#d97706", // amber-600 base
-      crestStroke: "rgba(255, 255, 255, 0.9)",
-      crestHighlight: null,
+      crestStroke: "#ffffff",
+      crestHighlight: "#ffffff",
     },
     destructive: {
-      chamberBg: "",
+      chamberBg:
+        "bg-rose-500/15 dark:bg-rose-950/45 shadow-[inset_0_1px_2px_rgba(225,29,72,0.2)]",
       top: "#fb7185", // rose-400 crest
       bottom: "#e11d48", // rose-600 base
-      crestStroke: "rgba(255, 255, 255, 0.9)",
-      crestHighlight: null,
+      crestStroke: "#ffffff",
+      crestHighlight: "#ffffff",
     },
   },
 };

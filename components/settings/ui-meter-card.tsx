@@ -25,8 +25,8 @@ import {
 } from "@/lib/ui/wavy-meter-preference";
 
 const OPTIONS: { value: WavyMeterVariant; label: string }[] = [
-  { value: "light", label: "Light meter" },
-  { value: "dark", label: "Dark meter" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
 ];
 
 export function UiMeterCard({ accountId }: { accountId: string | null }) {
@@ -114,7 +114,7 @@ export function UiMeterCard({ accountId }: { accountId: string | null }) {
           <p className="text-[11px] text-muted-foreground">
             {variant === "dark"
               ? "Dark meter features the deep forest teal reservoir with bioluminescent mint waterline."
-              : "Light meter features the frosted-glass recessed chamber with vibrant turquoise fluid."}
+              : "Light meter features the airy seafoam frosted reservoir with vibrant turquoise fluid."}
           </p>
         </div>
 
