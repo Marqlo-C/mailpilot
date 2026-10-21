@@ -56,6 +56,7 @@ export type CompanyLogoProps = {
   name: string;
   size?: CompanyLogoSize;
   className?: string;
+  imageClassName?: string;
 };
 
 /**
@@ -68,6 +69,7 @@ export function CompanyLogo({
   name,
   size = "md",
   className,
+  imageClassName,
 }: CompanyLogoProps) {
   const [failed, setFailed] = useState(false);
   const [prevSrc, setPrevSrc] = useState(src);
@@ -102,7 +104,7 @@ export function CompanyLogo({
           <img
             src={src!}
             alt=""
-            className="size-full object-cover"
+            className={cn("size-full object-cover", imageClassName)}
             loading="lazy"
             onLoad={(e) => {
               const img = e.currentTarget;

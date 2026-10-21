@@ -53,6 +53,14 @@
   }
 }
 
+@layer utilities {
+  .bg-global-radial {
+    background-image:
+      radial-gradient(ellipse 90% 60% at 0% 120%, hsl(174 45% 72% / 0.16), transparent),
+      radial-gradient(ellipse 70% 45% at 100% 0%, rgb(120 72 108 / 0.08), transparent);
+  }
+}
+
 /*
  * Content-column horizontal center (main area right of the desktop sidebar).
  * Source constant: APP_CONTENT_CENTER_LEFT in lib/app-content-center.ts.
