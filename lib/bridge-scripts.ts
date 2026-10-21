@@ -225,160 +225,94 @@ export function buildWinBridgeScript(opts: {
   const secret = escapePowerShellDoubleQuoted(opts.secret);
   const apiBase = escapePowerShellDoubleQuoted(opts.apiBase);
 
-  return `$ErrorActionPreference = "Stop"
+  return `$email = "${email}"
+$secret = "${secret}"
+$apiUrl = "${apiBase}/api/settings/ollama-bridge"
 
-$Email = "${email}"
-$Secret = "${secret}"
-$ApiBase = "${apiBase}"
-
-if (-not $Email -or -not $Secret) {
-    Write-Error "Missing email or secret in bridge command."
+if (-not $email -or -not $secret) {
+    Write-Host "Error: Missing email or secret in bridge command." -ForegroundColor Red
     exit 1
 }
 
 Write-Host "Checking local Ollama on port 11434..." -ForegroundColor Cyan
 try {
-    $tags = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -Method Get -TimeoutSec 3
-    $names = @()
-    if ($tags.models) {
-        $names = $tags.models | ForEach-Object { $_.name }
-    }
-    Write-Host ("Local Ollama is running. Models: " + (($names -join ", ") -replace '^$', 'none')) -ForegroundColor Green
+    $tags = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -ErrorAction Stop
+    $modelNames = @($tags.models | ForEach-Object { $_.name } | Where-Object { $_ })
+    Write-Host "Local Ollama is running. Models: $($modelNames -join ', ')" -ForegroundColor Green
 } catch {
-    Write-Host "Ollama is not running at http://127.0.0.1:11434." -ForegroundColor Red
-    Write-Host "  Please launch the Ollama desktop app first."
+    Write-Host "Cannot connect to local Ollama at http://127.0.0.1:11434" -ForegroundColor Red
+    Write-Host "Please ensure the Ollama desktop app is open and running." -ForegroundColor Yellow
     exit 1
 }
 
-$cfPath = Join-Path $env:TEMP "cloudflared.exe"
+$cfPath = "$env:TEMP\\cloudflared.exe"
 if (-not (Test-Path $cfPath)) {
     Write-Host "Downloading standalone tunnel client..." -ForegroundColor Cyan
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile $cfPath -UseBasicParsing
+    try {
+        Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile $cfPath -UseBasicParsing
+    } catch {
+        Write-Host "Failed to download cloudflared. Please check your internet connection." -ForegroundColor Red
+        exit 1
+    }
 }
 
 Write-Host "Launching Cloudflare Quick Tunnel..." -ForegroundColor Cyan
 $tempLog = [System.IO.Path]::GetTempFileName()
-
-$psi = New-Object System.Diagnostics.ProcessStartInfo
-$psi.FileName = $cfPath
-$psi.Arguments = "tunnel --url http://127.0.0.1:11434 --http-host-header localhost:11434"
-$psi.UseShellExecute = $false
-$psi.CreateNoWindow = $true
-$psi.RedirectStandardOutput = $true
-$psi.RedirectStandardError = $true
-$proc = [System.Diagnostics.Process]::Start($psi)
-
-$logWriter = [System.IO.StreamWriter]::new($tempLog, $false)
-$handler = {
-    param($sender, $e)
-    if (-not [string]::IsNullOrEmpty($e.Data)) {
-        $logWriter.WriteLine($e.Data)
-        $logWriter.Flush()
-    }
-}
-$outHandler = [System.Diagnostics.DataReceivedEventHandler]$handler
-$errHandler = [System.Diagnostics.DataReceivedEventHandler]$handler
-$proc.add_OutputDataReceived($outHandler)
-$proc.add_ErrorDataReceived($errHandler)
-$proc.BeginOutputReadLine()
-$proc.BeginErrorReadLine()
+$proc = Start-Process -FilePath $cfPath -ArgumentList "tunnel --url http://127.0.0.1:11434" -RedirectStandardError $tempLog -NoNewWindow -PassThru
 
 $tunnelUrl = $null
-$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+for ($i = 0; $i -lt 30; $i++) {
+    Start-Sleep -Seconds 1
+    if (Test-Path $tempLog) {
+        $content = Get-Content $tempLog -Raw -ErrorAction SilentlyContinue
+        if ($content -match '(https://[a-zA-Z0-9-]+\\.trycloudflare\\.com)') {
+            $tunnelUrl = $Matches[1]
+            break
+        }
+    }
+}
+
+if (-not $tunnelUrl) {
+    Write-Host "Failed to establish Cloudflare tunnel." -ForegroundColor Red
+    if (Test-Path $tempLog) {
+        Get-Content $tempLog -ErrorAction SilentlyContinue | Write-Host
+    }
+    if ($proc -and -not $proc.HasExited) { $proc.Kill() }
+    exit 1
+}
+
+Write-Host ""
+Write-Host "=======================================================" -ForegroundColor Cyan
+Write-Host " OLLAMA BRIDGE ONLINE" -ForegroundColor Green
+Write-Host " Tunnel URL: $tunnelUrl" -ForegroundColor Cyan
+Write-Host "=======================================================" -ForegroundColor Cyan
+Write-Host ""
 
 try {
-    while (-not $tunnelUrl -and $stopwatch.ElapsedMilliseconds -lt 25000) {
-        Start-Sleep -Milliseconds 500
-        if (Test-Path $tempLog) {
-            $content = Get-Content $tempLog -Raw -ErrorAction SilentlyContinue
-            if ($content -match '(https://[a-zA-Z0-9-]+\\.trycloudflare\\.com)') {
-                $tunnelUrl = $matches[1]
-            }
-        }
-    }
+    $body = @{ email = $email; ollamaUrl = $tunnelUrl; bridgeSecret = $secret; models = $modelNames } | ConvertTo-Json
+    Invoke-RestMethod -Uri $apiUrl -Method Post -Body $body -ContentType "application/json" -ErrorAction Stop
+    Write-Host "Successfully linked! Your local GPU is handling requests." -ForegroundColor Green
+    Write-Host "Keep this PowerShell window open. Press Ctrl+C to disconnect." -ForegroundColor Yellow
+} catch {
+    Write-Host "Failed to register tunnel URL with MailPilot: $_" -ForegroundColor Red
+    if ($proc -and -not $proc.HasExited) { $proc.Kill() }
+    exit 1
+}
 
-    if (-not $tunnelUrl) {
-        Write-Host "Failed to establish Cloudflare tunnel within 25s." -ForegroundColor Red
-        if (Test-Path $tempLog) {
-            Get-Content $tempLog -ErrorAction SilentlyContinue | Write-Host
-        }
-        exit 1
-    }
-
-    Write-Host "Public Tunnel: $tunnelUrl" -ForegroundColor Green
-
-    # Prove Ollama locally — do not depend on Vercel reaching Cloudflare.
-    $modelNames = @()
-    try {
-        $localTags = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -Method Get -TimeoutSec 3
-        if ($localTags.models) {
-            $modelNames = @($localTags.models | ForEach-Object { $_.name } | Where-Object { $_ })
-        }
-    } catch {}
-    Write-Host ("Local models: " + (($modelNames -join ", ") -replace '^$', 'none'))
-
-    Write-Host -NoNewline "Registering bridge with MailPilot... "
-
-    $bodyObj = @{
-        email = $Email
-        ollamaUrl = $tunnelUrl
-        bridgeSecret = $Secret
-        models = $modelNames
-    }
-    $body = $bodyObj | ConvertTo-Json -Compress
-
-    try {
-        $resp = Invoke-RestMethod -Uri "$ApiBase/api/settings/ollama-bridge" -Method Post -Body $body -ContentType "application/json"
-    } catch {
-        Write-Host "FAILED" -ForegroundColor Red
-        Write-Host ""
-        Write-Host "Error from MailPilot: $($_.Exception.Message)" -ForegroundColor Red
-        if ($_.ErrorDetails.Message) {
-            Write-Host $_.ErrorDetails.Message -ForegroundColor Red
-        }
-        exit 1
-    }
-
-    if ($resp.success) {
-        Write-Host "ok" -ForegroundColor Green
-        Write-Host ""
-        Write-Host "==========================================================" -ForegroundColor Green
-        Write-Host "MAILPILOT LOCAL OLLAMA BRIDGE ACTIVE" -ForegroundColor Green
-        Write-Host "  Connected account: $Email"
-        Write-Host "  Tunnel URL: $tunnelUrl"
-        Write-Host "=========================================================="
-        Write-Host "Keep this terminal window open while using MailPilot."
-        Write-Host "Press Ctrl+C when finished to close the bridge."
-        Write-Host ""
-
-        while (-not $proc.HasExited) {
-            Start-Sleep -Seconds 1
-        }
-    } else {
-        Write-Host "FAILED" -ForegroundColor Red
-        Write-Host ""
-        Write-Host "Error from MailPilot: $($resp | ConvertTo-Json -Compress)" -ForegroundColor Red
-        exit 1
+try {
+    while (-not $proc.HasExited) {
+        Start-Sleep -Seconds 2
     }
 } finally {
-    Write-Host ""
-    Write-Host "Disconnecting bridge from MailPilot..." -ForegroundColor Yellow
+    Write-Host "Shutting down tunnel..." -ForegroundColor Yellow
     try {
-        $dcBody = @{
-            email = $Email
-            action = "disconnect"
-            bridgeSecret = $Secret
-        } | ConvertTo-Json
-        Invoke-RestMethod -Uri "$ApiBase/api/settings/ollama-bridge" -Method Post -Body $dcBody -ContentType "application/json" -TimeoutSec 5 | Out-Null
+        $body = @{ email = $email; action = "disconnect"; bridgeSecret = $secret } | ConvertTo-Json
+        Invoke-RestMethod -Uri $apiUrl -Method Post -Body $body -ContentType "application/json" -TimeoutSec 3
     } catch {}
-
-    try { $logWriter.Close() } catch {}
-    if ($proc -and -not $proc.HasExited) {
-        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-    }
+    if ($proc -and -not $proc.HasExited) { $proc.Kill() }
     Remove-Item $tempLog -Force -ErrorAction SilentlyContinue
-    Write-Host "Bridge closed cleanly. Goodbye!" -ForegroundColor Green
+    Write-Host "Disconnected cleanly. Goodbye!" -ForegroundColor Green
 }
 `;
 }
