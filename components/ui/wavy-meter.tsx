@@ -37,7 +37,7 @@ export interface WavyMeterProps {
 
 const LIGHT_THEME = {
   // Unfilled part past current used stays neutral grey
-  container: "border-border/80 bg-muted/40 shadow-inner",
+  container: "border-black/20 dark:border-white/25 bg-muted/40 shadow-inner",
   guideStroke: "currentColor",
   guideOpacity: "opacity-20 dark:opacity-25",
   guideClassName: "text-muted-foreground",
@@ -73,7 +73,7 @@ const LIGHT_THEME = {
 
 const DARK_THEME = {
   // Unfilled part past current used stays neutral grey like the light version
-  container: "border-border/80 bg-muted/40 shadow-inner",
+  container: "border-black/20 dark:border-white/25 bg-muted/40 shadow-inner",
   guideStroke: "currentColor",
   guideOpacity: "opacity-20 dark:opacity-25",
   guideClassName: "text-muted-foreground",

@@ -112,11 +112,11 @@ export function ScrapingAntControlPanel({
   // If usage hasn't been retrieved yet, show a clean loading or prompt card
   if (!usage) {
     return (
-      <div className="rounded-xl border border-border/80 bg-background/60 p-4 space-y-3">
+      <div className="rounded-xl border border-border/80 bg-background/60 bg-global-radial p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Control Panel
+              Your Usage Stats:
             </p>
             <p className="text-sm font-medium text-foreground">
               Usage & Subscription Telemetry
@@ -157,12 +157,12 @@ export function ScrapingAntControlPanel({
   const isLowBalance = !isExhausted && usagePercentage >= 90;
 
   return (
-    <div className="rounded-xl border border-border/80 bg-background/50 p-4 space-y-4 shadow-sm backdrop-blur-sm">
+    <div className="rounded-xl border border-border/80 bg-background/50 bg-global-radial p-4 space-y-4 shadow-sm backdrop-blur-sm">
       {/* Top Header Row */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Control Panel
+            Your Usage Stats:
           </p>
           <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
             {usage.planName} Plan
@@ -188,25 +188,25 @@ export function ScrapingAntControlPanel({
           )}
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
             disabled={disabled || isRefreshing}
             onClick={handleManualRefresh}
-            className="h-8 gap-1.5 px-3 text-xs font-medium shrink-0 border-border/80 shadow-xs hover:bg-muted/60"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/40 shrink-0"
             title="Refresh ScrapingAnt plan and credit balance"
+            aria-label="Refresh ScrapingAnt plan and credit balance"
           >
             {isRefreshing ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
-            <span>{isRefreshing ? "Updating…" : "Update Usage"}</span>
           </Button>
         </div>
       </div>
 
       {/* Credit Usage Bar Section */}
-      <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3.5">
+      <div className="space-y-2 rounded-lg border border-border/80 bg-muted/20 p-3.5">
         <div className="flex items-center justify-between text-xs font-medium">
           <span className="text-foreground">
             <span className="font-semibold text-sm">

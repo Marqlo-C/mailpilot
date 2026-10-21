@@ -61,6 +61,7 @@ import { WaveToggle } from "@/components/ui/wave-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrapingAntControlPanel } from "@/components/settings/scrapingant-control-panel";
 import { HasDataControlPanel } from "@/components/settings/hasdata-control-panel";
+import { CompanyLogo } from "@/components/ui/company-logo";
 import type { ScrapingAntUsage, HasDataUsage } from "@/lib/validations/rules";
 import { cn } from "@/lib/utils";
 
@@ -1681,14 +1682,12 @@ export function AiModelsCard({
                   }}
                   className="flex cursor-pointer select-none items-start justify-between gap-3 p-3.5 transition-colors hover:bg-muted/20"
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                  <div className="flex items-center gap-3 min-w-0">
+                    <CompanyLogo
                       src="/icons/ScrapingAnt Lucide Icon.png"
-                      alt="ScrapingAnt"
-                      className="size-[26px] shrink-0 object-contain dark:invert"
-                      width={26}
-                      height={26}
+                      name="ScrapingAnt"
+                      size="lg"
+                      imageClassName="object-contain p-1 dark:invert"
                     />
                     <div className="space-y-0.5 min-w-0">
                       <h3 className="text-sm font-semibold tracking-tight text-foreground">
@@ -1854,14 +1853,12 @@ export function AiModelsCard({
                   }}
                   className="flex cursor-pointer select-none items-start justify-between gap-3 p-3.5 transition-colors hover:bg-muted/20"
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                  <div className="flex items-center gap-3 min-w-0">
+                    <CompanyLogo
                       src="/icons/HasData Lucide Icon.png"
-                      alt="HasData"
-                      className="size-[26px] shrink-0 object-contain dark:invert"
-                      width={26}
-                      height={26}
+                      name="HasData"
+                      size="lg"
+                      imageClassName="object-contain p-1 dark:invert"
                     />
                     <div className="space-y-0.5 min-w-0">
                       <h3 className="text-sm font-semibold tracking-tight text-foreground">

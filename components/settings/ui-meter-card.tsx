@@ -92,7 +92,7 @@ export function UiMeterCard({ accountId }: { accountId: string | null }) {
         </div>
 
         {/* Live Interactive Preview */}
-        <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3.5">
+        <div className="space-y-2 rounded-xl border border-border/80 bg-muted/20 p-3.5">
           <div className="flex items-center justify-between text-xs font-medium">
             <span className="text-foreground">
               <span className="font-semibold text-sm">6,800</span>{" "}
