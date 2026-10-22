@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { MasterProfileInput } from "@/lib/validations/profile";
-import { groupSkillSections, skillGroupsFromUnknown } from "@/lib/skill-groups";
+import { groupSkillSections, skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import {
   educationProgressLabel,
   formatEducationDates,

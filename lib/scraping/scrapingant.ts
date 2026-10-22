@@ -1,10 +1,10 @@
 import { Prisma } from "@prisma/client";
 
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/core/prisma";
 import {
   mergeRulesWithPermanentSettings,
   persistProfileScopedRules,
-} from "@/lib/persistent-profile";
+} from "@/lib/profile/persistent-profile";
 import {
   parseAccountRules,
   type ScrapingAntUsage,

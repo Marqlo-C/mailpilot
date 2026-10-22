@@ -10,14 +10,14 @@
  */
 
 import type { JobOpportunity } from "@prisma/client";
-import type { ApplicationType } from "@/lib/application-method";
+import type { ApplicationType } from "@/lib/opportunities/application-method";
 import type {
   ClassificationMethod,
   ContextRichness,
   NormalizedJobOpportunity,
 } from "./schema.ssot";
 import { extractCleanSnippet, sanitizeJobDescription } from "./scrubber";
-import { formatDistanceToNow } from "@/lib/format-distance";
+import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import { normalizeSalaryDisplay, parseSalaryMax } from "@/lib/ai/classifier";
 
 /**

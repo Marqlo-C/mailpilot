@@ -7,7 +7,7 @@ import {
   type ProfileWithPersonaCache,
 } from "@/lib/ai/persona";
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
-import { flattenSkillItems } from "@/lib/skill-groups";
+import { flattenSkillItems } from "@/lib/profile/skill-groups";
 import {
   skillsSchema,
   type MasterProfileInput,
@@ -20,7 +20,7 @@ import {
   calculateElasticPageBudget,
   isCareerSwitcherOrEarlyTenure,
 } from "@/lib/resume-draft";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/core/prisma";
 
 export type StrategyRationale = {
   roleFitAnalysis: string;

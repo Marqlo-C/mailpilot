@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { encryptToken } from "@/lib/crypto";
+import { encryptToken } from "@/lib/core/crypto";
 import {
   encryptAccountKey,
   maskApiKey,

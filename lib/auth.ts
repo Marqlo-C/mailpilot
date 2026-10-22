@@ -6,8 +6,8 @@ import {
   LEGACY_ACTIVE_ACCOUNT_COOKIE,
   LEGACY_LOGGED_OUT_COOKIE,
   SESSION_COOKIE,
-} from "@/lib/constants";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/core/constants";
+import { prisma } from "@/lib/core/prisma";
 
 export type SessionCookieOptions = {
   httpOnly: true;

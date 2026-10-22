@@ -1,8 +1,8 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 
-import { renewWatchForAccount } from "@/lib/google";
-import { prisma } from "@/lib/prisma";
+import { renewWatchForAccount } from "@/lib/gmail/google";
+import { prisma } from "@/lib/core/prisma";
 
 /** Daily watch renewal — keep well under Hobby limits. */
 export const maxDuration = 60;

@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 
-import "@/lib/polyfills";
+import "@/lib/document/polyfills";
 
 import { AppShell } from "@/components/layout/app-shell";
-import { SESSION_COOKIE } from "@/lib/constants";
+import { SESSION_COOKIE } from "@/lib/core/constants";
 import { getActiveAccount, listAccounts } from "@/lib/data";
 import { AppToaster } from "@/components/ui/app-toaster";
 

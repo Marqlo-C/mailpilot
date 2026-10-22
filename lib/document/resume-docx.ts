@@ -2,7 +2,7 @@ import JSZip from "jszip";
 
 import { activeResumeNodes } from "@/lib/resume-draft";
 import { sanitizeResumeContactLine } from "@/lib/utils/format";
-import { skillCategoryLabel } from "@/lib/skill-groups";
+import { skillCategoryLabel } from "@/lib/profile/skill-groups";
 import type {
   ResumeDraftNode,
   TailoredResumeDraft,

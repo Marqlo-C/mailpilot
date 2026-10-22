@@ -3,7 +3,7 @@ import {
   fetchHasDataUsageFromApi,
   getOrRefreshHasDataUsage,
   HASDATA_USAGE_CACHE_TTL_MS,
-} from "@/lib/hasdata";
+} from "@/lib/scraping/hasdata";
 
 describe("HasData Usage Service", () => {
   const originalFetch = globalThis.fetch;

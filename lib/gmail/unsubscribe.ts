@@ -1,8 +1,8 @@
 import type { gmail_v1 } from "googleapis";
 import type { Subscription } from "@prisma/client";
 
-import { rethrowIfInsufficientScope } from "@/lib/google";
-import { safeFetch, SsrfError } from "@/lib/ssrf";
+import { rethrowIfInsufficientScope } from "@/lib/gmail/google";
+import { safeFetch, SsrfError } from "@/lib/core/ssrf";
 
 export type CleanupAction = "NONE" | "TRASH" | "ARCHIVE";
 

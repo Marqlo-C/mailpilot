@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 
-import { prisma } from "@/lib/prisma";
-import { skillGroupsFromUnknown } from "@/lib/skill-groups";
+import { prisma } from "@/lib/core/prisma";
+import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import {
   awardsSchema,
   certificationsSchema,
@@ -10,7 +10,7 @@ import {
   type MasterProfileInput,
   type MasterProfileUpdateInput,
 } from "@/lib/validations/profile";
-import { decryptPhoneAtRest } from "@/lib/crypto";
+import { decryptPhoneAtRest } from "@/lib/core/crypto";
 
 const MAX_HISTORY_STATES = 4;
 

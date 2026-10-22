@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { addExcludedTitle } from "@/app/actions/settings";
-import { canDraftDirectEmail } from "@/lib/application-method";
+import { canDraftDirectEmail } from "@/lib/opportunities/application-method";
 import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
 import {
   countSendsToday,
@@ -24,13 +24,13 @@ import {
   type MimeAttachment,
   type OpportunityResumePreview,
   type OpportunityResumeState,
-} from "@/lib/opportunity-dispatch";
+} from "@/lib/opportunities/dispatch";
 import {
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
-} from "@/lib/google";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/gmail/google";
+import { prisma } from "@/lib/core/prisma";
 import {
   projectInputSchema,
   skillsSchema,

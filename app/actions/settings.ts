@@ -8,8 +8,8 @@ import { getActiveAccount } from "@/lib/data";
 import {
   ensurePersistentProfileForAccount,
   persistProfileScopedRules,
-} from "@/lib/persistent-profile";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/profile/persistent-profile";
+import { prisma } from "@/lib/core/prisma";
 import {
   accountRulesSchema,
   parseAccountRules,
@@ -21,15 +21,15 @@ import {
   PROVIDER_ENDPOINTS,
 } from "@/lib/llm/provider.ssot";
 import { encryptAccountKey, maskApiKey, maskScrapingAntApiKey, maskHasDataApiKey } from "@/lib/llm/vault";
-import { encryptToken } from "@/lib/crypto";
+import { encryptToken } from "@/lib/core/crypto";
 import {
   fetchScrapingAntUsageFromApi,
   getOrRefreshScrapingAntUsage,
-} from "@/lib/scrapingant";
+} from "@/lib/scraping/scrapingant";
 import {
   fetchHasDataUsageFromApi,
   getOrRefreshHasDataUsage,
-} from "@/lib/hasdata";
+} from "@/lib/scraping/hasdata";
 import type { ScrapingAntUsage, HasDataUsage } from "@/lib/validations/rules";
 
 type ActionResult<T = undefined> =

@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
-import { getCompanyLogoUrl } from "@/lib/company-logo";
+import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 import { cn } from "@/lib/utils";
 
 type DraftReviewDialogProps = {

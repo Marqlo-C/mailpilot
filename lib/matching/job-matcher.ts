@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
-import { flattenSkillItems } from "@/lib/skill-groups";
+import { flattenSkillItems } from "@/lib/profile/skill-groups";
 import type { MasterProfileInput } from "@/lib/validations/profile";
 import type { AccountRules } from "@/lib/validations/rules";
 

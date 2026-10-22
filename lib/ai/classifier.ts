@@ -1,4 +1,4 @@
-import type { ApplicationType } from "@/lib/application-method";
+import type { ApplicationType } from "@/lib/opportunities/application-method";
 import {
   JOB_BOARD_KEYWORDS,
   matchesConfirmationSignal,

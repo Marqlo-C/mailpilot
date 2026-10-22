@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 
 import { Checkbox } from "@/components/ui/checkbox";
-import { skillCategoryLabel } from "@/lib/skill-groups";
+import { skillCategoryLabel } from "@/lib/profile/skill-groups";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/types/resume-draft";
 import { cn } from "@/lib/utils";
 import { sanitizeResumeContactLine } from "@/lib/utils/format";

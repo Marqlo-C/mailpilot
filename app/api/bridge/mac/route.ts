@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import {
   buildMacBridgeScript,
   resolveBridgeApiBase,
-} from "@/lib/bridge-scripts";
+} from "@/lib/utils/bridge-scripts";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;

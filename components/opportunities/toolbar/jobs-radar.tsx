@@ -38,8 +38,8 @@ import { OpportunitiesView } from "@/components/opportunities/views/opportunitie
 import { SyncControls } from "@/components/opportunities/sync-controls";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { domainFromActionUrl } from "@/components/sender-avatar";
-import { extractRecruiterEmail } from "@/lib/application-method";
-import { faviconUrlForDomain } from "@/lib/domain";
+import { extractRecruiterEmail } from "@/lib/opportunities/application-method";
+import { faviconUrlForDomain } from "@/lib/utils/domain";
 import {
   isInHistory,
   isUserArchived,

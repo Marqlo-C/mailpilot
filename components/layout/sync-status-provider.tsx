@@ -17,8 +17,8 @@ import {
   forceResetSyncStatus,
 } from "@/app/actions/email";
 import { toast } from "sonner";
-import { SYNC_LOCK_STALE_MS } from "@/lib/constants";
-import { startSyncStatusBackoffPoll } from "@/lib/sync-status-poll";
+import { SYNC_LOCK_STALE_MS } from "@/lib/core/constants";
+import { startSyncStatusBackoffPoll } from "@/lib/gmail/sync-status-poll";
 
 export const SYNC_STARTED_EVENT = "mailpilot:sync-started";
 

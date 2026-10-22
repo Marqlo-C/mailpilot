@@ -38,7 +38,7 @@ import type { ResumeExportConfig } from "@/lib/resume-draft/schema.ssot";
 import {
   skillCategoryLabel,
   skillGroupsFromUnknown,
-} from "@/lib/skill-groups";
+} from "@/lib/profile/skill-groups";
 
 export * from "./resume-draft/schema.ssot";
 export * from "./resume-draft/lens";

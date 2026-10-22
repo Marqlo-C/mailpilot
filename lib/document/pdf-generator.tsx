@@ -19,7 +19,7 @@ import type {
   ProjectInput,
   WorkExperienceInput,
 } from "@/lib/validations/profile";
-import { skillGroupsFromUnknown } from "@/lib/skill-groups";
+import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import type { SkillGroup } from "@/lib/types/resume-draft";
 import {
   DEFAULT_SECTION_ORDER,

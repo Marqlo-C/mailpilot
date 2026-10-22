@@ -8,7 +8,7 @@ import {
 } from "@/components/subscriptions/preview-load-chrome";
 import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
-import { faviconUrlForDomain, getCleanDomain } from "@/lib/domain";
+import { faviconUrlForDomain, getCleanDomain } from "@/lib/utils/domain";
 import { cn } from "@/lib/utils";
 
 type EmailPreviewData = {

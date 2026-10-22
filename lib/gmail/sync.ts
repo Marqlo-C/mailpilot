@@ -6,7 +6,7 @@ import {
   getGmailClientForAccount,
   registerInboxWatch,
   rethrowIfInsufficientScope,
-} from "@/lib/google";
+} from "@/lib/gmail/google";
 import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
 import {
   classifyJobEmail,
@@ -19,8 +19,8 @@ import {
 import {
   ensurePersistentProfileForAccount,
   mergeRulesWithPermanentSettings,
-} from "@/lib/persistent-profile";
-import { resolveApplicationType } from "@/lib/application-method";
+} from "@/lib/profile/persistent-profile";
+import { resolveApplicationType } from "@/lib/opportunities/application-method";
 import {
   normalizeSalaryDisplay,
   parseSalaryMax,
@@ -29,14 +29,14 @@ import { normalizePostedAt } from "@/lib/opportunities/context";
 import {
   getCompanyLogoUrl,
   inferDomainFromUrl,
-} from "@/lib/company-logo";
+} from "@/lib/utils/company-logo";
 import {
   genericRoleTitle,
   isGenericTitle,
   parseApplicationEmail,
 } from "@/lib/parsers/application-parser";
-import { prisma } from "@/lib/prisma";
-import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
+import { prisma } from "@/lib/core/prisma";
+import { parseListUnsubscribeHeaders } from "@/lib/gmail/unsubscribe";
 import { logStory, syncLog } from "@/lib/logging";
 import { isLocationCompatible } from "@/lib/utils/location";
 import {

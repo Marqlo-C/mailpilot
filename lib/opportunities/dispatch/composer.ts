@@ -4,11 +4,11 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
-import { getGmailClientForAccount } from "@/lib/google";
+import { getGmailClientForAccount } from "@/lib/gmail/google";
 import { extractMessageBody, type LlmProvider } from "@/lib/llm";
-import { generateTailoredResumePdf } from "@/lib/pdf-generator";
-import { prisma } from "@/lib/prisma";
-import { loadMasterProfileForDraft } from "@/lib/master-profile";
+import { generateTailoredResumePdf } from "@/lib/document/pdf-generator";
+import { prisma } from "@/lib/core/prisma";
+import { loadMasterProfileForDraft } from "@/lib/profile/master-profile";
 import { draftToPdfInput, touchDraft } from "@/lib/resume-draft";
 import {
   storedResumeDraftSchema,

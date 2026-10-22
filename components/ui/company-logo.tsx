@@ -4,9 +4,9 @@ import { useState } from "react";
 import { Building2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { logoInitials } from "@/lib/company-logo";
+import { logoInitials } from "@/lib/utils/company-logo";
 
-export { logoInitials } from "@/lib/company-logo";
+export { logoInitials } from "@/lib/utils/company-logo";
 
 const SIZE_CONFIG = {
   sm: {

@@ -18,8 +18,8 @@ import {
   getJobsForAccount,
   getSubscriptionsForAccount,
 } from "@/lib/data";
-import { faviconUrlForDomain, getCleanDomain } from "@/lib/domain";
-import { getCompanyLogoUrl } from "@/lib/company-logo";
+import { faviconUrlForDomain, getCleanDomain } from "@/lib/utils/domain";
+import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 import { isUserArchived } from "@/lib/opportunities/lifecycle";
 import { sortOpportunities } from "@/lib/opportunities/sorting";
 import {

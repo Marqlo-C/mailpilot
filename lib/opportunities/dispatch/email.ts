@@ -1,14 +1,14 @@
-import { canDraftDirectEmail } from "@/lib/application-method";
+import { canDraftDirectEmail } from "@/lib/opportunities/application-method";
 import {
   cleanRecruiterFirstName,
   extractSenderTitle,
-} from "@/lib/email-utils";
+} from "@/lib/gmail/email-utils";
 import {
   getGmailClientForAccount,
   rethrowIfInsufficientScope,
-} from "@/lib/google";
-import { generateTailoredResumePdf } from "@/lib/pdf-generator";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/gmail/google";
+import { generateTailoredResumePdf } from "@/lib/document/pdf-generator";
+import { prisma } from "@/lib/core/prisma";
 import {
   buildSlimCandidate,
   draftContextualEmail,

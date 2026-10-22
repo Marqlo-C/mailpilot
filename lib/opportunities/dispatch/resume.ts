@@ -1,6 +1,6 @@
-import { generateTailoredResumePdf } from "@/lib/pdf-generator";
-import { prisma } from "@/lib/prisma";
-import { compileResumeDocx } from "@/lib/resume-docx";
+import { generateTailoredResumePdf } from "@/lib/document/pdf-generator";
+import { prisma } from "@/lib/core/prisma";
+import { compileResumeDocx } from "@/lib/document/resume-docx";
 import {
   digestTailoredResume,
   draftToPdfInput,
@@ -16,7 +16,7 @@ import {
 } from "@/lib/validations/rules";
 import { resolveDecryptedHasDataKey } from "@/lib/llm/vault";
 import { fetchViaHasData } from "@/lib/opportunities/context/hasdata";
-import { refreshHasDataUsageAfterUse } from "@/lib/hasdata";
+import { refreshHasDataUsageAfterUse } from "@/lib/scraping/hasdata";
 import { normalizeSalaryDisplay, parseSalaryMax } from "@/lib/ai/classifier";
 import { loadCandidateProfileSummary } from "@/lib/llm/classification";
 import {

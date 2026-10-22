@@ -15,7 +15,7 @@ import type {
   CandidateProfileSummary,
   CandidatePersonaSummary,
 } from "@/lib/ai/classifier";
-import { flattenSkillItems, skillGroupsFromUnknown } from "@/lib/skill-groups";
+import { flattenSkillItems, skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import type { MatchCandidateLens } from "./schema.ssot";
 
 /**

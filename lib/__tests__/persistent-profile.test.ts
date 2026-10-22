@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mergeRulesWithPermanentSettings } from "@/lib/persistent-profile";
+import { mergeRulesWithPermanentSettings } from "@/lib/profile/persistent-profile";
 import { DEFAULT_ACCOUNT_RULES, type AccountRules } from "@/lib/validations/rules";
 
 describe("mergeRulesWithPermanentSettings", () => {

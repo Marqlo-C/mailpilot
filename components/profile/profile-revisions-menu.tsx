@@ -21,7 +21,7 @@ import {
   formatRevisionStamp,
   ProfileRevisionHistory,
 } from "@/components/profile/profile-revision-history";
-import { formatDistanceToNow } from "@/lib/format-distance";
+import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import { parseRevisionSummary } from "@/lib/profile/revision-diff";
 
 type ProfileRevisionsMenuProps = {

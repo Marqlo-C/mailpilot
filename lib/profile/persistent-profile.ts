@@ -6,7 +6,7 @@ import {
   Prisma,
 } from "@prisma/client";
 
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/core/prisma";
 import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile";
 import {
   accountRulesSchema,

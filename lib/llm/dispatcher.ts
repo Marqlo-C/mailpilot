@@ -1,5 +1,5 @@
-import { prisma } from "@/lib/prisma";
-import { mergeRulesWithPermanentSettings } from "@/lib/persistent-profile";
+import { prisma } from "@/lib/core/prisma";
+import { mergeRulesWithPermanentSettings } from "@/lib/profile/persistent-profile";
 import { parseAccountRules, type AccountRules } from "@/lib/validations/rules";
 import {
   type CloudLlmProvider,

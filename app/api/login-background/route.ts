@@ -3,7 +3,7 @@ import { existsSync, createReadStream, statSync } from "node:fs";
 import { Readable } from "node:stream";
 import path from "node:path";
 
-import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
+import { checkRateLimit, getClientIp } from "@/lib/core/ratelimit";
 
 export const runtime = "nodejs";
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { flattenSkillItems, skillGroupsFromUnknown } from "@/lib/skill-groups";
+import { flattenSkillItems, skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import {
   awardsSchema,
   certificationsSchema,
@@ -10,7 +10,7 @@ import {
 import {
   type EmailCategory,
   resolveApplicationType,
-} from "@/lib/application-method";
+} from "@/lib/opportunities/application-method";
 import {
   buildClassifierUserPrompt,
   buildProfileAwareClassifierSystemPrompt,
@@ -24,7 +24,7 @@ import {
   seniorityMismatchPenalty,
   type CandidateProfileSummary,
 } from "@/lib/ai/classifier";
-import { formatDistanceToNow } from "@/lib/format-distance";
+import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import { JOB_BOARD_KEYWORDS } from "@/lib/constants/job-sources";
 import { extractLocationFromText, parseLocation } from "@/lib/utils/location";
 
@@ -39,7 +39,7 @@ import {
   extractCardApplyUrl,
   segmentDigestBlocks,
 } from "@/lib/ai/email-cleaner";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/core/prisma";
 import { parseAccountRules, type AccountRules } from "@/lib/validations/rules";
 import { callLLMWithFallback, MissingLlmKeyError } from "./dispatcher";
 import { type LlmProvider } from "./provider.ssot";

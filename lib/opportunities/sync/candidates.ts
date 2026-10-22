@@ -2,9 +2,9 @@ import { GaxiosError } from "gaxios";
 import type { gmail_v1 } from "googleapis";
 
 import { buildJobSearchQuery } from "@/lib/constants/job-sources";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/core/prisma";
 import { logStory, syncLog } from "@/lib/logging";
-import { processInboxDelta } from "@/lib/sync";
+import { processInboxDelta } from "@/lib/gmail/sync";
 
 export const JOB_QUERY_BASE = buildJobSearchQuery({ excludeTrashAndSpam: true });
 export const RATE_LIMIT_BASE_MS = 800;

@@ -39,7 +39,7 @@ import { PipelinePaginationFooter } from "@/components/ui/composites/pipeline-pa
 import { useLastClickedId } from "@/hooks/use-last-clicked-id";
 import { useCardListGestures } from "@/hooks/use-card-list-gestures";
 import { usePagination } from "@/hooks/use-pagination";
-import { getCompanyLogoUrl } from "@/lib/company-logo";
+import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 import { insertBeforeIdForIndex } from "@/lib/dnd/interactive";
 import { orderItemsByIds } from "@/lib/dnd/reorder";
 import { isUserArchived } from "@/lib/opportunities/lifecycle";

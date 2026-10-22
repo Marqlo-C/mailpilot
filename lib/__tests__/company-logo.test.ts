@@ -4,7 +4,7 @@ import {
   inferApexDomainFromCompanyName,
   inferDomainFromUrl,
   logoInitials,
-} from "../company-logo";
+} from "@/lib/utils/company-logo";
 
 describe("Company Logo & Monogram Generation", () => {
   describe("inferApexDomainFromCompanyName", () => {

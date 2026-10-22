@@ -2,12 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getGmailClientForAccount } from "@/lib/google";
+import { getGmailClientForAccount } from "@/lib/gmail/google";
 import {
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
-} from "@/lib/google";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/gmail/google";
+import { prisma } from "@/lib/core/prisma";
 import { parseAccountRules } from "@/lib/validations/rules";
 
 export type ActionResult<T = undefined> =

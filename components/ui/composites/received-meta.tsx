@@ -1,6 +1,6 @@
 import { History } from "lucide-react";
 
-import { formatDistanceToNow } from "@/lib/format-distance";
+import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import { cn } from "@/lib/utils";
 
 /**

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { SYNC_HEARTBEAT_STALE_MS } from "@/lib/constants";
+import { SYNC_HEARTBEAT_STALE_MS } from "@/lib/core/constants";
 import { getActiveAccount } from "@/lib/data";
 import { syncLockLog } from "@/lib/logging";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/core/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

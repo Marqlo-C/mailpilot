@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWinBridgeScript, buildMacBridgeScript } from "@/lib/bridge-scripts";
+import { buildWinBridgeScript, buildMacBridgeScript } from "@/lib/utils/bridge-scripts";
 
 describe("Bridge Scripts Generator", () => {
   const opts = {

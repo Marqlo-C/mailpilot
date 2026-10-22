@@ -2,8 +2,8 @@ import { google, gmail_v1 } from "googleapis";
 import type { OAuth2Client } from "google-auth-library";
 import type { Account } from "@prisma/client";
 
-import { decryptToken, encryptToken } from "@/lib/crypto";
-import { prisma } from "@/lib/prisma";
+import { decryptToken, encryptToken } from "@/lib/core/crypto";
+import { prisma } from "@/lib/core/prisma";
 
 /** Scopes required by MailPilot (openid + profile + Gmail modify/compose). */
 export const GMAIL_SCOPES = [

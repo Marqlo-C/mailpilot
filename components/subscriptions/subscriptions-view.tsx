@@ -95,8 +95,8 @@ import {
   mergeFilteredOrderIntoCustom,
   orderItemsByIds,
 } from "@/lib/dnd/reorder";
-import { faviconUrlForDomain, getCleanDomain } from "@/lib/domain";
-import { formatDistanceToNow } from "@/lib/format-distance";
+import { faviconUrlForDomain, getCleanDomain } from "@/lib/utils/domain";
+import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import {
   clearLocalBriefingsForSubscriptions,
   deleteLocalBriefings,
@@ -130,7 +130,7 @@ import {
 } from "@/lib/subscriptions/preferences";
 import { runSubscriptionMove } from "@/lib/subscriptions/run-subscription-move";
 import { cn } from "@/lib/utils";
-import type { CleanupAction } from "@/lib/unsubscribe";
+import type { CleanupAction } from "@/lib/gmail/unsubscribe";
 
 /**
  * Clutter tier tints — same red / warm / teal roles, shaded to page tokens

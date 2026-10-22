@@ -10,20 +10,20 @@ import {
 } from "@prisma/client";
 
 import { getAuthenticatedAccountId, getSessionToken } from "@/lib/auth";
-import { ACTIVE_ACCOUNT_COOKIE } from "@/lib/constants";
+import { ACTIVE_ACCOUNT_COOKIE } from "@/lib/core/constants";
 import {
   ensurePersistentProfileForAccount,
   mergeRulesWithPermanentSettings,
   persistProfileScopedRules,
-} from "@/lib/persistent-profile";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/profile/persistent-profile";
+import { prisma } from "@/lib/core/prisma";
 import { resolveMatchThreshold } from "@/lib/validations/profile";
 import {
   accountRulesSchema,
   parseAccountRules,
   type AccountRules,
 } from "@/lib/validations/rules";
-import { decryptToken } from "@/lib/crypto";
+import { decryptToken } from "@/lib/core/crypto";
 
 export type AccountSummary = Pick<
   Account,

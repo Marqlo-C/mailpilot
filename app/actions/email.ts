@@ -8,15 +8,15 @@ import {
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
-} from "@/lib/google";
-import { SYNC_LOCK_STALE_MS } from "@/lib/constants";
+} from "@/lib/gmail/google";
+import { SYNC_LOCK_STALE_MS } from "@/lib/core/constants";
 import { getAuthenticatedAccountId } from "@/lib/auth";
 import { getActiveAccount } from "@/lib/data";
 import { logStory, syncLockLog, syncLog } from "@/lib/logging";
 import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
-import { runOpportunitySync } from "@/lib/opportunity-sync";
-import { prisma } from "@/lib/prisma";
-import { checkRateLimit } from "@/lib/ratelimit";
+import { runOpportunitySync } from "@/lib/opportunities/sync";
+import { prisma } from "@/lib/core/prisma";
+import { checkRateLimit } from "@/lib/core/ratelimit";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }

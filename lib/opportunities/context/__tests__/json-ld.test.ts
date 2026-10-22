@@ -1,6 +1,6 @@
 import fs from "fs";
 import { afterEach, beforeAll, beforeEach, describe, it, expect, vi } from "vitest";
-import { encryptToken } from "@/lib/crypto";
+import { encryptToken } from "@/lib/core/crypto";
 import {
   extractJsonLdJobPosting,
   extractNuxtData,
@@ -13,7 +13,7 @@ import {
   unwrapTrackingUrl,
 } from "../json-ld";
 
-vi.mock("@/lib/ssrf", () => ({
+vi.mock("@/lib/core/ssrf", () => ({
   assertSafeHttpsUrl: vi.fn(async (url: string) => new URL(url)),
 }));
 

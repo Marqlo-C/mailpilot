@@ -10,7 +10,7 @@
  * ============================================================================
  */
 
-import type { ApplicationType } from "@/lib/application-method";
+import type { ApplicationType } from "@/lib/opportunities/application-method";
 
 /**
  * How this opportunity was classified:

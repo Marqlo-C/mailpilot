@@ -22,8 +22,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ProfileSnapshotData } from "@/components/settings/profile";
-import { extractPlatformLinks } from "@/lib/profile-consolidation";
-import { skillGroupsFromUnknown } from "@/lib/skill-groups";
+import { extractPlatformLinks } from "@/lib/profile/profile-consolidation";
+import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import {
   getEmptyMasterProfileData,
   isWorkExperienceCategory,

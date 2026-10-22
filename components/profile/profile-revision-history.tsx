@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "@/lib/format-distance";
+import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import {
   parseRevisionSummary,
   serializeRevisionSummary,

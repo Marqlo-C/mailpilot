@@ -8,7 +8,7 @@ import {
   extractApexDomain,
   faviconUrlForDomain,
   getCleanDomain,
-} from "@/lib/domain";
+} from "@/lib/utils/domain";
 import { cn } from "@/lib/utils";
 
 type SenderAvatarProps = {

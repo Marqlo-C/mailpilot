@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { z } from "zod";
 
-import { processInboxDelta } from "@/lib/sync";
+import { processInboxDelta } from "@/lib/gmail/sync";
 
 export const runtime = "nodejs";
 

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { listAccounts } from "@/lib/data";
-import { listProfileRevisions } from "@/lib/profile-history";
+import { listProfileRevisions } from "@/lib/profile/profile-history";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

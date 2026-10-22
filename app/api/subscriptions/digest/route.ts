@@ -6,8 +6,8 @@ import {
   getGmailClientForAccount,
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
-} from "@/lib/google";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/gmail/google";
+import { prisma } from "@/lib/core/prisma";
 import { MAX_BRIEFING_DAYS } from "@/lib/subscriptions/digest-constants";
 import { createSubscriptionBriefing } from "@/lib/subscriptions/digest";
 

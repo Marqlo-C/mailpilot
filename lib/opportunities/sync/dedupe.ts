@@ -1,12 +1,12 @@
 import type { gmail_v1 } from "googleapis";
 
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/core/prisma";
 import { logCompactSyncCard } from "@/lib/logging";
 import {
   persistClassifiedEmail,
   type ClassifiableAccount,
   type SenderInfo,
-} from "@/lib/sync";
+} from "@/lib/gmail/sync";
 import type { JobClassification } from "@/lib/llm/classification";
 import type { parseAccountRules } from "@/lib/validations/rules";
 

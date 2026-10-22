@@ -10,7 +10,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { DialogIdentityLogoStack } from "@/components/ui/composites/dialog-identity-header";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
-import { faviconUrlForDomain, getCleanDomain } from "@/lib/domain";
+import { faviconUrlForDomain, getCleanDomain } from "@/lib/utils/domain";
 import {
   inclusiveDaySpan,
   isValidBriefingRange,
