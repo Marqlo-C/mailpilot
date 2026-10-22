@@ -155,18 +155,19 @@ export function ConnectedModelPicker({
             </div>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="h-8 shrink-0 gap-1.5 text-xs border-border/80 hover:bg-background shadow-2xs"
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
               disabled={disabled || verifying}
               onClick={onRefreshModels}
+              title="Refresh models"
+              aria-label="Refresh models"
             >
               {verifying ? (
-                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
               ) : (
-                <RefreshCw className="size-3.5 text-muted-foreground" />
+                <RefreshCw className="h-3.5 w-3.5" />
               )}
-              <span>Refresh</span>
             </Button>
           </div>
 

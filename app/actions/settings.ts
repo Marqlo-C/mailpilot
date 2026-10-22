@@ -54,6 +54,7 @@ const ruleKeySchema = z.enum([
   "resumePreferences",
   "scrapingAntUsage",
   "hasDataUsage",
+  "enableWebScrapingProxies",
 ]);
 
 const retentionDaysSchema = z.union([
@@ -163,13 +164,15 @@ export async function updateRule(
     parsedKey.data === "allowCloudFallback" ||
     parsedKey.data === "cloudProvider" ||
     parsedKey.data === "cloudModel" ||
-    parsedKey.data === "cloudModelProvider"
+    parsedKey.data === "cloudModelProvider" ||
+    parsedKey.data === "enableWebScrapingProxies"
   ) {
     await persistProfileScopedRules(accountId, {
       allowCloudFallback: rulesWithoutThreshold.allowCloudFallback,
       cloudProvider: rulesWithoutThreshold.cloudProvider,
       cloudModel: rulesWithoutThreshold.cloudModel,
       cloudModelProvider: rulesWithoutThreshold.cloudModelProvider,
+      enableWebScrapingProxies: rulesWithoutThreshold.enableWebScrapingProxies,
     });
   }
 

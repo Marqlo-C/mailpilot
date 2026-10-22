@@ -144,11 +144,15 @@ export function resolveDecryptedAccountKey(
 
 /**
  * Resolves and decrypts the ScrapingAnt API key from AccountSettings.rules.
- * Returns null if no custom key is configured or if decryption fails.
+ * Returns null if web scraping proxies are disabled, no custom key is configured,
+ * or decryption fails.
  */
 export function resolveDecryptedScrapingAntKey(
   rules: Partial<AccountRules> | null | undefined
 ): string | null {
+  if (rules?.enableWebScrapingProxies === false) {
+    return null;
+  }
   if (!rules?.encryptedScrapingAntApiKey) {
     return null;
   }
@@ -171,11 +175,15 @@ export function resolveDecryptedScrapingAntKey(
 
 /**
  * Resolves and decrypts the HasData API key from AccountSettings.rules.
- * Returns null if no custom key is configured or if decryption fails.
+ * Returns null if web scraping proxies are disabled, no custom key is configured,
+ * or decryption fails.
  */
 export function resolveDecryptedHasDataKey(
   rules: Partial<AccountRules> | null | undefined
 ): string | null {
+  if (rules?.enableWebScrapingProxies === false) {
+    return null;
+  }
   if (!rules?.encryptedHasDataApiKey) {
     return null;
   }

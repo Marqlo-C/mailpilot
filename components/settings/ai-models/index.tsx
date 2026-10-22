@@ -21,6 +21,7 @@ import {
   updateLlmProvider,
   updateOllamaModel,
   updateOllamaUrl,
+  updateRule,
 } from "@/app/actions/settings";
 import type { CloudLlmProvider } from "@/lib/llm/provider.ssot";
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
@@ -62,6 +63,7 @@ export type AiModelsCardProps = {
   maskedHasDataApiKey?: string | null;
   hasDataUsage?: HasDataUsage | null;
   maskedJinaApiKey?: string | null;
+  enableWebScrapingProxies?: boolean;
 };
 
 type VerifyResponse = {
@@ -193,10 +195,13 @@ export function AiModelsCard({
   maskedHasDataApiKey: initialMaskedHasDataApiKey = null,
   hasDataUsage: initialHasDataUsage = null,
   maskedJinaApiKey: initialMaskedJinaApiKey = null,
+  enableWebScrapingProxies: initialEnableWebScrapingProxies = true,
 }: AiModelsCardProps) {
   const router = useRouter();
   const effectiveMaskedScrapingAntKey =
     initialMaskedScrapingAntApiKey ?? initialMaskedJinaApiKey ?? null;
+  const [enableWebScrapingProxies, setEnableWebScrapingProxies] =
+    useState<boolean>(initialEnableWebScrapingProxies);
   const [scrapingAntUsage, setScrapingAntUsage] =
     useState<ScrapingAntUsage | null>(initialScrapingAntUsage);
   const [hasDataUsage, setHasDataUsage] = useState<HasDataUsage | null>(
@@ -297,10 +302,6 @@ export function AiModelsCard({
     });
   };
 
-  const [scrapingApisAccordionOpen, setScrapingApisAccordionOpen] =
-    useState<boolean>(
-      Boolean(effectiveMaskedScrapingAntKey || initialMaskedHasDataApiKey)
-    );
   const [scrapingAntSubOpen, setScrapingAntSubOpen] = useState<boolean>(
     Boolean(effectiveMaskedScrapingAntKey)
   );
@@ -340,6 +341,10 @@ export function AiModelsCard({
   useEffect(() => {
     setBridgeSecret(initialBridgeSecret);
   }, [initialBridgeSecret]);
+
+  useEffect(() => {
+    setEnableWebScrapingProxies(initialEnableWebScrapingProxies);
+  }, [initialEnableWebScrapingProxies]);
 
   useEffect(() => {
     setMaskedScrapingAntKey(
@@ -1019,22 +1024,38 @@ export function AiModelsCard({
         title="Bot Bypass & Web Scraping"
         subtitle="Configure failover and on-demand proxies for rich job spec hydration and ATS block bypass."
         toggle={
-          <div className="flex items-center gap-2.5 shrink-0">
-            {maskedScrapingAntKey || maskedHasDataKey ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Active
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground shrink-0">
-                Direct Fetch (No Proxy)
-              </span>
-            )}
-          </div>
+          <WaveToggle
+            id="enable-web-scraping-proxies"
+            checked={enableWebScrapingProxies}
+            disabled={disabled}
+            onCheckedChange={(checked) => {
+              if (!accountId) return;
+              setEnableWebScrapingProxies(checked);
+              if (checked && !scrapingAntSubOpen && !hasDataSubOpen) {
+                setScrapingAntSubOpen(Boolean(maskedScrapingAntKey));
+                setHasDataSubOpen(Boolean(maskedHasDataKey));
+              }
+              startTransition(async () => {
+                const result = await updateRule(
+                  accountId,
+                  "enableWebScrapingProxies",
+                  checked
+                );
+                if (!result.ok) {
+                  setEnableWebScrapingProxies(!checked);
+                  toast.error(result.error);
+                  return;
+                }
+                toast.success(
+                  checked
+                    ? "Web scraping proxies enabled"
+                    : "Web scraping proxies disabled (direct fetch only)"
+                );
+                router.refresh();
+              });
+            }}
+          />
         }
-        collapsible
-        isExpanded={scrapingApisAccordionOpen}
-        onToggle={() => setScrapingApisAccordionOpen((prev) => !prev)}
         curvedDivider
       >
         <div className="space-y-3.5 animate-in fade-in-50 duration-200">
@@ -1055,9 +1076,13 @@ export function AiModelsCard({
                   />
                 }
                 title="ScrapingAnt Proxy"
-                subtitle="Used as a fast 1-credit failover to hydrate single-page job boards (like JobLeads) when direct fetching is blocked. Free tier includes 10,000 monthly credits."
+                subtitle="Automatically loads full job descriptions when a job site blocks normal access. Free plan includes 10,000 monthly credits."
                 statusBadge={
-                  maskedScrapingAntKey ? (
+                  !enableWebScrapingProxies ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground shrink-0">
+                      Disabled
+                    </span>
+                  ) : maskedScrapingAntKey ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                       Active
@@ -1068,8 +1093,12 @@ export function AiModelsCard({
                     </span>
                   )
                 }
-                isExpanded={scrapingAntSubOpen}
-                onToggle={() => setScrapingAntSubOpen((prev) => !prev)}
+                isExpanded={enableWebScrapingProxies && scrapingAntSubOpen}
+                onToggle={() => {
+                  if (!enableWebScrapingProxies) return;
+                  setScrapingAntSubOpen((prev) => !prev);
+                }}
+                disabled={!enableWebScrapingProxies}
                 curvedDivider
               >
                 {(!maskedScrapingAntKey || isReplacingScrapingAntKey) && (
@@ -1203,9 +1232,13 @@ export function AiModelsCard({
                   />
                 }
                 title="HasData Web Scraping"
-                subtitle="Used for on-demand extraction of Glassdoor and Indeed postings when tailoring resumes or hydrating job specs. Never consumed during background sync."
+                subtitle="Pulls full job descriptions from Glassdoor and Indeed when you open a job or tailor a resume. Never uses credits in the background."
                 statusBadge={
-                  maskedHasDataKey ? (
+                  !enableWebScrapingProxies ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground shrink-0">
+                      Disabled
+                    </span>
+                  ) : maskedHasDataKey ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                       Active
@@ -1216,8 +1249,12 @@ export function AiModelsCard({
                     </span>
                   )
                 }
-                isExpanded={hasDataSubOpen}
-                onToggle={() => setHasDataSubOpen((prev) => !prev)}
+                isExpanded={enableWebScrapingProxies && hasDataSubOpen}
+                onToggle={() => {
+                  if (!enableWebScrapingProxies) return;
+                  setHasDataSubOpen((prev) => !prev);
+                }}
+                disabled={!enableWebScrapingProxies}
                 curvedDivider
               >
                 {(!maskedHasDataKey || isReplacingHasDataKey) && (

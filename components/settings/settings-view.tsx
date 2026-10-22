@@ -245,6 +245,7 @@ export function SettingsView({
             scrapingAntUsage={rules.scrapingAntUsage ?? null}
             maskedHasDataApiKey={rules.maskedHasDataApiKey ?? null}
             hasDataUsage={rules.hasDataUsage ?? null}
+            enableWebScrapingProxies={rules.enableWebScrapingProxies ?? true}
           />
         </TabsContent>
 
