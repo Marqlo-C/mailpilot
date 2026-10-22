@@ -147,6 +147,25 @@ describe("LLM Vault & Multi-Provider SSOT", () => {
         } as any)
       ).toBeNull();
     });
+
+    it("returns null for both ScrapingAnt and HasData keys when enableWebScrapingProxies is false", () => {
+      const encryptedScrapingAnt = encryptToken("7d97aada1292445e989d631f78bedca9");
+      const encryptedHasData = encryptToken("hd_live_1234567890abcdef");
+
+      expect(
+        resolveDecryptedScrapingAntKey({
+          enableWebScrapingProxies: false,
+          encryptedScrapingAntApiKey: encryptedScrapingAnt,
+        })
+      ).toBeNull();
+
+      expect(
+        resolveDecryptedHasDataKey({
+          enableWebScrapingProxies: false,
+          encryptedHasDataApiKey: encryptedHasData,
+        })
+      ).toBeNull();
+    });
   });
 
   describe("Provider SSOT Endpoints & Contracts", () => {

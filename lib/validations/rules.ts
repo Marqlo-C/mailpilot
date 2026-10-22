@@ -125,6 +125,8 @@ export const accountRulesSchema = z.object({
   encryptedApiKey: z.string().nullable().default(null),
   /** Safe display mask (e.g. sk-...1234) for Settings UI */
   maskedApiKey: z.string().nullable().default(null),
+  /** Master toggle for Bot Bypass & Web Scraping proxies (ScrapingAnt / HasData) */
+  enableWebScrapingProxies: z.boolean().default(true),
   /** AES-256-GCM encrypted Jina API key for web scraping (deprecated; kept for backward compatibility) */
   encryptedJinaApiKey: z.string().nullable().default(null),
   /** Safe display mask (e.g. jina_...1234) for Settings UI (deprecated) */

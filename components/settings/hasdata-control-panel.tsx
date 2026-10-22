@@ -336,7 +336,7 @@ export function HasDataControlPanel({
             {availableCredits.toLocaleString()} credits remaining in account
           </span>
           <span className="font-mono text-[10px] text-muted-foreground/80">
-            ~{estimatedHydrations.toLocaleString()} Glassdoor & Indeed job specs runway
+            Enough for ~{estimatedHydrations.toLocaleString()} Glassdoor & Indeed jobs
           </span>
         </div>
       </div>
@@ -436,7 +436,7 @@ export function HasDataControlPanel({
         <div className="flex items-start gap-1.5 min-w-0">
           <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary/70" />
           <span>
-            10 credits are consumed per successful Glassdoor or Indeed job hydration. Never consumed during background sync.
+            Uses 10 credits per Glassdoor or Indeed job loaded. Credits are never used in the background.
           </span>
         </div>
         <a

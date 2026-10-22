@@ -188,6 +188,7 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
         cloudModel: accountRules.cloudModel,
         cloudModelProvider: accountRules.cloudModelProvider,
         allowCloudFallback: accountRules.allowCloudFallback,
+        enableWebScrapingProxies: accountRules.enableWebScrapingProxies,
         encryptedScrapingAntApiKey: accountRules.encryptedScrapingAntApiKey,
         maskedScrapingAntApiKey: accountRules.maskedScrapingAntApiKey,
         encryptedHasDataApiKey: accountRules.encryptedHasDataApiKey,
@@ -213,6 +214,9 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
           durableRules.cloudModelProvider ?? accountRules.cloudModelProvider,
         allowCloudFallback:
           durableRules.allowCloudFallback || accountRules.allowCloudFallback,
+        enableWebScrapingProxies:
+          durableRules.enableWebScrapingProxies ??
+          accountRules.enableWebScrapingProxies,
         encryptedScrapingAntApiKey: durableRules.encryptedScrapingAntApiKey,
         maskedScrapingAntApiKey: durableRules.maskedScrapingAntApiKey,
         scrapingAntUsage: durableRules.scrapingAntUsage,

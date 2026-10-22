@@ -335,7 +335,7 @@ export function ScrapingAntControlPanel({
             {remainedCredits.toLocaleString()} credits remaining in current billing cycle
           </span>
           <span className="font-mono text-[10px] text-muted-foreground/80">
-            ~{remainedCredits.toLocaleString()} fast ATS page hydrations runway
+            Enough for ~{remainedCredits.toLocaleString()} job listings
           </span>
         </div>
       </div>
@@ -412,7 +412,7 @@ export function ScrapingAntControlPanel({
         <div className="flex items-start gap-1.5 min-w-0">
           <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary/70" />
           <span>
-            1 credit is deducted per fast proxy request (browser=false). Unused credits do not roll over to next cycle.
+            Uses 1 credit per job listing loaded. Unused credits reset each month.
           </span>
         </div>
         <a

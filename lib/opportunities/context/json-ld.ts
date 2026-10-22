@@ -9,7 +9,7 @@
 
 import fs from "fs";
 import path from "path";
-import { decryptToken } from "@/lib/crypto";
+import { resolveDecryptedScrapingAntKey } from "@/lib/llm/vault";
 import { assertSafeHttpsUrl } from "@/lib/ssrf";
 import type { AccountRules } from "@/lib/validations/rules";
 
@@ -906,14 +906,7 @@ export async function scrapeJobPostingJsonLd(
         };
       }
 
-      let scrapingAntApiKey: string | null = null;
-      if (accountRules?.encryptedScrapingAntApiKey) {
-        try {
-          scrapingAntApiKey = decryptToken(accountRules.encryptedScrapingAntApiKey).trim() || null;
-        } catch {
-          scrapingAntApiKey = null;
-        }
-      }
+      const scrapingAntApiKey = resolveDecryptedScrapingAntKey(accountRules);
 
       if (!scrapingAntApiKey) {
         return {

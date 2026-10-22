@@ -157,6 +157,10 @@ export function mergeRulesWithPermanentSettings(
   if (!permanent) return accountRules;
 
   const permanentRules = parseAccountRules(permanent.rules);
+  const rawPermanentRules =
+    permanent.rules && typeof permanent.rules === "object"
+      ? (permanent.rules as Record<string, unknown>)
+      : null;
 
   return {
     ...accountRules,
@@ -181,6 +185,10 @@ export function mergeRulesWithPermanentSettings(
     allowCloudFallback:
       accountRules.allowCloudFallback || permanentRules.allowCloudFallback,
     // Scraping proxy credentials
+    enableWebScrapingProxies:
+      typeof rawPermanentRules?.enableWebScrapingProxies === "boolean"
+        ? rawPermanentRules.enableWebScrapingProxies
+        : (accountRules.enableWebScrapingProxies ?? true),
     encryptedScrapingAntApiKey:
       accountRules.encryptedScrapingAntApiKey ??
       permanentRules.encryptedScrapingAntApiKey,
