@@ -230,12 +230,15 @@ export function NestedSettingsCard({
 // SEMANTIC LEVEL WRAPPERS FOR CONSUMING PAGES
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Level 1: Master Section Card (Outer boundary with Master Toggle) */
+/** Level 1: Master Section Card (Outer boundary with Master Toggle or Collapsible Header) */
 export function SettingsSectionCard({
   icon,
   title,
   subtitle,
   toggle,
+  collapsible,
+  isExpanded = true,
+  onToggle,
   curvedDivider = true,
   children,
   className,
@@ -244,6 +247,9 @@ export function SettingsSectionCard({
   title: React.ReactNode;
   subtitle?: React.ReactNode;
   toggle?: React.ReactNode;
+  collapsible?: boolean;
+  isExpanded?: boolean;
+  onToggle?: () => void;
   curvedDivider?: boolean;
   children?: React.ReactNode;
   className?: string;
@@ -255,6 +261,9 @@ export function SettingsSectionCard({
       title={title}
       subtitle={subtitle}
       trailing={toggle}
+      collapsible={collapsible ?? Boolean(onToggle)}
+      isExpanded={isExpanded}
+      onToggle={onToggle}
       curvedDivider={curvedDivider}
       className={className}
     >
