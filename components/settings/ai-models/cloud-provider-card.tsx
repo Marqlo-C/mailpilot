@@ -2,7 +2,18 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Cloud, KeyRound, Loader2, Shield, Sparkles, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Cloud,
+  Cpu,
+  KeyRound,
+  Loader2,
+  Redo2,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -17,7 +28,12 @@ import {
 } from "@/lib/llm/provider.ssot";
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import {
   SettingsFeatureCard,
@@ -37,11 +53,23 @@ const PROVIDER_LABELS: Record<CloudLlmProvider, string> = {
   GEMINI: "Google Gemini (Gemini 2.5 Flash)",
 };
 
+function resolveScopedModelInput(
+  provider: CloudLlmProvider,
+  model: string | null | undefined,
+  modelProvider: CloudLlmProvider | null | undefined
+): string {
+  const trimmed = model?.trim() ?? "";
+  if (!trimmed) return "";
+  if (modelProvider && modelProvider !== provider) return "";
+  return trimmed;
+}
+
 export interface CloudProviderCardProps {
   accountId: string | null;
   allowCloudFallback?: boolean;
   cloudProvider?: CloudLlmProvider;
   cloudModel?: string | null;
+  cloudModelProvider?: CloudLlmProvider | null;
   maskedApiKey?: string | null;
 }
 
@@ -50,6 +78,7 @@ export function CloudProviderCard({
   allowCloudFallback: initialAllowCloudFallback = false,
   cloudProvider: initialCloudProvider = "OPENROUTER",
   cloudModel: initialCloudModel = null,
+  cloudModelProvider: initialCloudModelProvider = null,
   maskedApiKey: initialMaskedApiKey = null,
 }: CloudProviderCardProps) {
   const router = useRouter();
@@ -64,8 +93,21 @@ export function CloudProviderCard({
   const [cloudProvider, setCloudProvider] = useState<CloudLlmProvider>(
     initialCloudProvider ?? "OPENROUTER"
   );
-  const [cloudModelOverride, setCloudModelOverride] = useState(
-    initialCloudModel ?? ""
+  const [savedCloudModel, setSavedCloudModel] = useState<string | null>(
+    initialCloudModel ?? null
+  );
+  const [savedCloudModelProvider, setSavedCloudModelProvider] =
+    useState<CloudLlmProvider | null>(
+      initialCloudModelProvider ??
+        (initialCloudModel ? (initialCloudProvider ?? "OPENROUTER") : null)
+    );
+  const [cloudModelOverride, setCloudModelOverride] = useState(() =>
+    resolveScopedModelInput(
+      initialCloudProvider ?? "OPENROUTER",
+      initialCloudModel,
+      initialCloudModelProvider ??
+        (initialCloudModel ? (initialCloudProvider ?? "OPENROUTER") : null)
+    )
   );
   const [maskedApiKey, setMaskedApiKey] = useState<string | null>(
     initialMaskedApiKey ?? null
@@ -74,6 +116,11 @@ export function CloudProviderCard({
   const [isEditingKey, setIsEditingKey] = useState(!initialMaskedApiKey);
 
   const disabled = !accountId || pending;
+  const activeProviderSavedModel = resolveScopedModelInput(
+    cloudProvider,
+    savedCloudModel,
+    savedCloudModelProvider
+  );
 
   useEffect(() => {
     setAllowCloudFallback(initialAllowCloudFallback);
@@ -83,12 +130,17 @@ export function CloudProviderCard({
   }, [initialAllowCloudFallback]);
 
   useEffect(() => {
-    setCloudProvider(initialCloudProvider ?? "OPENROUTER");
-  }, [initialCloudProvider]);
-
-  useEffect(() => {
-    setCloudModelOverride(initialCloudModel ?? "");
-  }, [initialCloudModel]);
+    const nextProvider = initialCloudProvider ?? "OPENROUTER";
+    const nextModel = initialCloudModel ?? null;
+    const nextModelProvider =
+      initialCloudModelProvider ?? (nextModel ? nextProvider : null);
+    setCloudProvider(nextProvider);
+    setSavedCloudModel(nextModel);
+    setSavedCloudModelProvider(nextModelProvider);
+    setCloudModelOverride(
+      resolveScopedModelInput(nextProvider, nextModel, nextModelProvider)
+    );
+  }, [initialCloudProvider, initialCloudModel, initialCloudModelProvider]);
 
   useEffect(() => {
     setMaskedApiKey(initialMaskedApiKey ?? null);
@@ -96,6 +148,23 @@ export function CloudProviderCard({
       setIsEditingKey(true);
     }
   }, [initialMaskedApiKey]);
+
+  function handleSaveModelOverride() {
+    if (!accountId) return;
+    const nextModel = cloudModelOverride.trim() || null;
+    const nextModelProvider = nextModel ? cloudProvider : null;
+    startTransition(async () => {
+      const result = await updateRule(accountId, "cloudModel", nextModel);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      setSavedCloudModel(nextModel);
+      setSavedCloudModelProvider(nextModelProvider);
+      toast.success("Model override updated");
+      router.refresh();
+    });
+  }
 
   function handleSaveKey() {
     if (!accountId) return;
@@ -105,10 +174,12 @@ export function CloudProviderCard({
       return;
     }
 
+    const nextModel = cloudModelOverride.trim() || null;
+
     startTransition(async () => {
       const result = await saveCustomLlmKey(accountId, {
         provider: cloudProvider,
-        model: cloudModelOverride.trim() || null,
+        model: nextModel,
         apiKey: key,
       });
 
@@ -117,6 +188,8 @@ export function CloudProviderCard({
         return;
       }
 
+      setSavedCloudModel(nextModel);
+      setSavedCloudModelProvider(nextModel ? cloudProvider : null);
       setMaskedApiKey(result.data?.maskedApiKey ?? null);
       setApiKeyInput("");
       setIsEditingKey(false);
@@ -134,6 +207,9 @@ export function CloudProviderCard({
         return;
       }
       setMaskedApiKey(null);
+      setSavedCloudModel(null);
+      setSavedCloudModelProvider(null);
+      setCloudModelOverride("");
       setApiKeyInput("");
       setIsEditingKey(true);
       toast.success("API key cleared");
@@ -230,37 +306,16 @@ export function CloudProviderCard({
         disabled={!allowCloudFallback}
         curvedDivider
       >
-          <div className="space-y-4 px-1 py-1 sm:px-2">
-            {/* Provider Selector */}
-            <div className="space-y-1.5">
+        <div className="space-y-4">
+          {/* Provider Selector */}
+          <div className="space-y-1.5">
+            <div className="space-y-0.5 pl-1">
               <Label
                 htmlFor="cloud-provider"
                 className="text-xs font-semibold tracking-tight text-foreground cursor-pointer"
               >
                 Cloud Provider
               </Label>
-              <select
-                id="cloud-provider"
-                className="flex h-9.5 w-full appearance-none rounded-lg border border-border/80 bg-background px-3 py-2 text-xs font-medium shadow-2xs outline-none ring-offset-background focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50"
-                value={cloudProvider}
-                disabled={disabled}
-                onChange={(e) => {
-                  const next = e.target.value as CloudLlmProvider;
-                  setCloudProvider(next);
-                  if (accountId) {
-                    startTransition(async () => {
-                      await updateRule(accountId, "cloudProvider", next);
-                      router.refresh();
-                    });
-                  }
-                }}
-              >
-                {CLOUD_LLM_PROVIDERS.map((p) => (
-                  <option key={p} value={p}>
-                    {PROVIDER_LABELS[p] ?? p}
-                  </option>
-                ))}
-              </select>
               <p className="text-[11px] text-muted-foreground">
                 Default endpoint:{" "}
                 <code className="font-mono text-foreground">
@@ -268,55 +323,79 @@ export function CloudProviderCard({
                 </code>
               </p>
             </div>
-
-            {/* Model Name Override */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label
-                  htmlFor="cloud-model"
-                  className="text-xs font-semibold tracking-tight text-foreground cursor-pointer"
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  id="cloud-provider"
+                  type="button"
+                  disabled={disabled}
+                  className="flex h-8 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-border/50 bg-card px-3 text-xs font-medium text-foreground shadow-sm transition-[box-shadow,border-color] outline-none hover:bg-card focus:border-border focus:shadow data-[state=open]:border-border data-[state=open]:shadow disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Model Name Override (Optional)
-                </Label>
-                {accountId &&
-                  cloudModelOverride.trim() !== (initialCloudModel ?? "") && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-6.5 text-[11px] px-2"
-                      disabled={disabled}
-                      onClick={() => {
-                        startTransition(async () => {
-                          const result = await updateRule(
-                            accountId,
-                            "cloudModel",
-                            cloudModelOverride.trim() || null
-                          );
-                          if (!result.ok) {
-                            toast.error(result.error);
-                            return;
-                          }
-                          toast.success("Model override updated");
-                          router.refresh();
-                        });
+                  <span className="truncate">
+                    {PROVIDER_LABELS[cloudProvider] ?? cloudProvider}
+                  </span>
+                  <ChevronDown
+                    className="size-4 shrink-0 text-muted-foreground/70"
+                    aria-hidden="true"
+                  />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-lg border border-border/50 bg-card p-1 shadow-md"
+              >
+                {CLOUD_LLM_PROVIDERS.map((p) => {
+                  const isSelected = p === cloudProvider;
+                  return (
+                    <DropdownMenuItem
+                      key={p}
+                      onSelect={() => {
+                        if (p === cloudProvider) return;
+                        const nextModelProvider =
+                          savedCloudModel && !savedCloudModelProvider
+                            ? cloudProvider
+                            : savedCloudModelProvider;
+                        setSavedCloudModelProvider(nextModelProvider);
+                        setCloudProvider(p);
+                        setCloudModelOverride(
+                          resolveScopedModelInput(
+                            p,
+                            savedCloudModel,
+                            nextModelProvider
+                          )
+                        );
+                        if (accountId) {
+                          startTransition(async () => {
+                            await updateRule(accountId, "cloudProvider", p);
+                            router.refresh();
+                          });
+                        }
                       }}
+                      className="cursor-pointer justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium"
                     >
-                      Save Model
-                    </Button>
-                  )}
-              </div>
-              <Input
-                id="cloud-model"
-                placeholder={
-                  PROVIDER_ENDPOINTS[cloudProvider]?.defaultModel ??
-                  "default model"
-                }
-                value={cloudModelOverride}
-                disabled={disabled}
-                onChange={(e) => setCloudModelOverride(e.target.value)}
-                className="h-9 border-border/80 bg-background font-mono text-xs"
-              />
+                      <span className="truncate">{PROVIDER_LABELS[p] ?? p}</span>
+                      <Check
+                        className={cn(
+                          "size-3.5 shrink-0",
+                          isSelected ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Model Name Override */}
+          <div className="space-y-1.5">
+            <div className="space-y-0.5 pl-1">
+              <Label
+                htmlFor="cloud-model"
+                className="text-xs font-semibold tracking-tight text-foreground cursor-pointer"
+              >
+                Model Name Override (Optional)
+              </Label>
               <p className="text-[11px] text-muted-foreground">
                 Leave blank to use default model:{" "}
                 <code className="font-mono text-foreground">
@@ -324,9 +403,71 @@ export function CloudProviderCard({
                 </code>
               </p>
             </div>
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/50 bg-card pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow">
+                <Cpu
+                  className="pointer-events-none size-4 shrink-0 text-foreground/45"
+                  aria-hidden
+                />
+                <input
+                  id="cloud-model"
+                  type="text"
+                  aria-label="Model Name Override"
+                  placeholder={
+                    PROVIDER_ENDPOINTS[cloudProvider]?.defaultModel ??
+                    "default model"
+                  }
+                  value={cloudModelOverride}
+                  disabled={disabled}
+                  onChange={(e) => setCloudModelOverride(e.target.value)}
+                  className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 font-mono text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
+                  autoComplete="off"
+                  spellCheck={false}
+                  onKeyDown={(e) => {
+                    if (
+                      e.key === "Enter" &&
+                      cloudModelOverride.trim() !== activeProviderSavedModel
+                    ) {
+                      e.preventDefault();
+                      handleSaveModelOverride();
+                    }
+                  }}
+                />
+                {cloudModelOverride ? (
+                  <button
+                    type="button"
+                    aria-label="Clear model override input"
+                    onClick={() => setCloudModelOverride("")}
+                    className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
+                  >
+                    <X className="size-4" aria-hidden />
+                  </button>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "shrink-0")}
+                disabled={
+                  disabled ||
+                  cloudModelOverride.trim() === activeProviderSavedModel
+                }
+                onClick={handleSaveModelOverride}
+              >
+                {pending ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Saving…</span>
+                  </>
+                ) : (
+                  "Save"
+                )}
+              </button>
+            </div>
+          </div>
 
-            {/* API Key Input */}
-            <div className="space-y-1.5">
+          {/* API Key Input */}
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 pl-1">
               <Label
                 htmlFor="cloud-api-key"
                 className="text-xs font-semibold tracking-tight text-foreground cursor-pointer"
@@ -334,137 +475,126 @@ export function CloudProviderCard({
                 API Key
               </Label>
 
-              {maskedApiKey && !isEditingKey ? (
-                <div className="flex flex-col gap-2 rounded-xl border border-border/80 bg-muted/15 p-2.5 sm:flex-row sm:items-center">
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <Shield className="size-3.5 shrink-0 text-muted-foreground" />
-                    <Input
-                      readOnly
-                      type="text"
-                      value={maskedApiKey}
-                      className="h-8 border-border/80 bg-card/75 font-mono text-xs text-muted-foreground"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
+              {maskedApiKey ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 font-mono text-[11px] font-medium text-primary">
+                    <KeyRound className="h-3 w-3 shrink-0" />
+                    {maskedApiKey}
+                  </span>
+                  <div className="flex items-center gap-0.5">
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      className="h-8 shrink-0 text-xs"
                       disabled={disabled}
-                      onClick={() => {
-                        setIsEditingKey(true);
-                        setApiKeyInput("");
-                      }}
+                      onClick={handleClearKey}
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 shrink-0"
+                      title="Delete active key"
+                      aria-label="Delete active key"
                     >
-                      Change Key
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-8 shrink-0 text-xs text-rose-500 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-500/20"
                       disabled={disabled}
-                      onClick={handleClearKey}
+                      onClick={() => {
+                        setIsEditingKey((prev) => !prev);
+                        setApiKeyInput("");
+                      }}
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
+                      title="Replace active key"
+                      aria-label="Replace active key"
                     >
-                      Clear Key
+                      <Redo2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <div className="flex h-8.5 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/70 bg-card pl-3 pr-1.5 text-foreground/75 shadow-2xs transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow">
-                      <KeyRound
-                        className="pointer-events-none size-4 shrink-0 text-foreground/45"
-                        aria-hidden
-                      />
-                      <input
-                        id="cloud-api-key"
-                        type="password"
-                        aria-label={
-                          maskedApiKey
-                            ? `Replace ${cloudProvider} API key`
-                            : `${cloudProvider} API key`
-                        }
-                        placeholder={
-                          maskedApiKey ??
-                          `Enter ${cloudProvider} API key (e.g. sk-...)`
-                        }
-                        autoFocus={Boolean(maskedApiKey && isEditingKey)}
-                        value={apiKeyInput}
-                        disabled={disabled}
-                        onChange={(e) => setApiKeyInput(e.target.value)}
-                        className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 font-mono text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
-                        autoComplete="off"
-                        spellCheck={false}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleSaveKey();
-                          } else if (e.key === "Escape" && maskedApiKey) {
-                            setIsEditingKey(false);
-                            setApiKeyInput("");
-                          }
-                        }}
-                      />
-                      {apiKeyInput ? (
-                        <button
-                          type="button"
-                          aria-label="Clear API key input"
-                          onClick={() => setApiKeyInput("")}
-                          className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
-                        >
-                          <X className="size-3.5" aria-hidden />
-                        </button>
-                      ) : null}
-                    </div>
+              ) : null}
+            </div>
 
-                    {maskedApiKey && (
-                      <button
-                        type="button"
-                        className={cn(
-                          SECONDARY_ACTION_BTN_CLASSNAME,
-                          "h-8.5 shrink-0 text-xs px-2.5"
-                        )}
-                        disabled={disabled}
-                        onClick={() => {
-                          setIsEditingKey(false);
-                          setApiKeyInput("");
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    )}
-
+            {(!maskedApiKey || isEditingKey) && (
+              <div className="flex min-w-0 flex-1 items-center gap-2 animate-in fade-in-50 duration-150">
+                <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/50 bg-card pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow">
+                  <KeyRound
+                    className="pointer-events-none size-4 shrink-0 text-foreground/45"
+                    aria-hidden
+                  />
+                  <input
+                    id="cloud-api-key"
+                    type="password"
+                    aria-label={
+                      maskedApiKey
+                        ? `Replace ${cloudProvider} API key`
+                        : `${cloudProvider} API key`
+                    }
+                    placeholder={
+                      maskedApiKey ??
+                      `Enter ${cloudProvider} API key (e.g. sk-...)`
+                    }
+                    autoFocus={Boolean(maskedApiKey && isEditingKey)}
+                    value={apiKeyInput}
+                    disabled={disabled}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 font-mono text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
+                    autoComplete="off"
+                    spellCheck={false}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSaveKey();
+                      } else if (e.key === "Escape" && maskedApiKey) {
+                        setIsEditingKey(false);
+                        setApiKeyInput("");
+                      }
+                    }}
+                  />
+                  {apiKeyInput ? (
                     <button
                       type="button"
-                      className={cn(
-                        PRIMARY_ACTION_BTN_CLASSNAME,
-                        "h-8.5 shrink-0 text-xs px-3"
-                      )}
-                      disabled={disabled || !apiKeyInput.trim()}
-                      onClick={handleSaveKey}
+                      aria-label="Clear API key input"
+                      onClick={() => setApiKeyInput("")}
+                      className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
                     >
-                      {pending ? (
-                        <>
-                          <Loader2 className="size-3.5 animate-spin mr-1" />
-                          <span>Saving…</span>
-                        </>
-                      ) : (
-                        "Save Key"
-                      )}
+                      <X className="size-4" aria-hidden />
                     </button>
-                  </div>
+                  ) : null}
                 </div>
-              )}
 
-              <p className="text-[11px] text-muted-foreground pt-1">
-                Keys are stored encrypted with AES-256-GCM. Plaintext values are
-                never transmitted to the browser.
-              </p>
-            </div>
+                {maskedApiKey && isEditingKey && (
+                  <button
+                    type="button"
+                    className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "shrink-0")}
+                    disabled={disabled}
+                    onClick={() => {
+                      setIsEditingKey(false);
+                      setApiKeyInput("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "shrink-0")}
+                  disabled={disabled || !apiKeyInput.trim()}
+                  onClick={handleSaveKey}
+                >
+                  {pending ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Saving…</span>
+                    </>
+                  ) : (
+                    "Save"
+                  )}
+                </button>
+              </div>
+            )}
           </div>
+        </div>
       </SettingsFeatureCard>
     </SettingsSectionCard>
   );

@@ -239,6 +239,7 @@ export function SettingsView({
             allowCloudFallback={rules.allowCloudFallback ?? false}
             cloudProvider={rules.cloudProvider ?? "OPENROUTER"}
             cloudModel={rules.cloudModel ?? null}
+            cloudModelProvider={rules.cloudModelProvider ?? null}
             maskedApiKey={rules.maskedApiKey ?? null}
             maskedScrapingAntApiKey={rules.maskedScrapingAntApiKey ?? null}
             scrapingAntUsage={rules.scrapingAntUsage ?? null}

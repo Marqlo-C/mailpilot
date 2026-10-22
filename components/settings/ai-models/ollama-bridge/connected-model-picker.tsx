@@ -1,8 +1,14 @@
 "use client";
 
-import { ChevronDown, Cpu, Globe, Loader2, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, Cpu, Globe, Loader2, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { SettingsStatusCard } from "@/components/ui/nested-settings-card";
 import { cn } from "@/lib/utils";
@@ -45,6 +51,10 @@ export function ConnectedModelPicker({
   onRefreshModels,
   onSelectModel,
 }: ConnectedModelPickerProps) {
+  const activeOption = selectOptions.includes(selectedModel)
+    ? selectedModel
+    : selectOptions[0] ?? "";
+
   return (
     <SettingsStatusCard
       className="mx-9"
@@ -161,26 +171,48 @@ export function ConnectedModelPicker({
           </div>
 
           {selectOptions.length > 0 ? (
-            <div className="relative">
-              <select
-                id="ollama-model"
-                className="flex h-9.5 w-full appearance-none rounded-lg border border-border/80 bg-background px-3 py-2 pr-9 text-xs font-mono font-medium shadow-2xs transition-colors outline-none ring-offset-background focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50"
-                value={
-                  selectOptions.includes(selectedModel)
-                    ? selectedModel
-                    : selectOptions[0]
-                }
-                disabled={disabled}
-                onChange={(e) => onSelectModel(e.target.value)}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  id="ollama-model"
+                  type="button"
+                  disabled={disabled}
+                  className="flex h-8 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-border/50 bg-card px-3 font-mono text-xs font-medium text-foreground shadow-sm transition-[box-shadow,border-color] outline-none hover:bg-card focus:border-border focus:shadow data-[state=open]:border-border data-[state=open]:shadow disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span className="truncate">{activeOption}</span>
+                  <ChevronDown
+                    className="size-4 shrink-0 text-muted-foreground/70"
+                    aria-hidden="true"
+                  />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-lg border border-border/50 bg-card p-1 shadow-md"
               >
-                {selectOptions.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/70" />
-            </div>
+                {selectOptions.map((name) => {
+                  const isSelected = name === activeOption;
+                  return (
+                    <DropdownMenuItem
+                      key={name}
+                      onSelect={() => {
+                        if (name === activeOption) return;
+                        onSelectModel(name);
+                      }}
+                      className="cursor-pointer justify-between gap-2 rounded-md px-2.5 py-1.5 font-mono text-xs font-medium"
+                    >
+                      <span className="truncate">{name}</span>
+                      <Check
+                        className={cn(
+                          "size-3.5 shrink-0",
+                          isSelected ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <p className="text-xs text-muted-foreground">
               No models returned. Click Refresh.

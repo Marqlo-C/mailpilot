@@ -174,6 +174,10 @@ export function mergeRulesWithPermanentSettings(
         ? accountRules.cloudProvider
         : (permanentRules.cloudProvider ?? accountRules.cloudProvider),
     cloudModel: accountRules.cloudModel ?? permanentRules.cloudModel,
+    cloudModelProvider:
+      accountRules.cloudModel !== null
+        ? accountRules.cloudModelProvider
+        : (permanentRules.cloudModelProvider ?? accountRules.cloudModelProvider),
     allowCloudFallback:
       accountRules.allowCloudFallback || permanentRules.allowCloudFallback,
     // Scraping proxy credentials

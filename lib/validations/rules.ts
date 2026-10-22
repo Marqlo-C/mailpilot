@@ -119,6 +119,8 @@ export const accountRulesSchema = z.object({
   cloudProvider: z.enum(CLOUD_LLM_PROVIDERS).default("OPENROUTER"),
   /** Custom cloud model override for customer's BYOK provider */
   cloudModel: z.string().nullable().default(null),
+  /** Cloud provider that `cloudModel` was explicitly configured for */
+  cloudModelProvider: z.enum(CLOUD_LLM_PROVIDERS).nullable().default(null),
   /** AES-256-GCM encrypted API key (never sent to client) */
   encryptedApiKey: z.string().nullable().default(null),
   /** Safe display mask (e.g. sk-...1234) for Settings UI */

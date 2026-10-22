@@ -84,6 +84,29 @@ export type DecryptedAccountCredentials = {
 };
 
 /**
+ * Returns the custom cloud model override only when it belongs to the active
+ * (or specified) cloud provider. Prevents a model configured for one provider
+ * (e.g. OpenRouter) from leaking when the user switches to another provider.
+ */
+export function resolveProviderScopedCloudModel(
+  rules: Partial<AccountRules> | null | undefined,
+  targetProvider?: CloudLlmProvider
+): string | null {
+  const trimmed = rules?.cloudModel?.trim() || null;
+  if (!trimmed) return null;
+
+  const provider: CloudLlmProvider =
+    targetProvider ?? rules?.cloudProvider ?? "OPENROUTER";
+  const modelProvider = rules?.cloudModelProvider ?? null;
+
+  if (modelProvider && modelProvider !== provider) {
+    return null;
+  }
+
+  return trimmed;
+}
+
+/**
  * Resolves and decrypts the account-scoped BYOK cloud credentials from
  * AccountSettings.rules. Returns null if no custom key is configured or
  * if decryption fails.
@@ -103,7 +126,7 @@ export function resolveDecryptedAccountKey(
     }
 
     const provider: CloudLlmProvider = rules.cloudProvider ?? "OPENROUTER";
-    const model = rules.cloudModel ?? null;
+    const model = resolveProviderScopedCloudModel(rules, provider);
 
     return {
       provider,

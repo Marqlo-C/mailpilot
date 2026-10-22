@@ -50,6 +50,7 @@ const ruleKeySchema = z.enum([
   "allowCloudFallback",
   "cloudProvider",
   "cloudModel",
+  "cloudModelProvider",
   "resumePreferences",
   "scrapingAntUsage",
   "hasDataUsage",
@@ -102,7 +103,26 @@ export async function updateRule(
   }
 
   const current = parseAccountRules(settings.rules);
-  const candidate = { ...current, [parsedKey.data]: value };
+  const candidate: Record<string, unknown> = {
+    ...current,
+    [parsedKey.data]: value,
+  };
+
+  if (parsedKey.data === "cloudModel") {
+    const trimmedModel =
+      typeof value === "string" ? value.trim() || null : null;
+    candidate.cloudModel = trimmedModel;
+    candidate.cloudModelProvider = trimmedModel
+      ? current.cloudProvider
+      : null;
+  } else if (
+    parsedKey.data === "cloudProvider" &&
+    current.cloudModel &&
+    !current.cloudModelProvider
+  ) {
+    // Pin any legacy un-scoped model override to the provider it was configured on before switching.
+    candidate.cloudModelProvider = current.cloudProvider;
+  }
 
   const validated = accountRulesSchema.safeParse(candidate);
   if (!validated.success) {
@@ -142,10 +162,14 @@ export async function updateRule(
   if (
     parsedKey.data === "allowCloudFallback" ||
     parsedKey.data === "cloudProvider" ||
-    parsedKey.data === "cloudModel"
+    parsedKey.data === "cloudModel" ||
+    parsedKey.data === "cloudModelProvider"
   ) {
     await persistProfileScopedRules(accountId, {
-      [parsedKey.data]: value,
+      allowCloudFallback: rulesWithoutThreshold.allowCloudFallback,
+      cloudProvider: rulesWithoutThreshold.cloudProvider,
+      cloudModel: rulesWithoutThreshold.cloudModel,
+      cloudModelProvider: rulesWithoutThreshold.cloudModelProvider,
     });
   }
 
@@ -455,14 +479,17 @@ export async function updateCustomLlmKey(
   }
 
   const { encryptedApiKey, maskedApiKey } = encryptAccountKey(apiKey);
+  const explicitModel = model?.trim() || null;
   const resolvedModel =
-    model?.trim() || PROVIDER_ENDPOINTS[provider].defaultModel;
+    explicitModel || PROVIDER_ENDPOINTS[provider].defaultModel;
+  const modelProvider = explicitModel ? provider : null;
 
   const currentRules = parseAccountRules(settings.rules);
   const updatedRules = accountRulesSchema.parse({
     ...currentRules,
     cloudProvider: provider,
-    cloudModel: resolvedModel,
+    cloudModel: explicitModel,
+    cloudModelProvider: modelProvider,
     encryptedApiKey,
     maskedApiKey,
     allowCloudFallback: true,
@@ -477,7 +504,8 @@ export async function updateCustomLlmKey(
 
   await persistProfileScopedRules(accountId, {
     cloudProvider: provider,
-    cloudModel: resolvedModel,
+    cloudModel: explicitModel,
+    cloudModelProvider: modelProvider,
     encryptedApiKey,
     maskedApiKey,
     allowCloudFallback: true,
@@ -530,6 +558,7 @@ export async function clearCustomLlmKey(
     encryptedApiKey: null,
     maskedApiKey: null,
     cloudModel: null,
+    cloudModelProvider: null,
   });
 
   const { matchScoreThreshold: _deprecated, ...rulesToSave } = updatedRules;
@@ -543,6 +572,7 @@ export async function clearCustomLlmKey(
     encryptedApiKey: null,
     maskedApiKey: null,
     cloudModel: null,
+    cloudModelProvider: null,
   });
 
   revalidatePath("/settings");
