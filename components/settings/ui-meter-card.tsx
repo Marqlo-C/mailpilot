@@ -11,12 +11,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useTabRailClasses } from "@/components/ui/segmented-tabs";
+import { useTabRailClasses } from "@/components/ui/tactile/segmented-tabs";
 import {
   WavyMeter,
   WavyMeterDark,
   WavyMeterLight,
-} from "@/components/ui/wavy-meter";
+} from "@/components/ui/tactile/wavy-meter";
 import {
   persistWavyMeterPreference,
   readWavyMeterPreference,

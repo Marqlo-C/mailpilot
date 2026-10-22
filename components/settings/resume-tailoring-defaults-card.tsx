@@ -26,7 +26,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { WaveToggle } from "@/components/ui/wave-toggle";
+import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {

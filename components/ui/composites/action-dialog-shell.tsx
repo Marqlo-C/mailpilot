@@ -10,7 +10,7 @@ import {
 import {
   DialogIdentityHeader,
   type DialogIdentityHeaderProps,
-} from "@/components/ui/dialog-identity-header";
+} from "@/components/ui/composites/dialog-identity-header";
 import { cn } from "@/lib/utils";
 
 const SIZE_CLASS = {

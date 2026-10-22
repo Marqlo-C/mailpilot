@@ -10,8 +10,8 @@ import {
   ToolbarSearchAddon,
   ToolbarSelectAll,
   ToolbarTelemetry,
-} from "@/components/jobs/pipeline-toolbar-primitives";
-import { ToolbarPageNav, ToolbarPageSizeSelect } from "@/components/ui/pipeline-pagination";
+} from "@/components/opportunities/toolbar/pipeline-toolbar-primitives";
+import { ToolbarPageNav, ToolbarPageSizeSelect } from "@/components/ui/composites/pipeline-pagination";
 import type {
   SubscriptionCategoryFilter,
   SubscriptionSortOption,

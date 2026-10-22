@@ -42,19 +42,19 @@ import {
   type OpportunityResumePreview,
   type OriginalEmailPreview,
 } from "@/app/actions/opportunities";
-import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
-import { ResumeDraftSheet } from "@/components/jobs/resume-draft-sheet";
+import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
+import { ResumeDraftSheet } from "@/components/opportunities/drawer/resume-draft-sheet";
 import { Button } from "@/components/ui/button";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { getDevOllamaModelOverride } from "@/components/settings/ai-models";
-import { CancelTaskButton } from "@/components/ui/cancel-task-button";
+import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
 import { ViewEmailDialog } from "@/components/dialogs/view-email-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
-import { selectCheckboxClassName } from "@/components/ui/select-checkbox";
-import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
-import { WaveToggle } from "@/components/ui/wave-toggle";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
+import { selectCheckboxClassName } from "@/components/ui/styles/select-checkbox";
+import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
+import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import {
   Tooltip,
   TooltipContent,

@@ -38,7 +38,7 @@ import {
 } from "@/components/dnd/drag-ghost";
 import { PageFlipBumpers } from "@/components/dnd/page-flip-bumpers";
 import { SubscriptionsToolbar } from "@/components/subscriptions/subscriptions-toolbar";
-import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
+import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
 import {
   BULK_ACTION_BTN_CLASSNAME,
   BULK_ACTION_COUNT_DISMISS_CLASSNAME,
@@ -47,41 +47,41 @@ import {
   BulkActionDot,
   BulkActionSection,
   BulkActionsFlyout,
-} from "@/components/ui/bulk-actions-flyout";
-import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
-import { RowMenuTrigger } from "@/components/ui/row-menu-trigger";
+} from "@/components/ui/composites/bulk-actions-flyout";
+import { ConfirmActionDialog } from "@/components/ui/composites/confirm-action-dialog";
+import { RowMenuTrigger } from "@/components/ui/composites/row-menu-trigger";
 import { CompanyLogo } from "@/components/ui/company-logo";
-import { DialogIdentityLogoStack } from "@/components/ui/dialog-identity-header";
+import { DialogIdentityLogoStack } from "@/components/ui/composites/dialog-identity-header";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PipelinePaginationFooter } from "@/components/ui/pipeline-pagination";
+import { PipelinePaginationFooter } from "@/components/ui/composites/pipeline-pagination";
 import {
   tabRailRowClassName,
   TabCountBadge,
   useTabRailClasses,
-} from "@/components/ui/segmented-tabs";
-import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/score-percent";
-import { selectCheckboxClassName } from "@/components/ui/select-checkbox";
-import { useLastClickedId } from "@/components/ui/use-last-clicked-id";
+} from "@/components/ui/tactile/segmented-tabs";
+import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/styles/score-percent";
+import { selectCheckboxClassName } from "@/components/ui/styles/select-checkbox";
+import { useLastClickedId } from "@/hooks/use-last-clicked-id";
 import {
   getSelectionGroupEdges,
   selectHighlightGroupClassName,
   type SelectionGroupEdges,
-} from "@/components/ui/select-highlight";
+} from "@/components/ui/styles/select-highlight";
 import {
   PRIMARY_ACTION_BTN_CLASSNAME,
   PRIMARY_ACTION_BTN_MUTED_CLASSNAME,
   PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME,
-} from "@/components/ui/primary-action-btn";
+} from "@/components/ui/styles/primary-action-btn";
 import {
   SECONDARY_ACTION_BTN_CLASSNAME,
   SECONDARY_ACTION_BTN_MUTED_CLASSNAME,
   SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME,
-} from "@/components/ui/secondary-action-btn";
+} from "@/components/ui/styles/secondary-action-btn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,

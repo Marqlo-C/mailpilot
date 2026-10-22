@@ -11,7 +11,7 @@ import {
   CardDescription,
   CardHeader,
 } from "@/components/ui/card";
-import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/score-percent";
+import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/styles/score-percent";
 import {
   getActiveAccount,
   getJobOpportunitiesForAccount,

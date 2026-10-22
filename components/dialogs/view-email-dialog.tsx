@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
-import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
+import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { cn } from "@/lib/utils";
 
 export type ViewEmailDialogProps = {

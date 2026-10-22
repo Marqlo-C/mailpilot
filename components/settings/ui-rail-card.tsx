@@ -13,7 +13,7 @@ import {
 import {
   useTabRail,
   useTabRailClasses,
-} from "@/components/ui/segmented-tabs";
+} from "@/components/ui/tactile/segmented-tabs";
 import type { TabRailVariant } from "@/lib/ui/tab-rail-preference";
 
 const OPTIONS: { value: TabRailVariant; label: string }[] = [

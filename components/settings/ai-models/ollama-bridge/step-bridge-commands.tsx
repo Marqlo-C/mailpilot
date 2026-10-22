@@ -3,7 +3,7 @@
 import { Check, Copy, KeyRound, Loader2, ShieldUser } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SettingsStepCard } from "@/components/ui/nested-settings-card";
+import { SettingsStepCard } from "@/components/ui/tactile/nested-settings-card";
 import { STEP_CARD_CTA_CLASSNAME } from "./step-getting-started";
 
 export interface StepBridgeCommandsProps {

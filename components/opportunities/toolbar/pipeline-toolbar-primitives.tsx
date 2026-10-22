@@ -9,8 +9,8 @@ import {
 } from "react";
 import { ChevronDown, Layers, ListFilter, Mic, Search, X } from "lucide-react";
 
-import { SELECT_CHECKBOX_CLASSNAME } from "@/components/ui/select-checkbox";
-import { WavySlider } from "@/components/ui/wavy-slider";
+import { SELECT_CHECKBOX_CLASSNAME } from "@/components/ui/styles/select-checkbox";
+import { WavySlider } from "@/components/ui/tactile/wavy-slider";
 import type {
   HistoryStatusFilter,
   SourceFilter,

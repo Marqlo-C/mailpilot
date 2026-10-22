@@ -16,9 +16,9 @@ import {
   SYNC_STARTED_EVENT,
   useSyncStatus,
 } from "@/components/layout/sync-status-provider";
-import { useFlyoutPresence } from "@/components/ui/bulk-actions-flyout";
-import { CancelTaskButton } from "@/components/ui/cancel-task-button";
-import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
+import { useFlyoutPresence } from "@/components/ui/composites/bulk-actions-flyout";
+import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
+import { ConfirmActionDialog } from "@/components/ui/composites/confirm-action-dialog";
 import { cn } from "@/lib/utils";
 
 type SyncTelemetryProps = {

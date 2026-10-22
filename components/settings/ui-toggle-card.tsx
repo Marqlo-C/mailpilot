@@ -11,8 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useTabRailClasses } from "@/components/ui/segmented-tabs";
-import { WaveToggle } from "@/components/ui/wave-toggle";
+import { useTabRailClasses } from "@/components/ui/tactile/segmented-tabs";
+import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import {
   persistWaveTogglePreference,
   readWaveTogglePreference,

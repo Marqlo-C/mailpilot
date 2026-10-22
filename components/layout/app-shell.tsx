@@ -16,7 +16,7 @@ import { Logo, NavLogo } from "@/components/brand/logo";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { GlobalSyncTracker } from "@/components/layout/global-sync-tracker";
 import { SyncStatusProvider } from "@/components/layout/sync-status-provider";
-import { TabRailProvider } from "@/components/ui/segmented-tabs";
+import { TabRailProvider } from "@/components/ui/tactile/segmented-tabs";
 import {
   SyncStatusDot,
   SyncTelemetry,

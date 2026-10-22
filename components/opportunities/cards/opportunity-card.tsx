@@ -40,23 +40,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { RowMenuTrigger } from "@/components/ui/row-menu-trigger";
+import { RowMenuTrigger } from "@/components/ui/composites/row-menu-trigger";
 import { CompanyLogo } from "@/components/ui/company-logo";
-import { ReceivedMeta } from "@/components/ui/received-meta";
-import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/score-percent";
+import { ReceivedMeta } from "@/components/ui/composites/received-meta";
+import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/styles/score-percent";
 import {
   PRIMARY_ACTION_BTN_CLASSNAME,
   PRIMARY_ACTION_BTN_MUTED_CLASSNAME,
-} from "@/components/ui/primary-action-btn";
-import { selectCheckboxClassName } from "@/components/ui/select-checkbox";
+} from "@/components/ui/styles/primary-action-btn";
+import { selectCheckboxClassName } from "@/components/ui/styles/select-checkbox";
 import {
   SELECT_HIGHLIGHT_CLASSNAME,
   SELECT_HIGHLIGHT_FILL_CLASSNAME,
-} from "@/components/ui/select-highlight";
+} from "@/components/ui/styles/select-highlight";
 import {
   SECONDARY_ACTION_BTN_CLASSNAME,
   SECONDARY_ACTION_BTN_MUTED_CLASSNAME,
-} from "@/components/ui/secondary-action-btn";
+} from "@/components/ui/styles/secondary-action-btn";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { canDraftDirectEmail } from "@/lib/application-method";
 import {

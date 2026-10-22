@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { selectCheckboxClassName } from "@/components/ui/select-checkbox";
+import { selectCheckboxClassName } from "@/components/ui/styles/select-checkbox";
 import { cn } from "@/lib/utils";
 
 export type CheckboxProps = Omit<
