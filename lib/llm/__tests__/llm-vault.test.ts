@@ -74,6 +74,29 @@ describe("LLM Vault & Multi-Provider SSOT", () => {
       expect(credentials?.model).toBeNull();
     });
 
+    it("scopes cloudModel to its configured cloudModelProvider and returns null on provider mismatch", () => {
+      const rawKey = "sk-test-key-9999";
+      const { encryptedApiKey } = encryptAccountKey(rawKey);
+
+      const mismatchCredentials = resolveDecryptedAccountKey({
+        cloudProvider: "OPENAI",
+        cloudModel: "anthropic/claude-3.5-sonnet",
+        cloudModelProvider: "OPENROUTER",
+        encryptedApiKey,
+      });
+      expect(mismatchCredentials?.provider).toBe("OPENAI");
+      expect(mismatchCredentials?.model).toBeNull();
+
+      const matchingCredentials = resolveDecryptedAccountKey({
+        cloudProvider: "OPENROUTER",
+        cloudModel: "anthropic/claude-3.5-sonnet",
+        cloudModelProvider: "OPENROUTER",
+        encryptedApiKey,
+      });
+      expect(matchingCredentials?.provider).toBe("OPENROUTER");
+      expect(matchingCredentials?.model).toBe("anthropic/claude-3.5-sonnet");
+    });
+
     it("returns null when no encrypted key is configured", () => {
       expect(resolveDecryptedAccountKey(null)).toBeNull();
       expect(resolveDecryptedAccountKey({})).toBeNull();

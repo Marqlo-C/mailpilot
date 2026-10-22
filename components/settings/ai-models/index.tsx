@@ -64,6 +64,7 @@ export type AiModelsCardProps = {
   allowCloudFallback?: boolean;
   cloudProvider?: CloudLlmProvider;
   cloudModel?: string | null;
+  cloudModelProvider?: CloudLlmProvider | null;
   maskedApiKey?: string | null;
   maskedScrapingAntApiKey?: string | null;
   scrapingAntUsage?: ScrapingAntUsage | null;
@@ -194,6 +195,7 @@ export function AiModelsCard({
   allowCloudFallback = false,
   cloudProvider = "OPENROUTER",
   cloudModel = null,
+  cloudModelProvider = null,
   maskedApiKey = null,
   maskedScrapingAntApiKey: initialMaskedScrapingAntApiKey = null,
   scrapingAntUsage: initialScrapingAntUsage = null,
@@ -1010,6 +1012,7 @@ export function AiModelsCard({
         allowCloudFallback={allowCloudFallback}
         cloudProvider={cloudProvider}
         cloudModel={cloudModel}
+        cloudModelProvider={cloudModelProvider}
         maskedApiKey={maskedApiKey}
       />
 

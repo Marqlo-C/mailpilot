@@ -48,6 +48,7 @@ import {
   OllamaInvalidJsonError,
 } from "./local-ollama";
 import { CloudLlmRateLimitError } from "./client";
+import { resolveProviderScopedCloudModel } from "./vault";
 
 export const extractedJobSchema = z.object({
   company: z.preprocess((v) => (v == null ? "" : v), z.string().min(1)),
@@ -1032,7 +1033,7 @@ export async function classifyJobEmail(
 
   const effectiveModel =
     options.cloudModel?.trim() ||
-    options.accountRules?.cloudModel?.trim() ||
+    resolveProviderScopedCloudModel(options.accountRules) ||
     null;
 
   let result: Record<string, unknown> | null = null;
