@@ -137,19 +137,31 @@ export function WavyMeter({
 
   const [trackWidth, setTrackWidth] = React.useState(0);
   const [trackHeight, setTrackHeight] = React.useState(14);
-  const [activeVariant, setActiveVariant] = React.useState<WavyMeterVariant>(() => {
-    if (variant === "light" || variant === "dark") return variant;
-    return readWavyMeterPreference(accountId);
-  });
+  const [activeVariant, setActiveVariant] = React.useState<WavyMeterVariant>(
+    variant === "dark" ? "dark" : "light"
+  );
 
-  // Keep activeVariant in sync with prop and global preference changes
+  // Keep activeVariant in sync with prop and global preference changes after hydration
   React.useEffect(() => {
     if (variant === "light" || variant === "dark") {
       setActiveVariant(variant);
       return;
     }
 
-    const sync = () => {
+    const sync = (e?: Event) => {
+      const customEvent = e as CustomEvent<{
+        variant?: WavyMeterVariant;
+        accountId?: string | null;
+      }> | undefined;
+      if (
+        customEvent?.detail?.variant &&
+        (!customEvent.detail.accountId ||
+          !accountId ||
+          customEvent.detail.accountId === accountId)
+      ) {
+        setActiveVariant(customEvent.detail.variant);
+        return;
+      }
       setActiveVariant(readWavyMeterPreference(accountId));
     };
 
@@ -170,7 +182,7 @@ export function WavyMeter({
   const theme = activeVariant === "dark" ? DARK_THEME : LIGHT_THEME;
   const colors = theme.tones[resolvedToneKey];
 
-  const gradientId = React.useId().replace(/:/g, "_") + `_wavy_${activeVariant}_grad`;
+  const gradientId = React.useId().replace(/:/g, "_") + "_wavy_grad";
 
   // Measure track dimensions responsively
   React.useEffect(() => {

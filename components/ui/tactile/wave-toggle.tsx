@@ -75,10 +75,7 @@ export function WaveToggle({
   const waveRafRef = React.useRef<number | null>(null);
 
   const [activeVariant, setActiveVariant] = React.useState<WaveToggleVariant>(
-    () => {
-      if (variant === "light" || variant === "dark") return variant;
-      return readWaveTogglePreference(accountId);
-    }
+    variant === "light" ? "light" : "dark"
   );
 
   React.useEffect(() => {
@@ -99,7 +96,9 @@ export function WaveToggle({
         !accountId ||
         customEvent.detail.accountId === accountId
       ) {
-        setActiveVariant(readWaveTogglePreference(accountId));
+        setActiveVariant(
+          customEvent.detail?.variant ?? readWaveTogglePreference(accountId)
+        );
       }
     };
 
