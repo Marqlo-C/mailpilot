@@ -7,7 +7,7 @@ import { logoutSession } from "@/app/actions/auth";
 import { ExportMasterProfileButton } from "@/components/profile/export-master-profile-button";
 import { ResumeUploadDialog } from "@/components/profile/resume-upload-dialog";
 import { AccountsCard } from "@/components/settings/accounts-card";
-import { AiModelsCard } from "@/components/settings/ai-models-card";
+import { AiModelsCard } from "@/components/settings/ai-models";
 import { ApplicationAutomationCard } from "@/components/settings/application-automation-card";
 import { AutomationRulesCard } from "@/components/settings/automation-rules-card";
 import { ExcludedTitlesCard } from "@/components/settings/excluded-titles-card";
