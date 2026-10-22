@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 
 import { logStory, syncLog } from "@/lib/logging";
 import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
-import { runOpportunitySync } from "@/lib/opportunity-sync";
-import { prisma } from "@/lib/prisma";
+import { runOpportunitySync } from "@/lib/opportunities/sync";
+import { prisma } from "@/lib/core/prisma";
 
 /** Hobby-friendly ceiling so multi-account runs stay under the platform limit. */
 export const maxDuration = 60;

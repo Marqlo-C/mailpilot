@@ -15,14 +15,14 @@ import {
 import {
   canDraftDirectEmail,
   extractRecruiterEmail,
-} from "@/lib/application-method";
+} from "@/lib/opportunities/application-method";
 import {
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
-} from "@/lib/google";
-import { prisma } from "@/lib/prisma";
-import { checkRateLimit } from "@/lib/ratelimit";
+} from "@/lib/gmail/google";
+import { prisma } from "@/lib/core/prisma";
+import { checkRateLimit } from "@/lib/core/ratelimit";
 import {
   APPLICATION_STATUSES,
   type ApplicationStatus,
@@ -405,7 +405,7 @@ export async function downloadTailoredPdfAction(
   includeSummary = false
 ): Promise<ActionResult<{ base64: string; filename: string }>> {
   // Lazy import to keep action surface thin
-  const { generateTailoredResumePdf } = await import("@/lib/pdf-generator");
+  const { generateTailoredResumePdf } = await import("@/lib/document/pdf-generator");
   const { tailorResumeForJob } = await import("@/lib/resume-tailor");
   const { getMasterProfile } = await import("@/app/actions/profile");
 

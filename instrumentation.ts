@@ -5,11 +5,11 @@
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    await import("@/lib/polyfills");
+    await import("@/lib/document/polyfills");
 
     if (process.env.NODE_ENV === "development") {
       try {
-        const { prisma } = await import("@/lib/prisma");
+        const { prisma } = await import("@/lib/core/prisma");
         await prisma.account.updateMany({ data: { isSyncing: false } });
         console.log("[DevBoot] Cleared all hanging sync locks.");
         const softCleared = await prisma.jobOpportunity.updateMany({

@@ -22,7 +22,7 @@ import {
   type SubscriptionMoveKind,
   type SubscriptionTab,
 } from "@/lib/subscriptions/movement-rules";
-import type { CleanupAction } from "@/lib/unsubscribe";
+import type { CleanupAction } from "@/lib/gmail/unsubscribe";
 
 export type RunSubscriptionMoveResult = ActionResult<{
   count: number;

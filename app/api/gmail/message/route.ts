@@ -10,8 +10,8 @@ import {
   getGmailClientForAccount,
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
-} from "@/lib/google";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/gmail/google";
+import { prisma } from "@/lib/core/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

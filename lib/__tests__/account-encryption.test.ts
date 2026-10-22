@@ -6,7 +6,7 @@ import {
   encryptPhoneAtRest,
   encryptToken,
   isEncryptedToken,
-} from "../crypto";
+} from "@/lib/core/crypto";
 
 describe("Account & Profile Data Encryption at Rest", () => {
   beforeAll(() => {

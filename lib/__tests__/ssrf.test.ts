@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isBlockedIp } from "../ssrf";
+import { isBlockedIp } from "@/lib/core/ssrf";
 
 describe("SSRF Protection Guardrails", () => {
   it("blocks private IPv4 addresses and loopback", () => {

@@ -143,7 +143,7 @@ describe("Login Background Route Handler (/api/login-background)", () => {
   });
 
   it("returns 429 Too Many Requests when rate limit is exceeded", async () => {
-    const ratelimitModule = await import("@/lib/ratelimit");
+    const ratelimitModule = await import("@/lib/core/ratelimit");
     vi.spyOn(ratelimitModule, "checkRateLimit").mockResolvedValueOnce({
       success: false,
       limit: 30,

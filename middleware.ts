@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { SESSION_COOKIE } from "@/lib/constants";
+import { SESSION_COOKIE } from "@/lib/core/constants";
 
 const PUBLIC_EXACT = new Set(["/login", "/favicon.ico"]);
 

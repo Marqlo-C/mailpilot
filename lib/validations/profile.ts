@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { skillGroupsFromUnknown } from "@/lib/skill-groups";
+import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import { normalizeProfileUrl } from "@/lib/utils/url";
 
 export const experienceBulletSchema = z.object({

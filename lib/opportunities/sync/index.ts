@@ -3,19 +3,19 @@ import {
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
-} from "@/lib/google";
+} from "@/lib/gmail/google";
 import {
   isOllamaCircuitTripped,
   loadCandidateProfileSummary,
   type LlmProvider,
 } from "@/lib/llm";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/core/prisma";
 import {
   logStory,
   syncLog,
   logSyncSummaryBanner,
 } from "@/lib/logging";
-import { resolveIngestionRules } from "@/lib/sync";
+import { resolveIngestionRules } from "@/lib/gmail/sync";
 import {
   purgeExpiredDismissed,
   pruneHeuristicOpportunities,
@@ -27,7 +27,7 @@ import {
   RATE_LIMIT_BASE_MS,
 } from "./candidates";
 import { processSyncMessage } from "./processor";
-import { refreshScrapingAntUsageAfterSync } from "@/lib/scrapingant";
+import { refreshScrapingAntUsageAfterSync } from "@/lib/scraping/scrapingant";
 
 export * from "./candidates";
 export * from "./dedupe";

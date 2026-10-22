@@ -35,8 +35,8 @@ import {
   evaluateOpportunityMatch,
 } from "@/lib/matching";
 import { JOB_BOARD_KEYWORDS } from "@/lib/constants/job-sources";
-import { prisma } from "@/lib/prisma";
-import { parseFromHeader, type ClassifiableAccount } from "@/lib/sync";
+import { prisma } from "@/lib/core/prisma";
+import { parseFromHeader, type ClassifiableAccount } from "@/lib/gmail/sync";
 import type { parseAccountRules } from "@/lib/validations/rules";
 import { withRateLimitRetry } from "./candidates";
 import { persistSyncOpportunity } from "./dedupe";

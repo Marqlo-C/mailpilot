@@ -4,10 +4,10 @@ import { randomBytes } from "crypto";
 import {
   getGmailClientForAccount,
   rethrowIfInsufficientScope,
-} from "@/lib/google";
-import { generateTailoredResumePdf } from "@/lib/pdf-generator";
-import { prisma } from "@/lib/prisma";
-import { loadMasterProfileForDraft } from "@/lib/master-profile";
+} from "@/lib/gmail/google";
+import { generateTailoredResumePdf } from "@/lib/document/pdf-generator";
+import { prisma } from "@/lib/core/prisma";
+import { loadMasterProfileForDraft } from "@/lib/profile/master-profile";
 import {
   buildSlimCandidate,
   draftContextualEmail,
@@ -16,8 +16,8 @@ import {
 import {
   canDraftDirectEmail,
   extractRecruiterEmail,
-} from "@/lib/application-method";
-import { cleanRecruiterFirstName } from "@/lib/email-utils";
+} from "@/lib/opportunities/application-method";
+import { cleanRecruiterFirstName } from "@/lib/gmail/email-utils";
 import type { LlmProvider } from "@/lib/llm";
 import type { OpportunityStatus } from "@/lib/validations/profile";
 import { tailoredDataSchema } from "@/lib/validations/profile";

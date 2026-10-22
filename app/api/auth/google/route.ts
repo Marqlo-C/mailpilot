@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 
-import { getAuthorizationUrl } from "@/lib/google";
-import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
+import { getAuthorizationUrl } from "@/lib/gmail/google";
+import { checkRateLimit, getClientIp } from "@/lib/core/ratelimit";
 
 export const runtime = "nodejs";
 

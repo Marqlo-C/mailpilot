@@ -4,20 +4,20 @@ import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { SYNC_HEARTBEAT_STALE_MS } from "@/lib/constants";
+import { SYNC_HEARTBEAT_STALE_MS } from "@/lib/core/constants";
 import {
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
-} from "@/lib/google";
-import { scanHistoricalEmails } from "@/lib/historical-scan";
+} from "@/lib/gmail/google";
+import { scanHistoricalEmails } from "@/lib/gmail/historical-scan";
 import { syncLockLog } from "@/lib/logging";
-import { prisma } from "@/lib/prisma";
-import { checkRateLimit } from "@/lib/ratelimit";
+import { prisma } from "@/lib/core/prisma";
+import { checkRateLimit } from "@/lib/core/ratelimit";
 import {
   SCAN_DAY_OPTIONS,
   type ScanDays,
-} from "@/lib/scan-types";
+} from "@/lib/gmail/scan-types";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }

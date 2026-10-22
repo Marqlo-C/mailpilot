@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 
 import { getAuthenticatedAccountId } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/core/prisma";
 import { accountRulesSchema, parseAccountRules } from "@/lib/validations/rules";
 
 export const dynamic = "force-dynamic";

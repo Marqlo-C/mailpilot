@@ -3,8 +3,8 @@ import {
   fetchScrapingAntUsageFromApi,
   getOrRefreshScrapingAntUsage,
   SCRAPINGANT_USAGE_CACHE_TTL_MS,
-} from "@/lib/scrapingant";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/scraping/scrapingant";
+import { prisma } from "@/lib/core/prisma";
 
 describe("ScrapingAnt Usage Service", () => {
   const originalFetch = globalThis.fetch;

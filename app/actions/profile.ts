@@ -3,9 +3,9 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
-import { extractTextFromFile } from "@/lib/document-parser";
+import { extractTextFromFile } from "@/lib/document/document-parser";
 import { syncGitHubProjects, normalizeGitHubUsername } from "@/lib/github";
-import { parseLinkedInArchive } from "@/lib/linkedin-archive-parser";
+import { parseLinkedInArchive } from "@/lib/profile/linkedin-archive-parser";
 import {
   consolidateProfiles,
   enrichLinksFromRawText,
@@ -14,7 +14,7 @@ import {
   isGithubProfileUrl,
   isPlaceholderEmail,
   resolveGithubHandle,
-} from "@/lib/profile-consolidation";
+} from "@/lib/profile/profile-consolidation";
 import {
   describeProfileRevision,
   parseRevisionSummary,
@@ -22,21 +22,21 @@ import {
 } from "@/lib/profile/revision-diff";
 import { normalizeProfileUrl } from "@/lib/utils/url";
 import { buildResumeContactLine, normalizeProjectName } from "@/lib/utils/format";
-import { loadMasterProfileForDraft } from "@/lib/master-profile";
-import { generateTailoredResumePdf } from "@/lib/pdf-generator";
-import { encryptPhoneAtRest, decryptPhoneAtRest } from "@/lib/crypto";
+import { loadMasterProfileForDraft } from "@/lib/profile/master-profile";
+import { generateTailoredResumePdf } from "@/lib/document/pdf-generator";
+import { encryptPhoneAtRest, decryptPhoneAtRest } from "@/lib/core/crypto";
 import {
   listProfileRevisions,
   loadProfileSnapshot,
   pruneProfileHistory,
   recordProfileSnapshot,
   serializeUserProfileToInput,
-} from "@/lib/profile-history";
+} from "@/lib/profile/profile-history";
 import { synthesizeCandidatePersona } from "@/lib/ai/persona";
-import { prisma } from "@/lib/prisma";
-import { skillGroupsFromUnknown } from "@/lib/skill-groups";
-import { parseResumeToStructuredProfile } from "@/lib/resume-parser";
-import { ensurePersistentProfileForAccount } from "@/lib/persistent-profile";
+import { prisma } from "@/lib/core/prisma";
+import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
+import { parseResumeToStructuredProfile } from "@/lib/profile/resume-parser";
+import { ensurePersistentProfileForAccount } from "@/lib/profile/persistent-profile";
 import {
   awardsSchema,
   certificationsSchema,

@@ -8,7 +8,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3.4-38B2AC?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-338_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-341_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
 [![Vercel WAF](https://img.shields.io/badge/Vercel-Edge_WAF_Mitigation-000000?style=flat-square&logo=vercel)](https://vercel.com/)
 [![Upstash](https://img.shields.io/badge/Upstash-Redis_Rate_Limiting-00E599?style=flat-square&logo=redis)](https://upstash.com/)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM_Vaulted-green?style=flat-square&logo=security)](https://nodejs.org/api/crypto.html)
@@ -18,21 +18,24 @@
 ## Table of Contents
 
 - [1. System Vision & Problem Space](#1-system-vision--problem-space)
-- [2. End-to-End System Architecture](#2-end-to-end-system-architecture)
-- [3. The Decoupled Domain Architecture (SSOT & Lenses)](#3-the-decoupled-domain-architecture-ssot--lenses)
-- [4. Multi-Tier Inference Router & Local Circuit Breaker](#4-multi-tier-inference-router--local-circuit-breaker)
-- [5. Web Scraping & Anti-Bot Evasion Engine](#5-web-scraping--anti-bot-evasion-engine)
-- [6. Cryptography, Privacy & Security Guardrails](#6-cryptography-privacy--security-guardrails)
-- [7. Line-Addressable Resume Tailoring & Page Budgeting](#7-line-addressable-resume-tailoring--page-budgeting)
-- [8. Performance & Systems Optimization](#8-performance--systems-optimization)
-- [9. Technology Stack Matrix](#9-technology-stack-matrix)
-- [10. Test Suite, Verification & Local Development](#10-test-suite-verification--local-development)
+- [2. Architectural Shifts & Engineering Rationales](#2-architectural-shifts--engineering-rationales)
+- [3. End-to-End System Architecture](#3-end-to-end-system-architecture)
+- [4. Domain Modularization & Codebase Taxonomy](#4-domain-modularization--codebase-taxonomy)
+- [5. The Decoupled Domain Architecture (SSOT & Lenses)](#5-the-decoupled-domain-architecture-ssot--lenses)
+- [6. Multi-Tier Inference Router & Local Circuit Breaker](#6-multi-tier-inference-router--local-circuit-breaker)
+- [7. Web Scraping & Anti-Bot Evasion Engine](#7-web-scraping--anti-bot-evasion-engine)
+- [8. Polymorphic 4-Tier Card Design System](#8-polymorphic-4-tier-card-design-system)
+- [9. Cryptography, Privacy & Security Guardrails](#9-cryptography-privacy--security-guardrails)
+- [10. Line-Addressable Resume Tailoring & Page Budgeting](#10-line-addressable-resume-tailoring--page-budgeting)
+- [11. Performance, Systems Optimization & Telemetry](#11-performance-systems-optimization--telemetry)
+- [12. Technology Stack Matrix](#12-technology-stack-matrix)
+- [13. Test Suite, Verification & Local Development](#13-test-suite-verification--local-development)
 
 ---
 
 ## 1. System Vision & Problem Space
 
-Modern personal inboxes are bombarded with high-velocity automated noise: transactional receipts, marketing blasts, newsletters, and promotional feeds. Buried within this stream are high-stakes, time-critical career opportunities: recruiter reachouts, direct interview invitations, take-home assessments, and job application status changes.
+Modern personal inboxes are overwhelmed by high-velocity automated noise: transactional receipts, marketing blasts, newsletters, and promotional alerts. Buried within this stream are high-stakes, time-critical career opportunities: direct recruiter reachouts, interview invitations, take-home assessments, and job application status changes.
 
 **MailPilot** transforms the unstructured personal inbox into an autonomous, real-time career intelligence platform and telemetry pipeline. Built on a serverless, decoupled architecture, MailPilot executes two primary operational missions:
 
@@ -56,7 +59,42 @@ MailPilot is designed from the ground up for strict multi-tenancy and data priva
 
 ---
 
-## 2. End-to-End System Architecture
+## 2. Architectural Shifts & Engineering Rationales
+
+To scale MailPilot reliably under production constraints on the Vercel Hobby tier while eliminating architectural debt, the codebase underwent five foundational engineering shifts:
+
+### 1. Purge of Legacy Shim Files in Favor of Canonical Domain Exports
+- **Prior Pattern:** Relocating components and utilities while leaving behind one-line re-export forwarders (`export * from ...`).
+- **Failure Mode:** Backward-compatibility shims create hidden circular dependencies, inflate serverless bundle size, obscure real dependency trees, and risk pulling server-only dependencies into client bundles.
+- **Engineering Shift:** All imports across `app/`, `components/`, and `lib/` were migrated directly to their canonical submodule paths, followed by the permanent deletion of every shim file. The result is zero barrel redirection and clean, tree-shakeable import graphs.
+
+### 2. Elimination of Flat-Land Directory Sprawl
+- **Prior Pattern:** Accumulating 35+ loose files in `components/ui/` and 32+ loose utility files directly in `lib/`.
+- **Failure Mode:** Mixing generic UI primitives with application composites and low-level Node utilities created a flat namespace where changes carried unpredictable ripple effects.
+- **Engineering Shift:** Reorganized the repository into semantic domain clusters:
+  - `components/opportunities/`: Structured into `cards/`, `dialogs/`, `drawer/`, `toolbar/`, and `views/`.
+  - `components/settings/`: Grouped into `ai-models/`, `profile/`, `automation/`, and `scraping/`.
+  - `components/ui/`: Separated into `tactile/` (custom fluid controls), `composites/` (complex layouts, modals), and `styles/` (pure CSS utility tokens).
+  - `lib/`: Clustered into `core/` (DB singletons, cryptography, rate limiting, SSRF), `profile/` (candidate master facts), `document/` (PDF & DOCX layout compilers), `scraping/` (anti-bot proxy managers), `gmail/` (mailbox synchronizers), and `utils/` (pure formatting & URL helpers).
+
+### 3. Unified 4-Tier Polymorphic Card Hierarchy & Typographic Scale
+- **Prior Pattern:** Ad-hoc padding, border radii, and font sizes across settings cards and status panels.
+- **Failure Mode:** Visual dissonance between top-level section cards, collapsible provider panels, onboarding steps, and live telemetry badges.
+- **Engineering Shift:** Bound all settings titles, subtitles, and containers to a strict mathematical scale (`16px → 14px → 13px → 12px`) via `components/ui/tactile/nested-settings-card.tsx` and extracted self-contained domain cards (`CloudProviderCard`, `BotBypassCard`).
+
+### 4. Separation of Anti-Bot Proxy Execution from Credential Vaulting
+- **Prior Pattern:** Disabling proxies required clearing the stored API key, wiping out validated keys on the client.
+- **Failure Mode:** Frequent proxy re-entry, friction for users switching between direct fetch and residential proxy networks, and accidental consumption of usage credits.
+- **Engineering Shift:** Introduced a dedicated profile-persisted `enableWebScrapingProxies` rule backed by a master `WaveToggle` on `BotBypassCard`. Users can toggle scraping proxies off for direct fetching while their encrypted AES-256-GCM HasData and ScrapingAnt keys remain safely preserved in the database vault.
+
+### 5. Zero-Token Offline Parking vs. Heuristic Opportunity Hallucination
+- **Prior Pattern:** When AI providers timed out, the system fell back to aggressive regex heuristic classification.
+- **Failure Mode:** Heuristics misclassified marketing digests and promotional receipts as genuine career leads, polluting the user's pipeline with false positives.
+- **Engineering Shift:** MailPilot parks unclassified messages as `PENDING_AI` when inference endpoints are offline or rate-limited. When Ollama or Cloud BYOK returns, an automated queue drain classifies messages using real models, completely eliminating synthetic data contamination while keeping `rawBody: null` at rest.
+
+---
+
+## 3. End-to-End System Architecture
 
 The following diagram illustrates the complete asynchronous lifecycle of inbound messages through MailPilot: from Google Cloud Pub/Sub webhook triggers to multi-tier classification, link enrichment, decoupled anti-corruption lenses, and downstream execution engines.
 
@@ -91,7 +129,7 @@ flowchart TD
     ENRICH -->|"&nbsp;&nbsp;Schema.org&nbsp;&nbsp;"| JLD["JSON-LD Scraper"]
     ENRICH -->|"&nbsp;&nbsp;Nuxt 3 State&nbsp;&nbsp;"| NUXT["Nuxt State Parser"]
     ENRICH -->|"&nbsp;&nbsp;Guest API&nbsp;&nbsp;"| LI["LinkedIn Guest API"]
-    ENRICH -->|"&nbsp;&nbsp;Proxy Fallback&nbsp;&nbsp;"| PROXY["Residential Proxy"]
+    ENRICH -->|"&nbsp;&nbsp;Proxy Fallback&nbsp;&nbsp;"| PROXY["Residential Proxy<br/>(HasData / ScrapingAnt)"]
   end
 
   subgraph Lens["4. Anti-Corruption Lenses"]
@@ -134,7 +172,49 @@ flowchart TD
 
 ---
 
-## 3. The Decoupled Domain Architecture (SSOT & Lenses)
+## 4. Domain Modularization & Codebase Taxonomy
+
+MailPilot avoids flat-folder accumulation by grouping related responsibilities into high-cohesion subdirectories across both `components/` and `lib/`:
+
+```text
+MailPilot/
+├── app/                           # Next.js 15 App Router & Server Actions
+│   ├── actions/                   # Server Actions (accounts, dispatch, jobs, profile, settings, etc.)
+│   └── api/                       # Webhooks, cron endpoints, OAuth, bridge scripts, telemetry
+├── components/
+│   ├── opportunities/             # Core Pipeline Domain
+│   │   ├── views/                 # Top-level opportunities canvas (opportunities-view.tsx)
+│   │   ├── cards/                 # Unified 2-pill opportunity cards (opportunity-card.tsx)
+│   │   ├── drawer/                # ATS handoff quick-fill & interactive resume sheets
+│   │   ├── dialogs/               # Direct-email drafting & review modal dialogs
+│   │   └── toolbar/               # Search, filters, score threshold slider & JobsRadar tab rail
+│   ├── settings/                  # Multi-Domain Settings Management
+│   │   ├── ai-models/             # Ollama bridge steps, cloud providers, bot bypass card
+│   │   ├── profile/               # Master profile editor, resume cards, linked accounts
+│   │   ├── automation/            # Radar rules, rejection mode, retention, excluded titles
+│   │   └── scraping/              # HasData & ScrapingAnt usage control panels
+│   └── ui/                        # Universal Design System
+│       ├── tactile/               # Wave controls (WaveToggle, WavySlider, WavyMeter, NestedSettingsCard)
+│       ├── composites/            # Action dialog shells, flyouts, pagination, row menus
+│       ├── styles/                # Boxy button styles, checkbox styles, score percentage tokens
+│       └── [primitives].tsx       # Pure atomic Radix/Shadcn primitives (button, badge, dialog, etc.)
+└── lib/
+    ├── core/                      # Core Singletons (prisma.ts, crypto.ts, ratelimit.ts, ssrf.ts, constants.ts)
+    ├── profile/                   # Master profile, persistent profile, revision history, parser, skill groups
+    ├── document/                  # React-PDF generator, Word DOCX compiler, text extractor, polyfills
+    ├── scraping/                  # HasData & ScrapingAnt proxy clients, quota caches
+    ├── gmail/                     # Google OAuth2 client, Pub/Sub sync, historical scan, RFC 8058 unsubscribe
+    ├── llm/                       # Dispatcher, Ollama circuit breaker, cloud BYOK vault
+    ├── matching/                  # Match evaluation engine, taxonomy normalizer, fit bands, job matcher
+    ├── opportunities/             # Context lens, deduplication, dispatch, sync, application method
+    ├── persona/                   # Multi-dimensional persona matrix, tone composer
+    ├── subscriptions/             # Mailing list categorization, briefing generators
+    └── utils/                     # Formatters, apex domain resolver, company logos, bridge scripts
+```
+
+---
+
+## 5. The Decoupled Domain Architecture (SSOT & Lenses)
 
 MailPilot enforces strict domain decoupling through **Single Source of Truth (SSOT)** schemas and **Anti-Corruption Lenses**. Domain logic never imports raw Prisma database models directly; instead, dedicated adapter lenses sanitize, normalize, and buffer changes between storage models and business logic.
 
@@ -242,19 +322,9 @@ flowchart TD
   - `lens.ts`: Adapts raw GitHub repo payloads and inference outputs into normalized `ProjectItem` entities with sanitized Title Case names.
   - `syncer.ts`: End-to-end orchestrator (`syncGitHubProjects`) managing rate limits, concurrent manifest fetching, and multi-tier LLM failover. Forwards `accountId` and account rules through to `callLLMWithFallback`, ensuring BYOK cloud inference works seamlessly if local Ollama is offline, backed by a deterministic heuristic fallback engine that generates decisive engineering bullets if all models are unavailable.
 
-- **Dynamic 3-Tier Repository Complexity Budgeting:**
-  - *Tier 1: Utility / Small Component* (`repo.size < 3000` KB or 1 manifest): Calibrates to a 2,500-character digest budget and targets 2–3 concise atomic bullets for CLI tools and localized algorithms.
-  - *Tier 2: Mid-Scale Application / Service* (`repo.size` between 3,000 KB and 15,000 KB, or 2 manifests): Calibrates to a 5,500-character digest budget and targets 4–6 atomic bullets for containerized apps and standalone services.
-  - *Tier 3: Flagship / Distributed Architecture* (`repo.size >= 15000` KB or presence of monorepo subdirectories like `apps/`, `services/`, `packages/`, `backend/`): Calibrates to a 10,000–12,000 character digest budget and targets 6–10 atomic bullets delivering comprehensive subsystem coverage across data ingestion, persistence, protocols, and security.
-
-- **Strict Systems Engineering Tone & Anti-Hallucination Guardrails:**
-  - Prohibits introductory repository summary bullets (every bullet must describe a specific technical mechanism, problem solved, or subsystem implemented).
-  - Eliminates repetitive verb loops (*Architected / Engineered / Implemented*) in favor of natural systems operations (*Multiplexed, Sharded, Throttled, Decoupled, Serialized, Benchmarked, Vectorized*).
-  - Bans fabricated dollar revenue or synthetic user metrics; anchors all results strictly in computational efficiency, data integrity, protocol conformance, or automated pipeline reliability.
-
 ---
 
-## 4. Multi-Tier Inference Router & Local Circuit Breaker
+## 6. Multi-Tier Inference Router & Local Circuit Breaker
 
 MailPilot features an account-scoped multi-tier inference router (`lib/llm/dispatcher.ts`) engineered for zero token waste, local privacy, and continuous synchronization uptime.
 
@@ -285,7 +355,7 @@ flowchart TD
 
 Running open-weights models locally via [Ollama](https://ollama.com/) delivers **$0.00 token inference** and complete private data residency. However, deploying modern web applications serverless on Vercel presents a classic network isolation challenge: cloud runtime functions cannot directly dial `http://127.0.0.1:11434` running on a private developer workstation or home server.
 
-MailPilot resolves this boundary using an ephemeral, **zero-clone Quick-Connect Bridge** (`lib/bridge-scripts.ts`) that links local Ollama instances to MailPilot accounts with a single terminal command:
+MailPilot resolves this boundary using an ephemeral, **zero-clone Quick-Connect Bridge** (`lib/utils/bridge-scripts.ts`) that links local Ollama instances to MailPilot accounts with a single terminal command:
 
 ```mermaid
 %%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
@@ -335,7 +405,7 @@ sequenceDiagram
   - Process exit handlers (`trap cleanup EXIT INT TERM` in Bash, `try/finally` in PowerShell) catch `Ctrl+C` or shell termination, notifying MailPilot (`POST /api/settings/ollama-bridge` with `action: "disconnect"`) to reset bridge status in real time and clean up temporary logs.
 
 ### Real-Time ASCII Telemetry Pipeline
-All model invocations are monitored via a standardized 66-column terminal ASCII telemetry logger (`lib/logging/table-logger.ts`):
+All model invocations are monitored via a standardized 66-column terminal ASCII telemetry logger (`lib/logging/index.ts`):
 
 ```text
 ┌────────────────────────────────────────────────────────────────┐
@@ -349,13 +419,14 @@ All model invocations are monitored via a standardized 66-column terminal ASCII 
 
 ---
 
-## 5. Web Scraping & Anti-Bot Evasion Engine
+## 7. Web Scraping & Anti-Bot Evasion Engine
 
 Inbound emails frequently contain abbreviated link digests (`< 300 chars`) pointing to external job boards. MailPilot utilizes a cost-aware, multi-stage link parsing engine (`lib/opportunities/context/`) designed to extract rich specifications while protecting proxy credits:
 
 ### Pacing & Hydration Strategy
 - **Background Sync Pacing (Zero Credit Waste):** During automated inbox sync passes, Glassdoor and Indeed links fast-exit immediately in **0ms** without triggering external proxy calls, persisting as `MINIMAL_LEAD` records.
 - **On-Demand Spec Hydration (HasData BYOK):** When a user opens an opportunity to tailor a resume or clicks *Hydrate Spec*, MailPilot executes `fetchViaHasData` using the customer's encrypted HasData BYOK key, upgrading the record from `MINIMAL_LEAD` to `RICH_SPEC` (saving up to 4,000+ characters of parsed requirements to PostgreSQL).
+- **Master Proxy Toggle (`enableWebScrapingProxies`):** A dedicated master switch on `BotBypassCard` (`components/settings/ai-models/bot-bypass-card.tsx`) permits candidates to disable external proxy execution across all scraping paths while preserving their vaulted AES-256-GCM HasData and ScrapingAnt API keys intact.
 
 ### Multi-Stage Scraping Pipeline
 
@@ -364,7 +435,10 @@ Inbound emails frequently contain abbreviated link digests (`< 300 chars`) point
 flowchart TD
   URL["Inbound Job URL"] --> PROTO(["Direct ATS vs Portal?"])
   PROTO -->|"&nbsp;&nbsp;Direct ATS&nbsp;&nbsp;"| DIRECT["Direct HTTP Request<br/>(MailPilot/1.0)"]
-  PROTO -->|"&nbsp;&nbsp;Job Boards&nbsp;&nbsp;"| GATE(["Sync Mode?"])
+  PROTO -->|"&nbsp;&nbsp;Job Boards&nbsp;&nbsp;"| PROXCHECK(["Proxies Enabled?"])
+
+  PROXCHECK -->|"&nbsp;&nbsp;Disabled&nbsp;&nbsp;"| DIRECT
+  PROXCHECK -->|"&nbsp;&nbsp;Enabled&nbsp;&nbsp;"| GATE(["Sync Mode?"])
 
   GATE -->|"&nbsp;&nbsp;Background&nbsp;&nbsp;"| MIN["0ms Fast Exit<br/>(MINIMAL_LEAD)"]
   GATE -->|"&nbsp;&nbsp;On-Demand&nbsp;&nbsp;"| HASDATA["HasData BYOK Proxy<br/>(Spec Hydration)"]
@@ -382,16 +456,38 @@ flowchart TD
 ```
 
 1. **Schema.org JSON-LD Extraction (`json-ld.ts`):** Parses `<script type="application/ld+json">` AST blocks, extracting structured `JobPosting` entities (title, hiring organization, base salary, date posted, employment type).
-2. **Nuxt 3 SSR State Parser (`nuxt.ts`):** De-serializes `<script id="__NUXT_DATA__">` JSON arrays. Resolves recursive object index pointers to extract full job descriptions from modern Nuxt 3 applications without headless Chrome overhead.
-3. **LinkedIn Public Guest API (`linkedin.ts`):** Resolves LinkedIn URLs via a 2-tier public unauthenticated pipeline (`https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{id}`) with fallback to Googlebot-emulated Schema.org parsing.
-4. **Proxy BYOK Fallback (`hasdata.ts`, `scrapingant.ts`):** Transparent residential rotating proxy failover for Cloudflare and DataDome protected career portals.
+2. **Nuxt 3 SSR State Parser (`json-ld.ts`):** De-serializes `<script id="__NUXT_DATA__">` JSON arrays. Resolves recursive object index pointers to extract full job descriptions from modern Nuxt 3 applications without headless Chrome overhead.
+3. **LinkedIn Public Guest API (`json-ld.ts`):** Resolves LinkedIn URLs via a 2-tier public unauthenticated pipeline (`https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{id}`) with fallback to Googlebot-emulated Schema.org parsing.
+4. **Proxy BYOK Fallback (`lib/scraping/hasdata.ts`, `lib/scraping/scrapingant.ts`):** Transparent residential rotating proxy failover for Cloudflare and DataDome protected career portals.
 
 ---
 
-## 6. Cryptography, Privacy & Security Guardrails
+## 8. Polymorphic 4-Tier Card Design System
+
+To ensure mathematical visual consistency and eliminate CSS drift across all settings surfaces, MailPilot enforces a 4-tier typographic matrix (`NESTED_CARD_TYPOGRAPHY`) codified in `components/ui/tactile/nested-settings-card.tsx`:
+
+```text
+Level 1 (Section Container) : 16px Title (font-semibold) · 12px Subtitle · p-4 Container
+  │
+  └── Level 2 (Feature Sub-Card) : 14px Title (font-semibold) · 12px Subtitle · p-3.5 Sub-card
+        │
+        └── Level 3 (Numbered Step) : 13px Title (font-semibold) · 12px Subtitle · p-3.5 Body
+              │
+              └── Level 4 (Status & Telemetry) : 12px Title · 11px Monospace Subtitle · p-3.5 Card
+```
+
+### Component Hierarchy
+- **`SettingsSectionCard` (Level 1):** The primary outer section card housing master feature toggles (`WaveToggle`) and curved corner arc dividers (`CurvedCardDivider`).
+- **`SettingsFeatureCard` (Level 2):** Collapsible feature sub-cards sporting brand iconography (`CompanyLogo`), independent accordion controls, and real-time status badges (*Active*, *Key Needed*, *Disabled*).
+- **`SettingsStepCard` (Level 3):** Numbered onboarding steps (e.g., Steps 1.1, 2.1 in Ollama Bridge) with dedicated action CTA buttons.
+- **`SettingsStatusCard` (Level 4):** Inner live telemetry indicators with pulsing status pings and monospace endpoint readouts.
+
+---
+
+## 9. Cryptography, Privacy & Security Guardrails
 
 ### 1. Authenticated Symmetric Encryption (AES-256-GCM)
-All vaulted customer secrets and sensitive candidate metadata are encrypted at rest using Node.js `crypto` (`lib/crypto.ts`):
+All vaulted customer secrets and sensitive candidate metadata are encrypted at rest using Node.js `crypto` (`lib/core/crypto.ts`):
 - **Cipher:** AES-256-GCM (Authenticated Encryption with Associated Data).
 - **Key Derivation:** Master 64-character hexadecimal key (`TOKEN_ENCRYPTION_KEY`, 256-bit entropy).
 - **Envelope Mechanics:** 12-byte cryptographically secure random Initialization Vector (IV) and 16-byte authentication tag generated per write.
@@ -408,7 +504,7 @@ All vaulted customer secrets and sensitive candidate metadata are encrypted at r
 
 * **Constant-Time Verification:** Secret tokens and hashes are validated using `crypto.timingSafeEqual` to eliminate side-channel timing attacks.
 
-### 2. Durable Profile-Scoped Credential Persistence (`lib/persistent-profile.ts`)
+### 2. Durable Profile-Scoped Credential Persistence (`lib/profile/persistent-profile.ts`)
 To eliminate credential loss and key fragmentation across inbox lifecycle events (such as unlinking a mailbox, re-authenticating expired Google OAuth tokens, or managing multiple inboxes under a single candidate identity), MailPilot decouples customer BYOK keys from transient inbox rows into a durable identity boundary:
 
 - **Identity Anchor (`PersistentProfile` & `PermanentSettings`):**
@@ -418,9 +514,6 @@ To eliminate credential loss and key fragmentation across inbox lifecycle events
 - **Inbox Reconnect & Multi-Inbox Immunity:**
   - Upon active account resolution (`getActiveAccount()` in `lib/data.ts`), `mergeRulesWithPermanentSettings()` automatically injects durable profile credentials into active sessions.
   - If a user unlinks, rotates, or re-links an inbox, all vaulted keys, models, and scraping quotas persist intact without requiring re-entry.
-  - A passive migration routine automatically detects and backfills legacy per-inbox credentials into the durable profile upon first load.
-- **Strict Decryption Boundaries:**
-  All profile-scoped secrets in `PermanentSettings.rules` enforce the identical AES-256-GCM envelope specification (`iv:authTag:ciphertext`). Client UI components receive strictly masked fingerprints (`sk-...[last4]`, `ant-...[last4]`, `hd-...[last4]`), with plaintext decryption occurring strictly in serverless memory at the time of inference or scraping execution.
 
 ```mermaid
 %%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
@@ -441,7 +534,7 @@ flowchart TD
   PS -.->|"&nbsp;&nbsp;Auto-Restore on Reconnect&nbsp;&nbsp;"| AS
 ```
 
-### 3. Hardened Server-Side Request Forgery (SSRF) Protection (`lib/ssrf.ts`)
+### 3. Hardened Server-Side Request Forgery (SSRF) Protection (`lib/core/ssrf.ts`)
 MailPilot prevents internal network probing and cloud metadata extraction by performing DNS pre-resolution validation on all user-supplied and email-extracted URLs before dispatching HTTP requests:
 - **Protocol Enforcement:** Strictly allows `http:` and `https:`. Rejects `file:`, `gopher:`, `ftp:`, and javascript schemes.
 - **Blocked IP Ranges (Pre-Resolution Guardrails):**
@@ -452,18 +545,14 @@ MailPilot prevents internal network probing and cloud metadata extraction by per
   - **Carrier-Grade NAT:** `100.64.0.0/10`
   - **Broadcast & Reserved:** `0.0.0.0/8`, `240.0.0.0/4`, `255.255.255.255/32`
 
-### 4. RFC 8058 One-Click Unsubscribe Engine
+### 4. RFC 8058 One-Click Unsubscribe Engine (`lib/gmail/unsubscribe.ts`)
 - Inspects email headers for `List-Unsubscribe` and `List-Unsubscribe-Post`.
 - Dispatches an automated HTTP `POST` request with body `List-Unsubscribe=One-Click` in compliance with RFC 8058.
 - Falls back to automated `mailto:` subject/body generation and batch Gmail label trash assignment.
 
-### 5. Edge Bot Mitigation & Token-Bucket Rate Limiting
-- **Vercel Edge Bot Mitigation (`vercel.json`):** Evaluates incoming traffic directly on Vercel's Edge network before invoking serverless execution. Employs case-insensitive regex pattern matching against known automated crawler and script user-agents (`curl`, `wget`, `python`, `postman`, `axios`, `go-http-client`) on authentication routes (`^/(login|api/auth/.*)`), issuing edge-level denials without consuming serverless function execution quotas on the Vercel Hobby plan.
-- **Upstash Redis Token-Bucket Limiting (`lib/ratelimit.ts`):** Upstash-backed multi-tier rate limiter protecting both public API routes (`standard` tier: 30 tokens, 10/10s refill) and heavy server mutations (`strict` tier: 5 tokens, 1/12s refill) over stateless HTTP REST with graceful fail-open isolation (see [Section 8](#edge-bot-mitigation--token-bucket-rate-limiting) for complete pipeline flow and diagram).
-
 ---
 
-## 7. Line-Addressable Resume Tailoring & Page Budgeting
+## 10. Line-Addressable Resume Tailoring & Page Budgeting
 
 Earlier resume tailoring architectures digested job specs and immediately froze the result into a static base64 PDF buffer. That legacy pattern created severe drawbacks: individual bullets could not be edited, subsequent AI refinement passes hallucinated and drifted unrelated sections, and page length could not be guaranteed.
 
@@ -524,29 +613,29 @@ $$\text{[Strong Action Verb]} + \text{[Impact / Scope / Metric]} + \text{[Method
     3. *Volume & Throughput:* Items/records/tickets processed, units coordinated.
     4. *Satisfaction & Adoption:* Retention stability, feedback scores, workflow adoption.
 
-### 3. Elastic Page Budgeting (`budget.ts`)
+### 3. Elastic Page Budgeting (`lib/resume-draft/budget.ts`)
 Calculates dynamic bullet allocations to guarantee strict 1-page Letter layout geometry:
 - **Career Switcher / Early Tenure Detection:** When candidate in-field tenure is $\le 2$ years, the budgeter classifies density as `SPARSE`, reorders sections to place practical projects before legacy experience, and expands project bullet limits (2–3 bullets each).
 - **Dense Veteran Profiles:** Caps bullet counts per role (3–4 max) and project counts (1–2 max) to ensure dense profiles fit cleanly on 1 page without text overflow.
 
 ### 4. Interactive Review Workspace & Multi-Format Compilation
 - **Intermediate Node Tree:** Stored as `ResumeDraftNode[]` (`id`, `type`, `section`, `content`, `selected`, `metadata`).
-- **Surgical AI Refinement (`refineResumeLine`):** Sends only the selected node's text and a custom prompt to the model, rewriting that specific line in 300ms without touching the rest of the document.
+- **Surgical AI Refinement (`refineResumeLine`):** Sends only the selected node's text and a custom prompt to the model, rewriting that specific line in ~300ms without touching the rest of the document.
 - **Streamlined Heading Layout:** Eliminates repository link clutter from project headers; candidate GitHub and portfolio presence is anchored cleanly in the contact header bar.
 - **Export Engines:**
-  - `@react-pdf/renderer`: Produces print-ready PDF buffers (612 $\times$ 792 pt Letter geometry, 18pt padding, zero mid-word hyphenation splits).
-  - JSZip OpenXML Engine (`compileResumeDocx`): Produces native Microsoft Word `.docx` documents.
+  - `@react-pdf/renderer` (`lib/document/pdf-generator.tsx`): Produces print-ready PDF buffers (612 $\times$ 792 pt Letter geometry, 18pt padding, zero mid-word hyphenation splits).
+  - JSZip OpenXML Engine (`lib/document/resume-docx.ts`): Produces native Microsoft Word `.docx` documents.
 
 ### 5. Offline Master Profile Export (Zero LLM Overhead)
 Candidates can export their complete, canonical Master Profile at any time without triggering LLM calls or paying inference tokens:
 - **Comprehensive Unpruned Document:** In contrast to job-tailored drafts which adhere to 1-page Letter budgeting, the Master Profile export includes 100% of the candidate's work experiences, projects, credentials, skill groups, honors, and interests in an unpruned, natural multi-page flow.
-- **Server Action Architecture (`exportMasterProfilePdfAction`):** Loads the account's master profile via `loadMasterProfileForDraft(accountId)` and routes directly into `@react-pdf/renderer` via `generateTailoredResumePdf()`.
+- **Server Action Architecture (`exportMasterProfilePdfAction`):** Loads the account's master profile via `loadMasterProfileForDraft(accountId)` (`lib/profile/master-profile.ts`) and routes directly into `@react-pdf/renderer` via `generateTailoredResumePdf()`.
 - **Contact Line Sanitization:** Utilizes `buildResumeContactLine(profile)` to format an authentic, single-line contact bar and eliminate rogue technical skills or unverified links from header rows.
 - **Instant Client-Side Delivery:** Converts the returned base64 binary buffer into an ephemeral client-side Blob stream for immediate download (`<Name>_Master_Profile.pdf`).
 
 ---
 
-## 8. Performance & Systems Optimization
+## 11. Performance, Systems Optimization & Telemetry
 
 ### Media Streaming & Perceived Latency (Auth Portal)
 - **Problem:** Object-stored background video assets introduced a 2–3s blank pop-in and delayed First Contentful Paint (FCP) due to trailing container metadata (`moov` atom at EOF) and cold-start latency.
@@ -571,7 +660,7 @@ flowchart TD
 
 ### Edge Bot Mitigation & Token-Bucket Rate Limiting
 - **Vercel Edge Route Mitigation (`vercel.json`):** Intercepts incoming requests at Vercel's global edge network layer prior to invoking serverless compute. Evaluates request headers against automated crawler/script patterns (`curl`, `wget`, `python`, `postman`, `axios`, `go-http-client`) across sensitive authentication paths (`^/(login|api/auth/.*)`), applying `mitigate.action: "deny"` to reject bot traffic with 0ms serverless function execution—fully compatible with Vercel Hobby tier constraints.
-- **Token Bucket Algorithm:** Accommodates legitimate burst traffic up to bucket capacity (30 tokens for general API endpoints, 5 tokens for mutating actions) while refilling deterministically (10 tokens every 10 seconds for API, 1 token every 12 seconds for sensitive actions) to protect public routes and prevent serverless execution exhaustion.
+- **Token Bucket Algorithm (`lib/core/ratelimit.ts`):** Accommodates legitimate burst traffic up to bucket capacity (30 tokens for general API endpoints, 5 tokens for mutating actions) while refilling deterministically (10 tokens every 10 seconds for API, 1 token every 12 seconds for sensitive actions) to protect public routes and prevent serverless execution exhaustion.
 - **Stateless HTTP REST (`@upstash/redis`):** Bypasses TCP socket pool exhaustion, lifecycle leaks, and connection-handshake latency on Vercel Hobby serverless functions by issuing rate limit queries over stateless HTTP REST pipelines.
 - **Fail-Open Dev Isolation:** Unblocks local offline development workflows when Redis credentials are not configured, and gracefully degrades during third-party connectivity hiccups to prevent operational downtime.
 
@@ -588,36 +677,36 @@ flowchart TD
 
 ---
 
-## 9. Technology Stack Matrix
+## 12. Technology Stack Matrix
 
 | Layer | Technology | Version / Specification | Architectural Responsibility |
 | :--- | :--- | :--- | :--- |
 | **Framework** | **Next.js** | 15 (App Router, Server Actions) | Unified web framework with React 19 Server Components and Route Handlers. |
 | **Serverless Runtime** | **Node.js** | v20+ on Vercel Serverless | Non-blocking background worker execution using Next.js 15 `after()`. |
-| **Edge Infrastructure** | **Vercel Edge WAF** | Managed Edge Firewall / Route Rules | Edge-level bot mitigation and header deny rules on sensitive auth routes (`^/(login|api/auth/.*)`). |
+| **Edge Infrastructure** | **Vercel Edge WAF** | Managed Edge Firewall / Route Rules | Edge-level bot mitigation and header deny rules on sensitive auth routes (`^/(login\|api/auth/.*)`). |
 | **Rate Limiting & Security** | **Upstash Redis** | `@upstash/ratelimit` & `@upstash/redis` | Serverless token-bucket rate limiting via stateless HTTP REST with fail-open isolation. |
 | **Database** | **PostgreSQL** | v16 (Neon / Supabase) | Multi-tenant relational persistence with connection pooling. |
 | **ORM** | **Prisma** | v6 | Type-safe query building, relation mapping, and migrations. |
 | **Object Storage** | **Vercel Blob** | `@vercel/blob` v2.8 | Private object store for progressive HTTP 206 background video streaming and WebP poster delivery. |
 | **Cloud Messaging & APIs** | **Google Cloud Pub/Sub** | `googleapis` v178 | Asynchronous webhook push notifications for mailbox deltas and RFC 8058 unsubscribe automation. |
 | **Schema Validation** | **Zod** | v4 | Runtime boundary validation for webhook payloads, LLM structured JSON, and extensible account rules. |
-| **Styling & Components**| **Tailwind CSS / shadcn** | Tailwind v3.4, Radix UI | Mobile-first responsive design, dense desktop data tables, Lucide icons. |
+| **Design System** | **Tailwind CSS / Radix** | Tailwind v3.4, Radix UI | Mobile-first responsive design, 4-tier typographic scale, tactile wave controls, Lucide icons. |
 | **Cryptography** | **Node.js Crypto** | AES-256-GCM / timingSafeEqual | Authenticated envelope encryption at rest; timing-safe secret comparisons. |
-| **Document Generation**| **React-PDF & JSZip** | `@react-pdf/renderer` v4 | Dynamic vector PDF rendering and binary `.docx` XML generation. |
-| **Inference Router** | **Multi-Provider BYOK** | Local Ollama + Cloud REST | Multi-tier failover: Zero-clone Ollama (Quick Tunnel) $\to$ OpenRouter $\to$ PENDING_AI parking (with heuristic fallback for GitHub repo sync). |
-| **Scraping & Parsing** | **Custom AST & JSON Parsers** | Native AST & JSON-LD Regex | Schema.org JSON-LD extraction, Nuxt 3 state un-flattening, LinkedIn Guest API. |
-| **Logging & Telemetry**| **Pino & TableLogger** | Pino v10 + 66-col ASCII | Structured JSON logging in production; formatted ASCII telemetry in dev. |
+| **Document Compilers** | **React-PDF & JSZip** | `@react-pdf/renderer` v4 | Dynamic vector PDF rendering and binary `.docx` XML generation. |
+| **Inference Router** | **Multi-Provider BYOK** | Local Ollama + Cloud REST | Multi-tier failover: Zero-clone Ollama (Quick Tunnel) $\to$ OpenRouter $\to$ `PENDING_AI` parking. |
+| **Scraping & Parsing** | **Custom AST & JSON Parsers** | Schema.org JSON-LD, Nuxt 3 AST | Anti-bot spec extraction, Nuxt state un-flattening, LinkedIn Guest API, HasData/ScrapingAnt proxies. |
+| **Logging & Telemetry** | **Pino & TableLogger** | Pino v10 + 66-col ASCII | Structured JSON logging in production; formatted ASCII telemetry in dev. |
 | **Testing** | **Vitest** | v4.1 (Zero-Token Mocks) | Deterministic, offline unit and integration test suite. |
 
 ---
 
-## 10. Test Suite, Verification & Local Development
+## 13. Test Suite, Verification & Local Development
 
 ### Deterministic Test Suite
 MailPilot maintains a comprehensive, zero-token test suite using **Vitest**. All tests execute completely offline without network calls or live database dependencies:
 
 ```bash
-# Run the complete test suite (27 test files, 338 tests)
+# Run the complete test suite (27 test files, 341 tests)
 npx vitest run
 
 # Run tests in interactive watch mode
@@ -640,7 +729,7 @@ npx tsc --noEmit
  ✓ lib/__tests__/github-sync.test.ts (30 tests)
  ✓ app/api/login-background/__tests__/route.test.ts (6 tests)
  ✓ lib/llm/__tests__/llm-ratelimit.test.ts (4 tests)
- ✓ lib/llm/__tests__/llm-vault.test.ts (13 tests)
+ ✓ lib/llm/__tests__/llm-vault.test.ts (15 tests)
  ✓ lib/ai/__tests__/salary.test.ts (14 tests)
  ✓ lib/resume-draft/__tests__/resume-draft.test.ts (54 tests)
  ✓ lib/__tests__/ssrf.test.ts (3 tests)
@@ -654,11 +743,11 @@ npx tsc --noEmit
  ✓ lib/__tests__/persistent-profile.test.ts (7 tests)
  ✓ lib/__tests__/master-profile-export.test.ts (3 tests)
  ✓ lib/__tests__/bridge-scripts.test.ts (2 tests)
- ✓ app/api/ollama/verify/__tests__/route.test.ts (4 tests)
+ ✓ app/api/ollama/verify/__tests__/route.test.ts (5 tests)
 
 Test Files  27 passed (27)
-     Tests  338 passed (338)
-  Duration  3.7s
+     Tests  341 passed (341)
+  Duration  2.4s
 ```
 
 ### Prerequisites

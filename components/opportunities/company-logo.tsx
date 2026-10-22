@@ -1,7 +1,7 @@
 "use client";
 
 import { CompanyLogo as UiCompanyLogo } from "@/components/ui/company-logo";
-import { getCompanyLogoUrl } from "@/lib/company-logo";
+import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 
 type CompanyLogoProps = {
   company: string;

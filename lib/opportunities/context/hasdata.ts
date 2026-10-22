@@ -7,7 +7,7 @@
  * ============================================================================
  */
 
-import { assertSafeHttpsUrl } from "@/lib/ssrf";
+import { assertSafeHttpsUrl } from "@/lib/core/ssrf";
 import type { ScrapedJobPosting } from "./json-ld";
 
 export interface HasDataResult {

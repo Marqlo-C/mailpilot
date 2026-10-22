@@ -13,3 +13,4 @@ export * from "./cleanup";
 export * from "./run-job-move";
 export * from "./sync";
 export * from "./dispatch";
+export * from "./application-method";

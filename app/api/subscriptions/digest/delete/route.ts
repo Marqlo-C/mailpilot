@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getActiveAccount } from "@/lib/data";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/core/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

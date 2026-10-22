@@ -4,12 +4,12 @@ import { z } from "zod";
 import crypto from "crypto";
 
 import { probeOllamaTagsWithRetry } from "@/lib/llm";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/core/prisma";
 import {
   accountRulesSchema,
   parseAccountRules,
 } from "@/lib/validations/rules";
-import { decryptToken } from "@/lib/crypto";
+import { decryptToken } from "@/lib/core/crypto";
 
 /** Strictly validate Cloudflare Quick Tunnel hostnames (SSRF guard). */
 const CLOUDFLARE_TUNNEL_REGEX =

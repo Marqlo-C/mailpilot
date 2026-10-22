@@ -18,7 +18,7 @@ import { toast } from "sonner";
 
 import { getScrapingAntUsageAction } from "@/app/actions/settings";
 import { Button } from "@/components/ui/button";
-import { formatDistanceToNow } from "@/lib/format-distance";
+import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import type { ScrapingAntUsage } from "@/lib/validations/rules";
 import { cn } from "@/lib/utils";
 import { WavyMeter } from "@/components/ui/tactile/wavy-meter";

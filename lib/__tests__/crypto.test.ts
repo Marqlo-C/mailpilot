@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { encryptToken, decryptToken } from "../crypto";
+import { encryptToken, decryptToken } from "@/lib/core/crypto";
 
 describe("Crypto Token Security (AES-256-GCM)", () => {
   beforeAll(() => {

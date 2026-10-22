@@ -4,7 +4,7 @@ import {
   checkRateLimit,
   getClientIp,
   BYPASS_RATE_LIMIT_RESULT,
-} from "../ratelimit";
+} from "@/lib/core/ratelimit";
 
 describe("Rate Limiting Utility (lib/ratelimit.ts)", () => {
   describe("checkRateLimit", () => {

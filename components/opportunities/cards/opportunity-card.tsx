@@ -57,8 +57,8 @@ import {
   SECONDARY_ACTION_BTN_CLASSNAME,
   SECONDARY_ACTION_BTN_MUTED_CLASSNAME,
 } from "@/components/ui/styles/secondary-action-btn";
-import { getCompanyLogoUrl } from "@/lib/company-logo";
-import { canDraftDirectEmail } from "@/lib/application-method";
+import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
+import { canDraftDirectEmail } from "@/lib/opportunities/application-method";
 import {
   daysRemainingUntilPurge,
   isUserArchived,
@@ -67,7 +67,7 @@ import {
   cleanOpportunityDescription,
   normalizeSalaryDisplay,
 } from "@/lib/ai/classifier";
-import { formatDistanceToNow } from "@/lib/format-distance";
+import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import { cn } from "@/lib/utils";
 
 export type OpportunityCardVariant =

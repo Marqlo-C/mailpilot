@@ -25,7 +25,7 @@ import {
   formatSchoolName,
 } from "@/lib/utils/format";
 import type { MasterProfileInput } from "@/lib/validations/profile";
-import { flattenSkillItems } from "@/lib/skill-groups";
+import { flattenSkillItems } from "@/lib/profile/skill-groups";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

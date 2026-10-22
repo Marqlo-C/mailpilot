@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
-import { isPlaceholderEmail } from "@/lib/profile-consolidation";
-import { interpretSkillGroups, isCourseworkLabel } from "@/lib/skill-groups";
+import { isPlaceholderEmail } from "@/lib/profile/profile-consolidation";
+import { interpretSkillGroups, isCourseworkLabel } from "@/lib/profile/skill-groups";
 import type { SkillGroup, SkillItem } from "@/lib/types/resume-draft";
 import { normalizeProjectName } from "@/lib/utils/format";
 import { githubProfileRoot, isVerifiedProfileUrl, normalizeProfileUrl } from "@/lib/utils/url";

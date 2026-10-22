@@ -20,7 +20,7 @@ import {
 } from "../index";
 import { buildResumeContactLine } from "@/lib/utils/format";
 import { isResumeHeaderLink, isDisallowedContactHost } from "@/lib/utils/url";
-import { compileResumeDocx } from "@/lib/resume-docx";
+import { compileResumeDocx } from "@/lib/document/resume-docx";
 import {
   BANNED_SUMMARY_PERSONA_TERMS,
   sanitizeTailoredSummary,

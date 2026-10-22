@@ -2,12 +2,12 @@ import { GaxiosError } from "gaxios";
 import type { gmail_v1 } from "googleapis";
 
 import { buildHistoricalJobSearchQuery } from "@/lib/constants/job-sources";
-import { getGmailClientForAccount } from "@/lib/google";
+import { getGmailClientForAccount } from "@/lib/gmail/google";
 import {
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
-} from "@/lib/google";
+} from "@/lib/gmail/google";
 import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
 import {
   classifyEmail,
@@ -15,14 +15,14 @@ import {
   loadCandidateProfileSummary,
   type LlmProvider,
 } from "@/lib/llm";
-import { prisma } from "@/lib/prisma";
-import { parseFromHeader, persistClassifiedEmail } from "@/lib/sync";
-import { parseListUnsubscribeHeaders } from "@/lib/unsubscribe";
-import { resolveIngestionRules } from "@/lib/sync";
-import type { ScanDays } from "@/lib/scan-types";
+import { prisma } from "@/lib/core/prisma";
+import { parseFromHeader, persistClassifiedEmail } from "@/lib/gmail/sync";
+import { parseListUnsubscribeHeaders } from "@/lib/gmail/unsubscribe";
+import { resolveIngestionRules } from "@/lib/gmail/sync";
+import type { ScanDays } from "@/lib/gmail/scan-types";
 
-export type { ScanDays } from "@/lib/scan-types";
-export { SCAN_DAY_OPTIONS } from "@/lib/scan-types";
+export type { ScanDays } from "@/lib/gmail/scan-types";
+export { SCAN_DAY_OPTIONS } from "@/lib/gmail/scan-types";
 
 export type HistoricalScanSummary = {
   subscriptionsFound: number;

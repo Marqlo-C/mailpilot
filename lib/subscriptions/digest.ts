@@ -4,10 +4,10 @@ import { join } from "path";
 import type { gmail_v1 } from "googleapis";
 
 import { isKnownJobDomain } from "@/lib/constants/job-sources";
-import { faviconUrlForDomain, getCleanDomain } from "@/lib/domain";
-import { rethrowIfInsufficientScope } from "@/lib/google";
+import { faviconUrlForDomain, getCleanDomain } from "@/lib/utils/domain";
+import { rethrowIfInsufficientScope } from "@/lib/gmail/google";
 import { extractMessageBody, sanitizeEmailBody } from "@/lib/llm";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/core/prisma";
 import { MAX_BRIEFING_DAYS } from "@/lib/subscriptions/digest-constants";
 import { subscriptionClutterScore } from "@/lib/subscriptions/filters";
 

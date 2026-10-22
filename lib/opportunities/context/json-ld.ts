@@ -10,7 +10,7 @@
 import fs from "fs";
 import path from "path";
 import { resolveDecryptedScrapingAntKey } from "@/lib/llm/vault";
-import { assertSafeHttpsUrl } from "@/lib/ssrf";
+import { assertSafeHttpsUrl } from "@/lib/core/ssrf";
 import type { AccountRules } from "@/lib/validations/rules";
 
 export interface ScraperFailureEntry {

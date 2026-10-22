@@ -9,11 +9,11 @@ import {
   ACTIVE_ACCOUNT_COOKIE,
   AUTH_COOKIE_MAX_AGE,
   SESSION_COOKIE,
-} from "@/lib/constants";
-import { getGmailClientForAccount } from "@/lib/google";
+} from "@/lib/core/constants";
+import { getGmailClientForAccount } from "@/lib/gmail/google";
 import { normalizeOllamaBaseUrl, ollamaBaseUrlFromEnv, probeOllamaTags } from "@/lib/llm";
-import { prisma } from "@/lib/prisma";
-import { processInboxDelta } from "@/lib/sync";
+import { prisma } from "@/lib/core/prisma";
+import { processInboxDelta } from "@/lib/gmail/sync";
 import { Prisma } from "@prisma/client";
 import {
   accountRulesSchema,

@@ -7,8 +7,8 @@ import {
   LEGACY_ACTIVE_ACCOUNT_COOKIE,
   LEGACY_LOGGED_OUT_COOKIE,
   SESSION_COOKIE,
-} from "@/lib/constants";
-import { encryptToken } from "@/lib/crypto";
+} from "@/lib/core/constants";
+import { encryptToken } from "@/lib/core/crypto";
 import {
   REJECTION_LABEL_NAME,
   exchangeCodeForTokens,
@@ -16,10 +16,10 @@ import {
   getGmailClient,
   getGmailProfileEmail,
   registerInboxWatch,
-} from "@/lib/google";
-import { ensurePersistentProfile } from "@/lib/persistent-profile";
-import { prisma } from "@/lib/prisma";
-import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
+} from "@/lib/gmail/google";
+import { ensurePersistentProfile } from "@/lib/profile/persistent-profile";
+import { prisma } from "@/lib/core/prisma";
+import { checkRateLimit, getClientIp } from "@/lib/core/ratelimit";
 import {
   DEFAULT_ACCOUNT_RULES,
   parseAccountRules,

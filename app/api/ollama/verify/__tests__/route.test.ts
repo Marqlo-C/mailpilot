@@ -6,7 +6,7 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 // Mock @/lib/prisma
-vi.mock("@/lib/prisma", () => ({
+vi.mock("@/lib/core/prisma", () => ({
   prisma: {
     account: {
       findUnique: vi.fn(),
@@ -19,7 +19,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 import { getAuthenticatedAccountId } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/core/prisma";
 import { POST } from "../route";
 
 describe("Ollama Verify Route (/api/ollama/verify)", () => {

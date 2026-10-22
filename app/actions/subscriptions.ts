@@ -3,22 +3,22 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { getGmailClientForAccount } from "@/lib/google";
+import { getGmailClientForAccount } from "@/lib/gmail/google";
 import {
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
-} from "@/lib/google";
+} from "@/lib/gmail/google";
 import {
   ensurePersistentProfileForAccount,
   recordSubscriptionHistory,
-} from "@/lib/persistent-profile";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/profile/persistent-profile";
+import { prisma } from "@/lib/core/prisma";
 import {
   cleanupSenderMessages,
   executeUnsubscribe,
   type CleanupAction,
-} from "@/lib/unsubscribe";
+} from "@/lib/gmail/unsubscribe";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }

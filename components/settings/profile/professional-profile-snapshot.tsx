@@ -21,7 +21,7 @@ import {
 import {
   isWorkExperienceCategory,
 } from "@/lib/validations/profile";
-import { groupSkillSections, skillGroupsFromUnknown } from "@/lib/skill-groups";
+import { groupSkillSections, skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import type { ProfileSnapshotData } from "./master-profile-card";
 
 export type { ProfileSnapshotData };

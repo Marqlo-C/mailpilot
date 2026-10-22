@@ -1,4 +1,4 @@
-import { decryptToken, encryptToken } from "@/lib/crypto";
+import { decryptToken, encryptToken } from "@/lib/core/crypto";
 import type { AccountRules } from "@/lib/validations/rules";
 import type { CloudLlmProvider } from "./provider.ssot";
 

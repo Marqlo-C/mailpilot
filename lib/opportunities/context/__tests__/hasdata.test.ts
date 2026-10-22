@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fetchViaHasData } from "../hasdata";
 
-vi.mock("@/lib/ssrf", () => ({
+vi.mock("@/lib/core/ssrf", () => ({
   assertSafeHttpsUrl: vi.fn(async (url: string) => new URL(url)),
 }));
 

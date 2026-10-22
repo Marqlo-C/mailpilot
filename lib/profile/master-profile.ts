@@ -1,6 +1,6 @@
 import type { ProfileWithPersonaCache } from "@/lib/ai/persona";
-import { prisma } from "@/lib/prisma";
-import { skillGroupsFromUnknown } from "@/lib/skill-groups";
+import { prisma } from "@/lib/core/prisma";
+import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import {
   awardsSchema,
   certificationsSchema,
@@ -8,7 +8,7 @@ import {
   readEducationStatus,
   type MasterProfileInput,
 } from "@/lib/validations/profile";
-import { decryptPhoneAtRest } from "@/lib/crypto";
+import { decryptPhoneAtRest } from "@/lib/core/crypto";
 
 /**
  * Loads the master resume plus cached persona columns for drafting.

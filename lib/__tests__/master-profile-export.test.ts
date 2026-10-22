@@ -4,13 +4,13 @@ vi.mock("pdf-parse", () => ({
   default: vi.fn(),
 }));
 
-import { generateTailoredResumePdf } from "@/lib/pdf-generator";
+import { generateTailoredResumePdf } from "@/lib/document/pdf-generator";
 import { buildResumeContactLine } from "@/lib/utils/format";
 import type { MasterProfileInput } from "@/lib/validations/profile";
 import type { ProfileWithPersonaCache } from "@/lib/ai/persona";
 
 // Mock prisma and master-profile loader for testing the server action
-vi.mock("@/lib/prisma", () => ({
+vi.mock("@/lib/core/prisma", () => ({
   prisma: {
     account: {
       findUnique: vi.fn(),
@@ -21,12 +21,12 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-vi.mock("@/lib/master-profile", () => ({
+vi.mock("@/lib/profile/master-profile", () => ({
   loadMasterProfileForDraft: vi.fn(),
 }));
 
-import { prisma } from "@/lib/prisma";
-import { loadMasterProfileForDraft } from "@/lib/master-profile";
+import { prisma } from "@/lib/core/prisma";
+import { loadMasterProfileForDraft } from "@/lib/profile/master-profile";
 import { exportMasterProfilePdfAction } from "@/app/actions/profile";
 
 describe("Master Profile PDF Export", () => {

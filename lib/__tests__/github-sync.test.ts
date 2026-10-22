@@ -21,7 +21,7 @@ import {
   FILTER_OUT_REGEX,
   PRIORITY_REGEX,
 } from "@/lib/github";
-import { consolidateProfiles } from "@/lib/profile-consolidation";
+import { consolidateProfiles } from "@/lib/profile/profile-consolidation";
 import { getEmptyMasterProfileData } from "@/lib/validations/profile";
 
 describe("GitHub Syncer & Elastic Ingestion Architecture", () => {
