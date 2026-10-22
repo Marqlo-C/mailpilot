@@ -2,7 +2,7 @@
 
 import { Loader2, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SettingsStepCard } from "@/components/ui/nested-settings-card";
+import { SettingsStepCard } from "@/components/ui/tactile/nested-settings-card";
 
 export const STEP_CARD_CTA_CLASSNAME =
   "h-8 w-[132px] shrink-0 gap-1.5 px-2.5 text-xs border-border/80 hover:bg-muted/60";

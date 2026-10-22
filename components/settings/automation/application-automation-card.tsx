@@ -19,8 +19,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { WaveToggle } from "@/components/ui/wave-toggle";
-import { WavySlider } from "@/components/ui/wavy-slider";
+import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
+import { WavySlider } from "@/components/ui/tactile/wavy-slider";
 import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile";
 import type { AccountRules } from "@/lib/validations/rules";
 import { cn } from "@/lib/utils";

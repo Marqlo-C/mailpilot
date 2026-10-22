@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useTransition } from "react";
 import {
-  Activity,
   Calendar,
   Clock,
   CreditCard,
@@ -17,16 +16,16 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { getHasDataUsageAction } from "@/app/actions/settings";
+import { getScrapingAntUsageAction } from "@/app/actions/settings";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "@/lib/format-distance";
-import type { HasDataUsage } from "@/lib/validations/rules";
+import type { ScrapingAntUsage } from "@/lib/validations/rules";
 import { cn } from "@/lib/utils";
-import { WavyMeter } from "@/components/ui/wavy-meter";
+import { WavyMeter } from "@/components/ui/tactile/wavy-meter";
 
-type HasDataControlPanelProps = {
+type ScrapingAntControlPanelProps = {
   accountId: string | null;
-  initialUsage?: HasDataUsage | null;
+  initialUsage?: ScrapingAntUsage | null;
   maskedApiKey?: string | null;
   disabled?: boolean;
   onReplaceKey?: () => void;
@@ -59,7 +58,7 @@ function calculateDaysRemaining(endDateIso: string): number {
   }
 }
 
-export function HasDataControlPanel({
+export function ScrapingAntControlPanel({
   accountId,
   initialUsage = null,
   maskedApiKey,
@@ -67,8 +66,8 @@ export function HasDataControlPanel({
   onReplaceKey,
   onDeleteKey,
   isDeletingKey = false,
-}: HasDataControlPanelProps) {
-  const [usage, setUsage] = useState<HasDataUsage | null>(initialUsage);
+}: ScrapingAntControlPanelProps) {
+  const [usage, setUsage] = useState<ScrapingAntUsage | null>(initialUsage);
   const [isRefreshing, startRefresh] = useTransition();
   const [hasAutoFetched, setHasAutoFetched] = useState(false);
 
@@ -91,7 +90,7 @@ export function HasDataControlPanel({
     if (isStale) {
       setHasAutoFetched(true);
       startRefresh(async () => {
-        const res = await getHasDataUsageAction(accountId, false);
+        const res = await getScrapingAntUsageAction(accountId, false);
         if (res.ok && res.data) {
           setUsage(res.data);
         }
@@ -103,14 +102,14 @@ export function HasDataControlPanel({
     if (!accountId) return;
 
     startRefresh(async () => {
-      const res = await getHasDataUsageAction(accountId, true);
+      const res = await getScrapingAntUsageAction(accountId, true);
       if (!res.ok) {
-        toast.error(res.error || "Failed to fetch usage from HasData");
+        toast.error(res.error || "Failed to fetch usage from ScrapingAnt");
         return;
       }
       if (res.data) {
         setUsage(res.data);
-        toast.success("HasData usage refreshed");
+        toast.success("ScrapingAnt usage refreshed");
       }
     });
   }
@@ -119,7 +118,7 @@ export function HasDataControlPanel({
     return null;
   }
 
-  // If usage hasn't been retrieved yet, show an initial loading / fetch card
+  // If usage hasn't been retrieved yet, show a clean loading or prompt card
   if (!usage) {
     return (
       <div className="rounded-xl border border-border/80 bg-background/60 bg-global-radial p-4 space-y-3">
@@ -189,22 +188,22 @@ export function HasDataControlPanel({
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Querying HasData for current credit balance, active concurrency, and plan metrics…
+          Querying ScrapingAnt for current plan limits, remaining credit balance, and renewal dates…
         </p>
       </div>
     );
   }
 
-  const totalCredits = usage.totalCredits;
-  const availableCredits = usage.availableCredits;
-  const usedCredits = Math.max(0, totalCredits - availableCredits);
+  const totalCredits = usage.planTotalCredits;
+  const remainedCredits = usage.remainedCredits;
+  const usedCredits = Math.max(0, totalCredits - remainedCredits);
   const usagePercentage =
     totalCredits > 0 ? Math.min(100, Math.round((usedCredits / totalCredits) * 100)) : 0;
+  const daysRemaining = calculateDaysRemaining(usage.endDate);
 
-  const isExhausted = availableCredits <= 0;
+  const isFreeTier = usage.planName.toLowerCase().includes("free");
+  const isExhausted = remainedCredits <= 0;
   const isLowBalance = !isExhausted && usagePercentage >= 90;
-  const estimatedHydrations = Math.floor(availableCredits / 10);
-  const daysRemaining = usage.endDate ? calculateDaysRemaining(usage.endDate) : null;
 
   return (
     <div className="rounded-xl border border-border/80 bg-background/50 bg-global-radial p-4 space-y-4 shadow-sm backdrop-blur-sm">
@@ -286,8 +285,8 @@ export function HasDataControlPanel({
             disabled={disabled || isRefreshing}
             onClick={handleManualRefresh}
             className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
-            title="Refresh HasData credit balance and concurrency metrics"
-            aria-label="Refresh HasData credit balance and concurrency metrics"
+            title="Refresh ScrapingAnt plan and credit balance"
+            aria-label="Refresh ScrapingAnt plan and credit balance"
           >
             {isRefreshing ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
@@ -328,15 +327,15 @@ export function HasDataControlPanel({
           value={usagePercentage}
           accountId={accountId}
           tone={isExhausted ? "destructive" : isLowBalance ? "warning" : "default"}
-          aria-label="HasData API credit usage meter"
+          aria-label="ScrapingAnt API credit usage meter"
         />
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-[11px] text-muted-foreground gap-1 pt-0.5">
           <span>
-            {availableCredits.toLocaleString()} credits remaining in account
+            {remainedCredits.toLocaleString()} credits remaining in current billing cycle
           </span>
           <span className="font-mono text-[10px] text-muted-foreground/80">
-            Enough for ~{estimatedHydrations.toLocaleString()} Glassdoor & Indeed jobs
+            Enough for ~{remainedCredits.toLocaleString()} job listings
           </span>
         </div>
       </div>
@@ -355,7 +354,7 @@ export function HasDataControlPanel({
             {usage.planName}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            {totalCredits.toLocaleString()} credits allowance
+            {totalCredits.toLocaleString()} credits / cycle
           </p>
         </div>
 
@@ -368,67 +367,44 @@ export function HasDataControlPanel({
             </span>
           </div>
           <p className="text-sm font-semibold tracking-tight text-foreground">
-            {usage.availableConcurrency
-              ? `${usage.availableConcurrency} Max Simultaneous`
-              : "Standard Limit"}
+            {usage.concurrencyLimit ? `${usage.concurrencyLimit} Parallel Thread` : "Unlimited"}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            {usage.availableConcurrency === 1
-              ? "1 concurrent request (Free tier)"
-              : "Multi-thread parallel concurrency"}
+            {isFreeTier ? "1 concurrent request (Free limit)" : "Uncapped parallel threads"}
           </p>
         </div>
 
-        {/* Active In-Flight Requests */}
+        {/* Cycle Start */}
         <div className="rounded-lg border border-border/50 bg-card/60 p-3 space-y-1">
           <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Activity className="h-3.5 w-3.5" />
+            <Calendar className="h-3.5 w-3.5" />
             <span className="text-[10px] font-semibold uppercase tracking-wider">
-              Active In-Flight
+              Cycle Started
             </span>
           </div>
           <p className="text-sm font-semibold tracking-tight text-foreground">
-            {usage.concurrentRequests} Requests
+            {formatIsoDate(usage.startDate)}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            Simultaneous requests active
+            Billing cycle origin
           </p>
         </div>
 
-        {/* Renewal Date or Available Balance */}
-        {usage.endDate ? (
-          <div className="rounded-lg border border-border/50 bg-card/60 p-3 space-y-1">
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" />
-              <span className="text-[10px] font-semibold uppercase tracking-wider">
-                Cycle Renews
-              </span>
-            </div>
-            <p className="text-sm font-semibold tracking-tight text-foreground">
-              {formatIsoDate(usage.endDate)}
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              {daysRemaining !== null && daysRemaining > 0
-                ? `In ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}`
-                : "Renews today"}
-            </p>
+        {/* Renewal Date */}
+        <div className="rounded-lg border border-border/50 bg-card/60 p-3 space-y-1">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Clock className="h-3.5 w-3.5" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">
+              Cycle Renews
+            </span>
           </div>
-        ) : (
-          <div className="rounded-lg border border-border/50 bg-card/60 p-3 space-y-1">
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Calendar className="h-3.5 w-3.5" />
-              <span className="text-[10px] font-semibold uppercase tracking-wider">
-                Available Credits
-              </span>
-            </div>
-            <p className="text-sm font-semibold tracking-tight text-foreground">
-              {availableCredits.toLocaleString()}
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              {Math.max(0, 100 - usagePercentage)}% remaining allowance
-            </p>
-          </div>
-        )}
+          <p className="text-sm font-semibold tracking-tight text-foreground">
+            {formatIsoDate(usage.endDate)}
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            {daysRemaining > 0 ? `In ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}` : "Renews today"}
+          </p>
+        </div>
       </div>
 
       {/* Helpful Operational Notes & External Link */}
@@ -436,16 +412,16 @@ export function HasDataControlPanel({
         <div className="flex items-start gap-1.5 min-w-0">
           <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary/70" />
           <span>
-            Uses 10 credits per Glassdoor or Indeed job loaded. Credits are never used in the background.
+            Uses 1 credit per job listing loaded. Unused credits reset each month.
           </span>
         </div>
         <a
-          href="https://app.hasdata.com/dashboard"
+          href="https://scrapingant.com/dashboard"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-primary hover:underline shrink-0 font-medium"
         >
-          HasData Dashboard
+          ScrapingAnt Dashboard
           <ExternalLink className="h-3 w-3" />
         </a>
       </div>

@@ -23,8 +23,8 @@ import { PageFlipBumpers } from "@/components/dnd/page-flip-bumpers";
 import {
   OpportunityCard,
   type OpportunityCardVariant,
-} from "@/components/opportunities/opportunity-card";
-import { PipelineToolbar } from "@/components/jobs/pipeline-toolbar";
+} from "@/components/opportunities/cards/opportunity-card";
+import { PipelineToolbar } from "@/components/opportunities/toolbar/pipeline-toolbar";
 import {
   BULK_ACTION_BTN_CLASSNAME,
   BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME,
@@ -34,9 +34,9 @@ import {
   BulkActionCount,
   BulkActionDot,
   BulkActionsFlyout,
-} from "@/components/ui/bulk-actions-flyout";
-import { PipelinePaginationFooter } from "@/components/ui/pipeline-pagination";
-import { useLastClickedId } from "@/components/ui/use-last-clicked-id";
+} from "@/components/ui/composites/bulk-actions-flyout";
+import { PipelinePaginationFooter } from "@/components/ui/composites/pipeline-pagination";
+import { useLastClickedId } from "@/hooks/use-last-clicked-id";
 import { useCardListGestures } from "@/hooks/use-card-list-gestures";
 import { usePagination } from "@/hooks/use-pagination";
 import { getCompanyLogoUrl } from "@/lib/company-logo";

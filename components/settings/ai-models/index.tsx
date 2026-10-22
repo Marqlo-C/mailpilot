@@ -25,17 +25,19 @@ import {
 } from "@/app/actions/settings";
 import type { CloudLlmProvider } from "@/lib/llm/provider.ssot";
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
-import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
-import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
+import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { WaveToggle } from "@/components/ui/wave-toggle";
+import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import {
   SettingsFeatureCard,
   SettingsSectionCard,
-} from "@/components/ui/nested-settings-card";
-import { ScrapingAntControlPanel } from "@/components/settings/scrapingant-control-panel";
-import { HasDataControlPanel } from "@/components/settings/hasdata-control-panel";
+} from "@/components/ui/tactile/nested-settings-card";
+import {
+  HasDataControlPanel,
+  ScrapingAntControlPanel,
+} from "@/components/settings/scraping";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import type { ScrapingAntUsage, HasDataUsage } from "@/lib/validations/rules";
 import { cn } from "@/lib/utils";

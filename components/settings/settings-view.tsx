@@ -8,11 +8,16 @@ import { ExportMasterProfileButton } from "@/components/profile/export-master-pr
 import { ResumeUploadDialog } from "@/components/profile/resume-upload-dialog";
 import { AccountsCard } from "@/components/settings/accounts-card";
 import { AiModelsCard } from "@/components/settings/ai-models";
-import { ApplicationAutomationCard } from "@/components/settings/application-automation-card";
-import { AutomationRulesCard } from "@/components/settings/automation-rules-card";
-import { ExcludedTitlesCard } from "@/components/settings/excluded-titles-card";
-import { MasterProfileCard } from "@/components/settings/master-profile-card";
-import type { ProfileSnapshotData } from "@/components/settings/master-profile-card";
+import {
+  ApplicationAutomationCard,
+  AutomationRulesCard,
+  DismissedRetentionSetting,
+  ExcludedTitlesCard,
+} from "@/components/settings/automation";
+import {
+  MasterProfileCard,
+  type ProfileSnapshotData,
+} from "@/components/settings/profile";
 import { ResumeTailoringDefaultsCard } from "@/components/settings/resume-tailoring-defaults-card";
 import {
   BOXY_ACTION_BTN_SECONDARY,
@@ -21,8 +26,7 @@ import {
 import { UiRailCard } from "@/components/settings/ui-rail-card";
 import { UiMeterCard } from "@/components/settings/ui-meter-card";
 import { UiToggleCard } from "@/components/settings/ui-toggle-card";
-import { DismissedRetentionSetting } from "@/components/settings/retention-setting";
-import { useTabRailClasses } from "@/components/ui/segmented-tabs";
+import { useTabRailClasses } from "@/components/ui/tactile/segmented-tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AccountSummary } from "@/lib/data";
 import type { AccountRules } from "@/lib/validations/rules";

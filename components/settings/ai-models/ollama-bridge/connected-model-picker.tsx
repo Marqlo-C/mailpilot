@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import { SettingsStatusCard } from "@/components/ui/nested-settings-card";
+import { SettingsStatusCard } from "@/components/ui/tactile/nested-settings-card";
 import { cn } from "@/lib/utils";
 
 export type ConnectionStatus =

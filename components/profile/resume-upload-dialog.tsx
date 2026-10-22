@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { WaveToggle } from "@/components/ui/wave-toggle";
+import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 

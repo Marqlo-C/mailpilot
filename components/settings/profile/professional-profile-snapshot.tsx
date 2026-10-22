@@ -20,20 +20,11 @@ import {
 } from "@/lib/utils/format";
 import {
   isWorkExperienceCategory,
-  type MasterProfileInput,
 } from "@/lib/validations/profile";
 import { groupSkillSections, skillGroupsFromUnknown } from "@/lib/skill-groups";
+import type { ProfileSnapshotData } from "./master-profile-card";
 
-export type ProfileSnapshotData = MasterProfileInput & {
-  updatedAt?: string;
-  matchThreshold?: number;
-  linkedWebsite?: string | null;
-  linkedIndeed?: string | null;
-  linkedGlassdoor?: string | null;
-  linkedGithub?: string | null;
-  linkedLinkedin?: string | null;
-  linkedHandshake?: string | null;
-};
+export type { ProfileSnapshotData };
 
 type ProfessionalProfileSnapshotProps = {
   accountId: string | null;

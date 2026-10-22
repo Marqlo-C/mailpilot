@@ -6,8 +6,8 @@ import {
   formatPreviewDisplayDate,
   PreviewLoadChrome,
 } from "@/components/subscriptions/preview-load-chrome";
-import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
-import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
+import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { faviconUrlForDomain, getCleanDomain } from "@/lib/domain";
 import { cn } from "@/lib/utils";
 

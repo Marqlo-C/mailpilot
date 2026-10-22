@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { ProfileSnapshotData } from "@/components/settings/professional-profile-snapshot";
+import type { ProfileSnapshotData } from "./master-profile-card";
 
 type MasterResumeCardProps = {
   accountId: string | null;

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import {
+  Activity,
   Calendar,
   Clock,
   CreditCard,
@@ -16,16 +17,16 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { getScrapingAntUsageAction } from "@/app/actions/settings";
+import { getHasDataUsageAction } from "@/app/actions/settings";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "@/lib/format-distance";
-import type { ScrapingAntUsage } from "@/lib/validations/rules";
+import type { HasDataUsage } from "@/lib/validations/rules";
 import { cn } from "@/lib/utils";
-import { WavyMeter } from "@/components/ui/wavy-meter";
+import { WavyMeter } from "@/components/ui/tactile/wavy-meter";
 
-type ScrapingAntControlPanelProps = {
+type HasDataControlPanelProps = {
   accountId: string | null;
-  initialUsage?: ScrapingAntUsage | null;
+  initialUsage?: HasDataUsage | null;
   maskedApiKey?: string | null;
   disabled?: boolean;
   onReplaceKey?: () => void;
@@ -58,7 +59,7 @@ function calculateDaysRemaining(endDateIso: string): number {
   }
 }
 
-export function ScrapingAntControlPanel({
+export function HasDataControlPanel({
   accountId,
   initialUsage = null,
   maskedApiKey,
@@ -66,8 +67,8 @@ export function ScrapingAntControlPanel({
   onReplaceKey,
   onDeleteKey,
   isDeletingKey = false,
-}: ScrapingAntControlPanelProps) {
-  const [usage, setUsage] = useState<ScrapingAntUsage | null>(initialUsage);
+}: HasDataControlPanelProps) {
+  const [usage, setUsage] = useState<HasDataUsage | null>(initialUsage);
   const [isRefreshing, startRefresh] = useTransition();
   const [hasAutoFetched, setHasAutoFetched] = useState(false);
 
@@ -90,7 +91,7 @@ export function ScrapingAntControlPanel({
     if (isStale) {
       setHasAutoFetched(true);
       startRefresh(async () => {
-        const res = await getScrapingAntUsageAction(accountId, false);
+        const res = await getHasDataUsageAction(accountId, false);
         if (res.ok && res.data) {
           setUsage(res.data);
         }
@@ -102,14 +103,14 @@ export function ScrapingAntControlPanel({
     if (!accountId) return;
 
     startRefresh(async () => {
-      const res = await getScrapingAntUsageAction(accountId, true);
+      const res = await getHasDataUsageAction(accountId, true);
       if (!res.ok) {
-        toast.error(res.error || "Failed to fetch usage from ScrapingAnt");
+        toast.error(res.error || "Failed to fetch usage from HasData");
         return;
       }
       if (res.data) {
         setUsage(res.data);
-        toast.success("ScrapingAnt usage refreshed");
+        toast.success("HasData usage refreshed");
       }
     });
   }
@@ -118,7 +119,7 @@ export function ScrapingAntControlPanel({
     return null;
   }
 
-  // If usage hasn't been retrieved yet, show a clean loading or prompt card
+  // If usage hasn't been retrieved yet, show an initial loading / fetch card
   if (!usage) {
     return (
       <div className="rounded-xl border border-border/80 bg-background/60 bg-global-radial p-4 space-y-3">
@@ -188,22 +189,22 @@ export function ScrapingAntControlPanel({
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Querying ScrapingAnt for current plan limits, remaining credit balance, and renewal dates…
+          Querying HasData for current credit balance, active concurrency, and plan metrics…
         </p>
       </div>
     );
   }
 
-  const totalCredits = usage.planTotalCredits;
-  const remainedCredits = usage.remainedCredits;
-  const usedCredits = Math.max(0, totalCredits - remainedCredits);
+  const totalCredits = usage.totalCredits;
+  const availableCredits = usage.availableCredits;
+  const usedCredits = Math.max(0, totalCredits - availableCredits);
   const usagePercentage =
     totalCredits > 0 ? Math.min(100, Math.round((usedCredits / totalCredits) * 100)) : 0;
-  const daysRemaining = calculateDaysRemaining(usage.endDate);
 
-  const isFreeTier = usage.planName.toLowerCase().includes("free");
-  const isExhausted = remainedCredits <= 0;
+  const isExhausted = availableCredits <= 0;
   const isLowBalance = !isExhausted && usagePercentage >= 90;
+  const estimatedHydrations = Math.floor(availableCredits / 10);
+  const daysRemaining = usage.endDate ? calculateDaysRemaining(usage.endDate) : null;
 
   return (
     <div className="rounded-xl border border-border/80 bg-background/50 bg-global-radial p-4 space-y-4 shadow-sm backdrop-blur-sm">
@@ -285,8 +286,8 @@ export function ScrapingAntControlPanel({
             disabled={disabled || isRefreshing}
             onClick={handleManualRefresh}
             className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
-            title="Refresh ScrapingAnt plan and credit balance"
-            aria-label="Refresh ScrapingAnt plan and credit balance"
+            title="Refresh HasData credit balance and concurrency metrics"
+            aria-label="Refresh HasData credit balance and concurrency metrics"
           >
             {isRefreshing ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
@@ -327,15 +328,15 @@ export function ScrapingAntControlPanel({
           value={usagePercentage}
           accountId={accountId}
           tone={isExhausted ? "destructive" : isLowBalance ? "warning" : "default"}
-          aria-label="ScrapingAnt API credit usage meter"
+          aria-label="HasData API credit usage meter"
         />
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-[11px] text-muted-foreground gap-1 pt-0.5">
           <span>
-            {remainedCredits.toLocaleString()} credits remaining in current billing cycle
+            {availableCredits.toLocaleString()} credits remaining in account
           </span>
           <span className="font-mono text-[10px] text-muted-foreground/80">
-            Enough for ~{remainedCredits.toLocaleString()} job listings
+            Enough for ~{estimatedHydrations.toLocaleString()} Glassdoor & Indeed jobs
           </span>
         </div>
       </div>
@@ -354,7 +355,7 @@ export function ScrapingAntControlPanel({
             {usage.planName}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            {totalCredits.toLocaleString()} credits / cycle
+            {totalCredits.toLocaleString()} credits allowance
           </p>
         </div>
 
@@ -367,44 +368,67 @@ export function ScrapingAntControlPanel({
             </span>
           </div>
           <p className="text-sm font-semibold tracking-tight text-foreground">
-            {usage.concurrencyLimit ? `${usage.concurrencyLimit} Parallel Thread` : "Unlimited"}
+            {usage.availableConcurrency
+              ? `${usage.availableConcurrency} Max Simultaneous`
+              : "Standard Limit"}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            {isFreeTier ? "1 concurrent request (Free limit)" : "Uncapped parallel threads"}
+            {usage.availableConcurrency === 1
+              ? "1 concurrent request (Free tier)"
+              : "Multi-thread parallel concurrency"}
           </p>
         </div>
 
-        {/* Cycle Start */}
+        {/* Active In-Flight Requests */}
         <div className="rounded-lg border border-border/50 bg-card/60 p-3 space-y-1">
           <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Calendar className="h-3.5 w-3.5" />
+            <Activity className="h-3.5 w-3.5" />
             <span className="text-[10px] font-semibold uppercase tracking-wider">
-              Cycle Started
+              Active In-Flight
             </span>
           </div>
           <p className="text-sm font-semibold tracking-tight text-foreground">
-            {formatIsoDate(usage.startDate)}
+            {usage.concurrentRequests} Requests
           </p>
           <p className="text-[11px] text-muted-foreground">
-            Billing cycle origin
+            Simultaneous requests active
           </p>
         </div>
 
-        {/* Renewal Date */}
-        <div className="rounded-lg border border-border/50 bg-card/60 p-3 space-y-1">
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Clock className="h-3.5 w-3.5" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">
-              Cycle Renews
-            </span>
+        {/* Renewal Date or Available Balance */}
+        {usage.endDate ? (
+          <div className="rounded-lg border border-border/50 bg-card/60 p-3 space-y-1">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Clock className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider">
+                Cycle Renews
+              </span>
+            </div>
+            <p className="text-sm font-semibold tracking-tight text-foreground">
+              {formatIsoDate(usage.endDate)}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {daysRemaining !== null && daysRemaining > 0
+                ? `In ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}`
+                : "Renews today"}
+            </p>
           </div>
-          <p className="text-sm font-semibold tracking-tight text-foreground">
-            {formatIsoDate(usage.endDate)}
-          </p>
-          <p className="text-[11px] text-muted-foreground">
-            {daysRemaining > 0 ? `In ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}` : "Renews today"}
-          </p>
-        </div>
+        ) : (
+          <div className="rounded-lg border border-border/50 bg-card/60 p-3 space-y-1">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Calendar className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider">
+                Available Credits
+              </span>
+            </div>
+            <p className="text-sm font-semibold tracking-tight text-foreground">
+              {availableCredits.toLocaleString()}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {Math.max(0, 100 - usagePercentage)}% remaining allowance
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Helpful Operational Notes & External Link */}
@@ -412,16 +436,16 @@ export function ScrapingAntControlPanel({
         <div className="flex items-start gap-1.5 min-w-0">
           <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary/70" />
           <span>
-            Uses 1 credit per job listing loaded. Unused credits reset each month.
+            Uses 10 credits per Glassdoor or Indeed job loaded. Credits are never used in the background.
           </span>
         </div>
         <a
-          href="https://scrapingant.com/dashboard"
+          href="https://app.hasdata.com/dashboard"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-primary hover:underline shrink-0 font-medium"
         >
-          ScrapingAnt Dashboard
+          HasData Dashboard
           <ExternalLink className="h-3 w-3" />
         </a>
       </div>

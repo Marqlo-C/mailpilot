@@ -2,7 +2,7 @@
 
 import { Loader2, Wifi } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SettingsStepCard } from "@/components/ui/nested-settings-card";
+import { SettingsStepCard } from "@/components/ui/tactile/nested-settings-card";
 import {
   ConnectedModelPicker,
   type ConnectionStatus,

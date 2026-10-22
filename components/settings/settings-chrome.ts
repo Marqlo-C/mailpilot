@@ -18,5 +18,5 @@ export {
   BOXY_ACTION_BTN_SECONDARY,
   BOXY_ACTION_BTN_PRIMARY,
   BOXY_ACTION_BTN_DESTRUCTIVE,
-} from "@/components/ui/action-button-styles";
+} from "@/components/ui/styles/action-button-styles";
 

@@ -1,4 +1,4 @@
-import { JobsRadar } from "@/components/jobs/jobs-radar";
+import { JobsRadar } from "@/components/opportunities/toolbar/jobs-radar";
 import { ScanInboxDialog } from "@/components/scan-inbox-dialog";
 import { getMasterProfile } from "@/app/actions/profile";
 import {

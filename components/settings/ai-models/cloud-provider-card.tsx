@@ -38,10 +38,10 @@ import { Label } from "@/components/ui/label";
 import {
   SettingsFeatureCard,
   SettingsSectionCard,
-} from "@/components/ui/nested-settings-card";
-import { WaveToggle } from "@/components/ui/wave-toggle";
-import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
-import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
+} from "@/components/ui/tactile/nested-settings-card";
+import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
+import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
 import { cn } from "@/lib/utils";
 
 const PROVIDER_LABELS: Record<CloudLlmProvider, string> = {

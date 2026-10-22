@@ -12,12 +12,12 @@ import {
   saveDraftEdits,
   sendSingleApplication,
 } from "@/app/actions/dispatch";
-import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
+import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/primary-action-btn";
-import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/secondary-action-btn";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
+import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 import { cn } from "@/lib/utils";
 

@@ -9,8 +9,8 @@ import {
   type ReactNode,
 } from "react";
 
-import { CancelTaskButton } from "@/components/ui/cancel-task-button";
-import { TabCountBadge } from "@/components/ui/segmented-tabs";
+import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
+import { TabCountBadge } from "@/components/ui/tactile/segmented-tabs";
 import { APP_CONTENT_CENTER_X_CLASS } from "@/lib/app-content-center";
 import { cn } from "@/lib/utils";
 

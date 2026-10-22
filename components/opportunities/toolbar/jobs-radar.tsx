@@ -30,11 +30,11 @@ import {
   unmarkApplied,
 } from "@/app/actions/opportunities";
 import { updateMatchThreshold } from "@/app/actions/profile";
-import { AtsHandoffDrawer } from "@/components/jobs/ats-handoff-drawer";
-import { DraftReviewDialog } from "@/components/jobs/draft-review-dialog";
-import { OpportunityDraftDialog } from "@/components/jobs/opportunity-draft-dialog";
+import { AtsHandoffDrawer } from "@/components/opportunities/drawer/ats-handoff-drawer";
+import { DraftReviewDialog } from "@/components/opportunities/dialogs/draft-review-dialog";
+import { OpportunityDraftDialog } from "@/components/opportunities/dialogs/opportunity-draft-dialog";
 import { ViewEmailDialog } from "@/components/dialogs/view-email-dialog";
-import { OpportunitiesView } from "@/components/opportunities/opportunities-view";
+import { OpportunitiesView } from "@/components/opportunities/views/opportunities-view";
 import { SyncControls } from "@/components/opportunities/sync-controls";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { domainFromActionUrl } from "@/components/sender-avatar";
@@ -67,7 +67,7 @@ import {
   tabRailRowClassName,
   useTabRailClasses,
   TabCountBadge,
-} from "@/components/ui/segmented-tabs";
+} from "@/components/ui/tactile/segmented-tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
