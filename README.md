@@ -8,7 +8,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3.4-38B2AC?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-332_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-338_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
 [![Vercel WAF](https://img.shields.io/badge/Vercel-Edge_WAF_Mitigation-000000?style=flat-square&logo=vercel)](https://vercel.com/)
 [![Upstash](https://img.shields.io/badge/Upstash-Redis_Rate_Limiting-00E599?style=flat-square&logo=redis)](https://upstash.com/)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM_Vaulted-green?style=flat-square&logo=security)](https://nodejs.org/api/crypto.html)
@@ -281,6 +281,59 @@ flowchart TD
 
 *(Deterministic heuristic engines are retained strictly for specialized non-AI subsystems: GitHub repository CAR bullet extraction fallback, RFC 8058 header parsing, and localized structural extraction)*
 
+### Zero-Clone Ollama Quick-Connect Bridge & Cloudflare Quick Tunnel
+
+Running open-weights models locally via [Ollama](https://ollama.com/) delivers **$0.00 token inference** and complete private data residency. However, deploying modern web applications serverless on Vercel presents a classic network isolation challenge: cloud runtime functions cannot directly dial `http://127.0.0.1:11434` running on a private developer workstation or home server.
+
+MailPilot resolves this boundary using an ephemeral, **zero-clone Quick-Connect Bridge** (`lib/bridge-scripts.ts`) that links local Ollama instances to MailPilot accounts with a single terminal command:
+
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
+sequenceDiagram
+    autonumber
+    actor Dev as Developer Host
+    participant Bridge as Bridge Script (/api/bridge)
+    participant Ollama as Local Ollama (11434)
+    participant CF as Cloudflare Quick Tunnel
+    participant MP as MailPilot Serverless (/api)
+    participant DB as PostgreSQL (Settings)
+
+    Dev->>Bridge: Run single-line command (curl / irm)
+    Bridge->>Ollama: Check /api/tags on port 11434
+    Ollama-->>Bridge: Local model list (llama3.2, mistral, etc.)
+    Bridge->>CF: Spawn standalone cloudflared tunnel
+    CF-->>Bridge: Ephemeral URL (trycloudflare.com)
+    Bridge->>MP: POST /api/settings/ollama-bridge (Tunnel URL + Models + Secret)
+    MP->>DB: Persist active tunnel URL and models in AccountSettings
+    MP-->>Bridge: 200 OK (Bridge Connected)
+    
+    loop UI Verification and Cross-Machine Poll
+        MP->>DB: Read active tunnel state and registered models
+        MP->>CF: Probe /api/tags through tunnel (6s timeout + host header)
+        CF->>Ollama: Forward inference probe
+        Ollama-->>MP: 200 OK
+    end
+
+    Note over Dev,Bridge: Process Exit (Ctrl+C / Shell Close)
+    Bridge->>MP: POST /api/settings/ollama-bridge (action: disconnect)
+    MP->>DB: Clear active tunnel URL and set bridgeConnected: false
+    Bridge->>CF: Terminate tunnel process and clean /tmp cache
+```
+
+#### Key Architecture & Mechanics
+- **Zero-Dependency Portable Execution:**
+  - **macOS / Linux (`/api/bridge/mac`):** Dynamically generated Bash script downloaded via `curl -fsSL ... | bash`. Automatically resolves architecture (`darwin-arm64`, `darwin-amd64`, `linux-amd64`, `linux-arm64`), downloads a standalone `cloudflared` binary into `/tmp`, and requires zero Node.js, `npx`, or git dependencies.
+  - **Windows (`/api/bridge/win`):** PowerShell script executed via `irm "..." | iex`. Caches `cloudflared.exe` in `$env:TEMP` with TLS 1.2 enforcement.
+- **Host Header Forwarding (`--http-host-header localhost:11434`):**
+  - Configures the Cloudflare tunnel with explicit host-header rewriting so Ollama's local HTTP daemon accepts incoming proxied requests without DNS rebinding rejection.
+- **Host-Side Local Model Introspection:**
+  - Before registering, the bridge script queries `http://127.0.0.1:11434/api/tags` directly on the host machine to collect installed model tags. The local model list is registered directly into MailPilot's database, providing an instant list of available models without relying on slow or blocked cross-continental tunnel inspection.
+- **Multi-Machine & Cross-Datacenter Verification (`/api/ollama/verify`):**
+  - Web UI polling queries the serverless verify endpoint with an empty body, causing the server to resolve the tunnel directly from PostgreSQL. This ensures users accessing MailPilot from a phone, laptop, or remote browser seamlessly connect to their desktop's Ollama instance.
+  - **Trusted CLI Fallback:** If serverless edge functions encounter transient latency or Cloudflare edge routing delays reaching `*.trycloudflare.com`, the active CLI registration state stored in PostgreSQL is maintained as trusted ground truth rather than prematurely dropping the connection.
+- **Clean Signal Trapping:**
+  - Process exit handlers (`trap cleanup EXIT INT TERM` in Bash, `try/finally` in PowerShell) catch `Ctrl+C` or shell termination, notifying MailPilot (`POST /api/settings/ollama-bridge` with `action: "disconnect"`) to reset bridge status in real time and clean up temporary logs.
+
 ### Real-Time ASCII Telemetry Pipeline
 All model invocations are monitored via a standardized 66-column terminal ASCII telemetry logger (`lib/logging/table-logger.ts`):
 
@@ -350,6 +403,7 @@ All vaulted customer secrets and sensitive candidate metadata are encrypted at r
 | **Cloud LLM API Keys** | `AccountSettings.rules.encryptedApiKey`<br/>`PermanentSettings.rules.encryptedApiKey` | Decrypted per inference request in server memory | UI display mask: `sk-...[last4]`. Durable across inbox unlinks. |
 | **Scraping Proxy Keys (HasData)** | `AccountSettings.rules.encryptedHasDataApiKey`<br/>`PermanentSettings.rules.encryptedHasDataApiKey` | Decrypted per scraping request in server memory | UI display mask: `hd-...[last4]`. Durable across inbox unlinks. |
 | **Scraping Proxy Keys (ScrapingAnt)** | `AccountSettings.rules.encryptedScrapingAntApiKey`<br/>`PermanentSettings.rules.encryptedScrapingAntApiKey` | Decrypted per scraping request in server memory | UI display mask: `ant-...[last4]`. Durable across inbox unlinks. |
+| **Ollama Bridge Secret Token** | `AccountSettings.rules.bridgeSecret` | Validated in memory during tunnel registration and disconnect | Ephemeral cryptographically random secret; verified with `timingSafeEqual`. |
 | **Candidate Phone Number** | `UserProfile.phone` | Decrypted in server actions during profile editing / PDF export | Never serialized to unauthenticated API routes. |
 
 * **Constant-Time Verification:** Secret tokens and hashes are validated using `crypto.timingSafeEqual` to eliminate side-channel timing attacks.
@@ -550,7 +604,7 @@ flowchart TD
 | **Styling & Components**| **Tailwind CSS / shadcn** | Tailwind v3.4, Radix UI | Mobile-first responsive design, dense desktop data tables, Lucide icons. |
 | **Cryptography** | **Node.js Crypto** | AES-256-GCM / timingSafeEqual | Authenticated envelope encryption at rest; timing-safe secret comparisons. |
 | **Document Generation**| **React-PDF & JSZip** | `@react-pdf/renderer` v4 | Dynamic vector PDF rendering and binary `.docx` XML generation. |
-| **Inference Router** | **Multi-Provider BYOK** | Local Ollama + Cloud REST | Multi-tier failover: Ollama (Tunnel) $\to$ OpenRouter $\to$ PENDING_AI parking (with heuristic fallback for GitHub repo sync). |
+| **Inference Router** | **Multi-Provider BYOK** | Local Ollama + Cloud REST | Multi-tier failover: Zero-clone Ollama (Quick Tunnel) $\to$ OpenRouter $\to$ PENDING_AI parking (with heuristic fallback for GitHub repo sync). |
 | **Scraping & Parsing** | **Custom AST & JSON Parsers** | Native AST & JSON-LD Regex | Schema.org JSON-LD extraction, Nuxt 3 state un-flattening, LinkedIn Guest API. |
 | **Logging & Telemetry**| **Pino & TableLogger** | Pino v10 + 66-col ASCII | Structured JSON logging in production; formatted ASCII telemetry in dev. |
 | **Testing** | **Vitest** | v4.1 (Zero-Token Mocks) | Deterministic, offline unit and integration test suite. |
@@ -563,7 +617,7 @@ flowchart TD
 MailPilot maintains a comprehensive, zero-token test suite using **Vitest**. All tests execute completely offline without network calls or live database dependencies:
 
 ```bash
-# Run the complete test suite (25 suites, 332 tests)
+# Run the complete test suite (27 test files, 338 tests)
 npx vitest run
 
 # Run tests in interactive watch mode
@@ -599,10 +653,12 @@ npx tsc --noEmit
  ✓ lib/opportunities/context/__tests__/hasdata.test.ts (6 tests)
  ✓ lib/__tests__/persistent-profile.test.ts (7 tests)
  ✓ lib/__tests__/master-profile-export.test.ts (3 tests)
+ ✓ lib/__tests__/bridge-scripts.test.ts (2 tests)
+ ✓ app/api/ollama/verify/__tests__/route.test.ts (4 tests)
 
-Test Files  25 passed (25)
-     Tests  332 passed (332)
-  Duration  3.4s
+Test Files  27 passed (27)
+     Tests  338 passed (338)
+  Duration  3.7s
 ```
 
 ### Prerequisites

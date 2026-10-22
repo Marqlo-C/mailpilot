@@ -195,7 +195,7 @@ export async function updateBridgeSecret(
 
 /**
  * Updates the LLM provider column on AccountSettings.
- * Switching off Local Ollama clears the tunnel URL and invalidates bridgeSecret.
+ * Preserves bridge credentials and tunnel URL so toggling does not require re-authentication.
  */
 export async function updateLlmProvider(
   accountId: string,
@@ -213,30 +213,10 @@ export async function updateLlmProvider(
     return { ok: false, error: "Account settings not found" };
   }
 
-  if (parsed.data === "OPENROUTER") {
-    const current = parseAccountRules(settings.rules);
-    const validated = accountRulesSchema.parse({
-      ...current,
-      bridgeSecret: null,
-      encryptedBridgeSecret: null,
-      availableModels: [],
-      bridgeConnected: false,
-    });
-
-    await prisma.accountSettings.update({
-      where: { accountId },
-      data: {
-        llmProvider: "OPENROUTER",
-        localOllamaUrl: null,
-        rules: validated as Prisma.InputJsonValue,
-      },
-    });
-  } else {
-    await prisma.accountSettings.update({
-      where: { accountId },
-      data: { llmProvider: parsed.data },
-    });
-  }
+  await prisma.accountSettings.update({
+    where: { accountId },
+    data: { llmProvider: parsed.data },
+  });
 
   revalidatePath("/settings");
   return { ok: true };
