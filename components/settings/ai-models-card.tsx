@@ -79,6 +79,9 @@ const PROVIDER_LABELS: Record<CloudLlmProvider, string> = {
   GEMINI: "Google Gemini (Gemini 2.5 Flash)",
 };
 
+const STEP_CARD_CTA_CLASSNAME =
+  "h-8 w-[132px] shrink-0 gap-1.5 px-2.5 text-xs border-border/80 hover:bg-muted/60";
+
 type AiModelsCardProps = {
   accountId: string | null;
   accountEmail: string | null;
@@ -1187,7 +1190,7 @@ export function AiModelsCard({
                           variant="outline"
                           size="sm"
                           disabled={checkingLocalOllama}
-                          className="h-8 gap-1.5 text-xs border-border/80 hover:bg-muted/60"
+                          className={STEP_CARD_CTA_CLASSNAME}
                           onClick={(e) => {
                             e.stopPropagation();
                             void handleLaunchOrDownloadOllama();
@@ -1277,7 +1280,7 @@ export function AiModelsCard({
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-8 gap-1.5 text-xs border-border/80 hover:bg-muted/60"
+                          className={STEP_CARD_CTA_CLASSNAME}
                           disabled={disabled || pending}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1428,7 +1431,7 @@ export function AiModelsCard({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-8 gap-1.5 text-xs border-border/80 hover:bg-muted/60"
+                        className={STEP_CARD_CTA_CLASSNAME}
                         disabled={disabled || verifying}
                         onClick={(e) => {
                           e.stopPropagation();
