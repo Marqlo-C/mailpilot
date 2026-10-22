@@ -211,7 +211,7 @@ export function NestedSettingsCard({
         </div>
       </div>
 
-      {curvedDivider && isExpanded && <CurvedCardDivider />}
+      {curvedDivider && isExpanded && Boolean(children) && <CurvedCardDivider />}
 
       {isExpanded && children && (
         <div className={cn(styles.body, contentClassName)}>{children}</div>
@@ -225,3 +225,167 @@ export function NestedSettingsCard({
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEMANTIC LEVEL WRAPPERS FOR CONSUMING PAGES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Level 1: Master Section Card (Outer boundary with Master Toggle) */
+export function SettingsSectionCard({
+  icon,
+  title,
+  subtitle,
+  toggle,
+  curvedDivider = true,
+  children,
+  className,
+}: {
+  icon?: React.ReactNode;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  toggle?: React.ReactNode;
+  curvedDivider?: boolean;
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <NestedSettingsCard
+      level={1}
+      leading={icon}
+      title={title}
+      subtitle={subtitle}
+      trailing={toggle}
+      curvedDivider={curvedDivider}
+      className={className}
+    >
+      {children}
+    </NestedSettingsCard>
+  );
+}
+
+/** Level 2: Feature / Sub-Service Card (Collapsible feature with brand logo & status pill) */
+export function SettingsFeatureCard({
+  logo,
+  title,
+  subtitle,
+  statusBadge,
+  isExpanded = true,
+  onToggle,
+  disabled = false,
+  curvedDivider = true,
+  children,
+  className,
+}: {
+  logo?: React.ReactNode;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  statusBadge?: React.ReactNode;
+  isExpanded?: boolean;
+  onToggle?: () => void;
+  disabled?: boolean;
+  curvedDivider?: boolean;
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <NestedSettingsCard
+      level={2}
+      leading={logo}
+      title={title}
+      subtitle={subtitle}
+      trailing={statusBadge}
+      collapsible={Boolean(onToggle)}
+      isExpanded={isExpanded}
+      onToggle={onToggle}
+      disabled={disabled}
+      curvedDivider={curvedDivider}
+      className={className}
+    >
+      {children}
+    </NestedSettingsCard>
+  );
+}
+
+/** Level 3: Numbered Workflow Step Card */
+export function SettingsStepCard({
+  step,
+  title,
+  subtitle,
+  actionButton,
+  isExpanded = true,
+  onToggle,
+  disabled = false,
+  curvedDivider = true,
+  footer,
+  children,
+  className,
+}: {
+  step: number | string;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  actionButton?: React.ReactNode;
+  isExpanded?: boolean;
+  onToggle?: () => void;
+  disabled?: boolean;
+  curvedDivider?: boolean;
+  footer?: React.ReactNode;
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <NestedSettingsCard
+      level={3}
+      leading={
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-[11px] font-semibold text-primary">
+          {step}
+        </span>
+      }
+      title={title}
+      subtitle={subtitle}
+      trailing={actionButton}
+      collapsible={Boolean(onToggle)}
+      isExpanded={isExpanded}
+      onToggle={onToggle}
+      disabled={disabled}
+      curvedDivider={curvedDivider}
+      footer={footer}
+      className={className}
+    >
+      {children}
+    </NestedSettingsCard>
+  );
+}
+
+/** Level 4: Inner State & Control Container (Live bridge status, terminal info & model selector) */
+export function SettingsStatusCard({
+  title,
+  subtitle,
+  statusDot,
+  badge,
+  curvedDivider = false,
+  children,
+  className,
+}: {
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  statusDot?: React.ReactNode;
+  badge?: React.ReactNode;
+  curvedDivider?: boolean;
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <NestedSettingsCard
+      level={4}
+      leading={statusDot}
+      title={title}
+      subtitle={subtitle}
+      trailing={badge}
+      curvedDivider={curvedDivider}
+      className={className}
+    >
+      {children}
+    </NestedSettingsCard>
+  );
+}
+

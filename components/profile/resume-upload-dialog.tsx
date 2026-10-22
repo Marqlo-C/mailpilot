@@ -16,7 +16,7 @@ import {
   importGitHubProjects,
   saveMasterProfile,
 } from "@/app/actions/profile";
-import { getDevOllamaModelOverride } from "@/components/settings/ai-models-card";
+import { getDevOllamaModelOverride } from "@/components/settings/ai-models";
 import {
   educationProgressLabel,
   formatEducationDates,

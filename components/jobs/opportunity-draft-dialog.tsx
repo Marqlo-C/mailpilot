@@ -46,7 +46,7 @@ import { ActionDialogShell } from "@/components/ui/action-dialog-shell";
 import { ResumeDraftSheet } from "@/components/jobs/resume-draft-sheet";
 import { Button } from "@/components/ui/button";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
-import { getDevOllamaModelOverride } from "@/components/settings/ai-models-card";
+import { getDevOllamaModelOverride } from "@/components/settings/ai-models";
 import { CancelTaskButton } from "@/components/ui/cancel-task-button";
 import { ViewEmailDialog } from "@/components/dialogs/view-email-dialog";
 import { Input } from "@/components/ui/input";
