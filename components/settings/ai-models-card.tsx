@@ -63,7 +63,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WaveToggle } from "@/components/ui/wave-toggle";
-// Tabs removed in favor of single-card automated bridge
+import {
+  NestedSettingsCard,
+  CurvedCardDivider,
+} from "@/components/ui/nested-settings-card";
 import { ScrapingAntControlPanel } from "@/components/settings/scrapingant-control-panel";
 import { HasDataControlPanel } from "@/components/settings/hasdata-control-panel";
 import { CompanyLogo } from "@/components/ui/company-logo";
@@ -216,55 +219,6 @@ function getEffectiveRestoredAccordionState(
   };
 }
 
-/**
- * Curved divider separating card header from body.
- * Arches across horizontally and curves downward into the card body at both ends
- * with the card's 12px (rounded-xl) corner radius.
- */
-function CurvedCardDivider({ className }: { className?: string }) {
-  return (
-    <div
-      aria-hidden="true"
-      className={cn(
-        "relative flex w-full items-start overflow-hidden pointer-events-none select-none text-border/60 -mb-3 z-10",
-        className
-      )}
-    >
-      {/* Left corner arc: curves from (0.5, 12) on left border up to (12, 0.5) */}
-      <svg
-        width="12"
-        height="12"
-        viewBox="0 0 12 12"
-        fill="none"
-        className="shrink-0 overflow-visible"
-      >
-        <path
-          d="M 0.5 12 A 11.5 11.5 0 0 1 12 0.5"
-          stroke="currentColor"
-          strokeWidth="1"
-        />
-      </svg>
-
-      {/* Center horizontal line */}
-      <div className="flex-1 border-t border-current" />
-
-      {/* Right corner arc: curves from (0, 0.5) down to (11.5, 12) on right border */}
-      <svg
-        width="12"
-        height="12"
-        viewBox="0 0 12 12"
-        fill="none"
-        className="shrink-0 overflow-visible"
-      >
-        <path
-          d="M 0 0.5 A 11.5 11.5 0 0 1 11.5 12"
-          stroke="currentColor"
-          strokeWidth="1"
-        />
-      </svg>
-    </div>
-  );
-}
 
 function TerminalBlock({
   title,
@@ -1025,372 +979,209 @@ export function AiModelsCard({
 
   return (
     <div className="space-y-4">
-      <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
-        <CardHeader className="flex flex-row items-center justify-between gap-3 p-3.5 space-y-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <Bot
-              className="h-8 w-8 -translate-y-0.5 scale-[1.15] origin-center text-primary shrink-0"
-              aria-hidden="true"
-            />
-            <div className="space-y-0.5 min-w-0">
-              <CardTitle>Local AI & Ollama Bridge</CardTitle>
-              <CardDescription className="text-xs">
-                Run private inference locally on your machine via secure CLI bridge.
-              </CardDescription>
-            </div>
-          </div>
-          <div className="flex items-center gap-2.5 shrink-0">
-            <WaveToggle
-              id="use-local-ollama"
-              checked={useOllama}
-              disabled={disabled}
-              onCheckedChange={(checked) => {
-                if (!accountId) return;
-                if (checked) {
-                  const restored = getEffectiveRestoredAccordionState(accountId);
-                  accordionStateRef.current = restored;
-                  setOllamaSubOpen(restored.ollamaSubOpen);
-                  setStep1Open(restored.step1Open);
-                  setStep2Open(restored.step2Open);
-                  setStep3Open(restored.step3Open);
-                  saveStoredAccordionState(accountId, restored);
-                } else {
-                  setOllamaSubOpen(false);
-                  setStep1Open(false);
-                  setStep2Open(false);
-                  setStep3Open(false);
+      <NestedSettingsCard
+        level={1}
+        className={SETTINGS_CARD_CLASSNAME}
+        leading={
+          <Bot
+            className="size-8 -translate-y-0.5 scale-[1.15] origin-center text-primary shrink-0"
+            aria-hidden="true"
+          />
+        }
+        title="Local AI & Ollama Bridge"
+        subtitle="Run private inference locally on your machine via secure CLI bridge."
+        trailing={
+          <WaveToggle
+            id="use-local-ollama"
+            checked={useOllama}
+            disabled={disabled}
+            onCheckedChange={(checked) => {
+              if (!accountId) return;
+              if (checked) {
+                const restored = getEffectiveRestoredAccordionState(accountId);
+                accordionStateRef.current = restored;
+                setOllamaSubOpen(restored.ollamaSubOpen);
+                setStep1Open(restored.step1Open);
+                setStep2Open(restored.step2Open);
+                setStep3Open(restored.step3Open);
+                saveStoredAccordionState(accountId, restored);
+              } else {
+                setOllamaSubOpen(false);
+                setStep1Open(false);
+                setStep2Open(false);
+                setStep3Open(false);
+              }
+              startTransition(async () => {
+                const result = await updateLlmProvider(
+                  accountId,
+                  checked ? "LOCAL_OLLAMA" : "OPENROUTER"
+                );
+                if (!result.ok) {
+                  toast.error(result.error);
+                  return;
                 }
-                startTransition(async () => {
-                  const result = await updateLlmProvider(
-                    accountId,
-                    checked ? "LOCAL_OLLAMA" : "OPENROUTER"
-                  );
-                  if (!result.ok) {
-                    toast.error(result.error);
-                    return;
-                  }
-                  if (!checked) {
-                    toast.success("Local Ollama disabled (routed to Cloud AI)");
-                  } else {
-                    toast.success("Local Ollama enabled");
-                  }
-                  router.refresh();
-                });
-              }}
-            />
-          </div>
-        </CardHeader>
-        <CurvedCardDivider />
-        <CardContent className="space-y-4 p-4">
+                if (!checked) {
+                  toast.success("Local Ollama disabled (routed to Cloud AI)");
+                } else {
+                  toast.success("Local Ollama enabled");
+                }
+                router.refresh();
+              });
+            }}
+          />
+        }
+        curvedDivider
+      >
         {!accountId && (
           <p className="text-sm text-muted-foreground">
             Connect an account to configure AI routing.
           </p>
         )}
 
-        {/* Ollama Bridge Sub Dropdown Card */}
-        <div className="overflow-hidden rounded-xl border border-border/70 bg-card/60 shadow-xs transition-colors">
-          <div
-            role="button"
-            tabIndex={useOllama ? 0 : -1}
-            aria-disabled={!useOllama}
-            onClick={handleToggleOllamaSub}
-            onKeyDown={(e) => {
-              if (!useOllama) return;
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                handleToggleOllamaSub();
-              }
-            }}
-            className={cn(
-              "flex select-none items-center justify-between gap-3 p-3.5 transition-colors",
-              useOllama
-                ? "cursor-pointer hover:bg-muted/20"
-                : "cursor-not-allowed opacity-75"
-            )}
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <CompanyLogo
-                src="/icons/Ollama Lucide Icon.svg"
-                name="Ollama"
-                size="lg"
-                imageClassName="object-contain p-1 dark:invert"
-              />
-              <div className="space-y-0.5 min-w-0">
-                <h3 className="text-sm font-semibold tracking-tight text-foreground">
-                  Local Ollama Bridge
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Zero-token-cost processing powered by your local GPU or CPU.
-                </p>
-              </div>
+        {/* Ollama Bridge Sub Dropdown Card (Level 2) */}
+        <NestedSettingsCard
+          level={2}
+          leading={
+            <CompanyLogo
+              src="/icons/Ollama Lucide Icon.svg"
+              name="Ollama"
+              size="lg"
+              imageClassName="object-contain p-1 dark:invert"
+            />
+          }
+          title="Local Ollama Bridge"
+          subtitle="Zero-token-cost processing powered by your local GPU or CPU."
+          trailing={
+            isConnected ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Connected
+              </span>
+            ) : useOllama ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400 shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                Bridge Ready
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground shrink-0">
+                Disabled
+              </span>
+            )
+          }
+          collapsible
+          isExpanded={useOllama && ollamaSubOpen}
+          onToggle={handleToggleOllamaSub}
+          disabled={!useOllama}
+          curvedDivider
+        >
+          {!mounted ? (
+            <div className="text-xs text-muted-foreground">
+              Loading Ollama settings…
             </div>
-            <div className="flex items-center gap-2.5 shrink-0">
-              {isConnected ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  Connected
-                </span>
-              ) : useOllama ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400 shrink-0">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                  Bridge Ready
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground shrink-0">
-                  Disabled
-                </span>
-              )}
-              <ChevronDown
-                className={cn(
-                  "h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0",
-                  ollamaSubOpen && "rotate-180",
-                  !useOllama && "opacity-40"
-                )}
-              />
-            </div>
-          </div>
-
-          {useOllama && ollamaSubOpen && (
+          ) : (
             <>
-              <CurvedCardDivider />
-              <div className="space-y-2.5 bg-muted/10 p-3.5 animate-in fade-in-50 duration-200">
-              {!mounted ? (
-                <div className="text-xs text-muted-foreground">
-                  Loading Ollama settings…
-                </div>
-              ) : (
-                <>
-                  {/* Nested Card: Getting Started with Ollama Bridge */}
-                  <Card className="overflow-hidden rounded-xl border border-border/70 bg-card/70 shadow-xs">
-                    <CardHeader
-                      tabIndex={0}
-                      role="button"
-                      aria-expanded={step1Open}
-                      onClick={handleToggleStep1}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          handleToggleStep1();
-                        }
-                      }}
-                      className="flex flex-row items-center justify-between gap-2.5 p-3.5 space-y-0 cursor-pointer select-none transition-colors hover:bg-muted/20"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-xs font-semibold text-primary">
-                          1
+                  {/* Nested Card: Getting Started with Ollama Bridge (Level 3) */}
+                  <NestedSettingsCard
+                    level={3}
+                    leading={
+                      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-[11px] font-semibold text-primary">
+                        1
+                      </span>
+                    }
+                    title="Getting Started with Ollama Bridge:"
+                    trailing={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={checkingLocalOllama}
+                        className={STEP_CARD_CTA_CLASSNAME}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleLaunchOrDownloadOllama();
+                        }}
+                      >
+                        {checkingLocalOllama ? (
+                          <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                        ) : (
+                          <Rocket className="size-3.5 text-muted-foreground" />
+                        )}
+                        <span>{checkingLocalOllama ? "Launching…" : "Launch Ollama"}</span>
+                      </Button>
+                    }
+                    collapsible
+                    isExpanded={step1Open}
+                    onToggle={handleToggleStep1}
+                    curvedDivider
+                  >
+                    <ol className="space-y-3 px-4 sm:px-6">
+                      <li className="flex items-center gap-3">
+                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-[10px] font-semibold text-primary">
+                          1.1
                         </span>
-                        <CardTitle className="text-sm font-semibold tracking-tight text-foreground">
-                          Getting Started with Ollama Bridge:
-                        </CardTitle>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={checkingLocalOllama}
-                          className={STEP_CARD_CTA_CLASSNAME}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleLaunchOrDownloadOllama();
-                          }}
-                        >
-                          {checkingLocalOllama ? (
-                            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-                          ) : (
-                            <Rocket className="size-3.5 text-muted-foreground" />
-                          )}
-                          <span>{checkingLocalOllama ? "Launching…" : "Launch Ollama"}</span>
-                        </Button>
-                        <ChevronDown
-                          className={cn(
-                            "h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0",
-                            step1Open && "rotate-180"
-                          )}
-                          aria-hidden="true"
-                        />
-                      </div>
-                    </CardHeader>
-                    {step1Open && (
-                      <>
-                        <CurvedCardDivider />
-                        <CardContent className="p-3.5 space-y-2.5 text-xs leading-relaxed animate-in fade-in-50 duration-200">
-                          <ol className="space-y-3 px-4 sm:px-6">
-                            <li className="flex items-center gap-3">
-                              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-[10px] font-semibold text-primary">
-                                1.1
-                              </span>
-                              <span className="text-xs text-muted-foreground leading-relaxed">
-                                Install and launch the official{" "}
-                                <button
-                                  type="button"
-                                  disabled={checkingLocalOllama}
-                                  onClick={() => void handleLaunchOrDownloadOllama()}
-                                  className="inline text-teal-600 dark:text-teal-400 underline underline-offset-2 hover:text-teal-500 font-normal cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  Ollama desktop app
-                                </button>
-                                {" "}(you can install this on any machine and use it remotely from another computer).
-                              </span>
-                            </li>
-                            <li className="flex items-center gap-3">
-                              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-[10px] font-semibold text-primary">
-                                1.2
-                              </span>
-                              <span className="text-xs text-muted-foreground leading-relaxed">
-                                Open your terminal and run{" "}
-                                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground">
-                                  ollama run llama3.1:8b
-                                </code>
-                                . Mail Pilot is calibrated for Llama 3.1 (8B) to reliably parse and organize your emails, though other capable open models like <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground">gemma2:27b</code> also work smoothly if you prefer.
-                              </span>
-                            </li>
-                          </ol>
-                        </CardContent>
-                      </>
-                    )}
-                  </Card>
-
-                  {/* Card 2: One-Click Bridge Commands */}
-                  <Card className="overflow-hidden rounded-xl border border-border/70 bg-card/70 shadow-xs">
-                    <CardHeader
-                      tabIndex={0}
-                      role="button"
-                      aria-expanded={step2Open}
-                      onClick={handleToggleStep2}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          handleToggleStep2();
-                        }
-                      }}
-                      className="flex flex-row items-center justify-between gap-2.5 p-3.5 space-y-0 cursor-pointer select-none transition-colors hover:bg-muted/20"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-xs font-semibold text-primary">
-                          2
+                        <span className="text-xs text-muted-foreground leading-relaxed">
+                          Install and launch the official{" "}
+                          <button
+                            type="button"
+                            disabled={checkingLocalOllama}
+                            onClick={() => void handleLaunchOrDownloadOllama()}
+                            className="inline text-teal-600 dark:text-teal-400 underline underline-offset-2 hover:text-teal-500 font-normal cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Ollama desktop app
+                          </button>
+                          {" "}(you can install this on any machine and use it remotely from another computer).
                         </span>
-                        <CardTitle className="text-sm font-semibold tracking-tight text-foreground">
-                          One-Click Bridge Commands:
-                        </CardTitle>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className={STEP_CARD_CTA_CLASSNAME}
-                          disabled={disabled || pending}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleGenerateSecret(hasSecret);
-                          }}
-                        >
-                          {pending ? (
-                            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-                          ) : (
-                            <KeyRound className="size-3.5 text-muted-foreground" />
-                          )}
-                          <span>{hasSecret ? "Rotate Secret" : "Generate Secret"}</span>
-                        </Button>
-                        <ChevronDown
-                          className={cn(
-                            "h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0",
-                            step2Open && "rotate-180"
-                          )}
-                          aria-hidden="true"
-                        />
-                      </div>
-                    </CardHeader>
-                    {step2Open && (
-                      <div className="animate-in fade-in-50 duration-200">
-                        <CurvedCardDivider />
-                        <CardContent className="p-3.5 space-y-3.5 text-xs leading-relaxed">
-                          <div className="space-y-3.5 px-4 sm:px-6">
-                            {/* Step 2.1 instruction */}
-                            <div className="flex items-center gap-3">
-                              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-[10px] font-semibold text-primary">
-                                2.1
-                              </span>
-                              <span className="text-xs text-muted-foreground leading-relaxed">
-                                Copy the command for your operating system below, paste it into your terminal, and leave that window running in the background.
-                              </span>
-                            </div>
+                      </li>
+                      <li className="flex items-center gap-3">
+                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-[10px] font-semibold text-primary">
+                          1.2
+                        </span>
+                        <span className="text-xs text-muted-foreground leading-relaxed">
+                          Open your terminal and run{" "}
+                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground">
+                            ollama run llama3.1:8b
+                          </code>
+                          . Mail Pilot is calibrated for Llama 3.1 (8B) to reliably parse and organize your emails, though other capable open models like <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground">gemma2:27b</code> also work smoothly if you prefer.
+                        </span>
+                      </li>
+                    </ol>
+                  </NestedSettingsCard>
 
-                            {/* Side-by-side CLI command blocks */}
-                            <div className="mx-9 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            {/* macOS / Linux Box */}
-                            <div className="rounded-lg border border-border bg-slate-950 p-3.5 text-slate-100 flex flex-col justify-between space-y-3">
-                              <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
-                                <span className="font-medium text-slate-300">macOS / Linux</span>
-                                <div className="flex items-center gap-1.5">
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[10px] text-slate-400 border-slate-700 bg-slate-900"
-                                  >
-                                    bash / zsh
-                                  </Badge>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    disabled={!hasSecret || !accountEmail}
-                                    onClick={() => void copyOsCommand("mac")}
-                                    className="size-6 text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"
-                                    aria-label="Copy macOS command"
-                                  >
-                                    {copiedOsCommand === "mac" ? (
-                                      <Check className="size-3.5 text-emerald-400" />
-                                    ) : (
-                                      <Copy className="size-3.5" />
-                                    )}
-                                  </Button>
-                                </div>
-                              </div>
-                              <code className="text-xs font-mono break-all text-teal-300 leading-relaxed select-all">
-                                {macBridgeCommand}
-                              </code>
-                            </div>
-
-                            {/* Windows Box */}
-                            <div className="rounded-lg border border-border bg-slate-950 p-3.5 text-slate-100 flex flex-col justify-between space-y-3">
-                              <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
-                                <span className="font-medium text-slate-300">Windows</span>
-                                <div className="flex items-center gap-1.5">
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[10px] text-slate-400 border-slate-700 bg-slate-900"
-                                  >
-                                    PowerShell
-                                  </Badge>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    disabled={!hasSecret || !accountEmail}
-                                    onClick={() => void copyOsCommand("win")}
-                                    className="size-6 text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"
-                                    aria-label="Copy Windows command"
-                                  >
-                                    {copiedOsCommand === "win" ? (
-                                      <Check className="size-3.5 text-emerald-400" />
-                                    ) : (
-                                      <Copy className="size-3.5" />
-                                    )}
-                                  </Button>
-                                </div>
-                              </div>
-                              <code className="text-xs font-mono break-all text-teal-300 leading-relaxed select-all">
-                                {winBridgeCommand}
-                              </code>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-
-                      {/* Bottom portion separated by line separator */}
-                      <div className="border-t border-border/50 bg-muted/20 p-3.5 space-y-1">
+                  {/* Card 2: One-Click Bridge Commands (Level 3) */}
+                  <NestedSettingsCard
+                    level={3}
+                    leading={
+                      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-[11px] font-semibold text-primary">
+                        2
+                      </span>
+                    }
+                    title="One-Click Bridge Commands:"
+                    trailing={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className={STEP_CARD_CTA_CLASSNAME}
+                        disabled={disabled || pending}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleGenerateSecret(hasSecret);
+                        }}
+                      >
+                        {pending ? (
+                          <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                        ) : (
+                          <KeyRound className="size-3.5 text-muted-foreground" />
+                        )}
+                        <span>{hasSecret ? "Rotate Secret" : "Generate Secret"}</span>
+                      </Button>
+                    }
+                    collapsible
+                    isExpanded={step2Open}
+                    onToggle={handleToggleStep2}
+                    curvedDivider
+                    footer={
+                      <div className="space-y-1">
                         <p className="font-medium text-xs text-foreground flex items-center gap-1.5">
                           <ShieldUser className="size-3.5 text-muted-foreground" />
                           <span>Why rotating your secret matters</span>
@@ -1399,144 +1190,189 @@ export function AiModelsCard({
                           Your secret acts like a private handshake between your personal machine and your Mail Pilot account. If you ever switch Wi-Fi networks, run Mail Pilot in a public workspace, or suspect your terminal was exposed, click Rotate Secret above to instantly revoke old tunnel tokens and lock down your connection.
                         </p>
                       </div>
-                    </div>
-                  )}
-                </Card>
-
-                {/* Card 3: Checking Your Connection */}
-                <Card className="overflow-hidden rounded-xl border border-border/70 bg-card/70 shadow-xs">
-                  <CardHeader
-                    tabIndex={0}
-                    role="button"
-                    aria-expanded={step3Open}
-                    onClick={handleToggleStep3}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        handleToggleStep3();
-                      }
-                    }}
-                    className="flex flex-row items-center justify-between gap-2.5 p-3.5 space-y-0 cursor-pointer select-none transition-colors hover:bg-muted/20"
+                    }
                   >
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-xs font-semibold text-primary">
-                        3
-                      </span>
-                      <CardTitle className="text-sm font-semibold tracking-tight text-foreground">
-                        Checking Your Connection:
-                      </CardTitle>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className={STEP_CARD_CTA_CLASSNAME}
-                        disabled={disabled || verifying}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleVerifyConnection().then((status) => {
-                            if (status === "connected") {
-                              toast.success("Ollama connected");
-                            } else {
-                              toast.error("Could not reach Ollama");
-                            }
-                          });
-                        }}
-                      >
-                        {verifying ? (
-                          <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-                        ) : (
-                          <Wifi className="size-3.5 text-muted-foreground" />
-                        )}
-                        <span>{verifying ? "Checking..." : "Check Signal"}</span>
-                      </Button>
-                      <ChevronDown
-                        className={cn(
-                          "h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0",
-                          step3Open && "rotate-180"
-                        )}
-                        aria-hidden="true"
-                      />
-                    </div>
-                  </CardHeader>
-                  {step3Open && (
-                    <>
-                      <CurvedCardDivider />
-                      <CardContent className="p-3.5 space-y-3.5 text-xs leading-relaxed animate-in fade-in-50 duration-200">
                     <div className="space-y-3.5 px-4 sm:px-6">
-                      {/* Step 3.1 instruction */}
+                      {/* Step 2.1 instruction */}
                       <div className="flex items-center gap-3">
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-[10px] font-semibold text-primary">
-                          3.1
+                          2.1
                         </span>
                         <span className="text-xs text-muted-foreground leading-relaxed">
-                          With your bridge terminal running in the background, click Check Signal above. Once connected, your active model options will appear below.
+                          Copy the command for your operating system below, paste it into your terminal, and leave that window running in the background.
                         </span>
                       </div>
 
-                      {/* Unified Bridge Status & Model Card */}
-                      <div className="mx-9 overflow-hidden rounded-xl border border-border/70 bg-card/70 shadow-xs transition-all duration-200">
-                        {/* Status Header */}
-                        <div className="p-3.5 sm:p-4 space-y-2.5">
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span
-                                className={cn(
-                                  "relative flex h-2.5 w-2.5 rounded-full shrink-0",
-                                  isConnected
-                                    ? "bg-emerald-500"
-                                    : displayStatus === "checking"
-                                      ? "bg-teal-500"
-                                      : "bg-amber-500"
-                                )}
+                      {/* Side-by-side CLI command blocks */}
+                      <div className="mx-9 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* macOS / Linux Box */}
+                        <div className="rounded-lg border border-border bg-slate-950 p-3.5 text-slate-100 flex flex-col justify-between space-y-3">
+                          <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
+                            <span className="font-medium text-slate-300">macOS / Linux</span>
+                            <div className="flex items-center gap-1.5">
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] text-slate-400 border-slate-700 bg-slate-900"
                               >
-                                <span
-                                  className={cn(
-                                    "absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping",
-                                    isConnected
-                                      ? "bg-emerald-400"
-                                      : displayStatus === "checking"
-                                        ? "bg-teal-400"
-                                        : "bg-amber-400"
-                                  )}
-                                />
-                              </span>
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-xs font-semibold text-foreground truncate">
-                                  {isConnected
-                                    ? "Local Ollama Connected & Active"
-                                    : displayStatus === "checking"
-                                      ? "Verifying Bridge Connection…"
-                                      : "Waiting for bridge connection"}
-                                </span>
-                                {isConnected && (
-                                  <Badge
-                                    variant="outline"
-                                    className="h-4.5 px-1.5 text-[10px] font-medium border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                  >
-                                    Active
-                                  </Badge>
+                                bash / zsh
+                              </Badge>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                disabled={!hasSecret || !accountEmail}
+                                onClick={() => void copyOsCommand("mac")}
+                                className="size-6 text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"
+                                aria-label="Copy macOS command"
+                              >
+                                {copiedOsCommand === "mac" ? (
+                                  <Check className="size-3.5 text-emerald-400" />
+                                ) : (
+                                  <Copy className="size-3.5" />
                                 )}
-                              </div>
+                              </Button>
                             </div>
-
-                            {/* Model count badge */}
-                            {isConnected && (
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-foreground">
-                                  <Cpu className="size-3 text-primary" />
-                                  <span>
-                                    {models.length > 0
-                                      ? `${models.length} model${models.length === 1 ? "" : "s"} available`
-                                      : statusMessage || `${selectOptions.length} model${selectOptions.length === 1 ? "" : "s"} available`}
-                                  </span>
-                                </span>
-                              </div>
-                            )}
                           </div>
+                          <code className="text-xs font-mono break-all text-teal-300 leading-relaxed select-all">
+                            {macBridgeCommand}
+                          </code>
+                        </div>
 
-                          {/* Tunnel Endpoint / Instructions */}
+                        {/* Windows Box */}
+                        <div className="rounded-lg border border-border bg-slate-950 p-3.5 text-slate-100 flex flex-col justify-between space-y-3">
+                          <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
+                            <span className="font-medium text-slate-300">Windows</span>
+                            <div className="flex items-center gap-1.5">
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] text-slate-400 border-slate-700 bg-slate-900"
+                              >
+                                PowerShell
+                              </Badge>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                disabled={!hasSecret || !accountEmail}
+                                onClick={() => void copyOsCommand("win")}
+                                className="size-6 text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"
+                                aria-label="Copy Windows command"
+                              >
+                                {copiedOsCommand === "win" ? (
+                                  <Check className="size-3.5 text-emerald-400" />
+                                ) : (
+                                  <Copy className="size-3.5" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                          <code className="text-xs font-mono break-all text-teal-300 leading-relaxed select-all">
+                            {winBridgeCommand}
+                          </code>
+                        </div>
+                      </div>
+                    </div>
+                  </NestedSettingsCard>
+
+                {/* Card 3: Checking Your Connection (Level 3) */}
+                <NestedSettingsCard
+                  level={3}
+                  leading={
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-[11px] font-semibold text-primary">
+                      3
+                    </span>
+                  }
+                  title="Checking Your Connection:"
+                  trailing={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={STEP_CARD_CTA_CLASSNAME}
+                      disabled={disabled || verifying}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleVerifyConnection().then((status) => {
+                          if (status === "connected") {
+                            toast.success("Ollama connected");
+                          } else {
+                            toast.error("Could not reach Ollama");
+                          }
+                        });
+                      }}
+                    >
+                      {verifying ? (
+                        <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                      ) : (
+                        <Wifi className="size-3.5 text-muted-foreground" />
+                      )}
+                      <span>{verifying ? "Checking..." : "Check Signal"}</span>
+                    </Button>
+                  }
+                  collapsible
+                  isExpanded={step3Open}
+                  onToggle={handleToggleStep3}
+                  curvedDivider
+                >
+                  <div className="space-y-3.5 px-4 sm:px-6">
+                    {/* Step 3.1 instruction */}
+                    <div className="flex items-center gap-3">
+                      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-[10px] font-semibold text-primary">
+                        3.1
+                      </span>
+                      <span className="text-xs text-muted-foreground leading-relaxed">
+                        With your bridge terminal running in the background, click Check Signal above. Once connected, your active model options will appear below.
+                      </span>
+                    </div>
+
+                    {/* Unified Bridge Status & Model Card (Level 4) */}
+                    <NestedSettingsCard
+                      level={4}
+                      className="mx-9"
+                      leading={
+                        <span
+                          className={cn(
+                            "relative flex h-2.5 w-2.5 rounded-full shrink-0",
+                            isConnected
+                              ? "bg-emerald-500"
+                              : displayStatus === "checking"
+                                ? "bg-teal-500"
+                                : "bg-amber-500"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping",
+                              isConnected
+                                ? "bg-emerald-400"
+                                : displayStatus === "checking"
+                                  ? "bg-teal-400"
+                                  : "bg-amber-400"
+                            )}
+                          />
+                        </span>
+                      }
+                      title={
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xs font-semibold text-foreground truncate">
+                            {isConnected
+                              ? "Local Ollama Connected & Active"
+                              : displayStatus === "checking"
+                                ? "Verifying Bridge Connection…"
+                                : "Waiting for bridge connection"}
+                          </span>
+                          {isConnected && (
+                            <Badge
+                              variant="outline"
+                              className="h-4.5 px-1.5 text-[10px] font-medium border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                            >
+                              Active
+                            </Badge>
+                          )}
+                        </div>
+                      }
+                      subtitle={
+                        <div className="space-y-1">
                           <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-1.5">
                             {isConnected ? (
                               <>
@@ -1550,109 +1386,114 @@ export function AiModelsCard({
                               <span>Run either command above to connect your local GPU/CPU</span>
                             )}
                           </div>
-
                           {statusMessage && !statusMessage.toLowerCase().includes("model") && (
                             <p className="text-[11px] text-muted-foreground">{statusMessage}</p>
                           )}
                         </div>
-
-                        {/* Gated model picker */}
-                        {mounted && isConnected && (
-                          <>
-                            <CurvedCardDivider />
-                            <div className="bg-muted/20 p-3.5 sm:p-4 space-y-3 transition-all animate-in fade-in-50 duration-200">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="space-y-0.5 min-w-0">
-                                  <Label
-                                    htmlFor="ollama-model"
-                                    className="text-xs font-semibold tracking-tight text-foreground cursor-pointer"
-                                  >
-                                    Active local model
-                                  </Label>
-                                  <p className="text-[11px] text-muted-foreground leading-normal">
-                                    {useOllama
-                                      ? "Requests for this account run against this model."
-                                      : "Requests will run against this model when Local Ollama is enabled."}
-                                  </p>
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 shrink-0 gap-1.5 text-xs border-border/80 hover:bg-background shadow-2xs"
-                                  disabled={disabled || verifying}
-                                  onClick={() => {
-                                    void handleVerifyConnection().then((status) => {
-                                      if (status === "connected") {
-                                        toast.success("Models refreshed");
-                                      } else {
-                                        toast.error("Could not refresh models");
-                                      }
-                                    });
-                                  }}
-                                >
-                                  {verifying ? (
-                                    <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-                                  ) : (
-                                    <RefreshCw className="size-3.5 text-muted-foreground" />
-                                  )}
-                                  <span>Refresh</span>
-                                </Button>
-                              </div>
-
-                              {selectOptions.length > 0 ? (
-                                <div className="relative">
-                                  <select
-                                    id="ollama-model"
-                                    className="flex h-9.5 w-full appearance-none rounded-lg border border-border/80 bg-background px-3 py-2 pr-9 text-xs font-mono font-medium shadow-2xs transition-colors outline-none ring-offset-background focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                    value={
-                                      selectOptions.includes(selectedModel)
-                                        ? selectedModel
-                                        : selectOptions[0]
-                                    }
-                                    disabled={disabled}
-                                    onChange={(e) => {
-                                      const next = e.target.value;
-                                      setSelectedModel(next);
-                                      if (!accountId) return;
-                                      startTransition(async () => {
-                                        if (url.trim()) {
-                                          await updateOllamaUrl(accountId, url, next);
-                                        } else {
-                                          await updateOllamaModel(accountId, next);
-                                        }
-                                        router.refresh();
-                                      });
-                                    }}
-                                  >
-                                    {selectOptions.map((name) => (
-                                      <option key={name} value={name}>
-                                        {name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/70" />
-                                </div>
-                              ) : (
-                                <p className="text-xs text-muted-foreground">
-                                  No models returned. Click Refresh.
-                                </p>
-                              )}
+                      }
+                      trailing={
+                        isConnected ? (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-foreground">
+                              <Cpu className="size-3 text-primary" />
+                              <span>
+                                {models.length > 0
+                                  ? `${models.length} model${models.length === 1 ? "" : "s"} available`
+                                  : statusMessage || `${selectOptions.length} model${selectOptions.length === 1 ? "" : "s"} available`}
+                              </span>
+                            </span>
+                          </div>
+                        ) : null
+                      }
+                      curvedDivider={Boolean(mounted && isConnected)}
+                    >
+                      {mounted && isConnected ? (
+                        <div className="space-y-3 transition-all animate-in fade-in-50 duration-200">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="space-y-0.5 min-w-0">
+                              <Label
+                                htmlFor="ollama-model"
+                                className="text-xs font-semibold tracking-tight text-foreground cursor-pointer"
+                              >
+                                Active local model
+                              </Label>
+                              <p className="text-[11px] text-muted-foreground leading-normal">
+                                {useOllama
+                                  ? "Requests for this account run against this model."
+                                  : "Requests will run against this model when Local Ollama is enabled."}
+                              </p>
                             </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </>
-              )}
-              </Card>
-                </>
-              )}
-            </div>
-          </>
-        )}
-        </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 shrink-0 gap-1.5 text-xs border-border/80 hover:bg-background shadow-2xs"
+                              disabled={disabled || verifying}
+                              onClick={() => {
+                                void handleVerifyConnection().then((status) => {
+                                  if (status === "connected") {
+                                    toast.success("Models refreshed");
+                                  } else {
+                                    toast.error("Could not refresh models");
+                                  }
+                                });
+                              }}
+                            >
+                              {verifying ? (
+                                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                              ) : (
+                                <RefreshCw className="size-3.5 text-muted-foreground" />
+                              )}
+                              <span>Refresh</span>
+                            </Button>
+                          </div>
+
+                          {selectOptions.length > 0 ? (
+                            <div className="relative">
+                              <select
+                                id="ollama-model"
+                                className="flex h-9.5 w-full appearance-none rounded-lg border border-border/80 bg-background px-3 py-2 pr-9 text-xs font-mono font-medium shadow-2xs transition-colors outline-none ring-offset-background focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                value={
+                                  selectOptions.includes(selectedModel)
+                                    ? selectedModel
+                                    : selectOptions[0]
+                                }
+                                disabled={disabled}
+                                onChange={(e) => {
+                                  const next = e.target.value;
+                                  setSelectedModel(next);
+                                  if (!accountId) return;
+                                  startTransition(async () => {
+                                    if (url.trim()) {
+                                      await updateOllamaUrl(accountId, url, next);
+                                    } else {
+                                      await updateOllamaModel(accountId, next);
+                                    }
+                                    router.refresh();
+                                  });
+                                }}
+                              >
+                                {selectOptions.map((name) => (
+                                  <option key={name} value={name}>
+                                    {name}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/70" />
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              No models returned. Click Refresh.
+                            </p>
+                          )}
+                        </div>
+                      ) : null}
+                    </NestedSettingsCard>
+                  </div>
+                </NestedSettingsCard>
+              </>
+            )}
+        </NestedSettingsCard>
 
         {/* Retained for posterity: Manual Tunnel Setup (Replaced by Automated Bridge)
         {/*
@@ -1806,8 +1647,7 @@ export function AiModelsCard({
               </div>
             ) : null}
 
-      </CardContent>
-    </Card>
+      </NestedSettingsCard>
 
     {/* Cloud AI Provider & Credentials Card */}
     <Card className={cn(SETTINGS_CARD_CLASSNAME, "overflow-hidden")}>
