@@ -13,6 +13,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     accountSettings: {
       upsert: vi.fn(),
+      update: vi.fn(),
     },
   },
 }));
@@ -134,7 +135,7 @@ describe("Ollama Verify Route (/api/ollama/verify)", () => {
     expect(data.activeUrl).toBe("https://new-manual-tunnel.trycloudflare.com");
   });
 
-  it("falls back to trusted CLI registration in DB if public tunnel probe times out", async () => {
+  it("marks bridge as offline and updates DB when public tunnel probe fails or times out", async () => {
     vi.mocked(getAuthenticatedAccountId).mockResolvedValue("acc_123");
     vi.mocked(prisma.account.findUnique).mockResolvedValue({
       id: "acc_123",
@@ -150,7 +151,7 @@ describe("Ollama Verify Route (/api/ollama/verify)", () => {
 
     const abortError = new Error("The operation was aborted");
     abortError.name = "AbortError";
-    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(abortError);
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(abortError);
 
     const req = new Request("http://localhost:3000/api/ollama/verify", {
       method: "POST",
@@ -161,9 +162,61 @@ describe("Ollama Verify Route (/api/ollama/verify)", () => {
     expect(res.status).toBe(200);
 
     const data = await res.json();
-    expect(data.connected).toBe(true);
-    expect(data.trustedCli).toBe(true);
-    expect(data.activeUrl).toBe("https://registered-host-123.trycloudflare.com");
-    expect(data.models).toEqual(["llama3.1:8b"]);
+    expect(data.connected).toBe(false);
+    expect(data.status).toBe("offline");
+    expect(data.models).toEqual([]);
+
+    expect(prisma.accountSettings.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { accountId: "acc_123" },
+        data: expect.objectContaining({
+          rules: expect.objectContaining({
+            bridgeConnected: false,
+          }),
+        }),
+      })
+    );
+  });
+
+  it("marks bridge as error and updates DB when remote tunnel returns HTTP error status", async () => {
+    vi.mocked(getAuthenticatedAccountId).mockResolvedValue("acc_123");
+    vi.mocked(prisma.account.findUnique).mockResolvedValue({
+      id: "acc_123",
+      email: "test@example.com",
+      settings: {
+        localOllamaUrl: "https://registered-host-123.trycloudflare.com",
+        rules: {
+          bridgeConnected: true,
+          availableModels: ["llama3.1:8b"],
+        },
+      },
+    } as any);
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("Bad Gateway", { status: 502 })
+    );
+
+    const req = new Request("http://localhost:3000/api/ollama/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const data = await res.json();
+    expect(data.connected).toBe(false);
+    expect(data.status).toBe("error");
+
+    expect(prisma.accountSettings.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { accountId: "acc_123" },
+        data: expect.objectContaining({
+          rules: expect.objectContaining({
+            bridgeConnected: false,
+          }),
+        }),
+      })
+    );
   });
 });

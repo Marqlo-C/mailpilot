@@ -79,18 +79,58 @@ export async function POST(request: Request) {
       );
     }
 
-    // Ping Ollama tags through the public Cloudflare tunnel
+    // Ping Ollama tags with retry for transient tunnel warm-up
     const endpoint = `${targetUrl.replace(/\/+$/, "")}/api/tags`;
-    const res = await fetch(endpoint, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept: "application/json",
-      },
-      signal: AbortSignal.timeout(8000),
-    });
+    const fetchHeaders = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Accept: "application/json",
+    };
+
+    let res: Response | null = null;
+    let lastError: unknown = null;
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const attemptRes = await fetch(endpoint, {
+          headers: fetchHeaders,
+          signal: AbortSignal.timeout(4000),
+        });
+        if (attemptRes.ok) {
+          res = attemptRes;
+          break;
+        }
+        if (attempt === 1) {
+          await new Promise((r) => setTimeout(r, 600));
+        } else {
+          res = attemptRes;
+        }
+      } catch (err) {
+        lastError = err;
+        if (attempt === 1) {
+          await new Promise((r) => setTimeout(r, 600));
+        }
+      }
+    }
+
+    if (!res) {
+      throw lastError ?? new Error("Could not reach Ollama through the public tunnel.");
+    }
 
     if (!res.ok) {
+      // Mark bridge as disconnected in DB when remote Ollama returns an error
+      const currentRules = parseAccountRules(account.settings?.rules);
+      if (currentRules.bridgeConnected) {
+        const updatedRules = accountRulesSchema.parse({
+          ...currentRules,
+          bridgeConnected: false,
+        });
+        await prisma.accountSettings.update({
+          where: { accountId },
+          data: { rules: updatedRules as Prisma.InputJsonValue },
+        });
+      }
+
       return NextResponse.json(
         {
           connected: false,
@@ -164,8 +204,7 @@ export async function POST(request: Request) {
         err.name === "TimeoutError" ||
         /timeout|aborted/i.test(err.message));
 
-    // If cloud probe fails (e.g. timeout reaching trycloudflare.com from Vercel),
-    // check if the bridge CLI registration is already active in the DB
+    // Live probe failed -> truthfully mark bridge as disconnected in DB
     try {
       const accountId = await getAuthenticatedAccountId();
       if (accountId) {
@@ -173,25 +212,22 @@ export async function POST(request: Request) {
           where: { id: accountId },
           include: { settings: true },
         });
-        const rules = parseAccountRules(account?.settings?.rules);
-        const storedUrl = account?.settings?.localOllamaUrl?.trim();
-        if (rules.bridgeConnected && rules.availableModels.length > 0 && storedUrl) {
-          return NextResponse.json(
-            {
-              connected: true,
-              status: "connected",
-              activeUrl: storedUrl,
-              models: rules.availableModels,
-              trustedCli: true,
-              error:
-                "Cloud could not reach the tunnel, but your bridge CLI registration is still active.",
-            },
-            { status: 200 }
-          );
+        if (account?.settings) {
+          const currentRules = parseAccountRules(account.settings.rules);
+          if (currentRules.bridgeConnected) {
+            const updatedRules = accountRulesSchema.parse({
+              ...currentRules,
+              bridgeConnected: false,
+            });
+            await prisma.accountSettings.update({
+              where: { accountId },
+              data: { rules: updatedRules as Prisma.InputJsonValue },
+            });
+          }
         }
       }
     } catch {
-      // Ignore fallback lookup error
+      // Ignore DB write error during offline handling
     }
 
     return NextResponse.json(
@@ -201,7 +237,7 @@ export async function POST(request: Request) {
         models: [],
         error: isTimeout
           ? "Connection timed out. Check that the terminal bridge is still running on your host machine."
-          : "Could not reach Ollama through the public tunnel.",
+          : "Could not reach Ollama through the registered tunnel. Ensure your host machine and bridge terminal are active.",
       },
       { status: 200 }
     );
