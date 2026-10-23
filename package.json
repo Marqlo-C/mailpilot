@@ -35,7 +35,7 @@
     "date-fns": "^4.4.0",
     "googleapis": "^178.0.0",
     "jszip": "^3.10.2",
-    "lucide-react": "^1.48.0",
+    "lucide-react": "^1.61.0",
     "mammoth": "^1.12.3",
     "next": "^15.5.26",
     "papaparse": "^5.7.0",
