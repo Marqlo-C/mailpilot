@@ -278,18 +278,38 @@ export function resolveResumeDraftLens(input: {
   const { profile, persona, rules, draftOverrides } = input;
   const prefs = rules?.resumePreferences;
 
+  const isMasterAi = rules?.enableAiTailoringDefaults ?? false;
+
   // Resolve ordering and inclusion settings with draft-override priority
   const orderingMode: ResumeOrderingMode =
-    draftOverrides?.orderingMode ?? prefs?.orderingMode ?? "AI_OPTIMAL";
+    draftOverrides?.orderingMode ??
+    (isMasterAi
+      ? "AI_OPTIMAL"
+      : (rules?.sectionOrderingMode ?? prefs?.orderingMode ?? "AI_OPTIMAL"));
 
   const inclusionMode: ResumeInclusionMode =
-    draftOverrides?.inclusionMode ?? prefs?.inclusionMode ?? "AI_OPTIMAL";
+    draftOverrides?.inclusionMode ??
+    (isMasterAi
+      ? "AI_OPTIMAL"
+      : (rules?.contentInclusionMode ?? prefs?.inclusionMode ?? "AI_OPTIMAL"));
 
   const inventMetrics: boolean =
-    draftOverrides?.inventMetrics ?? prefs?.inventMetrics ?? false;
+    draftOverrides?.inventMetrics ??
+    (isMasterAi
+      ? true
+      : (rules?.inventMetrics ?? prefs?.inventMetrics ?? false));
 
+  const rawBudget =
+    draftOverrides?.pageBudget ??
+    (isMasterAi
+      ? "auto"
+      : (rules?.targetPageBudget ?? prefs?.maxPages ?? "auto"));
   const pageBudget: ResumePageBudget =
-    draftOverrides?.pageBudget ?? prefs?.maxPages ?? "auto";
+    rawBudget === "2" || rawBudget === 2
+      ? 2
+      : rawBudget === "1" || rawBudget === 1
+        ? 1
+        : "auto";
 
   const includeSummary: boolean =
     draftOverrides?.includeSummary ?? prefs?.includeSummary ?? false;

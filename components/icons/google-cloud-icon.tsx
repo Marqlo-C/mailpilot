@@ -7,7 +7,7 @@ export function GoogleCloudIcon({
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 -25 256 256"
+      viewBox="0 0 256 206"
       fill="none"
       className={className}
       {...props}

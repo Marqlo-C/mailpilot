@@ -4,19 +4,9 @@ import { useEffect, useState } from "react";
 import { Waves } from "lucide-react";
 
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { SettingsSectionCard } from "@/components/ui/tactile/nested-settings-card";
 import { useTabRailClasses } from "@/components/ui/tactile/segmented-tabs";
-import {
-  WavyMeter,
-  WavyMeterDark,
-  WavyMeterLight,
-} from "@/components/ui/tactile/wavy-meter";
+import { WavyMeter } from "@/components/ui/tactile/wavy-meter";
 import {
   persistWavyMeterPreference,
   readWavyMeterPreference,
@@ -29,7 +19,11 @@ const OPTIONS: { value: WavyMeterVariant; label: string }[] = [
   { value: "dark", label: "Dark" },
 ];
 
-export function UiMeterCard({ accountId }: { accountId: string | null }) {
+export function MeterPreferencesCard({
+  accountId,
+}: {
+  accountId: string | null;
+}) {
   const [variant, setVariantState] = useState<WavyMeterVariant>("light");
   const { listClassName, triggerClassName } = useTabRailClasses();
   const saved = Boolean(accountId);
@@ -55,21 +49,19 @@ export function UiMeterCard({ accountId }: { accountId: string | null }) {
   }
 
   return (
-    <Card className={SETTINGS_CARD_CLASSNAME}>
-      <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 p-3.5 space-y-0">
+    <SettingsSectionCard
+      className={SETTINGS_CARD_CLASSNAME}
+      icon={
         <Waves
-          className="h-8 w-8 -translate-y-0.5 scale-[0.88] origin-center text-primary shrink-0"
+          className="size-8 -translate-y-0.5 scale-[0.88] origin-center text-primary shrink-0"
           aria-hidden="true"
         />
-        <div className="space-y-0.5 min-w-0">
-          <CardTitle>Usage meters</CardTitle>
-          <CardDescription className="text-xs">
-            Light meter or dark meter for proxy gauges, quotas, and credit
-            meters. Saved for this account on this device.
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4 pt-4">
+      }
+      title="Usage Meters"
+      subtitle="Light meter or dark meter for proxy gauges, quotas, and credit meters. Saved for this account on this device."
+      curvedDivider
+    >
+      <div className="space-y-4">
         <div
           className={listClassName}
           role="radiogroup"
@@ -123,7 +115,7 @@ export function UiMeterCard({ accountId }: { accountId: string | null }) {
             Connect an account to save this preference.
           </p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </SettingsSectionCard>
   );
 }

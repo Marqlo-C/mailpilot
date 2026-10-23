@@ -237,6 +237,7 @@ export function buildTailoredStrategySystemPrompt(input: {
   inventMetrics?: boolean;
   projectsDisabled?: boolean;
   isCareerSwitcherOrEarlyTenure?: boolean;
+  isManualInclusion?: boolean;
 }): string {
   const tenurePhrase = formatProfessionalTenureYears(input.professionalYears);
   const timeline = input.timelineContext.trim() || "No additional timeline context.";
@@ -272,6 +273,13 @@ export function buildTailoredStrategySystemPrompt(input: {
     - Ground Truth vs. Framing Agility: NEVER invent tools, platforms, or responsibilities absent from the source bullet. Translate raw operational tasks into rigorous, outcome-driven language.
     - For candidates with under 2 years in their current field or career switchers, do NOT drop preceding history to leave a half-empty page. Ensure you select 2–3 high-ownership bullets from prior roles to demonstrate professional accountability, scale, and execution.`;
 
+  const manualInclusionDirective = input.isManualInclusion
+    ? `\n11. MANDATORY BASELINE ROLE COVERAGE:
+    - The candidate has chosen "Include All Baseline Content".
+    - You MUST include bullets from EVERY work experience in the applicant's history (bulletLibrary). Do not omit or drop any company/role.
+    - Allocate at least 1 bullet per role, and up to 3-5 bullets for the most relevant roles, budgeting total bullets within bulletBudgetMax.`
+    : "";
+
   return `You are a senior talent strategist evaluating a candidate's master database for an opening at your organization.
 
 Your task is to select the most relevant roles, projects, and bullets for a targeted resume, and explain WHY each choice beats alternatives for this specific role and company.
@@ -290,7 +298,7 @@ ${projectDirective}
 7. STRATEGY RATIONALE: Provide explicit recruiter-style reasoning for role fit, skill prioritization, featured experiences, and featured projects.
 8. CREDENTIALS: Certifications, honors, and interests are separate profile sections. Never invent them, and do not fold them into skills or education.
 ${metricGuidance}
-${crossoverDirective}
+${crossoverDirective}${manualInclusionDirective}
 
 Return ONLY valid JSON:
 {
@@ -791,10 +799,12 @@ export type TailorOptions = {
   includeSummary?: boolean;
   /** Whether the tailor is permitted to synthesize realistic metrics when none exist in source. */
   inventMetrics?: boolean;
-  /** Soft target page budget ('auto', 1, or 2). */
-  targetPages?: "auto" | 1 | 2;
+  /** Soft target page budget ('auto', 1, 2, '1', or '2'). */
+  targetPages?: "auto" | 1 | 2 | "1" | "2";
   accountId?: string | null;
   accountRules?: Partial<AccountRules> | null;
+  /** Whether content inclusion is determined manually or optimized by AI. */
+  contentInclusionMode?: "AI_OPTIMAL" | "MANUAL";
 };
 
 export async function tailorResumeForJob(
@@ -847,10 +857,25 @@ export async function tailorResumeForJob(
     }
   }
 
-  const targetPagesPref =
+  const rawTargetBudget =
     options.targetPages ??
+    options.accountRules?.targetPageBudget ??
     options.accountRules?.resumePreferences?.maxPages ??
     "auto";
+  const targetPagesPref: "auto" | 1 | 2 =
+    rawTargetBudget === 2 || rawTargetBudget === "2"
+      ? 2
+      : rawTargetBudget === 1 || rawTargetBudget === "1"
+        ? 1
+        : "auto";
+
+  const inclusionMode: "AI_OPTIMAL" | "MANUAL" =
+    options.contentInclusionMode ??
+    (options.accountRules?.enableAiTailoringDefaults
+      ? "AI_OPTIMAL"
+      : (options.accountRules?.contentInclusionMode ??
+         options.accountRules?.resumePreferences?.inclusionMode ??
+         "AI_OPTIMAL"));
 
   const githubHandle = extractGitHubHandle(profile);
   const eligibleProjects = projectsDisabled
@@ -891,6 +916,10 @@ export async function tailorResumeForJob(
   const previousSelectedBulletIds =
     options.previousSelectedBulletIds?.filter(Boolean) ?? [];
 
+  let selectedProjects: ProjectInput[] = [];
+  let selectedExperience: WorkExperienceInput[] = [];
+  let parsed: ReturnType<typeof tailorSchema.safeParse> | null = null;
+
   const stageAUserPrompt = JSON.stringify({
     applicant: {
       fullName: profile.fullName,
@@ -918,6 +947,13 @@ export async function tailorResumeForJob(
     projectsDisabled,
     bulletLibrary,
     projectLibrary,
+    inclusionMode,
+    ...(inclusionMode === "MANUAL"
+      ? {
+          mandatoryRoleCoverage:
+            "The applicant selected 'Include All Baseline Content'. You MUST select at least 1-2 bullets for EVERY work experience in bulletLibrary. Do not drop or omit any role. Budget total bullets to fit bulletBudgetMax.",
+        }
+      : {}),
     ...(previousSelectedBulletIds.length > 0
       ? { previousSelectedBulletIds }
       : {}),
@@ -939,6 +975,7 @@ export async function tailorResumeForJob(
       inventMetrics,
       projectsDisabled,
       isCareerSwitcherOrEarlyTenure: switcherOrEarlyTenure,
+      isManualInclusion: inclusionMode === "MANUAL",
     }),
     userPrompt: stageAUserPrompt,
     llmProvider: options.llmProvider ?? "OPENROUTER",
@@ -956,7 +993,7 @@ export async function tailorResumeForJob(
     return null;
   });
 
-  const parsed = result ? tailorSchema.safeParse(result) : null;
+  parsed = result ? tailorSchema.safeParse(result) : null;
   if (result && !parsed?.success) {
     console.warn(
       "[ResumeTailor] LLM response validation failed:",
@@ -965,62 +1002,83 @@ export async function tailorResumeForJob(
   }
 
   // 1. Resolve selected projects within page budget
-  const maxProjectCount = targetPages === 1 ? (includeSummary ? 2 : 3) : 4;
-  const desiredProjectCount = switcherOrEarlyTenure
-    ? (includeSummary ? 2 : Math.min(3, eligibleProjects.length))
-    : (includeSummary ? 1 : Math.min(2, eligibleProjects.length));
+  if (inclusionMode === "MANUAL") {
+    selectedProjects = projectsDisabled
+      ? []
+      : eligibleProjects.map((p) => {
+          const capped = dedupeAndCapProjectBullets(p.bullets);
+          if (capped.length > 0) {
+            return {
+              ...p,
+              bullets: capped.slice(0, budget.bulletsPerProjectMax ?? 3),
+            };
+          }
+          const fromDescription = p.description?.trim()
+            ? [p.description.trim()]
+            : [];
+          return {
+            ...p,
+            bullets: fromDescription.slice(0, budget.bulletsPerProjectMax ?? 3),
+          };
+        });
+  } else {
+    const maxProjectCount = targetPages === 1 ? (includeSummary ? 2 : 3) : 4;
+    const desiredProjectCount = switcherOrEarlyTenure
+      ? (includeSummary ? 2 : Math.min(3, eligibleProjects.length))
+      : (includeSummary ? 1 : Math.min(2, eligibleProjects.length));
 
-  let selectedProjIds: string[] = [];
-  if (!projectsDisabled && eligibleProjects.length > 0) {
-    if (parsed?.success && parsed.data.selectedProjectIds.length > 0) {
-      selectedProjIds = [...parsed.data.selectedProjectIds];
-    }
-    // If fewer than desired projects selected (or if parsing failed/empty), backfill from heuristic rankings
-    if (selectedProjIds.length < desiredProjectCount) {
-      const heuristicIds = heuristicProjectIds(
-        jobRequirements,
-        eligibleProjects,
-        desiredProjectCount
-      );
-      for (const id of heuristicIds) {
-        if (!selectedProjIds.includes(id) && selectedProjIds.length < desiredProjectCount) {
-          selectedProjIds.push(id);
+    let selectedProjIds: string[] = [];
+    if (!projectsDisabled && eligibleProjects.length > 0) {
+      if (parsed?.success && parsed.data.selectedProjectIds.length > 0) {
+        selectedProjIds = [...parsed.data.selectedProjectIds];
+      }
+      // If fewer than desired projects selected (or if parsing failed/empty), backfill from heuristic rankings
+      if (selectedProjIds.length < desiredProjectCount) {
+        const heuristicIds = heuristicProjectIds(
+          jobRequirements,
+          eligibleProjects,
+          desiredProjectCount
+        );
+        for (const id of heuristicIds) {
+          if (!selectedProjIds.includes(id) && selectedProjIds.length < desiredProjectCount) {
+            selectedProjIds.push(id);
+          }
         }
       }
+      selectedProjIds = selectedProjIds.slice(0, maxProjectCount);
     }
-    selectedProjIds = selectedProjIds.slice(0, maxProjectCount);
-  }
 
-  const selectedProjIdSet = new Set(selectedProjIds);
-  let selectedProjects = eligibleProjects
-    .filter((p) => (p.id ? selectedProjIdSet.has(p.id) : selectedProjIdSet.has(p.name)))
-    .slice(0, maxProjectCount)
-    .map((p) => ({
-      ...p,
-      bullets: dedupeAndCapProjectBullets(p.bullets).slice(
-        0,
-        budget.bulletsPerProjectMax ?? 3
-      ),
-    }))
-    .filter((p) => p.bullets.length > 0 || p.description?.trim());
+    const selectedProjIdSet = new Set(selectedProjIds);
+    selectedProjects = eligibleProjects
+      .filter((p) => (p.id ? selectedProjIdSet.has(p.id) : selectedProjIdSet.has(p.name)))
+      .slice(0, maxProjectCount)
+      .map((p) => ({
+        ...p,
+        bullets: dedupeAndCapProjectBullets(p.bullets).slice(
+          0,
+          budget.bulletsPerProjectMax ?? 3
+        ),
+      }))
+      .filter((p) => p.bullets.length > 0 || p.description?.trim());
 
-  // Ensure every featured project has bullets within budget without appending description to existing bullets.
-  selectedProjects = selectedProjects.map((p) => {
-    const capped = dedupeAndCapProjectBullets(p.bullets);
-    if (capped.length > 0) {
+    // Ensure every featured project has bullets within budget without appending description to existing bullets.
+    selectedProjects = selectedProjects.map((p) => {
+      const capped = dedupeAndCapProjectBullets(p.bullets);
+      if (capped.length > 0) {
+        return {
+          ...p,
+          bullets: capped.slice(0, budget.bulletsPerProjectMax ?? 3),
+        };
+      }
+      const fromDescription = p.description?.trim()
+        ? [p.description.trim()]
+        : [];
       return {
         ...p,
-        bullets: capped.slice(0, budget.bulletsPerProjectMax ?? 3),
+        bullets: fromDescription.slice(0, budget.bulletsPerProjectMax ?? 3),
       };
-    }
-    const fromDescription = p.description?.trim()
-      ? [p.description.trim()]
-      : [];
-    return {
-      ...p,
-      bullets: fromDescription.slice(0, budget.bulletsPerProjectMax ?? 3),
-    };
-  });
+    });
+  }
 
   // Calculate total bullets consumed by selected projects
   const projectBulletCount = selectedProjects.reduce(
@@ -1029,112 +1087,197 @@ export async function tailorResumeForJob(
   );
 
   // 2. Partition bullet budget for work experience.
-  // Reserve at least 3 bullets for experience so work history is preserved.
+  // In MANUAL mode, ensure room for every experience (at least 1 bullet each)
   const experienceBulletBudget =
     selectedProjects.length > 0
-      ? Math.max(3, bulletBudgetMax - projectBulletCount)
-      : bulletBudgetMax;
+      ? Math.max(profile.experiences.length, bulletBudgetMax - projectBulletCount)
+      : Math.max(profile.experiences.length, bulletBudgetMax);
 
-  let rawSelectedIds = parsed?.success
-    ? [...parsed.data.selectedBulletIds]
-    : heuristicBulletIds(jobRequirements, profile);
-
-  // If the model selected bullets from only 1 experience but there are multiple experiences
-  // in the master profile and available experience budget, backfill bullets from other experiences
-  const selectedExpIdsInRaw = new Set<string>();
-  for (const bid of rawSelectedIds) {
-    const parentExp = profile.experiences.find((e) =>
-      e.bullets.some((b) => b.id === bid)
+  if (inclusionMode === "MANUAL") {
+    // Model B: 100% of candidate experiences are represented with AI bullet budgeting
+    const llmSelectedIds = new Set(
+      parsed?.success ? parsed.data.selectedBulletIds : []
     );
-    const expKey = parentExp?.id || (parentExp ? `${parentExp.company}-${parentExp.role}` : null);
-    if (expKey) selectedExpIdsInRaw.add(expKey);
-  }
+    const reqTokens = jobRequirements
+      .join(" ")
+      .toLowerCase()
+      .split(/[^a-z0-9+#]+/)
+      .filter((t) => t.length > 2 && !COMMON_STOP_WORDS.has(t));
 
-  if (
-    selectedExpIdsInRaw.size < Math.min(2, profile.experiences.length) &&
-    experienceBulletBudget > rawSelectedIds.length
-  ) {
-    // 1. Try any remaining heuristic bullets first
-    const allHeuristicIds = heuristicBulletIds(jobRequirements, profile);
-    for (const hid of allHeuristicIds) {
-      if (!rawSelectedIds.includes(hid)) {
-        const parentExp = profile.experiences.find((e) =>
-          e.bullets.some((b) => b.id === hid)
-        );
-        const expKey = parentExp?.id || (parentExp ? `${parentExp.company}-${parentExp.role}` : null);
-        if (expKey && !selectedExpIdsInRaw.has(expKey)) {
-          rawSelectedIds.push(hid);
-          selectedExpIdsInRaw.add(expKey);
-          if (
-            rawSelectedIds.length >= experienceBulletBudget ||
-            selectedExpIdsInRaw.size >= Math.min(2, profile.experiences.length)
-          ) {
-            break;
+    const scoredExpList = profile.experiences.map((exp) => {
+      const scoredBullets = exp.bullets
+        .map((b, idx) => {
+          let score = 0;
+          if (llmSelectedIds.has(b.id)) score += 100;
+          if (b.hasMetric) score += 5;
+          const hay = `${b.rawText} ${b.technologies.join(" ")}`.toLowerCase();
+          for (const token of reqTokens) {
+            if (hay.includes(token)) score += 2;
           }
-        }
+          score += 0.05 * (exp.bullets.length - idx);
+          return { bullet: b, score };
+        })
+        .sort((a, b) => b.score - a.score);
+
+      return {
+        exp,
+        scoredBullets,
+        chosen: [] as typeof exp.bullets,
+      };
+    });
+
+    // 1. Guarantee every experience has at least 1 bullet if it has any bullets
+    let totalAssigned = 0;
+    for (const item of scoredExpList) {
+      if (item.scoredBullets.length > 0) {
+        item.chosen.push(item.scoredBullets[0].bullet);
+        totalAssigned += 1;
       }
     }
 
-    // 2. If unrepresented experiences remain (e.g. cross-discipline / legacy roles with distinct vocabulary),
-    // pick their highest-ownership bullets (preferring metrics / quantified outcomes)
+    // 2. Pool remaining candidate bullets across all experiences
+    const remainingCandidateBullets: Array<{
+      expIndex: number;
+      bullet: typeof scoredExpList[0]["exp"]["bullets"][0];
+      score: number;
+    }> = [];
+
+    scoredExpList.forEach((item, expIndex) => {
+      for (let i = 1; i < item.scoredBullets.length; i++) {
+        remainingCandidateBullets.push({
+          expIndex,
+          bullet: item.scoredBullets[i].bullet,
+          score: item.scoredBullets[i].score,
+        });
+      }
+    });
+
+    remainingCandidateBullets.sort((a, b) => b.score - a.score);
+
+    // 3. Distribute remaining budget up to experienceBulletBudget & bulletsPerRoleMax
+    const maxPerRole = budget.bulletsPerRoleMax ?? 4;
+    for (const candidate of remainingCandidateBullets) {
+      if (totalAssigned >= experienceBulletBudget) break;
+      const targetExp = scoredExpList[candidate.expIndex];
+      if (targetExp.chosen.length < maxPerRole) {
+        targetExp.chosen.push(candidate.bullet);
+        totalAssigned += 1;
+      }
+    }
+
+    // 4. Restore original bullet order within each experience
+    selectedExperience = scoredExpList.map((item) => {
+      const chosenIds = new Set(item.chosen.map((b) => b.id));
+      const orderedBullets = item.exp.bullets.filter((b) =>
+        chosenIds.has(b.id)
+      );
+      return {
+        ...item.exp,
+        bullets: orderedBullets,
+      };
+    });
+  } else {
+    let rawSelectedIds = parsed?.success
+      ? [...parsed.data.selectedBulletIds]
+      : heuristicBulletIds(jobRequirements, profile);
+
+    // If the model selected bullets from only 1 experience but there are multiple experiences
+    // in the master profile and available experience budget, backfill bullets from other experiences
+    const selectedExpIdsInRaw = new Set<string>();
+    for (const bid of rawSelectedIds) {
+      const parentExp = profile.experiences.find((e) =>
+        e.bullets.some((b) => b.id === bid)
+      );
+      const expKey = parentExp?.id || (parentExp ? `${parentExp.company}-${parentExp.role}` : null);
+      if (expKey) selectedExpIdsInRaw.add(expKey);
+    }
+
     if (
       selectedExpIdsInRaw.size < Math.min(2, profile.experiences.length) &&
       experienceBulletBudget > rawSelectedIds.length
     ) {
-      for (const exp of profile.experiences) {
-        const expKey = exp.id || `${exp.company}-${exp.role}`;
-        if (!selectedExpIdsInRaw.has(expKey)) {
-          const sortedBullets = [...exp.bullets].sort((a, b) => {
-            if (a.hasMetric && !b.hasMetric) return -1;
-            if (!a.hasMetric && b.hasMetric) return 1;
-            return 0;
-          });
-          for (const bullet of sortedBullets) {
-            if (!rawSelectedIds.includes(bullet.id)) {
-              rawSelectedIds.push(bullet.id);
-              selectedExpIdsInRaw.add(expKey);
-              // For switchers or when space is available, include up to 2 crossover bullets
-              if (rawSelectedIds.length + 1 <= experienceBulletBudget) {
-                const secondBullet = sortedBullets.find((b) => b.id !== bullet.id);
-                if (secondBullet && !rawSelectedIds.includes(secondBullet.id)) {
-                  rawSelectedIds.push(secondBullet.id);
-                }
-              }
+      // 1. Try any remaining heuristic bullets first
+      const allHeuristicIds = heuristicBulletIds(jobRequirements, profile);
+      for (const hid of allHeuristicIds) {
+        if (!rawSelectedIds.includes(hid)) {
+          const parentExp = profile.experiences.find((e) =>
+            e.bullets.some((b) => b.id === hid)
+          );
+          const expKey = parentExp?.id || (parentExp ? `${parentExp.company}-${parentExp.role}` : null);
+          if (expKey && !selectedExpIdsInRaw.has(expKey)) {
+            rawSelectedIds.push(hid);
+            selectedExpIdsInRaw.add(expKey);
+            if (
+              rawSelectedIds.length >= experienceBulletBudget ||
+              selectedExpIdsInRaw.size >= Math.min(2, profile.experiences.length)
+            ) {
               break;
             }
           }
-          if (
-            rawSelectedIds.length >= experienceBulletBudget ||
-            selectedExpIdsInRaw.size >= Math.min(2, profile.experiences.length)
-          ) {
-            break;
+        }
+      }
+
+      // 2. If unrepresented experiences remain (e.g. cross-discipline / legacy roles with distinct vocabulary),
+      // pick their highest-ownership bullets (preferring metrics / quantified outcomes)
+      if (
+        selectedExpIdsInRaw.size < Math.min(2, profile.experiences.length) &&
+        experienceBulletBudget > rawSelectedIds.length
+      ) {
+        for (const exp of profile.experiences) {
+          const expKey = exp.id || `${exp.company}-${exp.role}`;
+          if (!selectedExpIdsInRaw.has(expKey)) {
+            const sortedBullets = [...exp.bullets].sort((a, b) => {
+              if (a.hasMetric && !b.hasMetric) return -1;
+              if (!a.hasMetric && b.hasMetric) return 1;
+              return 0;
+            });
+            for (const bullet of sortedBullets) {
+              if (!rawSelectedIds.includes(bullet.id)) {
+                rawSelectedIds.push(bullet.id);
+                selectedExpIdsInRaw.add(expKey);
+                // For switchers or when space is available, include up to 2 crossover bullets
+                if (rawSelectedIds.length + 1 <= experienceBulletBudget) {
+                  const secondBullet = sortedBullets.find((b) => b.id !== bullet.id);
+                  if (secondBullet && !rawSelectedIds.includes(secondBullet.id)) {
+                    rawSelectedIds.push(secondBullet.id);
+                  }
+                }
+                break;
+              }
+            }
+            if (
+              rawSelectedIds.length >= experienceBulletBudget ||
+              selectedExpIdsInRaw.size >= Math.min(2, profile.experiences.length)
+            ) {
+              break;
+            }
           }
         }
       }
     }
+
+    const selectedIds = new Set(rawSelectedIds.slice(0, experienceBulletBudget));
+
+    selectedExperience = profile.experiences
+      .map((exp) => {
+        const bullets = exp.bullets.filter((b) => selectedIds.has(b.id));
+        return {
+          ...exp,
+          bullets: bullets.slice(0, budget.bulletsPerRoleMax ?? 4),
+        };
+      })
+      .filter((exp) => exp.bullets.length > 0);
+
+    // Enforce experience bullet budget after role mapping.
+    let remaining = experienceBulletBudget;
+    selectedExperience = selectedExperience
+      .map((exp) => {
+        const bullets = exp.bullets.slice(0, Math.max(0, remaining));
+        remaining -= bullets.length;
+        return { ...exp, bullets };
+      })
+      .filter((exp) => exp.bullets.length > 0);
   }
-
-  const selectedIds = new Set(rawSelectedIds.slice(0, experienceBulletBudget));
-
-  let selectedExperience = profile.experiences
-    .map((exp) => {
-      const bullets = exp.bullets.filter((b) => selectedIds.has(b.id));
-      return {
-        ...exp,
-        bullets: bullets.slice(0, budget.bulletsPerRoleMax ?? 4),
-      };
-    })
-    .filter((exp) => exp.bullets.length > 0);
-
-  // Enforce experience bullet budget after role mapping.
-  let remaining = experienceBulletBudget;
-  selectedExperience = selectedExperience
-    .map((exp) => {
-      const bullets = exp.bullets.slice(0, Math.max(0, remaining));
-      remaining -= bullets.length;
-      return { ...exp, bullets };
-    })
-    .filter((exp) => exp.bullets.length > 0);
 
   // Stage B: reframe experience + project bullets (small payload, 1:1 IDs).
   const experienceBulletsToReframe = selectedExperience.flatMap((exp) =>
@@ -1299,22 +1442,49 @@ export async function tailorResumeForJob(
       : jobRequirements;
 
   const rawSummary = includeSummary
-    ? parsed?.success
-      ? parsed.data.tailoredSummary ?? null
-      : null
+    ? inclusionMode === "MANUAL"
+      ? ((parsed?.success && parsed.data.tailoredSummary) || profile.summary) ?? null
+      : parsed?.success
+        ? parsed.data.tailoredSummary ?? null
+        : null
     : null;
   const tailoredSummary = sanitizeTailoredSummary(rawSummary);
 
   const strategyRationale =
-    parsed?.success && parsed.data.strategyRationale
-      ? parsed.data.strategyRationale
-      : fallbackStrategyRationale(options.companyName, options.roleTitle, inventMetrics);
+    inclusionMode === "MANUAL"
+      ? {
+          roleFitAnalysis:
+            parsed?.success && parsed.data.strategyRationale?.roleFitAnalysis
+              ? parsed.data.strategyRationale.roleFitAnalysis
+              : `Manual Baseline Coverage active. Preserving all verified profile roles (${profile.experiences.length} roles, ${selectedProjects.length} projects) with AI bullet budgeting to fit ${targetPages} page${targetPages === 1 ? "" : "s"}.`,
+          selectedSkillsReasoning:
+            parsed?.success && parsed.data.strategyRationale?.selectedSkillsReasoning
+              ? parsed.data.strategyRationale.selectedSkillsReasoning
+              : "Retained all verified candidate skills across active profile categories without algorithmic exclusion.",
+          featuredExperiencesReasoning:
+            parsed?.success && parsed.data.strategyRationale?.featuredExperiencesReasoning
+              ? parsed.data.strategyRationale.featuredExperiencesReasoning
+              : `All ${profile.experiences.length} verified career experiences included with AI-optimized bullet selection.`,
+          featuredProjectsReasoning: projectsDisabled
+            ? "Projects section disabled per layout settings."
+            : (parsed?.success && parsed.data.strategyRationale?.featuredProjectsReasoning
+                ? parsed.data.strategyRationale.featuredProjectsReasoning
+                : "All portfolio projects included within length budget."),
+        }
+      : parsed?.success && parsed.data.strategyRationale
+        ? parsed.data.strategyRationale
+        : fallbackStrategyRationale(options.companyName, options.roleTitle, inventMetrics);
 
   return {
     selectedExperience,
     selectedProjects,
     tailoredSummary,
-    tailoredSkills: parsed?.success ? parsed.data.tailoredSkills : undefined,
+    tailoredSkills:
+      inclusionMode === "MANUAL"
+        ? profile.skills
+        : parsed?.success
+          ? parsed.data.tailoredSkills
+          : undefined,
     strategyRationale,
     coverLetter,
     selectedBullets,

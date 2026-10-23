@@ -117,11 +117,24 @@ export function digestTailoredResume(input: {
       : skillGroupsFromUnknown(profile.skills);
 
   const experiences =
-    tailored.selectedExperience.length > 0
-      ? sortExperiencesReverseChronological(tailored.selectedExperience)
-      : resolved.profile.experiences;
+    resolved.inclusionMode === "MANUAL"
+      ? sortExperiencesReverseChronological(
+          tailored.selectedExperience.length > 0
+            ? tailored.selectedExperience
+            : resolved.profile.experiences
+        )
+      : tailored.selectedExperience.length > 0
+        ? sortExperiencesReverseChronological(tailored.selectedExperience)
+        : resolved.profile.experiences;
 
-  const projects = tailored.selectedProjects;
+  const projects =
+    resolved.inclusionMode === "MANUAL"
+      ? tailored.selectedProjects.length > 0
+        ? tailored.selectedProjects
+        : resolved.disabledSections.includes("projects")
+          ? []
+          : resolved.profile.projects
+      : tailored.selectedProjects;
   const education = resolved.profile.education;
   const summary = tailored.tailoredSummary?.trim() || profile.summary?.trim() || "";
 

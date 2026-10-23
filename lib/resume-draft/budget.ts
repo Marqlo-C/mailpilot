@@ -18,10 +18,11 @@ export function calculateElasticPageBudget(
   const warningFlags: string[] = [];
 
   // 1. Resolve target page count
+  const rawTarget = params.targetPages as unknown;
   const resolvedPages: 1 | 2 =
-    params.targetPages === 2
+    rawTarget === 2 || rawTarget === "2"
       ? 2
-      : params.targetPages === 1
+      : rawTarget === 1 || rawTarget === "1"
         ? 1
         : params.careerYears >= 7 && params.roleCount >= 4
           ? 2

@@ -52,6 +52,13 @@ const ruleKeySchema = z.enum([
   "cloudModel",
   "cloudModelProvider",
   "resumePreferences",
+  "enableAiTailoringDefaults",
+  "targetPageBudget",
+  "sectionOrderingMode",
+  "contentInclusionMode",
+  "inventMetrics",
+  "canonicalSectionOrder",
+  "canonicalSectionVisibility",
   "scrapingAntUsage",
   "hasDataUsage",
   "enableWebScrapingProxies",
@@ -109,7 +116,82 @@ export async function updateRule(
     [parsedKey.data]: value,
   };
 
-  if (parsedKey.data === "cloudModel") {
+  if (parsedKey.data === "enableAiTailoringDefaults") {
+    // Preserve the user's underlying settings. Do NOT overwrite current.sectionOrderingMode,
+    // current.contentInclusionMode, or current.inventMetrics, so toggling off restores exact state.
+    candidate.enableAiTailoringDefaults = Boolean(value);
+    if (value === true) {
+      candidate.targetPageBudget = "auto";
+      candidate.resumePreferences = {
+        ...current.resumePreferences,
+        orderingMode: "AI_OPTIMAL",
+        inclusionMode: "AI_OPTIMAL",
+        inventMetrics: true,
+        maxPages: "auto",
+      };
+    } else {
+      candidate.targetPageBudget = current.targetPageBudget ?? "auto";
+      candidate.resumePreferences = {
+        ...current.resumePreferences,
+        orderingMode: current.sectionOrderingMode,
+        inclusionMode: current.contentInclusionMode,
+        inventMetrics: current.inventMetrics,
+        maxPages:
+          current.targetPageBudget === "1"
+            ? 1
+            : current.targetPageBudget === "2"
+              ? 2
+              : "auto",
+      };
+    }
+  } else if (parsedKey.data === "targetPageBudget") {
+    const budgetVal = value === "1" ? "1" : value === "2" ? "2" : "auto";
+    candidate.targetPageBudget = budgetVal;
+    candidate.resumePreferences = {
+      ...current.resumePreferences,
+      maxPages: budgetVal === "1" ? 1 : budgetVal === "2" ? 2 : "auto",
+    };
+  } else if (parsedKey.data === "sectionOrderingMode") {
+    candidate.resumePreferences = {
+      ...current.resumePreferences,
+      orderingMode: value,
+    };
+  } else if (parsedKey.data === "contentInclusionMode") {
+    candidate.resumePreferences = {
+      ...current.resumePreferences,
+      inclusionMode: value,
+    };
+  } else if (parsedKey.data === "inventMetrics") {
+    candidate.resumePreferences = {
+      ...current.resumePreferences,
+      inventMetrics: Boolean(value),
+    };
+  } else if (
+    parsedKey.data === "canonicalSectionOrder" &&
+    Array.isArray(value)
+  ) {
+    candidate.resumePreferences = {
+      ...current.resumePreferences,
+      sectionOrder: value,
+    };
+  } else if (
+    parsedKey.data === "canonicalSectionVisibility" &&
+    typeof value === "object" &&
+    value !== null
+  ) {
+    const vis = value as Record<string, boolean>;
+    const disabledSections = Object.entries(vis)
+      .filter(([, visible]) => !visible)
+      .map(([k]) => k);
+    candidate.resumePreferences = {
+      ...current.resumePreferences,
+      disabledSections,
+      includeSummary:
+        typeof vis.summary === "boolean"
+          ? vis.summary
+          : current.resumePreferences.includeSummary,
+    };
+  } else if (parsedKey.data === "cloudModel") {
     const trimmedModel =
       typeof value === "string" ? value.trim() || null : null;
     candidate.cloudModel = trimmedModel;

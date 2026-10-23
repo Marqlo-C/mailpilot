@@ -275,6 +275,50 @@ describe("Resume Drafting & Tailoring Architecture", () => {
 
       expect(result.warningFlags).toContain("PAGE_BUDGET_OVERFLOW");
     });
+
+    it("respects explicit manual page overrides (1, 2, '1', '2') regardless of tenure", () => {
+      // Junior profile (< 7 years) forced to 2 pages via override
+      const forcedTwo = calculateElasticPageBudget({
+        targetPages: 2,
+        careerYears: 2,
+        roleCount: 2,
+        projectCount: 1,
+        hasSummary: false,
+        totalSourceBullets: 6,
+      });
+      expect(forcedTwo.targetPages).toBe(2);
+
+      const forcedTwoString = calculateElasticPageBudget({
+        targetPages: "2" as any,
+        careerYears: 2,
+        roleCount: 2,
+        projectCount: 1,
+        hasSummary: false,
+        totalSourceBullets: 6,
+      });
+      expect(forcedTwoString.targetPages).toBe(2);
+
+      // Veteran profile (>= 7 years & >= 4 roles) forced to 1 page via override
+      const forcedOne = calculateElasticPageBudget({
+        targetPages: 1,
+        careerYears: 10,
+        roleCount: 5,
+        projectCount: 3,
+        hasSummary: true,
+        totalSourceBullets: 28,
+      });
+      expect(forcedOne.targetPages).toBe(1);
+
+      const forcedOneString = calculateElasticPageBudget({
+        targetPages: "1" as any,
+        careerYears: 10,
+        roleCount: 5,
+        projectCount: 3,
+        hasSummary: true,
+        totalSourceBullets: 28,
+      });
+      expect(forcedOneString.targetPages).toBe(1);
+    });
   });
 
   describe("Persona Diagnostic Blacklist for Summaries", () => {
@@ -1217,6 +1261,151 @@ describe("Resume Drafting & Tailoring Architecture", () => {
       expect(docXml).toContain("Mailpilot");
       expect(docXml).toContain("Next.js, TypeScript");
       expect(docXml).not.toContain("github.com/Marqlo-C/mailpilot");
+    });
+
+    it("preserves 100% of candidate experiences and projects when contentInclusionMode is MANUAL", async () => {
+      const richProfile: MasterProfileInput = {
+        ...baseProfile,
+        experiences: [
+          {
+            id: "exp-1",
+            company: "Company Alpha",
+            role: "Software Engineer",
+            location: "San Francisco, CA",
+            category: "Work",
+            startDate: "2020-01",
+            bullets: [
+              { id: "b1", rawText: "Bullet 1 of Alpha", technologies: [], hasMetric: false },
+              { id: "b2", rawText: "Bullet 2 of Alpha", technologies: [], hasMetric: false },
+              { id: "b3", rawText: "Bullet 3 of Alpha", technologies: [], hasMetric: false },
+              { id: "b4", rawText: "Bullet 4 of Alpha", technologies: [], hasMetric: false },
+              { id: "b5", rawText: "Bullet 5 of Alpha", technologies: [], hasMetric: false },
+              { id: "b6", rawText: "Bullet 6 of Alpha", technologies: [], hasMetric: false },
+            ],
+            displayOrder: 0,
+          },
+          {
+            id: "exp-2",
+            company: "Company Beta",
+            role: "Systems Developer",
+            location: "Remote",
+            category: "Work",
+            startDate: "2018-01",
+            bullets: [
+              { id: "b7", rawText: "Bullet 1 of Beta", technologies: [], hasMetric: false },
+              { id: "b8", rawText: "Bullet 2 of Beta", technologies: [], hasMetric: false },
+              { id: "b9", rawText: "Bullet 3 of Beta", technologies: [], hasMetric: false },
+              { id: "b10", rawText: "Bullet 4 of Beta", technologies: [], hasMetric: false },
+            ],
+            displayOrder: 1,
+          },
+        ],
+        projects: [
+          {
+            id: "p1",
+            name: "Project 1",
+            description: "Desc 1",
+            technologies: ["TypeScript"],
+            link: "https://github.com/test/p1",
+            bullets: ["Project 1 Bullet A", "Project 1 Bullet B"],
+          },
+          {
+            id: "p2",
+            name: "Project 2",
+            description: "Desc 2",
+            technologies: ["Python"],
+            link: "https://github.com/test/p2",
+            bullets: ["Project 2 Bullet A"],
+          },
+          {
+            id: "p3",
+            name: "Project 3",
+            description: "Desc 3",
+            technologies: ["Rust"],
+            link: null,
+            bullets: ["Project 3 Bullet A"],
+          },
+          {
+            id: "p4",
+            name: "Project 4",
+            description: "Desc 4",
+            technologies: ["Go"],
+            link: null,
+            bullets: ["Project 4 Bullet A"],
+          },
+        ],
+      };
+
+      // Model B with 1-page budget (Auto tenure < 7 yrs resolves to 1 page)
+      const tailored1Page = await tailorResumeForJob(
+        ["TypeScript", "Backend"],
+        richProfile,
+        {
+          contentInclusionMode: "MANUAL",
+          targetPages: 1,
+          accountRules: {
+            contentInclusionMode: "MANUAL",
+            targetPageBudget: "1",
+            enableAiTailoringDefaults: false,
+          },
+        }
+      );
+
+      // Model B guarantees 100% of experiences and projects are represented
+      expect(tailored1Page.selectedExperience.length).toBe(2);
+      expect(tailored1Page.selectedProjects.length).toBe(4);
+
+      // Bullets are budgeted by AI to fit a strict 1-page budget
+      const totalExpBullets1Page = tailored1Page.selectedExperience.reduce(
+        (sum, e) => sum + e.bullets.length,
+        0
+      );
+      expect(tailored1Page.selectedExperience[0].bullets.length).toBeGreaterThanOrEqual(1);
+      expect(tailored1Page.selectedExperience[1].bullets.length).toBeGreaterThanOrEqual(1);
+      expect(totalExpBullets1Page).toBeLessThanOrEqual(12);
+
+      // Model B with 2-page budget
+      const tailored2Page = await tailorResumeForJob(
+        ["TypeScript", "Backend"],
+        richProfile,
+        {
+          contentInclusionMode: "MANUAL",
+          targetPages: 2,
+          accountRules: {
+            contentInclusionMode: "MANUAL",
+            targetPageBudget: "2",
+            enableAiTailoringDefaults: false,
+          },
+        }
+      );
+
+      // 100% of experiences and projects preserved on 2 pages with expanded bullet budget
+      expect(tailored2Page.selectedExperience.length).toBe(2);
+      expect(tailored2Page.selectedProjects.length).toBe(4);
+      const totalExpBullets2Page = tailored2Page.selectedExperience.reduce(
+        (sum, e) => sum + e.bullets.length,
+        0
+      );
+      expect(totalExpBullets2Page).toBeGreaterThan(totalExpBullets1Page);
+
+      // digestTailoredResume digests tailored draft with all experiences represented
+      const draft = digestTailoredResume({
+        opportunityId: "opp-manual",
+        profile: richProfile,
+        tailored: tailored1Page,
+        includeSummary: false,
+        rules: { contentInclusionMode: "MANUAL", enableAiTailoringDefaults: false },
+      });
+
+      const expHeaderNodes = draft.nodes.filter(
+        (n) => n.type === "experience_header" && n.selected
+      );
+      expect(expHeaderNodes.length).toBe(2);
+
+      const projHeaderNodes = draft.nodes.filter(
+        (n) => n.type === "project_header" && n.selected
+      );
+      expect(projHeaderNodes.length).toBe(4);
     });
   });
 });
