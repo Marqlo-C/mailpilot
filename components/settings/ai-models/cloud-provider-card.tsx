@@ -7,10 +7,10 @@ import {
   ChevronDown,
   Cloud,
   Cpu,
+  CpuAi,
   KeyRound,
   Loader2,
   Redo2,
-  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -271,11 +271,14 @@ export function CloudProviderCard({
       <SettingsFeatureCard
         logo={
           <div
-            className="relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-background/80 p-1 shadow-sm"
+            className={cn(
+              "relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-background/80 p-1 shadow-sm",
+              !allowCloudFallback && "opacity-50"
+            )}
             aria-hidden="true"
           >
             <div className="flex size-full items-center justify-center rounded-[0.6rem] bg-muted/30">
-              <Sparkles className="size-5 text-foreground" />
+              <CpuAi className="size-6 text-muted-foreground" />
             </div>
           </div>
         }
