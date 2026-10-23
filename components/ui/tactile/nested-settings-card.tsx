@@ -196,8 +196,17 @@ export function NestedSettingsCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
           {trailing}
+          {collapsible && Boolean(trailing) && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "h-4 w-px bg-border/70 shrink-0",
+                disabled && "opacity-40"
+              )}
+            />
+          )}
           {collapsible && (
             <ChevronDown
               className={cn(
@@ -284,6 +293,7 @@ export function SettingsFeatureCard({
   curvedDivider = true,
   children,
   className,
+  headerClassName,
 }: {
   logo?: React.ReactNode;
   title: React.ReactNode;
@@ -295,6 +305,7 @@ export function SettingsFeatureCard({
   curvedDivider?: boolean;
   children?: React.ReactNode;
   className?: string;
+  headerClassName?: string;
 }) {
   return (
     <NestedSettingsCard
@@ -309,6 +320,7 @@ export function SettingsFeatureCard({
       disabled={disabled}
       curvedDivider={curvedDivider}
       className={className}
+      headerClassName={headerClassName}
     >
       {children}
     </NestedSettingsCard>

@@ -5,30 +5,17 @@ import { useRouter } from "next/navigation";
 import { Plus, ShieldBan, X } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  addExcludedTitle,
-  removeExcludedTitle,
-} from "@/app/actions/settings";
-import { Button } from "@/components/ui/button";
+import { addExcludedTitle, removeExcludedTitle } from "@/app/actions/settings";
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { SettingsSectionCard } from "@/components/ui/tactile/nested-settings-card";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
+import { cn } from "@/lib/utils";
 
 type ExcludedTitlesCardProps = {
   accountId: string | null;
   excludedTitles: string[];
 };
 
-/**
- * Manage role patterns banned via "Less like this".
- */
 export function ExcludedTitlesCard({
   accountId,
   excludedTitles,
@@ -68,31 +55,28 @@ export function ExcludedTitlesCard({
   }
 
   return (
-    <Card className={SETTINGS_CARD_CLASSNAME}>
-      <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 p-3.5 space-y-0">
+    <SettingsSectionCard
+      className={SETTINGS_CARD_CLASSNAME}
+      icon={
         <ShieldBan
-          className="h-8 w-8 -translate-y-0.5 text-primary shrink-0"
+          className="size-8 -translate-y-0.5 scale-[1.15] origin-center text-primary shrink-0"
           aria-hidden="true"
         />
-        <div className="space-y-0.5 min-w-0">
-          <CardTitle>Excluded Job Titles</CardTitle>
-          <CardDescription className="text-xs">
-            Roles flagged with &quot;Less like this&quot; — matching listings score
-            low and stay soft-hidden.
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4 pt-4">
-        {!accountId ? (
+      }
+      title="Excluded Job Titles"
+      subtitle="Roles flagged with 'Less like this' — matching listings are penalized and soft-hidden."
+      curvedDivider
+    >
+      <div className="space-y-4">
+        {!accountId && (
           <p className="text-sm text-muted-foreground">
             Connect an account to manage excluded titles.
           </p>
-        ) : null}
+        )}
 
         {excludedTitles.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-            No excluded titles yet. Select &quot;Less like this&quot; from the
-            &quot;…&quot; menu on any job card to train the filter.
+          <p className="rounded-lg border border-dashed border-border/80 px-4 py-6 text-center text-xs text-muted-foreground">
+            No excluded titles yet. Select &quot;Less like this&quot; from the &quot;…&quot; menu on any opportunity card to train the filter.
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -116,34 +100,35 @@ export function ExcludedTitlesCard({
           </div>
         )}
 
-        <div className="space-y-2">
-          <Label htmlFor="excluded-title-input">Add a title pattern</Label>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              id="excluded-title-input"
-              value={draft}
-              disabled={disabled}
-              placeholder='e.g. "Sales Representative"'
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleAdd();
-                }
-              }}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              disabled={disabled || !draft.trim()}
-              onClick={handleAdd}
-            >
-              <Plus className="h-4 w-4" />
-              Add
-            </Button>
-          </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            id="excluded-title-input"
+            value={draft}
+            disabled={disabled}
+            placeholder='e.g. "Sales Representative"'
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAdd();
+              }
+            }}
+            className="h-8 flex-1 rounded-lg border border-border/60 bg-card px-3 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-border focus:ring-1 focus:ring-ring"
+          />
+          <button
+            type="button"
+            disabled={disabled || !draft.trim()}
+            onClick={handleAdd}
+            className={cn(
+              PRIMARY_ACTION_BTN_CLASSNAME,
+              "shrink-0 gap-1.5 px-3 text-xs"
+            )}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Add Title</span>
+          </button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </SettingsSectionCard>
   );
 }

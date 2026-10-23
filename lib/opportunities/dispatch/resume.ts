@@ -231,7 +231,11 @@ export async function buildOpportunityResumePreview(
       dbClient: prisma,
       includeSummary,
       inventMetrics,
-      targetPages: accountRules.resumePreferences?.maxPages ?? "auto",
+      targetPages:
+        accountRules.targetPageBudget ??
+        accountRules.resumePreferences?.maxPages ??
+        "auto",
+      contentInclusionMode: accountRules.contentInclusionMode,
       accountId,
       accountRules,
     }

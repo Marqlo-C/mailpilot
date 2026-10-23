@@ -7,6 +7,8 @@ export const resumePageBudgetSchema = z.union([
   z.literal("auto"),
   z.literal(1),
   z.literal(2),
+  z.literal("1"),
+  z.literal("2"),
 ]);
 
 export const resumePreferencesSchema = z.object({
@@ -168,6 +170,41 @@ export const accountRulesSchema = z.object({
     .default(null),
   /** Defaults for on-demand tailored resume generation. */
   resumePreferences: resumePreferencesSchema.default(DEFAULT_RESUME_PREFERENCES),
+  /**
+   * Master autonomous switch for outbound resume tailoring.
+   * When true, automatically forces AI Dynamic Section Ordering, AI Adaptive Content
+   * Selection, and Mode B Metric Synthesis across all tailored drafts, disabling
+   * manual configuration overrides. When false, permits per-card manual customization.
+   */
+  enableAiTailoringDefaults: z.boolean().default(true),
+  targetPageBudget: z.enum(["auto", "1", "2"]).default("auto"),
+  sectionOrderingMode: z.enum(["AI_OPTIMAL", "MANUAL"]).default("AI_OPTIMAL"),
+  contentInclusionMode: z.enum(["AI_OPTIMAL", "MANUAL"]).default("AI_OPTIMAL"),
+  inventMetrics: z.boolean().default(false),
+  canonicalSectionOrder: z
+    .array(z.string())
+    .default([
+      "summary",
+      "skills",
+      "experience",
+      "projects",
+      "education",
+      "certifications",
+      "awards",
+      "interests",
+    ]),
+  canonicalSectionVisibility: z
+    .record(z.string(), z.boolean())
+    .default({
+      summary: true,
+      skills: true,
+      experience: true,
+      projects: true,
+      education: true,
+      certifications: true,
+      awards: true,
+      interests: true,
+    }),
 });
 
 export type ScrapingAntUsage = z.infer<

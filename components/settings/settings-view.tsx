@@ -6,26 +6,28 @@ import { LogOut, PlusCircle } from "lucide-react";
 import { logoutSession } from "@/app/actions/auth";
 import { ExportMasterProfileButton } from "@/components/profile/export-master-profile-button";
 import { ResumeUploadDialog } from "@/components/profile/resume-upload-dialog";
-import { AccountsCard } from "@/components/settings/accounts-card";
+import { AccountsCard } from "@/components/settings/accounts";
 import { AiModelsCard } from "@/components/settings/ai-models";
 import {
-  ApplicationAutomationCard,
-  AutomationRulesCard,
-  DismissedRetentionSetting,
   ExcludedTitlesCard,
+  JobRadarRulesCard,
+  LifecycleRulesCard,
+  RetentionPolicyCard,
 } from "@/components/settings/automation";
+import { OutboundTailoringCard } from "@/components/settings/outbound";
 import {
   MasterProfileCard,
   type ProfileSnapshotData,
 } from "@/components/settings/profile";
-import { ResumeTailoringDefaultsCard } from "@/components/settings/resume-tailoring-defaults-card";
 import {
   BOXY_ACTION_BTN_SECONDARY,
   BOXY_ACTION_BTN_DESTRUCTIVE,
 } from "@/components/settings/settings-chrome";
-import { UiRailCard } from "@/components/settings/ui-rail-card";
-import { UiMeterCard } from "@/components/settings/ui-meter-card";
-import { UiToggleCard } from "@/components/settings/ui-toggle-card";
+import {
+  MeterPreferencesCard,
+  RailPreferencesCard,
+  TogglePreferencesCard,
+} from "@/components/settings/ui";
 import { useTabRailClasses } from "@/components/ui/tactile/segmented-tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AccountSummary } from "@/lib/data";
@@ -196,7 +198,7 @@ export function SettingsView({
           forceMount
           className="mt-0 space-y-4 data-[state=inactive]:hidden"
         >
-          <ResumeTailoringDefaultsCard
+          <OutboundTailoringCard
             accountId={activeAccountId}
             rules={rules}
           />
@@ -207,15 +209,15 @@ export function SettingsView({
           forceMount
           className="mt-0 space-y-4 data-[state=inactive]:hidden"
         >
-          <ApplicationAutomationCard
+          <JobRadarRulesCard
             accountId={activeAccountId}
             rules={rules}
             matchThreshold={matchThreshold}
           />
-          <DismissedRetentionSetting
+          <RetentionPolicyCard
             currentDays={rules.dismissedRetentionDays}
           />
-          <AutomationRulesCard
+          <LifecycleRulesCard
             accountId={activeAccountId}
             rules={rules}
           />
@@ -258,9 +260,9 @@ export function SettingsView({
           forceMount
           className="mt-0 space-y-4 data-[state=inactive]:hidden"
         >
-          <UiRailCard />
-          <UiMeterCard accountId={activeAccountId} />
-          <UiToggleCard accountId={activeAccountId} />
+          <RailPreferencesCard />
+          <MeterPreferencesCard accountId={activeAccountId} />
+          <TogglePreferencesCard accountId={activeAccountId} />
         </TabsContent>
       </Tabs>
     </div>

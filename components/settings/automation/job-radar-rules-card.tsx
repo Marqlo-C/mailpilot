@@ -3,40 +3,28 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Radar } from "lucide-react";
+import { toast } from "sonner";
 
 import { updateMatchThreshold } from "@/app/actions/profile";
 import { updateRule } from "@/app/actions/settings";
-import {
-  SETTINGS_CARD_CLASSNAME,
-  SETTINGS_ROW_CLASSNAME,
-} from "@/components/settings/settings-chrome";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
+import { SettingsSectionCard } from "@/components/ui/tactile/nested-settings-card";
 import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import { WavySlider } from "@/components/ui/tactile/wavy-slider";
 import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile";
 import type { AccountRules } from "@/lib/validations/rules";
-import { cn } from "@/lib/utils";
 
-type ApplicationAutomationCardProps = {
+type JobRadarRulesCardProps = {
   accountId: string | null;
   rules: AccountRules;
-  /** Canonical: PermanentSettings / UserProfile via getActiveAccount.matchThreshold */
   matchThreshold?: number | null;
 };
 
-export function ApplicationAutomationCard({
+export function JobRadarRulesCard({
   accountId,
   rules,
   matchThreshold,
-}: ApplicationAutomationCardProps) {
+}: JobRadarRulesCardProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const initialThreshold = matchThreshold ?? DEFAULT_MATCH_THRESHOLD;
@@ -51,7 +39,11 @@ export function ApplicationAutomationCard({
   function patch(key: keyof AccountRules, value: string | number) {
     if (!accountId) return;
     startTransition(async () => {
-      await updateRule(accountId, key, value);
+      const result = await updateRule(accountId, key, value);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
       router.refresh();
     });
   }
@@ -61,52 +53,58 @@ export function ApplicationAutomationCard({
     const next = Math.min(100, Math.max(0, Math.round(value)));
     setThreshold(next);
     startTransition(async () => {
-      await updateMatchThreshold(accountId, next);
+      const result = await updateMatchThreshold(accountId, next);
+      if (!result.ok) {
+        toast.error(result.error);
+        setThreshold(matchThreshold ?? DEFAULT_MATCH_THRESHOLD);
+        return;
+      }
+      toast.success(`Match threshold set to ${next}%`);
       router.refresh();
     });
   }
 
   return (
-    <Card className={SETTINGS_CARD_CLASSNAME}>
-      <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 p-3.5 space-y-0">
+    <SettingsSectionCard
+      className={SETTINGS_CARD_CLASSNAME}
+      icon={
         <Radar
-          className="h-8 w-8 -translate-y-0.5 text-primary shrink-0"
+          className="size-8 -translate-y-0.5 scale-[1.15] origin-center text-primary shrink-0"
           aria-hidden="true"
         />
-        <div className="space-y-0.5 min-w-0">
-          <CardTitle>Job Radar Rules</CardTitle>
-          <CardDescription className="text-xs">
-            Control auto-send behavior, match thresholds, and daily caps.
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6 pt-4">
+      }
+      title="Job Radar Dispatch Rules"
+      subtitle="Control auto-send dispatch mode, candidate match thresholds, and daily rate limits."
+      toggle={
+        <WaveToggle
+          id="applicationMode"
+          checked={autoSend}
+          disabled={disabled}
+          onCheckedChange={(checked) => {
+            patch("applicationMode", checked ? "AUTO_SEND" : "MANUAL_REVIEW");
+            toast.success(
+              checked
+                ? "Auto-send enabled for matching leads"
+                : "Manual review required for leads"
+            );
+          }}
+        />
+      }
+      curvedDivider
+    >
+      <div className="space-y-4">
         {!accountId && (
           <p className="text-sm text-muted-foreground">
             Connect an account to configure application automation.
           </p>
         )}
 
-        <div className={SETTINGS_ROW_CLASSNAME}>
-          <WaveToggle
-            id="applicationMode"
-            checked={autoSend}
-            disabled={disabled}
-            label={autoSend ? "Auto-Send" : "Manual Review"}
-            description="Auto-send dispatches email leads that meet the match threshold."
-            onCheckedChange={(checked) =>
-              patch(
-                "applicationMode",
-                checked ? "AUTO_SEND" : "MANUAL_REVIEW"
-              )
-            }
-          />
-        </div>
-
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label>Match Threshold</Label>
-            <span className="text-sm tabular-nums text-muted-foreground">
+            <span className="text-xs font-semibold text-foreground">
+              Minimum Match Threshold
+            </span>
+            <span className="font-mono text-xs font-medium text-primary">
               {threshold}%
             </span>
           </div>
@@ -121,15 +119,19 @@ export function ApplicationAutomationCard({
             widthClassName="w-full"
             aria-label="Match threshold"
           />
-          <p className="text-xs text-muted-foreground">
-            Leads scoring below this threshold are hidden on Job Radar (0% shows
-            all).
+          <p className="text-[11px] text-muted-foreground">
+            Leads scoring below this threshold are soft-hidden on Job Radar (0% shows all).
           </p>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="max-sends">Max daily auto-sends</Label>
-          <Input
+        <div className="space-y-1.5 pt-1">
+          <label
+            htmlFor="max-sends"
+            className="text-xs font-semibold text-foreground block"
+          >
+            Max Daily Auto-Sends
+          </label>
+          <input
             id="max-sends"
             type="number"
             min={1}
@@ -141,9 +143,13 @@ export function ApplicationAutomationCard({
               if (!Number.isFinite(n)) return;
               patch("maxAutoSendsPerDay", Math.min(20, Math.max(1, n)));
             }}
+            className="h-8 w-24 rounded-lg border border-border/60 bg-card px-2.5 font-mono text-xs font-medium text-foreground outline-none focus:border-border focus:ring-1 focus:ring-ring"
           />
+          <p className="text-[11px] text-muted-foreground">
+            Hard safety cap to prevent accidental high-volume mailings (1–20 sends/day).
+          </p>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </SettingsSectionCard>
   );
 }

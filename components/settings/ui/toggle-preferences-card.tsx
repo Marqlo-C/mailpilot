@@ -4,13 +4,7 @@ import { useEffect, useState } from "react";
 import { ToggleRight } from "lucide-react";
 
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { SettingsSectionCard } from "@/components/ui/tactile/nested-settings-card";
 import { useTabRailClasses } from "@/components/ui/tactile/segmented-tabs";
 import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import {
@@ -25,7 +19,11 @@ const OPTIONS: { value: WaveToggleVariant; label: string }[] = [
   { value: "dark", label: "Dark" },
 ];
 
-export function UiToggleCard({ accountId }: { accountId: string | null }) {
+export function TogglePreferencesCard({
+  accountId,
+}: {
+  accountId: string | null;
+}) {
   const [variant, setVariantState] = useState<WaveToggleVariant>("dark");
   const [previewChecked, setPreviewChecked] = useState(true);
   const { listClassName, triggerClassName } = useTabRailClasses();
@@ -52,21 +50,19 @@ export function UiToggleCard({ accountId }: { accountId: string | null }) {
   }
 
   return (
-    <Card className={SETTINGS_CARD_CLASSNAME}>
-      <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 p-3.5 space-y-0">
+    <SettingsSectionCard
+      className={SETTINGS_CARD_CLASSNAME}
+      icon={
         <ToggleRight
-          className="h-8 w-8 -translate-y-0.5 scale-[0.88] origin-center text-primary shrink-0"
+          className="size-8 -translate-y-0.5 scale-[0.88] origin-center text-primary shrink-0"
           aria-hidden="true"
         />
-        <div className="space-y-0.5 min-w-0">
-          <CardTitle>Toggle switches</CardTitle>
-          <CardDescription className="text-xs">
-            Light toggle or dark toggle for automation and settings switches.
-            Saved for this account on this device.
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4 pt-4">
+      }
+      title="Toggle Switches"
+      subtitle="Light toggle or dark toggle for automation and settings switches. Saved for this account on this device."
+      curvedDivider
+    >
+      <div className="space-y-4">
         <div
           className={listClassName}
           role="radiogroup"
@@ -112,7 +108,7 @@ export function UiToggleCard({ accountId }: { accountId: string | null }) {
             Connect an account to save this preference.
           </p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </SettingsSectionCard>
   );
 }

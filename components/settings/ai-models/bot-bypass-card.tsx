@@ -235,7 +235,7 @@ export function BotBypassCard({
         />
       }
       title="Bot Bypass & Web Scraping"
-      subtitle="Configure failover and on-demand proxies for rich job spec hydration and ATS block bypass."
+      subtitle="Configure failover and on-demand proxies for rich job spec hydration and ATS block bypass. Your keys are stored securely."
       toggle={
         <WaveToggle
           id="enable-web-scraping-proxies"

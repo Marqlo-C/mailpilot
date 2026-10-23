@@ -22,14 +22,15 @@
 - [3. End-to-End System Architecture](#3-end-to-end-system-architecture)
 - [4. Domain Modularization & Codebase Taxonomy](#4-domain-modularization--codebase-taxonomy)
 - [5. The Decoupled Domain Architecture (SSOT & Lenses)](#5-the-decoupled-domain-architecture-ssot--lenses)
-- [6. Multi-Tier Inference Router & Local Circuit Breaker](#6-multi-tier-inference-router--local-circuit-breaker)
-- [7. Web Scraping & Anti-Bot Evasion Engine](#7-web-scraping--anti-bot-evasion-engine)
-- [8. Polymorphic 4-Tier Card Design System](#8-polymorphic-4-tier-card-design-system)
-- [9. Cryptography, Privacy & Security Guardrails](#9-cryptography-privacy--security-guardrails)
-- [10. Line-Addressable Resume Tailoring & Page Budgeting](#10-line-addressable-resume-tailoring--page-budgeting)
-- [11. Performance, Systems Optimization & Telemetry](#11-performance-systems-optimization--telemetry)
-- [12. Technology Stack Matrix](#12-technology-stack-matrix)
-- [13. Test Suite, Verification & Local Development](#13-test-suite-verification--local-development)
+- [6. Zero-Dependency Pointer Drag & Drop (DnD) & Batch Grab Engine](#6-zero-dependency-pointer-drag--drop-dnd--batch-grab-engine)
+- [7. Multi-Tier Inference Router & Local Circuit Breaker](#7-multi-tier-inference-router--local-circuit-breaker)
+- [8. Web Scraping & Anti-Bot Evasion Engine](#8-web-scraping--anti-bot-evasion-engine)
+- [9. Polymorphic 4-Tier Card Design System](#9-polymorphic-4-tier-card-design-system)
+- [10. Cryptography, Privacy & Security Guardrails](#10-cryptography-privacy--security-guardrails)
+- [11. Line-Addressable Resume Tailoring & Page Budgeting](#11-line-addressable-resume-tailoring--page-budgeting)
+- [12. Performance, Systems Optimization & Telemetry](#12-performance-systems-optimization--telemetry)
+- [13. Technology Stack Matrix](#13-technology-stack-matrix)
+- [14. Test Suite, Verification & Local Development](#14-test-suite-verification--local-development)
 
 ---
 
@@ -189,17 +190,23 @@ MailPilot/
 │   │   ├── dialogs/               # Direct-email drafting & review modal dialogs
 │   │   └── toolbar/               # Search, filters, score threshold slider & JobsRadar tab rail
 │   ├── settings/                  # Multi-Domain Settings Management
+│   │   ├── accounts/              # Connected Gmail accounts & OAuth credentials management
 │   │   ├── ai-models/             # Ollama bridge steps, cloud providers, bot bypass card
+│   │   ├── automation/            # Radar rules, lifecycle rules, retention policy, excluded titles
+│   │   ├── outbound/              # Resume tailoring defaults, Google XYZ synthesis & section layout
 │   │   ├── profile/               # Master profile editor, resume cards, linked accounts
-│   │   ├── automation/            # Radar rules, rejection mode, retention, excluded titles
-│   │   └── scraping/              # HasData & ScrapingAnt usage control panels
-│   └── ui/                        # Universal Design System
-│       ├── tactile/               # Wave controls (WaveToggle, WavySlider, WavyMeter, NestedSettingsCard)
-│       ├── composites/            # Action dialog shells, flyouts, pagination, row menus
-│       ├── styles/                # Boxy button styles, checkbox styles, score percentage tokens
-│       └── [primitives].tsx       # Pure atomic Radix/Shadcn primitives (button, badge, dialog, etc.)
+│   │   ├── scraping/              # HasData & ScrapingAnt usage control panels
+│   │   └── ui/                    # Tactile preference cards (tab rail, wavy meters, wave toggles)
+│   ├── ui/                        # Universal Design System
+│   │   ├── tactile/               # Wave controls (WaveToggle, WavySlider, WavyMeter, NestedSettingsCard)
+│   │   ├── composites/            # Action dialog shells, flyouts, pagination, row menus
+│   │   ├── styles/                # Boxy button styles, checkbox styles, score percentage tokens
+│   │   └── [primitives].tsx       # Pure atomic Radix/Shadcn primitives (button, badge, dialog, etc.)
+│   └── dnd/                       # Floating 3D drag ghost stack & viewport edge page-flip bumpers
+├── hooks/                         # Custom React Hooks (use-card-list-gestures.ts, use-last-clicked-id.ts, etc.)
 └── lib/
     ├── core/                      # Core Singletons (prisma.ts, crypto.ts, ratelimit.ts, ssrf.ts, constants.ts)
+    ├── dnd/                       # Pointer drag physics, RAF lerp loop, 3-zone deadzone & reorder helpers
     ├── profile/                   # Master profile, persistent profile, revision history, parser, skill groups
     ├── document/                  # React-PDF generator, Word DOCX compiler, text extractor, polyfills
     ├── scraping/                  # HasData & ScrapingAnt proxy clients, quota caches
@@ -324,7 +331,54 @@ flowchart TD
 
 ---
 
-## 6. Multi-Tier Inference Router & Local Circuit Breaker
+## 6. Zero-Dependency Pointer Drag & Drop (DnD) & Batch Grab Engine
+
+Rather than relying on heavy external libraries (`@dnd-kit`, `react-beautiful-dnd`, `framer-motion`) that trigger frequent React layout recalculations and inflate bundle size, MailPilot runs a custom, hardware-accelerated **Pointer Physics Drag & Drop Engine** (`lib/dnd/`, `hooks/use-card-list-gestures.ts`):
+
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
+flowchart TD
+  POINTER["PointerDown Event<br/>(Single Card / Multi-Selection)"] --> BOUNDS["Compute Grab Geometry<br/>• Bounding Box Height (H)<br/>• grabOffset (x, y)<br/>• Multi-Card Preview Stack"]
+
+  BOUNDS --> RAF["requestAnimationFrame Lerp Loop<br/>(current += (target - current) * alpha)"]
+
+  RAF --> ZONE["3-Zone Vertical Deadzone<br/>(relativeY = clientY - cardTop)"]
+  ZONE -->|"&nbsp;&nbsp;relativeY < 0.40 * H&nbsp;&nbsp;"| UP["Top Pull Zone<br/>targetY = clientY - 0.40 * H"]
+  ZONE -->|"&nbsp;&nbsp;0.40*H <= relativeY <= 0.60*H&nbsp;&nbsp;"| FREE["Free Zone (20% Deadzone)<br/>targetY Unchanged (Zero Jitter)"]
+  ZONE -->|"&nbsp;&nbsp;relativeY > 0.60 * H&nbsp;&nbsp;"| DOWN["Bottom Pull Zone<br/>targetY = clientY - 0.60 * H"]
+
+  UP & FREE & DOWN --> GHOST["Hardware-Accelerated Ghost<br/>transform: translate3d(x, y, 0)"]
+  GHOST --> BUMPERS["PageFlipBumpers<br/>(Viewport Edge Proximity Paging)"]
+  GHOST --> TABS["Drop Target Resolution<br/>(Leads · Applied · Action · History)"]
+```
+
+### 1. Vertical 3-Zone Deadzone Physics (`40% - 20% - 40%`)
+When initiating a drag on an opportunity card or multi-card bounding box of height $H$:
+- **Top 40% & Bottom 40% Active Thresholds:** Once the cursor moves past the boundary, the target position shifts smoothly to track the pointer.
+- **Middle 20% "Free Zone" ($0.40 \times H \le \text{relativeY} \le 0.60 \times H$):** Micro-movements, hand tremors, and natural mouse jitter within this deadzone do not move the card, preventing jumpy drag starts.
+
+### 2. Hardware-Accelerated Lerp Smoothing (`lib/dnd/drag-smooth.ts`)
+Movement is driven entirely outside React render passes using an in-memory `requestAnimationFrame` loop with linear interpolation:
+$$\text{pos}_{\text{next}} = \text{pos}_{\text{current}} + (\text{pos}_{\text{target}} - \text{pos}_{\text{current}}) \times \alpha$$
+- **60fps Native Performance:** Uses an optimized damping factor ($\alpha = 0.16$) and CSS `transform: translate3d(x, y, 0)` so card dragging never triggers synchronous DOM reflows or style recalculations.
+
+### 3. Multi-Card Batch Grab & 3D Peek Stack (`components/dnd/drag-ghost.tsx`)
+When items are multi-selected via checkboxes or click-drag selection:
+- Grabbing any selected item hoists the entire batch into a single floating drag proxy.
+- Renders a physical 3D peek stack displaying up to 4 fanned preview cards with company logos, role titles, match scores, and a badge indicating total selected items (e.g., `4 job(s)`).
+- Releases all items simultaneously into the target lifecycle state in a single batch server transition.
+
+### 4. Edge Page-Flip Bumpers (`components/dnd/page-flip-bumpers.tsx`)
+- Detects pointer proximity to top and bottom viewport boundaries during active drags.
+- Automatically pages forward or backward through paginated result sets without dropping the held items, allowing cross-page reorganizations.
+
+### 5. Cross-Tab Movement Matrix & Zero-Reload Drops
+- Hovering over tab headers (`leads`, `applied`, `action_required`, `history`) dynamically rings valid drop targets.
+- Resolves drop permissions via `movement-rules.ts` and commits batch updates via server action (`runJobDrop`) with optimistic UI re-indexing and instant toast confirmation.
+
+---
+
+## 7. Multi-Tier Inference Router & Local Circuit Breaker
 
 MailPilot features an account-scoped multi-tier inference router (`lib/llm/dispatcher.ts`) engineered for zero token waste, local privacy, and continuous synchronization uptime.
 
@@ -419,7 +473,7 @@ All model invocations are monitored via a standardized 66-column terminal ASCII 
 
 ---
 
-## 7. Web Scraping & Anti-Bot Evasion Engine
+## 8. Web Scraping & Anti-Bot Evasion Engine
 
 Inbound emails frequently contain abbreviated link digests (`< 300 chars`) pointing to external job boards. MailPilot utilizes a cost-aware, multi-stage link parsing engine (`lib/opportunities/context/`) designed to extract rich specifications while protecting proxy credits:
 
@@ -462,7 +516,7 @@ flowchart TD
 
 ---
 
-## 8. Polymorphic 4-Tier Card Design System
+## 9. Polymorphic 4-Tier Card Design System
 
 To ensure mathematical visual consistency and eliminate CSS drift across all settings surfaces, MailPilot enforces a 4-tier typographic matrix (`NESTED_CARD_TYPOGRAPHY`) codified in `components/ui/tactile/nested-settings-card.tsx`:
 
@@ -484,7 +538,7 @@ Level 1 (Section Container) : 16px Title (font-semibold) · 12px Subtitle · p-4
 
 ---
 
-## 9. Cryptography, Privacy & Security Guardrails
+## 10. Cryptography, Privacy & Security Guardrails
 
 ### 1. Authenticated Symmetric Encryption (AES-256-GCM)
 All vaulted customer secrets and sensitive candidate metadata are encrypted at rest using Node.js `crypto` (`lib/core/crypto.ts`):
@@ -552,7 +606,7 @@ MailPilot prevents internal network probing and cloud metadata extraction by per
 
 ---
 
-## 10. Line-Addressable Resume Tailoring & Page Budgeting
+## 11. Line-Addressable Resume Tailoring & Page Budgeting
 
 Earlier resume tailoring architectures digested job specs and immediately froze the result into a static base64 PDF buffer. That legacy pattern created severe drawbacks: individual bullets could not be edited, subsequent AI refinement passes hallucinated and drifted unrelated sections, and page length could not be guaranteed.
 
@@ -635,7 +689,7 @@ Candidates can export their complete, canonical Master Profile at any time witho
 
 ---
 
-## 11. Performance, Systems Optimization & Telemetry
+## 12. Performance, Systems Optimization & Telemetry
 
 ### Media Streaming & Perceived Latency (Auth Portal)
 - **Problem:** Object-stored background video assets introduced a 2–3s blank pop-in and delayed First Contentful Paint (FCP) due to trailing container metadata (`moov` atom at EOF) and cold-start latency.
@@ -677,7 +731,7 @@ flowchart TD
 
 ---
 
-## 12. Technology Stack Matrix
+## 13. Technology Stack Matrix
 
 | Layer | Technology | Version / Specification | Architectural Responsibility |
 | :--- | :--- | :--- | :--- |
@@ -691,6 +745,7 @@ flowchart TD
 | **Cloud Messaging & APIs** | **Google Cloud Pub/Sub** | `googleapis` v178 | Asynchronous webhook push notifications for mailbox deltas and RFC 8058 unsubscribe automation. |
 | **Schema Validation** | **Zod** | v4 | Runtime boundary validation for webhook payloads, LLM structured JSON, and extensible account rules. |
 | **Design System** | **Tailwind CSS / Radix** | Tailwind v3.4, Radix UI | Mobile-first responsive design, 4-tier typographic scale, tactile wave controls, Lucide icons. |
+| **Drag & Drop** | **Custom Pointer Engine** | Zero-dependency RAF Lerp loop | 3-zone vertical deadzone, floating 3D ghost stack, edge auto-paging bumpers, 60fps hardware-accelerated transforms. |
 | **Cryptography** | **Node.js Crypto** | AES-256-GCM / timingSafeEqual | Authenticated envelope encryption at rest; timing-safe secret comparisons. |
 | **Document Compilers** | **React-PDF & JSZip** | `@react-pdf/renderer` v4 | Dynamic vector PDF rendering and binary `.docx` XML generation. |
 | **Inference Router** | **Multi-Provider BYOK** | Local Ollama + Cloud REST | Multi-tier failover: Zero-clone Ollama (Quick Tunnel) $\to$ OpenRouter $\to$ `PENDING_AI` parking. |
@@ -700,7 +755,7 @@ flowchart TD
 
 ---
 
-## 13. Test Suite, Verification & Local Development
+## 14. Test Suite, Verification & Local Development
 
 ### Deterministic Test Suite
 MailPilot maintains a comprehensive, zero-token test suite using **Vitest**. All tests execute completely offline without network calls or live database dependencies:
