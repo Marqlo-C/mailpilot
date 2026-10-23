@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Briefcase,
-  LayoutDashboard,
-  Mail,
+  Cog,
+  MailCheck,
   PanelLeftClose,
   PanelLeftOpen,
-  Settings,
+  Radar,
+  SquareKanban,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -26,10 +26,10 @@ import { cn } from "@/lib/utils";
 import type { AccountSummary } from "@/lib/data";
 
 const NAV = [
-  { href: "/", label: "Console", icon: LayoutDashboard },
-  { href: "/subscriptions", label: "Subscriptions", icon: Mail },
-  { href: "/jobs", label: "Job Radar", icon: Briefcase },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/", label: "Console", icon: SquareKanban },
+  { href: "/subscriptions", label: "Subscriptions", icon: MailCheck },
+  { href: "/jobs", label: "Job Radar", icon: Radar },
+  { href: "/settings", label: "Settings", icon: Cog },
 ] as const;
 
 /** Shared height so sidebar brand divider meets the main top-bar bottom edge. */

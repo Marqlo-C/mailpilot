@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { JobApplication, JobOpportunity, Subscription } from "@prisma/client";
-import { Briefcase, ClipboardList, Mail, Send } from "lucide-react";
+import { ClipboardList, MailCheck, Radar, Send } from "lucide-react";
 
 import { COLORED_WORDMARK_SRC, Wordmark } from "@/components/brand/logo";
 import { ScanInboxDialog } from "@/components/scan-inbox-dialog";
@@ -97,7 +97,7 @@ export default async function ConsolePage() {
       label: "Leads",
       value: leadCount,
       hint: "In Job Radar",
-      icon: Briefcase,
+      icon: Radar,
       href: "/jobs",
     },
     {
@@ -118,7 +118,7 @@ export default async function ConsolePage() {
       label: "Subscriptions",
       value: activeSubscriptions.length,
       hint: loudCount === 1 ? "1 running loud" : `${loudCount} running loud`,
-      icon: Mail,
+      icon: MailCheck,
       href: "/subscriptions",
     },
   ] as const;
