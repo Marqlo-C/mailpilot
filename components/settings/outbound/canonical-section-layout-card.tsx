@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -17,6 +17,10 @@ import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import { reorderIds } from "@/lib/dnd/reorder";
 import { OutboundStatusPill } from "./status-pill";
 import { cn } from "@/lib/utils";
+import { useCardListGestures } from "@/hooks/use-card-list-gestures";
+import { useLastClickedId } from "@/hooks/use-last-clicked-id";
+import { DragGhost, type DragGhostStackItem } from "@/components/dnd/drag-ghost";
+import type { CardListGestureRules } from "@/lib/dnd/types";
 
 const SECTION_METADATA: Record<
   string,
@@ -91,13 +95,13 @@ export function CanonicalSectionLayoutCard({
   // Visibility is interactive only when not locked and inclusion is manual
   const isVisibilityInteractive = !isLocked && !isInclusionAi && !disabled;
 
-  // Multi-card selection for batch move (no bulk actions menu)
+  // Multi-card selection for batch move and hold-and-slide gestures
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dropIndicator, setDropIndicator] = useState<{
-    index: number;
-    position: "before" | "after";
-  } | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const { lastClickedId, markLastClicked } = useLastClickedId(
+    selectedIds,
+    sections
+  );
 
   // Status Badge Label
   const badgeLabel = isLocked
@@ -114,16 +118,117 @@ export function CanonicalSectionLayoutCard({
           ? "Custom Order & Selection · AI Estimates"
           : "Full Custom Control";
 
-  function toggleSelect(key: string) {
-    if (!isOrderingInteractive) return;
-    setSelectedIds((prev) =>
-      prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key]
-    );
-  }
+  const enterSelectionMode = useCallback(
+    (id: string) => {
+      if (!isOrderingInteractive) return;
+      markLastClicked(id);
+      setSelectionMode(true);
+      setSelectedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    },
+    [isOrderingInteractive, markLastClicked]
+  );
 
-  function clearSelection() {
+  const toggleSelect = useCallback(
+    (key: string) => {
+      if (!isOrderingInteractive) return;
+      markLastClicked(key);
+      setSelectedIds((prev) => {
+        const next = prev.includes(key)
+          ? prev.filter((id) => id !== key)
+          : [...prev, key];
+        setSelectionMode(next.length > 0);
+        return next;
+      });
+    },
+    [isOrderingInteractive, markLastClicked]
+  );
+
+  const paintSelect = useCallback(
+    (id: string, mode: "add" | "remove") => {
+      if (!isOrderingInteractive) return;
+      markLastClicked(id);
+      setSelectedIds((prev) => {
+        if (mode === "add") {
+          if (prev.includes(id)) return prev;
+          setSelectionMode(true);
+          return [...prev, id];
+        }
+        const next = prev.filter((i) => i !== id);
+        setSelectionMode(next.length > 0);
+        return next;
+      });
+    },
+    [isOrderingInteractive, markLastClicked]
+  );
+
+  const clearSelection = useCallback(() => {
+    markLastClicked(null);
+    setSelectionMode(false);
     setSelectedIds([]);
-  }
+  }, [markLastClicked]);
+
+  useEffect(() => {
+    if (!isOrderingInteractive && selectedIds.length > 0) {
+      clearSelection();
+    }
+  }, [isOrderingInteractive, selectedIds.length, clearSelection]);
+
+  const gestureRules: CardListGestureRules = useMemo(
+    () => ({
+      canReorder: isOrderingInteractive,
+    }),
+    [isOrderingInteractive]
+  );
+
+  const { drag, bindItem, onBackgroundPointerDown } = useCardListGestures({
+    pageItemIds: sections,
+    fullItemIds: sections,
+    selectedIds,
+    selectionMode: selectionMode || selectedIds.length > 0,
+    onEnterSelectionMode: enterSelectionMode,
+    onToggleSelect: toggleSelect,
+    onPaintSelect: paintSelect,
+    onClearSelection: clearSelection,
+    rules: gestureRules,
+    currentPage: 1,
+    totalPages: 1,
+    pageSize: sections.length,
+    onPageChange: () => {},
+    onReorder: (nextFullIds) => {
+      onReorder(nextFullIds);
+    },
+  });
+
+  const displaySections = useMemo(() => {
+    if (drag?.previewFullIds) {
+      return drag.previewFullIds;
+    }
+    return sections;
+  }, [drag?.previewFullIds, sections]);
+
+  const dragLabel = useMemo(() => {
+    if (!drag?.active || drag.movedIds.length === 0) return null;
+    const primaryKey = drag.originId || drag.movedIds[0];
+    const meta = SECTION_METADATA[primaryKey];
+    return meta?.label ?? primaryKey;
+  }, [drag]);
+
+  const dragStackItems = useMemo(() => {
+    if (!drag?.active) return [];
+    const orderedKeys = [
+      drag.originId,
+      ...drag.movedIds.filter((id) => id !== drag.originId),
+    ].slice(0, 4);
+    return orderedKeys.map((key) => {
+      const meta = SECTION_METADATA[key];
+      const item: DragGhostStackItem = {
+        name: meta?.label ?? key,
+        subtitle: meta?.description ?? null,
+        logoSrc: null,
+      };
+      return item;
+    });
+  }, [drag]);
 
   // Batch-aware Move Up
   function handleMoveUp(key: string, index: number) {
@@ -168,66 +273,6 @@ export function CanonicalSectionLayoutCard({
     }
   }
 
-  // Drag and Drop handlers
-  function handleDragStart(e: React.DragEvent, key: string) {
-    if (!isOrderingInteractive) {
-      e.preventDefault();
-      return;
-    }
-    setDraggedId(key);
-    const moving = selectedIds.includes(key) ? selectedIds : [key];
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", JSON.stringify(moving));
-  }
-
-  function handleDragOver(e: React.DragEvent, index: number) {
-    if (!isOrderingInteractive || !draggedId) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const midY = rect.top + rect.height / 2;
-    const position = e.clientY < midY ? "before" : "after";
-
-    if (
-      !dropIndicator ||
-      dropIndicator.index !== index ||
-      dropIndicator.position !== position
-    ) {
-      setDropIndicator({ index, position });
-    }
-  }
-
-  function handleDragEnd() {
-    setDraggedId(null);
-    setDropIndicator(null);
-  }
-
-  function handleDrop(e: React.DragEvent, targetIndex: number) {
-    e.preventDefault();
-    if (!isOrderingInteractive || !draggedId) {
-      handleDragEnd();
-      return;
-    }
-
-    const moving = selectedIds.includes(draggedId) ? selectedIds : [draggedId];
-    const position = dropIndicator?.position ?? "before";
-    const insertionIndex = position === "before" ? targetIndex : targetIndex + 1;
-
-    // Adjust target index for items removed before insertion point
-    const movingSet = new Set(moving);
-    let adjusted = insertionIndex;
-    for (let i = 0; i < insertionIndex && i < sections.length; i++) {
-      if (movingSet.has(sections[i]!)) {
-        adjusted -= 1;
-      }
-    }
-
-    const nextOrder = reorderIds(sections, moving, adjusted);
-    onReorder(nextOrder);
-    handleDragEnd();
-  }
-
   return (
     <SettingsFeatureCard
       logo={
@@ -266,7 +311,7 @@ export function CanonicalSectionLayoutCard({
       disabled={isLocked}
       curvedDivider
     >
-      <div className="space-y-3">
+      <div className="space-y-3" onPointerDown={onBackgroundPointerDown}>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-[11px] text-muted-foreground px-1.5 pt-0.5">
           <div>
             {isOrderingAi && !isInclusionAi && (
@@ -276,7 +321,7 @@ export function CanonicalSectionLayoutCard({
               <span>Sections follow your manual order below, while AI selects role-targeted highlights for each job.</span>
             )}
             {!isOrderingAi && !isInclusionAi && (
-              <span>Full manual control: drag handles or arrows reorder sections, and switches set your section selection.</span>
+              <span>Full manual control: hold & slide or check rows to multi-select, drag to reorder, and toggle switches to include or hide sections.</span>
             )}
           </div>
 
@@ -302,7 +347,7 @@ export function CanonicalSectionLayoutCard({
           data-dnd-list
           className="relative w-full rounded-xl border border-border/80 bg-card shadow-md transition-shadow duration-200 hover:shadow-lg"
         >
-          {sections.map((key, index) => {
+          {displaySections.map((key, index) => {
             const meta = SECTION_METADATA[key] ?? {
               label: key,
               description: "",
@@ -310,32 +355,27 @@ export function CanonicalSectionLayoutCard({
             const isVisible = visibility[key] ?? true;
             const isSelected = selectedIds.includes(key);
             const selectionGroup = getSelectionGroupEdges(
-              sections,
+              displaySections,
               selectedIds,
               index
             );
-            const isBeingDragged = draggedId === key;
-            const showDropBefore =
-              dropIndicator?.index === index &&
-              dropIndicator.position === "before";
-            const showDropAfter =
-              dropIndicator?.index === index &&
-              dropIndicator.position === "after";
 
             // Up/Down button enabling logic
             const isFirst = index === 0;
-            const isLast = index === sections.length - 1;
+            const isLast = index === displaySections.length - 1;
             const canMoveUp = isOrderingInteractive && !isFirst;
             const canMoveDown = isOrderingInteractive && !isLast;
+
+            const itemProps = bindItem(key);
+            const { style: itemStyle, ...itemRest } = itemProps;
+            const isMoved =
+              Boolean(drag?.active) && Boolean(drag?.movedIds.includes(key));
 
             return (
               <div
                 key={key}
-                draggable={isOrderingInteractive}
-                onDragStart={(e) => handleDragStart(e, key)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragEnd={handleDragEnd}
-                onDrop={(e) => handleDrop(e, index)}
+                {...itemRest}
+                style={itemStyle}
                 className={cn(
                   "group relative flex min-h-[58px] cursor-default items-stretch select-none transition-colors",
                   isFirst && "rounded-t-xl",
@@ -349,23 +389,9 @@ export function CanonicalSectionLayoutCard({
                         "hover:bg-muted/30",
                         !isVisible && "opacity-60 bg-muted/10"
                       ),
-                  isBeingDragged && "opacity-30 bg-primary/10"
+                  isMoved && "opacity-30 bg-primary/10"
                 )}
               >
-                {/* Visual Drop Indicator Lines on Conjoined Seams */}
-                {showDropBefore && (
-                  <div
-                    aria-hidden="true"
-                    className="absolute inset-x-0 top-0 h-0.5 bg-primary shadow-sm pointer-events-none z-30"
-                  />
-                )}
-                {showDropAfter && (
-                  <div
-                    aria-hidden="true"
-                    className="absolute inset-x-0 bottom-0 h-0.5 bg-primary shadow-sm pointer-events-none z-30"
-                  />
-                )}
-
                 {/* Left Edge: Half-width Grab Handle (w-3.5) with Sidebar-Derived Cool Gray Spine & Self-Contained Outline */}
                 <div
                   className={cn(
@@ -390,7 +416,7 @@ export function CanonicalSectionLayoutCard({
                     isOrderingInteractive
                       ? isSelected && selectedIds.length > 1
                         ? "Drag to move highlighted batch together"
-                        : "Drag to reorder section"
+                        : "Hold & slide to multi-select, or drag to reorder"
                       : "Section ordering locked by AI"
                   }
                 >
@@ -422,6 +448,7 @@ export function CanonicalSectionLayoutCard({
                     disabled={!isOrderingInteractive}
                     onChange={() => toggleSelect(key)}
                     className={selectCheckboxClassName({
+                      lastClicked: lastClickedId === key,
                       className: cn(
                         "size-3.5 shrink-0 cursor-pointer m-0",
                         !isOrderingInteractive && "opacity-30 cursor-not-allowed"
@@ -531,6 +558,17 @@ export function CanonicalSectionLayoutCard({
             );
           })}
         </div>
+
+        <DragGhost
+          active={Boolean(drag?.active)}
+          pointerX={drag?.pointerX ?? 0}
+          pointerY={drag?.pointerY ?? 0}
+          grab={drag?.grab ?? null}
+          count={drag?.movedIds.length ?? 0}
+          label={dragLabel}
+          stackItems={dragStackItems}
+          outsideList={Boolean(drag?.outsideList)}
+        />
       </div>
     </SettingsFeatureCard>
   );
