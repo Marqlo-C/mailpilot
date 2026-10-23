@@ -566,6 +566,8 @@ export function CanonicalSectionLayoutCard({
           grab={drag?.grab ?? null}
           count={drag?.movedIds.length ?? 0}
           label={dragLabel}
+          dropZone={drag?.dropZone ?? null}
+          pageFlipDir={drag?.pageFlipDir ?? null}
           stackItems={dragStackItems}
           outsideList={Boolean(drag?.outsideList)}
         />
