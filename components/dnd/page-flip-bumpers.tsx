@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { DND_PAGE_EDGE_PX } from "@/lib/dnd/constants";
@@ -31,13 +33,20 @@ export function PageFlipBumpers({
   totalPages: number;
   dropZone?: string | null;
 }) {
-  if (!active || totalPages <= 1 || dropZone) return null;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!active || totalPages <= 1 || dropZone || !mounted || typeof document === "undefined") {
+    return null;
+  }
 
   const showLeft = currentPage > 1;
   const showRight = currentPage < totalPages;
   if (!showLeft && !showRight) return null;
 
-  return (
+  return createPortal(
     <div
       className="pointer-events-none fixed top-[4.25rem] z-[70] md:top-0"
       style={{
@@ -78,6 +87,7 @@ export function PageFlipBumpers({
           </span>
         </div>
       ) : null}
-    </div>
+    </div>,
+    document.body
   );
 }

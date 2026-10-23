@@ -181,13 +181,17 @@ describe("ResumeDraftSheet Multi-Page Pagination & Seam Logic", () => {
     expect(pages.length).toBe(2);
     // Page 1 should contain the 10 previous bullets
     expect(pages[0]?.length).toBe(10);
-    expect(pages[0]?.[9]?.node.id).toBe("prev-bullet-9");
+    const p0_9 = pages[0]?.[9];
+    expect(p0_9?.kind === "node" ? p0_9.node.id : null).toBe("prev-bullet-9");
 
     // Page 2 MUST start with new-exp-header, NOT leaving it orphaned on Page 1!
     expect(pages[1]?.length).toBe(3);
-    expect(pages[1]?.[0]?.node.id).toBe("new-exp-header");
-    expect(pages[1]?.[1]?.node.id).toBe("new-exp-bullet-1");
-    expect(pages[1]?.[2]?.node.id).toBe("new-exp-bullet-2");
+    const p1_0 = pages[1]?.[0];
+    const p1_1 = pages[1]?.[1];
+    const p1_2 = pages[1]?.[2];
+    expect(p1_0?.kind === "node" ? p1_0.node.id : null).toBe("new-exp-header");
+    expect(p1_1?.kind === "node" ? p1_1.node.id : null).toBe("new-exp-bullet-1");
+    expect(p1_2?.kind === "node" ? p1_2.node.id : null).toBe("new-exp-bullet-2");
   });
 
   it("estimateBlockHeight provides realistic heuristic heights for various node types", () => {

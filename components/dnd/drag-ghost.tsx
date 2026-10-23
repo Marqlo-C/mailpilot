@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { CompanyLogo } from "@/components/ui/company-logo";
 import {
@@ -244,12 +245,34 @@ export function DragGhost({
   const grabRef = useRef<DragGrabGeometry | null>(grab);
   const currentRef = useRef({ x: 0, y: 0 });
   const rafRef = useRef<number | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [stackWidth, setStackWidth] = useState(STACK_CARD_W_FALLBACK);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   pointerRef.current = { x: pointerX, y: pointerY };
   grabRef.current = grab;
 
   const stacking = active && (outsideList || Boolean(dropZone));
+
+  // Sync initial transform synchronously before first paint to prevent jumps.
+  useLayoutEffect(() => {
+    if (!active) return;
+    const initial = grab ?? grabRef.current;
+    const startX = initial
+      ? initial.startLeft + initial.grabX
+      : pointerRef.current.x;
+    const startY = initial
+      ? initial.startTop + initial.grabY
+      : pointerRef.current.y;
+    currentRef.current = { x: startX, y: startY };
+    const el = nodeRef.current;
+    if (el) {
+      el.style.transform = `translate3d(${startX}px, ${startY}px, 0)`;
+    }
+  }, [active, grab]);
 
   // Hug front content width so the right edge meets the CTA stubs (name is capped).
   useLayoutEffect(() => {
@@ -325,7 +348,7 @@ export function DragGhost({
     };
   }, [active, grab]);
 
-  if (!active) return null;
+  if (!active || !mounted || typeof document === "undefined") return null;
 
   const layerCount = Math.min(STACK_MAX_LAYERS, Math.max(1, count));
   const maxDepth = Math.max(0, layerCount - 1);
@@ -343,7 +366,7 @@ export function DragGhost({
   };
   const cardW = stacking ? stackWidth : STACK_CARD_W_FALLBACK;
 
-  return (
+  return createPortal(
     <div
       ref={nodeRef}
       className={cn(
@@ -431,6 +454,7 @@ export function DragGhost({
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
