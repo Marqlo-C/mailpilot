@@ -6,6 +6,7 @@ import {
   Loader2,
   Mail,
   MapPin,
+  Pencil,
   Phone,
   Plus,
   SquareArrowOutUpRight,
@@ -188,8 +189,14 @@ export function ManualProfileEditor({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button type="button" variant="secondary" size="sm">
-          {triggerLabel}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 px-3 text-xs font-medium [&_svg]:!size-3.5"
+        >
+          <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
+          <span>{triggerLabel}</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="flex max-h-[92vh] max-w-3xl flex-col overflow-hidden p-0">
