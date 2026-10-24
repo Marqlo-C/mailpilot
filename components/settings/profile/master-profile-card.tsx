@@ -43,6 +43,12 @@ import {
   formatStatusPillTitle,
 } from "@/lib/utils/format";
 import { isWorkExperienceCategory } from "@/lib/validations/profile";
+import {
+  LINKED_ACCOUNT_FIELDS,
+  ICON_SQUIRCLE_CLASSNAME,
+  LinkStatusPill,
+  PlatformMark,
+} from "@/components/settings/profile/platform-mark";
 import { cn } from "@/lib/utils";
 
 export type ProfileSnapshotData = MasterProfileInput & {
@@ -63,18 +69,6 @@ type MasterProfileCardProps = {
   accountId: string | null;
   profile: ProfileSnapshotData | null;
 };
-
-const LINKED_FIELDS: Array<{
-  key: keyof ProfileSnapshotData;
-  label: string;
-}> = [
-  { key: "linkedWebsite", label: "Website" },
-  { key: "linkedLinkedin", label: "LinkedIn" },
-  { key: "linkedGithub", label: "GitHub" },
-  { key: "linkedIndeed", label: "Indeed" },
-  { key: "linkedGlassdoor", label: "Glassdoor" },
-  { key: "linkedHandshake", label: "Handshake" },
-];
 
 /** Single source of truth for chip sizing (tool count badge, date chips, carousel pills). */
 const ENTRY_CHIP_CLASSNAME =
@@ -123,35 +117,16 @@ function ContactChannel({
 }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/20 p-3">
-      <span
-        className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background/80"
-        aria-hidden="true"
-      >
-        <Icon className="size-4 text-muted-foreground" />
+      <span className={ICON_SQUIRCLE_CLASSNAME} aria-hidden="true">
+        <Icon className="size-[18px] text-muted-foreground" />
       </span>
       <div className="min-w-0">
-        <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
-        <p className="truncate text-xs font-semibold text-foreground" title={value}>
+        <p className="truncate text-xs font-semibold text-foreground">{label}</p>
+        <p className="truncate text-[11px] text-muted-foreground" title={value}>
           {value}
         </p>
       </div>
     </div>
-  );
-}
-
-function LinkStatusPill({ linked }: { linked: boolean }) {
-  if (linked) {
-    return (
-      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-        <span className="size-1.5 rounded-full bg-emerald-500" />
-        Linked
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex shrink-0 items-center rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-      Missing
-    </span>
   );
 }
 
@@ -261,7 +236,7 @@ export function MasterProfileCard({
 
   const linkedCount = useMemo(() => {
     if (!profile) return 0;
-    return LINKED_FIELDS.filter(({ key }) => {
+    return LINKED_ACCOUNT_FIELDS.filter(({ key }) => {
       const val = profile[key];
       return typeof val === "string" && val.trim().length > 0;
     }).length;
@@ -452,11 +427,17 @@ export function MasterProfileCard({
               title="Contact & Linked Accounts"
               subtitle="Direct contact channels, professional summary, and external portfolio links."
               statusBadge={
-                linkedCount > 0 ? (
-                  <SectionCountPill count={linkedCount}>
-                    {linkedCount} of {LINKED_FIELDS.length} Linked
-                  </SectionCountPill>
-                ) : null
+                <SectionCountPill count={LINKED_ACCOUNT_FIELDS.length}>
+                  <span>
+                    {LINKED_ACCOUNT_FIELDS.length}{" "}
+                    {LINKED_ACCOUNT_FIELDS.length === 1 ? "Site" : "Sites"}
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className="h-2.5 w-px shrink-0 bg-border/90"
+                  />
+                  <span>{linkedCount} Linked</span>
+                </SectionCountPill>
               }
               isExpanded={openSections.contact}
               onToggle={() => toggleSection("contact")}
@@ -493,7 +474,7 @@ export function MasterProfileCard({
                   )}
                 </div>
                 <ul className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-                  {LINKED_FIELDS.map(({ key, label }) => {
+                  {LINKED_ACCOUNT_FIELDS.map(({ key, label, iconSrc, iconSize }) => {
                     const url = profile[key];
                     const linked = typeof url === "string" && url.length > 0;
                     return (
@@ -501,11 +482,16 @@ export function MasterProfileCard({
                         key={key}
                         className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card p-3"
                       >
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-foreground">{label}</p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {linked ? url : "Not linked"}
-                          </p>
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <PlatformMark name={label} src={iconSrc} iconSize={iconSize} />
+                          <div className="min-w-0 flex-1">
+                            <h5 className="truncate text-xs font-semibold text-foreground">
+                              {label}
+                            </h5>
+                            <p className="truncate text-[11px] text-muted-foreground">
+                              {linked ? url : "Not linked"}
+                            </p>
+                          </div>
                         </div>
                         <LinkStatusPill linked={linked} />
                       </li>

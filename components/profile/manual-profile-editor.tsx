@@ -36,6 +36,12 @@ import {
   BulletSquircle,
 } from "@/components/ui/tactile";
 import type { ProfileSnapshotData } from "@/components/settings/profile";
+import {
+  LINKED_ACCOUNT_FIELDS,
+  ICON_SQUIRCLE_CLASSNAME,
+  LinkStatusPill,
+  PlatformMark,
+} from "@/components/settings/profile/platform-mark";
 import { extractPlatformLinks } from "@/lib/profile/profile-consolidation";
 import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import { cn } from "@/lib/utils";
@@ -272,7 +278,7 @@ export function ManualProfileEditor({
               </div>
 
               <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-                {EDITOR_LINKED_ACCOUNTS.map(({ key, label }) => {
+                {LINKED_ACCOUNT_FIELDS.map(({ key, label, iconSrc, iconSize }) => {
                   const url = form[key] ?? "";
                   const linked = url.trim().length > 0;
                   return (
@@ -280,26 +286,31 @@ export function ManualProfileEditor({
                       key={key}
                       className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card p-3"
                     >
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <Label
-                          htmlFor={key}
-                          className="text-xs font-semibold text-foreground"
-                        >
-                          {label}
-                        </Label>
-                        <Input
-                          id={key}
-                          type="url"
-                          value={url}
-                          placeholder="Not linked"
-                          className="h-auto border-0 bg-transparent px-0 py-0 text-xs text-muted-foreground shadow-none focus-visible:ring-0 md:text-xs"
-                          onChange={(e) =>
-                            setForm((f) => ({
-                              ...f,
-                              [key]: e.target.value || null,
-                            }))
-                          }
-                        />
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <PlatformMark name={label} src={iconSrc} iconSize={iconSize} />
+                        <div className="min-w-0 flex-1">
+                          <h5 className="truncate text-xs font-semibold text-foreground">
+                            <Label
+                              htmlFor={key}
+                              className="text-xs font-semibold text-foreground"
+                            >
+                              {label}
+                            </Label>
+                          </h5>
+                          <Input
+                            id={key}
+                            type="url"
+                            value={url}
+                            placeholder="Not linked"
+                            className="h-auto border-0 bg-transparent px-0 py-0 text-[11px] text-muted-foreground shadow-none focus-visible:ring-0"
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                [key]: e.target.value || null,
+                              }))
+                            }
+                          />
+                        </div>
                       </div>
                       <LinkStatusPill linked={linked} />
                     </div>
@@ -1131,24 +1142,6 @@ export function ManualProfileEditor({
   );
 }
 
-const EDITOR_LINKED_ACCOUNTS: Array<{
-  key:
-    | "linkedWebsite"
-    | "linkedLinkedin"
-    | "linkedGithub"
-    | "linkedIndeed"
-    | "linkedGlassdoor"
-    | "linkedHandshake";
-  label: string;
-}> = [
-  { key: "linkedWebsite", label: "Website" },
-  { key: "linkedLinkedin", label: "LinkedIn" },
-  { key: "linkedGithub", label: "GitHub" },
-  { key: "linkedIndeed", label: "Indeed" },
-  { key: "linkedGlassdoor", label: "Glassdoor" },
-  { key: "linkedHandshake", label: "Handshake" },
-];
-
 function ContactField({
   icon: Icon,
   label,
@@ -1165,14 +1158,11 @@ function ContactField({
   const id = useMemo(() => `contact-${label.toLowerCase()}`, [label]);
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/20 p-3">
-      <span
-        className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background/80"
-        aria-hidden="true"
-      >
-        <Icon className="size-4 text-muted-foreground" />
+      <span className={ICON_SQUIRCLE_CLASSNAME} aria-hidden="true">
+        <Icon className="size-[18px] text-muted-foreground" />
       </span>
       <div className="min-w-0 flex-1 space-y-0.5">
-        <Label htmlFor={id} className="text-[11px] font-medium text-muted-foreground">
+        <Label htmlFor={id} className="truncate text-xs font-semibold text-foreground">
           {label}
         </Label>
         <Input
@@ -1181,26 +1171,10 @@ function ContactField({
           value={value}
           placeholder="—"
           onChange={(e) => onChange(e.target.value)}
-          className="h-auto border-0 bg-transparent px-0 py-0 text-xs font-semibold text-foreground shadow-none focus-visible:ring-0 md:text-xs"
+          className="h-auto truncate border-0 bg-transparent px-0 py-0 text-[11px] text-muted-foreground shadow-none focus-visible:ring-0"
         />
       </div>
     </div>
-  );
-}
-
-function LinkStatusPill({ linked }: { linked: boolean }) {
-  if (linked) {
-    return (
-      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-        <span className="size-1.5 rounded-full bg-emerald-500" />
-        Linked
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex shrink-0 items-center rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-      Missing
-    </span>
   );
 }
 
