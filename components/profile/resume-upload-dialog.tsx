@@ -40,6 +40,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
+import {
+  BULLET_ROW_CLASSNAME,
+  BulletSquircle,
+} from "@/components/ui/tactile";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
@@ -366,15 +370,18 @@ export function ResumeUploadDialog({
                   <p className="font-medium">
                     {formatExperienceHeading(exp.role, exp.company, exp.location)}
                   </p>
-                  <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+                  <ul className="space-y-1 text-sm text-muted-foreground">
                     {exp.bullets.map((b) => (
-                      <li key={b.id}>
-                        {b.rawText}
-                        {b.hasMetric ? (
-                          <Badge variant="outline" className="ml-2">
-                            metric
-                          </Badge>
-                        ) : null}
+                      <li key={b.id} className={BULLET_ROW_CLASSNAME}>
+                        <BulletSquircle />
+                        <span className="min-w-0 flex-1">
+                          {b.rawText}
+                          {b.hasMetric ? (
+                            <Badge variant="outline" className="ml-2">
+                              metric
+                            </Badge>
+                          ) : null}
+                        </span>
                       </li>
                     ))}
                   </ul>

@@ -2,7 +2,16 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Trash2, X } from "lucide-react";
+import {
+  Loader2,
+  Mail,
+  MapPin,
+  Phone,
+  Plus,
+  SquareArrowOutUpRight,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { resetMasterProfile, updateMasterProfile } from "@/app/actions/profile";
@@ -21,9 +30,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  BULLET_ROW_CLASSNAME,
+  BulletSquircle,
+} from "@/components/ui/tactile";
 import type { ProfileSnapshotData } from "@/components/settings/profile";
 import { extractPlatformLinks } from "@/lib/profile/profile-consolidation";
 import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
+import { cn } from "@/lib/utils";
 import {
   getEmptyMasterProfileData,
   isWorkExperienceCategory,
@@ -200,38 +214,49 @@ export function ManualProfileEditor({
               <TabsTrigger value="credentials">Credentials</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="personal" className="mt-4 space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field
-                  label="Full Name"
-                  value={form.fullName}
-                  onChange={(v) => setForm((f) => ({ ...f, fullName: v }))}
+            <TabsContent value="personal" className="mt-4 space-y-2.5">
+              <Field
+                label="Full Name"
+                value={form.fullName}
+                onChange={(v) => setForm((f) => ({ ...f, fullName: v }))}
+              />
+
+              <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
+                <ContactField
+                  icon={Phone}
+                  label="Phone"
+                  type="tel"
+                  value={form.phone ?? ""}
+                  onChange={(v) => setForm((f) => ({ ...f, phone: v || null }))}
                 />
-                <Field
+                <ContactField
+                  icon={Mail}
                   label="Email"
                   type="email"
                   value={form.email}
                   onChange={(v) => setForm((f) => ({ ...f, email: v }))}
                 />
-                <Field
+                <ContactField
+                  icon={MapPin}
                   label="Location"
                   value={form.location ?? ""}
                   onChange={(v) =>
                     setForm((f) => ({ ...f, location: v || null }))
                   }
                 />
-                <Field
-                  label="Phone Number"
-                  value={form.phone ?? ""}
-                  onChange={(v) => setForm((f) => ({ ...f, phone: v || null }))}
-                />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="summary">Professional Summary</Label>
+              <div className="space-y-1 rounded-xl border border-border/60 bg-muted/20 p-3.5">
+                <Label
+                  htmlFor="summary"
+                  className="text-[11px] font-semibold text-muted-foreground"
+                >
+                  Summary
+                </Label>
                 <textarea
                   id="summary"
-                  className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  placeholder="No professional summary added"
+                  className="min-h-20 w-full resize-y bg-transparent text-xs leading-relaxed text-foreground/85 placeholder:text-xs placeholder:italic placeholder:text-muted-foreground focus-visible:outline-none"
                   value={form.summary ?? ""}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, summary: e.target.value || null }))
@@ -239,55 +264,40 @@ export function ManualProfileEditor({
                 />
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field
-                  label="Personal Website / Portfolio"
-                  type="url"
-                  value={form.linkedWebsite ?? ""}
-                  onChange={(v) =>
-                    setForm((f) => ({ ...f, linkedWebsite: v || null }))
-                  }
-                />
-                <Field
-                  label="LinkedIn URL"
-                  type="url"
-                  value={form.linkedLinkedin ?? ""}
-                  onChange={(v) =>
-                    setForm((f) => ({ ...f, linkedLinkedin: v || null }))
-                  }
-                />
-                <Field
-                  label="GitHub URL"
-                  type="url"
-                  value={form.linkedGithub ?? ""}
-                  onChange={(v) =>
-                    setForm((f) => ({ ...f, linkedGithub: v || null }))
-                  }
-                />
-                <Field
-                  label="Indeed URL"
-                  type="url"
-                  value={form.linkedIndeed ?? ""}
-                  onChange={(v) =>
-                    setForm((f) => ({ ...f, linkedIndeed: v || null }))
-                  }
-                />
-                <Field
-                  label="Glassdoor URL"
-                  type="url"
-                  value={form.linkedGlassdoor ?? ""}
-                  onChange={(v) =>
-                    setForm((f) => ({ ...f, linkedGlassdoor: v || null }))
-                  }
-                />
-                <Field
-                  label="Handshake URL"
-                  type="url"
-                  value={form.linkedHandshake ?? ""}
-                  onChange={(v) =>
-                    setForm((f) => ({ ...f, linkedHandshake: v || null }))
-                  }
-                />
+              <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+                {EDITOR_LINKED_ACCOUNTS.map(({ key, label }) => {
+                  const url = form[key] ?? "";
+                  const linked = url.trim().length > 0;
+                  return (
+                    <div
+                      key={key}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card p-3"
+                    >
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <Label
+                          htmlFor={key}
+                          className="text-xs font-semibold text-foreground"
+                        >
+                          {label}
+                        </Label>
+                        <Input
+                          id={key}
+                          type="url"
+                          value={url}
+                          placeholder="Not linked"
+                          className="h-auto border-0 bg-transparent px-0 py-0 text-xs text-muted-foreground shadow-none focus-visible:ring-0 md:text-xs"
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              [key]: e.target.value || null,
+                            }))
+                          }
+                        />
+                      </div>
+                      <LinkStatusPill linked={linked} />
+                    </div>
+                  );
+                })}
               </div>
             </TabsContent>
 
@@ -530,7 +540,22 @@ export function ManualProfileEditor({
                     className="space-y-3 rounded-md border border-border p-3"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium">Project {index + 1}</p>
+                      <div className="inline-flex items-center gap-1.5 leading-none min-w-0 max-w-full">
+                        <h4 className="text-sm font-semibold text-foreground truncate leading-none">
+                          Project {index + 1}
+                        </h4>
+                        {project.link ? (
+                          <a
+                            href={project.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center self-center text-muted-foreground/60 hover:text-foreground transition-colors shrink-0 p-0.5"
+                            title="Open repository"
+                          >
+                            <SquareArrowOutUpRight className="size-3.5 shrink-0" />
+                          </a>
+                        ) : null}
+                      </div>
                       <Button
                         type="button"
                         size="sm"
@@ -1099,6 +1124,79 @@ export function ManualProfileEditor({
   );
 }
 
+const EDITOR_LINKED_ACCOUNTS: Array<{
+  key:
+    | "linkedWebsite"
+    | "linkedLinkedin"
+    | "linkedGithub"
+    | "linkedIndeed"
+    | "linkedGlassdoor"
+    | "linkedHandshake";
+  label: string;
+}> = [
+  { key: "linkedWebsite", label: "Website" },
+  { key: "linkedLinkedin", label: "LinkedIn" },
+  { key: "linkedGithub", label: "GitHub" },
+  { key: "linkedIndeed", label: "Indeed" },
+  { key: "linkedGlassdoor", label: "Glassdoor" },
+  { key: "linkedHandshake", label: "Handshake" },
+];
+
+function ContactField({
+  icon: Icon,
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  const id = useMemo(() => `contact-${label.toLowerCase()}`, [label]);
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/20 p-3">
+      <span
+        className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background/80"
+        aria-hidden="true"
+      >
+        <Icon className="size-4 text-muted-foreground" />
+      </span>
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <Label htmlFor={id} className="text-[11px] font-medium text-muted-foreground">
+          {label}
+        </Label>
+        <Input
+          id={id}
+          type={type}
+          value={value}
+          placeholder="—"
+          onChange={(e) => onChange(e.target.value)}
+          className="h-auto border-0 bg-transparent px-0 py-0 text-xs font-semibold text-foreground shadow-none focus-visible:ring-0 md:text-xs"
+        />
+      </div>
+    </div>
+  );
+}
+
+function LinkStatusPill({ linked }: { linked: boolean }) {
+  if (linked) {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+        <span className="size-1.5 rounded-full bg-emerald-500" />
+        Linked
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+      Missing
+    </span>
+  );
+}
+
 function Field({
   label,
   value,
@@ -1236,9 +1334,11 @@ function ProjectPointsEditor({
         </button>
       </div>
       {bullets.map((bullet, bulletIndex) => (
-        <div key={bulletIndex} className="flex items-center gap-2">
+        <div key={bulletIndex} className={BULLET_ROW_CLASSNAME}>
+          <BulletSquircle />
           <Input
             value={bullet}
+            className="h-auto py-0 text-sm leading-5"
             onChange={(e) =>
               onChange({
                 description,
@@ -1250,7 +1350,7 @@ function ProjectPointsEditor({
           />
           <button
             type="button"
-            className="text-muted-foreground hover:text-foreground"
+            className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
             onClick={() =>
               onChange({
                 description,
@@ -1360,10 +1460,14 @@ function ExperienceEditor({
           {experience.bullets.map((bullet) => (
             <li
               key={bullet.id}
-              className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/20 p-2"
+              className={cn(
+                BULLET_ROW_CLASSNAME,
+                "rounded-md border border-border/70 bg-muted/20 p-2"
+              )}
             >
+              <BulletSquircle />
               <input
-                className="mt-1 min-w-0 flex-1 bg-transparent text-sm outline-none"
+                className="min-w-0 flex-1 bg-transparent text-sm leading-5 outline-none"
                 value={bullet.rawText}
                 onChange={(e) =>
                   onChange({
@@ -1376,7 +1480,7 @@ function ExperienceEditor({
                   })
                 }
               />
-              <label className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+              <label className="mt-0.5 flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
                 <input
                   type="checkbox"
                   checked={bullet.hasMetric}
@@ -1395,7 +1499,7 @@ function ExperienceEditor({
               </label>
               <button
                 type="button"
-                className="text-muted-foreground hover:text-foreground"
+                className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
                 onClick={() =>
                   onChange({
                     ...experience,

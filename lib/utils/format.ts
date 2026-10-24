@@ -527,3 +527,76 @@ export function getProjectBaseName(name: string | null | undefined): string {
   const first = parts[0]?.trim() || "";
   return first || name.trim();
 }
+
+export const TITLE_CASE_LOWERCASE_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "as",
+  "at",
+  "but",
+  "by",
+  "en",
+  "etc",
+  "etc.",
+  "for",
+  "from",
+  "if",
+  "in",
+  "into",
+  "nor",
+  "of",
+  "off",
+  "on",
+  "onto",
+  "or",
+  "per",
+  "so",
+  "the",
+  "to",
+  "unto",
+  "up",
+  "upon",
+  "via",
+  "vs",
+  "vs.",
+  "with",
+  "yet",
+]);
+
+/**
+ * Capitalizes the first letters of words in status pills following title casing,
+ * keeping minor words (such as "of", "and", "etc.") lowercase unless leading.
+ */
+export function formatStatusPillTitle(text: string): string {
+  if (!text) return text ?? "";
+
+  const tokens = text.split(/(\s+)/);
+  let hasSeenLeadingToken = false;
+
+  return tokens
+    .map((token) => {
+      if (/^\s+$/.test(token)) {
+        return token;
+      }
+
+      const isFirstToken = !hasSeenLeadingToken;
+      hasSeenLeadingToken = true;
+
+      if (!/[a-zA-Z]/.test(token)) {
+        return token;
+      }
+
+      const cleanWord = token
+        .toLowerCase()
+        .replace(/^[^a-zA-Z]+|[^a-zA-Z0-9.]+$/g, "");
+
+      if (!isFirstToken && TITLE_CASE_LOWERCASE_WORDS.has(cleanWord)) {
+        return token.toLowerCase();
+      }
+
+      return token.replace(/[a-zA-Z]/, (c) => c.toUpperCase());
+    })
+    .join("");
+}
+
