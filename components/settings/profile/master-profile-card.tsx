@@ -224,7 +224,7 @@ export function MasterProfileCard({
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     persona: false,
     contact: false,
-    skills: true,
+    skills: false,
     experience: true,
     activities: false,
     projects: false,
@@ -515,7 +515,7 @@ export function MasterProfileCard({
               </div>
             </SettingsFeatureCard>
 
-            {/* 3. Skills & Core Competencies (Expanded by default) */}
+            {/* 3. Skills & Core Competencies */}
             <SettingsFeatureCard
               logo={<FeatureLogo icon={Cpu} />}
               title="Skills & Core Competencies"
