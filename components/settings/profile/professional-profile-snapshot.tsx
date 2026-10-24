@@ -3,6 +3,10 @@
 import { Pencil } from "lucide-react";
 
 import { ResumeUploadDialog } from "@/components/profile/resume-upload-dialog";
+import {
+  BULLET_ROW_CLASSNAME,
+  BulletSquircle,
+} from "@/components/ui/tactile";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -275,15 +279,18 @@ export function ProfessionalProfileSnapshot({
                       {exp.startDate} – {exp.endDate ?? "Present"}
                     </p>
                   </div>
-                  <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-foreground/90">
+                  <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-foreground/90">
                     {exp.bullets.map((bullet) => (
-                      <li key={bullet.id}>
-                        {bullet.rawText}
-                        {bullet.hasMetric ? (
-                          <Badge variant="outline" className="ml-2 align-middle">
-                            metric
-                          </Badge>
-                        ) : null}
+                      <li key={bullet.id} className={BULLET_ROW_CLASSNAME}>
+                        <BulletSquircle />
+                        <span className="min-w-0 flex-1">
+                          {bullet.rawText}
+                          {bullet.hasMetric ? (
+                            <Badge variant="outline" className="ml-2 align-middle">
+                              metric
+                            </Badge>
+                          ) : null}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -314,9 +321,12 @@ export function ProfessionalProfileSnapshot({
                       {exp.category} · {exp.startDate} – {exp.endDate ?? "Present"}
                     </p>
                   </div>
-                  <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed">
+                  <ul className="mt-2 space-y-1.5 text-sm leading-relaxed">
                     {exp.bullets.map((bullet) => (
-                      <li key={bullet.id}>{bullet.rawText}</li>
+                      <li key={bullet.id} className={BULLET_ROW_CLASSNAME}>
+                        <BulletSquircle />
+                        <span className="min-w-0 flex-1">{bullet.rawText}</span>
+                      </li>
                     ))}
                   </ul>
                 </li>
@@ -354,9 +364,12 @@ export function ProfessionalProfileSnapshot({
                     </div>
                   ) : null}
                   {project.bullets.length > 0 ? (
-                    <ul className="mt-2 list-disc space-y-1 pl-5 text-foreground/90">
+                    <ul className="mt-2 space-y-1 text-foreground/90">
                       {project.bullets.map((bullet) => (
-                        <li key={bullet}>{bullet}</li>
+                        <li key={bullet} className={BULLET_ROW_CLASSNAME}>
+                          <BulletSquircle />
+                          <span className="min-w-0 flex-1">{bullet}</span>
+                        </li>
                       ))}
                     </ul>
                   ) : null}
