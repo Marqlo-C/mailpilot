@@ -19,9 +19,9 @@ import { cn } from "@/lib/utils";
 
 /** Shared segmented tab rail used on Job Radar and Subscriptions. */
 
-/** Desktop: rail sits in the logo band so its bottom meets the sidebar separator. */
+/** Sits in normal flow under the same top inset as the sidebar mark. */
 export const tabRailRowClassName =
-  "mb-3 flex flex-col justify-between gap-3 pt-2 sm:flex-row sm:items-center md:-mt-[4.25rem] md:h-[4.25rem] md:items-end md:pt-0";
+  "mb-4 flex flex-wrap items-center justify-between gap-3";
 
 /** Light rail — upstream gray track, white active tab. */
 export const lightRailListClassName =

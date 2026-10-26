@@ -119,7 +119,7 @@ export function Wordmark({
  * Sidebar brand: icon-only when collapsed; plane + white wordmark when expanded.
  * Heights are optically matched — each asset has different canvas padding, so the
  * plane is scaled up in a fixed squircle tile and the wordmark is rendered oversized
- * inside a clipped h-9 band so letter cap-height aligns with the plane.
+ * inside a clipped h-8 band so letter cap-height aligns with the plane.
  */
 export function NavLogo({
   collapsed = false,
@@ -129,13 +129,13 @@ export function NavLogo({
   className?: string;
 }) {
   const planeTile = (
-    <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[22%]">
+    <span className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[22%]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={SRC.inverted}
         alt=""
-        width={36}
-        height={36}
+        width={32}
+        height={32}
         decoding="async"
         fetchPriority="high"
         aria-hidden
@@ -167,16 +167,16 @@ export function NavLogo({
       <span className="hidden items-center gap-[7.5px] lg:inline-flex">
         {planeTile}
 
-        <span className="relative flex h-9 shrink-0 items-center overflow-hidden">
+        <span className="relative flex h-8 shrink-0 items-center overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={WHITE_WORDMARK_SRC}
             alt=""
             width={180}
-            height={76}
+            height={68}
             decoding="async"
             fetchPriority="high"
-            className="pointer-events-none h-[76px] w-auto max-w-none object-contain"
+            className="pointer-events-none h-[68px] w-auto max-w-none object-contain"
           />
         </span>
       </span>

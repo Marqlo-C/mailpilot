@@ -28,7 +28,10 @@ import {
   RailPreferencesCard,
   TogglePreferencesCard,
 } from "@/components/settings/ui";
-import { useTabRailClasses } from "@/components/ui/tactile/segmented-tabs";
+import {
+  tabRailRowClassName,
+  useTabRailClasses,
+} from "@/components/ui/tactile/segmented-tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AccountSummary } from "@/lib/data";
 import type { AccountRules } from "@/lib/validations/rules";
@@ -56,9 +59,9 @@ type SettingsViewProps = {
 };
 
 /**
- * Settings shell: keeps the page heading outside, then uses the same
- * segmented tab rail as Job Radar / Subscriptions to group existing cards.
- * Tabs use forceMount so AI bridge state stays alive across switches.
+ * Settings shell. The segmented tab rail is the first element, matching
+ * Job Radar and Subscriptions. Tabs use forceMount so AI bridge state
+ * stays alive across switches.
  */
 export function SettingsView({
   accounts,
@@ -87,18 +90,11 @@ export function SettingsView({
   }
 
   return (
-    <div className="space-y-4">
-      {errorBanner ? (
-        <div className="rounded-lg border border-destructive/30 bg-card/80 px-4 py-3 text-sm text-destructive shadow-sm backdrop-blur-sm">
-          OAuth error: {errorBanner}
-        </div>
-      ) : null}
-
       <Tabs
         value={tab}
         onValueChange={(value) => setTab(value as SettingsTab)}
       >
-        <div className="mb-1.5 flex flex-col gap-2 pt-1 md:pt-0 sm:flex-row sm:items-center sm:justify-between">
+        <div className={tabRailRowClassName}>
           <TabsList className={segmentedTabsListClassName}>
             <TabsTrigger
               value="accounts"
@@ -170,6 +166,12 @@ export function SettingsView({
             </div>
           ) : null}
         </div>
+
+        {errorBanner ? (
+          <div className="mb-4 rounded-lg border border-destructive/30 bg-card/80 px-4 py-3 text-sm text-destructive shadow-sm backdrop-blur-sm">
+            OAuth error: {errorBanner}
+          </div>
+        ) : null}
 
         <TabsContent
           value="accounts"
@@ -265,6 +267,5 @@ export function SettingsView({
           <TogglePreferencesCard accountId={activeAccountId} />
         </TabsContent>
       </Tabs>
-    </div>
   );
 }

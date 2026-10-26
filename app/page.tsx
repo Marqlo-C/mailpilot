@@ -125,8 +125,8 @@ export default async function ConsolePage() {
 
   return (
     <div className="space-y-6">
-      <div className="md:-mt-[4.25rem] md:pt-[calc(4.25rem-2.375rem)]">
-        <div className="flex flex-col justify-end gap-3 pt-2 sm:flex-row sm:items-end sm:justify-between md:pt-0">
+      <div>
+        <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between md:pt-0">
           <h1>
             <span className="sr-only">MailPilot</span>
             <span className="inline-flex h-[78px] max-w-[min(100%,27rem)] items-center overflow-hidden rounded-[32%/42%] md:max-w-[33rem]">
