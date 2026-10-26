@@ -21,29 +21,18 @@ export default async function SettingsPage({
     profileResult.ok && profileResult.data ? profileResult.data : null;
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col justify-end pb-2 pl-0.5 md:pb-0 md:-mt-[4.25rem] md:h-[4.25rem]">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Settings
-        </h1>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Accounts, automation, AI routing, and your master resume profile.
-        </p>
-      </div>
-
-      <SettingsView
-        accounts={accounts}
-        activeAccountId={active?.id ?? null}
-        activeEmail={active?.email ?? null}
-        profile={profile}
-        rules={active?.rules ?? DEFAULT_ACCOUNT_RULES}
-        matchThreshold={active?.matchThreshold ?? profile?.matchThreshold}
-        llmProvider={active?.settings?.llmProvider ?? "OPENROUTER"}
-        localOllamaUrl={active?.settings?.localOllamaUrl ?? ""}
-        ollamaModel={active?.settings?.ollamaModel ?? "llama3.1:8b"}
-        isDev={process.env.NODE_ENV === "development"}
-        errorBanner={params.error ?? null}
-      />
-    </div>
+    <SettingsView
+      accounts={accounts}
+      activeAccountId={active?.id ?? null}
+      activeEmail={active?.email ?? null}
+      profile={profile}
+      rules={active?.rules ?? DEFAULT_ACCOUNT_RULES}
+      matchThreshold={active?.matchThreshold ?? profile?.matchThreshold}
+      llmProvider={active?.settings?.llmProvider ?? "OPENROUTER"}
+      localOllamaUrl={active?.settings?.localOllamaUrl ?? ""}
+      ollamaModel={active?.settings?.ollamaModel ?? "llama3.1:8b"}
+      isDev={process.env.NODE_ENV === "development"}
+      errorBanner={params.error ?? null}
+    />
   );
 }

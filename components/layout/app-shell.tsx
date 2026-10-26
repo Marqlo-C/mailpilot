@@ -32,14 +32,30 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: Cog },
 ] as const;
 
-/** Shared height so sidebar brand divider meets the main top-bar bottom edge. */
+/** Mobile top bar. Desktop pages no longer share this band. */
 const SHELL_TOP_BAND_CLASS = "flex h-[4.25rem] shrink-0 items-center";
 
 /**
- * First nav item (Console) aligns with the Job Radar / Subscriptions toolbar.
- * The tab rail fills the 4.25rem logo band; `mb-3` (12px) sits under it → `pt-3`.
+ * `py-3` matches the collapsed horizontal inset. The h-8 mark then sits
+ * with its center 28px from the top of the sidebar.
  */
-const SHELL_NAV_CLASS = "flex flex-1 flex-col gap-1 px-3 pb-3 pt-3";
+const SHELL_BRAND_ROW_CLASS = "flex items-center px-3 py-3";
+
+/**
+ * Desktop main inset that centers the 38px tab rail on that same line.
+ * 28px − 19px = 9px.
+ */
+const SHELL_MAIN_CLASS =
+  "mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-6 md:px-6 md:pb-8 md:pt-[9px]";
+
+/** Compact gap under the hairline before Console. */
+const SHELL_NAV_CLASS = "relative z-10 flex flex-1 flex-col gap-1 px-3 pb-3 pt-3";
+
+/**
+ * Directional micro-emboss. Diffuse light on fractal noise keeps the black
+ * base and only lifts the stipple. Stays under brand, nav, and account controls.
+ */
+const SIDEBAR_NOISE_BACKGROUND = `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='stipple' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23ffffff' surfaceScale='1.2' result='light'%3E%3CfeDistantLight azimuth='65' elevation='55'/%3E%3C/feDiffuseLighting%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='0.7' intercept='-0.1'/%3E%3CfeFuncG type='linear' slope='0.7' intercept='-0.1'/%3E%3CfeFuncB type='linear' slope='0.7' intercept='-0.1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23stipple)'/%3E%3C/svg%3E")`;
 
 type AppShellProps = {
   accounts: AccountSummary[];
@@ -120,14 +136,33 @@ export function AppShell({
           toggleSidebar();
         }}
       >
+        {/* Physical tactile matte micro-stippling */}
         <div
-          className={cn(
-            SHELL_TOP_BAND_CLASS,
-            "gap-2 border-b border-white/10 px-4",
-            collapsed && "justify-center px-2"
-          )}
-        >
-          <NavLogo collapsed={collapsed} />
+          className="pointer-events-none absolute inset-0 z-0 overflow-hidden opacity-40 mix-blend-overlay"
+          style={{
+            backgroundImage: SIDEBAR_NOISE_BACKGROUND,
+            backgroundRepeat: "repeat",
+          }}
+          aria-hidden="true"
+        />
+        <div className="relative z-10 shrink-0">
+          <div
+            className={cn(
+              SHELL_BRAND_ROW_CLASS,
+              collapsed && "justify-center"
+            )}
+          >
+            <Link
+              href="/jobs"
+              className="inline-flex items-center rounded-lg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <NavLogo collapsed={collapsed} />
+            </Link>
+          </div>
+          <div
+            className="mx-3 border-b border-white/[0.06] dark:border-white/[0.06]"
+            aria-hidden="true"
+          />
         </div>
 
         <nav className={SHELL_NAV_CLASS}>
@@ -143,7 +178,7 @@ export function AppShell({
               <div
                 key={item.href}
                 className={cn(
-                  "flex w-full items-center rounded-md text-sm transition-colors",
+                  "flex w-full items-center rounded-md text-[13px] font-medium transition-colors",
                   showCollapsedStatus && "justify-center",
                   active
                     ? "bg-white/10 text-white"
@@ -176,7 +211,7 @@ export function AppShell({
                   href={item.href}
                   title={item.label}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2",
+                    "flex items-center gap-3 px-2.5 py-1.5",
                     collapsed && !showCollapsedStatus && "w-full justify-center px-2",
                     showCollapsedStatus && "px-2",
                     !collapsed && !showJobRadarStatus && "w-full",
@@ -200,7 +235,7 @@ export function AppShell({
                 </Link>
                 {showCollapsedStatus ? (
                   <div
-                    className="absolute left-[calc(0.5rem+1rem)] top-[calc(0.5rem-0.375rem)] z-[120] h-1.5 w-1.5"
+                    className="absolute left-[calc(0.5rem+1rem)] top-0 z-[120] h-1.5 w-1.5"
                     onPointerEnter={() => setStatusFlyout(true)}
                     onClick={(event) => event.stopPropagation()}
                   >
@@ -260,7 +295,7 @@ export function AppShell({
 
         <div
           className={cn(
-            "space-y-2 border-t border-white/10 p-3",
+            "relative z-10 space-y-2 border-t border-white/10 p-3",
             collapsed && "flex flex-col items-center px-2"
           )}
         >
@@ -327,7 +362,7 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-6 md:px-6 md:pb-8 md:pt-[4.25rem]">
+        <main className={SHELL_MAIN_CLASS}>
           {children}
         </main>
       </div>
