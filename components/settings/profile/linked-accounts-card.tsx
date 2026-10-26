@@ -2,18 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Building2,
-  Briefcase,
-  FolderGit2,
-  Globe,
-  GraduationCap,
-  Handshake,
-  type LucideIcon,
-} from "lucide-react";
 import { toast } from "sonner";
 
 import { updateLinkedAccounts } from "@/app/actions/profile";
+import {
+  LINKED_ACCOUNT_FIELDS,
+  LinkStatusPill,
+  PlatformMark,
+} from "@/components/settings/profile/platform-mark";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -31,50 +27,6 @@ type LinkedAccountsCardProps = {
   hasProfile: boolean;
   values: LinkedAccountsInput;
 };
-
-const FIELDS: Array<{
-  key: keyof LinkedAccountsInput;
-  label: string;
-  placeholder: string;
-  icon: LucideIcon;
-}> = [
-  {
-    key: "linkedWebsite",
-    label: "Personal Website / Portfolio",
-    placeholder: "https://marqlo-c.github.io or https://yourportfolio.com",
-    icon: Globe,
-  },
-  {
-    key: "linkedLinkedin",
-    label: "LinkedIn",
-    placeholder: "https://www.linkedin.com/in/your-profile",
-    icon: Briefcase,
-  },
-  {
-    key: "linkedGithub",
-    label: "GitHub",
-    placeholder: "https://github.com/your-username",
-    icon: FolderGit2,
-  },
-  {
-    key: "linkedIndeed",
-    label: "Indeed",
-    placeholder: "https://profile.indeed.com/p/your-profile",
-    icon: Building2,
-  },
-  {
-    key: "linkedGlassdoor",
-    label: "Glassdoor",
-    placeholder: "https://www.glassdoor.com/member/profile/index.htm",
-    icon: GraduationCap,
-  },
-  {
-    key: "linkedHandshake",
-    label: "Handshake",
-    placeholder: "https://app.joinhandshake.com/profiles/your-id",
-    icon: Handshake,
-  },
-];
 
 export function LinkedAccountsCard({
   accountId,
@@ -138,37 +90,44 @@ export function LinkedAccountsCard({
           </p>
         ) : null}
 
-        <ul className="space-y-3">
-          {FIELDS.map(({ key, label, placeholder, icon: Icon }) => (
-            <li
-              key={key}
-              className="flex items-start gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-2.5"
-            >
-              <span className="mt-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                <Icon className="h-4 w-4" aria-hidden />
-              </span>
-              <div className="min-w-0 flex-1 space-y-1.5">
-                <Label
-                  htmlFor={key}
-                  className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
-                >
-                  {label}
-                </Label>
-                <Input
-                  id={key}
-                  type="url"
-                  inputMode="url"
-                  placeholder={placeholder}
-                  value={form[key]}
-                  disabled={disabled}
-                  className="h-9 border-border/80 bg-muted/40 text-sm placeholder:text-muted-foreground/70"
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, [key]: e.target.value }))
-                  }
-                />
-              </div>
-            </li>
-          ))}
+        <ul className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+          {LINKED_ACCOUNT_FIELDS.map(({ key, label, iconSrc, iconSize }) => {
+            const url = form[key];
+            const linked = url.trim().length > 0;
+            return (
+              <li
+                key={key}
+                className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card p-3"
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <PlatformMark name={label} src={iconSrc} iconSize={iconSize} />
+                  <div className="min-w-0 flex-1">
+                    <h5 className="truncate text-xs font-semibold text-foreground">
+                      <Label
+                        htmlFor={key}
+                        className="text-xs font-semibold text-foreground"
+                      >
+                        {label}
+                      </Label>
+                    </h5>
+                    <Input
+                      id={key}
+                      type="url"
+                      inputMode="url"
+                      placeholder="Not linked"
+                      value={url}
+                      disabled={disabled}
+                      className="h-auto border-0 bg-transparent px-0 py-0 text-[11px] text-muted-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-0"
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, [key]: e.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+                <LinkStatusPill linked={linked} />
+              </li>
+            );
+          })}
         </ul>
 
         {error && <p className="text-sm text-destructive">{error}</p>}
