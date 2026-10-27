@@ -64,6 +64,7 @@ export function MeterPreferencesCard({
       <div className="space-y-4">
         <div
           className={listClassName}
+          data-mp-tab-rail=""
           role="radiogroup"
           aria-label="Usage meters style"
         >

@@ -32,9 +32,13 @@
     --sidebar: 210 24% 12%;
     --sidebar-foreground: 40 20% 96%;
     --sidebar-muted: 210 14% 28%;
-    /* Light rail: tint of --sidebar. Dark rail: primary button shell (#181e26). */
-    --tab-rail-light: 210 16% 84%;
-    --tab-rail-dark: 214 23% 12%;
+    /* Light rail sits above the page (90%): near-white track, white selected chip. */
+    --tab-rail-light: 210 20% 97%;
+    --tab-rail-light-highlight: 210 14% 91%;
+    /* #181e26. Shared by the sidebar and the dark tab rail. */
+    --sidebar-panel: 214 12% 13%;
+    /* Selected page and dark tab. A lift of the same navy. */
+    --sidebar-highlight: 214 18% 22%;
     --tab-rail-chip: 210 14% 80%;
   }
 }
@@ -73,6 +77,25 @@ body,
       transparent 100%
     );
   background-attachment: fixed;
+}
+
+/* Saved dark rail, applied before React reads localStorage so reload does not paint light. */
+html[data-mp-tab-rail="dark"] [data-mp-tab-rail] {
+  background-color: hsl(var(--sidebar-panel)) !important;
+  color: #e4f7f3 !important;
+  border-color: rgb(255 255 255 / 0.1) !important;
+}
+html[data-mp-tab-rail="dark"] [data-mp-tab-rail] [data-state="active"] {
+  background-color: hsl(var(--sidebar-highlight)) !important;
+  color: #e4f7f3 !important;
+}
+html[data-mp-tab-rail="dark"] [data-mp-tab-rail] [data-state="inactive"] {
+  color: rgb(228 247 243 / 0.6) !important;
+}
+html[data-mp-rail-action="dark"] [data-mp-rail-action] {
+  background-color: rgb(24 30 38 / 0.85) !important;
+  color: #e4f7f3 !important;
+  border-color: #181e26 !important;
 }
 
 /* Shared scroll-edge fade. Same length at the bar's underside and the list's bottom. */

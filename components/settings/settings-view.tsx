@@ -20,12 +20,13 @@ import {
   type ProfileSnapshotData,
 } from "@/components/settings/profile";
 import {
-  BOXY_ACTION_BTN_SECONDARY,
   BOXY_ACTION_BTN_DESTRUCTIVE,
 } from "@/components/settings/settings-chrome";
+import { useRailActionClass } from "@/components/ui/rail-action";
 import {
   MeterPreferencesCard,
   RailPreferencesCard,
+  RailActionPreferencesCard,
   TogglePreferencesCard,
 } from "@/components/settings/ui";
 import {
@@ -81,6 +82,7 @@ export function SettingsView({
     listClassName: segmentedTabsListClassName,
     triggerClassName: segmentedTabsTriggerClassName,
   } = useTabRailClasses();
+  const railActionClass = useRailActionClass();
 
   useLayoutEffect(() => {
     const next = peekSidebarPageTab(
@@ -110,7 +112,7 @@ export function SettingsView({
         <CommandDeckFrame
           rail={
         <div className={tabRailRowClassName}>
-          <TabsList className={segmentedTabsListClassName}>
+          <TabsList className={segmentedTabsListClassName} data-mp-tab-rail="">
             {SETTINGS_PAGE_TABS.map((item) => (
               <TabsTrigger
                 key={item.value}
@@ -128,13 +130,15 @@ export function SettingsView({
               {profile ? (
                 <ExportMasterProfileButton
                   accountId={activeAccountId}
-                  className={BOXY_ACTION_BTN_SECONDARY}
+                  className={railActionClass}
+                  railAction
                 />
               ) : null}
               <ResumeUploadDialog
                 accountId={activeAccountId}
                 triggerLabel="Import Resume"
-                triggerClassName={BOXY_ACTION_BTN_SECONDARY}
+                triggerClassName={railActionClass}
+                railAction
               />
             </div>
           ) : null}
@@ -143,7 +147,8 @@ export function SettingsView({
             <div className="flex flex-wrap items-center gap-2">
               <a
                 href="/api/auth/google?intent=link"
-                className={BOXY_ACTION_BTN_SECONDARY}
+                className={railActionClass}
+                data-mp-rail-action=""
               >
                 <PlusCircle className="size-3.5 shrink-0" />
                 Add Gmail Account
@@ -259,6 +264,7 @@ export function SettingsView({
           className="mt-0 space-y-4 data-[state=inactive]:hidden"
         >
           <RailPreferencesCard />
+          <RailActionPreferencesCard />
           <MeterPreferencesCard accountId={activeAccountId} />
           <TogglePreferencesCard accountId={activeAccountId} />
         </TabsContent>

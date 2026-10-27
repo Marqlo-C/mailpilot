@@ -7,6 +7,7 @@
  * ============================================================================
  */
 
+import { PRIMARY_ACTION_SURFACE_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { cn } from "@/lib/utils";
 
 /** Base geometry matching the tab rail height and standard telemetry & sync icons. */
@@ -14,13 +15,25 @@ export const BOXY_ACTION_BTN_BASE =
   "inline-flex items-center justify-center h-8 px-3.5 text-xs font-medium rounded-lg border gap-2 shadow-md transition-colors shrink-0 cursor-pointer disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-3.5 [&_svg]:shrink-0";
 
 /**
- * Secondary variant: Clean border, card surface, hover states
- * (matches the exact color, surface, shadow, and hover accent tone of the Sync Inbox button).
+ * Secondary variant: clean border and card surface.
+ * Dark variant uses the Disconnect primary surface: #181e26 shell, mint label.
  */
+export const RAIL_ACTION_SURFACE_LIGHT =
+  "border-input bg-card text-foreground hover:bg-accent hover:text-accent-foreground";
+
+export const RAIL_ACTION_SURFACE_DARK = PRIMARY_ACTION_SURFACE_CLASSNAME;
+
 export const BOXY_ACTION_BTN_SECONDARY = cn(
   BOXY_ACTION_BTN_BASE,
-  "border-input bg-card text-foreground shadow-md hover:bg-accent hover:text-accent-foreground"
+  RAIL_ACTION_SURFACE_LIGHT
 );
+
+export function railActionSecondaryClass(variant: "light" | "dark"): string {
+  return cn(
+    BOXY_ACTION_BTN_BASE,
+    variant === "dark" ? RAIL_ACTION_SURFACE_DARK : RAIL_ACTION_SURFACE_LIGHT
+  );
+}
 
 /**
  * Primary variant: Solid dark/brand shell fill for primary CTAs (e.g. Link Gmail Account).

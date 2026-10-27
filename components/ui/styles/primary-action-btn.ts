@@ -27,13 +27,18 @@ const PRIMARY_FILLED_LAYOUT =
 const FLYOUT_TEXT_LAYOUT =
   "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50";
 
-export const PRIMARY_ACTION_BTN_CLASSNAME = [
-  PRIMARY_FILLED_LAYOUT,
+/** Fill, edge, and label shared with Disconnect and other filled primary actions. */
+export const PRIMARY_ACTION_SURFACE_CLASSNAME = [
   PRIMARY_ACTION_TONE.shellBorder,
   PRIMARY_ACTION_TONE.shellBg,
   PRIMARY_ACTION_TONE.label,
   PRIMARY_ACTION_TONE.shellHoverBg,
   PRIMARY_ACTION_TONE.labelHover,
+].join(" ");
+
+export const PRIMARY_ACTION_BTN_CLASSNAME = [
+  PRIMARY_FILLED_LAYOUT,
+  PRIMARY_ACTION_SURFACE_CLASSNAME,
 ].join(" ");
 
 /** Mint text chip for bulk flyout — linked to {@link PRIMARY_ACTION_BTN_CLASSNAME}. */

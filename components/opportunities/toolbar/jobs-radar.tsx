@@ -353,7 +353,7 @@ export function JobsRadar({
           rail={
         <div className={cn(tabRailRowClassName, "mb-0")}>
           <div className="flex items-center gap-1.5">
-            <TabsList className={segmentedTabsListClassName}>
+            <TabsList className={segmentedTabsListClassName} data-mp-tab-rail="">
               <TabsTrigger
                 value="leads"
                 data-dnd-drop-zone="leads"

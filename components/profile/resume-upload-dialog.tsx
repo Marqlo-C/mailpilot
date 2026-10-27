@@ -54,6 +54,8 @@ type ResumeUploadDialogProps = {
   initialProfile?: MasterProfileInput | null;
   triggerVariant?: "outline" | "secondary" | "default";
   triggerClassName?: string;
+  /** Marks the trigger so a saved dark plate can paint before hydration. */
+  railAction?: boolean;
 };
 
 export function ResumeUploadDialog({
@@ -62,6 +64,7 @@ export function ResumeUploadDialog({
   initialProfile = null,
   triggerVariant = "outline",
   triggerClassName,
+  railAction = false,
 }: ResumeUploadDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -194,6 +197,7 @@ export function ResumeUploadDialog({
           variant={triggerVariant}
           size="sm"
           className={cn("gap-2 [&_svg]:size-3.5 [&_svg]:shrink-0", triggerClassName)}
+          data-mp-rail-action={railAction ? "" : undefined}
         >
           {editMode ? null : <CloudUpload className="size-3.5 shrink-0" />}
           {triggerLabel}

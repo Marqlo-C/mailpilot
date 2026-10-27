@@ -65,6 +65,7 @@ export function TogglePreferencesCard({
       <div className="space-y-4">
         <div
           className={listClassName}
+          data-mp-tab-rail=""
           role="radiogroup"
           aria-label="Toggle switches style"
         >

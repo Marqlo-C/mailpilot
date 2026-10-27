@@ -15,6 +15,7 @@ import {
   sidebarTabsForHref,
   type SidebarPageTab,
 } from "@/lib/navigation/page-tabs";
+import { darkPlateClassName, tabRailInactiveTextClassName } from "@/components/ui/tactile/segmented-tabs";
 import { cn } from "@/lib/utils";
 
 export const SIDEBAR_NAV = [
@@ -29,7 +30,7 @@ const SHELL_NAV_CLASS =
   "relative z-10 flex flex-1 flex-col gap-1 px-3 pb-3 pt-3";
 
 /** Brief pause so a fly-by doesn't open the menu. */
-const FLYOUT_OPEN_DELAY_MS = 150;
+const FLYOUT_OPEN_DELAY_MS = 500;
 const FLYOUT_CLOSE_DELAY_MS = 80;
 
 /** `px-3` on the nav. Expanded rows end this far inside the sidebar edge. */
@@ -120,6 +121,11 @@ export function SidebarNav({
       className={SHELL_NAV_CLASS}
       onClick={(event) => event.stopPropagation()}
     >
+      {!collapsed ? (
+        <span className="select-none px-3 pb-1.5 pt-1 text-[10px] font-semibold tracking-wider text-stone-500">
+          Main
+        </span>
+      ) : null}
       {SIDEBAR_NAV.map((item) => {
         const active = isNavActive(pathname, item.href);
         const tabs = sidebarTabsForHref(item.href);
@@ -163,11 +169,17 @@ export function SidebarNav({
                   ? "mx-auto size-9 shrink-0 items-center justify-center"
                   : "h-9 w-full items-center",
                 active
-                  ? "bg-white/[0.05] text-white hover:bg-white/[0.07]"
-                  : "text-stone-400 hover:bg-white/[0.035] hover:text-stone-200",
-                open && "bg-white/[0.08] text-white"
+                  ? "bg-[hsl(var(--sidebar-highlight))] text-[#e4f7f3] hover:bg-[hsl(var(--sidebar-highlight))]"
+                  : "hover:bg-white/10",
+                open && "bg-white/10"
               )}
             >
+              {active && !collapsed ? (
+                <span
+                  className="absolute -right-2 bottom-1.5 top-1.5 w-[3px] rounded-l-full bg-[#1ab5af] shadow-[-2px_0_6px_rgba(26,181,175,0.35)]"
+                  aria-hidden="true"
+                />
+              ) : null}
               <div
                 className={cn(
                   "flex items-center",
@@ -209,10 +221,10 @@ export function SidebarNav({
                       className={cn(
                         "size-4 shrink-0 transition-colors",
                         active
-                          ? "text-teal-400"
+                          ? "text-[#1ab5af]"
                           : open
-                            ? "text-white"
-                            : "text-stone-400/80 group-hover/nav:text-stone-200"
+                            ? "text-[#e4f7f3]"
+                            : "text-[#e4f7f3]/60 group-hover/nav:text-[#e4f7f3]"
                       )}
                     />
                     {showCollapsedStatus ? (
@@ -247,8 +259,11 @@ export function SidebarNav({
                       className={cn(
                         "whitespace-nowrap text-[13px] font-medium tracking-normal",
                         active
-                          ? "text-white"
-                          : "text-stone-400/80 group-hover/nav:text-stone-200"
+                          ? "font-semibold text-[#e4f7f3]"
+                          : cn(
+                              tabRailInactiveTextClassName.dark,
+                              "group-hover/nav:text-[#e4f7f3]"
+                            )
                       )}
                     >
                       {item.label}
@@ -342,7 +357,12 @@ function TabFlyout({
       }}
     >
       <div className="absolute inset-y-0 right-full" style={{ width: edge }} />
-      <div className="flex min-w-[9.5rem] flex-col gap-1 rounded-2xl border border-white/10 bg-[hsl(var(--sidebar))] p-1.5 shadow-2xl shadow-black/50">
+      <div
+        className={cn(
+          "flex w-max flex-col gap-1 rounded-2xl p-1.5",
+          darkPlateClassName
+        )}
+      >
         {tabs.map((tab) => (
           <Link
             key={tab.value}
@@ -351,7 +371,7 @@ function TabFlyout({
               rememberSidebarPageTab(href, tab.value);
               onPick();
             }}
-            className="flex h-9 items-center whitespace-nowrap rounded-xl px-3 text-[13px] font-medium tracking-normal text-stone-400/80 transition-colors duration-150 hover:bg-white/[0.035] hover:text-stone-200"
+            className="flex h-9 items-center whitespace-nowrap rounded-xl px-3 text-[13px] font-medium tracking-normal text-[#e4f7f3]/60 transition-colors duration-150 hover:bg-white/10 hover:text-[#e4f7f3]"
           >
             {tab.label}
           </Link>
