@@ -430,7 +430,7 @@ export function MasterProfileCard({
                 <SectionCountPill count={LINKED_ACCOUNT_FIELDS.length}>
                   <span>
                     {LINKED_ACCOUNT_FIELDS.length}{" "}
-                    {LINKED_ACCOUNT_FIELDS.length === 1 ? "Site" : "Sites"}
+                    {Number(LINKED_ACCOUNT_FIELDS.length) === 1 ? "Site" : "Sites"}
                   </span>
                   <span
                     aria-hidden="true"

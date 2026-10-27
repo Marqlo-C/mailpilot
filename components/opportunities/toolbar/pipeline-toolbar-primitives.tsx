@@ -2,11 +2,13 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ComponentPropsWithoutRef,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Layers, ListFilter, Mic, Search, X } from "lucide-react";
 
 import { SELECT_CHECKBOX_CLASSNAME } from "@/components/ui/styles/select-checkbox";
@@ -274,7 +276,13 @@ export function ToolbarSearch({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [listening, setListening] = useState(false);
+  const [panelBox, setPanelBox] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const onSearchChangeRef = useRef(onSearchChange);
   const hasFilters = Boolean(children);
@@ -302,9 +310,11 @@ export function ToolbarSearch({
     if (!filtersOpen) return;
 
     function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setFiltersOpen(false);
-      }
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (rootRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setFiltersOpen(false);
     }
 
     function onKeyDown(event: KeyboardEvent) {
@@ -318,6 +328,43 @@ export function ToolbarSearch({
     return () => {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [filtersOpen]);
+
+  // The deck fade is a mask on the sticky bar, so an in-bar panel is clipped.
+  // Measure the field and paint the panel on document.body instead.
+  useLayoutEffect(() => {
+    if (!filtersOpen) return;
+    const node = rootRef.current;
+    if (!node) return;
+
+    function measure() {
+      const rect = node!.getBoundingClientRect();
+      const next = {
+        top: rect.bottom + 6,
+        left: rect.left,
+        width: rect.width,
+      };
+      setPanelBox((prev) =>
+        prev &&
+        prev.top === next.top &&
+        prev.left === next.left &&
+        prev.width === next.width
+          ? prev
+          : next
+      );
+    }
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    window.addEventListener("scroll", measure, true);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", measure, true);
+      window.removeEventListener("resize", measure);
+      setPanelBox(null);
     };
   }, [filtersOpen]);
 
@@ -459,15 +506,27 @@ export function ToolbarSearch({
           ) : null}
         </div>
       </div>
-      {hasFilters && filtersOpen ? (
-        <div
-          role="region"
-          aria-label="Filter and sort"
-          className="absolute inset-x-0 top-[calc(100%+0.35rem)] z-50 flex flex-col gap-2.5 rounded-lg border border-border/50 bg-card p-2.5 shadow-md sm:flex-row sm:flex-wrap sm:items-end"
-        >
-          {children}
-        </div>
-      ) : null}
+      {hasFilters && filtersOpen && panelBox
+        ? createPortal(
+            <div
+              ref={panelRef}
+              role="region"
+              aria-label="Filter and sort"
+              data-filter-panel
+              data-dnd-ignore
+              className="z-50 flex flex-col gap-2.5 rounded-lg border border-border/50 bg-card p-2.5 shadow-md sm:flex-row sm:flex-wrap sm:items-end"
+              style={{
+                position: "fixed",
+                top: panelBox.top,
+                left: panelBox.left,
+                width: panelBox.width,
+              }}
+            >
+              {children}
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

@@ -12,7 +12,8 @@ import { useEffect, useState } from "react";
 import { Logo, NavLogo } from "@/components/brand/logo";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { GlobalSyncTracker } from "@/components/layout/global-sync-tracker";
-import { SidebarNav, SIDEBAR_NAV } from "@/components/layout/sidebar-nav";
+import { SidebarNav, SIDEBAR_NAV, SIDEBAR_PRIMARY_NAV, SIDEBAR_SETTINGS_NAV } from "@/components/layout/sidebar-nav";
+import { SidebarQuickActions } from "@/components/layout/sidebar-quick-actions";
 import { SyncStatusProvider } from "@/components/layout/sync-status-provider";
 import { TabRailProvider, darkPlateClassName } from "@/components/ui/tactile/segmented-tabs";
 import { RailActionProvider } from "@/components/ui/rail-action";
@@ -28,6 +29,8 @@ const SHELL_TOP_BAND_CLASS = "flex h-[4.25rem] shrink-0 items-center";
  * with its center 28px from the top of the sidebar.
  */
 const SHELL_BRAND_ROW_CLASS = "flex items-center px-3 py-3";
+
+const SHELL_HAIRLINE_CLASS = "mx-3 border-b border-white/[0.06]";
 
 /**
  * Desktop top padding is canceled by the command deck. The deck then
@@ -56,8 +59,8 @@ export function AppShell({
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const toggleSidebar = () => setCollapsed((open) => !open);
-  /** Desktop sidebar widths: expanded w-60 (240px), collapsed w-[72px]. */
-  const sidebarWidthPx = collapsed ? 72 : 240;
+  /** Desktop sidebar widths: expanded w-60 (240px), collapsed w-[64px]. */
+  const sidebarWidthPx = collapsed ? 64 : 240;
   /** Left float inset (ml equivalent). Content centering starts after this gap. */
   const sidebarOffsetPx = sidebarWidthPx + 6;
 
@@ -101,7 +104,7 @@ export function AppShell({
         className={cn(
           "sticky top-1.5 z-40 hidden h-[calc(100dvh-0.75rem)] shrink-0 cursor-pointer flex-col rounded-2xl text-[hsl(var(--sidebar-foreground))] transition-[width] duration-200 md:flex",
           darkPlateClassName,
-          collapsed ? "w-[72px]" : "w-60"
+          collapsed ? "w-[64px]" : "w-60"
         )}
         onClick={(event) => {
           const target = event.target;
@@ -159,16 +162,30 @@ export function AppShell({
               </button>
             </div>
           )}
-          <div
-            className="mx-3 border-b border-white/[0.06]"
-            aria-hidden="true"
-          />
+          <div className={SHELL_HAIRLINE_CLASS} aria-hidden="true" />
         </div>
 
-        <SidebarNav
-          collapsed={collapsed}
-          activeAccountId={activeAccountId}
-        />
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+          <SidebarNav
+            collapsed={collapsed}
+            activeAccountId={activeAccountId}
+            items={SIDEBAR_PRIMARY_NAV}
+            title="Navigation"
+          />
+          <div className={SHELL_HAIRLINE_CLASS} aria-hidden="true" />
+          <SidebarQuickActions
+            collapsed={collapsed}
+            accountId={activeAccountId}
+          />
+          <div className={SHELL_HAIRLINE_CLASS} aria-hidden="true" />
+          <SidebarNav
+            collapsed={collapsed}
+            activeAccountId={activeAccountId}
+            items={SIDEBAR_SETTINGS_NAV}
+            className="pb-2 pt-2"
+          />
+          <div className="min-h-2 flex-1" />
+        </div>
 
         <div className="relative z-10 border-t border-white/[0.06] px-2 pb-2.5 pt-2">
           <AccountSwitcher
