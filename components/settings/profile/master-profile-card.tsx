@@ -28,6 +28,7 @@ import {
   SlidableBadgeRow,
 } from "@/components/ui/tactile";
 import { ManualProfileEditor } from "@/components/profile/manual-profile-editor";
+import { PersonaViewer } from "@/components/profile/persona-viewer";
 import { ProfileRevisionsMenu } from "@/components/profile/profile-revisions-menu";
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
 import { Badge } from "@/components/ui/badge";
@@ -229,9 +230,7 @@ export function MasterProfileCard({
     if (!profile) return null;
     const explained = explainCandidatePersona(profile);
     const tier = profile.seniorityTier?.trim() || explained.seniorityTier;
-    const timeline = profile.timelineContext?.trim() || explained.timelineContext;
-    const tone = profile.toneGuidance?.trim() || explained.toneGuidance;
-    return { explained, tier, timeline, tone };
+    return { tier };
   }, [profile]);
 
   const linkedCount = useMemo(() => {
@@ -382,42 +381,7 @@ export function MasterProfileCard({
                 onToggle={() => toggleSection("persona")}
                 curvedDivider
               >
-                <div className="space-y-3.5 text-sm">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Seniority
-                    </p>
-                    <p className="mt-1 font-medium text-foreground">{personaInfo.tier}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Title family
-                    </p>
-                    <p className="mt-1 text-foreground">{personaInfo.explained.titleFamily}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Timeline
-                    </p>
-                    <p className="mt-1 leading-relaxed text-foreground/90">{personaInfo.timeline}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Tone and positioning
-                    </p>
-                    <p className="mt-1 leading-relaxed text-foreground/90">{personaInfo.tone}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      How this was decided
-                    </p>
-                    <ul className="mt-2 list-disc space-y-1.5 pl-5 leading-relaxed text-foreground/90">
-                      {personaInfo.explained.rationale.map((line) => (
-                        <li key={line}>{line}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
+                <PersonaViewer accountId={accountId} profile={profile} />
               </SettingsFeatureCard>
             )}
 

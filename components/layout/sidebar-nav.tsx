@@ -13,7 +13,12 @@ import {
   sidebarTabsForHref,
   type SidebarPageTab,
 } from "@/lib/navigation/page-tabs";
-import { darkPlateClassName, tabRailInactiveTextClassName } from "@/components/ui/tactile/segmented-tabs";
+import {
+  darkPlateClassName,
+  TabCountBadge,
+  tabRailInactiveTextClassName,
+} from "@/components/ui/tactile/segmented-tabs";
+import type { SidebarTabCounts } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
 export const SIDEBAR_NAV = [
@@ -51,7 +56,7 @@ const TELEMETRY_OPEN_DELAY_MS = 280;
 
 /** Same right-edge capsule as the active page mark. */
 const NAV_EDGE_MARK_CLASS =
-  "pointer-events-none absolute bottom-1.5 top-1.5 w-[3px] rounded-l-full";
+  "pointer-events-none absolute bottom-1.5 top-1.5 w-[3px] rounded-r-full";
 /** Full-width row: 8px past the row, 4px inside the sidebar edge. */
 const NAV_EDGE_MARK_EXPANDED = "-right-2";
 /**
@@ -66,15 +71,15 @@ function telemetryEdgeClass(
   pendingCount: number
 ): string {
   if (!connected) {
-    return "bg-white/70 shadow-[-2px_0_6px_rgba(255,255,255,0.35)]";
+    return "bg-white/70 shadow-[2px_0_6px_rgba(255,255,255,0.35)]";
   }
   if (syncing) {
-    return "bg-sky-300 shadow-[-2px_0_6px_rgba(125,211,252,0.35)]";
+    return "bg-sky-300 shadow-[2px_0_6px_rgba(125,211,252,0.35)]";
   }
   if (pendingCount > 0) {
-    return "bg-[#c21f10] shadow-[-2px_0_6px_rgba(194,31,16,0.35)]";
+    return "bg-[#c21f10] shadow-[2px_0_6px_rgba(194,31,16,0.35)]";
   }
-  return "bg-emerald-300 shadow-[-2px_0_6px_rgba(110,231,183,0.35)]";
+  return "bg-emerald-300 shadow-[2px_0_6px_rgba(110,231,183,0.35)]";
 }
 /** `px-3` on the nav. Expanded rows end this far inside the sidebar edge. */
 const NAV_EDGE_PAD_PX = 12;
@@ -87,16 +92,41 @@ function isNavActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
+function tabCount(
+  counts: SidebarTabCounts,
+  href: string,
+  value: string
+): number | null {
+  if (href === "/jobs") {
+    if (
+      value === "leads" ||
+      value === "applied" ||
+      value === "action" ||
+      value === "history"
+    ) {
+      return counts.jobs[value];
+    }
+  }
+  if (href === "/subscriptions") {
+    if (value === "active" || value === "archive") {
+      return counts.subscriptions[value];
+    }
+  }
+  return null;
+}
+
 export function SidebarNav({
   collapsed,
   activeAccountId,
   items,
+  tabCounts,
   title,
   className,
 }: {
   collapsed: boolean;
   activeAccountId: string | null;
   items: readonly SidebarNavItem[];
+  tabCounts: SidebarTabCounts;
   title?: string;
   className?: string;
 }) {
@@ -255,7 +285,7 @@ export function SidebarNav({
                   className={cn(
                     NAV_EDGE_MARK_CLASS,
                     NAV_EDGE_MARK_EXPANDED,
-                    "bg-[#1ab5af] shadow-[-2px_0_6px_rgba(26,181,175,0.35)]"
+                    "bg-[#1ab5af] shadow-[2px_0_6px_rgba(26,181,175,0.35)]"
                   )}
                   aria-hidden="true"
                 />
@@ -369,6 +399,7 @@ export function SidebarNav({
                 <TabFlyout
                   href={item.href}
                   tabs={tabs}
+                  tabCounts={tabCounts}
                   collapsed={collapsed}
                   onPick={() => setOpenHref(null)}
                 />
@@ -464,29 +495,35 @@ function SidebarFlyout({
 function TabFlyout({
   href,
   tabs,
+  tabCounts,
   collapsed,
   onPick,
 }: {
   href: string;
   tabs: readonly SidebarPageTab[];
+  tabCounts: SidebarTabCounts;
   collapsed: boolean;
   onPick: () => void;
 }) {
   return (
     <SidebarFlyout collapsed={collapsed}>
-      {tabs.map((tab) => (
-        <Link
-          key={tab.value}
-          href={href}
-          onClick={() => {
-            rememberSidebarPageTab(href, tab.value);
-            onPick();
-          }}
-          className="flex h-9 items-center whitespace-nowrap rounded-xl px-3 text-[13px] font-medium tracking-normal text-[#e4f7f3]/60 transition-colors duration-150 hover:bg-white/10 hover:text-[#e4f7f3]"
-        >
-          {tab.label}
-        </Link>
-      ))}
+      {tabs.map((tab) => {
+        const count = tabCount(tabCounts, href, tab.value);
+        return (
+          <Link
+            key={tab.value}
+            href={href}
+            onClick={() => {
+              rememberSidebarPageTab(href, tab.value);
+              onPick();
+            }}
+            className="flex h-9 items-center justify-between gap-3 whitespace-nowrap rounded-xl px-3 text-[13px] font-medium tracking-normal text-[#e4f7f3]/60 transition-colors duration-150 hover:bg-white/10 hover:text-[#e4f7f3]"
+          >
+            <span>{tab.label}</span>
+            {count != null ? <TabCountBadge count={count} /> : null}
+          </Link>
+        );
+      })}
     </SidebarFlyout>
   );
 }

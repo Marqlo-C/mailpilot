@@ -6,7 +6,12 @@ import "@/lib/document/polyfills";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { SESSION_COOKIE } from "@/lib/core/constants";
-import { getActiveAccount, listAccounts } from "@/lib/data";
+import {
+  getActiveAccount,
+  getSidebarTabCounts,
+  listAccounts,
+  type SidebarTabCounts,
+} from "@/lib/data";
 import { AppToaster } from "@/components/ui/app-toaster";
 
 import "./globals.css";
@@ -57,6 +62,12 @@ export default async function RootLayout({
     listAccounts(),
     getActiveAccount(),
   ]);
+  const tabCounts: SidebarTabCounts = active
+    ? await getSidebarTabCounts(active.id, active.persistentProfileId)
+    : {
+        jobs: { leads: 0, applied: 0, action: 0, history: 0 },
+        subscriptions: { active: 0, archive: 0 },
+      };
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -78,6 +89,7 @@ export default async function RootLayout({
           initialPendingClassificationCount={
             active?.pendingClassificationCount ?? 0
           }
+          tabCounts={tabCounts}
         >
           {children}
         </AppShell>
