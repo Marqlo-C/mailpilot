@@ -76,7 +76,7 @@ export const lightRailListClassName =
   "inline-flex h-auto w-auto items-center justify-start gap-2.5 self-start rounded-xl border border-border bg-[hsl(var(--tab-rail-light))] p-1 pr-3 text-foreground/60 shadow-md";
 
 export const lightRailTriggerClassName = cn(
-  "group relative inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow-none transition-all data-[state=active]:bg-[hsl(var(--tab-rail-light-highlight))] data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:hover:bg-foreground/[0.06] data-[state=inactive]:hover:text-foreground data-[state=active]:before:pointer-events-none data-[state=active]:before:absolute data-[state=active]:before:-right-2 data-[state=active]:before:bottom-1 data-[state=active]:before:top-1 data-[state=active]:before:w-[3px] data-[state=active]:before:rounded-l-full data-[state=active]:before:bg-[#1ab5af] data-[state=active]:before:shadow-[-2px_0_6px_rgba(26,181,175,0.35)] data-[state=active]:before:content-['']",
+  "group relative inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow-none transition-all data-[state=active]:bg-[hsl(var(--tab-rail-light-highlight))] data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:hover:bg-foreground/[0.06] data-[state=inactive]:hover:text-foreground data-[state=active]:before:pointer-events-none data-[state=active]:before:absolute data-[state=active]:before:-right-2 data-[state=active]:before:bottom-1 data-[state=active]:before:top-1 data-[state=active]:before:w-[3px] data-[state=active]:before:rounded-r-full data-[state=active]:before:bg-[#1ab5af] data-[state=active]:before:shadow-[2px_0_6px_rgba(26,181,175,0.35)] data-[state=active]:before:content-['']",
   tabRailInactiveTextClassName.light
 );
 
@@ -91,7 +91,7 @@ export const darkRailListClassName = cn(
 );
 
 export const darkRailTriggerClassName = cn(
-  "group relative inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow-none transition-all data-[state=active]:bg-[hsl(var(--sidebar-highlight))] data-[state=active]:font-semibold data-[state=active]:text-[#e4f7f3] data-[state=inactive]:hover:bg-white/10 data-[state=inactive]:hover:text-[#e4f7f3] data-[state=active]:before:pointer-events-none data-[state=active]:before:absolute data-[state=active]:before:-right-2 data-[state=active]:before:bottom-1 data-[state=active]:before:top-1 data-[state=active]:before:w-[3px] data-[state=active]:before:rounded-l-full data-[state=active]:before:bg-[#1ab5af] data-[state=active]:before:shadow-[-2px_0_6px_rgba(26,181,175,0.35)] data-[state=active]:before:content-['']",
+  "group relative inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow-none transition-all data-[state=active]:bg-[hsl(var(--sidebar-highlight))] data-[state=active]:font-semibold data-[state=active]:text-[#e4f7f3] data-[state=inactive]:hover:bg-white/10 data-[state=inactive]:hover:text-[#e4f7f3] data-[state=active]:before:pointer-events-none data-[state=active]:before:absolute data-[state=active]:before:-right-2 data-[state=active]:before:bottom-1 data-[state=active]:before:top-1 data-[state=active]:before:w-[3px] data-[state=active]:before:rounded-r-full data-[state=active]:before:bg-[#1ab5af] data-[state=active]:before:shadow-[2px_0_6px_rgba(26,181,175,0.35)] data-[state=active]:before:content-['']",
   tabRailInactiveTextClassName.dark
 );
 

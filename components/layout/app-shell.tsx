@@ -19,7 +19,7 @@ import { TabRailProvider, darkPlateClassName } from "@/components/ui/tactile/seg
 import { RailActionProvider } from "@/components/ui/rail-action";
 import { SyncTelemetry } from "@/components/opportunities/sync-telemetry";
 import { cn } from "@/lib/utils";
-import type { AccountSummary } from "@/lib/data";
+import type { AccountSummary, SidebarTabCounts } from "@/lib/data";
 
 /** Mobile top bar. Desktop pages no longer share this band. */
 const SHELL_TOP_BAND_CLASS = "flex h-[4.25rem] shrink-0 items-center";
@@ -45,6 +45,7 @@ type AppShellProps = {
   activeEmail: string | null;
   initialIsSyncing?: boolean;
   initialPendingClassificationCount?: number;
+  tabCounts: SidebarTabCounts;
   children: React.ReactNode;
 };
 
@@ -54,6 +55,7 @@ export function AppShell({
   activeEmail,
   initialIsSyncing = false,
   initialPendingClassificationCount = 0,
+  tabCounts,
   children,
 }: AppShellProps) {
   const pathname = usePathname();
@@ -171,6 +173,7 @@ export function AppShell({
             activeAccountId={activeAccountId}
             items={SIDEBAR_PRIMARY_NAV}
             title="Navigation"
+            tabCounts={tabCounts}
           />
           <div className={SHELL_HAIRLINE_CLASS} aria-hidden="true" />
           <SidebarQuickActions
@@ -182,6 +185,7 @@ export function AppShell({
             collapsed={collapsed}
             activeAccountId={activeAccountId}
             items={SIDEBAR_SETTINGS_NAV}
+            tabCounts={tabCounts}
             className="pb-2 pt-2"
           />
           <div className="min-h-2 flex-1" />

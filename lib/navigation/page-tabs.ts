@@ -37,7 +37,7 @@ export type SubscriptionPageTab =
 export const SETTINGS_PAGE_TABS = [
   { value: "accounts", label: "Accounts" },
   { value: "profile", label: "Profile" },
-  { value: "outbound", label: "Outbound" },
+  { value: "outbound", label: "Tailoring & Layout" },
   { value: "automation", label: "Automation" },
   { value: "ai", label: "AI & Models" },
   { value: "ui", label: "UI" },
