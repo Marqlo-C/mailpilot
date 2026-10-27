@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useLayoutEffect, useState, useTransition } from "react";
 import { LogOut, PlusCircle } from "lucide-react";
 
 import { logoutSession } from "@/app/actions/auth";
@@ -35,15 +35,13 @@ import {
 } from "@/components/ui/tactile/segmented-tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AccountSummary } from "@/lib/data";
+import {
+  SETTINGS_PAGE_TABS,
+  clearSidebarPageTab,
+  peekSidebarPageTab,
+  type SettingsPageTab,
+} from "@/lib/navigation/page-tabs";
 import type { AccountRules } from "@/lib/validations/rules";
-
-type SettingsTab =
-  | "accounts"
-  | "profile"
-  | "outbound"
-  | "automation"
-  | "ai"
-  | "ui";
 
 type SettingsViewProps = {
   accounts: AccountSummary[];
@@ -77,12 +75,23 @@ export function SettingsView({
   isDev = false,
   errorBanner,
 }: SettingsViewProps) {
-  const [tab, setTab] = useState<SettingsTab>("accounts");
+  const [tab, setTab] = useState<SettingsPageTab>("accounts");
   const [isLoggingOut, startLogoutTransition] = useTransition();
   const {
     listClassName: segmentedTabsListClassName,
     triggerClassName: segmentedTabsTriggerClassName,
   } = useTabRailClasses();
+
+  useLayoutEffect(() => {
+    const next = peekSidebarPageTab(
+      "/settings",
+      SETTINGS_PAGE_TABS.map((item) => item.value)
+    );
+    if (!next) return;
+    setTab(next);
+    const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
+    return () => window.clearTimeout(clearId);
+  }, []);
 
   function handleLogout() {
     startLogoutTransition(async () => {
@@ -93,42 +102,24 @@ export function SettingsView({
   return (
       <Tabs
         value={tab}
-        onValueChange={(value) => setTab(value as SettingsTab)}
+        onValueChange={(value) => {
+          const next = SETTINGS_PAGE_TABS.find((item) => item.value === value);
+          if (next) setTab(next.value);
+        }}
       >
         <CommandDeckFrame
           rail={
         <div className={tabRailRowClassName}>
           <TabsList className={segmentedTabsListClassName}>
-            <TabsTrigger
-              value="accounts"
-              className={segmentedTabsTriggerClassName}
-            >
-              Accounts
-            </TabsTrigger>
-            <TabsTrigger
-              value="profile"
-              className={segmentedTabsTriggerClassName}
-            >
-              Profile
-            </TabsTrigger>
-            <TabsTrigger
-              value="outbound"
-              className={segmentedTabsTriggerClassName}
-            >
-              Outbound
-            </TabsTrigger>
-            <TabsTrigger
-              value="automation"
-              className={segmentedTabsTriggerClassName}
-            >
-              Automation
-            </TabsTrigger>
-            <TabsTrigger value="ai" className={segmentedTabsTriggerClassName}>
-              AI & Models
-            </TabsTrigger>
-            <TabsTrigger value="ui" className={segmentedTabsTriggerClassName}>
-              UI
-            </TabsTrigger>
+            {SETTINGS_PAGE_TABS.map((item) => (
+              <TabsTrigger
+                key={item.value}
+                value={item.value}
+                className={segmentedTabsTriggerClassName}
+              >
+                {item.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           {/* Conditional Tab Rail Action Buttons */}

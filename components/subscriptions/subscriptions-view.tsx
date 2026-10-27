@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -130,6 +131,12 @@ import {
   readCustomOrder,
 } from "@/lib/subscriptions/preferences";
 import { runSubscriptionMove } from "@/lib/subscriptions/run-subscription-move";
+import {
+  SUBSCRIPTION_PAGE_TABS,
+  SUBSCRIPTION_TAB_LABEL,
+  clearSidebarPageTab,
+  peekSidebarPageTab,
+} from "@/lib/navigation/page-tabs";
 import { cn } from "@/lib/utils";
 import type { CleanupAction } from "@/lib/gmail/unsubscribe";
 
@@ -291,6 +298,18 @@ export function SubscriptionsView({
     setSelectedIds([]);
     setSelectionMode(false);
   }, []);
+
+  useLayoutEffect(() => {
+    const next = peekSidebarPageTab(
+      "/subscriptions",
+      SUBSCRIPTION_PAGE_TABS.map((item) => item.value)
+    );
+    if (!next) return;
+    setActiveTab(next);
+    clearSelection();
+    const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
+    return () => window.clearTimeout(clearId);
+  }, [clearSelection]);
 
   /** User-driven view changes leave multi-select; drag page-flips use setCurrentPage directly. */
   const changeSortOption = useCallback(
@@ -595,7 +614,7 @@ export function SubscriptionsView({
       if (one) targets = [one];
     }
     if (targets.length === 0) {
-      toast.error("Those senders are no longer in Active subscriptions");
+      toast.error("Those senders are no longer in Subscribed");
       return;
     }
     setViewingBriefing(null);
@@ -1045,7 +1064,7 @@ export function SubscriptionsView({
                 value="active"
                 className={segmentedTabsTriggerClassName}
               >
-                <span>Active Subscriptions</span>
+                <span>{SUBSCRIPTION_TAB_LABEL.active}</span>
                 <TabCountBadge count={active.length} />
               </TabsTrigger>
               <TabsTrigger
@@ -1057,7 +1076,7 @@ export function SubscriptionsView({
                     "ring-2 ring-[#c21f10]/70 ring-offset-2 ring-offset-background"
                 )}
               >
-                <span>Unsubscribed</span>
+                <span>{SUBSCRIPTION_TAB_LABEL.archive}</span>
                 <TabCountBadge count={archive.length} />
               </TabsTrigger>
             </TabsList>
@@ -1119,7 +1138,7 @@ export function SubscriptionsView({
         <TabsContent value="active" className="relative z-0 mt-0 space-y-3">
           {active.length === 0 ? (
             <EmptyState
-              title="No active subscriptions"
+              title="No subscribed senders"
               body="MailPilot will capture senders that advertise List-Unsubscribe headers."
             />
           ) : filteredActive.length === 0 ? (
