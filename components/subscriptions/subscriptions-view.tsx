@@ -60,6 +60,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PipelinePaginationFooter } from "@/components/ui/composites/pipeline-pagination";
 import {
+  CommandDeckFrame,
   tabRailRowClassName,
   TabCountBadge,
   useTabRailClasses,
@@ -1034,7 +1035,10 @@ export function SubscriptionsView({
         }}
         className="w-full"
       >
-        <div className={tabRailRowClassName}>
+        <CommandDeckFrame
+          rail={
+            <>
+        <div className={cn(tabRailRowClassName, "mb-0")}>
           <div className="flex items-center gap-1.5">
             <TabsList className={segmentedTabsListClassName}>
               <TabsTrigger
@@ -1108,8 +1112,11 @@ export function SubscriptionsView({
           hasActiveTransientFilters={hasActiveTransientFilters}
           onResetTransientFilters={handleResetTransientFilters}
         />
+            </>
+          }
+        >
 
-        <TabsContent value="active" className="mt-0 space-y-3">
+        <TabsContent value="active" className="relative z-0 mt-0 space-y-3">
           {active.length === 0 ? (
             <EmptyState
               title="No active subscriptions"
@@ -1161,7 +1168,7 @@ export function SubscriptionsView({
           )}
         </TabsContent>
 
-        <TabsContent value="archive" className="mt-0 space-y-3">
+        <TabsContent value="archive" className="relative z-0 mt-0 space-y-3">
           {archive.length === 0 ? (
             <EmptyState
               title="Archive is empty"
@@ -1198,6 +1205,7 @@ export function SubscriptionsView({
             </>
           )}
         </TabsContent>
+        </CommandDeckFrame>
       </Tabs>
 
       {activeTab === "active" ? (

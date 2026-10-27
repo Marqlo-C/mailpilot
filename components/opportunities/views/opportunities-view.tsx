@@ -9,6 +9,7 @@ import {
   useTransition,
   type MutableRefObject,
 } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { JobOpportunity } from "@prisma/client";
 import { Archive, CheckCircle2, Trash2, Undo2, XCircle } from "lucide-react";
@@ -36,6 +37,7 @@ import {
   BulkActionsFlyout,
 } from "@/components/ui/composites/bulk-actions-flyout";
 import { PipelinePaginationFooter } from "@/components/ui/composites/pipeline-pagination";
+import { useCommandDeckSlot } from "@/components/ui/tactile/segmented-tabs";
 import { useLastClickedId } from "@/hooks/use-last-clicked-id";
 import { useCardListGestures } from "@/hooks/use-card-list-gestures";
 import { usePagination } from "@/hooks/use-pagination";
@@ -102,6 +104,8 @@ type OpportunitiesViewProps = {
   onUnmarkApplied?: (opp: JobOpportunity) => void;
   onLessLikeThis?: (opp: JobOpportunity) => void;
   onViewOriginalEmail?: (opp: JobOpportunity) => void;
+  /** Portal the filter toolbar into the sticky command deck. */
+  dockToolbar?: boolean;
 };
 
 function variantToPipelineTab(variant: OpportunityCardVariant): PipelineTab {
@@ -136,8 +140,10 @@ export function OpportunitiesView({
   onUnmarkApplied,
   onLessLikeThis,
   onViewOriginalEmail,
+  dockToolbar = false,
 }: OpportunitiesViewProps) {
   const router = useRouter();
+  const toolbarSlot = useCommandDeckSlot();
   const activeTab = variantToPipelineTab(variant);
   const jobsTabKey = variantToJobsTabKey(variant);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -540,6 +546,53 @@ export function OpportunitiesView({
     };
   }, [paginatedJobs]);
 
+  const toolbar = (
+    <PipelineToolbar
+      activeTab={activeTab}
+      totalCount={totalCount}
+      visibleCount={visibleCount}
+      selectedCount={selectedIds.length}
+      isAllSelected={isAllSelected}
+      onToggleSelectAll={handleSelectAll}
+      minScore={matchThreshold}
+      onMinScoreChange={
+        showThresholdControl ? onThresholdChange : undefined
+      }
+      onMinScoreCommit={
+        showThresholdControl ? onThresholdCommit : undefined
+      }
+      scoreDisabled={busy || !onThresholdCommit}
+      searchQuery={searchQuery}
+      onSearchQueryChange={setSearchQuery}
+      sourceFilter={sourceFilter}
+      onSourceFilterChange={
+        activeTab === "leads" || activeTab === "applied"
+          ? setSourceFilter
+          : undefined
+      }
+      historyFilter={historyStatusFilter}
+      onHistoryFilterChange={
+        activeTab === "history" ? setHistoryStatusFilter : undefined
+      }
+      sortOption={sortOption}
+      onSortOptionChange={onSortOptionChange}
+      showTelemetry={showListingCount}
+      pageSize={pageSize}
+      onPageSizeChange={changePageSize}
+      currentPage={currentPage}
+      totalPages={totalPages}
+      onPageChange={changePage}
+      hasActiveTransientFilters={hasActiveTransientFilters}
+      onResetTransientFilters={handleResetTransientFilters}
+    />
+  );
+  const dockedToolbar =
+    dockToolbar && toolbarSlot
+      ? createPortal(toolbar, toolbarSlot)
+      : dockToolbar
+        ? null
+        : toolbar;
+
   return (
     <div className="mt-0" onPointerDown={onBackgroundPointerDown}>
       <DragGhost
@@ -562,44 +615,7 @@ export function OpportunitiesView({
         dropZone={drag?.dropZone ?? null}
       />
 
-      <PipelineToolbar
-        activeTab={activeTab}
-        totalCount={totalCount}
-        visibleCount={visibleCount}
-        selectedCount={selectedIds.length}
-        isAllSelected={isAllSelected}
-        onToggleSelectAll={handleSelectAll}
-        minScore={matchThreshold}
-        onMinScoreChange={
-          showThresholdControl ? onThresholdChange : undefined
-        }
-        onMinScoreCommit={
-          showThresholdControl ? onThresholdCommit : undefined
-        }
-        scoreDisabled={busy || !onThresholdCommit}
-        searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
-        sourceFilter={sourceFilter}
-        onSourceFilterChange={
-          activeTab === "leads" || activeTab === "applied"
-            ? setSourceFilter
-            : undefined
-        }
-        historyFilter={historyStatusFilter}
-        onHistoryFilterChange={
-          activeTab === "history" ? setHistoryStatusFilter : undefined
-        }
-        sortOption={sortOption}
-        onSortOptionChange={onSortOptionChange}
-        showTelemetry={showListingCount}
-        pageSize={pageSize}
-        onPageSizeChange={changePageSize}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={changePage}
-        hasActiveTransientFilters={hasActiveTransientFilters}
-        onResetTransientFilters={handleResetTransientFilters}
-      />
+      {dockedToolbar}
 
       {orderedOpportunities.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
@@ -608,7 +624,7 @@ export function OpportunitiesView({
       ) : (
         <div
           ref={gridRef}
-          className="grid min-w-0 gap-3 md:grid-cols-2"
+          className="relative z-0 grid min-w-0 gap-3 md:grid-cols-2"
           data-dnd-list
           data-dnd-previewing={drag?.previewFullIds ? "true" : undefined}
         >

@@ -64,6 +64,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  CommandDeckFrame,
   tabRailRowClassName,
   useTabRailClasses,
   TabCountBadge,
@@ -328,7 +329,10 @@ export function JobsRadar({
   return (
     <div>
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <div className={tabRailRowClassName}>
+        <CommandDeckFrame
+          dockToolbar
+          rail={
+        <div className={cn(tabRailRowClassName, "mb-0")}>
           <div className="flex items-center gap-1.5">
             <TabsList className={segmentedTabsListClassName}>
               <TabsTrigger
@@ -402,14 +406,17 @@ export function JobsRadar({
             <SyncControls accountId={accountId} />
           </div>
         </div>
+          }
+        >
 
-        <TabsContent value="leads" className="mt-0 space-y-3">
+        <TabsContent value="leads" className="relative z-0 mt-0 space-y-3">
           {leadCount === 0 && !hasOpportunityLeads ? (
             <EmptyState text="No leads in the queue yet." />
           ) : (
             <div className="space-y-4">
               {hasOpportunityLeads ? (
                 <OpportunitiesView
+                  dockToolbar
                   accountId={accountId}
                   opportunities={sortedOpportunityLeads}
                   matchThreshold={threshold}
@@ -573,13 +580,14 @@ export function JobsRadar({
           )}
         </TabsContent>
 
-        <TabsContent value="applied" className="mt-0 space-y-4">
+        <TabsContent value="applied" className="relative z-0 mt-0 space-y-4">
           {appliedCount === 0 ? (
             <EmptyState text="No active applications waiting for a response." />
           ) : (
             <>
               {sortedOpportunityApplied.length > 0 ? (
                 <OpportunitiesView
+                  dockToolbar
                   accountId={accountId}
                   opportunities={sortedOpportunityApplied}
                   matchThreshold={threshold}
@@ -650,13 +658,14 @@ export function JobsRadar({
           )}
         </TabsContent>
 
-        <TabsContent value="action" className="mt-0 space-y-4">
+        <TabsContent value="action" className="relative z-0 mt-0 space-y-4">
           {actionCount === 0 ? (
             <EmptyState text="Nothing needs your attention right now." />
           ) : (
             <>
               {sortedOpportunityAction.length > 0 ? (
                 <OpportunitiesView
+                  dockToolbar
                   accountId={accountId}
                   opportunities={sortedOpportunityAction}
                   matchThreshold={threshold}
@@ -749,13 +758,14 @@ export function JobsRadar({
           )}
         </TabsContent>
 
-        <TabsContent value="history" className="mt-0 space-y-4">
+        <TabsContent value="history" className="relative z-0 mt-0 space-y-4">
           {historyCount === 0 ? (
             <EmptyState text="No history yet." />
           ) : (
             <>
               {sortedOpportunityHistory.length > 0 ? (
                 <OpportunitiesView
+                  dockToolbar
                   accountId={accountId}
                   opportunities={sortedOpportunityHistory}
                   matchThreshold={threshold}
@@ -826,6 +836,7 @@ export function JobsRadar({
             </>
           )}
         </TabsContent>
+        </CommandDeckFrame>
       </Tabs>
 
       <AtsHandoffDrawer
