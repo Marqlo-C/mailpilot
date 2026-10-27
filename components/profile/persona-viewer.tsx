@@ -8,7 +8,7 @@ import {
   extractPersonaFacts,
 } from "@/lib/ai/persona";
 import {
-  BulletSquircle,
+  EntryBulletList,
   SettingsEntryCard,
   SettingsStatusPill,
 } from "@/components/ui/tactile/nested-settings-card";
@@ -116,7 +116,7 @@ export function PersonaViewer({ accountId, profile }: PersonaViewerProps) {
         onToggle={() => toggle("trajectory")}
         curvedDivider
       >
-        <div className="space-y-2.5 text-sm leading-relaxed text-foreground/90">
+        <div className="space-y-2.5">
           <p>
             <span className="font-medium text-foreground">Title family: </span>
             {explained.titleFamily}
@@ -138,7 +138,7 @@ export function PersonaViewer({ accountId, profile }: PersonaViewerProps) {
         onToggle={() => toggle("tone")}
         curvedDivider
       >
-        <p className="text-sm leading-relaxed text-foreground/90">{tone}</p>
+        <p>{tone}</p>
       </SettingsEntryCard>
 
       <SettingsEntryCard
@@ -154,17 +154,12 @@ export function PersonaViewer({ accountId, profile }: PersonaViewerProps) {
         onToggle={() => toggle("logic")}
         curvedDivider
       >
-        <ul className="space-y-2">
-          {explained.rationale.map((line) => (
-            <li
-              key={line}
-              className="flex items-start gap-2.5 text-sm leading-relaxed"
-            >
-              <BulletSquircle />
-              <span className="min-w-0 flex-1 text-foreground/90">{line}</span>
-            </li>
-          ))}
-        </ul>
+        <EntryBulletList
+          items={explained.rationale.map((line) => ({
+            key: line,
+            content: line,
+          }))}
+        />
       </SettingsEntryCard>
     </div>
   );
