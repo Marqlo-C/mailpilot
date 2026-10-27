@@ -2,12 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { RotateCw, Unlink, UserRound, UsersRound } from "lucide-react";
+import { RotateCw, Unlink, UsersRound } from "lucide-react";
 
 import { unlinkAccountCredentials } from "@/app/actions/accounts";
 import { GoogleCloudIcon } from "@/components/icons/google-cloud-icon";
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { CompanyLogo } from "@/components/ui/company-logo";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
 import {
@@ -59,18 +59,12 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
                   curvedDivider={false}
                   headerClassName="flex-col items-start sm:flex-row sm:items-center"
                   logo={
-                    <Avatar className="h-8 w-8 shrink-0 border border-border/60">
-                      {account.picture ? (
-                        <AvatarImage
-                          src={account.picture}
-                          alt={account.name ?? account.email}
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : null}
-                      <AvatarFallback className="bg-muted/50 text-muted-foreground">
-                        <UserRound className="h-4 w-4" aria-hidden="true" />
-                      </AvatarFallback>
-                    </Avatar>
+                    <CompanyLogo
+                      className="shadow-xs"
+                      name={account.name ?? account.email}
+                      size="lg"
+                      src={account.picture}
+                    />
                   }
                   title={
                     <div className="flex items-center gap-2 min-w-0">
