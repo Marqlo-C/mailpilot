@@ -8,6 +8,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
 import { TabCountBadge } from "@/components/ui/tactile/segmented-tabs";
@@ -216,9 +217,11 @@ export function BulkActionsFlyout({
     if (selectedCount > 0) cancelPendingRef.current = false;
   }, [selectedCount]);
 
-  if (!mounted) return null;
+  if (!mounted || typeof document === "undefined") return null;
 
-  return (
+  // Portaled so the scroll-column fades (z-25, outside the scroller) cannot
+  // paint over this bar. In-flow `fixed` stays trapped under that sibling.
+  return createPortal(
     <div
       role="region"
       aria-label={label}
@@ -265,6 +268,7 @@ export function BulkActionsFlyout({
           />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

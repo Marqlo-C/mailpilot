@@ -8,6 +8,31 @@ import { exportMasterProfilePdfAction } from "@/app/actions/profile";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+export async function downloadMasterProfile(accountId: string): Promise<void> {
+  const res = await exportMasterProfilePdfAction(accountId);
+  if (!res.ok || !res.data) {
+    toast.error(res.ok ? "Export failed: No PDF generated" : res.error);
+    return;
+  }
+
+  const { pdfBase64, filename } = res.data;
+  const byteCharacters = atob(pdfBase64);
+  const byteNumbers = new Uint8Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const blob = new Blob([byteNumbers], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+  toast.success("Master profile exported successfully");
+}
+
 export type ExportMasterProfileButtonProps = {
   accountId: string;
   variant?: "default" | "secondary" | "outline" | "ghost";
@@ -37,29 +62,7 @@ export function ExportMasterProfileButton({
   async function handleExport() {
     setIsExporting(true);
     try {
-      const res = await exportMasterProfilePdfAction(accountId);
-      if (!res.ok || !res.data) {
-        toast.error(res.ok ? "Export failed: No PDF generated" : res.error);
-        return;
-      }
-
-      const { pdfBase64, filename } = res.data;
-      const byteCharacters = atob(pdfBase64);
-      const byteNumbers = new Uint8Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const blob = new Blob([byteNumbers], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = filename;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
-
-      toast.success("Master profile exported successfully");
+      await downloadMasterProfile(accountId);
     } catch (err) {
       console.error("Export master profile failed:", err);
       toast.error(

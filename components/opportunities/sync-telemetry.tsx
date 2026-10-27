@@ -33,6 +33,8 @@ type SyncTelemetryProps = {
   forceOpen?: boolean;
   /** Collapsed-sidebar overlay: nothing until the flyout opens. */
   overlay?: boolean;
+  /** Expanded pill inside the sidebar directory window, with no pop animation. */
+  panel?: boolean;
   /** Fires while the enter/leave animation is on screen. */
   onPresenceChange?: (mounted: boolean) => void;
 };
@@ -48,6 +50,7 @@ export function SyncTelemetry({
   restAsDot = false,
   forceOpen: requestedOpen = false,
   overlay = false,
+  panel = false,
   onPresenceChange,
 }: SyncTelemetryProps) {
   const router = useRouter();
@@ -102,12 +105,12 @@ export function SyncTelemetry({
   }
 
   const onSidebar = surface === "sidebar";
-  const dotRest = restAsDot && !compact;
+  const dotRest = (restAsDot || panel) && !compact;
   const presence = useFlyoutPresence(
-    Boolean(dotRest && (requestedOpen || confirmFlush))
+    Boolean(!panel && dotRest && (requestedOpen || confirmFlush))
   );
   // Stay expanded through the leave animation after the pointer has gone.
-  const forceOpen = dotRest && presence.mounted;
+  const forceOpen = panel || (dotRest && presence.mounted);
 
   useEffect(() => {
     onPresenceChange?.(presence.mounted);
@@ -115,7 +118,7 @@ export function SyncTelemetry({
   }, [onPresenceChange, presence.mounted]);
 
   function motionWrap(child: ReactNode) {
-    if (!forceOpen) return child;
+    if (!forceOpen || panel) return child;
     return (
       <div
         className={cn(
@@ -145,7 +148,7 @@ export function SyncTelemetry({
     return null;
   }, [isSyncing, lastSyncProcessed, totalToProcess, pendingCount]);
 
-  if (overlay && !presence.mounted) return null;
+  if (overlay && !panel && !presence.mounted) return null;
   const restCircleClass = !dotRest
     ? ""
     : forceOpen
@@ -285,12 +288,12 @@ export function SyncTelemetry({
             forceOpen
               ? "flex origin-center flex-nowrap items-center gap-2.5"
               : "inline-flex items-center gap-1.5",
-            forceOpen && presence.phase === "in" && "mp-flyout-pop",
-            forceOpen && presence.phase === "out" && "mp-flyout-retract mp-flyout-retract-status",
+            forceOpen && !panel && presence.phase === "in" && "mp-flyout-pop",
+            forceOpen && !panel && presence.phase === "out" && "mp-flyout-retract mp-flyout-retract-status",
             onSidebar && !compact && !dotRest && "w-full"
           )}
-          style={forceOpen ? presence.style : undefined}
-          onAnimationEnd={forceOpen ? presence.onAnimationEnd : undefined}
+          style={forceOpen && !panel ? presence.style : undefined}
+          onAnimationEnd={forceOpen && !panel ? presence.onAnimationEnd : undefined}
         >
           <button
             type="button"

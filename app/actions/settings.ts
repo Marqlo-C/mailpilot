@@ -944,4 +944,35 @@ export async function clearJinaApiKey(
   return { ok: true, data: { cleared: true } };
 }
 
+export type ApiKeyStatus = {
+  cloudProvider: CloudLlmProvider;
+  maskedApiKey: string | null;
+  maskedScrapingAntApiKey: string | null;
+  maskedHasDataApiKey: string | null;
+};
+
+/** Masked key status for the sidebar key dialog. Never returns raw secrets. */
+export async function readApiKeyStatus(
+  accountId: string
+): Promise<ActionResult<ApiKeyStatus>> {
+  const active = await getActiveAccount();
+  if (!active || active.id !== accountId) {
+    return { ok: false, error: "Account not found" };
+  }
+
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId },
+  });
+  const rules = parseAccountRules(settings?.rules);
+  return {
+    ok: true,
+    data: {
+      cloudProvider: rules.cloudProvider,
+      maskedApiKey: rules.maskedApiKey,
+      maskedScrapingAntApiKey: rules.maskedScrapingAntApiKey,
+      maskedHasDataApiKey: rules.maskedHasDataApiKey,
+    },
+  };
+}
+
 

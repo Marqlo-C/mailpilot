@@ -5,9 +5,17 @@ import {
   getSubscriptionHistoryForProfile,
   getSubscriptionsForAccount,
 } from "@/lib/data";
+import { refreshStaleSubscriptionDates } from "@/lib/subscriptions/last-received";
 
 export default async function SubscriptionsPage() {
   const active = await getActiveAccount();
+  if (active) {
+    try {
+      await refreshStaleSubscriptionDates(active.id);
+    } catch (error) {
+      console.error("refreshStaleSubscriptionDates failed", error);
+    }
+  }
   const subscriptions = active
     ? await getSubscriptionsForAccount(active.id)
     : [];

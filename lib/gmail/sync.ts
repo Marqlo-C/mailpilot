@@ -36,6 +36,10 @@ import {
   parseApplicationEmail,
 } from "@/lib/parsers/application-parser";
 import { prisma } from "@/lib/core/prisma";
+import {
+  advanceSubscriptionLastReceived,
+  dateFromGmailInternalDate,
+} from "@/lib/subscriptions/last-received";
 import { parseListUnsubscribeHeaders } from "@/lib/gmail/unsubscribe";
 import { logStory, syncLog } from "@/lib/logging";
 import { isLocationCompatible } from "@/lib/utils/location";
@@ -1189,9 +1193,8 @@ async function maybeUpsertSubscription(input: {
     return;
   }
 
-  const receivedAt = input.internalDate
-    ? new Date(Number(input.internalDate))
-    : new Date();
+  const receivedAt =
+    dateFromGmailInternalDate(input.internalDate) ?? new Date();
 
   await prisma.subscription.upsert({
     where: {
@@ -1219,9 +1222,14 @@ async function maybeUpsertSubscription(input: {
       unsubPostBody: targets.unsubPostBody ?? undefined,
       unsubMailto: targets.unsubMailto ?? undefined,
       emailCount: { increment: 1 },
-      lastReceivedAt: receivedAt,
     },
   });
+
+  await advanceSubscriptionLastReceived(
+    input.accountId,
+    sender.email,
+    receivedAt
+  );
 }
 
 export async function applyRejectionAction(

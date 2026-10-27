@@ -16,6 +16,10 @@ import {
   type LlmProvider,
 } from "@/lib/llm";
 import { prisma } from "@/lib/core/prisma";
+import {
+  advanceSubscriptionLastReceived,
+  dateFromGmailInternalDate,
+} from "@/lib/subscriptions/last-received";
 import { parseFromHeader, persistClassifiedEmail } from "@/lib/gmail/sync";
 import { parseListUnsubscribeHeaders } from "@/lib/gmail/unsubscribe";
 import { resolveIngestionRules } from "@/lib/gmail/sync";
@@ -230,9 +234,8 @@ async function scanSubscriptions(
         return;
       }
 
-      const receivedAt = message.data.internalDate
-        ? new Date(Number(message.data.internalDate))
-        : new Date();
+      const receivedAt =
+        dateFromGmailInternalDate(message.data.internalDate) ?? new Date();
 
       await prisma.subscription.upsert({
         where: {
@@ -260,9 +263,10 @@ async function scanSubscriptions(
           unsubPostBody: targets.unsubPostBody ?? undefined,
           unsubMailto: targets.unsubMailto ?? undefined,
           emailCount: { increment: 1 },
-          lastReceivedAt: receivedAt,
         },
       });
+
+      await advanceSubscriptionLastReceived(accountId, sender.email, receivedAt);
 
       uniqueSenders.add(sender.email.toLowerCase());
     } catch (error) {

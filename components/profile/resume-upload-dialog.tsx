@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactElement } from "react";
 import { useRouter } from "next/navigation";
 import {
   CloudUpload,
@@ -56,6 +56,8 @@ type ResumeUploadDialogProps = {
   triggerClassName?: string;
   /** Marks the trigger so a saved dark plate can paint before hydration. */
   railAction?: boolean;
+  /** Replaces the default button. Must be a single element that can hold a ref. */
+  trigger?: ReactElement;
 };
 
 export function ResumeUploadDialog({
@@ -65,6 +67,7 @@ export function ResumeUploadDialog({
   triggerVariant = "outline",
   triggerClassName,
   railAction = false,
+  trigger,
 }: ResumeUploadDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -192,16 +195,18 @@ export function ResumeUploadDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant={triggerVariant}
-          size="sm"
-          className={cn("gap-2 [&_svg]:size-3.5 [&_svg]:shrink-0", triggerClassName)}
-          data-mp-rail-action={railAction ? "" : undefined}
-        >
-          {editMode ? null : <CloudUpload className="size-3.5 shrink-0" />}
-          {triggerLabel}
-        </Button>
+        {trigger ?? (
+          <Button
+            type="button"
+            variant={triggerVariant}
+            size="sm"
+            className={cn("gap-2 [&_svg]:size-3.5 [&_svg]:shrink-0", triggerClassName)}
+            data-mp-rail-action={railAction ? "" : undefined}
+          >
+            {editMode ? null : <CloudUpload className="size-3.5 shrink-0" />}
+            {triggerLabel}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>

@@ -25,6 +25,7 @@ const OVERLAY_SELECTOR = [
   "[data-radix-popper-content-wrapper]",
   "[data-sonner-toaster]",
   "[data-bulk-actions]",
+  "[data-filter-panel]",
 ].join(",");
 
 export type FrozenItemRect = {
