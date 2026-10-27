@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -39,6 +40,12 @@ import { SyncControls } from "@/components/opportunities/sync-controls";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { domainFromActionUrl } from "@/components/sender-avatar";
 import { extractRecruiterEmail } from "@/lib/opportunities/application-method";
+import {
+  JOB_RADAR_PAGE_TABS,
+  JOB_RADAR_TAB_LABEL,
+  clearSidebarPageTab,
+  peekSidebarPageTab,
+} from "@/lib/navigation/page-tabs";
 import { faviconUrlForDomain } from "@/lib/utils/domain";
 import {
   isInHistory,
@@ -178,6 +185,18 @@ export function JobsRadar({
       setSort(nextConfig.defaultSort);
     }
   }
+
+  useLayoutEffect(() => {
+    const next = peekSidebarPageTab(
+      "/jobs",
+      JOB_RADAR_PAGE_TABS.map((item) => item.value)
+    );
+    if (!next) return;
+    setActiveTab(next);
+    setSort(TAB_SORT_CONFIG[tabKeyFromValue(next)].defaultSort);
+    const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
+    return () => window.clearTimeout(clearId);
+  }, []);
 
   const handleDragZoneChange = useCallback((zoneId: string | null) => {
     setDragDropZone(zoneId);
@@ -344,7 +363,7 @@ export function JobsRadar({
                     "ring-2 ring-[#1ab5af]/70 ring-offset-2 ring-offset-background"
                 )}
               >
-                <span>Leads</span>
+                <span>{JOB_RADAR_TAB_LABEL.leads}</span>
                 <TabCountBadge count={leadCount} />
               </TabsTrigger>
               <TabsTrigger
@@ -356,7 +375,7 @@ export function JobsRadar({
                     "ring-2 ring-[#1ab5af]/70 ring-offset-2 ring-offset-background"
                 )}
               >
-                <span>Applied</span>
+                <span>{JOB_RADAR_TAB_LABEL.applied}</span>
                 <TabCountBadge count={appliedCount} />
               </TabsTrigger>
               <TabsTrigger
@@ -368,7 +387,7 @@ export function JobsRadar({
                     "ring-2 ring-[#955823]/70 ring-offset-2 ring-offset-background dark:ring-[#eba970]/70"
                 )}
               >
-                <span>Action Required</span>
+                <span>{JOB_RADAR_TAB_LABEL.action}</span>
                 <TabCountBadge count={actionCount} />
               </TabsTrigger>
               <TabsTrigger
@@ -380,7 +399,7 @@ export function JobsRadar({
                     "ring-2 ring-[#c21f10]/70 ring-offset-2 ring-offset-background"
                 )}
               >
-                <span>History</span>
+                <span>{JOB_RADAR_TAB_LABEL.history}</span>
                 <TabCountBadge count={historyCount} />
               </TabsTrigger>
             </TabsList>

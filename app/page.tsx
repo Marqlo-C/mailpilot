@@ -218,7 +218,7 @@ export default async function ConsolePage() {
                 <div>
                   <h2 className="text-base font-semibold">Loudest senders</h2>
                   <CardDescription>
-                    Active subscriptions by clutter score
+                    Subscribed by clutter score
                   </CardDescription>
                 </div>
                 <DigestLink href="/subscriptions">Subscriptions</DigestLink>
@@ -226,7 +226,7 @@ export default async function ConsolePage() {
               <CardContent className="space-y-2">
                 {activeSubscriptions.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    No active subscriptions yet.
+                    No subscribed senders yet.
                   </p>
                 ) : (
                   activeSubscriptions.slice(0, DIGEST_LIMIT).map((row) => (
