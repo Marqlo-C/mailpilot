@@ -234,10 +234,6 @@ export function AppShell({
             {children}
           </main>
         </div>
-        <div
-          aria-hidden
-          className="scroll-edge-in bg-canvas-fixed fixed inset-x-0 bottom-[var(--app-mobile-bottom-inset,0px)] md:absolute md:inset-x-0 md:bottom-0"
-        />
       </div>
 
       {/* Mobile bottom nav */}
