@@ -116,13 +116,13 @@ export function AppShell({
       initialPendingClassificationCount={initialPendingClassificationCount}
     >
     <TabRailProvider accountId={activeAccountId}>
-    <div className="min-h-screen md:flex md:py-1.5 md:pl-1.5">
+    <div className="min-h-screen md:flex md:h-dvh md:min-h-0 md:overflow-hidden md:py-1.5 md:pl-1.5">
       <GlobalSyncTracker />
 
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          "sticky top-1.5 z-30 hidden h-[calc(100dvh-0.75rem)] shrink-0 cursor-pointer flex-col rounded-2xl border border-white/10 bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))] shadow-2xl shadow-black/50 transition-[width] duration-200 md:flex",
+          "sticky top-1.5 z-40 hidden h-[calc(100dvh-0.75rem)] shrink-0 cursor-pointer flex-col rounded-2xl border border-white/10 bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))] shadow-2xl shadow-black/50 transition-[width] duration-200 md:flex",
           collapsed ? "w-[72px]" : "w-60"
         )}
         onClick={(event) => {
@@ -350,8 +350,9 @@ export function AppShell({
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
-        {/* Mobile top bar. Desktop sync status sits beside Job Radar. */}
+      <div className="relative flex min-w-0 flex-1 flex-col md:min-h-0">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col pb-20 md:overflow-y-auto md:overscroll-y-contain md:pb-0 md:scroll-smooth">
+          {/* Mobile top bar. Desktop sync status sits beside Job Radar. */}
         <header
           className={cn(
             SHELL_TOP_BAND_CLASS,
@@ -381,9 +382,14 @@ export function AppShell({
           </div>
         </header>
 
-        <main className={SHELL_MAIN_CLASS}>
-          {children}
-        </main>
+          <main className={SHELL_MAIN_CLASS}>
+            {children}
+          </main>
+        </div>
+        <div
+          aria-hidden
+          className="scroll-edge-in bg-canvas-fixed fixed inset-x-0 bottom-[var(--app-mobile-bottom-inset,0px)] md:absolute md:inset-x-0 md:bottom-0"
+        />
       </div>
 
       {/* Mobile bottom nav */}

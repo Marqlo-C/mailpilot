@@ -29,6 +29,7 @@ import {
   TogglePreferencesCard,
 } from "@/components/settings/ui";
 import {
+  CommandDeckFrame,
   tabRailRowClassName,
   useTabRailClasses,
 } from "@/components/ui/tactile/segmented-tabs";
@@ -94,6 +95,8 @@ export function SettingsView({
         value={tab}
         onValueChange={(value) => setTab(value as SettingsTab)}
       >
+        <CommandDeckFrame
+          rail={
         <div className={tabRailRowClassName}>
           <TabsList className={segmentedTabsListClassName}>
             <TabsTrigger
@@ -166,6 +169,8 @@ export function SettingsView({
             </div>
           ) : null}
         </div>
+          }
+        >
 
         {errorBanner ? (
           <div className="mb-4 rounded-lg border border-destructive/30 bg-card/80 px-4 py-3 text-sm text-destructive shadow-sm backdrop-blur-sm">
@@ -266,6 +271,7 @@ export function SettingsView({
           <MeterPreferencesCard accountId={activeAccountId} />
           <TogglePreferencesCard accountId={activeAccountId} />
         </TabsContent>
+        </CommandDeckFrame>
       </Tabs>
   );
 }

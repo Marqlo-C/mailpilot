@@ -23,6 +23,47 @@ import { cn } from "@/lib/utils";
 export const tabRailRowClassName =
   "mb-4 flex flex-wrap items-center justify-between gap-3";
 
+/**
+ * Frosted command deck. Sticks under the mobile top bar, and to the top of
+ * the desktop content scroller. Horizontal bleed matches main's padding.
+ */
+export const commandDeckClassName =
+  "scroll-edge-out sticky flow-root top-[4.25rem] z-30 -mx-4 -mt-4 bg-canvas-fixed px-4 pt-4 md:top-0 md:-mx-6 md:-mt-[9px] md:px-6 md:pt-[9px]";
+
+const CommandDeckSlotContext = createContext<HTMLDivElement | null>(null);
+
+/** Mount node for a toolbar portaled into the sticky deck. */
+export function useCommandDeckSlot() {
+  return useContext(CommandDeckSlotContext);
+}
+
+/**
+ * Sticky tab rail (and optional toolbar). `children` is the scrolling feed.
+ * `dockToolbar` exposes a slot so a nested toolbar can portal into the deck.
+ */
+export function CommandDeckFrame({
+  rail,
+  dockToolbar = false,
+  children,
+}: {
+  rail: ReactNode;
+  dockToolbar?: boolean;
+  children: ReactNode;
+}) {
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+  return (
+    <CommandDeckSlotContext.Provider value={dockToolbar ? slot : null}>
+      <header className={commandDeckClassName}>
+        <div className="space-y-3">
+          {rail}
+          {dockToolbar ? <div ref={setSlot} /> : null}
+        </div>
+      </header>
+      <div className="relative z-0">{children}</div>
+    </CommandDeckSlotContext.Provider>
+  );
+}
+
 /** Light rail — upstream gray track, white active tab. */
 export const lightRailListClassName =
   "inline-flex h-auto w-auto items-center justify-start gap-1 self-start rounded-xl border border-border/80 bg-[hsl(var(--tab-rail-light))] p-1 text-foreground/80 shadow-md";
