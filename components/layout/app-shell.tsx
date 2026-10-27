@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Cog,
   MailCheck,
+  PanelLeft,
   PanelLeftClose,
   PanelLeftOpen,
   Radar,
@@ -21,7 +22,6 @@ import {
   SyncStatusDot,
   SyncTelemetry,
 } from "@/components/opportunities/sync-telemetry";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AccountSummary } from "@/lib/data";
 
@@ -82,6 +82,8 @@ export function AppShell({
   const toggleSidebar = () => setCollapsed((open) => !open);
   /** Desktop sidebar widths: expanded w-60 (240px), collapsed w-[72px]. */
   const sidebarWidthPx = collapsed ? 72 : 240;
+  /** Left float inset (ml equivalent). Content centering starts after this gap. */
+  const sidebarOffsetPx = sidebarWidthPx + 6;
 
   useEffect(() => {
     const root = document.documentElement;
@@ -89,7 +91,7 @@ export function AppShell({
       const desktop = window.matchMedia("(min-width: 768px)").matches;
       root.style.setProperty(
         "--app-sidebar-width",
-        desktop ? `${sidebarWidthPx}px` : "0px"
+        desktop ? `${sidebarOffsetPx}px` : "0px"
       );
       // Mobile bottom nav: icon + label + py-2.5 ≈ 4.5rem; clear fixed overlays.
       root.style.setProperty(
@@ -105,7 +107,7 @@ export function AppShell({
       root.style.removeProperty("--app-sidebar-width");
       root.style.removeProperty("--app-mobile-bottom-inset");
     };
-  }, [sidebarWidthPx]);
+  }, [sidebarOffsetPx]);
 
   return (
     <SyncStatusProvider
@@ -114,13 +116,13 @@ export function AppShell({
       initialPendingClassificationCount={initialPendingClassificationCount}
     >
     <TabRailProvider accountId={activeAccountId}>
-    <div className="min-h-screen md:flex">
+    <div className="min-h-screen md:flex md:py-1.5 md:pl-1.5">
       <GlobalSyncTracker />
 
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          "sticky top-0 z-30 hidden h-screen shrink-0 cursor-pointer flex-col border-r border-white/10 bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))] transition-[width] duration-200 md:flex",
+          "sticky top-1.5 z-30 hidden h-[calc(100dvh-0.75rem)] shrink-0 cursor-pointer flex-col rounded-2xl border border-white/10 bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))] shadow-2xl shadow-black/50 transition-[width] duration-200 md:flex",
           collapsed ? "w-[72px]" : "w-60"
         )}
         onClick={(event) => {
@@ -138,7 +140,7 @@ export function AppShell({
       >
         {/* Physical tactile matte micro-stippling */}
         <div
-          className="pointer-events-none absolute inset-0 z-0 overflow-hidden opacity-40 mix-blend-overlay"
+          className="pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-2xl opacity-40 mix-blend-overlay"
           style={{
             backgroundImage: SIDEBAR_NOISE_BACKGROUND,
             backgroundRepeat: "repeat",
@@ -146,21 +148,50 @@ export function AppShell({
           aria-hidden="true"
         />
         <div className="relative z-10 shrink-0">
+          {collapsed ? (
+            <div className={cn(SHELL_BRAND_ROW_CLASS, "w-full justify-center")}>
+              <button
+                type="button"
+                onClick={() => setCollapsed(false)}
+                className="group relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[22%] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                title="Expand sidebar"
+                aria-label="Expand sidebar"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/logos/colored-logo-only.png"
+                  alt=""
+                  width={32}
+                  height={32}
+                  className="h-full w-full scale-125 object-contain transition-opacity duration-150 group-hover:opacity-0"
+                />
+                <span className="absolute inset-0 flex items-center justify-center rounded-[22%] bg-white/[0.10] opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                  <PanelLeftOpen className="size-4 text-white" />
+                </span>
+              </button>
+            </div>
+          ) : (
+            <div className={cn(SHELL_BRAND_ROW_CLASS, "w-full justify-between")}>
+              <Link
+                href="/jobs"
+                className="inline-flex min-w-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <NavLogo collapsed={false} />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setCollapsed(true)}
+                className="group relative inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-white/55 transition-colors hover:bg-white/[0.08] hover:text-white"
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+              >
+                <PanelLeft className="size-4 transition-opacity group-hover:opacity-0" />
+                <PanelLeftClose className="absolute size-4 opacity-0 transition-opacity group-hover:opacity-100" />
+              </button>
+            </div>
+          )}
           <div
-            className={cn(
-              SHELL_BRAND_ROW_CLASS,
-              collapsed && "justify-center"
-            )}
-          >
-            <Link
-              href="/jobs"
-              className="inline-flex items-center rounded-lg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              <NavLogo collapsed={collapsed} />
-            </Link>
-          </div>
-          <div
-            className="mx-3 border-b border-white/[0.06] dark:border-white/[0.06]"
+            className="mx-3 border-b border-white/[0.06]"
             aria-hidden="true"
           />
         </div>
@@ -178,11 +209,12 @@ export function AppShell({
               <div
                 key={item.href}
                 className={cn(
-                  "flex w-full items-center rounded-md text-sm font-medium transition-colors",
-                  showCollapsedStatus && "justify-center",
+                  "group relative flex items-center rounded-xl transition-colors duration-150",
+                  collapsed ? "mx-auto size-9 justify-center" : "h-9 w-full",
+                  !collapsed && (showJobRadarStatus ? "pl-3 pr-0" : "px-3"),
                   active
-                    ? "bg-white/10 text-white"
-                    : "text-white/65 hover:bg-white/5 hover:text-white"
+                    ? "bg-white/[0.05] text-white hover:bg-white/[0.07]"
+                    : "text-stone-400 hover:bg-white/[0.035] hover:text-stone-200"
                 )}
               >
                 <div
@@ -211,15 +243,22 @@ export function AppShell({
                   href={item.href}
                   title={item.label}
                   className={cn(
-                    "flex items-center gap-3 px-2.5 py-1.5",
-                    collapsed && !showCollapsedStatus && "w-full justify-center px-2",
+                    "flex items-center gap-3",
+                    collapsed && "justify-center",
                     showCollapsedStatus && "px-2",
-                    !collapsed && !showJobRadarStatus && "w-full",
-                    showJobRadarStatus && "w-auto shrink-0 pr-0"
+                    !collapsed && !showJobRadarStatus && "h-full w-full",
+                    showJobRadarStatus && "h-full w-auto shrink-0"
                   )}
                 >
                   <span className="relative shrink-0">
-                    <Icon className="h-4 w-4" />
+                    <Icon
+                      className={cn(
+                        "size-4 shrink-0 transition-colors",
+                        active
+                          ? "text-teal-400"
+                          : "text-stone-400/80 group-hover:text-stone-200"
+                      )}
+                    />
                     {showCollapsedStatus ? (
                       <SyncStatusDot
                         connected={Boolean(activeAccountId)}
@@ -228,7 +267,14 @@ export function AppShell({
                     ) : null}
                   </span>
                   {!collapsed && (
-                    <span className="whitespace-nowrap">
+                    <span
+                      className={cn(
+                        "whitespace-nowrap text-[13px] font-medium tracking-normal",
+                        active
+                          ? "text-white"
+                          : "text-stone-300 group-hover:text-stone-100"
+                      )}
+                    >
                       {item.label}
                     </span>
                   )}
@@ -259,12 +305,12 @@ export function AppShell({
                     href={item.href}
                     tabIndex={-1}
                     aria-hidden
-                    className="h-8 min-w-0 flex-1"
+                    className="h-full min-w-0 flex-1"
                   />
                 ) : null}
                 {showJobRadarStatus ? (
                   <div
-                    className="relative mr-3 size-6 shrink-0"
+                    className="relative mr-2 size-6 shrink-0"
                     onPointerEnter={() => setRailOpen(true)}
                     onPointerLeave={(event) => {
                       const next = event.relatedTarget;
@@ -293,12 +339,7 @@ export function AppShell({
           })}
         </nav>
 
-        <div
-          className={cn(
-            "relative z-10 space-y-2 border-t border-white/10 p-3",
-            collapsed && "flex flex-col items-center px-2"
-          )}
-        >
+        <div className="relative z-10 border-t border-white/[0.06] px-2 pb-2.5 pt-2">
           <AccountSwitcher
             accounts={accounts}
             activeAccountId={activeAccountId}
@@ -306,28 +347,6 @@ export function AppShell({
             surface="sidebar"
             collapsed={collapsed}
           />
-          <div
-            className={cn(
-              "flex w-full",
-              collapsed ? "justify-center" : "justify-end"
-            )}
-          >
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="size-8 px-0 text-white/70 hover:bg-white/5 hover:text-white"
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              onClick={toggleSidebar}
-            >
-              {collapsed ? (
-                <PanelLeftOpen className="h-4 w-4" />
-              ) : (
-                <PanelLeftClose className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
         </div>
       </aside>
 

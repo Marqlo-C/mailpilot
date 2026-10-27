@@ -47,8 +47,24 @@
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
     background-image:
-      radial-gradient(ellipse 80% 50% at 0% 120%, hsl(174 45% 72% / 0.42), transparent),
-      radial-gradient(ellipse 57% 38% at 100% 0%, rgb(120 72 108 / 0.2), transparent);
+      radial-gradient(
+        ellipse 240% 165% at -18% 136%,
+        hsl(174 50% 64% / 0.40) 0%,
+        hsl(174 46% 70% / 0.22) 20%,
+        hsl(174 44% 74% / 0.16) 44%,
+        hsl(174 42% 78% / 0.10) 66%,
+        hsl(174 38% 82% / 0.03) 86%,
+        transparent 100%
+      ),
+      radial-gradient(
+        ellipse 235% 160% at 128% -22%,
+        rgb(190 125 165 / 0.26) 0%,
+        rgb(176 112 158 / 0.16) 20%,
+        rgb(164 116 162 / 0.13) 44%,
+        rgb(156 122 164 / 0.08) 66%,
+        rgb(150 125 160 / 0.02) 86%,
+        transparent 100%
+      );
     background-attachment: fixed;
   }
 }
