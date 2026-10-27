@@ -80,7 +80,7 @@ export function ToolbarMetaRow({
   return (
     <div
       className={cn(
-        "relative z-0 mb-2.5 flex items-center justify-between px-1 py-0.5 text-xs text-foreground/80",
+        "relative z-0 mb-2.5 flex items-center justify-between px-3 py-0.5 text-xs text-foreground/80",
         className
       )}
     >

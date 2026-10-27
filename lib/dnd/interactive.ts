@@ -1,5 +1,6 @@
 import {
   DND_AUTO_SCROLL_EDGE_PX,
+  DND_AUTO_SCROLL_MAX_PX,
   DND_REORDER_EDGE_PX,
 } from "@/lib/dnd/constants";
 
@@ -240,6 +241,105 @@ export function isPointerOutsideDndList(
     clientY < bounds.top ||
     clientY > bounds.bottom
   );
+}
+
+/** `--app-mobile-bottom-inset` is `4.5rem` on small screens and `0px` on desktop. */
+function cssVarLengthPx(prop: string): number {
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue(prop)
+    .trim();
+  const n = Number.parseFloat(raw);
+  if (!Number.isFinite(n)) return 0;
+  if (raw.endsWith("rem")) {
+    const font = Number.parseFloat(
+      getComputedStyle(document.documentElement).fontSize
+    );
+    return n * (Number.isFinite(font) ? font : 16);
+  }
+  return n;
+}
+
+/**
+ * Visible vertical band of the list scrollport. Sticky chrome (tab rail,
+ * toolbar) covers the top, so the scroll zone starts under that, not at the
+ * window top.
+ */
+export function getAutoScrollBand(scroller: Element): { top: number; bottom: number } {
+  const rect = scroller.getBoundingClientRect();
+  let top = Math.max(rect.top, 0);
+  let bottom = Math.min(rect.bottom, window.innerHeight);
+
+  const inset = cssVarLengthPx("--app-mobile-bottom-inset");
+  if (inset > 0) {
+    bottom = Math.min(bottom, window.innerHeight - inset);
+  }
+
+  const scope = scroller === document.documentElement ? document.body : scroller;
+  const mid = (top + bottom) / 2;
+  let cover = top;
+  for (const header of scope.querySelectorAll("header")) {
+    if (!(header instanceof HTMLElement)) continue;
+    const pos = getComputedStyle(header).position;
+    if (pos !== "sticky" && pos !== "fixed") continue;
+    const r = header.getBoundingClientRect();
+    if (r.height <= 0 || r.bottom <= cover || r.bottom >= mid) continue;
+    cover = r.bottom;
+  }
+  top = Math.min(cover, bottom);
+  return { top, bottom };
+}
+
+/** Signed px/frame. Negative scrolls up. Zero when the pointer is mid-list. */
+export function autoScrollSpeedForPointer(
+  clientX: number,
+  clientY: number,
+  scroller: Element
+): number {
+  const bounds = getDndListBounds();
+  if (
+    bounds &&
+    (clientX < bounds.left || clientX > bounds.right)
+  ) {
+    return 0;
+  }
+
+  const { top, bottom } = getAutoScrollBand(scroller);
+  const span = bottom - top;
+  if (span < 48) return 0;
+  const edge = Math.min(DND_AUTO_SCROLL_EDGE_PX, span / 4);
+  if (clientY < top + edge) {
+    const t = Math.min(1, (top + edge - clientY) / edge);
+    return -DND_AUTO_SCROLL_MAX_PX * t * t;
+  }
+  if (clientY > bottom - edge) {
+    const t = Math.min(1, (clientY - (bottom - edge)) / edge);
+    return DND_AUTO_SCROLL_MAX_PX * t * t;
+  }
+  return 0;
+}
+
+/**
+ * Cards the stationary pointer swept while the list scrolled.
+ * `scrollDeltaY` is the scrollTop change already applied (positive = content moved up).
+ */
+export function findItemIdsCrossedByPointer(
+  clientX: number,
+  clientY: number,
+  scrollDeltaY: number
+): string[] {
+  const lo = Math.min(clientY, clientY - scrollDeltaY);
+  const hi = Math.max(clientY, clientY - scrollDeltaY);
+  const ids: string[] = [];
+  for (const node of document.querySelectorAll("[data-dnd-item-id]")) {
+    if (!(node instanceof HTMLElement)) continue;
+    const r = node.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue;
+    if (clientX < r.left || clientX > r.right) continue;
+    if (r.bottom < lo || r.top > hi) continue;
+    const id = node.dataset.dndItemId;
+    if (id) ids.push(id);
+  }
+  return ids;
 }
 
 /** Nearest vertical scrollport for the active card list, else the document. */
