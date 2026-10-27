@@ -11,7 +11,8 @@
  *   Unselected cards never start a drag. Empty-space / Escape / view changes
  *   exit multi-select; releasing a drag only ends DnD.
  * - Same-list reorder when `rules.canReorder`. Page arrows cycle pages even when rearrange is off.
- *   Near the viewport top/bottom, the page auto-scrolls while the pointer stays there.
+ *   Near the top or bottom of the visible list, paint-select and drag auto-scroll
+ *   the page so off-screen rows on this page can be reached.
  *   While dragging, `drag.previewFullIds` is the live order for the list UI to render.
  * - Cross-list moves via `rules.allowedDropZones` even when reorder is locked
  *   (e.g. Active → Unsubscribed while sorted by clutter / newest).
@@ -29,8 +30,6 @@ import {
 } from "react";
 
 import {
-  DND_AUTO_SCROLL_EDGE_PX,
-  DND_AUTO_SCROLL_MAX_PX,
   DND_DRAG_LONG_PRESS_MS,
   DND_MOVE_CANCEL_PX,
   DND_PAGE_FLIP_DELAY_MS,
@@ -38,11 +37,13 @@ import {
   pageFlipDirFromPointer,
 } from "@/lib/dnd/constants";
 import {
+  autoScrollSpeedForPointer,
   captureReorderRects,
   captureSelectionDragGeometry,
   findDropZoneFromPoint,
-  findItemIdFromPoint,
+  findItemIdsCrossedByPointer,
   findReorderInsertIndex,
+  getAutoScrollBand,
   getDragScrollElement,
   isInteractiveTarget,
   isMultiColumnDndList,
@@ -173,6 +174,10 @@ export function useCardListGestures({
   const pageFlipDirRef = useRef<-1 | 1 | null>(null);
   const autoScrollRafRef = useRef<number | null>(null);
   const autoScrollSpeedRef = useRef(0);
+  const scrollBehaviorRestoreRef = useRef<{
+    el: HTMLElement;
+    prev: string;
+  } | null>(null);
   const lastPointerRef = useRef({ x: 0, y: 0 });
   /** Ignore synthetic click that browsers fire after pointerup from a drag. */
   const suppressEmptySpaceUntilRef = useRef(0);
@@ -214,6 +219,11 @@ export function useCardListGestures({
       autoScrollRafRef.current = null;
     }
     autoScrollSpeedRef.current = 0;
+    const restore = scrollBehaviorRestoreRef.current;
+    if (restore) {
+      restore.el.style.scrollBehavior = restore.prev;
+      scrollBehaviorRestoreRef.current = null;
+    }
   }, []);
 
   const clearPendingTimer = useCallback(() => {
@@ -329,20 +339,36 @@ export function useCardListGestures({
     [clearPageFlip, onPageChange]
   );
 
-  const syncAutoScroll = useCallback(
-    (clientY: number, overDropZone: boolean) => {
-      let speed = 0;
-      if (!overDropZone) {
-        const edge = DND_AUTO_SCROLL_EDGE_PX;
-        const viewH = window.innerHeight;
-        if (clientY < edge) {
-          const t = Math.min(1, (edge - clientY) / edge);
-          speed = -DND_AUTO_SCROLL_MAX_PX * t * t;
-        } else if (clientY > viewH - edge) {
-          const t = Math.min(1, (clientY - (viewH - edge)) / edge);
-          speed = DND_AUTO_SCROLL_MAX_PX * t * t;
-        }
+  const paintAtPointer = useCallback(
+    (clientX: number, clientY: number, scrollDeltaY: number) => {
+      const pending = pendingRef.current;
+      if (pending?.kind !== "paint") return;
+      const scroller = getDragScrollElement();
+      let x = clientX;
+      let y = clientY;
+      if (scroller) {
+        const band = getAutoScrollBand(scroller);
+        y = Math.min(
+          Math.max(clientY, band.top + 4),
+          Math.max(band.top + 4, band.bottom - 4)
+        );
       }
+      for (const overId of findItemIdsCrossedByPointer(x, y, scrollDeltaY)) {
+        if (pending.visited.has(overId)) continue;
+        pending.visited.add(overId);
+        onPaintSelect(overId, pending.mode);
+      }
+    },
+    [onPaintSelect]
+  );
+
+  const syncAutoScroll = useCallback(
+    (clientX: number, clientY: number, overDropZone: boolean) => {
+      const scroller = getDragScrollElement();
+      const speed =
+        overDropZone || !scroller
+          ? 0
+          : autoScrollSpeedForPointer(clientX, clientY, scroller);
 
       autoScrollSpeedRef.current = speed;
       if (speed === 0) {
@@ -355,34 +381,51 @@ export function useCardListGestures({
         autoScrollRafRef.current = null;
         const pending = pendingRef.current;
         const step = autoScrollSpeedRef.current;
-        if (!step || pending?.kind !== "drag") {
-          autoScrollSpeedRef.current = 0;
+        const kind = pending?.kind;
+        if (!step || (kind !== "drag" && kind !== "paint")) {
+          clearAutoScroll();
           return;
         }
 
-        const scroller = getDragScrollElement();
-        if (!scroller) {
-          autoScrollSpeedRef.current = 0;
+        const port = getDragScrollElement();
+        if (!port) {
+          clearAutoScroll();
           return;
         }
 
-        const before = scroller.scrollTop;
-        const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+        if (
+          port instanceof HTMLElement &&
+          !scrollBehaviorRestoreRef.current
+        ) {
+          scrollBehaviorRestoreRef.current = {
+            el: port,
+            prev: port.style.scrollBehavior,
+          };
+          port.style.scrollBehavior = "auto";
+        }
+
+        const before = port.scrollTop;
+        const max = Math.max(0, port.scrollHeight - port.clientHeight);
         const next = Math.max(0, Math.min(max, before + step));
         const delta = next - before;
         if (delta !== 0) {
-          scroller.scrollTop = next;
+          port.scrollTop = next;
           offsetFrozenGeometryByScroll(
             frozenRectsRef.current,
             selectionGeometryRef.current,
             delta
           );
-          const { x, y } = lastPointerRef.current;
+        }
+
+        const { x, y } = lastPointerRef.current;
+        if (kind === "paint") {
+          paintAtPointer(x, y, delta);
+        } else if (delta !== 0) {
           updateDragFromPointer(x, y);
         }
 
-        const atTop = scroller.scrollTop <= 0;
-        const atBottom = scroller.scrollTop >= max - 0.5;
+        const atTop = port.scrollTop <= 0;
+        const atBottom = port.scrollTop >= max - 0.5;
         const stuck = (step < 0 && atTop) || (step > 0 && atBottom);
         if (stuck || autoScrollSpeedRef.current === 0) {
           if (stuck) autoScrollSpeedRef.current = 0;
@@ -393,7 +436,7 @@ export function useCardListGestures({
 
       autoScrollRafRef.current = requestAnimationFrame(tick);
     },
-    [clearAutoScroll, updateDragFromPointer]
+    [clearAutoScroll, paintAtPointer, updateDragFromPointer]
   );
 
   useEffect(() => {
@@ -402,6 +445,9 @@ export function useCardListGestures({
       // Escape cancels an in-flight drag, then always leaves multi-select.
       if (pendingRef.current?.kind === "drag" || drag) {
         endDrag();
+      } else if (pendingRef.current?.kind === "paint") {
+        pendingRef.current = null;
+        clearAutoScroll();
       }
       if (selectionModeRef.current) {
         onClearSelection();
@@ -409,7 +455,7 @@ export function useCardListGestures({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [drag, endDrag, onClearSelection]);
+  }, [clearAutoScroll, drag, endDrag, onClearSelection]);
 
   useEffect(() => {
     return () => {
@@ -606,6 +652,12 @@ export function useCardListGestures({
               visited,
               mode,
             };
+            lastPointerRef.current = {
+              x: event.clientX,
+              y: event.clientY,
+            };
+            paintAtPointer(event.clientX, event.clientY, 0);
+            syncAutoScroll(event.clientX, event.clientY, false);
           } else {
             pendingRef.current = null;
           }
@@ -614,21 +666,19 @@ export function useCardListGestures({
       }
 
       if (pending.kind === "paint") {
-        const overId = findItemIdFromPoint(event.clientX, event.clientY);
-        if (overId && !pending.visited.has(overId)) {
-          pending.visited.add(overId);
-          onPaintSelect(overId, pending.mode);
-        }
+        lastPointerRef.current = { x: event.clientX, y: event.clientY };
+        paintAtPointer(event.clientX, event.clientY, 0);
+        syncAutoScroll(event.clientX, event.clientY, false);
         return;
       }
 
       if (pending.kind === "drag") {
         lastPointerRef.current = { x: event.clientX, y: event.clientY };
         const zone = updateDragFromPointer(event.clientX, event.clientY);
-        syncAutoScroll(event.clientY, Boolean(zone));
+        syncAutoScroll(event.clientX, event.clientY, Boolean(zone));
       }
     },
-    [onPaintSelect, syncAutoScroll, updateDragFromPointer]
+    [paintAtPointer, syncAutoScroll, updateDragFromPointer]
   );
 
   const onPointerUp = useCallback(
@@ -651,6 +701,10 @@ export function useCardListGestures({
 
       if (pending.kind === "paint") {
         pendingRef.current = null;
+        clearAutoScroll();
+        // pointerup over the empty edge still emits a click. That is the
+        // end of the stroke, not a whitespace click to leave multi-select.
+        suppressEmptySpaceUntilRef.current = Date.now() + 500;
         return;
       }
 
@@ -691,7 +745,7 @@ export function useCardListGestures({
         endDrag();
       }
     },
-    [endDrag, onDropZone, onReorder, onToggleSelect]
+    [clearAutoScroll, endDrag, onDropZone, onReorder, onToggleSelect]
   );
 
   useEffect(() => {
