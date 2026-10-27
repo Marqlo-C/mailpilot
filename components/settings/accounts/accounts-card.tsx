@@ -6,10 +6,12 @@ import { RotateCw, Unlink, UsersRound } from "lucide-react";
 
 import { unlinkAccountCredentials } from "@/app/actions/accounts";
 import { GoogleCloudIcon } from "@/components/icons/google-cloud-icon";
-import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
+import {
+  BOXY_ACTION_BTN_DESTRUCTIVE,
+  SETTINGS_CARD_CLASSNAME,
+} from "@/components/settings/settings-chrome";
+import { buttonVariants } from "@/components/ui/button";
 import { CompanyLogo } from "@/components/ui/company-logo";
-import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
-import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
 import {
   SettingsFeatureCard,
   SettingsSectionCard,
@@ -20,6 +22,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import type { AccountSummary } from "@/lib/data";
 
 type AccountsCardProps = {
@@ -112,9 +115,12 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
                           <TooltipTrigger asChild>
                             <a
                               href="/api/auth/google?intent=link&forceConsent=true"
-                              className={SECONDARY_ACTION_BTN_CLASSNAME}
+                              className={cn(
+                                buttonVariants({ variant: "outline", size: "sm" }),
+                                "h-8 shrink-0 gap-1.5 px-2.5 text-xs border-border/80 hover:bg-muted/60"
+                              )}
                             >
-                              <RotateCw className="h-3.5 w-3.5" />
+                              <RotateCw className="size-3.5 text-muted-foreground" />
                               Reconnect
                             </a>
                           </TooltipTrigger>
@@ -143,9 +149,9 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
                                   router.refresh();
                                 });
                               }}
-                              className={PRIMARY_ACTION_BTN_CLASSNAME}
+                              className={BOXY_ACTION_BTN_DESTRUCTIVE}
                             >
-                              <Unlink className="h-3.5 w-3.5" />
+                              <Unlink className="size-3.5 shrink-0" />
                               Disconnect
                             </button>
                           </TooltipTrigger>

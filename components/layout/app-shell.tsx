@@ -14,7 +14,8 @@ import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { GlobalSyncTracker } from "@/components/layout/global-sync-tracker";
 import { SidebarNav, SIDEBAR_NAV } from "@/components/layout/sidebar-nav";
 import { SyncStatusProvider } from "@/components/layout/sync-status-provider";
-import { TabRailProvider } from "@/components/ui/tactile/segmented-tabs";
+import { TabRailProvider, darkPlateClassName } from "@/components/ui/tactile/segmented-tabs";
+import { RailActionProvider } from "@/components/ui/rail-action";
 import { SyncTelemetry } from "@/components/opportunities/sync-telemetry";
 import { cn } from "@/lib/utils";
 import type { AccountSummary } from "@/lib/data";
@@ -29,8 +30,8 @@ const SHELL_TOP_BAND_CLASS = "flex h-[4.25rem] shrink-0 items-center";
 const SHELL_BRAND_ROW_CLASS = "flex items-center px-3 py-3";
 
 /**
- * Desktop main inset that centers the 38px tab rail on that same line.
- * 28px − 19px = 9px.
+ * Desktop top padding is canceled by the command deck. The deck then
+ * drops the tab rail 4px under the sidebar's top.
  */
 const SHELL_MAIN_CLASS =
   "mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-6 md:px-6 md:pb-8 md:pt-[9px]";
@@ -91,13 +92,15 @@ export function AppShell({
       initialPendingClassificationCount={initialPendingClassificationCount}
     >
     <TabRailProvider accountId={activeAccountId}>
+    <RailActionProvider accountId={activeAccountId}>
     <div className="min-h-screen md:flex md:h-dvh md:min-h-0 md:overflow-hidden md:py-1.5 md:pl-1.5">
       <GlobalSyncTracker />
 
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          "sticky top-1.5 z-40 hidden h-[calc(100dvh-0.75rem)] shrink-0 cursor-pointer flex-col rounded-2xl border border-white/10 bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))] shadow-2xl shadow-black/50 transition-[width] duration-200 md:flex",
+          "sticky top-1.5 z-40 hidden h-[calc(100dvh-0.75rem)] shrink-0 cursor-pointer flex-col rounded-2xl text-[hsl(var(--sidebar-foreground))] transition-[width] duration-200 md:flex",
+          darkPlateClassName,
           collapsed ? "w-[72px]" : "w-60"
         )}
         onClick={(event) => {
@@ -250,6 +253,7 @@ export function AppShell({
         </ul>
       </nav>
     </div>
+    </RailActionProvider>
     </TabRailProvider>
     </SyncStatusProvider>
   );

@@ -14,6 +14,8 @@ export type ExportMasterProfileButtonProps = {
   size?: "default" | "sm" | "lg" | "icon";
   className?: string;
   label?: string;
+  /** Marks the control so a saved dark plate can paint before hydration. */
+  railAction?: boolean;
 };
 
 export type ExportMasterResumeButtonProps = ExportMasterProfileButtonProps;
@@ -28,6 +30,7 @@ export function ExportMasterProfileButton({
   size = "sm",
   className,
   label = "Export Master Profile",
+  railAction = false,
 }: ExportMasterProfileButtonProps) {
   const [isExporting, setIsExporting] = useState(false);
 
@@ -73,6 +76,7 @@ export function ExportMasterProfileButton({
       variant={variant}
       size={size}
       className={cn("gap-2 [&_svg]:size-3.5 [&_svg]:shrink-0", className)}
+      data-mp-rail-action={railAction ? "" : undefined}
       disabled={isExporting}
       onClick={handleExport}
     >

@@ -17,23 +17,32 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useRailAction, useRailActionToneClass } from "@/components/ui/rail-action";
 
 type SyncControlsProps = {
   accountId: string | null;
   className?: string;
+  /** Settings swatch. Same split control and menu, without starting a sync. */
+  preview?: boolean;
 };
 
 /**
  * Dual-mode inbox sync with granular force-rescan lookbacks (today / 5 / 10 / 14 days).
  */
-export function SyncControls({ accountId, className }: SyncControlsProps) {
+export function SyncControls({
+  accountId,
+  className,
+  preview = false,
+}: SyncControlsProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const disabled = !accountId || pending;
+  const { variant } = useRailAction();
+  const toneClass = useRailActionToneClass();
+  const disabled = preview ? false : !accountId || pending;
 
   function runSync(forceRescan: boolean, lookbackDays = 14) {
-    if (!accountId) {
-      toast.error("Connect a Gmail account first");
+    if (preview || !accountId) {
+      if (!preview) toast.error("Connect a Gmail account first");
       return;
     }
 
@@ -71,7 +80,8 @@ export function SyncControls({ accountId, className }: SyncControlsProps) {
         variant="outline"
         size="sm"
         disabled={disabled}
-        className="rounded-r-none border-r-0 shadow-md"
+        className={cn("rounded-r-none border-r-0 shadow-md", toneClass)}
+        data-mp-rail-action=""
         onClick={() => runSync(false)}
       >
         <RefreshCw className={cn("h-4 w-4", pending && "animate-spin")} />
@@ -84,7 +94,12 @@ export function SyncControls({ accountId, className }: SyncControlsProps) {
             variant="outline"
             size="sm"
             disabled={disabled}
-            className="rounded-l-none px-2 shadow-md"
+            className={cn(
+              "rounded-l-none px-2 shadow-md",
+              toneClass,
+              variant === "dark" && "!border-l-[#e4f7f3]/15"
+            )}
+            data-mp-rail-action=""
             aria-label="More sync options"
           >
             <ChevronDown className="h-4 w-4" />

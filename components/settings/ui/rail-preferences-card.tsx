@@ -36,6 +36,7 @@ export function RailPreferencesCard() {
       <div className="space-y-3">
         <div
           className={listClassName}
+          data-mp-tab-rail=""
           role="radiogroup"
           aria-label="Tab rail"
         >

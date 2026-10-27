@@ -1059,7 +1059,7 @@ export function SubscriptionsView({
             <>
         <div className={cn(tabRailRowClassName, "mb-0")}>
           <div className="flex items-center gap-1.5">
-            <TabsList className={segmentedTabsListClassName}>
+            <TabsList className={segmentedTabsListClassName} data-mp-tab-rail="">
               <TabsTrigger
                 value="active"
                 className={segmentedTabsTriggerClassName}
