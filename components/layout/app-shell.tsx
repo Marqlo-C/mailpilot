@@ -178,7 +178,7 @@ export function AppShell({
               <div
                 key={item.href}
                 className={cn(
-                  "flex w-full items-center rounded-md text-[13px] font-medium transition-colors",
+                  "flex w-full items-center rounded-md text-sm font-medium transition-colors",
                   showCollapsedStatus && "justify-center",
                   active
                     ? "bg-white/10 text-white"
