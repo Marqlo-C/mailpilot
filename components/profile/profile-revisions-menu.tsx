@@ -107,12 +107,12 @@ export function ProfileRevisionsMenu({ accountId }: ProfileRevisionsMenuProps) {
           variant="outline"
           size="sm"
           disabled={pending}
-          className="h-8 max-w-sm gap-1.5 rounded-lg border-border/50 bg-card/75 px-3 text-xs font-normal text-foreground/75 shadow-sm hover:bg-card hover:text-foreground"
+          className="h-8 max-w-sm gap-1.5 px-3 text-xs font-medium [&_svg]:!size-3.5"
         >
           {pending ? (
-            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+            <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
           ) : (
-            <History className="h-3.5 w-3.5 shrink-0" />
+            <History className="size-3.5 shrink-0 text-muted-foreground" />
           )}
           <span className="truncate">{triggerLabel}</span>
         </Button>

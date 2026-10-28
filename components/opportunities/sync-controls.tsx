@@ -22,8 +22,6 @@ import { useRailAction, useRailActionToneClass } from "@/components/ui/rail-acti
 type SyncControlsProps = {
   accountId: string | null;
   className?: string;
-  /** Settings swatch. Same split control and menu, without starting a sync. */
-  preview?: boolean;
 };
 
 /**
@@ -32,17 +30,16 @@ type SyncControlsProps = {
 export function SyncControls({
   accountId,
   className,
-  preview = false,
 }: SyncControlsProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const { variant } = useRailAction();
   const toneClass = useRailActionToneClass();
-  const disabled = preview ? false : !accountId || pending;
+  const disabled = !accountId || pending;
 
   function runSync(forceRescan: boolean, lookbackDays = 14) {
-    if (preview || !accountId) {
-      if (!preview) toast.error("Connect a Gmail account first");
+    if (!accountId) {
+      toast.error("Connect a Gmail account first");
       return;
     }
 
