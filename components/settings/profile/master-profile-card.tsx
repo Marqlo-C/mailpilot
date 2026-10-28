@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Award,
   Brain,
@@ -180,12 +180,35 @@ function SectionCountPill({
   );
 }
 
-function formatUpdatedAtUtc(iso: string): string {
-  return `${new Date(iso).toLocaleString("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "UTC",
-  })} UTC`;
+/** Last master-profile save, rendered in the browser's timezone. */
+function ProfileUpdatedStamp({ iso }: { iso: string }) {
+  const [label, setLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    const parsed = new Date(iso);
+    if (!Number.isFinite(parsed.getTime())) {
+      setLabel(null);
+      return;
+    }
+    setLabel(
+      parsed.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZoneName: "short",
+      })
+    );
+  }, [iso]);
+
+  if (!label) return null;
+
+  return (
+    <span className="shrink-0 text-[11px] text-muted-foreground">
+      Updated {label}
+    </span>
+  );
 }
 
 /**
@@ -316,7 +339,12 @@ export function MasterProfileCard({
         accountId ? (
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <ManualProfileEditor accountId={accountId} profile={profile} />
-            {profile ? <ProfileRevisionsMenu accountId={accountId} /> : null}
+            {profile ? (
+              <ProfileRevisionsMenu
+                accountId={accountId}
+                revisionStamp={profile.updatedAt}
+              />
+            ) : null}
           </div>
         ) : undefined
       }
@@ -350,12 +378,7 @@ export function MasterProfileCard({
               </p>
             </div>
             {profile.updatedAt ? (
-              <span
-                className="text-[11px] text-muted-foreground shrink-0"
-                suppressHydrationWarning
-              >
-                Updated {formatUpdatedAtUtc(profile.updatedAt)}
-              </span>
+              <ProfileUpdatedStamp iso={profile.updatedAt} />
             ) : null}
           </div>
 

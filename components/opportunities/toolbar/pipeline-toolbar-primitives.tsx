@@ -514,12 +514,13 @@ export function ToolbarSearch({
               aria-label="Filter and sort"
               data-filter-panel
               data-dnd-ignore
-              className="z-50 flex flex-col gap-2.5 rounded-lg border border-border/50 bg-card p-2.5 shadow-md sm:flex-row sm:flex-wrap sm:items-end"
+              className="z-50 flex w-max max-w-full flex-col gap-2.5 rounded-lg border border-border/50 bg-card p-2.5 shadow-md sm:flex-row sm:flex-wrap sm:items-end"
               style={{
                 position: "fixed",
                 top: panelBox.top,
-                left: panelBox.left,
-                width: panelBox.width,
+                left: panelBox.left + panelBox.width,
+                transform: "translateX(-100%)",
+                maxWidth: panelBox.width,
               }}
             >
               {children}

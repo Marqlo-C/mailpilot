@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { History, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -26,45 +26,48 @@ import { parseRevisionSummary } from "@/lib/profile/revision-diff";
 
 type ProfileRevisionsMenuProps = {
   accountId: string;
+  /** Server time of the current revision. Changes after a real profile save. */
+  revisionStamp?: string;
 };
 
 /**
  * Current profile plus up to three earlier copies.
  */
-export function ProfileRevisionsMenu({ accountId }: ProfileRevisionsMenuProps) {
+export function ProfileRevisionsMenu({
+  accountId,
+  revisionStamp,
+}: ProfileRevisionsMenuProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<ProfileHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [pending, startTransition] = useTransition();
   const hasItems = useRef(false);
+  const requestId = useRef(0);
   hasItems.current = items.length > 0;
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancelled = false;
+  const loadRevisions = useCallback(async () => {
+    const id = ++requestId.current;
     if (!hasItems.current) setLoading(true);
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/profile/history?accountId=${encodeURIComponent(accountId)}`,
-          { signal: controller.signal, cache: "no-store" }
-        );
-        if (cancelled) return;
-        if (!res.ok) return;
-        const body = (await res.json()) as { items?: ProfileHistoryItem[] };
-        setItems(Array.isArray(body.items) ? body.items : []);
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [open, accountId]);
+    try {
+      const res = await fetch(
+        `/api/profile/history?accountId=${encodeURIComponent(accountId)}`,
+        { cache: "no-store" }
+      );
+      if (id !== requestId.current) return;
+      if (!res.ok) return;
+      const body = (await res.json()) as { items?: ProfileHistoryItem[] };
+      setItems(Array.isArray(body.items) ? body.items : []);
+    } catch {
+      // A newer load supersedes this one.
+    } finally {
+      if (id === requestId.current) setLoading(false);
+    }
+  }, [accountId]);
+
+  useEffect(() => {
+    void loadRevisions();
+  }, [open, loadRevisions, revisionStamp]);
 
   const latest = items[0];
   const latestTitle = latest ? parseRevisionSummary(latest.summary).title : "";
@@ -94,7 +97,18 @@ export function ProfileRevisionsMenu({ accountId }: ProfileRevisionsMenuProps) {
         return;
       }
       toast.success(`Restored ${label}`, { id: toastId });
+      setItems((current) => {
+        const restored = current.find((row) => row.id === item.id);
+        if (!restored) return current;
+        return [
+          { ...restored, isCurrent: true },
+          ...current
+            .filter((row) => row.id !== item.id)
+            .map((row) => ({ ...row, isCurrent: false })),
+        ];
+      });
       setOpen(false);
+      void loadRevisions();
       router.refresh();
     });
   }

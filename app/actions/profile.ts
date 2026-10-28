@@ -17,7 +17,9 @@ import {
 } from "@/lib/profile/profile-consolidation";
 import {
   describeProfileRevision,
+  isEmptyProfileDiff,
   parseRevisionSummary,
+  latestProfileUpdate,
   serializeRevisionSummary,
 } from "@/lib/profile/revision-diff";
 import { normalizeProfileUrl } from "@/lib/utils/url";
@@ -446,11 +448,16 @@ export async function updateMasterProfile(
         const previous = existingTree
           ? serializeUserProfileToInput(existingTree)
           : null;
-        summary = serializeRevisionSummary(
-          describeProfileRevision(previous, payload)
-        );
+        const described = describeProfileRevision(previous, payload);
+        if (previous && isEmptyProfileDiff(described.diff)) {
+          summaryForSnapshot = null;
+        } else {
+          summary = serializeRevisionSummary(described);
+          summaryForSnapshot = summary;
+        }
+      } else {
+        summaryForSnapshot = summary;
       }
-      summaryForSnapshot = summary;
     }
 
     const profileId = await prisma.$transaction(async (tx) => {
@@ -702,6 +709,10 @@ export async function getMasterProfile(
         experiences: { orderBy: { displayOrder: "asc" } },
         projects: true,
         education: true,
+        history: {
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true, summary: true },
+        },
       },
     });
 
@@ -756,7 +767,7 @@ export async function getMasterProfile(
         certifications: certificationsSchema.parse(profile.certifications),
         awards: awardsSchema.parse(profile.awards),
         interests: interestsSchema.parse(profile.interests),
-        updatedAt: profile.updatedAt.toISOString(),
+        updatedAt: latestProfileUpdate(profile.history, profile.updatedAt),
         matchThreshold: profile.matchThreshold,
         ...resolvedAccountLinks({
           links: (profile.links as MasterProfileInput["links"]) ?? [],
@@ -862,9 +873,18 @@ export async function restoreProfileHistory(
     return result;
   }
 
+  const recorded = parseRevisionSummary(target.summary);
   await prisma.profileHistory.update({
     where: { id: historyId },
-    data: { createdAt: new Date() },
+    data: {
+      // Sort this copy to the front without replacing the time it was stored.
+      createdAt: new Date(),
+      summary: serializeRevisionSummary({
+        title: recorded.title,
+        diff: recorded.diff,
+        storedAt: recorded.storedAt ?? target.createdAt.toISOString(),
+      }),
+    },
   });
   await pruneProfileHistory(account.profile.id);
 
@@ -904,7 +924,11 @@ export async function renameProfileRevision(
   await prisma.profileHistory.update({
     where: { id: revisionId },
     data: {
-      summary: serializeRevisionSummary({ title: name, diff: stored.diff }),
+      summary: serializeRevisionSummary({
+        title: name,
+        diff: stored.diff,
+        storedAt: stored.storedAt,
+      }),
     },
   });
   revalidatePath("/settings");
