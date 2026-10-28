@@ -479,24 +479,24 @@ export function OpportunityCard({
           <div className="mt-auto flex items-start gap-2 px-3.5 pt-3">
             <WavyDashedFrame
               data-match-reason-box=""
-              className="flex w-full items-start gap-2 rounded-lg bg-muted/20 p-2.5 dark:bg-muted/10"
+              className="w-full rounded-lg bg-muted/20 p-2.5 dark:bg-muted/10"
             >
-              {opportunity.classificationMethod === "HEURISTIC" ? (
-                <span title="Deterministic spec evaluation" className="mt-0.5 shrink-0 inline-flex">
-                  <Sparkles
-                    aria-label="Deterministic spec evaluation"
-                    className="h-4 w-4 text-blue-500"
-                  />
-                </span>
-              ) : (
-                <span title="AI triage analysis" className="mt-0.5 shrink-0 inline-flex">
-                  <Sparkle
-                    aria-label="AI triage analysis"
-                    className="h-4 w-4 text-muted-foreground/80"
-                  />
-                </span>
-              )}
               <p className="text-[11px] leading-relaxed text-muted-foreground">
+                {opportunity.classificationMethod === "HEURISTIC" ? (
+                  <span title="Deterministic spec evaluation" className="mr-1.5 inline-flex h-[1lh] items-center align-bottom">
+                    <Sparkles
+                      aria-label="Deterministic spec evaluation"
+                      className="h-4 w-4 text-blue-500"
+                    />
+                  </span>
+                ) : (
+                  <span title="AI triage analysis" className="mr-1.5 inline-flex h-[1lh] items-center align-bottom">
+                    <Sparkle
+                      aria-label="AI triage analysis"
+                      className="h-4 w-4 text-muted-foreground/80"
+                    />
+                  </span>
+                )}
                 {opportunity.matchReason}
               </p>
             </WavyDashedFrame>
