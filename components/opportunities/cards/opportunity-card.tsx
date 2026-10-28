@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import { deleteDismissedPermanently } from "@/app/actions/opportunities";
+import { WavyDashedFrame } from "@/components/ui/tactile/wavy-dashed-frame";
 import {
   variantToJobsTabKey,
   type JobCardAction,
@@ -461,7 +462,7 @@ export function OpportunityCard({
         </div>
       </div>
 
-      {/* 4. Content body — description shares logo indent; AI row keeps tighter inset */}
+      {/* 4. Content body — description starts in from the logo; AI row keeps tighter inset */}
       <div
         className={cn(
           "flex flex-1 flex-col justify-start py-3.5",
@@ -469,16 +470,16 @@ export function OpportunityCard({
         )}
       >
         {displayDescription ? (
-          <p className="min-h-[2.5rem] line-clamp-2 px-6 text-xs leading-relaxed text-foreground/80 sm:px-7 dark:text-foreground/85">
+          <p className="min-h-[2.5rem] line-clamp-2 px-8 text-xs leading-relaxed text-foreground/80 sm:px-9 dark:text-foreground/85">
             {displayDescription}
           </p>
         ) : null}
 
         {opportunity.matchReason ? (
           <div className="mt-auto flex items-start gap-2 px-4 pt-3 sm:px-5">
-            <div
+            <WavyDashedFrame
               data-match-reason-box=""
-              className="flex w-full items-start gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 p-2.5 dark:bg-muted/10"
+              className="flex w-full items-start gap-2 rounded-lg bg-muted/20 p-2.5 dark:bg-muted/10"
             >
               {opportunity.classificationMethod === "HEURISTIC" ? (
                 <span title="Deterministic spec evaluation" className="mt-0.5 shrink-0 inline-flex">
@@ -495,10 +496,10 @@ export function OpportunityCard({
                   />
                 </span>
               )}
-              <p className="text-xs leading-relaxed text-muted-foreground">
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
                 {opportunity.matchReason}
               </p>
-            </div>
+            </WavyDashedFrame>
           </div>
         ) : null}
       </div>

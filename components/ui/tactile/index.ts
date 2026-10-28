@@ -1,4 +1,5 @@
 export * from "./wave-toggle";
+export * from "./wavy-dashed-frame";
 export * from "./wavy-slider";
 export * from "./wavy-slider-dual";
 export * from "./wavy-meter";

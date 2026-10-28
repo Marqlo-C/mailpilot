@@ -345,11 +345,90 @@ export function JobsRadar({
     });
   }
 
+  const deckVariant: "leads" | "applied" | "action" | "history" =
+    activeTab === "applied"
+      ? "applied"
+      : activeTab === "action"
+        ? "action"
+        : activeTab === "history"
+          ? "history"
+          : "leads";
+  const deckOpportunities =
+    deckVariant === "applied"
+      ? sortedOpportunityApplied
+      : deckVariant === "action"
+        ? sortedOpportunityAction
+        : deckVariant === "history"
+          ? sortedOpportunityHistory
+          : sortedOpportunityLeads;
+  const showOpportunityDeck = deckOpportunities.length > 0;
+  const deckEmptyText =
+    deckVariant === "applied"
+      ? "No applied opportunities."
+      : deckVariant === "action"
+        ? "No drafts awaiting review."
+        : deckVariant === "history"
+          ? "No archived opportunities."
+          : "No matching opportunities.";
+
   return (
+    <>
+    <OpportunitiesView
+      key={deckVariant}
+      accountId={accountId}
+      opportunities={deckOpportunities}
+      matchThreshold={threshold}
+      retentionDays={retentionDays}
+      variant={deckVariant}
+      pending={pending}
+      emptyText={deckEmptyText}
+      showThresholdControl={deckVariant === "leads"}
+      onThresholdChange={deckVariant === "leads" ? setThreshold : undefined}
+      onThresholdCommit={deckVariant === "leads" ? commitThreshold : undefined}
+      hiddenCount={deckVariant === "leads" ? archivedLeadCount : 0}
+      sortOption={sort}
+      onSortOptionChange={setSort}
+      suppressTabChangeRef={suppressTabChangeRef}
+      onDragZoneChange={handleDragZoneChange}
+      onReviewDraft={
+        deckVariant === "leads" || deckVariant === "action"
+          ? (opp) => setDraftOpportunity(opp)
+          : undefined
+      }
+      onSendNow={
+        deckVariant === "leads" || deckVariant === "action"
+          ? handleOpportunitySend
+          : undefined
+      }
+      onViewOriginalEmail={handleViewOriginalEmail}
+      onMarkApplied={
+        deckVariant === "leads"
+          ? (opp) => {
+              startTransition(async () => {
+                await markOpportunityExternalApplied(opp.id);
+                toast.success("Marked as applied");
+                router.refresh();
+              });
+            }
+          : undefined
+      }
+      onUnmarkApplied={
+        deckVariant === "applied"
+          ? (opp) => {
+              startTransition(async () => {
+                await unmarkApplied(opp.id);
+                toast.success("Moved back to leads");
+                router.refresh();
+              });
+            }
+          : undefined
+      }
+    >
+    {(toolbar, opportunityBody) => (
     <div>
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <CommandDeckFrame
-          dockToolbar
+          toolbar={showOpportunityDeck ? toolbar : null}
           rail={
         <div className={cn(tabRailRowClassName, "mb-0")}>
           <div className="flex items-center gap-1.5">
@@ -433,35 +512,8 @@ export function JobsRadar({
             <EmptyState text="No leads in the queue yet." />
           ) : (
             <div className="space-y-4">
-              {hasOpportunityLeads ? (
-                <OpportunitiesView
-                  dockToolbar
-                  accountId={accountId}
-                  opportunities={sortedOpportunityLeads}
-                  matchThreshold={threshold}
-                  retentionDays={retentionDays}
-                  variant="leads"
-                  pending={pending}
-                  emptyText="No matching opportunities."
-                  showThresholdControl
-                  onThresholdChange={setThreshold}
-                  onThresholdCommit={commitThreshold}
-                  hiddenCount={archivedLeadCount}
-                  sortOption={sort}
-                  onSortOptionChange={setSort}
-                  suppressTabChangeRef={suppressTabChangeRef}
-                  onDragZoneChange={handleDragZoneChange}
-                  onReviewDraft={(opp) => setDraftOpportunity(opp)}
-                  onSendNow={handleOpportunitySend}
-                  onViewOriginalEmail={handleViewOriginalEmail}
-                  onMarkApplied={(opp) => {
-                    startTransition(async () => {
-                      await markOpportunityExternalApplied(opp.id);
-                      toast.success("Marked as applied");
-                      router.refresh();
-                    });
-                  }}
-                />
+              {showOpportunityDeck && deckVariant === "leads" ? (
+                opportunityBody
               ) : null}
 
               {sortedLeads.length > 0 ? (
@@ -604,29 +656,8 @@ export function JobsRadar({
             <EmptyState text="No active applications waiting for a response." />
           ) : (
             <>
-              {sortedOpportunityApplied.length > 0 ? (
-                <OpportunitiesView
-                  dockToolbar
-                  accountId={accountId}
-                  opportunities={sortedOpportunityApplied}
-                  matchThreshold={threshold}
-                  retentionDays={retentionDays}
-                  variant="applied"
-                  pending={pending}
-                  emptyText="No applied opportunities."
-                  sortOption={sort}
-                  onSortOptionChange={setSort}
-                  suppressTabChangeRef={suppressTabChangeRef}
-                  onDragZoneChange={handleDragZoneChange}
-                  onViewOriginalEmail={handleViewOriginalEmail}
-                  onUnmarkApplied={(opp) => {
-                    startTransition(async () => {
-                      await unmarkApplied(opp.id);
-                      toast.success("Moved back to leads");
-                      router.refresh();
-                    });
-                  }}
-                />
+              {showOpportunityDeck && deckVariant === "applied" ? (
+                opportunityBody
               ) : null}
               {sortedApplied.length > 0 ? (
                 <ul className="space-y-2">
@@ -682,24 +713,8 @@ export function JobsRadar({
             <EmptyState text="Nothing needs your attention right now." />
           ) : (
             <>
-              {sortedOpportunityAction.length > 0 ? (
-                <OpportunitiesView
-                  dockToolbar
-                  accountId={accountId}
-                  opportunities={sortedOpportunityAction}
-                  matchThreshold={threshold}
-                  retentionDays={retentionDays}
-                  variant="action"
-                  pending={pending}
-                  emptyText="No drafts awaiting review."
-                  sortOption={sort}
-                  onSortOptionChange={setSort}
-                  suppressTabChangeRef={suppressTabChangeRef}
-                  onDragZoneChange={handleDragZoneChange}
-                  onReviewDraft={(opp) => setDraftOpportunity(opp)}
-                  onSendNow={handleOpportunitySend}
-                  onViewOriginalEmail={handleViewOriginalEmail}
-                />
+              {showOpportunityDeck && deckVariant === "action" ? (
+                opportunityBody
               ) : null}
               {sortedActionRequired.length > 0 ? (
                 <div className="grid gap-3 md:grid-cols-2">
@@ -782,22 +797,8 @@ export function JobsRadar({
             <EmptyState text="No history yet." />
           ) : (
             <>
-              {sortedOpportunityHistory.length > 0 ? (
-                <OpportunitiesView
-                  dockToolbar
-                  accountId={accountId}
-                  opportunities={sortedOpportunityHistory}
-                  matchThreshold={threshold}
-                  retentionDays={retentionDays}
-                  variant="history"
-                  pending={pending}
-                  emptyText="No archived opportunities."
-                  sortOption={sort}
-                  onSortOptionChange={setSort}
-                  suppressTabChangeRef={suppressTabChangeRef}
-                  onDragZoneChange={handleDragZoneChange}
-                  onViewOriginalEmail={handleViewOriginalEmail}
-                />
+              {showOpportunityDeck && deckVariant === "history" ? (
+                opportunityBody
               ) : null}
               {sortedHistory.length > 0 ? (
                 <ul className="space-y-2">
@@ -857,6 +858,9 @@ export function JobsRadar({
         </TabsContent>
         </CommandDeckFrame>
       </Tabs>
+    </div>
+    )}
+    </OpportunitiesView>
 
       <AtsHandoffDrawer
         open={Boolean(portalJob)}
@@ -889,7 +893,7 @@ export function JobsRadar({
         initialSubject={viewEmailSubject}
         initialFrom={viewEmailFrom}
       />
-    </div>
+    </>
   );
 }
 

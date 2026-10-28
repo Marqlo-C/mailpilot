@@ -8,10 +8,12 @@ import { cn } from "@/lib/utils";
 export function ToolbarPageSizeSelect({
   value,
   onChange,
+  options = PAGE_SIZE_OPTIONS,
   className,
 }: {
   value: number;
   onChange: (value: number) => void;
+  options?: readonly number[];
   className?: string;
 }) {
   return (
@@ -29,7 +31,7 @@ export function ToolbarPageSizeSelect({
           className="h-6 cursor-pointer appearance-none rounded-md border border-border/50 bg-card py-0 pl-2 pr-6 text-[11px] text-foreground shadow-md transition-colors hover:bg-card focus:outline-none focus:ring-1 focus:ring-ring"
           aria-label="Rows per page"
         >
-          {PAGE_SIZE_OPTIONS.map((size) => (
+          {options.map((size) => (
             <option key={size} value={size}>
               {size}
             </option>

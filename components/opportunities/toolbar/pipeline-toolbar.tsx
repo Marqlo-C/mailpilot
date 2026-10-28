@@ -41,6 +41,7 @@ export type PipelineToolbarProps = {
   onSortOptionChange: (sort: string) => void;
   showTelemetry?: boolean;
   pageSize?: number;
+  pageSizeOptions?: readonly number[];
   onPageSizeChange?: (size: number) => void;
   currentPage?: number;
   totalPages?: number;
@@ -75,6 +76,7 @@ export function PipelineToolbar({
   onSortOptionChange,
   showTelemetry = true,
   pageSize,
+  pageSizeOptions,
   onPageSizeChange,
   currentPage,
   totalPages,
@@ -182,6 +184,7 @@ export function PipelineToolbar({
           {typeof pageSize === "number" && onPageSizeChange ? (
             <ToolbarPageSizeSelect
               value={pageSize}
+              options={pageSizeOptions}
               onChange={onPageSizeChange}
             />
           ) : null}

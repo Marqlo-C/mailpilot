@@ -4,15 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
+/** Job Radar shows two cards per row, so page sizes stay on even rows. */
+export const JOBS_PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+
 export type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
 
-function parsePageSize(raw: string | null, fallback: number): number {
+function parsePageSize(
+  raw: string | null,
+  fallback: number,
+  options: readonly number[]
+): number {
   if (raw == null) return fallback;
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed)) return fallback;
-  if (!(PAGE_SIZE_OPTIONS as readonly number[]).includes(parsed)) {
-    return fallback;
-  }
+  if (!options.includes(parsed)) return fallback;
   return parsed;
 }
 
@@ -21,7 +26,8 @@ type UsePaginationOptions = {
   totalItems: number;
   /** Changing any of these resets currentPage to 1. */
   resetDeps?: readonly unknown[];
-  defaultPageSize?: PageSizeOption;
+  defaultPageSize?: number;
+  pageSizeOptions?: readonly number[];
 };
 
 export function usePagination({
@@ -29,6 +35,7 @@ export function usePagination({
   totalItems,
   resetDeps = [],
   defaultPageSize = 25,
+  pageSizeOptions = PAGE_SIZE_OPTIONS,
 }: UsePaginationOptions) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSizeState] = useState<number>(defaultPageSize);
@@ -38,14 +45,14 @@ export function usePagination({
     try {
       const stored = parsePageSize(
         localStorage.getItem(storageKey),
-        defaultPageSize
+        defaultPageSize,
+        pageSizeOptions
       );
       setPageSizeState(stored);
     } catch {
       // Ignore private-mode / blocked storage.
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once per key
-  }, [storageKey]);
+  }, [storageKey, defaultPageSize, pageSizeOptions]);
 
   // Reset to first page when filters / tab context change.
   const resetSignal = JSON.stringify(resetDeps);
@@ -63,7 +70,7 @@ export function usePagination({
   }, [currentPage, totalPages]);
 
   function setPageSize(next: number) {
-    const size = parsePageSize(String(next), defaultPageSize);
+    const size = parsePageSize(String(next), defaultPageSize, pageSizeOptions);
     setPageSizeState(size);
     setCurrentPage(1);
     try {

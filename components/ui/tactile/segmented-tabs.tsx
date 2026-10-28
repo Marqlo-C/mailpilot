@@ -31,37 +31,26 @@ export const tabRailRowClassName =
 export const commandDeckClassName =
   "scroll-edge-out sticky flow-root top-[4.25rem] z-30 -mx-4 -mt-4 rounded-b-2xl bg-canvas-fixed px-4 pt-4 md:top-0 md:-mx-6 md:-mt-[9px] md:px-6 md:pt-1";
 
-const CommandDeckSlotContext = createContext<HTMLDivElement | null>(null);
-
-/** Mount node for a toolbar portaled into the sticky deck. */
-export function useCommandDeckSlot() {
-  return useContext(CommandDeckSlotContext);
-}
-
-/**
- * Sticky tab rail (and optional toolbar). `children` is the scrolling feed.
- * `dockToolbar` exposes a slot so a nested toolbar can portal into the deck.
- */
 export function CommandDeckFrame({
   rail,
-  dockToolbar = false,
+  toolbar = null,
   children,
 }: {
   rail: ReactNode;
-  dockToolbar?: boolean;
+  /** Filter toolbar rendered with the rail so it is in the first paint. */
+  toolbar?: ReactNode;
   children: ReactNode;
 }) {
-  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   return (
-    <CommandDeckSlotContext.Provider value={dockToolbar ? slot : null}>
+    <>
       <header className={commandDeckClassName}>
         <div className="space-y-3">
           {rail}
-          {dockToolbar ? <div ref={setSlot} /> : null}
+          {toolbar}
         </div>
       </header>
       <div className="relative z-0">{children}</div>
-    </CommandDeckSlotContext.Provider>
+    </>
   );
 }
 
