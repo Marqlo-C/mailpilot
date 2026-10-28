@@ -415,10 +415,7 @@ export function MasterProfileCard({
               subtitle="Direct contact channels, professional summary, and external portfolio links."
               statusBadge={
                 <SectionCountPill count={LINKED_ACCOUNT_FIELDS.length}>
-                  <span>
-                    {LINKED_ACCOUNT_FIELDS.length}{" "}
-                    {Number(LINKED_ACCOUNT_FIELDS.length) === 1 ? "Site" : "Sites"}
-                  </span>
+                  <span>{LINKED_ACCOUNT_FIELDS.length} Sites</span>
                   <span
                     aria-hidden="true"
                     className="h-2.5 w-px shrink-0 bg-border/90"
