@@ -24,10 +24,7 @@ import {
 } from "@/components/settings/settings-chrome";
 import { useRailActionClass } from "@/components/ui/rail-action";
 import {
-  MeterPreferencesCard,
-  RailPreferencesCard,
-  RailActionPreferencesCard,
-  TogglePreferencesCard,
+  TactileControlsCard,
 } from "@/components/settings/ui";
 import {
   CommandDeckFrame,
@@ -263,10 +260,7 @@ export function SettingsView({
           forceMount
           className="mt-0 space-y-4 data-[state=inactive]:hidden"
         >
-          <RailPreferencesCard />
-          <RailActionPreferencesCard />
-          <MeterPreferencesCard accountId={activeAccountId} />
-          <TogglePreferencesCard accountId={activeAccountId} />
+          <TactileControlsCard accountId={activeAccountId} />
         </TabsContent>
         </CommandDeckFrame>
       </Tabs>

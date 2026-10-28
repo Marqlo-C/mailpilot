@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { Waves } from "lucide-react";
 
-import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
-import { SettingsSectionCard } from "@/components/ui/tactile/nested-settings-card";
-import { useTabRailClasses } from "@/components/ui/tactile/segmented-tabs";
+import { AppearanceModeToggle } from "@/components/settings/ui/appearance-mode-toggle";
+import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
+import { SettingsFeatureCard } from "@/components/ui/tactile/nested-settings-card";
 import { WavyMeter } from "@/components/ui/tactile/wavy-meter";
 import {
   persistWavyMeterPreference,
@@ -14,18 +14,12 @@ import {
   type WavyMeterVariant,
 } from "@/lib/ui/wavy-meter-preference";
 
-const OPTIONS: { value: WavyMeterVariant; label: string }[] = [
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
-];
-
 export function MeterPreferencesCard({
   accountId,
 }: {
   accountId: string | null;
 }) {
   const [variant, setVariantState] = useState<WavyMeterVariant>("light");
-  const { listClassName, triggerClassName } = useTabRailClasses();
   const saved = Boolean(accountId);
 
   useEffect(() => {
@@ -49,41 +43,21 @@ export function MeterPreferencesCard({
   }
 
   return (
-    <SettingsSectionCard
-      className={SETTINGS_CARD_CLASSNAME}
-      icon={
-        <Waves
-          className="size-8 -translate-y-0.5 scale-[0.88] origin-center text-primary shrink-0"
-          aria-hidden="true"
+    <SettingsFeatureCard
+      logo={<SettingsFeatureLogo icon={Waves} />}
+      title="Usage Meters"
+      subtitle="Credit and usage meters for your connected APIs."
+      statusBadge={
+        <AppearanceModeToggle
+          value={variant}
+          onChange={handleSelect}
+          disabled={!saved}
+          label="Usage meters style"
         />
       }
-      title="Usage Meters"
-      subtitle="Light meter or dark meter for proxy gauges, quotas, and credit meters. Saved for this account on this device."
       curvedDivider
     >
       <div className="space-y-4">
-        <div
-          className={listClassName}
-          data-mp-tab-rail=""
-          role="radiogroup"
-          aria-label="Usage meters style"
-        >
-          {OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={variant === option.value}
-              data-state={variant === option.value ? "active" : "inactive"}
-              className={triggerClassName}
-              disabled={!saved}
-              onClick={() => handleSelect(option.value)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-
         {/* Live Interactive Preview */}
         <div className="space-y-2 rounded-xl border border-border/80 bg-muted/20 p-3.5">
           <div className="flex items-center justify-between text-xs font-medium">
@@ -117,6 +91,6 @@ export function MeterPreferencesCard({
           </p>
         )}
       </div>
-    </SettingsSectionCard>
+    </SettingsFeatureCard>
   );
 }
