@@ -8,8 +8,8 @@ import {
   useState,
   useTransition,
   type MutableRefObject,
+  type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { JobOpportunity } from "@prisma/client";
 import { Archive, CheckCircle2, Trash2, Undo2, XCircle } from "lucide-react";
@@ -37,10 +37,9 @@ import {
   BulkActionsFlyout,
 } from "@/components/ui/composites/bulk-actions-flyout";
 import { PipelinePaginationFooter } from "@/components/ui/composites/pipeline-pagination";
-import { useCommandDeckSlot } from "@/components/ui/tactile/segmented-tabs";
 import { useLastClickedId } from "@/hooks/use-last-clicked-id";
 import { useCardListGestures } from "@/hooks/use-card-list-gestures";
-import { usePagination } from "@/hooks/use-pagination";
+import { JOBS_PAGE_SIZE_OPTIONS, usePagination } from "@/hooks/use-pagination";
 import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 import { insertBeforeIdForIndex } from "@/lib/dnd/interactive";
 import { orderItemsByIds } from "@/lib/dnd/reorder";
@@ -104,8 +103,11 @@ type OpportunitiesViewProps = {
   onUnmarkApplied?: (opp: JobOpportunity) => void;
   onLessLikeThis?: (opp: JobOpportunity) => void;
   onViewOriginalEmail?: (opp: JobOpportunity) => void;
-  /** Portal the filter toolbar into the sticky command deck. */
-  dockToolbar?: boolean;
+  /**
+   * Places the toolbar in the sticky header during this render, including
+   * server HTML. Avoids a portal that only appears after hydration.
+   */
+  children?: (toolbar: ReactNode, body: ReactNode) => ReactNode;
 };
 
 function variantToPipelineTab(variant: OpportunityCardVariant): PipelineTab {
@@ -140,10 +142,9 @@ export function OpportunitiesView({
   onUnmarkApplied,
   onLessLikeThis,
   onViewOriginalEmail,
-  dockToolbar = false,
+  children,
 }: OpportunitiesViewProps) {
   const router = useRouter();
-  const toolbarSlot = useCommandDeckSlot();
   const activeTab = variantToPipelineTab(variant);
   const jobsTabKey = variantToJobsTabKey(variant);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -233,10 +234,6 @@ export function OpportunitiesView({
         .map((o) => o.id),
     [selectedRecords]
   );
-  const isAllSelected =
-    orderedOpportunities.length > 0 &&
-    orderedOpportunities.every((o) => selectedIds.includes(o.id));
-
   function toggleSelect(id: string) {
     markLastClicked(id);
     setSelectedIds((prev) => {
@@ -246,16 +243,6 @@ export function OpportunitiesView({
       setSelectionMode(next.length > 0);
       return next;
     });
-  }
-
-  function handleSelectAll() {
-    markLastClicked(null);
-    if (isAllSelected) {
-      clearSelection();
-    } else {
-      setSelectionMode(true);
-      setSelectedIds(orderedOpportunities.map((o) => o.id));
-    }
   }
 
   function clearSelection() {
@@ -310,6 +297,8 @@ export function OpportunitiesView({
   } = usePagination({
     storageKey: JOBS_PAGE_SIZE_KEY,
     totalItems: visibleCount,
+    defaultPageSize: 20,
+    pageSizeOptions: JOBS_PAGE_SIZE_OPTIONS,
     resetDeps: [
       activeTab,
       searchQuery,
@@ -467,6 +456,23 @@ export function OpportunitiesView({
   }, [drag?.previewFullIds, orderedOpportunities]);
 
   const paginatedJobs = slice(displayOpportunities);
+  const pageOpportunityIds = useMemo(
+    () => paginatedJobs.map((opportunity) => opportunity.id),
+    [paginatedJobs]
+  );
+  const isAllSelected =
+    pageOpportunityIds.length > 0 &&
+    pageOpportunityIds.every((id) => selectedIds.includes(id));
+
+  function handleSelectAll() {
+    markLastClicked(null);
+    if (isAllSelected) {
+      clearSelection();
+      return;
+    }
+    setSelectionMode(true);
+    setSelectedIds(pageOpportunityIds);
+  }
 
   // Multi-column grids skip live reorder — show a stable insert marker instead.
   const marker =
@@ -578,6 +584,7 @@ export function OpportunitiesView({
       onSortOptionChange={onSortOptionChange}
       showTelemetry={showListingCount}
       pageSize={pageSize}
+      pageSizeOptions={JOBS_PAGE_SIZE_OPTIONS}
       onPageSizeChange={changePageSize}
       currentPage={currentPage}
       totalPages={totalPages}
@@ -586,14 +593,9 @@ export function OpportunitiesView({
       onResetTransientFilters={handleResetTransientFilters}
     />
   );
-  const dockedToolbar =
-    dockToolbar && toolbarSlot
-      ? createPortal(toolbar, toolbarSlot)
-      : dockToolbar
-        ? null
-        : toolbar;
+  const dockedToolbar = toolbar;
 
-  return (
+  const body = (
     <div className="mt-0" onPointerDown={onBackgroundPointerDown}>
       <DragGhost
         active={Boolean(drag?.active)}
@@ -614,8 +616,6 @@ export function OpportunitiesView({
         totalPages={totalPages}
         dropZone={drag?.dropZone ?? null}
       />
-
-      {dockedToolbar}
 
       {orderedOpportunities.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
@@ -848,5 +848,13 @@ export function OpportunitiesView({
         )}
       </BulkActionsFlyout>
     </div>
+  );
+
+  if (children) return children(dockedToolbar, body);
+  return (
+    <>
+      {dockedToolbar}
+      {body}
+    </>
   );
 }

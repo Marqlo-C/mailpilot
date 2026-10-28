@@ -477,20 +477,6 @@ export function SubscriptionsView({
     });
   }, [filteredActiveIds]);
 
-  const isAllSelected =
-    filteredActive.length > 0 &&
-    filteredActive.every((s) => selectedIds.includes(s.id));
-
-  function toggleSelectAll() {
-    markLastClicked(null);
-    if (isAllSelected) {
-      clearSelection();
-      return;
-    }
-    setSelectionMode(true);
-    setSelectedIds(filteredActive.map((s) => s.id));
-  }
-
   function toggleRow(id: string) {
     markLastClicked(id);
     setSelectedIds((prev) => {
@@ -1023,6 +1009,23 @@ export function SubscriptionsView({
   }, [drag?.previewFullIds, filteredActive]);
 
   const paginatedActive = slice(displayActive);
+  const pageSubscriptionIds = useMemo(
+    () => paginatedActive.map((subscription) => subscription.id),
+    [paginatedActive]
+  );
+  const isAllSelected =
+    pageSubscriptionIds.length > 0 &&
+    pageSubscriptionIds.every((id) => selectedIds.includes(id));
+
+  function toggleSelectAll() {
+    markLastClicked(null);
+    if (isAllSelected) {
+      clearSelection();
+      return;
+    }
+    setSelectionMode(true);
+    setSelectedIds(pageSubscriptionIds);
+  }
 
   return (
     <div onPointerDown={onBackgroundPointerDown}>
