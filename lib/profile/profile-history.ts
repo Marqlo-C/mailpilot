@@ -11,6 +11,7 @@ import {
   type MasterProfileUpdateInput,
 } from "@/lib/validations/profile";
 import { decryptPhoneAtRest } from "@/lib/core/crypto";
+import { revisionRecordedAt } from "@/lib/profile/revision-diff";
 
 const MAX_HISTORY_STATES = 4;
 
@@ -42,7 +43,7 @@ export async function listProfileRevisions(
   return history.map((row, index) => ({
     id: row.id,
     summary: row.summary,
-    createdAt: row.createdAt.toISOString(),
+    createdAt: revisionRecordedAt(row.summary, row.createdAt),
     isCurrent: index === 0,
   }));
 }

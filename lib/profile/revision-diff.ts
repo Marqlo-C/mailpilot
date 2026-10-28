@@ -232,6 +232,8 @@ export function computeProfileDiff(
 export type StoredRevisionSummary = {
   title: string;
   diff: ProfileDiffSummary;
+  /** Original save time. A restore keeps this and only bumps sort order. */
+  storedAt?: string;
 };
 
 const EMPTY_DIFF: ProfileDiffSummary = { added: [], removed: [], modified: [] };
@@ -254,9 +256,14 @@ export function parseRevisionSummary(raw: string): StoredRevisionSummary {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (parsed && typeof parsed === "object" && "title" in parsed) {
-      const record = parsed as { title?: unknown; diff?: unknown };
+      const record = parsed as { title?: unknown; diff?: unknown; storedAt?: unknown };
       if (typeof record.title === "string" && record.diff && typeof record.diff === "object") {
         const diff = record.diff as Partial<ProfileDiffSummary>;
+        const storedAt =
+          typeof record.storedAt === "string" &&
+          Number.isFinite(new Date(record.storedAt).getTime())
+            ? new Date(record.storedAt).toISOString()
+            : undefined;
         return {
           title: record.title.trim() || "Profile Revision",
           diff: {
@@ -264,6 +271,7 @@ export function parseRevisionSummary(raw: string): StoredRevisionSummary {
             removed: asDiffChanges(diff.removed),
             modified: asDiffChanges(diff.modified),
           },
+          storedAt,
         };
       }
     }
@@ -284,7 +292,31 @@ export function serializeRevisionSummary(value: StoredRevisionSummary): string {
       removed: value.diff.removed,
       modified: value.diff.modified,
     },
+    ...(value.storedAt ? { storedAt: value.storedAt } : {}),
   });
+}
+
+/** Time the revision was first stored. Falls back to the row clock. */
+export function revisionRecordedAt(summary: string, createdAt: Date): string {
+  const storedAt = parseRevisionSummary(summary).storedAt;
+  if (storedAt) return storedAt;
+  return createdAt.toISOString();
+}
+
+/**
+ * Last time profile content was saved.
+ * A restored copy keeps its original stored time and does not rewind this clock.
+ */
+export function latestProfileUpdate(
+  rows: readonly { summary: string; createdAt: Date }[],
+  fallback: Date
+): string {
+  let latest: Date | null = null;
+  for (const row of rows) {
+    if (parseRevisionSummary(row.summary).storedAt) continue;
+    if (!latest || row.createdAt > latest) latest = row.createdAt;
+  }
+  return (latest ?? fallback).toISOString();
 }
 
 function sectionLabel(section: string): string {
