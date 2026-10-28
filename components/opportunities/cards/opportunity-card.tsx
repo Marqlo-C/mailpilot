@@ -415,13 +415,13 @@ export function OpportunityCard({
       {/* Metadata — left: location + salary badges; right: unboxed telemetry */}
       <div
         className={cn(
-          "flex w-full min-w-0 items-center justify-between gap-2 px-6 py-1 text-xs select-none sm:px-7",
+          "flex w-full min-w-0 items-center justify-between gap-2 px-6 py-1 text-[11px] select-none sm:px-7",
           isSelected && "opacity-55"
         )}
       >
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span
-            className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/40 bg-muted/60 px-2.5 py-1 text-xs font-medium text-foreground/80"
+            className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/40 bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-foreground/80"
             title={`Location: ${locationRaw || "Not specified"}`}
           >
             <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
@@ -429,7 +429,7 @@ export function OpportunityCard({
           </span>
           <span
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium",
+              "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium",
               isSelected
                 ? "border-border/40 bg-muted/50 text-muted-foreground"
                 : salaryRaw && !/^\$?\s*tbd\b/i.test(salaryRaw)
@@ -458,7 +458,7 @@ export function OpportunityCard({
               </span>
             </>
           ) : null}
-          <ReceivedMeta date={opportunity.receivedAt} />
+          <ReceivedMeta date={opportunity.receivedAt} className="text-[11px]" />
         </div>
       </div>
 
@@ -476,7 +476,7 @@ export function OpportunityCard({
         ) : null}
 
         {opportunity.matchReason ? (
-          <div className="mt-auto flex items-start gap-2 px-4 pt-3 sm:px-5">
+          <div className="mt-auto flex items-start gap-2 px-3.5 pt-3">
             <WavyDashedFrame
               data-match-reason-box=""
               className="flex w-full items-start gap-2 rounded-lg bg-muted/20 p-2.5 dark:bg-muted/10"
