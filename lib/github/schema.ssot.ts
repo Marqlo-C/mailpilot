@@ -11,11 +11,12 @@ import type { AccountRules } from "@/lib/validations/rules";
  * - Oversampling ratios, tournament evaluation, or pruning algorithms
  * - Universal architectural dimension classification and technology filtering
  * - Calibrated sparse and Tier 1 minimum bullet floors to 3
+ * - Suffix stemming deduplication, rogue metric math scrubbing, and verb diversification
  *
  * Bumping this version automatically invalidates all cached ETag entries in
  * local/in-memory ledgers, ensuring unchanged repositories are re-scanned and re-inferred.
  */
-export const GITHUB_PARSER_VERSION = 10;
+export const GITHUB_PARSER_VERSION = 11;
 
 /**
  * Universal file extension taxonomy across tech stacks and ecosystems.

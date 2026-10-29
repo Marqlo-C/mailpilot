@@ -69,6 +69,7 @@ export {
   auditBulletSubstantiveness,
   deduplicateOrSynthesizeBullets,
   isUngroundedHallucination,
+  diversifyLeadingVerbs,
   LOW_SIGNAL_CHORE_REGEX,
   detectArchitecturalDimension,
   type ArchitecturalDimension,

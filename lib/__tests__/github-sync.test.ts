@@ -23,6 +23,7 @@ import {
   cleanTrivialPrimitives,
   auditBulletSubstantiveness,
   deduplicateOrSynthesizeBullets,
+  diversifyLeadingVerbs,
   isUngroundedHallucination,
   LOW_SIGNAL_CHORE_REGEX,
   DEEP_ANALYSIS_SYSTEM_PROMPT,
@@ -745,7 +746,7 @@ Respectful collaboration is strictly required.
       );
     });
 
-    it("strips LaTeX math formatting blocks cleanly into plain text", () => {
+    it("strips LaTeX math formatting blocks and rogue metric dollar signs cleanly into plain text", () => {
       expect(
         sanitizeBulletString(
           "Batching queries in groups of 3 with a $150\\text{ ms}$ delay to avoid HTTP 429 errors."
@@ -760,6 +761,33 @@ Respectful collaboration is strictly required.
         )
       ).toBe(
         "Bounded queue latency to <= 25ms under high concurrency."
+      );
+
+      // Rogue unclosed math dollar sign attached to metric
+      expect(
+        sanitizeBulletString(
+          "Executing category lookups sequentially with a $150ms delay between batches (`MAPBOX_BATCH_DELAY_MS`)."
+        )
+      ).toBe(
+        "Executing category lookups sequentially with a 150ms delay between batches (`MAPBOX_BATCH_DELAY_MS`)."
+      );
+
+      // LaTeX approximation symbol
+      expect(
+        sanitizeBulletString(
+          "Maintained throughput at $\\approx 150ms$ latency across requests."
+        )
+      ).toBe(
+        "Maintained throughput at ~150ms latency across requests."
+      );
+
+      // Legitimate currency amount is preserved
+      expect(
+        sanitizeBulletString(
+          "Reduced cloud infrastructure expenditures by $50k annually across 12 services."
+        )
+      ).toBe(
+        "Reduced cloud infrastructure expenditures by $50k annually across 12 services."
       );
     });
 
@@ -1871,6 +1899,36 @@ Respectful collaboration is strictly required.
       expect(result[0]!.score).toBe(8.5);
       expect(result[0]!.bullet).toContain("15ms");
       expect(result[0]!.bullet).not.toContain("dynamically coordinating");
+    });
+
+    it("deduplicates feature toggle and subsystem orchestration echoes via root stemming", () => {
+      const bulletA = {
+        bullet: "Configured a centralized feature orchestration system to gate application subsystems, ensuring strict architectural boundaries.",
+        score: 7.0,
+        isChore: false,
+        hasMetric: false,
+      };
+      const bulletB = {
+        bullet: "Configured a subsystem configuration matrix and feature toggles, enabling services to be enabled or disabled without touching application code.",
+        score: 6.0,
+        isChore: false,
+        hasMetric: false,
+      };
+
+      const result = deduplicateOrSynthesizeBullets([bulletA, bulletB], 4);
+      expect(result).toHaveLength(1);
+      expect(result[0]!.score).toBe(7.0);
+      expect(result[0]!.bullet).toContain("centralized feature orchestration");
+    });
+
+    it("diversifies repeated leading verbs across bullets on the same project card", () => {
+      const bullets = [
+        "Configured a centralized authentication pipeline with multi-factor tokens.",
+        "Configured a real-time WebSocket connection pool with heartbeat telemetry.",
+      ];
+      const diversified = diversifyLeadingVerbs(bullets);
+      expect(diversified[0]).toMatch(/^Configured\b/);
+      expect(diversified[1]).toMatch(/^Architected\b/);
     });
 
     it("purges physical script filenames and directory paths from technology tags while preserving frameworks and scoped packages", () => {
