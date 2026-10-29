@@ -3,6 +3,21 @@ import { z } from "zod";
 import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import { normalizeProfileUrl } from "@/lib/utils/url";
 
+/**
+ * Universal metric detection regex covering percentages, currency, multipliers,
+ * numeric counts, operational latencies, time intervals, and computing units.
+ */
+export const METRIC_RE =
+  /(\d+(?:\.\d+)?\s*%|\$\s?\d|\b\d+(?:\.\d+)?\s*x\b|\b\d{1,3}(?:,\d{3})+(?:\.\d+)?\b|\b\d+(?:\.\d+)?\+?\s*(?:hours?|minutes?|days?|weeks?|months?|years?|ms|s|seconds?|gb|mb|tb|kb|reqs?\/sec|qps|rps|fps|nodes?|streams?)\b)/i;
+
+/**
+ * Checks whether a bullet text contains a quantifiable impact metric.
+ */
+export function detectMetric(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return METRIC_RE.test(text);
+}
+
 export const experienceBulletSchema = z.object({
   id: z.string(),
   rawText: z.string(),
@@ -74,6 +89,9 @@ export const projectInputSchema = z.object({
   technologies: z.array(z.string()).default([]),
   link: z.string().nullable().optional(),
   bullets: z.array(z.string()).default([]),
+  origin: z
+    .enum(["HUMAN_VERIFIED", "GITHUB_INFERRED", "AI_SUGGESTED"])
+    .optional(),
 });
 
 export const STANDARD_EXPERIENCE_CATEGORIES = [

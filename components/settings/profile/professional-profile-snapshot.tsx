@@ -24,6 +24,7 @@ import {
 } from "@/lib/utils/format";
 import {
   isWorkExperienceCategory,
+  detectMetric,
 } from "@/lib/validations/profile";
 import { groupSkillSections, skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import type { ProfileSnapshotData } from "./master-profile-card";
@@ -343,7 +344,13 @@ export function ProfessionalProfileSnapshot({
             <p className="text-sm text-muted-foreground">No projects saved.</p>
           ) : (
             <ul className="space-y-3">
-              {profile.projects.map((project) => (
+              {[...profile.projects]
+                .sort((a, b) =>
+                  (a.name || "").localeCompare(b.name || "", undefined, {
+                    sensitivity: "base",
+                  })
+                )
+                .map((project) => (
                 <li
                   key={project.id ?? project.name}
                   className="rounded-md border border-border/60 bg-background/50 p-3 text-sm"
@@ -365,10 +372,17 @@ export function ProfessionalProfileSnapshot({
                   ) : null}
                   {project.bullets.length > 0 ? (
                     <ul className="mt-2 space-y-1 text-foreground/90">
-                      {project.bullets.map((bullet) => (
-                        <li key={bullet} className={BULLET_ROW_CLASSNAME}>
+                      {project.bullets.map((bullet, bIdx) => (
+                        <li key={`proj-bullet-${bIdx}`} className={BULLET_ROW_CLASSNAME}>
                           <BulletSquircle />
-                          <span className="min-w-0 flex-1">{bullet}</span>
+                          <span className="min-w-0 flex-1">
+                            {bullet}
+                            {detectMetric(bullet) ? (
+                              <Badge variant="outline" className="ml-2 align-middle">
+                                metric
+                              </Badge>
+                            ) : null}
+                          </span>
                         </li>
                       ))}
                     </ul>

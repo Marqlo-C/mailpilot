@@ -1,5 +1,5 @@
 export const FILTER_OUT_REGEX =
-  /(?:installation|getting started|how to run|how to use|quick\s*start|usage|prerequisites|requirements|dependencies|local setup|running locally|development setup|license|contributing|contributors|code of conduct|badges|sponsors|troubleshooting|faq)/i;
+  /(?:installation|getting started|how to run|how to use|quick\s*start|usage|prerequisites|requirements|dependencies|local setup|running locally|development setup|license|contributing|contributors|code of conduct|badges|sponsors|troubleshooting|faq|how to (?:add|customize|create)|adding custom|customization guide|user guide|walkthrough)/i;
 
 export const PRIORITY_REGEX =
   /(?:architecture|system design|data flow|components|protocols|concurrency|pipeline|benchmarks|performance|security|storage|api specification|models|rate limit|waf|telemetry|infrastructure|internals|implementation)/i;
@@ -40,7 +40,7 @@ export function extractSemanticMarkdownDigest(
 ): string {
   if (!rawMarkdown || !rawMarkdown.trim()) return "";
 
-  // 1. Strip non-technical boilerplate
+  // 1. Strip non-technical boilerplate (badges, raw images, sponsor links, HTML comments, shell install/clone commands)
   const cleaned = rawMarkdown
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/\[\!\[[^\]]*\]\([^)]*\)\]\([^)]*\)/g, "")
@@ -50,7 +50,10 @@ export function extractSemanticMarkdownDigest(
       /\[(?:sponsor|donate|patreon|opencollective|buy me a coffee|ko-fi)[^\]]*\]\([^)]*\)/gi,
       ""
     )
-    .replace(/<\/?(?:div|p|span|center)\b[^>]*>/gi, "");
+    .replace(/<\/?(?:div|p|span|center)\b[^>]*>/gi, "")
+    .replace(/(?:npm|pnpm|yarn|bun)\s+(?:install|i|add)[^\n]*/gi, "")
+    .replace(/(?:pip|pip3|poetry\s+add|cargo\s+add|go\s+get)\s+[^\n]*/gi, "")
+    .replace(/(?:git\s+clone)\s+[^\n]*/gi, "");
 
   const lines = cleaned.split(/\r?\n/);
   const introLines: string[] = [];

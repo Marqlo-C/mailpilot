@@ -1,5 +1,6 @@
 // Single Source of Truth
 export {
+  GITHUB_PARSER_VERSION,
   type ProjectItem,
   type RepoScaleTier,
   type RepoComplexityScale,
@@ -7,11 +8,26 @@ export {
   type GitHubRawRepo,
   type GitHubSyncOptions,
   type AnalyzeRepoParams,
+  type RepoCacheEntry,
+  type StructuralMarkers,
+  type SubsystemMarkers,
+  type DetermineRepoScaleParams,
   determineRepoScale,
+  calculatePureCodeBytes,
+  countVerifiedSubsystems,
+  NON_SIGNAL_LANGUAGES,
   TIER_1_BUDGET,
   TIER_2_BUDGET,
   TIER_3_BUDGET,
 } from "./schema.ssot";
+
+// Canonical Tool Deduplication & Micro-Exclusion Noise Denylist
+export {
+  CANONICAL_TOOL_MAP,
+  MICRO_EXCLUSION_REGEX,
+  isMicroExclusionTool,
+  dedupeTools,
+} from "./tools";
 
 // Semantic Prefilter & Markdown Scrubber
 export {
@@ -45,8 +61,20 @@ export {
   normalizeGitHubUsername,
   adaptRepoToProjectItem,
   sanitizeBulletString,
+  stripFilenamePhrases,
+  stripFileSystemArtifacts,
+  unrollRoboticHeadingPrefix,
+  unrollPermissivePhrasing,
+  cleanTrivialPrimitives,
+  auditBulletSubstantiveness,
+  deduplicateOrSynthesizeBullets,
+  isUngroundedHallucination,
   LOW_SIGNAL_CHORE_REGEX,
 } from "./lens";
 
-// Main Syncer Orchestration
-export { syncGitHubProjects } from "./syncer";
+// Main Syncer Orchestration & ETag Cache
+export {
+  syncGitHubProjects,
+  getGlobalRepoCache,
+  clearGlobalRepoCache,
+} from "./syncer";

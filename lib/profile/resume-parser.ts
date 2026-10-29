@@ -12,6 +12,8 @@ import {
   experienceBulletSchema,
   interestsSchema,
   masterProfileInputSchema,
+  detectMetric,
+  METRIC_RE,
   type EducationStatus,
   type MasterProfileInput,
 } from "@/lib/validations/profile";
@@ -377,13 +379,6 @@ CRITICAL EXTRACTION RULES:
 12. CONTACT TRUTH:
    - Copy email, phone, and links ONLY when that exact value is printed in the document.
    - If an email or phone is absent, return an empty string. Never invent an address, and never use a placeholder such as unknown@example.com.`;
-
-const METRIC_RE =
-  /(\d+(?:\.\d+)?\s*%|\$\s?\d|\b\d+(?:\.\d+)?\s*x\b|\b\d{1,3}(?:,\d{3})+(?:\.\d+)?\b|\b\d+(?:\.\d+)?\+?\s*(?:hours?|minutes?|days?|weeks?|months?|years?)\b)/i;
-
-function detectMetric(text: string): boolean {
-  return METRIC_RE.test(text);
-}
 
 const WORKPLACE_MODE = /^(?:remote|hybrid)$/i;
 const ORG_SUFFIX = /^(?:inc|llc|ltd|llp|lp|co|corp|plc|gmbh|pc|pa)\.?$/i;

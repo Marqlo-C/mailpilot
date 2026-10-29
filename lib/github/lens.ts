@@ -1,5 +1,12 @@
 import { normalizeProjectName } from "@/lib/utils/format";
-import type { GitHubRawRepo, ProjectItem } from "./schema.ssot";
+import {
+  ALL_FILE_EXTENSIONS_SET,
+  UNIVERSAL_DIRECTORY_ROOTS,
+  type GitHubRawRepo,
+  type ProjectItem,
+} from "./schema.ssot";
+import { dedupeTools } from "./tools";
+import { detectMetric } from "@/lib/validations/profile";
 
 /**
  * Normalizes a GitHub handle, profile URL, or repository link into a clean handle.
@@ -23,18 +30,471 @@ export function normalizeGitHubUsername(usernameOrUrl: string): string {
 
 /**
  * Regex identifying low-signal chores that must be excluded from technical bullets.
+ * Covers basic filesystem hygiene, demo recordings, linters, generic PaaS push-to-deploy,
+ * and raw codebase language percentage recitations.
  */
 export const LOW_SIGNAL_CHORE_REGEX =
-  /(?:set(?:ting)?\s+up|configur(?:ed?|ing)|creat(?:ed?|ing))\s+(?:environment\s+variables?|\.env|local\s+config(?:uration)?|ports?|local\s+tokens?)|(?:setting\s+ports?)|(?:filesystem\s+hygiene|organiz(?:ed?|ing)\s+assets|creat(?:ed?|ing)\s+folders?|clean(?:ed?|ing)?\s+up\s+repositor(?:y|ies)?)|(?:screen\s*recordings?|screenshots?|demo\s+scripts?|demonstration\s+artifacts?)|(?:install(?:ed?|ing)\s+dependencies|configur(?:ed?|ing)\s+code\s+linters?|code\s+formatting|eslint|prettier)/i;
+  /(?:set(?:ting)?\s+up|configur(?:ed?|ing)|creat(?:ed?|ing))\s+(?:environment\s+variables?|\.env|local\s+config(?:uration)?|ports?|local\s+tokens?)|(?:setting\s+ports?)|(?:filesystem\s+hygiene|organiz(?:ed?|ing)\s+assets|creat(?:ed?|ing)\s+folders?|clean(?:ed?|ing)?\s+up\s+repositor(?:y|ies)?)|(?:screen\s*recordings?|screenshots?|demo\s+scripts?|demonstration\s+artifacts?)|(?:install(?:ed?|ing)\s+dependencies|configur(?:ed?|ing)\s+code\s+linters?|code\s+formatting|eslint|prettier)|(?:\b(?:vercel|netlify|render|heroku)\b.*(?:automatic\s+redeploy|push(?:es)?\s+to\s+`?main`?|`?main`?\s+branch|`?main`?\s+(?:branch\s+)?push(?:es)?))|(?:\b\d{1,3}%\s+of\s+the\s+codebase\s+written\s+in\b)/i;
+
+const KNOWN_FRAMEWORKS = new Set([
+  "node.js",
+  "next.js",
+  "nuxt.js",
+  "vue.js",
+  "express.js",
+  "three.js",
+  "d3.js",
+  "chart.js",
+  "react.js",
+  "angular.js",
+  "ember.js",
+  "electron.js",
+  "rxjs",
+  "socket.io",
+  "fabric.js",
+  "p5.js",
+  "pixi.js",
+  "moment.js",
+  "day.js",
+]);
+
+const DIR_ROOT_PATTERN = UNIVERSAL_DIRECTORY_ROOTS.join("|");
+
+function isCodeFilename(token: string): boolean {
+  const clean = token.toLowerCase().replace(/[`"'“‘”’(),]/g, "").trim();
+  if (KNOWN_FRAMEWORKS.has(clean)) return false;
+
+  const dotIdx = clean.lastIndexOf(".");
+  if (dotIdx === -1) return false;
+  const ext = clean.slice(dotIdx + 1);
+
+  return ALL_FILE_EXTENSIONS_SET.has(ext);
+}
+
+/**
+ * Universal file system and directory artifact scrubber.
+ * Strips:
+ * 1. Directory paths (e.g., 'to src/data/', 'in app/api/', 'under pkg/storage/')
+ * 2. Raw file extension mentions (e.g. '.txt files' -> 'text files')
+ * 3. Physical code/script filenames (e.g. 'in connect4.py', 'from thread.py')
+ * 4. Stranded prepositions and orphan punctuation.
+ */
+export function stripFileSystemArtifacts(bullet: string): string {
+  let text = bullet;
+
+  // 1. Normalize raw data file extension phrases: `.txt files` -> `text files`, `.json files` -> `JSON files`
+  text = text.replace(/`?\.([a-zA-Z0-9]+)`?\s+files?\b/gi, (_m, ext) => {
+    const lower = ext.toLowerCase();
+    if (lower === "txt") return "text files";
+    if (lower === "md") return "markdown documents";
+    if (lower === "csv" || lower === "tsv") return `${lower.toUpperCase()} data files`;
+    if (lower === "json" || lower === "yaml" || lower === "yml") return `${lower.toUpperCase()} records`;
+    return `${ext.toUpperCase()} files`;
+  });
+
+  // 2. Prepositional directory references: e.g. "to src/data/", "in app/components/", "from tests/fixtures/"
+  text = text.replace(
+    new RegExp(
+      `\\b(?:to|in|into|inside|within|under|from|via)\\s+\`?@?(?:(?:\\.?\\/)?(?:${DIR_ROOT_PATTERN})\\/[a-zA-Z0-9_\\-\\.\\/]*)\`?`,
+      "gi"
+    ),
+    ""
+  );
+
+  // 3. Parenthetical directory or filename references: (in connect4.py), (in src/data/), [script.ts]
+  text = text.replace(
+    new RegExp(
+      `\\s*[\\(\\[](?:\\s*(?:in|inside|within|defined in|see|from)\\s+)?\`?@?(?:(?:\\.?\\/)?(?:${DIR_ROOT_PATTERN})\\/[a-zA-Z0-9_\\-\\.\\/]*|(?:[a-zA-Z0-9_\\-\\.]+\\/)*[a-zA-Z0-9_\\-\\.]+\\.[a-zA-Z0-9]+)\`?[\\)\\]]`,
+      "gi"
+    ),
+    (match) => {
+      const inner = match.replace(/[\(\)\[\]]/g, "").trim();
+      const parts = inner.split(/\s+/);
+      const last = parts[parts.length - 1] ?? "";
+      if (KNOWN_FRAMEWORKS.has(last.toLowerCase().replace(/[`"'“‘”’(),]/g, ""))) return match;
+      return "";
+    }
+  );
+
+  // 4. Participle clauses referencing files:
+  // e.g. ", implemented in connect4.py", "implemented in connect4.py", "defined in thread.py"
+  text = text.replace(
+    /(?:,\s*)?\b(?:implemented|defined|located|found|written|hosted|specified|authored|managed)\s+(?:in|inside|within)\s+`?@?(?:[a-zA-Z0-9_\-\.]+\/)*[a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+`?/gi,
+    (match) => {
+      const parts = match.trim().split(/\s+/);
+      const last = parts[parts.length - 1] ?? "";
+      return isCodeFilename(last) ? "" : match;
+    }
+  );
+
+  // 5. Prepositional phrases with filenames joined by and/or/&, or single:
+  // e.g. "in matchup_visualizer.py and eval_diagnostics.py", "in montecarlo.py", "from thread.py"
+  text = text.replace(
+    /\b(?:in|from|inside|within|via)\s+`?@?(?:[a-zA-Z0-9_\-\.]+\/)*[a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+`?(?:\s+(?:and|or|&)\s+`?@?(?:[a-zA-Z0-9_\-\.]+\/)*[a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+`?)*/gi,
+    (match) => {
+      const words = match.trim().split(/\s+/);
+      const targets = words.slice(1).filter((w) => !/^(?:and|or|&)$/i.test(w));
+      const hasCodeFiles = targets.some((t) => isCodeFilename(t));
+      const hasFrameworks = targets.some((t) =>
+        KNOWN_FRAMEWORKS.has(t.toLowerCase().replace(/[`"'“‘”’(),]/g, ""))
+      );
+      if (hasCodeFiles && !hasFrameworks) {
+        return "";
+      }
+      return match;
+    }
+  );
+
+  // 6. Standalone code filename mentions before punctuation or comma
+  text = text.replace(
+    /(^|\s)`?@?(?:[a-zA-Z0-9_\-\.]+\/)*[a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+`?(?=[\s,.;:!?]|$)/gi,
+    (match) => {
+      if (isCodeFilename(match.trim())) {
+        return "";
+      }
+      return match;
+    }
+  );
+
+  // 7. Standalone directory mentions (e.g. `src/data/`)
+  text = text.replace(
+    new RegExp(
+      `(^|\\s)\`?@?(?:(?:\\.?\\/)?(?:${DIR_ROOT_PATTERN})\\/[a-zA-Z0-9_\\-\\.\\/]*)\`?(?=[\\s,.;:!?]|$)`,
+      "gi"
+    ),
+    "$1"
+  );
+
+  // 8. Clean stranded prepositions resulting from removals (e.g. "adding text files to with one word" -> "adding text files with one word")
+  text = text.replace(
+    /\b(?:through|via|across|in|from|within|inside|to|into|under|at)\s+(with|for|by|where|and|or|to\s+[a-z]+)\b/gi,
+    "$1"
+  );
+
+  // 9. Collapse multi-spaces
+  text = text.replace(/\s{2,}/g, " ");
+
+  return text;
+}
+
+/**
+ * Backwards-compatible alias for stripFileSystemArtifacts.
+ */
+export function stripFilenamePhrases(bullet: string): string {
+  return stripFileSystemArtifacts(bullet);
+}
+
+/**
+ * Unrolls permissive/spectator phrasing ("Allowed users to...") into Systems-Engine actions.
+ */
+export function unrollPermissivePhrasing(bullet: string): string {
+  const match = bullet.match(
+    /^(?:Allowed|Enabled|Permitted)\s+users\s+(?:to\s+)?([a-z]+)\s+(.+)$/i
+  );
+  if (!match) return bullet;
+
+  const verb = match[1].toLowerCase();
+  const rest = match[2].trim();
+
+  if (verb === "create" || verb === "build" || verb === "generate") {
+    const customMatch = rest.match(
+      /^(?:a\s+)?custom\s+([a-zA-Z0-9_\-]+)(?:\s+(?:packs?|creator|pipeline|system|engine|workflow))?\s*(.*)$/i
+    );
+    if (customMatch) {
+      const noun = customMatch[1].replace(/s$/, "");
+      const remainder = customMatch[2] ? ` ${customMatch[2]}` : "";
+      return `Engineered custom ${noun} creation${remainder}`;
+    }
+    return `Engineered ${rest}`;
+  }
+
+  if (verb === "upload" || verb === "import" || verb === "ingest") {
+    return `Implemented ingestion pipelines for ${rest}`;
+  }
+
+  if (verb === "download" || verb === "export") {
+    return `Automated export workflows for ${rest}`;
+  }
+
+  if (verb === "configure" || verb === "customize") {
+    return `Architected customization options for ${rest}`;
+  }
+
+  if (verb === "manage" || verb === "organize") {
+    return `Engineered management capabilities for ${rest}`;
+  }
+
+  if (verb === "view" || verb === "monitor" || verb === "track") {
+    return `Instrumented monitoring and visualization for ${rest}`;
+  }
+
+  if (verb === "search" || verb === "query" || verb === "filter") {
+    return `Engineered query and discovery mechanisms for ${rest}`;
+  }
+
+  return `Engineered ${rest}`;
+}
+
+/**
+ * Cleans tutorial-level standard library built-in calls (e.g. setInterval, fetch)
+ * so the bullet highlights the true architectural feature rather than basic syntax.
+ */
+export function cleanTrivialPrimitives(bullet: string): string {
+  let cleaned = bullet;
+  // If followed by a participle like ", triggering", preserve the comma
+  cleaned = cleaned.replace(
+    /\b(?:using|via)\s+(?:(?:javascript|python|node)['’]?s\s+)?(?:`?setinterval`?|`?settimeout`?)\s*(?:function|method)?(?:\s*,\s*|\s+)?(?=([a-z]+ing\b))/gi,
+    ", "
+  );
+  cleaned = cleaned.replace(
+    /\b(?:using|via)\s+(?:(?:javascript|python|node)['’]?s\s+)?(?:`?setinterval`?|`?settimeout`?)\s*(?:function|method)?(?:,\s*|\s+)?/gi,
+    ""
+  );
+  cleaned = cleaned.replace(
+    /\b(?:using|via)\s+(?:(?:javascript|node)['’]?s\s+)?(?:`?window\.`?|`?document\.`?)?(?:`?add(?:event)?listener`?)\s*(?:function|method)?(?:\s*,\s*|\s+)?(?=([a-z]+ing\b))/gi,
+    ", "
+  );
+  cleaned = cleaned.replace(
+    /\b(?:using|via)\s+(?:(?:javascript|node)['’]?s\s+)?(?:`?window\.`?|`?document\.`?)?(?:`?add(?:event)?listener`?)\s*(?:function|method)?(?:,\s*|\s+)?/gi,
+    ""
+  );
+  cleaned = cleaned.replace(
+    /\b(?:using|via)\s+(?:the\s+)?`?fetch\(\)?`?\s*(?:api|function|method)?(?:,\s*|\s+)?/gi,
+    ""
+  );
+  cleaned = cleaned.replace(/,\s*,/g, ",");
+  cleaned = cleaned.replace(/\s+([.,;:!?])/g, "$1");
+  return cleaned.replace(/\s{2,}/g, " ").trim();
+}
+
+export interface AuditedBullet {
+  bullet: string;
+  score: number;
+  isChore: boolean;
+  hasMetric: boolean;
+  originalIndex?: number;
+}
+
+/**
+ * Audits the technical substantiveness of a bullet on a 0.0 to 10.0 scale.
+ */
+export function auditBulletSubstantiveness(bullet: string): AuditedBullet {
+  if (LOW_SIGNAL_CHORE_REGEX.test(bullet)) {
+    return { bullet, score: 0, isChore: true, hasMetric: false };
+  }
+
+  let score = 5.0;
+  const hasMetric = detectMetric(bullet);
+  if (hasMetric) score += 2.0;
+
+  // Architectural Signals (+1.5 each)
+  if (
+    /\b(?:concurren(?:t|cy)|thread(?:s|ing|ed)?|worker(?:s)?|stream(?:ing|ed|s)?|event\s*loop|async|await|parallel(?:ism)?|queue(?:s|d)?|pipeline(?:s)?|multiplex(?:ed|ing)?|sharded?|sharding|batch(?:ed|ing)?)\b/i.test(
+      bullet
+    )
+  ) {
+    score += 1.5;
+  }
+
+  if (
+    /\b(?:algorithm(?:s|ic)?|tree(?:s)?|graph(?:s)?|heap(?:s)?|hash\s*map|cache|caching|cached|index(?:ing|ed|es)?|matrix|vector|state\s*machine|heurstic|ast|spatial|haversine|minimax|alpha-beta|monte\s*carlo|simulation|bitboard|ring\s*buffer)\b/i.test(
+      bullet
+    )
+  ) {
+    score += 1.5;
+  }
+
+  if (
+    /\b(?:protocol(?:s)?|websocket(?:s)?|http\s*206|rest(?:ful)?|grpc|rpc|schema(?:s)?|persist(?:ence|ed|ing)?|migration(?:s)?|crypt(?:o|ography|ed)?|auth(?:enticat(?:ed|ion))?|sanitiz(?:ed|ation)|token(?:s)?|jwt|aes-256)\b/i.test(
+      bullet
+    )
+  ) {
+    score += 1.5;
+  }
+
+  // Trivial Primitive mention penalty (-1.5)
+  if (
+    /\b(?:setinterval|settimeout|event\s*listener|localstorage|math\.random)\b/i.test(
+      bullet
+    )
+  ) {
+    score -= 1.5;
+  }
+
+  // Pure UI styling without logic penalty (-1.0)
+  if (
+    /\b(?:tailwind\s+css|css3?|styling|layouts?)\s+across\s+[a-z,\s]+\s+screens?,\s+ensuring\s+seamless\b/i.test(
+      bullet
+    )
+  ) {
+    score -= 1.0;
+  }
+
+  return {
+    bullet,
+    score: Math.max(0.5, Math.min(10.0, score)),
+    isChore: false,
+    hasMetric,
+  };
+}
+
+const STOPWORDS = new Set([
+  "the", "and", "with", "for", "from", "that", "this", "into", "across",
+  "using", "their", "them", "line", "word", "users", "each", "game",
+  "which", "then", "per", "via", "under", "over", "allow", "allowing"
+]);
+
+function tokenizeSubstantiveRoots(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 3 && !STOPWORDS.has(w));
+}
+
+/**
+ * Deduplicates or synthesizes bullets covering overlapping feature entities.
+ * If two bullets are near-identical echoes, drops the lower-scoring one.
+ * If they describe distinct mechanisms of the same feature, synthesizes them into a composite bullet.
+ */
+export function deduplicateOrSynthesizeBullets(
+  auditedList: AuditedBullet[],
+  maxBullets: number
+): AuditedBullet[] {
+  if (auditedList.length <= 1) return auditedList;
+
+  const result: AuditedBullet[] = [];
+  const processedIndices = new Set<number>();
+
+  for (let i = 0; i < auditedList.length; i++) {
+    if (processedIndices.has(i)) continue;
+    const a = auditedList[i];
+    const tokensA = new Set(tokenizeSubstantiveRoots(a.bullet));
+
+    let matchedDuplicateIndex = -1;
+
+    for (let j = i + 1; j < auditedList.length; j++) {
+      if (processedIndices.has(j)) continue;
+      const b = auditedList[j];
+      const tokensB = new Set(tokenizeSubstantiveRoots(b.bullet));
+
+      let shared = 0;
+      for (const t of tokensB) {
+        if (tokensA.has(t)) shared++;
+      }
+
+      const minLen = Math.min(tokensA.size, tokensB.size);
+      const overlapRatio = minLen > 0 ? shared / minLen : 0;
+
+      // Thematic overlap threshold
+      if (overlapRatio >= 0.4) {
+        matchedDuplicateIndex = j;
+        break;
+      }
+    }
+
+    if (matchedDuplicateIndex !== -1) {
+      const b = auditedList[matchedDuplicateIndex];
+      processedIndices.add(matchedDuplicateIndex);
+
+      const tokensB = new Set(tokenizeSubstantiveRoots(b.bullet));
+      let novelInB = 0;
+      for (const t of tokensB) {
+        if (!tokensA.has(t)) novelInB++;
+      }
+      const novelRatio = tokensB.size > 0 ? novelInB / tokensB.size : 0;
+
+      // Pure redundant echo: drop weaker
+      if (novelRatio < 0.25) {
+        result.push(a.score >= b.score ? a : b);
+      } else {
+        // Distinct mechanisms: if capacity is open, retain both with distinct angles; otherwise synthesize
+        if (auditedList.length - 1 <= maxBullets) {
+          result.push(a);
+          result.push(b);
+        } else {
+          // Synthesize into a composite bullet
+          const composite = `${a.bullet.replace(/\.$/, "")}, and dynamically coordinating runtime updates.`;
+          result.push({
+            bullet: composite,
+            score: Math.min(10.0, Math.max(a.score, b.score) + 1.0),
+            isChore: false,
+            hasMetric: a.hasMetric || b.hasMetric,
+          });
+        }
+      }
+    } else {
+      result.push(a);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Unrolls robotic heading-prefix templates like:
+ * "Developed a Rate-Throttled Batching system, executing category lookups..." -> "Executed category lookups..."
+ * "Designed a Spatial Sorting via Haversine Distance system, calculating..." -> "Calculated..."
+ * "Implemented a Centralized Feature Orchestration mechanism, gating all..." -> "Gated all..."
+ */
+export function unrollRoboticHeadingPrefix(bullet: string): string {
+  const prefixRegex =
+    /^(?:Designed|Implemented|Developed|Engineered|Architected)\s+(?:an?|the)\s+([A-Z][a-zA-Z0-9_\- &()/]+?)\s+(?:system|mechanism|engine|pipeline|module|infrastructure|cover|mode)\s*,\s*([a-z]+ing)\s+/i;
+
+  const match = bullet.match(prefixRegex);
+  if (!match) return bullet;
+
+  const participle = match[2].toLowerCase();
+  const pastTense = convertParticipleToPastTense(participle);
+  if (!pastTense) return bullet;
+
+  return bullet.replace(prefixRegex, `${pastTense} `);
+}
+
+function convertParticipleToPastTense(participle: string): string | null {
+  const irregulars: Record<string, string> = {
+    binding: "Bound",
+    building: "Built",
+    holding: "Held",
+    making: "Made",
+    running: "Ran",
+    writing: "Wrote",
+  };
+  if (irregulars[participle]) return irregulars[participle];
+
+  if (!participle.endsWith("ing")) return null;
+  const stem = participle.slice(0, -3);
+
+  if (
+    stem.endsWith("er") ||
+    stem.endsWith("ur") ||
+    stem.endsWith("or") ||
+    stem.endsWith("ar")
+  ) {
+    return stem.charAt(0).toUpperCase() + stem.slice(1) + "ed";
+  }
+  if (stem.endsWith("e")) {
+    return stem.charAt(0).toUpperCase() + stem.slice(1) + "d";
+  }
+  if (/[^aeiou][bcdfgklmnprstvz]$/i.test(stem)) {
+    return stem.charAt(0).toUpperCase() + stem.slice(1) + "ed";
+  }
+  return stem.charAt(0).toUpperCase() + stem.slice(1) + "ed";
+}
 
 /**
  * Sanitizes a single bullet string by:
  * 1. Stripping leading bullet markers (•, -, *, etc.)
  * 2. Stripping leading/trailing wrapping quotes
  * 3. Balancing/stripping unclosed backticks while preserving matched pairs
- * 4. Stripping leading/trailing quotes from code symbols, file paths, and package names
- * 5. Cleaning up orphan punctuation marks (orphan commas before periods, double periods, etc.)
- * 6. Ensuring proper terminal punctuation
+ * 4. Stripping LaTeX math syntax ($...$, \text{...}) into clean plain text
+ * 5. Stripping physical source code filenames and script references
+ * 6. Fixing stranded prepositions resulting from filename stripping
+ * 7. Unrolling formulaic title-prefix templates into direct active verbs
+ * 8. Normalizing phonetic indefinite articles (a HTTP -> an HTTP)
+ * 9. Stripping leading/trailing quotes from code symbols, file paths, and package names
+ * 10. Cleaning up orphan punctuation marks (orphan commas before periods, double periods, etc.)
+ * 11. Ensuring proper terminal punctuation
  */
 export function sanitizeBulletString(bullet: string): string {
   let cleaned = bullet.trim();
@@ -64,7 +524,36 @@ export function sanitizeBulletString(bullet: string): string {
     );
   }
 
-  // 4. Strip quotes around code symbols, file paths, and package names (e.g. 'express', "FastAPI", 'src/app')
+  // 4. Strip LaTeX math notation (e.g. $150\text{ ms}$ -> 150ms, $\le 25ms$ -> <= 25ms)
+  cleaned = cleaned
+    .replace(/\\text\s*\{([^}]+)\}/g, "$1")
+    .replace(/\\le\b/g, "<=")
+    .replace(/\\ge\b/g, ">=")
+    .replace(/\$([^$]+)\$/g, "$1")
+    .replace(/(\d+)\s+(ms|s|sec|min|hr|kb|mb|gb|tb|fps|qps|rps)\b/gi, "$1$2");
+
+  // 5. Strip low-signal physical source code filenames and directory paths
+  cleaned = stripFileSystemArtifacts(cleaned);
+
+  // 6. Fix stranded prepositions resulting from removals (e.g. "through to ensure" -> "to ensure")
+  cleaned = cleaned.replace(
+    /\b(?:through|via|across|in|from|within|inside|to|under|at)\s+(to\s+[a-z]+)/gi,
+    "$1"
+  );
+
+  // Collapse multiple whitespace characters created by removals
+  cleaned = cleaned.replace(/\s{2,}/g, " ");
+
+  // 7. Unroll robotic heading-prefix templates into direct active verbs
+  cleaned = unrollRoboticHeadingPrefix(cleaned);
+
+  // 8. Normalize phonetic indefinite articles (e.g. "a HTTP" -> "an HTTP")
+  cleaned = cleaned.replace(
+    /\b([Aa])\s+(HTTP|HTML|HTTPS|SQL|SSRF|SLA|SSH|SDK|API|AST|IPC|OS|RFC)\b/g,
+    "$1n $2"
+  );
+
+  // 9. Strip quotes around code symbols, file paths, and package names (e.g. 'express', "FastAPI", 'src/app')
   cleaned = cleaned.replace(
     /(^|[\s(])["'“‘](@?[a-zA-Z0-9_\-./]+)["'”’]?(?=[\s),.;:!?]|$)/g,
     "$1$2"
@@ -82,16 +571,17 @@ export function sanitizeBulletString(bullet: string): string {
     cleaned = cleaned.replace(/(^|\s)'|'(?=[.,;:!?]|\s|$)/g, "$1");
   }
 
-  // 5. Clean up orphan punctuation marks
+  // 10. Clean up orphan punctuation marks and commas
   cleaned = cleaned
     .replace(/\s+([.,;:!?])/g, "$1") // Remove space before punctuation
-    .replace(/([,:;])\s*\./g, ".")   // Orphan comma/colon before period -> period
-    .replace(/\s*-\s*\./g, ".")      // Orphan dash before period -> period
-    .replace(/\.{2,}(?!\.)/g, ".")   // Duplicate periods (not ellipsis) -> single period
+    .replace(/([,:;])\s*\./g, ".") // Orphan comma/colon before period -> period
+    .replace(/\s*-\s*\./g, ".") // Orphan dash before period -> period
+    .replace(/\.{2,}(?!\.)/g, ".") // Duplicate periods (not ellipsis) -> single period
     .replace(/[,:;]{2,}/g, (m) => m[0]!) // Duplicate commas/colons -> single
+    .replace(/,\s*,/g, ",")
     .trim();
 
-  // 6. Ensure terminal punctuation
+  // 11. Ensure terminal punctuation
   if (cleaned && !/[.!?]$/.test(cleaned)) {
     cleaned += ".";
   }
@@ -100,60 +590,256 @@ export function sanitizeBulletString(bullet: string): string {
 }
 
 /**
+ * Detects cross-repository prompt hallucination bleed and ungrounded enterprise infrastructure claims.
+ * Ensures specialized algorithmic, trigonometric, audio-streaming, crisis-dispatch, or backend broker claims
+ * are strictly grounded in the repository's own documentation, manifest, or codebase context.
+ */
+export function isUngroundedHallucination(bullet: string, contextCorpus: string): boolean {
+  const normCorpus = contextCorpus.toLowerCase();
+  const bLower = bullet.toLowerCase();
+
+  // 1. Speculative hedging parenthesis (e.g. "(e.g., RabbitMQ)", "(e.g., Docker)", "(e.g., SHA-256)")
+  const hedgingMatch = bullet.match(/\((?:e\.g\.|i\.e\.|for example)\s*,?\s*([^)]+)\)/i);
+  if (hedgingMatch) {
+    const citedExample = hedgingMatch[1].toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (citedExample.length >= 3 && !normCorpus.includes(citedExample)) {
+      return true;
+    }
+  }
+
+  // 2. Geospatial & spherical trigonometry claims (e.g. Haversine distance, concentric bounding boxes)
+  if (
+    /\b(?:haversine|geospatial|concentric\s+bounding\s+boxes?)\b/i.test(bLower)
+  ) {
+    const hasGeoGrounding =
+      /\b(?:geo|geospatial|haversine|gps|coord(?:inate)?s?|latitude|longitude|spatial|map(?:s|ping)?|proximity|radius|radial|wildfire|shelter)\b/i.test(
+        normCorpus
+      );
+    if (!hasGeoGrounding) return true;
+  }
+
+  // 3. Audio/Voice memo byte-range streaming claims (e.g. HTTP 206 byte-range audio voice memos)
+  if (
+    /\b(?:http\s*206|voice\s*memos?|mediarecorder|microphone\s*buffers?)\b/i.test(bLower)
+  ) {
+    const hasAudioGrounding =
+      /\b(?:audio|sound|voice|speech|memo|mediarecorder|microphone|stream(?:ing)?|video|playback|206)\b/i.test(
+        normCorpus
+      );
+    if (!hasAudioGrounding) return true;
+  }
+
+  // 4. Emergency SOS / crisis workflow dispatch claims
+  if (
+    /\b(?:emergency\s+sos|panic\s+exit|domestic\s+violence|crisis\s+service)\b/i.test(bLower)
+  ) {
+    const hasCrisisGrounding =
+      /\b(?:sos|emergency|crisis|safety|shelter|survivor|panic|domestic|violence)\b/i.test(
+        normCorpus
+      );
+    if (!hasCrisisGrounding) return true;
+  }
+
+  // 5. Message queue / pub-sub broker claims (RabbitMQ, Kafka) on ungrounded repos
+  if (
+    /\b(?:message\s*queue|rabbitmq|kafka|pub\s*\/\s*sub\s*system|activemq|zeromq)\b/i.test(bLower)
+  ) {
+    const hasQueueGrounding =
+      /\b(?:queue|rabbitmq|kafka|pubsub|pub\/sub|broker|worker|amqp)\b/i.test(
+        normCorpus
+      );
+    if (!hasQueueGrounding) return true;
+  }
+
+  // 6. Relational ORM / database indexing claims (e.g. TypeORM) on ungrounded repos
+  if (
+    /\b(?:typeorm|prisma|indexed\s*database|normalized\s*,?\s*indexed\s*database)\b/i.test(bLower)
+  ) {
+    const hasDbGrounding =
+      /\b(?:database|typeorm|prisma|sql|postgres|mysql|sqlite|mongo|db|indexeddb|orm)\b/i.test(
+        normCorpus
+      );
+    if (!hasDbGrounding) return true;
+  }
+
+  // 7. Cryptographic anti-cheat claims (SHA-256 anti-cheat) on ungrounded repos
+  if (
+    /\b(?:cryptographic\s*hash|sha-256|anti-cheat)\b/i.test(bLower)
+  ) {
+    const hasCryptoGrounding =
+      /\b(?:crypto|hash|sha|anti-cheat|security|checksum|hmac|jwt)\b/i.test(
+        normCorpus
+      );
+    if (!hasCryptoGrounding) return true;
+  }
+
+  // 8. Containerization platform (Docker / Kubernetes) on ungrounded repos
+  if (
+    /\b(?:containerization\s*platform|docker(?:file)?|kubernetes|k8s)\b/i.test(bLower)
+  ) {
+    const hasDockerGrounding =
+      /\b(?:docker|container|kubernetes|k8s|helm|compose)\b/i.test(
+        normCorpus
+      );
+    if (!hasDockerGrounding) return true;
+  }
+
+  return false;
+}
+
+const VERB_ALTERNATIVES: Record<string, string[]> = {
+  Serialized: ["Structured", "Stored", "Encoded", "Persisted", "Formatted"],
+  Materialized: ["Implemented", "Constructed", "Generated", "Rendered", "Developed"],
+  Dispatched: ["Orchestrated", "Executed", "Routed", "Triggered", "Coordinated"],
+  Synchronized: ["Aligned", "Integrated", "Coordinated", "Reconciled"],
+};
+
+/**
+ * Diversifies leading action verbs across bullets on the same project card to break repetitive verb carousels.
+ */
+export function diversifyLeadingVerbs(bullets: string[]): string[] {
+  const seenVerbs = new Map<string, number>();
+
+  return bullets.map((bullet) => {
+    const match = bullet.match(/^([A-Z][a-z]+)\b/);
+    if (!match) return bullet;
+
+    const leadVerb = match[1]!;
+    const count = seenVerbs.get(leadVerb) ?? 0;
+    seenVerbs.set(leadVerb, count + 1);
+
+    if (count > 0 && VERB_ALTERNATIVES[leadVerb]) {
+      const alternatives = VERB_ALTERNATIVES[leadVerb]!;
+      const replacement = alternatives[(count - 1) % alternatives.length]!;
+      return bullet.replace(new RegExp(`^${leadVerb}\\b`), replacement);
+    }
+
+    return bullet;
+  });
+}
+
+/**
  * Transforms a raw GitHub repository and its technical analysis into a validated ProjectItem.
- * Strictly isolates repository description from bullets and eliminates low-signal chores.
+ * Applies systems-engine unrolling, trivial primitive scrubbing, substantiveness scoring,
+ * cross-bullet deduplication, and audited backfilling.
  */
 export function adaptRepoToProjectItem(params: {
   repo: GitHubRawRepo;
   bullets: string[];
   inferredTechnologies?: string[];
   manifestTechnologies?: string[];
+  scaleBudget?: { minBullets: number; maxBullets: number };
+  repoContextText?: string;
 }): ProjectItem {
-  const { repo, bullets, inferredTechnologies = [], manifestTechnologies = [] } = params;
+  const {
+    repo,
+    bullets,
+    inferredTechnologies = [],
+    manifestTechnologies = [],
+    scaleBudget = { minBullets: 3, maxBullets: 14 },
+    repoContextText,
+  } = params;
 
-  const mergedTechs = [
-    ...new Set([...inferredTechnologies, ...manifestTechnologies]),
-  ].filter(Boolean);
+  const mergedTechs = dedupeTools([
+    ...inferredTechnologies,
+    ...manifestTechnologies,
+  ]);
 
   const rawDescription = repo.description?.trim() || "";
   const normalizedDesc = rawDescription.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const contextCorpus =
+    repoContextText ||
+    `${repo.name} ${repo.description ?? ""} ${manifestTechnologies.join(" ")} ${inferredTechnologies.join(" ")}`;
 
-  // Sanitize all bullets
-  const sanitizedBullets = (bullets || [])
-    .map(sanitizeBulletString)
-    .filter(Boolean);
+  // 1. Clean, unroll, and audit all bullets
+  const auditedPool: AuditedBullet[] = [];
+  const rawBullets = bullets || [];
 
-  // Strictly enforce separation: filter out low-signal chores and any bullets that duplicate or wrap repo.description
-  const filteredBullets = sanitizedBullets.filter((bullet) => {
-    // 1. Omit low-signal developer setup chores
-    if (LOW_SIGNAL_CHORE_REGEX.test(bullet)) {
-      return false;
+  for (let i = 0; i < rawBullets.length; i++) {
+    const raw = rawBullets[i];
+    let bullet = sanitizeBulletString(raw);
+    if (!bullet) continue;
+
+    bullet = unrollPermissivePhrasing(bullet);
+    bullet = cleanTrivialPrimitives(bullet);
+    bullet = sanitizeBulletString(bullet); // Final polish after unrolling/cleaning
+
+    // Omit ungrounded cross-repo hallucinations
+    if (isUngroundedHallucination(bullet, contextCorpus)) {
+      continue;
     }
 
-    // 2. Omit duplicate or echo of repo description
-    if (!normalizedDesc) return true;
-    const bulletNorm = bullet.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (bulletNorm === normalizedDesc) return false;
+    // Omit description duplicates
+    if (normalizedDesc) {
+      const bulletNorm = bullet.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (bulletNorm === normalizedDesc) continue;
 
-    const cleanRepoName = repo.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (
-      bulletNorm.includes(normalizedDesc) &&
-      (bulletNorm.startsWith(cleanRepoName) ||
-        bulletNorm.startsWith(`engineeredandmaintained${cleanRepoName}`) ||
-        bulletNorm.startsWith(`implementedcorecomputationalpipelinefor${cleanRepoName}`))
-    ) {
-      return false;
+      const cleanRepoName = repo.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (
+        bulletNorm.includes(normalizedDesc) &&
+        (bulletNorm.startsWith(cleanRepoName) ||
+          bulletNorm.startsWith(`engineeredandmaintained${cleanRepoName}`) ||
+          bulletNorm.startsWith(`implementedcorecomputationalpipelinefor${cleanRepoName}`))
+      ) {
+        continue;
+      }
     }
 
-    return true;
-  });
+    const audited = auditBulletSubstantiveness(bullet);
+    if (!audited.isChore) {
+      auditedPool.push({
+        ...audited,
+        originalIndex: i,
+      });
+    }
+  }
+
+  // 2. Cross-bullet semantic deduplication / synthesis
+  const deduplicated = deduplicateOrSynthesizeBullets(
+    auditedPool,
+    scaleBudget.maxBullets
+  );
+
+  // 3. Selection of top substantive bullets with backfilling
+  const primaryCandidates = deduplicated
+    .filter((item) => item.score >= 4.5)
+    .sort((a, b) => b.score - a.score);
+
+  const reserveCandidates = deduplicated
+    .filter((item) => item.score < 4.5 && item.score >= 2.0)
+    .sort((a, b) => b.score - a.score);
+
+  const chosen: AuditedBullet[] = [];
+
+  // Take primary candidates up to maxBullets
+  for (const item of primaryCandidates) {
+    if (chosen.length < scaleBudget.maxBullets) {
+      chosen.push(item);
+    }
+  }
+
+  // Backfill from reserve pool if needed to satisfy scale budget minBullets
+  while (chosen.length < scaleBudget.minBullets && reserveCandidates.length > 0) {
+    chosen.push(reserveCandidates.shift()!);
+  }
+
+  // If room permits up to maxBullets and reserve bullets exist, backfill further
+  while (chosen.length < scaleBudget.maxBullets && reserveCandidates.length > 0) {
+    chosen.push(reserveCandidates.shift()!);
+  }
+
+  // Sort chosen bullets by their original sequence to preserve narrative flow
+  chosen.sort((a, b) => (a.originalIndex ?? 0) - (b.originalIndex ?? 0));
+
+  const finalBullets = chosen.map((item) => item.bullet);
+  const diversifiedBullets = diversifyLeadingVerbs(finalBullets);
 
   return {
     name: normalizeProjectName(repo.name),
     description: repo.description || "Open-source repository on GitHub",
     link: repo.html_url,
     technologies: mergedTechs.length > 0 ? mergedTechs : manifestTechnologies,
-    bullets: filteredBullets,
+    bullets: diversifiedBullets.slice(0, scaleBudget.maxBullets),
     origin: "GITHUB_INFERRED",
   };
 }

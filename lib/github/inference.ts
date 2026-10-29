@@ -6,28 +6,40 @@ import {
 import { extractSemanticMarkdownDigest } from "./prefilter";
 import { groupDependenciesByDomain } from "./manifests";
 import { deduceArchitecturalTopology } from "./topology";
+import { dedupeTools } from "./tools";
 
-export const DEEP_ANALYSIS_SYSTEM_PROMPT = `You are a Principal Systems Engineer reviewing code artifacts and documentation to author high-density technical resume bullets.
+export const DEEP_ANALYSIS_SYSTEM_PROMPT = `You are the Lead Systems Architect and Core Engineer who designed and implemented this codebase. You are articulating your own architectural decisions, mechanisms, data structures, and engineering execution for your technical portfolio.
 
 CORE OBJECTIVE:
-Translate raw repository documentation and manifests into concrete, authoritative engineering bullets that describe mechanisms, data flows, protocols, and architectural trade-offs.
+Translate repository documentation and manifests into concrete, authoritative engineering bullets that describe mechanisms, data flows, protocols, and architectural trade-offs that you engineered.
 
-STRICT CONSTRAINTS & BANS:
-1. NO INTRODUCTORY OR DESCRIPTION BULLETS: Never write a bullet that simply summarizes what the app or tool is or repeats the repository description/tagline (e.g., do NOT write "Architected a tool that helps users..." or "Engineered a high-performance cache..."). Bullet 0 must NOT be an introductory summary. Every single bullet must describe a specific technical mechanism, problem solved, or subsystem implemented.
-2. BANNED TRIVIAL TASKS:
+CRITICAL CONSTRAINTS:
+1. NO INTRODUCTORY OR DESCRIPTION BULLETS: Never write a bullet summarizing what the app is or repeating the repository description/tagline. Bullet 0 must NOT be an introductory summary. Every single bullet must describe a specific technical mechanism, problem solved, or subsystem implemented.
+2. BUILDER VOICE (BAN SPECTATOR & PM PHRASING):
+   - NEVER write from an outside observer or user-manual perspective (e.g., do NOT write "Allowed users to...", "Enabled users to...", "Supported users in...").
+   - NEVER start with formulaic templates: "Designed a [Name] system", "Implemented a [Name] mechanism".
+   - Start directly with an active systems operational verb followed by the computational mechanism or data structure:
+     Pattern: "[Operational Verb] [subsystem or mechanism] utilizing [underlying primitive, protocol, or data structure] to [system outcome]."
+3. BANNED TRIVIAL TASKS & PRIMITIVES:
    Never generate bullets for low-signal chores or basic developer tasks:
-   - Setting up environment variables or local configuration files (e.g., creating config files, setting ports, configuring local tokens, .env files).
-   - Basic filesystem hygiene (e.g., creating folders, organizing assets into directories, cleaning up repositories).
-   - Generating superficial demonstration artifacts (e.g., screen recordings, screenshots, simple demo scripts, sample videos).
-   - Generic development tooling (e.g., installing dependencies, configuring code linters, code formatting, git hooks, npm scripts).
-   Every bullet must describe core architectural design, algorithms, concurrency models, protocol implementations, or data structures.
-3. NO NAME-DROPPING WITHOUT MECHANISM: Never write vague statements like "Used Python to do X" or "leveraged threads for caching". You MUST specify the technical primitive: data structures (bitboards, heaps, ASTs, circular buffers), networking/protocols (WebSockets, SSE, zero-copy, HTTP/2), concurrency models (mutexes, thread pools, async event loops), or algorithmic approaches (epsilon-greedy decay, Q-target freezing, geospatial indexing).
-4. NATURAL, DIVERSE VERBS: Do NOT default to a repetitive loop of "Architected / Engineered / Implemented". Select verbs that describe the exact systems action:
-   - Concurrency & Routing: Dispatched, Multiplexed, Sharded, Throttled, Decoupled, Synchronized, Isolated.
-   - Data & Storage: Serialized, Materialized, Ingested, Partitioned, Normalized, Indexed.
-   - Optimization & Testing: Profiled, Benchmarked, Vectorized, Quantized, Hardened.
-5. GROUNDED SPECIFICS: Actively extract concrete constraints, dimensions, and operational parameters from the README (e.g., frame rates, episode bounds, reward formulations, latency bounds, HTTP status codes, schema models, tensor dimensions).
-6. NO FAKE BUSINESS ROI: Never invent commercial revenue, user growth percentages, or fake organizational metrics. Ground all results strictly in computational efficiency, data integrity, protocol conformance, or automated pipeline reliability.
+   - Setting up environment variables or local configuration files (.env files).
+   - Basic filesystem hygiene (creating folders, organizing assets into directories).
+   - Generating superficial demonstration artifacts (screen recordings, screenshots, simple demo scripts).
+   - Generic development tooling (installing dependencies, configuring linters, formatting, git hooks).
+   - Never cite basic language built-in functions or trivial standard library calls as engineering achievements (e.g., do NOT cite 'setInterval', 'setTimeout', 'fetch()', 'window.addEventListener', or 'Math.random()'). Frame in terms of the underlying logic: state machines, animation frame synchronization, debounced workers, or event dispatchers.
+   - Never cite generic click-to-deploy PaaS platforms (e.g., do NOT write "deployed to Vercel/Netlify using automatic redeployment on git push").
+4. GROUNDED PRIMITIVES & ZERO SPECULATIVE HEDGING:
+   - State strictly what was authored and implemented in this codebase.
+   - NEVER use speculative hedging like '(e.g., RabbitMQ)', '(e.g., SHA-256)', '(e.g., Docker)', or 'such as X'.
+   - NEVER invent unverified backend infrastructure (message queues, relational databases, containerization) for client-side applications. Ground all primitives in the actual dependencies and documentation.
+5. NATURAL, DIVERSE ENGINEERING ACTION VERBS:
+   - Use a rich, varied engineering vocabulary tailored to the specific accomplishment:
+     Architected, Built, Formulated, Automated, Integrated, Configured, Optimized, Deployed, Streamlined, Instrumented, Scaled, Enforced, Formatted, Evaluated, Transformed, Profiled, Hardened, Decoupled, Synchronized, Persisted.
+   - BAN REPETITIVE VERB ROTATIONS: Never begin consecutive bullets with the same operational verb (e.g., do NOT start multiple bullets with 'Serialized' or 'Dispatched'). Diversify verbs naturally across the full portfolio.
+6. GROUNDED SPECIFICS & ZERO LATEX: Actively extract concrete constraints and parameters from repository documentation. NEVER use LaTeX math notation ($...$ or \\text{...}). Use clean plain text units (e.g., latency in ms, availability percentages, throughput in req/s, or payload sizes in KB/MB).
+7. DIVERSITY REQUIREMENT: Never author two bullets describing different aspects of the same user feature. Each bullet must represent a completely distinct architectural layer (e.g., state synchronization, UI gesture handling, data ingestion, animation timing).
+8. SUBSYSTEM COVERAGE: When verifiedArchitecturalSubsystems are provided, dedicate at least one bullet to each verified capability (test suites, containerization, schema persistence, CI/CD).
+9. ZERO FILENAMES, PATHS, OR RAW EXTENSIONS: Never reference physical filenames, directory paths, or raw extensions (e.g., do NOT write 'main.py', 'connect4.py', 'src/data/', or '.txt files'). Refer exclusively to the architectural module, class, subsystem, or data format (e.g., 'within the game engine', 'in the decision agent', 'via line-delimited records').
 
 FORMAT & LENGTH:
 - Each bullet must be 18 to 36 words, dense with technical specificity.
@@ -46,13 +58,33 @@ export async function analyzeRepoArtifacts(
     readme,
     manifestTechnologies,
     repoSize,
+    pureCodeBytes,
     manifestPaths = [],
     hasMonorepoStructure = false,
+    structuralMarkers,
+    languageMetrics,
     llmOptions,
   } = params;
 
+  const verifiedTopology = deduceArchitecturalTopology(
+    manifestTechnologies,
+    manifestPaths
+  );
+
+  const subsystems = {
+    hasDatabase: structuralMarkers?.hasDatabase,
+    hasTests: structuralMarkers?.hasTests,
+    hasContainerization: structuralMarkers?.hasContainerization,
+    hasCiCd: structuralMarkers?.hasCiCd,
+    hasMonorepo: hasMonorepoStructure || structuralMarkers?.hasMonorepo,
+    hasMultiDomainTopology: Boolean(verifiedTopology),
+  };
+
+  const hasReadme = Boolean(readme && readme.trim().length > 0);
   const scaleBudget = determineRepoScale({
     size: repoSize,
+    codeBytes: pureCodeBytes ?? structuralMarkers?.pureCodeBytes ?? null,
+    subsystems,
     manifestCount:
       manifestPaths.length > 0
         ? manifestPaths.length
@@ -60,12 +92,8 @@ export async function analyzeRepoArtifacts(
           ? 1
           : 0,
     hasMonorepoStructure,
+    hasReadme,
   });
-
-  const verifiedTopology = deduceArchitecturalTopology(
-    manifestTechnologies,
-    manifestPaths
-  );
 
   const domainGroups = groupDependenciesByDomain(manifestTechnologies);
 
@@ -76,7 +104,7 @@ export async function analyzeRepoArtifacts(
   if (!readmeDigest && manifestTechnologies.length === 0) {
     return {
       bullets: [],
-      technologies: manifestTechnologies,
+      technologies: dedupeTools(manifestTechnologies),
     };
   }
 
@@ -98,19 +126,48 @@ export async function analyzeRepoArtifacts(
     promptPayload.verifiedArchitecturalTopology = `Verified architectural topology: ${verifiedTopology}`;
   }
 
+  const verifiedSubsystemsList: string[] = [];
+  if (subsystems.hasDatabase) verifiedSubsystemsList.push("Database persistence & migrations");
+  if (subsystems.hasTests) verifiedSubsystemsList.push("Automated test coverage (unit/integration/E2E)");
+  if (subsystems.hasContainerization) verifiedSubsystemsList.push("Docker containerization & infrastructure");
+  if (subsystems.hasCiCd) verifiedSubsystemsList.push("Automated CI/CD workflows");
+  if (subsystems.hasMonorepo) verifiedSubsystemsList.push("Decoupled monorepo workspaces");
+  if (subsystems.hasMultiDomainTopology && verifiedTopology) {
+    verifiedSubsystemsList.push(`Multi-domain stack (${verifiedTopology})`);
+  }
+
+  if (verifiedSubsystemsList.length > 0) {
+    promptPayload.verifiedArchitecturalSubsystems = verifiedSubsystemsList;
+    promptPayload.subsystemGuidance = `Dedicate at least one bullet to each verified architectural subsystem: ${verifiedSubsystemsList.join("; ")}.`;
+  }
+
+  if (languageMetrics && Object.keys(languageMetrics).length > 0) {
+    promptPayload.primaryLanguages = Object.keys(languageMetrics).slice(0, 4);
+  }
+
   const userPrompt = JSON.stringify(promptPayload, null, 2);
+
+  // Extract LLM configuration, supporting both flat options and nested llmOptions
+  const nested = llmOptions?.llmOptions;
+  const resolvedProvider = nested?.llmProvider ?? llmOptions?.llmProvider ?? "LOCAL_OLLAMA";
+  const resolvedOllamaUrl = nested?.localOllamaUrl ?? llmOptions?.localOllamaUrl;
+  const resolvedOllamaModel = nested?.ollamaModel ?? llmOptions?.ollamaModel;
+  const resolvedDevModel = nested?.devModelOverride ?? llmOptions?.devModelOverride;
+  const resolvedAllowCloud = nested?.allowCloudFallback ?? llmOptions?.allowCloudFallback;
+  const resolvedAccountId = llmOptions?.accountId;
+  const resolvedRules = llmOptions?.accountRules;
 
   try {
     const response = await callLLMWithFallback({
       systemPrompt: DEEP_ANALYSIS_SYSTEM_PROMPT,
       userPrompt,
-      llmProvider: llmOptions?.llmProvider ?? "LOCAL_OLLAMA",
-      localOllamaUrl: llmOptions?.localOllamaUrl,
-      ollamaModel: llmOptions?.ollamaModel,
-      devModelOverride: llmOptions?.devModelOverride,
-      allowCloudFallback: llmOptions?.allowCloudFallback,
-      accountId: llmOptions?.accountId,
-      accountRules: llmOptions?.accountRules,
+      llmProvider: resolvedProvider,
+      localOllamaUrl: resolvedOllamaUrl,
+      ollamaModel: resolvedOllamaModel,
+      devModelOverride: resolvedDevModel,
+      allowCloudFallback: resolvedAllowCloud,
+      accountId: resolvedAccountId,
+      accountRules: resolvedRules,
       ollamaOptions: {
         temperature: 0.5,
       },
@@ -121,17 +178,44 @@ export async function analyzeRepoArtifacts(
       Array.isArray(response.bullets) &&
       response.bullets.length > 0
     ) {
+      const rawExtracted = Array.isArray(response.extractedTechnologies)
+        ? response.extractedTechnologies.map(String).map((t) => t.trim()).filter(Boolean)
+        : manifestTechnologies;
+
+      // Technology Grounding Fence:
+      // Reject phantom/hallucinated tech stacks (e.g. TypeORM on a client-side app).
+      // Any extracted tool must be present in manifestTechnologies, languageMetrics, or explicitly documented in README/description.
+      const manifestTechSet = new Set(
+        manifestTechnologies.map((t) => t.toLowerCase().trim())
+      );
+      const languageTechSet = new Set(
+        Object.keys(languageMetrics ?? {}).map((l) => l.toLowerCase().trim())
+      );
+      const docContext = `${repoName} ${description ?? ""} ${readme ?? ""}`.toLowerCase();
+
+      const groundedExtracted = rawExtracted.filter((tech) => {
+        const lower = tech.toLowerCase().trim();
+        if (manifestTechSet.has(lower) || languageTechSet.has(lower)) {
+          return true;
+        }
+        // Verify tool is actually mentioned as a word in README or description
+        const escaped = lower.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const wordRegex = new RegExp(`(?:^|[\\s\`"'(,])${escaped}(?:[\\s\`"')!?,]|$)`, "i");
+        return wordRegex.test(docContext);
+      });
+
+      // Strictly bound returned bullets to the tier's maximum bullet density
+      const clampedBullets = response.bullets
+        .map(String)
+        .map((b) => b.trim())
+        .filter(Boolean)
+        .slice(0, scaleBudget.maxBullets);
+
       return {
-        bullets: response.bullets
-          .map(String)
-          .map((b) => b.trim())
-          .filter(Boolean),
-        technologies: Array.isArray(response.extractedTechnologies)
-          ? response.extractedTechnologies
-              .map(String)
-              .map((t) => t.trim())
-              .filter(Boolean)
-          : manifestTechnologies,
+        bullets: clampedBullets,
+        technologies: dedupeTools(
+          groundedExtracted.length > 0 ? groundedExtracted : manifestTechnologies
+        ),
       };
     }
   } catch (error) {
@@ -177,8 +261,15 @@ export async function analyzeRepoArtifacts(
     );
   }
 
+  // Ensure minimum target density is met even in heuristic fallback
+  if (scaleBudget.minBullets >= 3 && fallbackBullets.length < 3) {
+    fallbackBullets.push(
+      `Instrumented testing harnesses and automated build pipelines to validate subsystem stability and performance constraints.`
+    );
+  }
+
   return {
-    bullets: fallbackBullets,
-    technologies: manifestTechnologies,
+    bullets: fallbackBullets.slice(0, scaleBudget.maxBullets),
+    technologies: dedupeTools(manifestTechnologies),
   };
 }
