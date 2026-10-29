@@ -6,6 +6,8 @@ import {
   getSubscriptionsForAccount,
 } from "@/lib/data";
 import { refreshStaleSubscriptionDates } from "@/lib/subscriptions/last-received";
+import { SUBSCRIPTION_PAGE_TABS } from "@/lib/navigation/page-tabs";
+import { readServerActivePageTab } from "@/lib/navigation/page-tabs-server";
 
 export default async function SubscriptionsPage() {
   const active = await getActiveAccount();
@@ -16,16 +18,19 @@ export default async function SubscriptionsPage() {
       console.error("refreshStaleSubscriptionDates failed", error);
     }
   }
-  const subscriptions = active
-    ? await getSubscriptionsForAccount(active.id)
-    : [];
-  const history =
+
+  const [subscriptions, history, latestBriefing, initialTab] = await Promise.all([
+    active ? getSubscriptionsForAccount(active.id) : [],
     active?.persistentProfileId
-      ? await getSubscriptionHistoryForProfile(active.persistentProfileId)
-      : [];
-  const latestBriefing = active
-    ? await getLatestBriefingForAccount(active.id)
-    : null;
+      ? getSubscriptionHistoryForProfile(active.persistentProfileId)
+      : [],
+    active ? getLatestBriefingForAccount(active.id) : null,
+    readServerActivePageTab(
+      "/subscriptions",
+      SUBSCRIPTION_PAGE_TABS.map((t) => t.value),
+      active?.id ?? null
+    ),
+  ]);
 
   if (!active) {
     return (
@@ -38,6 +43,7 @@ export default async function SubscriptionsPage() {
   return (
     <SubscriptionsView
       accountId={active.id}
+      initialTab={initialTab ?? undefined}
       subscriptions={subscriptions}
       history={history}
       defaultCleanup={active.rules.autoCleanAfterUnsub}
