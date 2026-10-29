@@ -34,7 +34,7 @@ export function normalizeGitHubUsername(usernameOrUrl: string): string {
  * and raw codebase language percentage recitations.
  */
 export const LOW_SIGNAL_CHORE_REGEX =
-  /(?:set(?:ting)?\s+up|configur(?:ed?|ing)|creat(?:ed?|ing))\s+(?:environment\s+variables?|\.env|local\s+config(?:uration)?|ports?|local\s+tokens?)|(?:setting\s+ports?)|(?:filesystem\s+hygiene|organiz(?:ed?|ing)\s+assets|creat(?:ed?|ing)\s+folders?|clean(?:ed?|ing)?\s+up\s+repositor(?:y|ies)?)|(?:screen\s*recordings?|screenshots?|demo\s+scripts?|demonstration\s+artifacts?)|(?:install(?:ed?|ing)\s+dependencies|configur(?:ed?|ing)\s+code\s+linters?|code\s+formatting|eslint|prettier)|(?:\b(?:vercel|netlify|render|heroku)\b.*(?:automatic\s+redeploy|push(?:es)?\s+to\s+`?main`?|`?main`?\s+branch|`?main`?\s+(?:branch\s+)?push(?:es)?))|(?:\b\d{1,3}%\s+of\s+the\s+codebase\s+written\s+in\b)/i;
+  /(?:set(?:ting)?\s+up|configur(?:ed?|ing)|creat(?:ed?|ing))\s+(?:environment\s+variables?|\.env|local\s+config(?:uration)?|ports?|local\s+tokens?)|(?:setting\s+ports?)|(?:filesystem\s+hygiene|organiz(?:ed?|ing)\s+assets|creat(?:ed?|ing)\s+folders?|clean(?:ed?|ing)?\s+up\s+repositor(?:y|ies)?)|(?:screen\s*recordings?|screenshots?|demo\s+scripts?|demonstration\s+artifacts?)|(?:install(?:ed?|ing)\s+dependencies|configur(?:ed?|ing)\s+code\s+linters?|code\s+formatting|eslint|prettier)|(?:\b(?:vercel|netlify|render|heroku)\b.*(?:automatic\s+redeploy|push(?:es)?\s+to\s+`?main`?|`?main`?\s+branch|`?main`?\s+(?:branch\s+)?push(?:es)?))|(?:\b\d{1,3}%\s+of\s+the\s+codebase\s+written\s+in\b)|(?:(?:updat(?:ed?|ing)|wrot(?:e|ing)|maintain(?:ed?|ing))\s+(?:documentation|readme(?:\.md)?|docs?|setup\s+guide(?:lines?)?))/i;
 
 const KNOWN_FRAMEWORKS = new Set([
   "node.js",
@@ -283,7 +283,7 @@ export function auditBulletSubstantiveness(bullet: string): AuditedBullet {
     return { bullet, score: 0, isChore: true, hasMetric: false };
   }
 
-  let score = 5.0;
+  let score = 3.5;
   const hasMetric = detectMetric(bullet);
   if (hasMetric) score += 2.0;
 
@@ -306,6 +306,22 @@ export function auditBulletSubstantiveness(bullet: string): AuditedBullet {
 
   if (
     /\b(?:protocol(?:s)?|websocket(?:s)?|http\s*206|rest(?:ful)?|grpc|rpc|schema(?:s)?|persist(?:ence|ed|ing)?|migration(?:s)?|crypt(?:o|ography|ed)?|auth(?:enticat(?:ed|ion))?|sanitiz(?:ed|ation)|token(?:s)?|jwt|aes-256)\b/i.test(
+      bullet
+    )
+  ) {
+    score += 1.5;
+  }
+
+  if (
+    /\b(?:test(?:s|ing|ed)?|coverage|pytest|jest|vitest|benchmark(?:s|ing|ed)?|profil(?:ing|ed|er)?|mock(?:s|ing)?|ci\/cd)\b/i.test(
+      bullet
+    )
+  ) {
+    score += 1.5;
+  }
+
+  if (
+    /\b(?:next\.js|react|vue|svelte|fastapi|django|express|app\s*router|server\s*components?|state\s*management|lifecycle|router|routing)\b/i.test(
       bullet
     )
   ) {
@@ -372,6 +388,7 @@ export function deduplicateOrSynthesizeBullets(
     const tokensA = new Set(tokenizeSubstantiveRoots(a.bullet));
 
     let matchedDuplicateIndex = -1;
+    let matchedOverlapRatio = 0;
 
     for (let j = i + 1; j < auditedList.length; j++) {
       if (processedIndices.has(j)) continue;
@@ -389,6 +406,7 @@ export function deduplicateOrSynthesizeBullets(
       // Thematic overlap threshold
       if (overlapRatio >= 0.4) {
         matchedDuplicateIndex = j;
+        matchedOverlapRatio = overlapRatio;
         break;
       }
     }
@@ -404,24 +422,12 @@ export function deduplicateOrSynthesizeBullets(
       }
       const novelRatio = tokensB.size > 0 ? novelInB / tokensB.size : 0;
 
-      // Pure redundant echo: drop weaker
-      if (novelRatio < 0.25) {
+      // Pure redundant echo or over capacity: retain higher-scoring bullet without synthetic boilerplate
+      if (novelRatio < 0.35 || matchedOverlapRatio >= 0.55 || auditedList.length > maxBullets) {
         result.push(a.score >= b.score ? a : b);
       } else {
-        // Distinct mechanisms: if capacity is open, retain both with distinct angles; otherwise synthesize
-        if (auditedList.length - 1 <= maxBullets) {
-          result.push(a);
-          result.push(b);
-        } else {
-          // Synthesize into a composite bullet
-          const composite = `${a.bullet.replace(/\.$/, "")}, and dynamically coordinating runtime updates.`;
-          result.push({
-            bullet: composite,
-            score: Math.min(10.0, Math.max(a.score, b.score) + 1.0),
-            isChore: false,
-            hasMetric: a.hasMetric || b.hasMetric,
-          });
-        }
+        result.push(a);
+        result.push(b);
       }
     } else {
       result.push(a);
@@ -800,7 +806,7 @@ export function adaptRepoToProjectItem(params: {
     scaleBudget.maxBullets
   );
 
-  // 3. Selection of top substantive bullets with backfilling
+  // 3. Tournament selection: take highest substantive candidates (score >= 4.5) up to maxBullets
   const primaryCandidates = deduplicated
     .filter((item) => item.score >= 4.5)
     .sort((a, b) => b.score - a.score);
@@ -811,22 +817,20 @@ export function adaptRepoToProjectItem(params: {
 
   const chosen: AuditedBullet[] = [];
 
-  // Take primary candidates up to maxBullets
+  // Take highest-scoring primary candidates up to scaleBudget.maxBullets
   for (const item of primaryCandidates) {
     if (chosen.length < scaleBudget.maxBullets) {
       chosen.push(item);
     }
   }
 
-  // Backfill from reserve pool if needed to satisfy scale budget minBullets
+  // Backfill from reserve pool ONLY if needed to satisfy scale budget minBullets
   while (chosen.length < scaleBudget.minBullets && reserveCandidates.length > 0) {
     chosen.push(reserveCandidates.shift()!);
   }
 
-  // If room permits up to maxBullets and reserve bullets exist, backfill further
-  while (chosen.length < scaleBudget.maxBullets && reserveCandidates.length > 0) {
-    chosen.push(reserveCandidates.shift()!);
-  }
+  // Any remaining reserve candidates beyond minBullets or low-scoring candidates beyond maxBullets
+  // are pruned/trashed by the heuristic tournament.
 
   // Sort chosen bullets by their original sequence to preserve narrative flow
   chosen.sort((a, b) => (a.originalIndex ?? 0) - (b.originalIndex ?? 0));

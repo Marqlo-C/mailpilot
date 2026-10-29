@@ -8,11 +8,12 @@ import type { AccountRules } from "@/lib/validations/rules";
  * - Parsing rules, manifests, or regexes
  * - System prompts or heuristic bullet generators
  * - Architectural density, code byte thresholds, or bullet count targets
+ * - Oversampling ratios, tournament evaluation, or pruning algorithms
  *
  * Bumping this version automatically invalidates all cached ETag entries in
  * local/in-memory ledgers, ensuring unchanged repositories are re-scanned and re-inferred.
  */
-export const GITHUB_PARSER_VERSION = 7;
+export const GITHUB_PARSER_VERSION = 8;
 
 /**
  * Universal file extension taxonomy across tech stacks and ecosystems.
