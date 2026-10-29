@@ -418,6 +418,15 @@ export function auditBulletSubstantiveness(bullet: string): AuditedBullet {
     score += 1.5;
   }
 
+  // Interaction & Presentation Architecture (+1.5)
+  if (
+    /\b(?:drag\s*and\s*drop|pointer|physics|deadzone|peek\s*stack|typograph(?:y|ic)|hierarchy|modal(?:s)?|animation(?:s)?|canvas|viewport|virtualiz(?:ed|ation))\b/i.test(
+      bullet
+    )
+  ) {
+    score += 1.5;
+  }
+
   // Trivial Primitive mention penalty (-1.5)
   if (
     /\b(?:setinterval|settimeout|event\s*listener|localstorage|math\.random)\b/i.test(
@@ -427,13 +436,22 @@ export function auditBulletSubstantiveness(bullet: string): AuditedBullet {
     score -= 1.5;
   }
 
-  // Pure UI styling without logic penalty (-1.0)
+  // Pure UI styling without logic penalty (-1.5)
   if (
-    /\b(?:tailwind\s+css|css3?|styling|layouts?)\s+across\s+[a-z,\s]+\s+screens?,\s+ensuring\s+seamless\b/i.test(
+    /\b(?:tailwind\s+css|css3?|styling|layouts?)\s+across\s+(?:[a-z,\s]+\s+)?screens?,\s+ensuring\s+seamless\b/i.test(
       bullet
     )
   ) {
-    score -= 1.0;
+    score -= 1.5;
+  }
+
+  // Trivial settings / preferences chore penalty (-1.5)
+  if (
+    /\b(?:adjusted|updated|configured|changed)\s+user\s+preferences\s+(?:for|in)\b/i.test(
+      bullet
+    )
+  ) {
+    score -= 1.5;
   }
 
   return {
@@ -508,8 +526,8 @@ export function deduplicateOrSynthesizeBullets(
       const minLen = Math.min(tokensA.size, tokensB.size);
       const overlapRatio = minLen > 0 ? shared / minLen : 0;
 
-      // Thematic overlap threshold (fractional overlap >= 0.35 or >= 3 shared substantive roots)
-      if (overlapRatio >= 0.35 || (shared >= 3 && overlapRatio >= 0.25)) {
+      // Thematic overlap threshold (fractional overlap >= 0.30 or >= 4 shared substantive roots)
+      if (overlapRatio >= 0.30 || shared >= 4) {
         matchedDuplicateIndex = j;
         matchedOverlapRatio = overlapRatio;
         matchedSharedRoots = shared;
@@ -530,10 +548,10 @@ export function deduplicateOrSynthesizeBullets(
 
       // Pure redundant echo or over capacity: retain higher-scoring bullet without synthetic boilerplate
       if (
-        novelRatio < 0.5 ||
-        matchedOverlapRatio >= 0.3 ||
-        matchedSharedRoots >= 3 ||
-        auditedList.length > maxBullets
+        novelRatio < 0.40 ||
+        matchedOverlapRatio >= 0.50 ||
+        (matchedSharedRoots >= 4 && novelRatio < 0.70) ||
+        (auditedList.length > maxBullets && matchedOverlapRatio >= 0.30)
       ) {
         result.push(a.score >= b.score ? a : b);
       } else {
@@ -966,9 +984,13 @@ export function adaptRepoToProjectItem(params: {
     }
   }
 
-  // Pass 3 (Floor): Backfill from reserve pool ONLY if needed to satisfy scale budget minBullets
-  while (chosen.length < scaleBudget.minBullets && reserveCandidates.length > 0) {
-    chosen.push(reserveCandidates.shift()!);
+  // Pass 3 (Capacity Backfill): Backfill valid substantive reserve candidates (score >= 3.0) up to scaleBudget.maxBullets.
+  // Low-scoring chores or fluff (score < 3.0) are only admitted if strictly needed to satisfy scaleBudget.minBullets.
+  while (chosen.length < scaleBudget.maxBullets && reserveCandidates.length > 0) {
+    const next = reserveCandidates.shift()!;
+    if (next.score >= 3.0 || chosen.length < scaleBudget.minBullets) {
+      chosen.push(next);
+    }
   }
 
   // Any remaining reserve candidates beyond minBullets or low-scoring candidates beyond maxBullets
