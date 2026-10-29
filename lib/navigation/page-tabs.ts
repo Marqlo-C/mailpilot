@@ -113,7 +113,7 @@ function activePageTabStorageKey(href: string, accountId?: string | null): strin
   return `mailpilot_active_tab:${accountPrefix}:${href}`;
 }
 
-function activePageTabCookieKey(href: string, accountId?: string | null): string {
+export function activePageTabCookieKey(href: string, accountId?: string | null): string {
   const cleanHref = href.replace(/[^a-zA-Z0-9]/g, "_");
   const accountPrefix = accountId ? accountId.replace(/[^a-zA-Z0-9]/g, "_") : "global";
   return `mp_tab_${cleanHref}_${accountPrefix}`;

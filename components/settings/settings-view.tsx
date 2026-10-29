@@ -55,6 +55,7 @@ type SettingsViewProps = {
   ollamaModel: string;
   isDev?: boolean;
   errorBanner?: string | null;
+  initialTab?: SettingsPageTab;
 };
 
 /**
@@ -74,8 +75,12 @@ export function SettingsView({
   ollamaModel,
   isDev = false,
   errorBanner,
+  initialTab,
 }: SettingsViewProps) {
-  const [tab, setTab] = useState<SettingsPageTab>("accounts");
+  const [tab, setTab] = useState<SettingsPageTab>(() => initialTab ?? "accounts");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(
+    () => new Set([initialTab ?? "accounts"])
+  );
   const [isLoggingOut, startLogoutTransition] = useTransition();
   const {
     listClassName: segmentedTabsListClassName,
@@ -90,6 +95,7 @@ export function SettingsView({
     );
     if (pending) {
       setTab(pending);
+      setVisitedTabs((prev) => new Set(prev).add(pending));
       persistActivePageTab("/settings", pending, activeAccountId);
       const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
       return () => window.clearTimeout(clearId);
@@ -100,10 +106,11 @@ export function SettingsView({
       SETTINGS_PAGE_TABS.map((item) => item.value),
       activeAccountId
     );
-    if (saved) {
+    if (saved && saved !== tab) {
       setTab(saved);
+      setVisitedTabs((prev) => new Set(prev).add(saved));
     }
-  }, [activeAccountId]);
+  }, [activeAccountId, tab]);
 
   function handleLogout() {
     startLogoutTransition(async () => {
@@ -118,6 +125,7 @@ export function SettingsView({
           const next = SETTINGS_PAGE_TABS.find((item) => item.value === value);
           if (next) {
             setTab(next.value);
+            setVisitedTabs((prev) => new Set(prev).add(next.value));
             persistActivePageTab("/settings", next.value, activeAccountId);
           }
         }}
@@ -192,10 +200,12 @@ export function SettingsView({
           forceMount
           className="mt-0 space-y-4 data-[state=inactive]:hidden"
         >
-          <AccountsCard
-            accounts={accounts}
-            activeAccountId={activeAccountId}
-          />
+          {visitedTabs.has("accounts") ? (
+            <AccountsCard
+              accounts={accounts}
+              activeAccountId={activeAccountId}
+            />
+          ) : null}
         </TabsContent>
 
         <TabsContent
@@ -203,10 +213,12 @@ export function SettingsView({
           forceMount
           className="mt-0 space-y-4 data-[state=inactive]:hidden"
         >
-          <MasterProfileCard
-            accountId={activeAccountId}
-            profile={profile}
-          />
+          {visitedTabs.has("profile") ? (
+            <MasterProfileCard
+              accountId={activeAccountId}
+              profile={profile}
+            />
+          ) : null}
         </TabsContent>
 
         <TabsContent
@@ -214,10 +226,12 @@ export function SettingsView({
           forceMount
           className="mt-0 space-y-4 data-[state=inactive]:hidden"
         >
-          <OutboundTailoringCard
-            accountId={activeAccountId}
-            rules={rules}
-          />
+          {visitedTabs.has("outbound") ? (
+            <OutboundTailoringCard
+              accountId={activeAccountId}
+              rules={rules}
+            />
+          ) : null}
         </TabsContent>
 
         <TabsContent
@@ -225,22 +239,26 @@ export function SettingsView({
           forceMount
           className="mt-0 space-y-4 data-[state=inactive]:hidden"
         >
-          <JobRadarRulesCard
-            accountId={activeAccountId}
-            rules={rules}
-            matchThreshold={matchThreshold}
-          />
-          <RetentionPolicyCard
-            currentDays={rules.dismissedRetentionDays}
-          />
-          <LifecycleRulesCard
-            accountId={activeAccountId}
-            rules={rules}
-          />
-          <ExcludedTitlesCard
-            accountId={activeAccountId}
-            excludedTitles={rules.excludedTitles}
-          />
+          {visitedTabs.has("automation") ? (
+            <>
+              <JobRadarRulesCard
+                accountId={activeAccountId}
+                rules={rules}
+                matchThreshold={matchThreshold}
+              />
+              <RetentionPolicyCard
+                currentDays={rules.dismissedRetentionDays}
+              />
+              <LifecycleRulesCard
+                accountId={activeAccountId}
+                rules={rules}
+              />
+              <ExcludedTitlesCard
+                accountId={activeAccountId}
+                excludedTitles={rules.excludedTitles}
+              />
+            </>
+          ) : null}
         </TabsContent>
 
         <TabsContent
@@ -248,27 +266,29 @@ export function SettingsView({
           forceMount
           className="mt-0 space-y-4 data-[state=inactive]:hidden"
         >
-          <AiModelsCard
-            accountId={activeAccountId}
-            accountEmail={activeEmail}
-            llmProvider={llmProvider}
-            localOllamaUrl={localOllamaUrl}
-            ollamaModel={ollamaModel}
-            isDev={isDev}
-            bridgeSecret={rules.bridgeSecret ?? ""}
-            availableModels={rules.availableModels ?? []}
-            bridgeConnected={rules.bridgeConnected ?? false}
-            allowCloudFallback={rules.allowCloudFallback ?? false}
-            cloudProvider={rules.cloudProvider ?? "OPENROUTER"}
-            cloudModel={rules.cloudModel ?? null}
-            cloudModelProvider={rules.cloudModelProvider ?? null}
-            maskedApiKey={rules.maskedApiKey ?? null}
-            maskedScrapingAntApiKey={rules.maskedScrapingAntApiKey ?? null}
-            scrapingAntUsage={rules.scrapingAntUsage ?? null}
-            maskedHasDataApiKey={rules.maskedHasDataApiKey ?? null}
-            hasDataUsage={rules.hasDataUsage ?? null}
-            enableWebScrapingProxies={rules.enableWebScrapingProxies ?? true}
-          />
+          {visitedTabs.has("ai") ? (
+            <AiModelsCard
+              accountId={activeAccountId}
+              accountEmail={activeEmail}
+              llmProvider={llmProvider}
+              localOllamaUrl={localOllamaUrl}
+              ollamaModel={ollamaModel}
+              isDev={isDev}
+              bridgeSecret={rules.bridgeSecret ?? ""}
+              availableModels={rules.availableModels ?? []}
+              bridgeConnected={rules.bridgeConnected ?? false}
+              allowCloudFallback={rules.allowCloudFallback ?? false}
+              cloudProvider={rules.cloudProvider ?? "OPENROUTER"}
+              cloudModel={rules.cloudModel ?? null}
+              cloudModelProvider={rules.cloudModelProvider ?? null}
+              maskedApiKey={rules.maskedApiKey ?? null}
+              maskedScrapingAntApiKey={rules.maskedScrapingAntApiKey ?? null}
+              scrapingAntUsage={rules.scrapingAntUsage ?? null}
+              maskedHasDataApiKey={rules.maskedHasDataApiKey ?? null}
+              hasDataUsage={rules.hasDataUsage ?? null}
+              enableWebScrapingProxies={rules.enableWebScrapingProxies ?? true}
+            />
+          ) : null}
         </TabsContent>
 
         <TabsContent
@@ -276,7 +296,9 @@ export function SettingsView({
           forceMount
           className="mt-0 space-y-4 data-[state=inactive]:hidden"
         >
-          <TactileControlsCard accountId={activeAccountId} />
+          {visitedTabs.has("ui") ? (
+            <TactileControlsCard accountId={activeAccountId} />
+          ) : null}
         </TabsContent>
         </CommandDeckFrame>
       </Tabs>

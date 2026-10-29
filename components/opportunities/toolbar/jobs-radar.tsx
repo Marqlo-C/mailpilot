@@ -94,6 +94,7 @@ type JobsRadarProps = {
   profile: MasterProfileInput | null;
   matchThreshold: number;
   retentionDays?: number;
+  initialTab?: string;
 };
 
 const tabDescriptions: Record<string, string> = {
@@ -136,6 +137,7 @@ export function JobsRadar({
   profile,
   matchThreshold,
   retentionDays = 30,
+  initialTab,
 }: JobsRadarProps) {
   const router = useRouter();
   const {
@@ -148,8 +150,10 @@ export function JobsRadar({
   const [draftOpportunity, setDraftOpportunity] =
     useState<JobOpportunity | null>(null);
   const [threshold, setThreshold] = useState(matchThreshold);
-  const [activeTab, setActiveTab] = useState("leads");
-  const [sort, setSort] = useState(TAB_SORT_CONFIG.leads.defaultSort);
+  const [activeTab, setActiveTab] = useState<string>(() => initialTab ?? "leads");
+  const [sort, setSort] = useState(
+    () => TAB_SORT_CONFIG[tabKeyFromValue(initialTab ?? "leads")].defaultSort
+  );
   const [dragDropZone, setDragDropZone] = useState<string | null>(null);
   const suppressTabChangeRef = useRef(false);
 
@@ -207,7 +211,7 @@ export function JobsRadar({
       JOB_RADAR_PAGE_TABS.map((item) => item.value),
       accountId
     );
-    if (saved) {
+    if (saved && saved !== activeTab) {
       setActiveTab(saved);
       const nextConfig = TAB_SORT_CONFIG[tabKeyFromValue(saved)];
       const allowed = nextConfig.options.map((o) => o.value);
@@ -215,7 +219,7 @@ export function JobsRadar({
         setSort(nextConfig.defaultSort);
       }
     }
-  }, [accountId]);
+  }, [accountId, activeTab, sort]);
 
   const handleDragZoneChange = useCallback((zoneId: string | null) => {
     setDragDropZone(zoneId);

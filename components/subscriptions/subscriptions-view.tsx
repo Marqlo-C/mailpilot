@@ -216,6 +216,7 @@ type SubscriptionsViewProps = {
   history: SubscriptionHistory[];
   defaultCleanup: CleanupAction;
   latestBriefing?: LatestBriefingProp | null;
+  initialTab?: string;
 };
 
 const subscriptionTabDescriptions: Record<SubscriptionTab, string> = {
@@ -230,13 +231,16 @@ export function SubscriptionsView({
   history,
   defaultCleanup,
   latestBriefing = null,
+  initialTab,
 }: SubscriptionsViewProps) {
   const router = useRouter();
   const {
     listClassName: segmentedTabsListClassName,
     triggerClassName: segmentedTabsTriggerClassName,
   } = useTabRailClasses();
-  const [activeTab, setActiveTab] = useState<SubscriptionTab>("active");
+  const [activeTab, setActiveTab] = useState<SubscriptionTab>(
+    () => (initialTab as SubscriptionTab) ?? "active"
+  );
   const [selected, setSelected] = useState<Subscription | null>(null);
   const [batchConfirmOpen, setBatchConfirmOpen] = useState(false);
   const [briefingOpen, setBriefingOpen] = useState(false);
@@ -319,11 +323,11 @@ export function SubscriptionsView({
       SUBSCRIPTION_PAGE_TABS.map((item) => item.value),
       accountId
     );
-    if (saved) {
+    if (saved && saved !== activeTab) {
       setActiveTab(saved);
       clearSelection();
     }
-  }, [accountId, clearSelection]);
+  }, [accountId, activeTab, clearSelection]);
 
   /** User-driven view changes leave multi-select; drag page-flips use setCurrentPage directly. */
   const changeSortOption = useCallback(

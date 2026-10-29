@@ -8,16 +8,23 @@ import {
 } from "@/lib/data";
 import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile";
 import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
+import { JOB_RADAR_PAGE_TABS } from "@/lib/navigation/page-tabs";
+import { readServerActivePageTab } from "@/lib/navigation/page-tabs-server";
 
 export default async function JobsPage() {
   const active = await getActiveAccount();
-  const jobs = active ? await getJobsForAccount(active.id) : [];
-  const opportunities = active
-    ? await getJobOpportunitiesForAccount(active.id)
-    : [];
-  const profileResult = active
-    ? await getMasterProfile(active.id)
-    : { ok: false as const, error: "no account" };
+  const [jobs, opportunities, profileResult, initialTab] = await Promise.all([
+    active ? getJobsForAccount(active.id) : [],
+    active ? getJobOpportunitiesForAccount(active.id) : [],
+    active
+      ? getMasterProfile(active.id)
+      : { ok: false as const, error: "no account" },
+    readServerActivePageTab(
+      "/jobs",
+      JOB_RADAR_PAGE_TABS.map((t) => t.value),
+      active?.id ?? null
+    ),
+  ]);
   const profile =
     profileResult.ok && profileResult.data
       ? (() => {
@@ -50,6 +57,7 @@ export default async function JobsPage() {
   return (
     <JobsRadar
       accountId={active.id}
+      initialTab={initialTab ?? undefined}
       jobs={jobs}
       opportunities={opportunities}
       profile={profile}
