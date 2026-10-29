@@ -37,6 +37,8 @@ import {
   SETTINGS_PAGE_TABS,
   clearSidebarPageTab,
   peekSidebarPageTab,
+  persistActivePageTab,
+  readActivePageTab,
   type SettingsPageTab,
 } from "@/lib/navigation/page-tabs";
 import type { AccountRules } from "@/lib/validations/rules";
@@ -82,15 +84,26 @@ export function SettingsView({
   const railActionClass = useRailActionClass();
 
   useLayoutEffect(() => {
-    const next = peekSidebarPageTab(
+    const pending = peekSidebarPageTab(
       "/settings",
       SETTINGS_PAGE_TABS.map((item) => item.value)
     );
-    if (!next) return;
-    setTab(next);
-    const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
-    return () => window.clearTimeout(clearId);
-  }, []);
+    if (pending) {
+      setTab(pending);
+      persistActivePageTab("/settings", pending, activeAccountId);
+      const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
+      return () => window.clearTimeout(clearId);
+    }
+
+    const saved = readActivePageTab(
+      "/settings",
+      SETTINGS_PAGE_TABS.map((item) => item.value),
+      activeAccountId
+    );
+    if (saved) {
+      setTab(saved);
+    }
+  }, [activeAccountId]);
 
   function handleLogout() {
     startLogoutTransition(async () => {
@@ -103,7 +116,10 @@ export function SettingsView({
         value={tab}
         onValueChange={(value) => {
           const next = SETTINGS_PAGE_TABS.find((item) => item.value === value);
-          if (next) setTab(next.value);
+          if (next) {
+            setTab(next.value);
+            persistActivePageTab("/settings", next.value, activeAccountId);
+          }
         }}
       >
         <CommandDeckFrame

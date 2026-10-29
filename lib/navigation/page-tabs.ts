@@ -107,3 +107,109 @@ export function peekSidebarPageTab<T extends string>(
   if (parsed.href !== href) return null;
   return allowed.find((tab) => tab === parsed.tab) ?? null;
 }
+
+function activePageTabStorageKey(href: string, accountId?: string | null): string {
+  const accountPrefix = accountId ? `account:${accountId}` : "global";
+  return `mailpilot_active_tab:${accountPrefix}:${href}`;
+}
+
+function activePageTabCookieKey(href: string, accountId?: string | null): string {
+  const cleanHref = href.replace(/[^a-zA-Z0-9]/g, "_");
+  const accountPrefix = accountId ? accountId.replace(/[^a-zA-Z0-9]/g, "_") : "global";
+  return `mp_tab_${cleanHref}_${accountPrefix}`;
+}
+
+/**
+ * Persist the active tab for a page in account-scoped localStorage and cookie.
+ * Survives page refreshes and browser reloads.
+ */
+export function persistActivePageTab(
+  href: string,
+  tab: string,
+  accountId?: string | null
+): void {
+  if (typeof window === "undefined") return;
+
+  // 1. Account-scoped localStorage
+  try {
+    localStorage.setItem(activePageTabStorageKey(href, accountId), tab);
+  } catch {
+    // Ignore quota or private mode errors
+  }
+
+  // 2. Cookie backup for browser session/refreshes
+  try {
+    const cookieName = activePageTabCookieKey(href, accountId);
+    document.cookie = `${cookieName}=${encodeURIComponent(tab)}; path=/; max-age=31536000; SameSite=Lax`;
+  } catch {
+    // Ignore cookie errors
+  }
+}
+
+/**
+ * Read the persistent active tab for a page from account-scoped localStorage or cookie backup.
+ */
+export function readActivePageTab<T extends string>(
+  href: string,
+  allowed: readonly T[],
+  accountId?: string | null
+): T | null {
+  if (typeof window === "undefined") return null;
+
+  // 1. Try account-scoped localStorage
+  try {
+    const scopedVal = localStorage.getItem(activePageTabStorageKey(href, accountId));
+    if (scopedVal && (allowed as readonly string[]).includes(scopedVal)) {
+      return scopedVal as T;
+    }
+
+    // Fallback to global localStorage if account-scoped was not present
+    if (accountId) {
+      const globalVal = localStorage.getItem(activePageTabStorageKey(href, null));
+      if (globalVal && (allowed as readonly string[]).includes(globalVal)) {
+        return globalVal as T;
+      }
+    }
+  } catch {
+    // Ignore storage read error, proceed to cookie fallback
+  }
+
+  // 2. Cookie fallback
+  try {
+    const cookieName = activePageTabCookieKey(href, accountId);
+    const match = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith(`${cookieName}=`));
+    if (match) {
+      const val = decodeURIComponent(match.split("=")[1] || "");
+      if (val && (allowed as readonly string[]).includes(val)) {
+        return val as T;
+      }
+    }
+  } catch {
+    // Ignore cookie read error
+  }
+
+  return null;
+}
+
+/**
+ * Resolves the tab to display upon mounting or refreshing a page.
+ * 1. Checks pending sidebar menu click (one-time navigation)
+ * 2. Checks persistent account-scoped storage from last session
+ * 3. Falls back to default initial tab
+ */
+export function resolveInitialPageTab<T extends string>(params: {
+  href: string;
+  allowed: readonly T[];
+  fallback: T;
+  accountId?: string | null;
+}): T {
+  const pending = peekSidebarPageTab(params.href, params.allowed);
+  if (pending) return pending;
+
+  const persistent = readActivePageTab(params.href, params.allowed, params.accountId);
+  if (persistent) return persistent;
+
+  return params.fallback;
+}
