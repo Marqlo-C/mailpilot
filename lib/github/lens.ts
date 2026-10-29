@@ -313,7 +313,7 @@ export function detectArchitecturalDimension(bullet: string): ArchitecturalDimen
 
   // 3. User Interface, Visual Hierarchy, Interaction & Presentation
   if (
-    /\b(?:ui|card|cards|peek\s*stack|drag-and-drop|modals?|components?|styling|layouts?|typograph(?:y|ic)|swipe|gestures?|keyboard|css|animation(?:s)?|render(?:ing|ed)?|canvas|viewport|tailwind|responsive)\b/i.test(
+    /\b(?:ui|interface|interaction|frontend|components?|styling|layouts?|responsive|canvas|viewport|modals?|views?|screens?|animation(?:s)?|transitions?|render(?:ing|ed)?|css|tailwind|theme|theming|accessibility|a11y)\b/i.test(
       bLower
     )
   ) {
@@ -412,15 +412,6 @@ export function auditBulletSubstantiveness(bullet: string): AuditedBullet {
 
   if (
     /\b(?:next\.js|react|vue|svelte|fastapi|django|express|app\s*router|server\s*components?|state\s*management|lifecycle|router|routing)\b/i.test(
-      bullet
-    )
-  ) {
-    score += 1.5;
-  }
-
-  // Interaction & Presentation Architecture (+1.5)
-  if (
-    /\b(?:drag\s*and\s*drop|pointer|physics|deadzone|peek\s*stack|typograph(?:y|ic)|hierarchy|modal(?:s)?|animation(?:s)?|canvas|viewport|virtualiz(?:ed|ation))\b/i.test(
       bullet
     )
   ) {
