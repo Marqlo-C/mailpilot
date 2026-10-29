@@ -303,7 +303,7 @@ flowchart TD
 
   subgraph Stage1["1. Prefilter & Complexity Sizing"]
     AST["prefilter.ts: AST Scrubber<br/>• Proportional Section Allocation<br/>• Micro-Exclusion Noise Denylist"]
-    SCALE["determineRepoScale()<br/>• Tier 1: 2.5K chars, 3-5 bullets<br/>• Tier 2: 5.5K chars, 4-8 bullets<br/>• Tier 3: 10K chars, 6-10 bullets<br/>• 0-README: 2-4 bullets max"]
+    SCALE["determineRepoScale()<br/>• Tier 1: 2.5K chars, 3-4 bullets<br/>• Tier 2: 5.5K chars, 4-8 bullets<br/>• Tier 3: 10K chars, 6-10 bullets<br/>• 0-README: 3-4 bullets max"]
   end
 
   subgraph Stage2["2. Deep Systems Inference"]
@@ -344,14 +344,14 @@ flowchart TD
 - `syncer.ts`: End-to-end orchestrator (`syncGitHubProjects`) managing rate limits, concurrent manifest fetching, and multi-tier LLM failover. Forwards `accountId` and account rules through to `callLLMWithFallback`, ensuring BYOK cloud inference works seamlessly if local Ollama is offline, backed by a deterministic heuristic fallback engine that generates decisive engineering bullets if all models are unavailable.
 
 #### 1. Dynamic 3-Tier Repository Complexity Budgeting
-Rather than applying static bullet quotas to diverse codebases, MailPilot sizes repository analysis dynamically based on verified engineering volume and discovered subsystems:
+Rather than applying static bullet quotas to diverse codebases, MailPilot sizes repository analysis dynamically based on verified engineering volume (`codeBytes` from `/languages`) and discovered subsystems:
 
 | Tier | Codebase Volume / Subsystems | Max Readme Context | Target Bullets (`minBullets` – `maxBullets`) | Architectural Scope |
 | :--- | :--- | :--- | :--- | :--- |
-| **Tier 1 (Small)** | `< 3 MB` pure code, single manifest | 2,500 chars | **3 – 5 bullets** | Focused utilities, single-purpose CLI tools, micro-libraries. |
-| **Tier 2 (Mid-Scale)** | `3 MB – 15 MB` pure code or 2–3 subsystems | 5,500 chars | **4 – 8 bullets** | Full-stack services, decoupled backend/frontend apps. |
-| **Tier 3 (Large)** | `> 15 MB` pure code or 4+ subsystems | 10,000 chars | **6 – 10 bullets** | Monorepos, distributed systems, deep multi-tier platforms. |
-| **0-README** | Any size with zero README | 0 chars | **2 – 4 bullets** | Safeguard fallback derived strictly from manifest topology. |
+| **Tier 1 (Small)** | `< 25 KB` pure code (or `< 3 MB` raw repo fallback), single manifest | 2,500 chars | **3 – 4 bullets** | Focused utilities, single-purpose CLI tools, micro-libraries. |
+| **Tier 2 (Mid-Scale)** | `25 KB – 120 KB` pure code or 2–3 subsystems (or `3 MB – 15 MB` fallback) | 5,500 chars | **4 – 8 bullets** | Full-stack services, decoupled backend/frontend apps. |
+| **Tier 3 (Large)** | `> 120 KB` pure code or 4+ subsystems (or `> 15 MB` fallback) | 10,000 chars | **6 – 10 bullets** | Monorepos, distributed systems, deep multi-tier platforms. |
+| **0-README** | Any size with zero README | 0 chars | **3 – 4 bullets** | Safeguard fallback derived strictly from manifest topology. |
 
 - **Pure Code Volume:** Excludes non-signal markup, static assets, and generated files (`.md`, `.png`, `.jpg`, `.svg`, `.lock`, `.json`) to calculate authentic engineering byte weight.
 - **Hard Upper Clamp:** Returned bullet lists are strictly clamped to `scaleBudget.maxBullets` even if the underlying LLM generates excess candidates.

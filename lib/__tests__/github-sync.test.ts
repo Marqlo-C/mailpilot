@@ -203,7 +203,7 @@ Streams metrics via OpenTelemetry gRPC exporters with sub-millisecond precision.
   });
 
   describe("Dynamic 3-Tier Repository Complexity Budgeting", () => {
-    it("classifies small repositories as Tier 1 with 2,500 budget and 3-5 bullets", () => {
+    it("classifies small repositories as Tier 1 with 2,500 budget and 3-4 bullets", () => {
       const scale = determineRepoScale({
         size: 1450,
         manifestCount: 1,
@@ -252,7 +252,7 @@ Streams metrics via OpenTelemetry gRPC exporters with sub-millisecond precision.
       expect(scaleByMonorepo.tier).toBe(3);
     });
 
-    it("applies the 2-4 bullet safeguard when repository has no README", () => {
+    it("applies the 3-4 bullet safeguard when repository has no README", () => {
       const noReadmeScale = determineRepoScale({
         size: 25000,
         manifestCount: 3,
@@ -1502,7 +1502,7 @@ Respectful collaboration is strictly required.
     });
 
     it("classifies pure code volume into accurate architectural tiers", () => {
-      // < 20 KB pure code -> Tier 1 (3-5 bullets)
+      // < 25 KB pure code -> Tier 1 (3-4 bullets)
       const smallScale = determineRepoScale({
         codeBytes: 15000,
         hasReadme: true,
@@ -1549,7 +1549,7 @@ Respectful collaboration is strictly required.
       expect(elevatedScale.maxBullets).toBe(10);
     });
 
-    it("applies the 2-4 bullet safeguard when repository has no README even for Tier 3 codebases", () => {
+    it("applies the 3-4 bullet safeguard when repository has no README even for Tier 3 codebases", () => {
       const largeNoReadme = determineRepoScale({
         codeBytes: 250000,
         subsystems: {
