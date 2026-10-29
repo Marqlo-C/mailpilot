@@ -43,7 +43,7 @@ import {
   formatSchoolName,
   formatStatusPillTitle,
 } from "@/lib/utils/format";
-import { isWorkExperienceCategory } from "@/lib/validations/profile";
+import { isWorkExperienceCategory, detectMetric } from "@/lib/validations/profile";
 import {
   LINKED_ACCOUNT_FIELDS,
   ICON_SQUIRCLE_CLASSNAME,
@@ -738,7 +738,13 @@ export function MasterProfileCard({
                 <p className="text-sm text-muted-foreground">No projects saved.</p>
               ) : (
                 <div className="space-y-3">
-                  {profile.projects.map((project, pIndex) => {
+                  {[...profile.projects]
+                    .sort((a, b) =>
+                      (a.name || "").localeCompare(b.name || "", undefined, {
+                        sensitivity: "base",
+                      })
+                    )
+                    .map((project, pIndex) => {
                     const itemKey = `project-${project.id ?? project.name ?? pIndex}`;
                     const isExpanded = openItems[itemKey] ?? true;
                     const hasTools = project.technologies.length > 0;
@@ -792,7 +798,22 @@ export function MasterProfileCard({
                         )}
                         {project.bullets.length > 0 ? (
                           <EntryBulletList
-                            items={project.bullets.map((bullet) => ({ key: bullet, content: bullet }))}
+                            items={project.bullets.map((bullet, bIdx) => ({
+                              key: `proj-bullet-${bIdx}`,
+                              content: (
+                                <>
+                                  {bullet}
+                                  {detectMetric(bullet) ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="ml-2 rounded-md px-2 py-0.5 font-mono text-[10px]"
+                                    >
+                                      metric
+                                    </Badge>
+                                  ) : null}
+                                </>
+                              ),
+                            }))}
                           />
                         ) : null}
                         {project.technologies.length === 0 && project.bullets.length === 0 ? (

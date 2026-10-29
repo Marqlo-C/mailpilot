@@ -1,3 +1,5 @@
+import { isMicroExclusionTool } from "./tools";
+
 export const COMMON_MANIFESTS = [
   "package.json",
   "requirements.txt",
@@ -40,11 +42,9 @@ export const SUBDIRECTORY_MANIFESTS = [
   "frontend/package.json",
 ] as const;
 
-const DEV_TOOLING_REGEX =
-  /^(eslint|prettier|husky|lint-staged|@types\/|typescript|@typescript-eslint\/|jest|vitest|rimraf|nodemon|concurrently|webpack-dev-server|ts-node|babel|coverage|pytest|black|flake8|mypy|ruff|biome)/i;
-
 /**
- * Extracts dependency package names from manifests, stripping linter and dev tooling noise.
+ * Extracts dependency package names from manifests, stripping linter and dev tooling noise
+ * while preserving critical QA frameworks (Jest, Playwright, Vitest, Pytest), bundlers, and ORMs.
  */
 export function parseManifestDependencies(
   filename: string,
@@ -58,7 +58,9 @@ export function parseManifestDependencies(
         devDependencies?: Record<string, string>;
       };
       const deps = { ...json.dependencies, ...json.devDependencies };
-      return Object.keys(deps).filter((dep) => !DEV_TOOLING_REGEX.test(dep));
+      return Object.keys(deps).filter(
+        (dep) => dep.toLowerCase() !== "typescript" && !isMicroExclusionTool(dep)
+      );
     }
     if (filename.endsWith("requirements.txt")) {
       return content
@@ -68,7 +70,7 @@ export function parseManifestDependencies(
           (line) =>
             line.length > 0 &&
             !line.startsWith("#") &&
-            !DEV_TOOLING_REGEX.test(line)
+            !isMicroExclusionTool(line)
         );
     }
     if (filename.endsWith("pyproject.toml")) {
@@ -81,7 +83,7 @@ export function parseManifestDependencies(
       for (const block of matches) {
         const chunk = block[1] ?? "";
         for (const quoted of chunk.matchAll(/["']([a-zA-Z0-9_.\-]+)/g)) {
-          if (quoted[1] && !DEV_TOOLING_REGEX.test(quoted[1])) {
+          if (quoted[1] && !isMicroExclusionTool(quoted[1])) {
             names.push(quoted[1]);
           }
         }
@@ -95,7 +97,7 @@ export function parseManifestDependencies(
           key !== "python" &&
           !key.startsWith("tool") &&
           !key.startsWith("project") &&
-          !DEV_TOOLING_REGEX.test(key)
+          !isMicroExclusionTool(key)
         ) {
           names.push(m[1]!);
         }
@@ -106,7 +108,7 @@ export function parseManifestDependencies(
       const matches = [...content.matchAll(/require\s+([^\s]+)/g)];
       return matches
         .map((m) => m[1]?.split("/").pop() || m[1] || "")
-        .filter((name) => Boolean(name) && !DEV_TOOLING_REGEX.test(name));
+        .filter((name) => Boolean(name) && !isMicroExclusionTool(name));
     }
     if (filename.endsWith("Cargo.toml")) {
       const section = content.match(
@@ -117,12 +119,12 @@ export function parseManifestDependencies(
           ...section[1].matchAll(/^([a-zA-Z0-9_-]+)\s*=/gm),
         ]
           .map((m) => m[1]!)
-          .filter((name) => !DEV_TOOLING_REGEX.test(name));
+          .filter((name) => !isMicroExclusionTool(name));
       }
       const matches = [...content.matchAll(/\[dependencies\.([^\]]+)\]/g)];
       return matches
         .map((m) => m[1]!)
-        .filter((name) => !DEV_TOOLING_REGEX.test(name));
+        .filter((name) => !isMicroExclusionTool(name));
     }
   } catch {
     // Ignore JSON/parsing errors in messy manifests

@@ -16,13 +16,28 @@ import {
   syncGitHubProjects,
   normalizeGitHubUsername,
   sanitizeBulletString,
+  stripFilenamePhrases,
+  stripFileSystemArtifacts,
+  unrollRoboticHeadingPrefix,
+  unrollPermissivePhrasing,
+  cleanTrivialPrimitives,
+  auditBulletSubstantiveness,
+  deduplicateOrSynthesizeBullets,
+  isUngroundedHallucination,
   LOW_SIGNAL_CHORE_REGEX,
   DEEP_ANALYSIS_SYSTEM_PROMPT,
   FILTER_OUT_REGEX,
   PRIORITY_REGEX,
+  dedupeTools,
+  isMicroExclusionTool,
+  clearGlobalRepoCache,
+  CANONICAL_TOOL_MAP,
+  GITHUB_PARSER_VERSION,
+  calculatePureCodeBytes,
+  countVerifiedSubsystems,
 } from "@/lib/github";
 import { consolidateProfiles } from "@/lib/profile/profile-consolidation";
-import { getEmptyMasterProfileData } from "@/lib/validations/profile";
+import { getEmptyMasterProfileData, detectMetric } from "@/lib/validations/profile";
 
 describe("GitHub Syncer & Elastic Ingestion Architecture", () => {
   beforeEach(() => {
@@ -185,7 +200,7 @@ Streams metrics via OpenTelemetry gRPC exporters with sub-millisecond precision.
   });
 
   describe("Dynamic 3-Tier Repository Complexity Budgeting", () => {
-    it("classifies small repositories as Tier 1 with 2,500 budget and 2-3 bullets", () => {
+    it("classifies small repositories as Tier 1 with 2,500 budget and 3-5 bullets", () => {
       const scale = determineRepoScale({
         size: 1450,
         manifestCount: 1,
@@ -195,11 +210,11 @@ Streams metrics via OpenTelemetry gRPC exporters with sub-millisecond precision.
       expect(scale.tier).toBe(1);
       expect(scale.ingestCharBudget).toBe(2500);
       expect(scale.minBullets).toBe(2);
-      expect(scale.maxBullets).toBe(3);
+      expect(scale.maxBullets).toBe(4);
       expect(scale.targetScope).toContain("CLI tools");
     });
 
-    it("classifies mid-scale services as Tier 2 with 5,500 budget and 4-6 bullets", () => {
+    it("classifies mid-scale services as Tier 2 with 5,500 budget and 4-8 bullets", () => {
       const scaleBySize = determineRepoScale({
         size: 7200,
         manifestCount: 1,
@@ -207,7 +222,7 @@ Streams metrics via OpenTelemetry gRPC exporters with sub-millisecond precision.
       expect(scaleBySize.tier).toBe(2);
       expect(scaleBySize.ingestCharBudget).toBe(5500);
       expect(scaleBySize.minBullets).toBe(4);
-      expect(scaleBySize.maxBullets).toBe(6);
+      expect(scaleBySize.maxBullets).toBe(8);
 
       const scaleByManifests = determineRepoScale({
         size: 2100,
@@ -232,6 +247,19 @@ Streams metrics via OpenTelemetry gRPC exporters with sub-millisecond precision.
         hasMonorepoStructure: true,
       });
       expect(scaleByMonorepo.tier).toBe(3);
+    });
+
+    it("applies the 2-4 bullet safeguard when repository has no README", () => {
+      const noReadmeScale = determineRepoScale({
+        size: 25000,
+        manifestCount: 3,
+        hasMonorepoStructure: true,
+        hasReadme: false,
+      });
+
+      expect(noReadmeScale.minBullets).toBe(2);
+      expect(noReadmeScale.maxBullets).toBe(4);
+      expect(noReadmeScale.targetScope).toContain("no README");
     });
   });
 
@@ -311,7 +339,7 @@ Streams metrics via OpenTelemetry gRPC exporters with sub-millisecond precision.
       expect(deps).not.toContain("prettier");
       expect(deps).not.toContain("@types/node");
       expect(deps).not.toContain("typescript");
-      expect(deps).not.toContain("vitest");
+      expect(deps).toContain("vitest");
     });
   });
 
@@ -388,7 +416,7 @@ MIT
 
       const parsedPrompt = JSON.parse(callArgs.userPrompt);
       expect(parsedPrompt.repositoryScale).toContain("Tier 1");
-      expect(parsedPrompt.targetBulletCount).toBe("2 to 3 high-density engineering bullets");
+      expect(parsedPrompt.targetBulletCount).toBe("2 to 4 high-density engineering bullets");
       expect(parsedPrompt.readmeDigest).toContain("CLI tool engineered to stream and transform large NDJSON datasets");
       expect(parsedPrompt.readmeDigest).toContain("Engineered around Node.js stream pipelines");
       expect(parsedPrompt.readmeDigest).not.toContain("npm install");
@@ -648,6 +676,157 @@ Respectful collaboration is strictly required.
         sanitizeBulletString("• Architected event-driven architecture.")
       ).toBe("Architected event-driven architecture.");
     });
+
+    it("strips physical source code filenames and script references while preserving frameworks", () => {
+      // Connect 4 game engine example with two filenames
+      expect(
+        sanitizeBulletString(
+          "Designed a concurrent move-execution mechanism using killable threads to enforce per-move time limits in the Connect 4 game engine, implemented in connect4.py using thread_with_trace from thread.py."
+        )
+      ).toBe(
+        "Designed a concurrent move-execution mechanism using killable threads to enforce per-move time limits in the Connect 4 game engine using thread_with_trace."
+      );
+
+      // AI agent in montecarlo.py
+      expect(
+        sanitizeBulletString(
+          "Developed a Monte Carlo simulation AI agent in montecarlo.py, utilizing random move generation and score estimation to inform game decisions."
+        )
+      ).toBe(
+        "Developed a Monte Carlo simulation AI agent, utilizing random move generation and score estimation to inform game decisions."
+      );
+
+      // Minimax in marqlo_players_final_ver.py
+      expect(
+        sanitizeBulletString(
+          "Implemented a minimax AI agent with alpha-beta pruning in marqlo_players_final_ver.py, leveraging a recursive search strategy to optimize move selection."
+        )
+      ).toBe(
+        "Implemented a minimax AI agent with alpha-beta pruning, leveraging a recursive search strategy to optimize move selection."
+      );
+
+      // UI in game_launcher.py and connect4.py
+      expect(
+        sanitizeBulletString(
+          "Engineered a GUI and console human-player interface in game_launcher.py, supporting customizable player options and visualization support in connect4.py."
+        )
+      ).toBe(
+        "Engineered a GUI and console human-player interface, supporting customizable player options and visualization support."
+      );
+
+      // Multiple test scripts joined by 'and'
+      expect(
+        sanitizeBulletString(
+          "Profiled and benchmarked agent performance using the included test scripts in matchup_visualizer.py and eval_diagnostics.py, reporting wins, ties, losses, and total points."
+        )
+      ).toBe(
+        "Profiled and benchmarked agent performance using the included test scripts, reporting wins, ties, losses, and total points."
+      );
+
+      // Preserves valid runtime/framework names like Next.js and Node.js
+      expect(
+        sanitizeBulletString(
+          "Engineered full-stack telemetry dashboard in Next.js, utilizing server actions."
+        )
+      ).toBe(
+        "Engineered full-stack telemetry dashboard in Next.js, utilizing server actions."
+      );
+
+      expect(
+        sanitizeBulletString(
+          "Built distributed worker microservice in Node.js, managing Redis subscriptions."
+        )
+      ).toBe(
+        "Built distributed worker microservice in Node.js, managing Redis subscriptions."
+      );
+    });
+
+    it("strips LaTeX math formatting blocks cleanly into plain text", () => {
+      expect(
+        sanitizeBulletString(
+          "Batching queries in groups of 3 with a $150\\text{ ms}$ delay to avoid HTTP 429 errors."
+        )
+      ).toBe(
+        "Batching queries in groups of 3 with a 150ms delay to avoid HTTP 429 errors."
+      );
+
+      expect(
+        sanitizeBulletString(
+          "Bounded queue latency to $\\le 25ms$ under high concurrency."
+        )
+      ).toBe(
+        "Bounded queue latency to <= 25ms under high concurrency."
+      );
+    });
+
+    it("collapses stranded prepositions left behind by stripped filenames", () => {
+      expect(
+        sanitizeBulletString(
+          "Gating all application subsystems through feature_flags.ts to ensure strict architectural boundaries."
+        )
+      ).toBe(
+        "Gating all application subsystems to ensure strict architectural boundaries."
+      );
+
+      expect(
+        sanitizeBulletString(
+          "Dispatched event updates via socket.ts to validate state consistency."
+        )
+      ).toBe(
+        "Dispatched event updates to validate state consistency."
+      );
+    });
+
+    it("unrolls formulaic heading-as-object prefixes into direct active verbs", () => {
+      expect(
+        sanitizeBulletString(
+          "Developed a Rate-Throttled Batching system, executing category lookups sequentially and batching queries in groups of 3 with a $150\\text{ ms}$ delay to avoid HTTP 429 errors."
+        )
+      ).toBe(
+        "Executed category lookups sequentially and batching queries in groups of 3 with a 150ms delay to avoid HTTP 429 errors."
+      );
+
+      expect(
+        sanitizeBulletString(
+          "Designed a Spatial Sorting via Haversine Distance system, calculating candidate coordinates using the Haversine formula to ensure accurate proximity-based resource discovery."
+        )
+      ).toBe(
+        "Calculated candidate coordinates using the Haversine formula to ensure accurate proximity-based resource discovery."
+      );
+
+      expect(
+        sanitizeBulletString(
+          "Designed a Zero-Latency Multi-Vector Panic Exit mechanism, triggering three parallel actions to ensure instantaneous emergency SOS dispatch."
+        )
+      ).toBe(
+        "Triggered three parallel actions to ensure instantaneous emergency SOS dispatch."
+      );
+    });
+
+    it("normalizes phonetic indefinite articles before common acronyms", () => {
+      expect(
+        sanitizeBulletString(
+          "Engineered a HTTP 206 Byte-Range Streaming system for partial content seeking."
+        )
+      ).toBe(
+        "Engineered an HTTP 206 Byte-Range Streaming system for partial content seeking."
+      );
+
+      expect(
+        sanitizeBulletString(
+          "Implemented a SSRF mitigation layer using DNS pre-resolution."
+        )
+      ).toBe(
+        "Implemented an SSRF mitigation layer using DNS pre-resolution."
+      );
+    });
+
+    it("detects impact metrics on GitHub and project lines to enable metric badge rendering", () => {
+      expect(detectMetric("Batching queries in groups of 3 with a 150ms delay to avoid HTTP 429 errors.")).toBe(true);
+      expect(detectMetric("Triggered three parallel actions across 8 nodes bounding query latency to sub-25ms.")).toBe(true);
+      expect(detectMetric("Sustained 99.99% system availability under peak loads.")).toBe(true);
+      expect(detectMetric("Organized code into clean directory modules.")).toBe(false);
+    });
   });
 
   describe("Clean Isolation of Repository Description from Bullets", () => {
@@ -763,12 +942,12 @@ Respectful collaboration is strictly required.
     it("filters out low-signal chore bullets during adaptRepoToProjectItem", () => {
       const repo = {
         name: "data-service",
-        description: "Data transformation microservice",
+        description: "Data transformation microservice with Kafka streaming",
         html_url: "https://github.com/dev/data-service",
         fork: false,
         archived: false,
         language: "TypeScript",
-        topics: [],
+        topics: ["kafka"],
         stargazers_count: 5,
         forks_count: 0,
       };
@@ -918,6 +1097,664 @@ Respectful collaboration is strictly required.
           ollamaOptions: { temperature: 0.5 },
         })
       );
+    });
+  });
+
+  describe("Canonical Tool Normalization & Case-Folding Deduplication", () => {
+    it("collapses React and react to canonical React", () => {
+      const result = dedupeTools(["react", "React", "REACT"]);
+      expect(result).toEqual(["React"]);
+    });
+
+    it("normalizes popular tool variations to standard display names", () => {
+      const tools = [
+        "nextjs",
+        "next.js",
+        "postgresql",
+        "postgres",
+        "fastapi",
+        "docker",
+        "tailwind",
+        "tailwindcss",
+        "prisma",
+        "graphql",
+      ];
+      const normalized = dedupeTools(tools);
+      expect(normalized).toContain("Next.js");
+      expect(normalized).toContain("PostgreSQL");
+      expect(normalized).toContain("FastAPI");
+      expect(normalized).toContain("Docker");
+      expect(normalized).toContain("TailwindCSS");
+      expect(normalized).toContain("Prisma");
+      expect(normalized).toContain("GraphQL");
+      // Verify deduplication
+      expect(normalized.filter((t) => t.toLowerCase() === "next.js")).toHaveLength(1);
+      expect(normalized.filter((t) => t.toLowerCase() === "postgresql")).toHaveLength(1);
+      expect(normalized.filter((t) => t.toLowerCase() === "tailwindcss")).toHaveLength(1);
+    });
+
+    it("preserves unrecognized tools in their original casing without duplicates", () => {
+      const tools = ["scikit-learn", "Scikit-Learn", "actix-web", "ACTIX-WEB", "tokio"];
+      const result = dedupeTools(tools);
+      expect(result).toEqual(["scikit-learn", "actix-web", "tokio"]);
+    });
+  });
+
+  describe("Micro-Exclusion Noise Denylist ('Keep Signal, Drop Noise')", () => {
+    it("excludes zero-signal scaffolding while keeping critical QA and bundler frameworks", () => {
+      const noisyList = [
+        "@types/react",
+        "@types/node",
+        "eslint",
+        "eslint-plugin-react",
+        "prettier",
+        "prettier-plugin-tailwindcss",
+        "@typescript-eslint/parser",
+        "husky",
+        "lint-staged",
+        "cross-env",
+        "rimraf",
+        "concurrently",
+        "nodemon",
+        "ts-node",
+        // Signal tools that MUST be kept:
+        "jest",
+        "playwright",
+        "vitest",
+        "cypress",
+        "pytest",
+        "vite",
+        "webpack",
+        "turborepo",
+        "prisma",
+      ];
+
+      const filtered = dedupeTools(noisyList);
+
+      // Verify zero noise
+      expect(filtered).not.toContain("@types/react");
+      expect(filtered).not.toContain("eslint");
+      expect(filtered).not.toContain("prettier");
+      expect(filtered).not.toContain("husky");
+      expect(filtered).not.toContain("lint-staged");
+      expect(filtered).not.toContain("cross-env");
+      expect(filtered).not.toContain("rimraf");
+      expect(filtered).not.toContain("concurrently");
+
+      // Verify signal preserved
+      expect(filtered).toContain("Jest");
+      expect(filtered).toContain("Playwright");
+      expect(filtered).toContain("Vitest");
+      expect(filtered).toContain("Cypress");
+      expect(filtered).toContain("Pytest");
+      expect(filtered).toContain("Vite");
+      expect(filtered).toContain("Webpack");
+      expect(filtered).toContain("Turborepo");
+      expect(filtered).toContain("Prisma");
+    });
+  });
+
+  describe("HTTP ETag Caching Ledger & 304 Bypass", () => {
+    it("bypasses LLM inference on 304 Not Modified and reuses cached project item", async () => {
+      clearGlobalRepoCache();
+      const mockLLM = vi.mocked(callLLMWithFallback);
+
+      const mockRepo = {
+        name: "cached-engine",
+        description: "Cached systems engine",
+        html_url: "https://github.com/developer/cached-engine",
+        fork: false,
+        archived: false,
+        language: "Rust",
+        topics: ["cache"],
+        stargazers_count: 88,
+        forks_count: 12,
+        default_branch: "main",
+        size: 5000,
+        pushed_at: "2026-10-01T12:00:00Z",
+      };
+
+      const cacheLedger = new Map();
+      const existingProject = {
+        name: "Cached Engine",
+        description: "Cached systems engine",
+        technologies: ["Rust"],
+        link: "https://github.com/developer/cached-engine",
+        bullets: ["Engineered zero-copy memory ring buffer."],
+        origin: "GITHUB_INFERRED" as const,
+      };
+
+      // Populate ledger with matching pushed_at and current parser version
+      cacheLedger.set("developer/cached-engine", {
+        etag: '"etag-12345"',
+        pushedAt: "2026-10-01T12:00:00Z",
+        parserVersion: GITHUB_PARSER_VERSION,
+        project: existingProject,
+      });
+
+      // Mock GitHub API repos endpoint
+      vi.spyOn(globalThis, "fetch").mockImplementationOnce(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => [mockRepo],
+      } as unknown as Response));
+
+      const projects = await syncGitHubProjects("developer", {
+        cacheLedger,
+        rawFetcher: vi.fn(),
+      });
+
+      expect(projects).toHaveLength(1);
+      expect(projects[0]).toEqual(existingProject);
+      // Verify LLM was bypassed (0 calls)
+      expect(mockLLM).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Human-Verified Protection in Profile Consolidation", () => {
+    it("never overwrites or dilutes bullets on projects with origin HUMAN_VERIFIED", () => {
+      const existing = {
+        ...getEmptyMasterProfileData(),
+        projects: [
+          {
+            name: "Enterprise Grid",
+            description: "High-scale power grid optimizer",
+            technologies: ["Rust", "Python"],
+            link: "https://github.com/dev/grid",
+            bullets: [
+              "Architected custom solver attaining 99.999% grid stability under N-1 contingency conditions.",
+              "Personally audited and verified power flow algorithms against IEEE standards.",
+            ],
+            origin: "HUMAN_VERIFIED" as const,
+          },
+        ],
+      };
+
+      const incomingFromGitHub = {
+        ...getEmptyMasterProfileData(),
+        projects: [
+          {
+            name: "Enterprise Grid",
+            description: "Open-source power grid optimizer",
+            technologies: ["Rust", "Python", "Docker"],
+            link: "https://github.com/dev/grid",
+            bullets: [
+              "Engineered generic Docker deployment workflow.",
+              "Implemented basic telemetry endpoints.",
+            ],
+            origin: "GITHUB_INFERRED" as const,
+          },
+        ],
+      };
+
+      const consolidated = consolidateProfiles(existing, incomingFromGitHub);
+      const project = consolidated.projects.find((p) => p.name === "Enterprise Grid");
+
+      expect(project).toBeDefined();
+      expect(project!.origin).toBe("HUMAN_VERIFIED");
+      // Bullets must remain strictly the human-verified bullets
+      expect(project!.bullets).toHaveLength(2);
+      expect(project!.bullets[0]).toBe(
+        "Architected custom solver attaining 99.999% grid stability under N-1 contingency conditions."
+      );
+      expect(project!.bullets[1]).toBe(
+        "Personally audited and verified power flow algorithms against IEEE standards."
+      );
+      // Incoming AI/GitHub bullets must not have been appended
+      expect(project!.bullets).not.toContain("Engineered generic Docker deployment workflow.");
+      // But technologies may be enriched
+      expect(project!.technologies).toContain("Docker");
+    });
+
+    it("strictly orders projects alphabetically (A-Z, case-insensitive) during consolidation", () => {
+      const existing = {
+        ...getEmptyMasterProfileData(),
+        projects: [
+          {
+            name: "Zeta Parser",
+            description: "Zeta data parsing tool",
+            technologies: ["Rust"],
+            link: "https://github.com/dev/zeta",
+            bullets: ["Engineered streaming parser."],
+          },
+          {
+            name: "alpha db",
+            description: "Alpha database engine",
+            technologies: ["Go"],
+            link: "https://github.com/dev/alpha",
+            bullets: ["Architected storage engine."],
+          },
+        ],
+      };
+
+      const incoming = {
+        ...getEmptyMasterProfileData(),
+        projects: [
+          {
+            name: "Beta Cache",
+            description: "Beta caching layer",
+            technologies: ["Redis"],
+            link: "https://github.com/dev/beta",
+            bullets: ["Implemented LRU cache."],
+          },
+          {
+            name: "archive-worker",
+            description: "Background archiving worker",
+            technologies: ["Node.js"],
+            link: "https://github.com/dev/archive",
+            bullets: ["Engineered batch archiver."],
+          },
+        ],
+      };
+
+      const consolidated = consolidateProfiles(existing, incoming);
+      const names = consolidated.projects.map((p) => p.name);
+
+      expect(names).toEqual([
+        "Alpha DB",
+        "Archive Worker",
+        "Beta Cache",
+        "Zeta Parser",
+      ]);
+
+      // Also verify overwriteAll sorts A-Z
+      const overwritten = consolidateProfiles(existing, incoming, {
+        overwriteAll: true,
+      });
+      const overwrittenNames = overwritten.projects.map((p) => p.name);
+      expect(overwrittenNames).toEqual(["archive-worker", "Beta Cache"]);
+    });
+  });
+
+  describe("Parser Version Cache Invalidation", () => {
+    it("invalidates cache and forces fresh re-ingestion when cachedEntry.parserVersion does not match GITHUB_PARSER_VERSION", async () => {
+      clearGlobalRepoCache();
+      const mockLLM = vi.mocked(callLLMWithFallback);
+      mockLLM.mockResolvedValueOnce({
+        bullets: [
+          "Architected high-throughput actor engine using asynchronous message-passing loops.",
+          "Engineered zero-copy memory ring buffer bounding garbage collection overhead.",
+          "Benchmarked latency distribution attaining sub-millisecond p99 guarantees.",
+        ],
+        extractedTechnologies: ["Rust", "Tokio"],
+      });
+
+      const mockRepo = {
+        name: "stale-version-repo",
+        description: "Stale parser version repo",
+        html_url: "https://github.com/developer/stale-version-repo",
+        fork: false,
+        archived: false,
+        language: "Rust",
+        topics: [],
+        stargazers_count: 50,
+        forks_count: 5,
+        default_branch: "main",
+        size: 5000,
+        pushed_at: "2026-10-01T12:00:00Z",
+      };
+
+      const cacheLedger = new Map();
+      const staleProject = {
+        name: "Stale Version Repo",
+        description: "Old cached bullets",
+        technologies: ["Rust"],
+        link: "https://github.com/developer/stale-version-repo",
+        bullets: ["Old bullet generated by parser version 1."],
+        origin: "GITHUB_INFERRED" as const,
+      };
+
+      // Populate ledger with an OLD parser version (e.g. 1)
+      cacheLedger.set("developer/stale-version-repo", {
+        etag: '"etag-old-v1"',
+        pushedAt: "2026-10-01T12:00:00Z",
+        parserVersion: GITHUB_PARSER_VERSION - 1, // Stale!
+        project: staleProject,
+      });
+
+      // Mock GitHub API repos endpoint
+      vi.spyOn(globalThis, "fetch").mockImplementationOnce(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => [mockRepo],
+      } as unknown as Response));
+
+      const projects = await syncGitHubProjects("developer", {
+        cacheLedger,
+        rawFetcher: async (_u, _r, _b, path) => {
+          if (path === "README.md") return "# Stale Version Repo\n## Core Architecture\nHigh-throughput actor engine.";
+          return null;
+        },
+      });
+
+      expect(projects).toHaveLength(1);
+      // Verify LLM was invoked because old parser version was invalidated
+      expect(mockLLM).toHaveBeenCalled();
+      // Cache entry is now updated to the current parser version
+      const updatedCache = cacheLedger.get("developer/stale-version-repo");
+      expect(updatedCache?.parserVersion).toBe(GITHUB_PARSER_VERSION);
+      expect(projects[0].bullets[0]).toContain("Architected high-throughput actor engine");
+    });
+  });
+
+  describe("Architectural Density Model (Source Code Bytes & Verified Subsystems)", () => {
+    it("excludes non-signal markup and calculates pure source code bytes cleanly", () => {
+      const languages = {
+        Rust: 80000,
+        TypeScript: 40000,
+        HTML: 50000,
+        CSS: 25000,
+        SCSS: 15000,
+        SVG: 10000,
+        Markdown: 12000,
+      };
+
+      const pureBytes = calculatePureCodeBytes(languages);
+      // Pure bytes = Rust (80,000) + TypeScript (40,000) = 120,000 bytes
+      expect(pureBytes).toBe(120000);
+    });
+
+    it("counts verified engineering subsystems discovered across tree and manifests", () => {
+      expect(countVerifiedSubsystems()).toBe(0);
+
+      const subsystems = {
+        hasDatabase: true,
+        hasTests: true,
+        hasContainerization: true,
+        hasCiCd: true,
+        hasMonorepo: false,
+        hasMultiDomainTopology: true,
+      };
+
+      expect(countVerifiedSubsystems(subsystems)).toBe(5);
+    });
+
+    it("classifies pure code volume into accurate architectural tiers", () => {
+      // < 20 KB pure code -> Tier 1 (3-5 bullets)
+      const smallScale = determineRepoScale({
+        codeBytes: 15000,
+        hasReadme: true,
+      });
+      expect(smallScale.tier).toBe(1);
+      expect(smallScale.minBullets).toBe(2);
+      expect(smallScale.maxBullets).toBe(4);
+
+      // 25 KB - 120 KB pure code -> Tier 2 (4-8 bullets)
+      const midScale = determineRepoScale({
+        codeBytes: 65000,
+        hasReadme: true,
+      });
+      expect(midScale.tier).toBe(2);
+      expect(midScale.minBullets).toBe(4);
+      expect(midScale.maxBullets).toBe(8);
+
+      // > 120 KB pure code -> Tier 3 (6-10 bullets)
+      const largeScale = determineRepoScale({
+        codeBytes: 180000,
+        hasReadme: true,
+      });
+      expect(largeScale.tier).toBe(3);
+      expect(largeScale.minBullets).toBe(6);
+      expect(largeScale.maxBullets).toBe(10);
+    });
+
+    it("elevates tier based on verified subsystem count regardless of raw byte volume", () => {
+      // Small script (10 KB code) that implements 4 verified capabilities (DB, tests, Docker, CI)
+      const elevatedScale = determineRepoScale({
+        codeBytes: 10000,
+        subsystems: {
+          hasDatabase: true,
+          hasTests: true,
+          hasContainerization: true,
+          hasCiCd: true,
+        },
+        hasReadme: true,
+      });
+
+      // 4 subsystems elevates it to Tier 3!
+      expect(elevatedScale.tier).toBe(3);
+      expect(elevatedScale.minBullets).toBe(6);
+      expect(elevatedScale.maxBullets).toBe(10);
+    });
+
+    it("applies the 2-4 bullet safeguard when repository has no README even for Tier 3 codebases", () => {
+      const largeNoReadme = determineRepoScale({
+        codeBytes: 250000,
+        subsystems: {
+          hasDatabase: true,
+          hasTests: true,
+          hasContainerization: true,
+          hasCiCd: true,
+        },
+        hasReadme: false,
+      });
+
+      expect(largeNoReadme.tier).toBe(3);
+      expect(largeNoReadme.minBullets).toBe(2);
+      expect(largeNoReadme.maxBullets).toBe(4);
+    });
+
+    it("clamps returned bullets to scaleBudget.maxBullets even if LLM returns 27 bullets", async () => {
+      const mockLLM = vi.mocked(callLLMWithFallback);
+      // Generate 27 distinct bullets
+      const twentySevenBullets = Array.from(
+        { length: 27 },
+        (_, i) => `Engineered autonomous subsystem capability #${i + 1} with verifiable performance bounds.`
+      );
+
+      mockLLM.mockResolvedValueOnce({
+        bullets: twentySevenBullets,
+        extractedTechnologies: ["TypeScript", "Next.js"],
+      });
+
+      const analysis = await analyzeRepoArtifacts({
+        repoName: "mailpilot-engine",
+        description: "Autonomous job search platform",
+        readme: "# MailPilot\n## Architecture\nDistributed system.",
+        manifestTechnologies: ["next", "react", "prisma"],
+        pureCodeBytes: 250000, // Tier 3 (max 10 bullets)
+      });
+
+      // Must be strictly clamped to Tier 3 max (10)
+      expect(analysis.bullets).toHaveLength(10);
+      expect(analysis.bullets[0]).toContain("capability #1");
+      expect(analysis.bullets[9]).toContain("capability #10");
+    });
+
+    it("refreshes GITHUB_INFERRED project bullets on re-sync and prevents infinite bullet accumulation", () => {
+      const existing = {
+        ...getEmptyMasterProfileData(),
+        projects: [
+          {
+            name: "MailPilot",
+            description: "Autonomous copilot",
+            technologies: ["Next.js", "TypeScript"],
+            link: "https://github.com/developer/mailpilot",
+            bullets: [
+              "Engineered bot-evading job scraping via delta sync with Google Cloud Pub/Sub.",
+              "Developed headless PDF/DOCX tailoring using Next.js 15 and Prisma.",
+              "Implemented RFC 8058 one-click unsubscribe engine for inspecting headers.",
+            ],
+            origin: "GITHUB_INFERRED" as const,
+          },
+        ],
+      };
+
+      const incomingResync = {
+        ...getEmptyMasterProfileData(),
+        projects: [
+          {
+            name: "MailPilot",
+            description: "Autonomous copilot",
+            technologies: ["Next.js", "TypeScript", "PostgreSQL"],
+            link: "https://github.com/developer/mailpilot",
+            bullets: [
+              "Engineered multi-stage scraping pipeline with Google Cloud Pub/Sub webhooks.",
+              "Designed line-addressable resume tailoring engine with strict 1-page geometry.",
+              "Hardened server-side request forgery (SSRF) protection using DNS pre-resolution.",
+              "Implemented RFC 8058 one-click unsubscribe engine for inspecting headers.",
+            ],
+            origin: "GITHUB_INFERRED" as const,
+          },
+        ],
+      };
+
+      const consolidated = consolidateProfiles(existing, incomingResync);
+      const proj = consolidated.projects.find((p) => p.name === "MailPilot");
+
+      expect(proj).toBeDefined();
+      // Must have refreshed to the new 4 incoming bullets, NOT accumulated to 3 + 3 = 6 or 7
+      expect(proj!.bullets).toHaveLength(4);
+      expect(proj!.bullets).toContain(
+        "Engineered multi-stage scraping pipeline with Google Cloud Pub/Sub webhooks."
+      );
+      // Technologies are unioned
+      expect(proj!.technologies).toContain("PostgreSQL");
+    });
+  });
+
+  describe("Universal File System Scrubber, Permissive Unrolling, and Substantiveness Auditing", () => {
+    it("scrubs universal directory paths and normalizes raw file extension references", () => {
+      const input =
+        "Allowed users to create custom packs by adding `.txt` files to `src/data/` with one word or phrase per line, and automatically rendering them as selectable packs.";
+      const scrubbed = sanitizeBulletString(input);
+
+      expect(scrubbed).not.toContain("src/data");
+      expect(scrubbed).not.toContain(".txt");
+      expect(scrubbed).toContain("text files");
+      expect(scrubbed).toContain("with one word or phrase per line");
+    });
+
+    it("unrolls permissive user-story phrasing into authoritative systems-engine actions", () => {
+      const input =
+        "Allowed users to create custom packs by adding text files with one word or phrase per line, and automatically rendering them as selectable packs.";
+      const unrolled = unrollPermissivePhrasing(input);
+
+      expect(unrolled).toMatch(/^Engineered custom pack creation/);
+      expect(unrolled).toContain("automatically rendering them as selectable packs");
+    });
+
+    it("cleans tutorial-level standard library built-ins from engineering bullets", () => {
+      const input =
+        "Implemented a 60-second timer using JavaScript's `setInterval` function, triggering end-game confirmation and score calculation upon expiration.";
+      const cleaned = cleanTrivialPrimitives(input);
+
+      expect(cleaned).not.toContain("setInterval");
+      expect(cleaned).toBe(
+        "Implemented a 60-second timer, triggering end-game confirmation and score calculation upon expiration."
+      );
+    });
+
+    it("audits substantiveness, rejects PaaS/percentage chores, and backfills cleaned timer bullets", () => {
+      const incomingBullets = [
+        "Allowed users to create custom packs by adding `.txt` files to `src/data/` with one word or phrase per line, and automatically rendering them as selectable packs.",
+        "Integrated full-screen swipe controls using Next.js 15's App Router and React 19, enabling mobile-first gameplay with landscape orientation and customizable swipe gestures.",
+        "Implemented a 60-second timer using JavaScript's `setInterval` function, triggering end-game confirmation and score calculation upon expiration.",
+        "Utilized Tailwind CSS 4 for mobile-optimized layouts across selection, countdown, gameplay, and results screens, ensuring seamless user experience across various devices.",
+        "Employed TypeScript to manage type safety and code maintainability, with 71% of the codebase written in TypeScript.",
+        "Designed a custom pack creator, allowing users to name and add one prompt per line, which is then merged with built-in packs for each game.",
+        "Utilized Vercel for deployment, leveraging automatic redeployment on `main` branch pushes and easy integration with Next.js.",
+      ];
+
+      const mockRepo = {
+        name: "swipe-game",
+        description: "Mobile swipe trivia game",
+        html_url: "https://github.com/developer/swipe-game",
+        fork: false,
+        archived: false,
+        language: "TypeScript",
+        topics: ["mobile", "game"],
+        stargazers_count: 10,
+        forks_count: 2,
+        default_branch: "main",
+        size: 3500,
+      };
+
+      const project = adaptRepoToProjectItem({
+        repo: mockRepo,
+        bullets: incomingBullets,
+        inferredTechnologies: ["Next.js", "React", "TypeScript", "Tailwind CSS"],
+        scaleBudget: { minBullets: 3, maxBullets: 5 },
+      });
+
+      // 1. Chores (Vercel automatic redeploy & 71% TypeScript recitation) MUST be rejected
+      const bulletText = project.bullets.join("\n");
+      expect(bulletText).not.toContain("Vercel");
+      expect(bulletText).not.toContain("71%");
+      expect(bulletText).not.toContain("automatic redeployment");
+
+      // 2. Filenames & raw directories must NOT appear
+      expect(bulletText).not.toContain("src/data");
+      expect(bulletText).not.toContain(".txt");
+
+      // 3. setInterval syntax must be cleaned
+      expect(bulletText).not.toContain("setInterval");
+
+      // 4. Bullets must be bounded to scaleBudget (at most 5 bullets)
+      expect(project.bullets.length).toBeLessThanOrEqual(5);
+      expect(project.bullets.length).toBeGreaterThanOrEqual(3);
+
+      // 5. High-substance gesture control bullet is preserved
+      expect(bulletText).toContain("Integrated full-screen swipe controls");
+
+      // 6. Cleaned timer bullet is backfilled into available budget slots
+      expect(bulletText).toContain("Implemented a 60-second timer, triggering end-game confirmation");
+    });
+
+    it("ensures DEEP_ANALYSIS_SYSTEM_PROMPT contains zero concrete domain examples", () => {
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("Haversine");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("emergency SOS");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("HTTP 206");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("candidate proximity");
+    });
+
+    it("rejects ungrounded cross-repo hallucinations in adaptRepoToProjectItem while preserving grounded ones", () => {
+      const connect4Repo = {
+        name: "connect-4",
+        description: "Connect 4 game engine with minimax AI",
+        html_url: "https://github.com/developer/connect-4",
+        fork: false,
+        archived: false,
+        language: "Python",
+        stargazers_count: 5,
+        forks_count: 1,
+      };
+
+      const contaminatedBullets = [
+        "Implemented a minimax AI agent with alpha-beta pruning, leveraging recursive search trees.",
+        "Engineered Monte Carlo simulation agents evaluating random rollouts to benchmark decisions.",
+        "Calculated candidate proximity using the Haversine formula to optimize alpha-beta node evaluations.",
+        "Buffered audio voice memos via HTTP 206 byte-range streaming.",
+        "Dispatched emergency SOS workflows across three parallel workers.",
+      ];
+
+      const cleanProject = adaptRepoToProjectItem({
+        repo: connect4Repo,
+        bullets: contaminatedBullets,
+        inferredTechnologies: ["Python"],
+        scaleBudget: { minBullets: 2, maxBullets: 4 },
+        repoContextText: "connect 4 game engine minimax alpha beta monte carlo simulation python",
+      });
+
+      const bulletsStr = cleanProject.bullets.join("\n");
+      // All 3 hallucinations MUST be rejected from Connect 4
+      expect(bulletsStr).not.toContain("Haversine");
+      expect(bulletsStr).not.toContain("HTTP 206");
+      expect(bulletsStr).not.toContain("emergency SOS");
+
+      // Authentic Connect 4 bullets are preserved
+      expect(bulletsStr).toContain("minimax AI agent");
+      expect(bulletsStr).toContain("Monte Carlo");
+
+      // On a grounded project (e.g. SafeHaven with geospatial shelter search), Haversine is grounded
+      const safeHavenCorpus =
+        "safehaven domestic violence platform geospatial coordinates haversine shelter radius search audio streaming emergency sos";
+      expect(
+        isUngroundedHallucination(
+          "Calculated resource proximity using the Haversine formula across concentric bounding boxes.",
+          safeHavenCorpus
+        )
+      ).toBe(false);
     });
   });
 });

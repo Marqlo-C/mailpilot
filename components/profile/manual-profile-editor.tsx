@@ -98,12 +98,18 @@ function profileToForm(profile: ProfileSnapshotData | null): MasterProfileUpdate
     certifications: profile.certifications ?? [],
     awards: profile.awards ?? [],
     interests: profile.interests ?? [],
-    projects: profile.projects.map((p) => ({
-      ...p,
-      id: p.id ?? newId(),
-      bullets: [...p.bullets],
-      technologies: [...p.technologies],
-    })),
+    projects: [...profile.projects]
+      .sort((a, b) =>
+        (a.name || "").localeCompare(b.name || "", undefined, {
+          sensitivity: "base",
+        })
+      )
+      .map((p) => ({
+        ...p,
+        id: p.id ?? newId(),
+        bullets: [...p.bullets],
+        technologies: [...p.technologies],
+      })),
     education: profile.education.map((ed) => ({
       ...ed,
       id: ed.id ?? newId(),
@@ -152,6 +158,11 @@ export function ManualProfileEditor({
     setError(null);
     const parsed = masterProfileSchema.safeParse({
       ...form,
+      projects: [...form.projects].sort((a, b) =>
+        (a.name || "").localeCompare(b.name || "", undefined, {
+          sensitivity: "base",
+        })
+      ),
       certifications: form.certifications.filter((item) => item.name.trim()),
       awards: form.awards.filter((item) => item.title.trim()),
       interests: form.interests.map((item) => item.trim()).filter(Boolean),

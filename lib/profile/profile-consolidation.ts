@@ -117,6 +117,35 @@ function normalizeString(str: string): string {
   return str.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+function tokenizeThematicWords(text: string): Set<string> {
+  const stopwords = new Set([
+    "the", "and", "with", "for", "from", "that", "this", "into", "across",
+    "using", "their", "them", "line", "word", "users", "each", "game",
+    "which", "then", "per", "via", "under", "over", "allow", "allowing",
+    "ensure", "ensuring", "tools", "such", "application"
+  ]);
+  return new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 3 && !stopwords.has(w))
+  );
+}
+
+function hasThematicOverlap(bulletA: string, bulletB: string): boolean {
+  const tokensA = tokenizeThematicWords(bulletA);
+  const tokensB = tokenizeThematicWords(bulletB);
+  if (tokensA.size === 0 || tokensB.size === 0) return false;
+
+  let shared = 0;
+  for (const t of tokensB) {
+    if (tokensA.has(t)) shared++;
+  }
+  const minSize = Math.min(tokensA.size, tokensB.size);
+  return minSize > 0 && shared / minSize >= 0.5;
+}
+
 function ensureAbsoluteUrl(raw: string): string {
   const normalized = normalizeProfileUrl(raw);
   return normalized || raw.trim();
@@ -329,6 +358,9 @@ export function consolidateProfiles(
   options: ConsolidationOptions = {}
 ): MasterProfileInput {
   if (options.overwriteAll) {
+    const sortedProjects = [...incoming.projects].sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+    );
     return {
       fullName: incoming.fullName?.trim() || "",
       email: !isPlaceholderEmail(incoming.email) ? incoming.email.trim() : "",
@@ -338,7 +370,7 @@ export function consolidateProfiles(
       links: incoming.links ?? [],
       skills: incoming.skills ?? [],
       experiences: incoming.experiences ?? [],
-      projects: incoming.projects ?? [],
+      projects: sortedProjects,
       education: incoming.education ?? [],
       certifications: incoming.certifications ?? [],
       awards: incoming.awards ?? [],
@@ -436,16 +468,41 @@ export function consolidateProfiles(
 
     if (existingIndex >= 0) {
       const match = projects[existingIndex]!;
-      const existingBullets = new Set(
-        match.bullets.map((b) => normalizeString(b))
-      );
-      const newBullets = incProj.bullets.filter(
-        (b) => !existingBullets.has(normalizeString(b))
-      );
+      const isHumanVerified = match.origin === "HUMAN_VERIFIED";
 
-      const combinedBullets = [...match.bullets, ...newBullets].filter(
-        (b) => !isDescriptionBullet(b)
-      );
+      // Human-Verified Protection: Repositories or projects marked with origin: "HUMAN_VERIFIED"
+      // must NEVER have their bullet points overwritten or diluted on re-sync.
+      let combinedBullets: string[];
+      if (isHumanVerified) {
+        combinedBullets = match.bullets;
+      } else if (
+        match.origin === "GITHUB_INFERRED" &&
+        incProj.origin === "GITHUB_INFERRED" &&
+        incProj.bullets.length > 0
+      ) {
+        // When both are automated GitHub syncs, refresh with incoming bullets to avoid infinite bloat across re-syncs
+        combinedBullets = incProj.bullets
+          .filter((b) => !isDescriptionBullet(b))
+          .slice(0, 10);
+      } else {
+        const existingBullets = new Set(
+          match.bullets.map((b) => normalizeString(b))
+        );
+        const deduplicatedIncoming = incProj.bullets.filter((incBullet) => {
+          if (existingBullets.has(normalizeString(incBullet))) return false;
+          // Thematic duplicate check against existing bullets on the same card
+          for (const exBullet of match.bullets) {
+            if (hasThematicOverlap(exBullet, incBullet)) {
+              return false;
+            }
+          }
+          return true;
+        });
+
+        combinedBullets = [...match.bullets, ...deduplicatedIncoming]
+          .filter((b) => !isDescriptionBullet(b))
+          .slice(0, 10);
+      }
 
       projects[existingIndex] = {
         ...match,
@@ -457,16 +514,18 @@ export function consolidateProfiles(
         ),
         link: match.link || incProj.link,
         bullets: combinedBullets,
+        origin: match.origin || incProj.origin,
       };
     } else {
-      const filteredBullets = incProj.bullets.filter(
-        (b) => !isDescriptionBullet(b)
-      );
+      const filteredBullets = incProj.bullets
+        .filter((b) => !isDescriptionBullet(b))
+        .slice(0, 10);
 
       projects.push({
         ...incProj,
         name: cleanIncName,
         bullets: filteredBullets,
+        origin: incProj.origin,
       });
     }
   }
@@ -542,6 +601,10 @@ export function consolidateProfiles(
       : !isPlaceholderEmail(incoming.email)
         ? incoming.email.trim()
         : "";
+
+  projects.sort((a, b) =>
+    (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+  );
 
   return {
     fullName: preferPopulated(existing.fullName, incoming.fullName) || "Unknown",

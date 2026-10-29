@@ -124,14 +124,20 @@ export function serializeUserProfileToInput(
         [],
       displayOrder: e.displayOrder,
     })),
-    projects: profile.projects.map((p) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      technologies: p.technologies,
-      link: p.link,
-      bullets: p.bullets,
-    })),
+    projects: profile.projects
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        technologies: p.technologies,
+        link: p.link,
+        bullets: p.bullets,
+      }))
+      .sort((a, b) =>
+        (a.name || "").localeCompare(b.name || "", undefined, {
+          sensitivity: "base",
+        })
+      ),
     education: profile.education.map((ed) => ({
       id: ed.id,
       institution: ed.institution,

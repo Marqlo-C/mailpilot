@@ -401,7 +401,13 @@ export function ResumeUploadDialog({
               {draft.projects.length === 0 ? (
                 <p className="text-muted-foreground">No projects extracted.</p>
               ) : (
-                draft.projects.map((p) => (
+                [...draft.projects]
+                  .sort((a, b) =>
+                    (a.name || "").localeCompare(b.name || "", undefined, {
+                      sensitivity: "base",
+                    })
+                  )
+                  .map((p) => (
                   <div key={p.name}>
                     <p className="font-medium">{p.name}</p>
                     <p className="text-muted-foreground">{p.description}</p>

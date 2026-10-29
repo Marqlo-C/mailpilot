@@ -298,7 +298,11 @@ export async function applyResumeUpload(
 
       profileDraft = {
         ...profileDraft,
-        projects: [...profileDraft.projects, ...additionalProjects],
+        projects: [...profileDraft.projects, ...additionalProjects].sort((a, b) =>
+          (a.name || "").localeCompare(b.name || "", undefined, {
+            sensitivity: "base",
+          })
+        ),
         links: hasGithubLink
           ? profileDraft.links
           : [...profileDraft.links, { label: "GitHub", url: linkedGithub }],
@@ -520,8 +524,13 @@ export async function updateMasterProfile(
       }
 
       if (payload.projects.length > 0) {
+        const sortedProjects = [...payload.projects].sort((a, b) =>
+          (a.name || "").localeCompare(b.name || "", undefined, {
+            sensitivity: "base",
+          })
+        );
         await tx.project.createMany({
-          data: payload.projects.map((p) => ({
+          data: sortedProjects.map((p) => ({
             profileId: profile.id,
             name: normalizeProjectName(p.name),
             description: p.description,
@@ -707,7 +716,7 @@ export async function getMasterProfile(
       where: { accountId },
       include: {
         experiences: { orderBy: { displayOrder: "asc" } },
-        projects: true,
+        projects: { orderBy: { name: "asc" } },
         education: true,
         history: {
           orderBy: { createdAt: "desc" },
@@ -743,14 +752,20 @@ export async function getMasterProfile(
             [],
           displayOrder: e.displayOrder,
         })),
-        projects: profile.projects.map((p) => ({
-          id: p.id,
-          name: p.name,
-          description: p.description,
-          technologies: p.technologies,
-          link: p.link,
-          bullets: p.bullets,
-        })),
+        projects: profile.projects
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            technologies: p.technologies,
+            link: p.link,
+            bullets: p.bullets,
+          }))
+          .sort((a, b) =>
+            (a.name || "").localeCompare(b.name || "", undefined, {
+              sensitivity: "base",
+            })
+          ),
         education: profile.education.map((ed) => ({
           id: ed.id,
           institution: ed.institution,
