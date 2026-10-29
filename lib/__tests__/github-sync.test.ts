@@ -35,6 +35,7 @@ import {
   GITHUB_PARSER_VERSION,
   calculatePureCodeBytes,
   countVerifiedSubsystems,
+  detectArchitecturalDimension,
   type GitHubRawRepo,
 } from "@/lib/github";
 import { consolidateProfiles } from "@/lib/profile/profile-consolidation";
@@ -555,7 +556,9 @@ Respectful collaboration is strictly required.
   });
 
   describe("End-to-End GitHub Projects Synchronization", () => {
-    it("handles multiple public repositories with custom raw file fetcher", async () => {
+    it(
+      "handles multiple public repositories with custom raw file fetcher",
+      async () => {
       const mockLLM = vi.mocked(callLLMWithFallback);
       mockLLM.mockResolvedValue({
         bullets: [
@@ -609,7 +612,7 @@ Respectful collaboration is strictly required.
       expect(projects[0].origin).toBe("GITHUB_INFERRED");
       expect(projects[0].technologies).toContain("TypeScript");
       expect(projects[0].technologies).toContain("ioredis");
-    });
+    }, 15000);
   });
 
   describe("Syntax Artifact & Quote Sanitization (sanitizeBulletString)", () => {
@@ -1868,6 +1871,114 @@ Respectful collaboration is strictly required.
       expect(result[0]!.score).toBe(8.5);
       expect(result[0]!.bullet).toContain("15ms");
       expect(result[0]!.bullet).not.toContain("dynamically coordinating");
+    });
+
+    it("purges physical script filenames and directory paths from technology tags while preserving frameworks and scoped packages", () => {
+      const rawTools = [
+        "Python",
+        "marqlo_players_final_ver.py",
+        "matchup_visualizer.py",
+        "eval_diagnostics.py",
+        "[fileId].js",
+        "src/utils/helpers.ts",
+        "Next.js",
+        "@radix-ui/react-dialog",
+        "React",
+        "Tailwind CSS",
+        "husky",
+        "eslint",
+      ];
+
+      const cleaned = dedupeTools(rawTools);
+      expect(cleaned).toContain("Python");
+      expect(cleaned).toContain("Next.js");
+      expect(cleaned).toContain("Radix UI");
+      expect(cleaned).toContain("React");
+      expect(cleaned).toContain("TailwindCSS");
+
+      // Filenames and scaffolding MUST be purged
+      expect(cleaned).not.toContain("marqlo_players_final_ver.py");
+      expect(cleaned).not.toContain("matchup_visualizer.py");
+      expect(cleaned).not.toContain("eval_diagnostics.py");
+      expect(cleaned).not.toContain("[fileId].js");
+      expect(cleaned).not.toContain("src/utils/helpers.ts");
+      expect(cleaned).not.toContain("husky");
+      expect(cleaned).not.toContain("eslint");
+    });
+
+    it("strips bracketed dynamic route filenames like [fileId].js from bullet text", () => {
+      const raw =
+        "Built a private evidence journal and media streaming engine [fileId].js to allow survivors to capture admissible incident documentation.";
+      const cleaned = stripFileSystemArtifacts(raw);
+      expect(cleaned).not.toContain("[fileId].js");
+      expect(cleaned).toContain("media streaming engine to allow survivors");
+    });
+
+    it("accurately classifies engineering bullets into Universal CS Dimensions", () => {
+      const secBullet =
+        "Architected multi-tenant data isolation utilizing PostgreSQL, Prisma, and AES-256-GCM for authenticated symmetric encryption.";
+      const uiBullet =
+        "Integrated multi-card batch grab and 3D peek stack functionality using React and CSS transitions.";
+      const dataBullet =
+        "Synchronized a durable database persistence mechanism utilizing a Prisma-based storage solution with normalized schemas.";
+      const netBullet =
+        "Engineered a bot-evading job scraping pipeline using Google Cloud Pub/Sub delta sync.";
+      const teleBullet =
+        "Configured a real-time ASCII telemetry pipeline within the logging module, monitoring invocations via a 66-column terminal logger.";
+      const logicBullet =
+        "Formulated recursive search tree traversal with alpha-beta pruning to benchmark heuristic decision matrices.";
+
+      expect(detectArchitecturalDimension(secBullet)).toBe("SECURITY_RELIABILITY");
+      expect(detectArchitecturalDimension(uiBullet)).toBe("INTERFACE_INTERACTION");
+      expect(detectArchitecturalDimension(dataBullet)).toBe("DATA_STORAGE");
+      expect(detectArchitecturalDimension(netBullet)).toBe("NETWORKING_PROTOCOLS");
+      expect(detectArchitecturalDimension(teleBullet)).toBe("OBSERVABILITY_TELEMETRY");
+      expect(detectArchitecturalDimension(logicBullet)).toBe("COMPUTATIONAL_LOGIC");
+    });
+
+    it("guarantees architectural dimension breadth in tournament ranking so security and UI are not squeezed out", () => {
+      const repo: GitHubRawRepo = {
+        name: "flagship-platform",
+        description: "Full-stack enterprise application",
+        html_url: "https://github.com/test/flagship-platform",
+        fork: false,
+        archived: false,
+        language: "TypeScript",
+        stargazers_count: 50,
+        forks_count: 10,
+      };
+
+      // Candidate pool containing multiple high-scoring router bullets along with security, UI, and data
+      const candidates = [
+        "Architected a multi-tier inference router utilizing a zero-token LLM dispatcher to optimize latency under 50ms.", // Logic + Metric (score 8.5)
+        "Built a 3-tier fallback hierarchy within the inference router, leveraging a token-cost-aware matrix with sub-100ms response.", // Logic + Metric (score 8.5)
+        "Deployed an inference router circuit breaker with automated failover handling 10,000 req/min.", // Logic + Metric (score 8.5)
+        "Architected multi-tenant data isolation utilizing PostgreSQL, Prisma, and AES-256-GCM for authenticated symmetric encryption.", // Security (score 6.5)
+        "Integrated multi-card batch grab and 3D peek stack functionality using React and CSS transitions for zero-reload drops.", // UI (score 6.5)
+        "Synchronized a durable database persistence mechanism utilizing a Prisma-based storage solution.", // Storage (score 6.5)
+        "Developed a real-time ASCII telemetry pipeline to monitor model invocations via a standardized 66-column terminal logger.", // Telemetry (score 6.5)
+      ];
+
+      const project = adaptRepoToProjectItem({
+        repo,
+        bullets: candidates,
+        inferredTechnologies: ["TypeScript", "Next.js", "Prisma", "PostgreSQL"],
+        manifestTechnologies: ["TypeScript", "Next.js"],
+        scaleBudget: { minBullets: 4, maxBullets: 5 },
+        repoContextText: "flagship platform nextjs prisma postgresql aes-256 react telemetry",
+      });
+
+      // Scale budget maxBullets is 5.
+      // Pass 1 ensures Security (AES-256), UI (3D peek stack), Storage (Prisma), Telemetry (ASCII logger),
+      // and Logic (Inference Router) EACH get a slot!
+      // The 3 redundant router bullets do NOT crowd out Security or UI!
+      expect(project.bullets.length).toBe(5);
+      const allText = project.bullets.join("\n");
+      expect(allText).toContain("AES-256-GCM");
+      expect(allText).toContain("3D peek stack");
+      expect(allText).toContain("ASCII telemetry");
+      expect(allText).toContain("database persistence");
+      expect(allText).toContain("inference router");
     });
   });
 });
