@@ -45,6 +45,8 @@ import {
   JOB_RADAR_TAB_LABEL,
   clearSidebarPageTab,
   peekSidebarPageTab,
+  persistActivePageTab,
+  readActivePageTab,
 } from "@/lib/navigation/page-tabs";
 import { faviconUrlForDomain } from "@/lib/utils/domain";
 import {
@@ -179,6 +181,7 @@ export function JobsRadar({
   function handleTabChange(nextTab: string) {
     if (suppressTabChangeRef.current) return;
     setActiveTab(nextTab);
+    persistActivePageTab("/jobs", nextTab, accountId);
     const nextConfig = TAB_SORT_CONFIG[tabKeyFromValue(nextTab)];
     const allowed = nextConfig.options.map((o) => o.value);
     if (!allowed.includes(sort)) {
@@ -187,16 +190,32 @@ export function JobsRadar({
   }
 
   useLayoutEffect(() => {
-    const next = peekSidebarPageTab(
+    const pending = peekSidebarPageTab(
       "/jobs",
       JOB_RADAR_PAGE_TABS.map((item) => item.value)
     );
-    if (!next) return;
-    setActiveTab(next);
-    setSort(TAB_SORT_CONFIG[tabKeyFromValue(next)].defaultSort);
-    const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
-    return () => window.clearTimeout(clearId);
-  }, []);
+    if (pending) {
+      setActiveTab(pending);
+      setSort(TAB_SORT_CONFIG[tabKeyFromValue(pending)].defaultSort);
+      persistActivePageTab("/jobs", pending, accountId);
+      const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
+      return () => window.clearTimeout(clearId);
+    }
+
+    const saved = readActivePageTab(
+      "/jobs",
+      JOB_RADAR_PAGE_TABS.map((item) => item.value),
+      accountId
+    );
+    if (saved) {
+      setActiveTab(saved);
+      const nextConfig = TAB_SORT_CONFIG[tabKeyFromValue(saved)];
+      const allowed = nextConfig.options.map((o) => o.value);
+      if (!allowed.includes(sort)) {
+        setSort(nextConfig.defaultSort);
+      }
+    }
+  }, [accountId]);
 
   const handleDragZoneChange = useCallback((zoneId: string | null) => {
     setDragDropZone(zoneId);

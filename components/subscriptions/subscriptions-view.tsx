@@ -136,6 +136,8 @@ import {
   SUBSCRIPTION_TAB_LABEL,
   clearSidebarPageTab,
   peekSidebarPageTab,
+  persistActivePageTab,
+  readActivePageTab,
 } from "@/lib/navigation/page-tabs";
 import { cn } from "@/lib/utils";
 import type { CleanupAction } from "@/lib/gmail/unsubscribe";
@@ -300,16 +302,28 @@ export function SubscriptionsView({
   }, []);
 
   useLayoutEffect(() => {
-    const next = peekSidebarPageTab(
+    const pending = peekSidebarPageTab(
       "/subscriptions",
       SUBSCRIPTION_PAGE_TABS.map((item) => item.value)
     );
-    if (!next) return;
-    setActiveTab(next);
-    clearSelection();
-    const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
-    return () => window.clearTimeout(clearId);
-  }, [clearSelection]);
+    if (pending) {
+      setActiveTab(pending);
+      persistActivePageTab("/subscriptions", pending, accountId);
+      clearSelection();
+      const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
+      return () => window.clearTimeout(clearId);
+    }
+
+    const saved = readActivePageTab(
+      "/subscriptions",
+      SUBSCRIPTION_PAGE_TABS.map((item) => item.value),
+      accountId
+    );
+    if (saved) {
+      setActiveTab(saved);
+      clearSelection();
+    }
+  }, [accountId, clearSelection]);
 
   /** User-driven view changes leave multi-select; drag page-flips use setCurrentPage directly. */
   const changeSortOption = useCallback(
@@ -1053,6 +1067,7 @@ export function SubscriptionsView({
         onValueChange={(value) => {
           if (suppressTabChangeRef.current) return;
           setActiveTab(value as SubscriptionTab);
+          persistActivePageTab("/subscriptions", value, accountId);
           clearSelection();
         }}
         className="w-full"
