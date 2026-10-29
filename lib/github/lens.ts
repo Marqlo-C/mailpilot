@@ -448,15 +448,28 @@ export function auditBulletSubstantiveness(bullet: string): AuditedBullet {
 const STOPWORDS = new Set([
   "the", "and", "with", "for", "from", "that", "this", "into", "across",
   "using", "their", "them", "line", "word", "users", "each", "game",
-  "which", "then", "per", "via", "under", "over", "allow", "allowing"
+  "which", "then", "per", "via", "under", "over", "allow", "allowing",
+  "within", "without"
 ]);
 
-function tokenizeSubstantiveRoots(text: string): string[] {
+function stemSubstantiveWord(w: string): string {
+  if (w.endsWith("ies") && w.length > 5) return w.slice(0, -3) + "y";
+  if (w.endsWith("tions") && w.length > 7) return w.slice(0, -5);
+  if (w.endsWith("tion") && w.length > 6) return w.slice(0, -4);
+  if (w.endsWith("ing") && w.length > 5) return w.slice(0, -3);
+  if (w.endsWith("ed") && w.length > 4) return w.slice(0, -2);
+  if (w.endsWith("es") && w.length > 4) return w.slice(0, -2);
+  if (w.endsWith("s") && !w.endsWith("ss") && w.length > 3) return w.slice(0, -1);
+  return w;
+}
+
+export function tokenizeSubstantiveRoots(text: string): string[] {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
-    .filter((w) => w.length > 3 && !STOPWORDS.has(w));
+    .filter((w) => w.length > 3 && !STOPWORDS.has(w))
+    .map(stemSubstantiveWord);
 }
 
 /**
@@ -480,6 +493,7 @@ export function deduplicateOrSynthesizeBullets(
 
     let matchedDuplicateIndex = -1;
     let matchedOverlapRatio = 0;
+    let matchedSharedRoots = 0;
 
     for (let j = i + 1; j < auditedList.length; j++) {
       if (processedIndices.has(j)) continue;
@@ -494,10 +508,11 @@ export function deduplicateOrSynthesizeBullets(
       const minLen = Math.min(tokensA.size, tokensB.size);
       const overlapRatio = minLen > 0 ? shared / minLen : 0;
 
-      // Thematic overlap threshold
-      if (overlapRatio >= 0.4) {
+      // Thematic overlap threshold (fractional overlap >= 0.35 or >= 3 shared substantive roots)
+      if (overlapRatio >= 0.35 || (shared >= 3 && overlapRatio >= 0.25)) {
         matchedDuplicateIndex = j;
         matchedOverlapRatio = overlapRatio;
+        matchedSharedRoots = shared;
         break;
       }
     }
@@ -514,7 +529,12 @@ export function deduplicateOrSynthesizeBullets(
       const novelRatio = tokensB.size > 0 ? novelInB / tokensB.size : 0;
 
       // Pure redundant echo or over capacity: retain higher-scoring bullet without synthetic boilerplate
-      if (novelRatio < 0.35 || matchedOverlapRatio >= 0.55 || auditedList.length > maxBullets) {
+      if (
+        novelRatio < 0.5 ||
+        matchedOverlapRatio >= 0.3 ||
+        matchedSharedRoots >= 3 ||
+        auditedList.length > maxBullets
+      ) {
         result.push(a.score >= b.score ? a : b);
       } else {
         result.push(a);
@@ -621,13 +641,21 @@ export function sanitizeBulletString(bullet: string): string {
     );
   }
 
-  // 4. Strip LaTeX math notation (e.g. $150\text{ ms}$ -> 150ms, $\le 25ms$ -> <= 25ms)
+  // 4. Strip LaTeX math notation and rogue math symbols (e.g. $150\text{ ms}$ -> 150ms, $\approx 150ms$ -> ~150ms, $150ms -> 150ms)
   cleaned = cleaned
     .replace(/\\text\s*\{([^}]+)\}/g, "$1")
+    .replace(/\\(?:approx|sim)\b/g, "~")
     .replace(/\\le\b/g, "<=")
     .replace(/\\ge\b/g, ">=")
+    .replace(/\\pm\b/g, "+/-")
+    .replace(/\\times\b/g, "x")
     .replace(/\$([^$]+)\$/g, "$1")
-    .replace(/(\d+)\s+(ms|s|sec|min|hr|kb|mb|gb|tb|fps|qps|rps)\b/gi, "$1$2");
+    .replace(/\$\s*(\d+(?:\.\d+)?)\s*(ms|s|sec|min|hr|kb|mb|gb|tb|fps|qps|rps|hz|khz|mhz|ghz|px|%)\b/gi, "$1$2")
+    .replace(/(\d+)\s+(ms|s|sec|min|hr|kb|mb|gb|tb|fps|qps|rps)\b/gi, "$1$2")
+    .replace(/~\s*(\d)/g, "~$1");
+
+  // 4b. Remove stray standalone dollar signs not attached to currency
+  cleaned = cleaned.replace(/(^|\s)\$(\s|[.,;:!?]|$)/g, "$1$2");
 
   // 5. Strip low-signal physical source code filenames and directory paths
   cleaned = stripFileSystemArtifacts(cleaned);
@@ -785,6 +813,13 @@ export function isUngroundedHallucination(bullet: string, contextCorpus: string)
 }
 
 const VERB_ALTERNATIVES: Record<string, string[]> = {
+  Configured: ["Architected", "Engineered", "Orchestrated", "Implemented", "Established"],
+  Designed: ["Engineered", "Architected", "Developed", "Formulated", "Constructed"],
+  Developed: ["Engineered", "Constructed", "Built", "Architected", "Implemented"],
+  Implemented: ["Engineered", "Executed", "Constructed", "Built", "Architected"],
+  Engineered: ["Architected", "Constructed", "Developed", "Built", "Implemented"],
+  Automated: ["Streamlined", "Orchestrated", "Programmed", "Engineered"],
+  Built: ["Constructed", "Engineered", "Developed", "Architected"],
   Serialized: ["Structured", "Stored", "Encoded", "Persisted", "Formatted"],
   Materialized: ["Implemented", "Constructed", "Generated", "Rendered", "Developed"],
   Dispatched: ["Orchestrated", "Executed", "Routed", "Triggered", "Coordinated"],
