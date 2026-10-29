@@ -1,3 +1,5 @@
+import { ALL_FILE_EXTENSIONS_SET } from "./schema.ssot";
+
 /**
  * Canonical tool display mapping, micro-exclusion denylist,
  * and case-folding tool deduplication.
@@ -97,6 +99,19 @@ export const CANONICAL_TOOL_MAP: Record<string, string> = {
   // Styling & UI
   tailwind: "TailwindCSS",
   tailwindcss: "TailwindCSS",
+  "tailwind css": "TailwindCSS",
+  "radix-ui": "Radix UI",
+  radix: "Radix UI",
+  "@radix-ui": "Radix UI",
+  "@radix-ui/react-dialog": "Radix UI",
+  "@radix-ui/react-dropdown-menu": "Radix UI",
+  "@radix-ui/react-popover": "Radix UI",
+  "@radix-ui/react-select": "Radix UI",
+  "@radix-ui/react-tooltip": "Radix UI",
+  "@radix-ui/react-slot": "Radix UI",
+  shadcn: "shadcn/ui",
+  "shadcn/ui": "shadcn/ui",
+  "@shadcn/ui": "shadcn/ui",
 
   // QA, Testing & Validation (Keep Signal!)
   jest: "Jest",
@@ -177,7 +192,30 @@ export function isMicroExclusionTool(name: string): boolean {
     "ts-node",
   ]);
 
-  return scaffolding.has(lower);
+  if (scaffolding.has(lower)) {
+    return true;
+  }
+
+  // 4. Physical source code filenames (e.g. marqlo_players_final_ver.py, visualizer.js, [fileId].js)
+  // Known dot-libraries (e.g. Next.js, Node.js, Socket.io) are explicitly in CANONICAL_TOOL_MAP.
+  if (!CANONICAL_TOOL_MAP[lower]) {
+    const dotIndex = lower.lastIndexOf(".");
+    if (dotIndex !== -1) {
+      const ext = lower.slice(dotIndex + 1).toLowerCase();
+      if (ALL_FILE_EXTENSIONS_SET.has(ext)) {
+        return true;
+      }
+    }
+  }
+
+  // 5. Physical directory paths (e.g. src/app, lib/utils, but preserve scoped npm packages like @radix-ui/react-dialog)
+  if (lower.includes("/")) {
+    if (!lower.startsWith("@")) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**

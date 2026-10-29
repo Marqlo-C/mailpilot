@@ -138,6 +138,8 @@ export async function analyzeRepoArtifacts(
     repositoryScale: `Tier ${scaleBudget.tier} (${scaleBudget.targetScope})`,
     targetBulletDensity: `Author between ${candidateMin} and ${candidateMax} candidate engineering bullets focusing on concrete technical mechanisms. Each bullet MUST describe a concrete technical mechanism or architectural subsystem—do NOT author Bullet 0 as a repository synopsis or repeat the description. These candidate bullets will undergo tournament selection and heuristic pruning.`,
     targetBulletCount: `${candidateMin} to ${candidateMax} candidate engineering bullets`,
+    architecturalDiversityRequirement:
+      "Distribute candidate bullets across distinct architectural layers: Computational Logic & Algorithms, UI & Interaction Architecture, Data Persistence & Storage, Security & Reliability, Networking & Protocols, and Quality/Observability. Do NOT author multiple candidate bullets focusing on the exact same subsystem.",
     categorizedSystemsDependencies: domainGroups,
     readmeDigest: readmeDigest || "No README available",
   };

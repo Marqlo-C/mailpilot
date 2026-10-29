@@ -9,11 +9,12 @@ import type { AccountRules } from "@/lib/validations/rules";
  * - System prompts or heuristic bullet generators
  * - Architectural density, code byte thresholds, or bullet count targets
  * - Oversampling ratios, tournament evaluation, or pruning algorithms
+ * - Universal architectural dimension classification and technology filtering
  *
  * Bumping this version automatically invalidates all cached ETag entries in
  * local/in-memory ledgers, ensuring unchanged repositories are re-scanned and re-inferred.
  */
-export const GITHUB_PARSER_VERSION = 8;
+export const GITHUB_PARSER_VERSION = 9;
 
 /**
  * Universal file extension taxonomy across tech stacks and ecosystems.

@@ -92,6 +92,9 @@ export function stripFileSystemArtifacts(bullet: string): string {
     return `${ext.toUpperCase()} files`;
   });
 
+  // 1b. Bracketed dynamic route filenames: e.g. `[fileId].js`, `[id].tsx`, `[slug].ts`
+  text = text.replace(/`?\[[a-zA-Z0-9_\-]+\]\.[a-zA-Z0-9]+`?/g, "");
+
   // 2. Prepositional directory references: e.g. "to src/data/", "in app/components/", "from tests/fixtures/"
   text = text.replace(
     new RegExp(
@@ -267,12 +270,81 @@ export function cleanTrivialPrimitives(bullet: string): string {
   return cleaned.replace(/\s{2,}/g, " ").trim();
 }
 
+export type ArchitecturalDimension =
+  | "COMPUTATIONAL_LOGIC"
+  | "INTERFACE_INTERACTION"
+  | "DATA_STORAGE"
+  | "SECURITY_RELIABILITY"
+  | "NETWORKING_PROTOCOLS"
+  | "OBSERVABILITY_TELEMETRY";
+
+export function detectArchitecturalDimension(bullet: string): ArchitecturalDimension {
+  const bLower = bullet.toLowerCase();
+
+  // 1. Security, Cryptography, Auth & Privacy
+  if (
+    /\b(?:aes-256|crypt(?:o|ography|ed|ographic)?|encryption|cipher|hash(?:ing|ed|es)?|sha-256|auth(?:enticat(?:ed|ion))?|jwt|(?:auth|bearer|session|csrf|access|refresh|api)\s*tokens?|credentials?|transient\s+storage|privacy|lock\s*acquisition|deadlock|race\s*condition|thread-safe|sanitiz(?:ed|ation))\b/i.test(
+      bLower
+    )
+  ) {
+    return "SECURITY_RELIABILITY";
+  }
+
+  // 2. Core Computational Logic, Algorithms, Decision Engines & Workflows
+  if (
+    /\b(?:minimax|alpha-beta|monte\s*carlo|search\s*tree|q-value|dqn|deep\s*q|heuristic|state\s*machine|algorithm(?:ic)?|matrix|matrices|vector|pathfinding|simulation|decision\s*engine|inference\s*router|fallback\s*hierarchy|pacing|hydration)\b/i.test(
+      bLower
+    )
+  ) {
+    return "COMPUTATIONAL_LOGIC";
+  }
+
+  // 3. User Interface, Visual Hierarchy, Interaction & Presentation
+  if (
+    /\b(?:ui|card|cards|peek\s*stack|drag-and-drop|modals?|components?|styling|layouts?|typograph(?:y|ic)|swipe|gestures?|keyboard|css|animation(?:s)?|render(?:ing|ed)?|canvas|viewport|tailwind|responsive)\b/i.test(
+      bLower
+    )
+  ) {
+    return "INTERFACE_INTERACTION";
+  }
+
+  // 4. Data Persistence, Schemas, Caching & State Storage
+  if (
+    /\b(?:postgresql|postgres|mysql|sqlite|mongodb|mongo|prisma|orm|drizzle|redis|database|schemas?|migration(?:s)?|persist(?:ence|ed|ing)?|cached?|caching|gridfs|store|stored|indexing|indexed|buffer|replay\s*buffer|deep\s*copy(?:ing)?)\b/i.test(
+      bLower
+    )
+  ) {
+    return "DATA_STORAGE";
+  }
+
+  // 5. Networking, Protocols, Integration & Ingestion (including network resilience & circuit breakers)
+  if (
+    /\b(?:http|rest(?:ful)?|api|apis|websocket(?:s)?|socket\.io|grpc|rpc|pub\s*\/?\s*sub|pubsub|message\s*queue|webhook(?:s)?|scrap(?:ing|er|e)|stream(?:ing|ed|s)?|byte-range|network|telematics|circuit\s*breaker|rate\s*limit(?:ing|ed|er)?)\b/i.test(
+      bLower
+    )
+  ) {
+    return "NETWORKING_PROTOCOLS";
+  }
+
+  // 6. Observability, Telemetry, Benchmarking & Testing
+  if (
+    /\b(?:telemetry|logg(?:er|ing)|benchmark(?:s|ing|ed)?|metrics?|profil(?:er|ing|ed)?|ascii|diagnostics?|tests?|testing|pytest|jest|vitest|playwright|cypress|coverage|monitoring|loss\s*charts?|reward\s*charts?)\b/i.test(
+      bLower
+    )
+  ) {
+    return "OBSERVABILITY_TELEMETRY";
+  }
+
+  return "COMPUTATIONAL_LOGIC";
+}
+
 export interface AuditedBullet {
   bullet: string;
   score: number;
   isChore: boolean;
   hasMetric: boolean;
   originalIndex?: number;
+  dimension?: ArchitecturalDimension;
 }
 
 /**
@@ -280,10 +352,16 @@ export interface AuditedBullet {
  */
 export function auditBulletSubstantiveness(bullet: string): AuditedBullet {
   if (LOW_SIGNAL_CHORE_REGEX.test(bullet)) {
-    return { bullet, score: 0, isChore: true, hasMetric: false };
+    return {
+      bullet,
+      score: 0,
+      isChore: true,
+      hasMetric: false,
+      dimension: detectArchitecturalDimension(bullet),
+    };
   }
 
-  let score = 3.5;
+  let score = 4.0;
   const hasMetric = detectMetric(bullet);
   if (hasMetric) score += 2.0;
 
@@ -351,6 +429,7 @@ export function auditBulletSubstantiveness(bullet: string): AuditedBullet {
     score: Math.max(0.5, Math.min(10.0, score)),
     isChore: false,
     hasMetric,
+    dimension: detectArchitecturalDimension(bullet),
   };
 }
 
@@ -806,7 +885,7 @@ export function adaptRepoToProjectItem(params: {
     scaleBudget.maxBullets
   );
 
-  // 3. Tournament selection: take highest substantive candidates (score >= 4.5) up to maxBullets
+  // 3. Tournament selection: Domain-diverse multi-pass ranking
   const primaryCandidates = deduplicated
     .filter((item) => item.score >= 4.5)
     .sort((a, b) => b.score - a.score);
@@ -816,15 +895,31 @@ export function adaptRepoToProjectItem(params: {
     .sort((a, b) => b.score - a.score);
 
   const chosen: AuditedBullet[] = [];
+  const chosenIndices = new Set<number>();
+  const representedDimensions = new Set<ArchitecturalDimension>();
 
-  // Take highest-scoring primary candidates up to scaleBudget.maxBullets
+  // Pass 1 (Breadth): Pick the highest-scoring candidate from each unique architectural dimension
   for (const item of primaryCandidates) {
-    if (chosen.length < scaleBudget.maxBullets) {
+    if (chosen.length >= scaleBudget.maxBullets) break;
+    const dim = item.dimension ?? "COMPUTATIONAL_LOGIC";
+    if (!representedDimensions.has(dim)) {
       chosen.push(item);
+      chosenIndices.add(item.originalIndex ?? 0);
+      representedDimensions.add(dim);
     }
   }
 
-  // Backfill from reserve pool ONLY if needed to satisfy scale budget minBullets
+  // Pass 2 (Depth): If capacity remains, select highest-scoring remaining primary candidates
+  for (const item of primaryCandidates) {
+    if (chosen.length >= scaleBudget.maxBullets) break;
+    const idx = item.originalIndex ?? 0;
+    if (!chosenIndices.has(idx)) {
+      chosen.push(item);
+      chosenIndices.add(idx);
+    }
+  }
+
+  // Pass 3 (Floor): Backfill from reserve pool ONLY if needed to satisfy scale budget minBullets
   while (chosen.length < scaleBudget.minBullets && reserveCandidates.length > 0) {
     chosen.push(reserveCandidates.shift()!);
   }

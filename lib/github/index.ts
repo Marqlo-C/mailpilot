@@ -70,6 +70,9 @@ export {
   deduplicateOrSynthesizeBullets,
   isUngroundedHallucination,
   LOW_SIGNAL_CHORE_REGEX,
+  detectArchitecturalDimension,
+  type ArchitecturalDimension,
+  type AuditedBullet,
 } from "./lens";
 
 // Main Syncer Orchestration & ETag Cache
