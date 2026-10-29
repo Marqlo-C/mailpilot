@@ -35,6 +35,7 @@ import {
   GITHUB_PARSER_VERSION,
   calculatePureCodeBytes,
   countVerifiedSubsystems,
+  type GitHubRawRepo,
 } from "@/lib/github";
 import { consolidateProfiles } from "@/lib/profile/profile-consolidation";
 import { getEmptyMasterProfileData, detectMetric } from "@/lib/validations/profile";
@@ -416,7 +417,7 @@ MIT
 
       const parsedPrompt = JSON.parse(callArgs.userPrompt);
       expect(parsedPrompt.repositoryScale).toContain("Tier 1");
-      expect(parsedPrompt.targetBulletCount).toBe("2 to 4 high-density engineering bullets");
+      expect(parsedPrompt.targetBulletCount).toBe("2 to 4 candidate engineering bullets");
       expect(parsedPrompt.readmeDigest).toContain("CLI tool engineered to stream and transform large NDJSON datasets");
       expect(parsedPrompt.readmeDigest).toContain("Engineered around Node.js stream pipelines");
       expect(parsedPrompt.readmeDigest).not.toContain("npm install");
@@ -519,9 +520,9 @@ Respectful collaboration is strictly required.
 
       const parsedPrompt = JSON.parse(callArgs.userPrompt);
 
-      // Verify Tier 3 scale and target bullets
+      // Verify Tier 3 scale and target bullets (with oversampling on rich context: 10 + 2 = 12)
       expect(parsedPrompt.repositoryScale).toContain("Tier 3");
-      expect(parsedPrompt.targetBulletCount).toBe("6 to 10 high-density engineering bullets");
+      expect(parsedPrompt.targetBulletCount).toBe("6 to 12 candidate engineering bullets");
 
       // Verify verified architectural topology was deduced and injected
       expect(parsedPrompt.verifiedArchitecturalTopology).toContain("Verified architectural topology:");
@@ -1755,6 +1756,118 @@ Respectful collaboration is strictly required.
           safeHavenCorpus
         )
       ).toBe(false);
+    });
+
+    it("evaluates oversampled candidate bullets through heuristic tournament pruning", () => {
+      const repo: GitHubRawRepo = {
+        name: "data-pipeline",
+        description: "High-throughput data ingestion and transformation engine",
+        html_url: "https://github.com/test/data-pipeline",
+        fork: false,
+        archived: false,
+        language: "TypeScript",
+        stargazers_count: 10,
+        forks_count: 2,
+      };
+
+      // 10 candidate bullets generated via oversampling for Tier 2 (budget: min 4, max 8)
+      const candidateBullets = [
+        "Architected an event-driven stream processing pipeline utilizing Node.js streams to handle 50MB payloads with sub-50ms latency.", // score: high (metric + concurrency)
+        "Integrated distributed state machines with Redis persistence to guarantee idempotent job execution across worker clusters.", // score: high (persistence + concurrency)
+        "Formulated radial spatial search indexing via bounding boxes to optimize geographic query performance.", // score: high (algorithm)
+        "Automated continuous integration and deployment workflows via GitHub Actions for automated test runs.", // score: medium (~5.0)
+        "Streamlined user interface styling across desktop and mobile screens, ensuring seamless responsive layouts.", // score: low (UI styling penalty)
+        "Configured environment variables for local testing.", // score: 0 (chore)
+        "Engineered WebSocket subscriptions with JWT authentication to push real-time anomaly alerts to connected dashboards.", // score: high (protocol + auth)
+        "Implemented distributed lock acquisition utilizing Redis TTLs to eliminate race conditions in parallel task queues.", // score: high (concurrency + cache)
+        "Optimized database query indexes across high-traffic PostgreSQL tables to reduce query latency by 45%.", // score: high (metric + persistence)
+        "Updated documentation and readme files with setup guidelines.", // score: 0 (chore)
+      ];
+
+      const project = adaptRepoToProjectItem({
+        repo,
+        bullets: candidateBullets,
+        inferredTechnologies: ["TypeScript", "Redis", "PostgreSQL", "Node.js"],
+        manifestTechnologies: ["TypeScript", "Redis", "PostgreSQL"],
+        scaleBudget: { minBullets: 4, maxBullets: 8 },
+        repoContextText: "data pipeline event stream processing redis worker postgresql websocket jwt",
+      });
+
+      // 1. Chores must be strictly dropped
+      expect(project.bullets.some((b) => b.includes("environment variables"))).toBe(false);
+      expect(project.bullets.some((b) => b.includes("Updated documentation"))).toBe(false);
+
+      // 2. Clamped strictly to maxBullets (8)
+      expect(project.bullets.length).toBeLessThanOrEqual(8);
+      expect(project.bullets.length).toBeGreaterThanOrEqual(4);
+
+      // 3. High substantive bullets must survive the tournament
+      const allText = project.bullets.join("\n");
+      expect(allText).toContain("stream processing pipeline");
+      expect(allText).toContain("distributed state machines");
+      expect(allText).toContain("WebSocket subscriptions");
+
+      // 4. Leading verbs are diversified
+      const verbs = project.bullets.map((b) => b.split(" ")[0]);
+      const uniqueVerbs = new Set(verbs);
+      expect(uniqueVerbs.size).toBe(verbs.length);
+    });
+
+    it("does not artificially backfill weak reserve bullets when primary candidates satisfy minBullets", () => {
+      const repo: GitHubRawRepo = {
+        name: "analytics-tool",
+        description: "CLI analytics utility",
+        html_url: "https://github.com/test/analytics-tool",
+        fork: false,
+        archived: false,
+        language: "Python",
+        stargazers_count: 5,
+        forks_count: 1,
+      };
+
+      // 4 high-quality bullets and 3 weak reserve bullets
+      const bullets = [
+        "Formulated recursive search tree traversal with alpha-beta pruning to benchmark heuristic decision matrices.", // high
+        "Engineered concurrent thread pools utilizing Python workers to process 10,000 matrix operations in 250ms.", // high (metric + concurrency)
+        "Automated test coverage with pytest across integration suites, validating boundary matrix conditions.", // high (tests)
+        "Persisted benchmark telemetry into SQLite databases with schema migrations.", // high (persistence)
+        "Streamlined styling across screens, ensuring seamless layouts.", // weak reserve
+        "Adjusted user preferences for themes.", // weak reserve
+      ];
+
+      const project = adaptRepoToProjectItem({
+        repo,
+        bullets,
+        inferredTechnologies: ["Python"],
+        scaleBudget: { minBullets: 4, maxBullets: 8 },
+        repoContextText: "analytics tool python thread search tree sqlite",
+      });
+
+      // Since 4 high-scoring bullets satisfy minBullets (4), weak reserve bullets should NOT be pulled in
+      expect(project.bullets.length).toBe(4);
+      expect(project.bullets.some((b) => b.includes("Streamlined styling"))).toBe(false);
+      expect(project.bullets.some((b) => b.includes("Adjusted user preferences"))).toBe(false);
+    });
+
+    it("deduplicateOrSynthesizeBullets selects the higher scoring candidate without synthetic phrases", () => {
+      const bulletA = {
+        bullet: "Constructed an event dispatcher to synchronize game state transitions across active rounds.",
+        score: 6.5,
+        isChore: false,
+        hasMetric: false,
+      };
+      const bulletB = {
+        bullet: "Engineered an event dispatcher to synchronize game state transitions across active rounds in under 15ms.",
+        score: 8.5,
+        isChore: false,
+        hasMetric: true,
+      };
+
+      const result = deduplicateOrSynthesizeBullets([bulletA, bulletB], 4);
+      expect(result).toHaveLength(1);
+      expect(result[0]!.score).toBe(8.5);
+      expect(result[0]!.bullet).toContain("15ms");
+      expect(result[0]!.bullet).not.toContain("dynamically coordinating");
     });
   });
 });

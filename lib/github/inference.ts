@@ -108,12 +108,36 @@ export async function analyzeRepoArtifacts(
     };
   }
 
+  const readmeLength = readme ? readme.trim().length : 0;
+  const verifiedSubsystemsCount =
+    (subsystems.hasDatabase ? 1 : 0) +
+    (subsystems.hasTests ? 1 : 0) +
+    (subsystems.hasContainerization ? 1 : 0) +
+    (subsystems.hasCiCd ? 1 : 0) +
+    (subsystems.hasMonorepo ? 1 : 0) +
+    (subsystems.hasMultiDomainTopology ? 1 : 0);
+
+  const resolvedCodeBytes = pureCodeBytes ?? structuralMarkers?.pureCodeBytes ?? null;
+
+  // Rich context heuristic: repo has substantive README or substantial multi-manifest/subsystem depth
+  const hasRichContext =
+    hasReadme &&
+    (readmeLength >= 1200 ||
+      (manifestTechnologies.length >= 4 && (resolvedCodeBytes ?? 0) >= 25000) ||
+      (verifiedSubsystemsCount >= 2 && readmeLength >= 800));
+
+  // When context is rich, oversample candidate pool by +2 so heuristic tournament can prune weaker bullets.
+  // When context is sparse (no README or short README), stay conservative to prevent hallucination.
+  const oversampleDelta = hasRichContext ? 2 : 0;
+  const candidateMin = scaleBudget.minBullets;
+  const candidateMax = scaleBudget.maxBullets + oversampleDelta;
+
   const promptPayload: Record<string, unknown> = {
     repository: repoName,
     scaleTier: `Tier ${scaleBudget.tier} (${scaleBudget.targetScope})`,
     repositoryScale: `Tier ${scaleBudget.tier} (${scaleBudget.targetScope})`,
-    targetBulletDensity: `Author between ${scaleBudget.minBullets} and ${scaleBudget.maxBullets} high-density engineering bullets. Each bullet MUST describe a concrete technical mechanism or architectural subsystem—do NOT author Bullet 0 as a repository synopsis or repeat the description.`,
-    targetBulletCount: `${scaleBudget.minBullets} to ${scaleBudget.maxBullets} high-density engineering bullets`,
+    targetBulletDensity: `Author between ${candidateMin} and ${candidateMax} candidate engineering bullets focusing on concrete technical mechanisms. Each bullet MUST describe a concrete technical mechanism or architectural subsystem—do NOT author Bullet 0 as a repository synopsis or repeat the description. These candidate bullets will undergo tournament selection and heuristic pruning.`,
+    targetBulletCount: `${candidateMin} to ${candidateMax} candidate engineering bullets`,
     categorizedSystemsDependencies: domainGroups,
     readmeDigest: readmeDigest || "No README available",
   };
