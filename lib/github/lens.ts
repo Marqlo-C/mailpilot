@@ -174,6 +174,18 @@ export function stripFileSystemArtifacts(bullet: string): string {
     "$1"
   );
 
+  // 8b. Clean stranded preposition immediately before punctuation (e.g. "matches using, reporting" -> "matches, reporting")
+  text = text.replace(
+    /\s*\b(?:using|via|in|from|through|with|by|under|at)\s*([,.;:!?])/gi,
+    "$1"
+  );
+
+  // 8c. Clean orphan preposition at end of clause or sentence
+  text = text.replace(/\s+\b(?:using|via|in|from|through|with|by|under|at)\s*$/gi, ".");
+
+  // 8d. Clean stray spaces before punctuation (e.g. "matches , reporting" -> "matches, reporting")
+  text = text.replace(/\s+([,.;:!?])/g, "$1");
+
   // 9. Collapse multi-spaces
   text = text.replace(/\s{2,}/g, " ");
 

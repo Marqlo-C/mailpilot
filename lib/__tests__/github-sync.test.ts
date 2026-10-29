@@ -211,7 +211,7 @@ Streams metrics via OpenTelemetry gRPC exporters with sub-millisecond precision.
 
       expect(scale.tier).toBe(1);
       expect(scale.ingestCharBudget).toBe(2500);
-      expect(scale.minBullets).toBe(2);
+      expect(scale.minBullets).toBe(3);
       expect(scale.maxBullets).toBe(4);
       expect(scale.targetScope).toContain("CLI tools");
     });
@@ -259,7 +259,7 @@ Streams metrics via OpenTelemetry gRPC exporters with sub-millisecond precision.
         hasReadme: false,
       });
 
-      expect(noReadmeScale.minBullets).toBe(2);
+      expect(noReadmeScale.minBullets).toBe(3);
       expect(noReadmeScale.maxBullets).toBe(4);
       expect(noReadmeScale.targetScope).toContain("no README");
     });
@@ -418,7 +418,7 @@ MIT
 
       const parsedPrompt = JSON.parse(callArgs.userPrompt);
       expect(parsedPrompt.repositoryScale).toContain("Tier 1");
-      expect(parsedPrompt.targetBulletCount).toBe("2 to 4 candidate engineering bullets");
+      expect(parsedPrompt.targetBulletCount).toBe("3 to 4 candidate engineering bullets");
       expect(parsedPrompt.readmeDigest).toContain("CLI tool engineered to stream and transform large NDJSON datasets");
       expect(parsedPrompt.readmeDigest).toContain("Engineered around Node.js stream pipelines");
       expect(parsedPrompt.readmeDigest).not.toContain("npm install");
@@ -1480,7 +1480,7 @@ Respectful collaboration is strictly required.
         hasReadme: true,
       });
       expect(smallScale.tier).toBe(1);
-      expect(smallScale.minBullets).toBe(2);
+      expect(smallScale.minBullets).toBe(3);
       expect(smallScale.maxBullets).toBe(4);
 
       // 25 KB - 120 KB pure code -> Tier 2 (4-8 bullets)
@@ -1534,7 +1534,7 @@ Respectful collaboration is strictly required.
       });
 
       expect(largeNoReadme.tier).toBe(3);
-      expect(largeNoReadme.minBullets).toBe(2);
+      expect(largeNoReadme.minBullets).toBe(3);
       expect(largeNoReadme.maxBullets).toBe(4);
     });
 
@@ -1912,6 +1912,14 @@ Respectful collaboration is strictly required.
       const cleaned = stripFileSystemArtifacts(raw);
       expect(cleaned).not.toContain("[fileId].js");
       expect(cleaned).toContain("media streaming engine to allow survivors");
+    });
+
+    it("cleans stranded prepositions before punctuation resulting from filename stripping", () => {
+      const raw = "Designed and implemented AI vs AI matches using matchup_visualizer.py, reporting wins and ties.";
+      const cleaned = stripFileSystemArtifacts(raw);
+      expect(cleaned).not.toContain("matchup_visualizer.py");
+      expect(cleaned).not.toContain("using,");
+      expect(cleaned).toBe("Designed and implemented AI vs AI matches, reporting wins and ties.");
     });
 
     it("accurately classifies engineering bullets into Universal CS Dimensions", () => {

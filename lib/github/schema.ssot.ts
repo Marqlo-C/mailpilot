@@ -10,11 +10,12 @@ import type { AccountRules } from "@/lib/validations/rules";
  * - Architectural density, code byte thresholds, or bullet count targets
  * - Oversampling ratios, tournament evaluation, or pruning algorithms
  * - Universal architectural dimension classification and technology filtering
+ * - Calibrated sparse and Tier 1 minimum bullet floors to 3
  *
  * Bumping this version automatically invalidates all cached ETag entries in
  * local/in-memory ledgers, ensuring unchanged repositories are re-scanned and re-inferred.
  */
-export const GITHUB_PARSER_VERSION = 9;
+export const GITHUB_PARSER_VERSION = 10;
 
 /**
  * Universal file extension taxonomy across tech stacks and ecosystems.
@@ -296,13 +297,13 @@ export function determineRepoScale(info: DetermineRepoScaleParams): RepoComplexi
     }
   }
 
-  // No-README Safeguard: Ground density strictly to 2–4 bullets
+  // No-README Safeguard: Ground density strictly to 3–4 bullets
   if (!hasReadme) {
     return {
       tier,
       targetScope: `${targetScope} (no README)`,
       ingestCharBudget: budget,
-      minBullets: 2,
+      minBullets: 3,
       maxBullets: 4,
     };
   }
@@ -331,7 +332,7 @@ export function determineRepoScale(info: DetermineRepoScaleParams): RepoComplexi
     tier: 1,
     targetScope,
     ingestCharBudget: budget,
-    minBullets: 2,
+    minBullets: 3,
     maxBullets: 4,
   };
 }
