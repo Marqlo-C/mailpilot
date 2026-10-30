@@ -305,7 +305,7 @@ Consumes `MatchCandidateLens` to evaluate alignment between candidate credential
 While general profile parsing across MailPilot remains strictly career-agnostic, repository synchronization serves as our **dedicated software & systems engineering domain**. It adopts an authentic, authoritative register spoken directly to senior technical reviewers:
 
 ```mermaid
-%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 48, "subGraphTitleMargin": {"top": 16, "bottom": 20}}}}%%
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".node text, .node foreignObject, .label foreignObject { overflow: visible !important; } .cluster text, .cluster-label span { overflow: visible !important; } .edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 28, "nodeSpacing": 44, "rankSpacing": 48, "subGraphTitleMargin": {"top": 18, "bottom": 24}}}}%%
 flowchart TD
   API["GitHub REST & Raw Content APIs<br/>(repos?type=owner · raw.githubusercontent)"]
 
@@ -314,9 +314,9 @@ flowchart TD
     SCALE["determineRepoScale()<br/>• Tier 1: 2.5K chars, 3-4 bullets<br/>• Tier 2: 5.5K chars, 4-8 bullets<br/>• Tier 3: 10K chars, 6-10 bullets<br/>• 0-README: 3-4 bullets max"]
   end
 
-  subgraph Stage2["2. Deep Systems Inference"]
-    INF["inference.ts: Deep Inference<br/>• Multi-Tier Model Coordination<br/>• Diverse Systems Action Verbs"]
-    PROMPT["DEEP_ANALYSIS_SYSTEM_PROMPT<br/>• Grounded Metric Harvesting<br/>• Ban on Chores and Summary Intro"]
+  subgraph Stage2["2. Deep Systems Inference Engine"]
+    INF["inference.ts: Multi-Tier Inference Engine<br/>• Local Ollama & Cloud BYOK Orchestration<br/>• Dynamic Systems Action Verbs Matrix"]
+    PROMPT["DEEP_ANALYSIS_SYSTEM_PROMPT<br/>• Grounded Operational Metric Harvesting<br/>• Strict Ban on Setup Chores & Fluff"]
   end
 
   subgraph Stage3["3. 3-Pass Tournament & Breadth Lens"]
