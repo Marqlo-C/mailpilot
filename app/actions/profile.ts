@@ -8,6 +8,7 @@ import { syncGitHubProjects, normalizeGitHubUsername } from "@/lib/github";
 import { parseLinkedInArchive } from "@/lib/profile/linkedin-archive-parser";
 import {
   consolidateProfiles,
+  deduplicateProjectCollection,
   enrichLinksFromRawText,
   extractPlatformLinks,
   githubProfileUrlInText,
@@ -113,19 +114,25 @@ async function captureProfileRevision(
   accountId: string,
   summary: string
 ): Promise<string | null> {
-  const existingTree = await prisma.userProfile.findUnique({
-    where: { accountId },
-    include: {
-      experiences: { orderBy: { displayOrder: "asc" } },
-      projects: true,
-      education: true,
-    },
-  });
+  const [existingTree, settings] = await Promise.all([
+    prisma.userProfile.findUnique({
+      where: { accountId },
+      include: {
+        experiences: { orderBy: { displayOrder: "asc" } },
+        projects: true,
+        education: true,
+      },
+    }),
+    prisma.accountSettings.findUnique({
+      where: { accountId },
+    }),
+  ]);
   if (!existingTree) return null;
+  const rules = parseAccountRules(settings?.rules);
   await recordProfileSnapshot(
     existingTree.id,
     summary,
-    serializeUserProfileToInput(existingTree)
+    serializeUserProfileToInput(existingTree, rules.projectMeta)
   );
   return existingTree.id;
 }
@@ -296,52 +303,14 @@ export async function applyResumeUpload(
       });
 
       const linkedGithub = `https://github.com/${username}`;
-      const existingProjectNames = new Set(
-        profileDraft.projects.map((p) =>
-          p.name.toLowerCase().replace(/[^a-z0-9]/g, "")
-        )
-      );
-
-      const additionalProjects = githubProjects
-        .filter(
-          (gp) =>
-            !existingProjectNames.has(
-              gp.name.toLowerCase().replace(/[^a-z0-9]/g, "")
-            )
-        )
-        .map((gp) => ({
-          name: gp.name,
-          description: gp.description,
-          technologies: gp.technologies,
-          link: gp.link,
-          bullets: gp.bullets,
-          origin: gp.origin,
-        }));
-
-      if (forceReinfer) {
-        // When force-reinferring in development, refresh matching resume projects with newly inferred GitHub bullets
-        for (const gp of githubProjects) {
-          const matchIndex = profileDraft.projects.findIndex(
-            (p) =>
-              p.name.toLowerCase().replace(/[^a-z0-9]/g, "") ===
-              gp.name.toLowerCase().replace(/[^a-z0-9]/g, "")
-          );
-          if (matchIndex >= 0) {
-            profileDraft.projects[matchIndex] = {
-              ...profileDraft.projects[matchIndex]!,
-              bullets: gp.bullets,
-              link: gp.link || profileDraft.projects[matchIndex]!.link,
-              technologies: [
-                ...new Set([
-                  ...(profileDraft.projects[matchIndex]!.technologies || []),
-                  ...gp.technologies,
-                ]),
-              ],
-              origin: gp.origin,
-            };
-          }
-        }
-      }
+      const formattedGithubProjects = githubProjects.map((gp) => ({
+        name: gp.name,
+        description: gp.description,
+        technologies: gp.technologies,
+        link: gp.link,
+        bullets: gp.bullets,
+        origin: gp.origin,
+      }));
 
       const hasGithubLink = profileDraft.links.some(
         (l) =>
@@ -351,11 +320,10 @@ export async function applyResumeUpload(
 
       profileDraft = {
         ...profileDraft,
-        projects: [...profileDraft.projects, ...additionalProjects].sort((a, b) =>
-          (a.name || "").localeCompare(b.name || "", undefined, {
-            sensitivity: "base",
-          })
-        ),
+        projects: deduplicateProjectCollection([
+          ...profileDraft.projects,
+          ...formattedGithubProjects,
+        ]),
         links: hasGithubLink
           ? profileDraft.links
           : [...profileDraft.links, { label: "GitHub", url: linkedGithub }],
@@ -387,14 +355,19 @@ export async function saveMasterProfile(
   data: MasterProfileInput,
   options?: UpdateMasterProfileOptions
 ): Promise<ActionResult<{ profileId: string }>> {
-  const existing = await prisma.userProfile.findUnique({
-    where: { accountId },
-    include: {
-      experiences: { orderBy: { displayOrder: "asc" } },
-      projects: true,
-      education: true,
-    },
-  });
+  const [existing, existingSettings] = await Promise.all([
+    prisma.userProfile.findUnique({
+      where: { accountId },
+      include: {
+        experiences: { orderBy: { displayOrder: "asc" } },
+        projects: true,
+        education: true,
+      },
+    }),
+    prisma.accountSettings.findUnique({
+      where: { accountId },
+    }),
+  ]);
 
   const platforms = extractPlatformLinks(data.links);
   let consolidated: MasterProfileInput = data;
@@ -402,7 +375,8 @@ export async function saveMasterProfile(
   const overwriteAll = options?.overwriteAll === true;
 
   if (existing) {
-    const current = serializeUserProfileToInput(existing);
+    const currentRules = parseAccountRules(existingSettings?.rules);
+    const current = serializeUserProfileToInput(existing, currentRules.projectMeta);
     consolidated = consolidateProfiles(current, data, { overwriteAll });
   }
 
@@ -454,6 +428,7 @@ export async function saveMasterProfile(
         options?.summary ??
         (existing ? "Additive Profile Update" : "Before Resume Extraction"),
       skipHistory: options?.skipHistory,
+      overwriteAll,
     }
   );
 }
@@ -496,16 +471,22 @@ export async function updateMasterProfile(
         options?.summary === "Before Profile Reset";
       let summary = options?.summary ?? "Profile update";
       if (!keepGiven) {
-        const existingTree = await prisma.userProfile.findUnique({
-          where: { accountId },
-          include: {
-            experiences: { orderBy: { displayOrder: "asc" } },
-            projects: true,
-            education: true,
-          },
-        });
+        const [existingTree, existingSettings] = await Promise.all([
+          prisma.userProfile.findUnique({
+            where: { accountId },
+            include: {
+              experiences: { orderBy: { displayOrder: "asc" } },
+              projects: true,
+              education: true,
+            },
+          }),
+          prisma.accountSettings.findUnique({
+            where: { accountId },
+          }),
+        ]);
+        const currentRules = parseAccountRules(existingSettings?.rules);
         const previous = existingTree
-          ? serializeUserProfileToInput(existingTree)
+          ? serializeUserProfileToInput(existingTree, currentRules.projectMeta)
           : null;
         const described = describeProfileRevision(previous, payload);
         if (previous && isEmptyProfileDiff(described.diff)) {
@@ -594,6 +575,101 @@ export async function updateMasterProfile(
             bullets: p.bullets,
           })),
         });
+
+        // Agnostically persist project metadata (bulletOrigins, variants, origin) in rules
+        const existingSettings = await tx.accountSettings.findUnique({
+          where: { accountId },
+        });
+        const currentRules = parseAccountRules(existingSettings?.rules);
+        const updatedProjectMeta: Record<
+          string,
+          {
+            origin?: string;
+            bulletOrigins?: Record<string, string>;
+            variants?: unknown[];
+          }
+        > = {
+          ...(options?.overwriteAll ? {} : (currentRules.projectMeta || {})),
+        };
+
+        for (const p of payload.projects) {
+          const normKey = normalizeProjectName(p.name);
+          const lowerKey = p.name.trim().toLowerCase();
+          const repoSlug = p.link ? p.link.split("/").pop()?.replace(/\.git$/i, "") : null;
+          const defaultOrigin = p.origin ?? "HUMAN_VERIFIED";
+          const existingBulletOrigins =
+            updatedProjectMeta[normKey]?.bulletOrigins ??
+            updatedProjectMeta[lowerKey]?.bulletOrigins ??
+            (repoSlug ? updatedProjectMeta[repoSlug]?.bulletOrigins ?? updatedProjectMeta[repoSlug.toLowerCase()]?.bulletOrigins : undefined) ??
+            {};
+          const bOrigins: Record<string, string> = {
+            ...(options?.overwriteAll ? {} : existingBulletOrigins),
+            ...(p.bulletOrigins ?? {}),
+          };
+          for (const b of p.bullets) {
+            if (!bOrigins[b]) {
+              bOrigins[b] = defaultOrigin;
+            }
+          }
+
+          const existingVariants =
+            updatedProjectMeta[normKey]?.variants ??
+            updatedProjectMeta[lowerKey]?.variants ??
+            (repoSlug ? updatedProjectMeta[repoSlug]?.variants ?? updatedProjectMeta[repoSlug.toLowerCase()]?.variants : undefined) ??
+            [];
+
+          const metaEntry = {
+            origin: defaultOrigin,
+            bulletOrigins: bOrigins,
+            variants:
+              (p.variants as unknown[]) ??
+              (options?.overwriteAll ? [] : existingVariants),
+          };
+          updatedProjectMeta[normKey] = metaEntry;
+          updatedProjectMeta[lowerKey] = metaEntry;
+          if (repoSlug) {
+            updatedProjectMeta[repoSlug] = metaEntry;
+            updatedProjectMeta[repoSlug.toLowerCase()] = metaEntry;
+          }
+        }
+
+        await tx.accountSettings.upsert({
+          where: { accountId },
+          create: {
+            accountId,
+            rules: {
+              ...currentRules,
+              projectMeta: updatedProjectMeta,
+            } as Prisma.InputJsonValue,
+          },
+          update: {
+            rules: {
+              ...currentRules,
+              projectMeta: updatedProjectMeta,
+            } as Prisma.InputJsonValue,
+          },
+        });
+      } else if (options?.overwriteAll) {
+        const existingSettings = await tx.accountSettings.findUnique({
+          where: { accountId },
+        });
+        const currentRules = parseAccountRules(existingSettings?.rules);
+        await tx.accountSettings.upsert({
+          where: { accountId },
+          create: {
+            accountId,
+            rules: {
+              ...currentRules,
+              projectMeta: {},
+            } as Prisma.InputJsonValue,
+          },
+          update: {
+            rules: {
+              ...currentRules,
+              projectMeta: {},
+            } as Prisma.InputJsonValue,
+          },
+        });
       }
 
       if (payload.education.length > 0) {
@@ -649,16 +725,22 @@ export async function resetMasterProfile(
   const blank = getEmptyMasterProfileData();
 
   try {
-    const existingTree = await prisma.userProfile.findUnique({
-      where: { accountId },
-      include: {
-        experiences: { orderBy: { displayOrder: "asc" } },
-        projects: true,
-        education: true,
-      },
-    });
+    const [existingTree, existingSettings] = await Promise.all([
+      prisma.userProfile.findUnique({
+        where: { accountId },
+        include: {
+          experiences: { orderBy: { displayOrder: "asc" } },
+          projects: true,
+          education: true,
+        },
+      }),
+      prisma.accountSettings.findUnique({
+        where: { accountId },
+      }),
+    ]);
+    const currentRules = parseAccountRules(existingSettings?.rules);
     const previous = existingTree
-      ? serializeUserProfileToInput(existingTree)
+      ? serializeUserProfileToInput(existingTree, currentRules.projectMeta)
       : null;
     const currentSummary = serializeRevisionSummary(
       describeProfileRevision(previous, {
@@ -700,6 +782,22 @@ export async function resetMasterProfile(
       });
       await tx.education.deleteMany({
         where: { profileId: account.profile!.id },
+      });
+      await tx.accountSettings.upsert({
+        where: { accountId },
+        create: {
+          accountId,
+          rules: {
+            ...currentRules,
+            projectMeta: {},
+          } as Prisma.InputJsonValue,
+        },
+        update: {
+          rules: {
+            ...currentRules,
+            projectMeta: {},
+          } as Prisma.InputJsonValue,
+        },
       });
     });
 
@@ -767,22 +865,37 @@ export async function getMasterProfile(
   >
 > {
   try {
-    const profile = await prisma.userProfile.findUnique({
-      where: { accountId },
-      include: {
-        experiences: { orderBy: { displayOrder: "asc" } },
-        projects: { orderBy: { name: "asc" } },
-        education: true,
-        history: {
-          orderBy: { createdAt: "desc" },
-          select: { createdAt: true, summary: true },
+    const [profile, settings] = await Promise.all([
+      prisma.userProfile.findUnique({
+        where: { accountId },
+        include: {
+          experiences: { orderBy: { displayOrder: "asc" } },
+          projects: { orderBy: { name: "asc" } },
+          education: true,
+          history: {
+            orderBy: { createdAt: "desc" },
+            select: { createdAt: true, summary: true },
+          },
         },
-      },
-    });
+      }),
+      prisma.accountSettings.findUnique({
+        where: { accountId },
+      }),
+    ]);
 
     if (!profile) {
       return { ok: false, error: "Profile not found" };
     }
+
+    const rules = parseAccountRules(settings?.rules);
+    const metaMap = (rules.projectMeta || {}) as Record<
+      string,
+      {
+        origin?: string;
+        bulletOrigins?: Record<string, string>;
+        variants?: MasterProfileInput["projects"][number]["variants"];
+      }
+    >;
 
     return {
       ok: true,
@@ -808,14 +921,27 @@ export async function getMasterProfile(
           displayOrder: e.displayOrder,
         })),
         projects: profile.projects
-          .map((p) => ({
-            id: p.id,
-            name: p.name,
-            description: p.description,
-            technologies: p.technologies,
-            link: p.link,
-            bullets: p.bullets,
-          }))
+          .map((p) => {
+            const normKey = normalizeProjectName(p.name);
+            const lowerKey = p.name.trim().toLowerCase();
+            const repoSlug = p.link ? p.link.split("/").pop()?.replace(/\.git$/i, "") : null;
+            const meta =
+              metaMap[normKey] ||
+              metaMap[lowerKey] ||
+              (repoSlug ? metaMap[repoSlug] || metaMap[repoSlug.toLowerCase()] : null) ||
+              metaMap[p.name];
+            return {
+              id: p.id,
+              name: p.name,
+              description: p.description,
+              technologies: p.technologies,
+              link: p.link,
+              bullets: p.bullets,
+              bulletOrigins: meta?.bulletOrigins,
+              variants: meta?.variants,
+              origin: (meta?.origin || "HUMAN_VERIFIED") as MasterProfileInput["projects"][number]["origin"],
+            };
+          })
           .sort((a, b) =>
             (a.name || "").localeCompare(b.name || "", undefined, {
               sensitivity: "base",
@@ -1182,46 +1308,25 @@ export async function importGitHubProjects(
     });
     const linkedGithub = `https://github.com/${username}`;
 
-    await prisma.$transaction(async (tx) => {
-      await tx.userProfile.update({
-        where: { accountId },
-        data: { linkedGithub },
-      });
-
-      for (const project of projects) {
-        const cleanName = normalizeProjectName(project.name);
-        const existing = await tx.project.findFirst({
-          where: {
-            profileId: account.profile!.id,
-            name: cleanName,
-          },
-        });
-
-        if (existing) {
-          await tx.project.update({
-            where: { id: existing.id },
-            data: {
-              name: cleanName,
-              description: project.description,
-              technologies: project.technologies,
-              link: project.link,
-              bullets: project.bullets,
-            },
-          });
-        } else {
-          await tx.project.create({
-            data: {
-              profileId: account.profile!.id,
-              name: cleanName,
-              description: project.description,
-              technologies: project.technologies,
-              link: project.link,
-              bullets: project.bullets,
-            },
-          });
+    const currentProfileResult = await getMasterProfile(accountId);
+    if (currentProfileResult.ok && currentProfileResult.data) {
+      const currentProjects = currentProfileResult.data.projects;
+      const mergedProjects = deduplicateProjectCollection([
+        ...currentProjects,
+        ...projects,
+      ]);
+      await updateMasterProfile(
+        accountId,
+        {
+          ...currentProfileResult.data,
+          linkedGithub,
+          projects: mergedProjects,
+        },
+        {
+          summary: "GitHub Sync",
         }
-      }
-    });
+      );
+    }
 
     revalidatePath("/settings");
     return { ok: true, data: { imported: projects.length } };
@@ -1273,6 +1378,7 @@ export async function exportMasterProfilePdfAction(
         certifications: profile.certifications,
         awards: profile.awards,
         interests: profile.interests,
+        includeVariants: true,
       }
     );
 

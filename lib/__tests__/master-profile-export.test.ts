@@ -160,6 +160,52 @@ describe("Master Profile PDF Export", () => {
     expect(pdfBuffer.subarray(0, 4).toString()).toBe("%PDF");
   }, 20000);
 
+  it("includes companion and inferred variants when includeVariants: true is set, but excludes them by default", async () => {
+    const profileWithVariants = {
+      ...sampleProfile,
+      projects: [
+        {
+          id: "proj-1",
+          name: "Telemetry Engine",
+          description: "Open-source metric daemon",
+          technologies: ["Go", "eBPF"],
+          bullets: ["Primary human-verified capability."],
+          variants: [
+            {
+              id: "var-1",
+              text: "Inferred companion variant capability.",
+              origin: "GITHUB_INFERRED" as const,
+              status: "ACTIVE_VARIANT" as const,
+              confidenceScore: 0.85,
+              typologies: [],
+            },
+          ],
+        },
+      ],
+    };
+
+    // 1. Standard resume print (default) excludes variants
+    const standardPdf = await generateTailoredResumePdf(
+      profileWithVariants,
+      profileWithVariants.experiences,
+      profileWithVariants.projects
+    );
+    expect(standardPdf).toBeInstanceOf(Buffer);
+
+    // 2. Master Profile print (includeVariants: true) includes variants
+    const masterPdf = await generateTailoredResumePdf(
+      profileWithVariants,
+      profileWithVariants.experiences,
+      profileWithVariants.projects,
+      null,
+      null,
+      false,
+      { includeVariants: true }
+    );
+    expect(masterPdf).toBeInstanceOf(Buffer);
+    expect(masterPdf.length).toBeGreaterThan(100);
+  });
+
   describe("exportMasterProfilePdfAction", () => {
     it("returns error if accountId is empty or account not found", async () => {
       const resMissing = await exportMasterProfilePdfAction("");

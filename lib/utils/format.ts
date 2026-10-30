@@ -31,12 +31,31 @@ export function formatExperienceHeading(
   location?: string | null
 ): string {
   const title = role?.trim() ?? "";
-  const org = company?.trim() ?? "";
-  const place = location?.trim() ?? "";
+  let org = company?.trim() ?? "";
+  let place = location?.trim() ?? "";
+
+  // Universal deduplication of consecutive identical words/org phrases (e.g. "United States Navy United States Navy" -> "United States Navy")
+  org = org.replace(/\b([A-Za-z\s]+?)\s+\1\b/g, "$1").trim();
+  place = place.replace(/\b([A-Za-z\s]+?)\s+\1\b/g, "$1").trim();
+
   const parts = [title];
   if (org && org.toLowerCase() !== title.toLowerCase()) parts.push(org);
-  if (place) parts.push(place);
+  if (place && place.toLowerCase() !== org.toLowerCase()) parts.push(place);
   return parts.filter(Boolean).join(" · ");
+}
+
+/**
+ * Sanitizes formatting artifacts in bullet points (e.g. accidental dot whitespace or brand casing).
+ */
+export function sanitizeBulletText(bullet: string): string {
+  if (!bullet) return "";
+  let text = bullet;
+  // Fix accidental identifier dot spacing like "http. Server" -> "http.Server"
+  text = text.replace(/\bhttp\.\s+Server\b/g, "http.Server");
+  text = text.replace(/\b([a-zA-Z0-9_]+)\.\s+([A-Z][a-zA-Z0-9_]+)\b/g, "$1.$2");
+  // Normalize brand casings for known infrastructure proper nouns
+  text = text.replace(/\bcloudflare\s+quick\s+tunnel\b/gi, "Cloudflare Quick Tunnel");
+  return text;
 }
 
 /** Degree line without repeating a major that is already inside the degree name. */

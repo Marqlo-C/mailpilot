@@ -1506,16 +1506,20 @@ Respectful collaboration is strictly required.
 
       expect(project).toBeDefined();
       expect(project!.origin).toBe("HUMAN_VERIFIED");
-      // Bullets must remain strictly the human-verified bullets
-      expect(project!.bullets).toHaveLength(2);
+      // Human-verified bullets are preserved as primary User-Verified bullets
       expect(project!.bullets[0]).toBe(
         "Architected custom solver attaining 99.999% grid stability under N-1 contingency conditions."
       );
       expect(project!.bullets[1]).toBe(
         "Personally audited and verified power flow algorithms against IEEE standards."
       );
-      // Incoming AI/GitHub bullets must not have been appended
-      expect(project!.bullets).not.toContain("Engineered generic Docker deployment workflow.");
+      expect(project!.bulletOrigins?.[project!.bullets[0]!]).toBe("HUMAN_VERIFIED");
+      expect(project!.bulletOrigins?.[project!.bullets[1]!]).toBe("HUMAN_VERIFIED");
+      // Non-overlapping GitHub bullets enter as additive Externally-Sourced bullets
+      expect(project!.bullets).toContain("Engineered generic Docker deployment workflow.");
+      expect(
+        project!.bulletOrigins?.["Engineered generic Docker deployment workflow."]
+      ).toBe("GITHUB_INFERRED");
       // But technologies may be enriched
       expect(project!.technologies).toContain("Docker");
     });

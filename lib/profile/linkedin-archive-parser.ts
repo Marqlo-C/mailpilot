@@ -200,6 +200,7 @@ export async function parseLinkedInArchive(
         technologies: [] as string[],
         link: cell(row, "Url", "URL") || null,
         bullets: splitBullets(cell(row, "Description")).map((b) => b.rawText),
+        origin: "HUMAN_VERIFIED" as const,
       };
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row));

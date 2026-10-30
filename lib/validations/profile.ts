@@ -18,11 +18,43 @@ export function detectMetric(text: string | null | undefined): boolean {
   return METRIC_RE.test(text);
 }
 
+export const BULLET_TYPOLOGIES = [
+  "INNOVATION_PRODUCT_OWNERSHIP",
+  "LEADERSHIP_COORDINATION",
+  "EXECUTION_DELIVERY",
+  "PROCESS_OPTIMIZATION",
+  "METRIC_QUANTITATIVE",
+  "RESEARCH_ANALYSIS",
+  "GOVERNANCE_COMPLIANCE_QUALITY",
+  "CLIENT_STAKEHOLDER",
+] as const;
+
+export type BulletTypology = (typeof BULLET_TYPOLOGIES)[number];
+
+export const bulletVariantSchema = z.object({
+  id: z.string().optional(),
+  text: z.string().min(1),
+  origin: z
+    .enum(["HUMAN_VERIFIED", "GITHUB_INFERRED", "AI_SUGGESTED", "LINKEDIN_INFERRED"])
+    .optional(),
+  typologies: z.array(z.string()).default([]),
+  confidenceScore: z.number().optional(),
+  shadowOf: z.string().optional(),
+  supersededAt: z.string().optional(),
+  status: z
+    .enum(["ACTIVE_VARIANT", "ARCHIVED_REVISION"])
+    .default("ACTIVE_VARIANT"),
+});
+
+export type BulletVariant = z.infer<typeof bulletVariantSchema>;
+
 export const experienceBulletSchema = z.object({
   id: z.string(),
   rawText: z.string(),
   technologies: z.array(z.string()).default([]),
   hasMetric: z.boolean().default(false),
+  typologies: z.array(z.string()).optional(),
+  variants: z.array(bulletVariantSchema).optional(),
 });
 
 export const skillItemSchema = z.union([
@@ -89,6 +121,8 @@ export const projectInputSchema = z.object({
   technologies: z.array(z.string()).default([]),
   link: z.string().nullable().optional(),
   bullets: z.array(z.string()).default([]),
+  bulletOrigins: z.record(z.string(), z.string()).optional(),
+  variants: z.array(bulletVariantSchema).optional(),
   origin: z
     .enum(["HUMAN_VERIFIED", "GITHUB_INFERRED", "AI_SUGGESTED"])
     .optional(),

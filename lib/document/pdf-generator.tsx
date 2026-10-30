@@ -132,6 +132,7 @@ type PdfInput = {
   interests?: MasterProfileInput["interests"] | null;
   sectionOrder?: string[] | null;
   disabledSections?: string[] | null;
+  includeVariants?: boolean;
 };
 
 const INVERTED_LOGO_PATH = path.join(
@@ -155,6 +156,7 @@ function ResumeDocument({
   interests,
   sectionOrder,
   disabledSections,
+  includeVariants = false,
 }: PdfInput) {
   const contact = sanitizeResumeContactLine(
     contactLine?.trim() || buildResumeContactLine(profile)
@@ -269,9 +271,21 @@ function ResumeDocument({
           <View key="projects" style={styles.section}>
             <Text style={styles.heading}>Projects</Text>
             {projects.map((proj) => {
+              const variantBullets =
+                includeVariants && proj.variants
+                  ? proj.variants
+                      .map((v) => v.text)
+                      .filter(
+                        (t) =>
+                          typeof t === "string" &&
+                          t.trim().length > 0 &&
+                          !proj.bullets.includes(t)
+                      )
+                  : [];
+
               const displayBullets =
-                proj.bullets.length > 0
-                  ? proj.bullets
+                proj.bullets.length > 0 || variantBullets.length > 0
+                  ? [...proj.bullets, ...variantBullets]
                   : proj.description?.trim()
                     ? [proj.description.trim()]
                     : [];
@@ -400,6 +414,7 @@ export async function generateTailoredResumePdf(
     interests?: MasterProfileInput["interests"] | null;
     sectionOrder?: string[] | null;
     disabledSections?: string[] | null;
+    includeVariants?: boolean;
   }
 ): Promise<Buffer> {
   const buffer = await renderToBuffer(
@@ -419,6 +434,7 @@ export async function generateTailoredResumePdf(
       interests={overrides?.interests}
       sectionOrder={overrides?.sectionOrder}
       disabledSections={overrides?.disabledSections}
+      includeVariants={overrides?.includeVariants}
     />
   );
   return Buffer.from(buffer);

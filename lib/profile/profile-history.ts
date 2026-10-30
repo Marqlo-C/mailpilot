@@ -10,9 +10,10 @@ import {
   type MasterProfileInput,
   type MasterProfileUpdateInput,
 } from "@/lib/validations/profile";
+import { parseAccountRules } from "@/lib/validations/rules";
 import { decryptPhoneAtRest } from "@/lib/core/crypto";
 import { revisionRecordedAt } from "@/lib/profile/revision-diff";
-import { diversifyLeadingVerbs } from "@/lib/github/lens";
+import { normalizeProjectName } from "@/lib/utils/format";
 
 const MAX_HISTORY_STATES = 4;
 
@@ -100,9 +101,17 @@ type ProfileTree = {
   }>;
 };
 
-/** Serializes a loaded UserProfile tree into MasterProfileUpdateInput. */
+/** Serializes a loaded UserProfile tree into MasterProfileUpdateInput with project metadata. */
 export function serializeUserProfileToInput(
-  profile: ProfileTree
+  profile: ProfileTree,
+  projectMeta?: Record<
+    string,
+    {
+      origin?: string;
+      bulletOrigins?: Record<string, string>;
+      variants?: MasterProfileInput["projects"][number]["variants"];
+    }
+  >
 ): MasterProfileUpdateInput {
   return {
     fullName: profile.fullName,
@@ -126,17 +135,38 @@ export function serializeUserProfileToInput(
       displayOrder: e.displayOrder,
     })),
     projects: profile.projects
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        technologies: p.technologies,
-        link: p.link,
-        bullets: diversifyLeadingVerbs(p.bullets),
-        origin: (p.link && p.link.toLowerCase().includes("github.com")
-          ? "GITHUB_INFERRED"
-          : undefined) as MasterProfileInput["projects"][number]["origin"],
-      }))
+      .map((p) => {
+        const normKey = normalizeProjectName(p.name);
+        const lowerKey = p.name.trim().toLowerCase();
+        const repoSlug = p.link ? p.link.split("/").pop()?.replace(/\.git$/i, "") : null;
+        const meta =
+          projectMeta?.[normKey] ||
+          projectMeta?.[lowerKey] ||
+          (repoSlug ? projectMeta?.[repoSlug] || projectMeta?.[repoSlug.toLowerCase()] : null) ||
+          projectMeta?.[p.name] ||
+          projectMeta?.[p.id];
+
+        const bulletOrigins: Record<string, string> = {
+          ...(meta?.bulletOrigins || {}),
+        };
+        for (const b of p.bullets || []) {
+          if (!bulletOrigins[b]) {
+            bulletOrigins[b] = meta?.origin || "HUMAN_VERIFIED";
+          }
+        }
+
+        return {
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          technologies: p.technologies,
+          link: p.link,
+          bullets: [...p.bullets],
+          bulletOrigins,
+          variants: meta?.variants || [],
+          origin: (meta?.origin || "HUMAN_VERIFIED") as MasterProfileInput["projects"][number]["origin"],
+        };
+      })
       .sort((a, b) =>
         (a.name || "").localeCompare(b.name || "", undefined, {
           sensitivity: "base",
@@ -186,7 +216,11 @@ export async function loadProfileSnapshot(
     },
   });
   if (!profile) return null;
-  return serializeUserProfileToInput(profile);
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId: profile.accountId },
+  });
+  const rules = parseAccountRules(settings?.rules);
+  return serializeUserProfileToInput(profile, rules.projectMeta);
 }
 
 /** Drops snapshots past the four-record cap. Newest rows are kept. */
