@@ -31,7 +31,7 @@ export default async function LoginPage({
                   decoding="async"
                   fetchPriority="high"
                   aria-hidden
-                  className="size-[length:var(--brand-mark)] object-contain"
+                  className="size-[var(--brand-mark)] object-contain"
                 />
                 <span className="mt-[calc(var(--brand-stack-gap)-0.75rem)] inline-flex h-[calc(var(--brand-mark)*0.7)] max-w-[min(100%,calc(var(--brand-mark)*4))] items-center justify-center overflow-hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -17,7 +17,7 @@ import type { AccountRules } from "@/lib/validations/rules";
  * Bumping this version automatically invalidates all cached ETag entries in
  * local/in-memory ledgers, ensuring unchanged repositories are re-scanned and re-inferred.
  */
-export const GITHUB_PARSER_VERSION = 12;
+export const GITHUB_PARSER_VERSION = 14;
 
 /**
  * Universal file extension taxonomy across tech stacks and ecosystems.
@@ -46,6 +46,14 @@ export const ALL_FILE_EXTENSIONS_SET = new Set<string>([
   ...FILE_EXTENSIONS.markupAndData,
   ...FILE_EXTENSIONS.configAndEnv,
   ...FILE_EXTENSIONS.binaryAndModels,
+]);
+
+export const CODE_FILE_EXTENSIONS_SET = new Set<string>([
+  ...FILE_EXTENSIONS.code,
+  ...FILE_EXTENSIONS.configAndEnv,
+  "sh",
+  "bash",
+  "zsh",
 ]);
 
 /**
@@ -149,6 +157,9 @@ export interface GitHubSyncOptions {
     filepath: string
   ) => Promise<string | null>;
   cacheLedger?: Map<string, RepoCacheEntry>;
+  /** When true, bypasses repo cache to force fresh LLM inference across all repositories */
+  bypassCache?: boolean;
+  forceRefresh?: boolean;
 }
 
 export interface AnalyzeRepoParams {

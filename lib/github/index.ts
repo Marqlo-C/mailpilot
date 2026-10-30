@@ -50,6 +50,14 @@ export {
 // Architectural Topology Deduction
 export { deduceArchitecturalTopology } from "./topology";
 
+// Grounded Metric Harvester & SSOT Taxonomy
+export {
+  METRIC_UNIT_GROUPS,
+  extractGroundedDocumentMetrics,
+  verifyAndScrubBulletMetrics,
+  type MetricVerificationResult,
+} from "./metrics";
+
 // Deep Systems Inference
 export {
   DEEP_ANALYSIS_SYSTEM_PROMPT,

@@ -15,7 +15,9 @@ import {
   applyResumeUpload,
   importGitHubProjects,
   saveMasterProfile,
+  getDevCachedResumeInfo,
 } from "@/app/actions/profile";
+import type { DevCachedResumeMetadata } from "@/lib/profile/dev-resume-cache";
 import { getDevOllamaModelOverride } from "@/components/settings/ai-models";
 import {
   educationProgressLabel,
@@ -58,6 +60,8 @@ type ResumeUploadDialogProps = {
   railAction?: boolean;
   /** Replaces the default button. Must be a single element that can hold a ref. */
   trigger?: ReactElement;
+  /** When true (or in development), displays developer test-run controls */
+  isDev?: boolean;
 };
 
 export function ResumeUploadDialog({
@@ -68,26 +72,53 @@ export function ResumeUploadDialog({
   triggerClassName,
   railAction = false,
   trigger,
+  isDev: isDevProp,
 }: ResumeUploadDialogProps) {
   const router = useRouter();
+  const isDev = isDevProp ?? process.env.NODE_ENV === "development";
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<MasterProfileInput | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [githubInput, setGithubInput] = useState("");
   const [overwriteAll, setOverwriteAll] = useState(false);
+  const [forceReinfer, setForceReinfer] = useState(false);
+  const [cachedResume, setCachedResume] =
+    useState<DevCachedResumeMetadata | null>(null);
+  const [useCachedResume, setUseCachedResume] = useState(false);
+  const [loadingCacheInfo, setLoadingCacheInfo] = useState(false);
   const [pending, startTransition] = useTransition();
   const editMode = Boolean(initialProfile);
 
   function handleOpenChange(next: boolean) {
     setOpen(next);
-    if (next && initialProfile) {
-      setDraft(initialProfile);
+    if (next) {
+      if (initialProfile) {
+        setDraft(initialProfile);
+      }
+      if (isDev) {
+        setLoadingCacheInfo(true);
+        void getDevCachedResumeInfo(accountId)
+          .then((res) => {
+            if (res.ok && res.data) {
+              setCachedResume(res.data);
+              if (res.data.githubHandle && !githubInput) {
+                setGithubInput(res.data.githubHandle);
+              }
+            } else {
+              setCachedResume(null);
+            }
+          })
+          .catch(() => setCachedResume(null))
+          .finally(() => setLoadingCacheInfo(false));
+      }
     }
     if (!next) {
       setDraft(null);
       setSelectedFile(null);
       setGithubInput("");
       setOverwriteAll(false);
+      setForceReinfer(false);
+      setUseCachedResume(false);
     }
   }
 
@@ -96,22 +127,34 @@ export function ResumeUploadDialog({
     e.target.value = "";
     if (file) {
       setSelectedFile(file);
+      setUseCachedResume(false);
     }
   }
 
   function handleSubmit() {
-    if (!selectedFile) return;
+    if (!selectedFile && !(useCachedResume && cachedResume)) return;
 
     const formData = new FormData();
     formData.append("accountId", accountId);
-    formData.append("file", selectedFile);
+    if (selectedFile) {
+      formData.append("file", selectedFile);
+    } else if (useCachedResume && cachedResume) {
+      formData.append("useDevCachedResume", "true");
+    }
 
-    const trimmedGithub = githubInput.trim();
+    const trimmedGithub =
+      githubInput.trim() ||
+      (useCachedResume && cachedResume?.githubHandle
+        ? cachedResume.githubHandle
+        : "");
     if (trimmedGithub) {
       formData.append("githubUsername", trimmedGithub);
     }
     if (overwriteAll) {
       formData.append("overwriteAll", "true");
+    }
+    if (forceReinfer) {
+      formData.append("forceReinfer", "true");
     }
 
     const devModel = getDevOllamaModelOverride();
@@ -122,6 +165,8 @@ export function ResumeUploadDialog({
     setSelectedFile(null);
     setGithubInput("");
     setOverwriteAll(false);
+    setForceReinfer(false);
+    setUseCachedResume(false);
     setOpen(false);
 
     const uploadPromise = applyResumeUpload(formData).then((res) => {
@@ -135,11 +180,13 @@ export function ResumeUploadDialog({
     });
 
     toast.promise(uploadPromise, {
-      loading: overwriteAll
-        ? "Replacing your profile from this resume..."
-        : trimmedGithub
-          ? "Ingesting profile and GitHub data. You can navigate freely..."
-          : "Parsing and saving your profile...",
+      loading: forceReinfer
+        ? "Running fresh evaluation (bypassing all caches)..."
+        : overwriteAll
+          ? "Replacing your profile from this resume..."
+          : trimmedGithub
+            ? "Ingesting profile and GitHub data. You can navigate freely..."
+            : "Parsing and saving your profile...",
       success: "Master profile successfully updated!",
       error: (err) =>
         err instanceof Error ? err.message : "Failed to process profile",
@@ -160,7 +207,8 @@ export function ResumeUploadDialog({
       const result = await importGitHubProjects(
         accountId,
         handle,
-        devModel || undefined
+        devModel || undefined,
+        { forceRefresh: forceReinfer }
       );
       if (!result.ok) {
         toast.error(result.error, { id: toastId });
@@ -221,7 +269,7 @@ export function ResumeUploadDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {!selectedFile ? (
+          {!selectedFile && !useCachedResume ? (
             <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border px-6 py-10 text-center transition hover:bg-muted/50">
               <FileText className="mb-1 h-8 w-8 text-muted-foreground" />
               <span className="text-sm font-medium">
@@ -238,7 +286,7 @@ export function ResumeUploadDialog({
                 disabled={pending}
               />
             </label>
-          ) : (
+          ) : selectedFile ? (
             <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
               <div className="flex min-w-0 items-center gap-2.5 overflow-hidden">
                 <FileText className="h-5 w-5 shrink-0 text-primary" />
@@ -260,7 +308,33 @@ export function ResumeUploadDialog({
                 <X className="h-4 w-4" />
               </Button>
             </div>
-          )}
+          ) : useCachedResume && cachedResume ? (
+            <div className="flex items-center justify-between rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+              <div className="flex min-w-0 items-center gap-2.5 overflow-hidden">
+                <FileText className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span className="truncate text-sm font-medium">
+                  {cachedResume.fileName}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  ({(cachedResume.fileSize / 1024).toFixed(1)} KB · Dev Cached)
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setUseCachedResume(false);
+                  setForceReinfer(false);
+                }}
+                disabled={pending}
+                title="Clear cached file"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : null}
 
           <div className="space-y-1.5">
             <Label
@@ -280,7 +354,7 @@ export function ResumeUploadDialog({
                 disabled={pending}
                 onChange={(e) => setGithubInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !selectedFile) {
+                  if (e.key === "Enter" && !selectedFile && !useCachedResume) {
                     e.preventDefault();
                     onSyncGitHub();
                   }
@@ -328,6 +402,66 @@ export function ResumeUploadDialog({
             />
           </div>
 
+          {isDev ? (
+            <div className="space-y-2.5 rounded-xl border border-dashed border-amber-500/50 bg-amber-500/5 p-3.5 dark:border-amber-500/30 dark:bg-amber-500/10">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <Label
+                      htmlFor="force-reinfer-toggle"
+                      className="text-sm font-medium"
+                    >
+                      Test-run uploaded resume
+                    </Label>
+                    <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300">
+                      DEV
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Forces fresh LLM inference across all repos and resume parsing, bypassing all caches to evaluate performance over multiple runs whether prompt or GitHub changed or not.
+                  </p>
+                  {cachedResume ? (
+                    <p className="flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                      <span>Cached:</span>
+                      <span className="font-mono">{cachedResume.fileName}</span>
+                      <span>
+                        ({(cachedResume.fileSize / 1024).toFixed(1)} KB)
+                      </span>
+                    </p>
+                  ) : loadingCacheInfo ? (
+                    <p className="text-[11px] text-muted-foreground animate-pulse">
+                      Checking dev resume cache…
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground italic">
+                      Upload a resume once to cache it for one-click re-runs.
+                    </p>
+                  )}
+                </div>
+                <WaveToggle
+                  id="force-reinfer-toggle"
+                  checked={forceReinfer}
+                  disabled={pending}
+                  onCheckedChange={(checked) => {
+                    setForceReinfer(checked);
+                    if (checked) {
+                      if (cachedResume && !selectedFile) {
+                        setUseCachedResume(true);
+                      }
+                      if (cachedResume?.githubHandle && !githubInput.trim()) {
+                        setGithubInput(cachedResume.githubHandle);
+                      }
+                    } else {
+                      if (!selectedFile) {
+                        setUseCachedResume(false);
+                      }
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
+
           <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
@@ -339,10 +473,17 @@ export function ResumeUploadDialog({
             </Button>
             <Button
               type="button"
-              disabled={!selectedFile || pending}
+              disabled={
+                (!selectedFile && !(useCachedResume && cachedResume)) ||
+                pending
+              }
               onClick={handleSubmit}
             >
-              Parse & Ingest Profile
+              {pending
+                ? "Processing…"
+                : forceReinfer
+                  ? "Test Run Ingestion"
+                  : "Parse & Ingest Profile"}
             </Button>
           </div>
         </div>

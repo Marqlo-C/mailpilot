@@ -255,12 +255,20 @@ export async function getActiveAccount(): Promise<AccountWithSettings | null> {
       profileMatchThreshold: profile?.matchThreshold,
     });
 
-    const pendingClassificationCount = await prisma.emailMessage.count({
-      where: {
-        accountId: selected.id,
-        emailCategory: "PENDING_AI",
-      },
-    });
+    let pendingClassificationCount = 0;
+    try {
+      pendingClassificationCount = await prisma.emailMessage.count({
+        where: {
+          accountId: selected.id,
+          emailCategory: "PENDING_AI",
+        },
+      });
+    } catch (countError) {
+      console.warn(
+        "[data] Non-critical pendingClassificationCount query failed:",
+        countError
+      );
+    }
 
     return {
       id: selected.id,

@@ -160,6 +160,7 @@ export function SettingsView({
                 triggerLabel="Import Resume"
                 triggerClassName={railActionClass}
                 railAction
+                isDev={isDev}
               />
             </div>
           ) : null}

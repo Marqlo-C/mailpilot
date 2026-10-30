@@ -15,6 +15,7 @@ node_modules
 # Next.js
 /.next/
 /out/
+.dev-cache
 
 # Production
 /build
@@ -61,3 +62,8 @@ public/videos/*.mp4
 
 # Temporary Analysis Dumps
 Delete/
+Test Outputs/
+
+# Temporary Audit Tests
+scripts/temp-resume-llm-audit.ts
+lib/__tests__/temp-resume-llm-audit.test.ts

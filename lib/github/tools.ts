@@ -27,6 +27,56 @@ export const CANONICAL_TOOL_MAP: Record<string, string> = {
   solid: "SolidJS",
   solidjs: "SolidJS",
   astro: "Astro",
+  remix: "Remix",
+  "@remix-run/react": "Remix",
+  gatsby: "Gatsby",
+
+  // Mobile & Cross-Platform
+  "react-native": "React Native",
+  "react native": "React Native",
+  flutter: "Flutter",
+  expo: "Expo",
+  electron: "Electron",
+  tauri: "Tauri",
+
+  // Geospatial, Graphics & Visualization (including dot-libraries)
+  leaflet: "Leaflet",
+  "leaflet.js": "Leaflet",
+  mapbox: "Mapbox GL",
+  "mapbox-gl": "Mapbox GL",
+  openlayers: "OpenLayers",
+  ol: "OpenLayers",
+  three: "Three.js",
+  "three.js": "Three.js",
+  chart: "Chart.js",
+  "chart.js": "Chart.js",
+  d3: "D3.js",
+  "d3.js": "D3.js",
+  pixi: "PixiJS",
+  pixijs: "PixiJS",
+  "pixi.js": "PixiJS",
+  p5: "p5.js",
+  "p5.js": "p5.js",
+  fabric: "Fabric.js",
+  "fabric.js": "Fabric.js",
+
+  // Utility Dot-Libraries (Prevents false-positive script filtering)
+  dayjs: "Day.js",
+  "day.js": "Day.js",
+  moment: "Moment.js",
+  "moment.js": "Moment.js",
+  "date-fns": "date-fns",
+  pdfjs: "PDF.js",
+  "pdf.js": "PDF.js",
+  highlightjs: "Highlight.js",
+  "highlight.js": "Highlight.js",
+  hljs: "Highlight.js",
+  prismjs: "PrismJS",
+  "prism.js": "PrismJS",
+  anime: "Anime.js",
+  "anime.js": "Anime.js",
+  videojs: "Video.js",
+  "video.js": "Video.js",
 
   // Languages & Runtimes
   typescript: "TypeScript",
@@ -51,6 +101,15 @@ export const CANONICAL_TOOL_MAP: Record<string, string> = {
   "c#": "C#",
   cpp: "C++",
   "c++": "C++",
+  php: "PHP",
+  scala: "Scala",
+  elixir: "Elixir",
+  clojure: "Clojure",
+  haskell: "Haskell",
+  lua: "Lua",
+  dart: "Dart",
+  r: "R",
+  perl: "Perl",
 
   // Backend Frameworks
   fastapi: "FastAPI",
@@ -64,6 +123,32 @@ export const CANONICAL_TOOL_MAP: Record<string, string> = {
   fastify: "Fastify",
   koa: "Koa",
   hono: "Hono",
+  spring: "Spring Boot",
+  "spring boot": "Spring Boot",
+  rails: "Ruby on Rails",
+  laravel: "Laravel",
+
+  // AI, Machine Learning & Data Science
+  pytorch: "PyTorch",
+  torch: "PyTorch",
+  tensorflow: "TensorFlow",
+  tf: "TensorFlow",
+  keras: "Keras",
+  "scikit-learn": "Scikit-learn",
+  sklearn: "Scikit-learn",
+  pandas: "Pandas",
+  numpy: "NumPy",
+  scipy: "SciPy",
+  langchain: "LangChain",
+  llamaindex: "LlamaIndex",
+  "llama-index": "LlamaIndex",
+  huggingface: "Hugging Face",
+  "@huggingface/inference": "Hugging Face",
+  opencv: "OpenCV",
+  cv2: "OpenCV",
+  ollama: "Ollama",
+  anthropic: "Anthropic Claude",
+  openai: "OpenAI API",
 
   // Databases & Caching
   postgresql: "PostgreSQL",
@@ -75,6 +160,26 @@ export const CANONICAL_TOOL_MAP: Record<string, string> = {
   mongodb: "MongoDB",
   mongo: "MongoDB",
   redis: "Redis",
+  supabase: "Supabase",
+  "@supabase/supabase-js": "Supabase",
+  firebase: "Firebase",
+  "firebase-admin": "Firebase",
+  firestore: "Firestore",
+  dynamodb: "DynamoDB",
+  cassandra: "Cassandra",
+  neo4j: "Neo4j",
+  clickhouse: "ClickHouse",
+  elasticsearch: "Elasticsearch",
+  opensearch: "OpenSearch",
+
+  // Vector Databases
+  pinecone: "Pinecone",
+  "@pinecone-database/pinecone": "Pinecone",
+  chromadb: "ChromaDB",
+  chroma: "ChromaDB",
+  weaviate: "Weaviate",
+  qdrant: "Qdrant",
+  milvus: "Milvus",
 
   // ORMs & Data Layers
   prisma: "Prisma",
@@ -83,6 +188,8 @@ export const CANONICAL_TOOL_MAP: Record<string, string> = {
   "drizzle-orm": "Drizzle ORM",
   typeorm: "TypeORM",
   sqlalchemy: "SQLAlchemy",
+  mongoose: "Mongoose",
+  hibernate: "Hibernate",
 
   // APIs & Networking
   graphql: "GraphQL",
@@ -95,8 +202,21 @@ export const CANONICAL_TOOL_MAP: Record<string, string> = {
   websockets: "WebSockets",
   ws: "WebSockets",
   "socket.io": "Socket.io",
+  "socket.io-client": "Socket.io",
+  axios: "Axios",
 
-  // Styling & UI
+  // State Management & Data Fetching
+  redux: "Redux",
+  "@reduxjs/toolkit": "Redux Toolkit",
+  zustand: "Zustand",
+  "tanstack-query": "TanStack Query",
+  "@tanstack/react-query": "TanStack Query",
+  "react-query": "TanStack Query",
+  "tanstack-table": "TanStack Table",
+  "@tanstack/react-table": "TanStack Table",
+  swr: "SWR",
+
+  // Styling, UI & Animation
   tailwind: "TailwindCSS",
   tailwindcss: "TailwindCSS",
   "tailwind css": "TailwindCSS",
@@ -112,6 +232,19 @@ export const CANONICAL_TOOL_MAP: Record<string, string> = {
   shadcn: "shadcn/ui",
   "shadcn/ui": "shadcn/ui",
   "@shadcn/ui": "shadcn/ui",
+  "framer-motion": "Framer Motion",
+  framer: "Framer Motion",
+  "styled-components": "styled-components",
+  emotion: "Emotion",
+  "@emotion/react": "Emotion",
+  "chakra-ui": "Chakra UI",
+  "@chakra-ui/react": "Chakra UI",
+  mui: "Material UI",
+  "@mui/material": "Material UI",
+  mantine: "Mantine",
+  "@mantine/core": "Mantine",
+  "lucide-react": "Lucide Icons",
+  lucide: "Lucide Icons",
 
   // QA, Testing & Validation (Keep Signal!)
   jest: "Jest",
@@ -120,6 +253,8 @@ export const CANONICAL_TOOL_MAP: Record<string, string> = {
   "@playwright/test": "Playwright",
   cypress: "Cypress",
   pytest: "Pytest",
+  mocha: "Mocha",
+  chai: "Chai",
   zod: "Zod",
   pydantic: "Pydantic",
 
@@ -128,6 +263,9 @@ export const CANONICAL_TOOL_MAP: Record<string, string> = {
   webpack: "Webpack",
   turborepo: "Turborepo",
   turbo: "Turborepo",
+  rollup: "Rollup",
+  esbuild: "esbuild",
+  babel: "Babel",
 
   // DevOps & Cloud
   docker: "Docker",
@@ -137,8 +275,13 @@ export const CANONICAL_TOOL_MAP: Record<string, string> = {
   aws: "AWS",
   gcp: "GCP",
   azure: "Azure",
+  cloudflare: "Cloudflare",
+  vercel: "Vercel",
+  render: "Render",
+  ansible: "Ansible",
+  serverless: "Serverless Framework",
 
-  // Messaging & Concurrency
+  // Messaging, Concurrency & Workflows
   kafka: "Kafka",
   kafkajs: "Kafka",
   rabbitmq: "RabbitMQ",
@@ -147,6 +290,10 @@ export const CANONICAL_TOOL_MAP: Record<string, string> = {
   bull: "BullMQ",
   bullmq: "BullMQ",
   celery: "Celery",
+  spark: "Apache Spark",
+  "apache spark": "Apache Spark",
+  airflow: "Apache Airflow",
+  "apache airflow": "Apache Airflow",
 };
 
 /**
@@ -157,7 +304,7 @@ export const CANONICAL_TOOL_MAP: Record<string, string> = {
  * bundlers (Vite, Webpack, Turborepo), and ORMs (Prisma) are explicitly preserved.
  */
 export const MICRO_EXCLUSION_REGEX =
-  /^(?:@types\/|eslint(?:-[a-z0-9_-]+)*|prettier(?:-[a-z0-9_-]+)*|@typescript-eslint\/|husky|lint-staged|cross-env|rimraf|concurrently|nodemon|ts-node$)/i;
+  /^(?:@types\/|eslint(?:-[a-z0-9_-]+)*|prettier(?:-[a-z0-9_-]+)*|@typescript-eslint\/|@vitejs\/|vite-plugin-|@rollup\/plugin-|babel-plugin-|postcss|autoprefixer|husky|lint-staged|cross-env|rimraf|concurrently|nodemon|ts-node$)/i;
 
 /**
  * Checks whether a package or dependency name is zero-signal scaffolding.
@@ -169,14 +316,20 @@ export function isMicroExclusionTool(name: string): boolean {
   // 1. Type stubs
   if (lower.startsWith("@types/")) return true;
 
-  // 2. Linters, formatters, and their configs/plugins
+  // 2. Linters, formatters, build/compiler plugins, and CSS post-processors
   if (
     lower === "eslint" ||
     lower.startsWith("eslint-") ||
     lower.startsWith("@typescript-eslint/") ||
     lower === "prettier" ||
     lower.startsWith("prettier-") ||
-    lower.startsWith("prettier-plugin-")
+    lower.startsWith("prettier-plugin-") ||
+    lower.startsWith("@vitejs/") ||
+    lower.startsWith("vite-plugin-") ||
+    lower.startsWith("@rollup/plugin-") ||
+    lower.startsWith("babel-plugin-") ||
+    lower === "postcss" ||
+    lower === "autoprefixer"
   ) {
     return true;
   }

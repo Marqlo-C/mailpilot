@@ -231,7 +231,7 @@ export function WaveToggle({
         {/* Tactile Inner Thumb Knob */}
         <span
           className={cn(
-            "absolute top-1/2 left-0 -translate-y-1/2 rounded-full transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+            "absolute top-1/2 left-0 -translate-y-1/2 rounded-full transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)]",
             "w-3.5 h-3.5",
             // Modern flat tactile thumb
             "bg-white dark:bg-slate-100",
