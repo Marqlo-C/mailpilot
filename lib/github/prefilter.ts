@@ -40,7 +40,7 @@ export function extractSemanticMarkdownDigest(
 ): string {
   if (!rawMarkdown || !rawMarkdown.trim()) return "";
 
-  // 1. Strip non-technical boilerplate (badges, raw images, sponsor links, HTML comments, shell install/clone commands)
+  // 1. Strip non-technical boilerplate (badges, raw images, sponsor links, HTML comments, shell code blocks & install/clone commands)
   const cleaned = rawMarkdown
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/\[\!\[[^\]]*\]\([^)]*\)\]\([^)]*\)/g, "")
@@ -51,6 +51,13 @@ export function extractSemanticMarkdownDigest(
       ""
     )
     .replace(/<\/?(?:div|p|span|center)\b[^>]*>/gi, "")
+    // Purge multiline terminal & shell code fences (e.g. ```bash ... ```, ```sh ... ```)
+    .replace(
+      /(?:```|~~~)(?:bash|sh|shell|zsh|console|terminal|cmd|powershell|posh)\b[\s\S]*?(?:```|~~~)/gi,
+      ""
+    )
+    // Purge untagged code blocks that start with interactive shell prompts ($ or >)
+    .replace(/(?:```|~~~)\s*\n\s*(?:\$|>)\s+[^\n]+[\s\S]*?(?:```|~~~)/gi, "")
     .replace(/(?:npm|pnpm|yarn|bun)\s+(?:install|i|add)[^\n]*/gi, "")
     .replace(/(?:pip|pip3|poetry\s+add|cargo\s+add|go\s+get)\s+[^\n]*/gi, "")
     .replace(/(?:git\s+clone)\s+[^\n]*/gi, "");

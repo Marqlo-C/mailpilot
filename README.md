@@ -8,7 +8,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3.4-38B2AC?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-462_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-463_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
 [![Vercel WAF](https://img.shields.io/badge/Vercel-Edge_WAF_Mitigation-000000?style=flat-square&logo=vercel)](https://vercel.com/)
 [![Upstash](https://img.shields.io/badge/Upstash-Redis_Rate_Limiting-00E599?style=flat-square&logo=redis)](https://upstash.com/)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM_Vaulted-green?style=flat-square&logo=security)](https://nodejs.org/api/crypto.html)
@@ -352,14 +352,45 @@ flowchart TD
 
 #### Sub-Module Architecture:
 - `schema.ssot.ts`: Single source of truth defining `ProjectItem`, `GitHubRawRepo`, `RepoComplexityScale`, and the `determineRepoScale()` complexity evaluator.
-- `prefilter.ts`: Semantic markdown AST scrubber (`extractSemanticMarkdownDigest`) that strips non-technical boilerplate (shield badges, raw HTML images, sponsor links, HTML comments), completely eliminates installation/licensing clutter, and proportionally allocates character budgets across all surviving architectural sections (`architecture`, `system design`, `data flow`, `components`, `protocols`, `concurrency`, `pipeline`, `benchmarks`, `performance`, `security`, `storage`, `api specification`, `models`).
+- `prefilter.ts`: Semantic markdown AST scrubber (`extractSemanticMarkdownDigest`) that strips non-technical boilerplate (shield badges, raw HTML images, sponsor links, HTML comments, multiline shell/terminal code blocks), completely eliminates installation/licensing clutter, and proportionally allocates character budgets across all surviving architectural sections (`architecture`, `system design`, `data flow`, `components`, `protocols`, `concurrency`, `pipeline`, `benchmarks`, `performance`, `security`, `storage`, `api specification`, `models`).
 - `manifests.ts`: Probes root and nested manifests (`package.json`, `requirements.txt`, `pyproject.toml`, `go.mod`, `Cargo.toml`), filters out dev/linter tooling noise, and organizes packages into systems domains (`groupDependenciesByDomain`: *"Networking & Protocols"*, *"State, Storage & Persistence"*, *"Concurrency, Queues & Messaging"*, *"Architecture & Web Frameworks"*, *"Math, Compute & ML"*, *"Telemetry, Hardening & Security"*).
 - `topology.ts`: Deterministically deduces cross-manifest architectural topologies (`deduceArchitecturalTopology`), detecting decoupled backends (e.g., *"Decoupled service layer pairing an asynchronous Python backend with a TypeScript web frontend"*), real-time WebSocket/Redis pub-sub pipelines, and distributed message broker queues.
 - `inference.ts`: Coordinates multi-tier inference through `DEEP_ANALYSIS_SYSTEM_PROMPT`. Strictly bans introductory repository summary bullets, mandates diverse engineering action verbs (*Dispatched, Multiplexed, Sharded, Ingested, Serialized, Partitioned, Profiled, Benchmarked*), prohibits fake commercial ROI, and enforces deterministic systems-action fallbacks.
 - `lens.ts`: Adapts raw GitHub repo payloads and inference outputs into normalized `ProjectItem` entities with sanitized Title Case names.
 - `syncer.ts`: End-to-end orchestrator (`syncGitHubProjects`) managing rate limits, concurrent manifest fetching, and multi-tier LLM failover. Forwards `accountId` and account rules through to `callLLMWithFallback`, ensuring BYOK cloud inference works seamlessly if local Ollama is offline, backed by a deterministic heuristic fallback engine that generates decisive engineering bullets if all models are unavailable.
 
-#### 1. Dynamic 3-Tier Repository Complexity Budgeting
+#### 1. Deterministic AST & Heading-Anchored Markdown Context Extractor (`lib/github/prefilter.ts`)
+Rather than relying on blunt linear character slicing (`readme.slice(0, 4000)`)—which front-loads introductory boilerplate while discarding lower-document architecture, database, and benchmark sections—MailPilot executes deterministic AST and heading-anchored extraction (`extractSemanticMarkdownDigest`):
+
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".node text, .node foreignObject, .label foreignObject { overflow: visible !important; } .cluster text, .cluster-label span { overflow: visible !important; } .edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 36, "rankSpacing": 40}}}%%
+flowchart TD
+  RAW["Raw README Markdown<br/>(Full Document: Line 1 to EOF, 30KB+)"] --> LEX["Step 1: Lexical Noise Elimination (< 1ms)<br/>• Purge Badges, Images & HTML Comments<br/>• Strip Multiline Shell Fences (```bash, ```sh)<br/>• Preserve Inline Backticks (`code`) & Prose"]
+
+  LEX --> AST["Step 2: AST Section Segmentation<br/>• Split Document into Blocks by Markdown Headers (#, ##, ###)<br/>• Retain Header Level & Heading Text Hierarchy"]
+
+  AST --> FILTER{"Step 3: Dual-Regex Classification"}
+  FILTER -->|"FILTER_OUT_REGEX<br/>(Installation, Usage, License, FAQ)"| PURGE["Discard Zero-Signal Chores"]
+  FILTER -->|"PRIORITY_REGEX<br/>(Architecture, Protocols, Benchmarks)"| PRIO["Flag Priority Sections (1.4x Weight)"]
+  FILTER -->|"Other Technical Content"| BASE["Base Candidate Sections (1.0x Weight)"]
+
+  PRIO & BASE --> BUDGET["Step 4: Proportional Budget Assembly<br/>• Top-Level Intro Overview: Guaranteed 25-35% Anchor Budget (up to 600 chars)<br/>• Dynamic Distribution: Remaining Budget Scaled Proportionally (1.4x Priority Multiplier)<br/>• Clean Truncation at Sentence/Word Boundaries & Auto Code-Fence Balancing"]
+
+  BUDGET --> DIGEST["Contiguous High-Density Engineering Context<br/>(Passed into LLM Prompt Payload)"]
+```
+
+- **Top-to-Bottom Document Ingestion:** The extractor parses the entire raw README from line 1 down to the EOF line regardless of document length (e.g. 30KB+), ensuring bottom-dwelling benchmark charts, database schemas, and networking specifications are never starved.
+- **AST Header Chunking:** Splits the text on markdown headers (`^(#{1,3})\s+(.+)$`), isolating discrete `SectionChunk` records (`heading`, `level`, `content`).
+- **Lexical Noise Scrubbing:** Drops shields.io badges (`[![...](...)]`), raw images, HTML comments, and multiline terminal/shell code fences (`` ```bash ``, `` ```sh ``, `` ```shell ``, `` ```console ``), while strictly retaining inline backticks (`` `eval_diagnostics.py` ``) and technical programming snippets.
+- **Dual-Regex Filtering & Prioritization:**
+  - *`FILTER_OUT_REGEX` (Zero-Signal Blacklist):* Bypasses `Installation`, `Getting Started`, `How to Run`, `Prerequisites`, `Usage`, `Dependencies`, `License`, `Contributing`, `Troubleshooting`, and `FAQ`.
+  - *`PRIORITY_REGEX` (Architecture Whitelist):* Flags `Architecture`, `System Design`, `Data Flow`, `Components`, `Protocols`, `Concurrency`, `Pipeline`, `Benchmarks`, `Performance`, `Security`, `Storage`, `API Specification`, and `Telemetry`.
+- **Proportional Budget Distribution:**
+  - Allocates a dedicated 25–35% anchor budget for introductory repository summaries (up to 600 chars).
+  - Distributes the remaining character budget proportionally across all surviving technical sections, applying an active **1.4× weighting multiplier** for priority architectural blocks.
+  - Automatically balances code fences (closing unclosed triple backticks) and truncates cleanly at natural sentence boundaries (`[.!?]`).
+
+#### 2. Dynamic 3-Tier Repository Complexity Budgeting
 Rather than applying static bullet quotas to diverse codebases, MailPilot sizes repository analysis dynamically based on verified engineering volume (`codeBytes` from `/languages`) and discovered subsystems:
 
 | Tier | Codebase Volume / Subsystems | Max Readme Context | Target Bullets (`minBullets` – `maxBullets`) | Architectural Scope |
@@ -372,7 +403,7 @@ Rather than applying static bullet quotas to diverse codebases, MailPilot sizes 
 - **Pure Code Volume:** Excludes non-signal markup, static assets, and generated files (`.md`, `.png`, `.jpg`, `.svg`, `.lock`, `.json`) to calculate authentic engineering byte weight.
 - **Hard Upper Clamp:** Returned bullet lists are strictly clamped to `scaleBudget.maxBullets` even if the underlying LLM generates excess candidates.
 
-#### 2. Substantiveness Scoring Algorithm (`auditBulletSubstantiveness`)
+#### 3. Substantiveness Scoring Algorithm (`auditBulletSubstantiveness`)
 Each candidate bullet is evaluated on a continuous `0.0` to `10.0` scale:
 - **Base Non-Chore Score:** `4.0` points for any valid engineering claim.
 - **Impact Metrics:** `+2.0` points for explicit operational parameters (latencies, throughputs, error bounds, batch sizes).
@@ -387,7 +418,7 @@ Each candidate bullet is evaluated on a continuous `0.0` to `10.0` scale:
 - **Settings Chore Penalty (`-1.5` points):** Penalizes trivial configuration adjustments.
 - **Low-Signal Chore Ban (`LOW_SIGNAL_CHORE_REGEX`):** Chores (linting, git hooks, folder organization, .env setup) receive a score of `0` and are pruned immediately.
 
-#### 3. The 3-Pass Heuristic Tournament Selection Engine
+#### 4. The 3-Pass Heuristic Tournament Selection Engine
 When selecting the final bullet set from an oversampled candidate pool, `adaptRepoToProjectItem` runs a 3-pass tournament that guarantees breadth before depth:
 1. **Pass 1 (Architectural Breadth Guarantee):**
    - Classifies every candidate bullet into one of the **6 Universal Computer Science Dimensions**:
@@ -404,17 +435,17 @@ When selecting the final bullet set from an oversampled candidate pool, `adaptRe
    - Backfills valid substantive reserve candidates (score $\ge 3.0$) up to `scaleBudget.maxBullets`.
    - Low-scoring fluff or weak candidates (score $< 3.0$) are admitted only if strictly required to satisfy `scaleBudget.minBullets`. This ensures Tier 3 projects naturally reach their full 8–10 bullet allocation without synthetic fluff.
 
-#### 4. Semantic Root-Stemmed Deduplication (`deduplicateOrSynthesizeBullets`)
+#### 5. Semantic Root-Stemmed Deduplication (`deduplicateOrSynthesizeBullets`)
 - **Suffix Stemming:** Strips common derivational and inflectional suffixes (`ing`, `ed`, `tion`, `sion`, `ment`, `ance`, `ence`, `ity`, `ive`, `ize`, `ise`, `ful`, `able`, `ible`) so grammatical variations of the same root (e.g. *orchestration* vs. *orchestrated*, *caching* vs. *cache*) are recognized as duplicate concepts.
 - **Thematic Overlap Threshold:** Flags bullets as duplicates when fractional token overlap is $\ge 0.30$ or when they share $\ge 4$ substantive word roots.
 - **Zero-Boilerplate Selection:** If `novelRatio < 0.40` or `overlapRatio >= 0.50`, the engine selects the higher-scoring bullet directly rather than concatenating them into clunky compound sentences.
 
-#### 5. Dynamic Verb Diversification (`diversifyLeadingVerbs`)
+#### 6. Dynamic Verb Diversification (`diversifyLeadingVerbs`)
 - Automatically detects and replaces repeated leading verbs on the same project card using a universal dictionary of systems action verbs (`VERB_ALTERNATIVES`):
   * *Architected, Built, Formulated, Automated, Integrated, Configured, Optimized, Deployed, Streamlined, Instrumented, Scaled, Enforced, Formatted, Evaluated, Transformed, Profiled, Hardened, Decoupled, Synchronized, Persisted*.
 - **Card-Wide Collision Avoidance:** Scans all active leading verbs across the entire project card and selects an alternative that is not currently used by any bullet on that card, guaranteeing zero lead verb collisions.
 
-#### 6. Grounded Hallucination Shield
+#### 7. Grounded Hallucination Shield
 - Validates claimed technologies against the repository's normalized text corpus (`normCorpus`), actively rejecting cross-repo hallucinations:
   - Rejects geospatial/Haversine math on non-spatial repos.
   - Rejects audio streaming / HTTP 206 claims on non-multimedia repos.
@@ -423,7 +454,7 @@ When selecting the final bullet set from an oversampled candidate pool, `adaptRe
   - Rejects relational ORMs (Prisma, TypeORM) on non-database repos.
   - Rejects containerization platforms (Docker, Kubernetes) on ungrounded repos.
 
-#### 7. Universal Path, Syntax & Grammar Scrubber
+#### 8. Universal Path, Syntax & Grammar Scrubber
 - **Path & Route Stripper:** Purges physical script filenames (`main.py`, `eval_diagnostics.py`) and bracketed dynamic routes (`[fileId].js`) from bullet text while preserving framework and package references.
 - **Bare Infinitive Normalization:** Detects and normalizes dropped direct objects (`\b(?:utilizing|leveraging|using)\s+to\s+([a-z]+)\b` $\to$ `to $1`), converting awkward passive fragments (*"orchestration mechanism utilizing to gate"*) into clean active infinitives (*"orchestration mechanism to gate"*).
 - **Serial Gerund-Past Tense Harmonizer:** Coerces trailing past-tense verbs in conjunction lists governed by gerunds into parallel `-ing` participles (*"...including inheriting from base, implementing the method, and registered the class"* $\to$ *"...and registering the class"*).
@@ -432,21 +463,21 @@ When selecting the final bullet set from an oversampled candidate pool, `adaptRe
 - **Preposition Scrubber:** Cleans orphaned prepositions (*"persisting results in within the directory"* $\to$ *"persisting results within the directory"*) left behind after file stripping.
 - **LaTeX Math Normalizer:** Strips LaTeX math delimiters (`$150ms$` $\to$ `150ms`, `$\alpha = 0.16$` $\to$ `alpha = 0.16`) to guarantee clean, professional plain text rendering in PDF and DOCX exports.
 
-#### 8. Canonical Systems Tool Taxonomy & Micro-Exclusion Denylist
+#### 9. Canonical Systems Tool Taxonomy & Micro-Exclusion Denylist
 - **140+ Tool Canonical Normalizer (`CANONICAL_TOOL_MAP`):** Normalizes tool references across AI/ML (PyTorch, TensorFlow, Scikit-learn, LangChain), databases/vector stores (PostgreSQL, Supabase, Pinecone, ChromaDB), and utility/graphics dot-libraries (Leaflet, Mapbox GL, Three.js, Chart.js, D3.js, Day.js, Moment.js, PDF.js, Highlight.js).
 - **Dot-Library Protection:** Prevents legitimate web libraries ending in `.js` (e.g. `Leaflet.js`, `Chart.js`, `PDF.js`) from being falsely stripped by the source code file extension filter.
 - **Build Plugin & Tooling Denylist (`MICRO_EXCLUSION_REGEX`):** Micro-excludes zero-signal dev scaffolding (`@vitejs/*`, `vite-plugin-*`, `@rollup/plugin-*`, `babel-plugin-*`, `postcss`, `autoprefixer`, `husky`, `eslint`, `prettier`) while rigorously preserving production bundlers (Vite, Webpack, Turborepo) and QA test runners (Vitest, Jest, Playwright).
 
-#### 9. Parser Version Cache Ledger & 304 Bypass
+#### 10. Parser Version Cache Ledger & 304 Bypass
 - **Cache Invalidation Ledger (`GITHUB_PARSER_VERSION = 14`):** Stored in `AccountSettings.rules.githubRepoLedger`. Whenever parser rules, taxonomies, or prompt heuristics update, bumping the version string automatically invalidates cached items and triggers fresh re-ingestion.
 - **HTTP 304 Not Modified Bypass:** When GitHub returns HTTP 304 via ETag matching and parser version is current, MailPilot reuses the cached project item in **0ms**, skipping redundant LLM inference calls entirely.
 
-#### 10. Human-Verified Protection in Profile Consolidation
+#### 11. Human-Verified Protection in Profile Consolidation
 - **Origin Immutability (`HUMAN_VERIFIED`):** Projects flagged with origin `HUMAN_VERIFIED` are never overwritten or diluted by automated GitHub sync passes.
 - **Deterministic Alphabetical Sorting:** Consolidated projects are strictly ordered alphabetically (A–Z, case-insensitive) across all views.
 - **Description Isolation:** Repository taglines and descriptions are isolated into `ProjectItem.description` and strictly excluded from engineering bullet lists.
 
-#### 11. Universal Historical Leaderboard & Generational Benchmark Analysis
+#### 12. Universal Historical Leaderboard & Generational Benchmark Analysis
 
 Across iterative generations of the GitHub ingestion, deep inference engine, and universal profile reconciliation pipeline, extraction fidelity evolved into a production-grade systems portfolio:
 
@@ -471,7 +502,7 @@ Across iterative generations of the GitHub ingestion, deep inference engine, and
 
 ##### Project-by-Project Extraction Breakdown (Evaluation: `Marq_Lott_Master_Profile (5)_2.pdf` — Score: 9.86 / 10)
 - **Experience & Education:** Preserves verified numerical ground truths across all roles (15+ fleet units, 3 internal API endpoints & 8 external API keys, 4-month Brevo SMTP verification regression, 143% account-to-quota ratio across 12 data center markets, 99.99% and 99.9% network availability SLAs, and 15% provisioning velocity acceleration across 6 cross-functional engineering teams). Clean dual-degree academic hierarchy (BS in Computer Science from UC Davis, June 2026, alongside AS in Computer Science, Mathematics, & Physics from San Joaquin Delta College, May 2024).
-- **MailPilot:** High-density systems extraction: sub-second delta synchronization via Google Cloud Pub/Sub webhooks, adaptive 3-tier inference router with in-memory circuit breaker falling back to a zero-token regex/AST heuristic engine executing in under 2ms, authenticated AES-256-GCM envelope encryption with DNS pre-resolution IP validation for SSRF mitigation, deterministic vectorless RAG eliminating approximate nearest neighbor retrieval, 66-column terminal ASCII telemetry logger, and automated zero-token test suite using Vitest (462 tests).
+- **MailPilot:** High-density systems extraction: sub-second delta synchronization via Google Cloud Pub/Sub webhooks, adaptive 3-tier inference router with in-memory circuit breaker falling back to a zero-token regex/AST heuristic engine executing in under 2ms, authenticated AES-256-GCM envelope encryption with DNS pre-resolution IP validation for SSRF mitigation, deterministic vectorless RAG eliminating approximate nearest neighbor retrieval, 66-column terminal ASCII telemetry logger, and automated zero-token test suite using Vitest (463 tests).
 - **Connect 4 Player Agent:** Explicitly extracts script-level utilities and filenames from the repository (`thread.py` killable thread utility and `eval_diagnostics` heuristic scoring script). Accurately distinguishes between human player interfaces (GUI and console), baseline AIs (random and heuristic), and advanced game-tree agents (minimax, alpha-beta pruning, Monte Carlo simulation).
 - **SafeHaven:** Deep forensic-evasion and networking primitives: sub-100ms bidirectional latency over Socket.io WebSockets across 100+ concurrent encrypted client sessions, zero-latency multi-vector panic exit, raw Node.js `http.Server` abstraction in serverless handlers to prevent WebSocket upgrade hooks, `global._mongooseCache` connection promise caching, HTTP 206 byte-range partial content streaming, and OpenRouter native fallback routing.
 - **Embergency, Ms Pac Man, Secret Message Encoder, & Toes Down:**
