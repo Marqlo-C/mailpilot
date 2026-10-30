@@ -285,7 +285,7 @@ describe("Candidate Resume 3x Reconciliation Audit", () => {
     const sh = verify.data.projects.find((p) => p.name.includes("SafeHaven"));
     expect(sh).toBeDefined();
 
-    const claudeBullet = sh?.bullets.find((b) => b.includes("Anthropic Claude SDK"));
+    const claudeBullet = sh?.bullets.find((b) => b.includes("bypassing auditable phone hotlines"));
     expect(claudeBullet).toBeDefined();
     expect(sh?.bulletOrigins?.[claudeBullet!]).toBe("HUMAN_VERIFIED");
 

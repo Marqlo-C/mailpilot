@@ -82,6 +82,40 @@ MIT
       expect(digest).toContain("FastKV is an in-memory transactional key-value store");
     });
 
+    it("purges multiline shell & terminal code fences while preserving prose and inline backticks", () => {
+      const rawMarkdown = `# StreamGateway
+StreamGateway is an asynchronous event gateway.
+
+## Architecture & System Design
+The engine connects clients using WebSockets and routes messages via internal event busses.
+To test manually, run:
+\`\`\`bash
+$ curl -X POST https://api.streamgateway.internal/v1/events \\
+  -H "Authorization: Bearer test_token" \\
+  -d '{"event":"user_login"}'
+\`\`\`
+
+Inline backticks like \`WebSocketGateway\` and \`EventDispatcher\` must be retained.
+
+\`\`\`sh
+$ docker run -d -p 8080:8080 streamgateway:latest
+\`\`\`
+`;
+
+      const digest = extractSemanticMarkdownDigest(rawMarkdown, 2500);
+
+      // Shell fences purged
+      expect(digest).not.toContain("curl -X POST");
+      expect(digest).not.toContain("docker run -d");
+      expect(digest).not.toContain("test_token");
+
+      // Architecture prose and inline backticks preserved
+      expect(digest).toContain("## Architecture & System Design");
+      expect(digest).toContain("connects clients using WebSockets");
+      expect(digest).toContain("`WebSocketGateway`");
+      expect(digest).toContain("`EventDispatcher`");
+    });
+
     it("filters out non-technical sections and prioritizes systems architecture", () => {
       const rawMarkdown = `# TelemetryMesh
 TelemetryMesh is an agentic telemetry aggregation service.
