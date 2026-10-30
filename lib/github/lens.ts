@@ -1,12 +1,14 @@
 import { normalizeProjectName } from "@/lib/utils/format";
 import {
   ALL_FILE_EXTENSIONS_SET,
+  CODE_FILE_EXTENSIONS_SET,
   UNIVERSAL_DIRECTORY_ROOTS,
   type GitHubRawRepo,
   type ProjectItem,
 } from "./schema.ssot";
 import { dedupeTools } from "./tools";
 import { detectMetric } from "@/lib/validations/profile";
+import { verifyAndScrubBulletMetrics } from "./metrics";
 
 /**
  * Normalizes a GitHub handle, profile URL, or repository link into a clean handle.
@@ -31,10 +33,10 @@ export function normalizeGitHubUsername(usernameOrUrl: string): string {
 /**
  * Regex identifying low-signal chores that must be excluded from technical bullets.
  * Covers basic filesystem hygiene, demo recordings, linters, generic PaaS push-to-deploy,
- * and raw codebase language percentage recitations.
+ * local runner commands, loopback server addresses, and raw codebase language percentage recitations.
  */
 export const LOW_SIGNAL_CHORE_REGEX =
-  /(?:set(?:ting)?\s+up|configur(?:ed?|ing)|creat(?:ed?|ing))\s+(?:environment\s+variables?|\.env|local\s+config(?:uration)?|ports?|local\s+tokens?)|(?:setting\s+ports?)|(?:filesystem\s+hygiene|organiz(?:ed?|ing)\s+assets|creat(?:ed?|ing)\s+folders?|clean(?:ed?|ing)?\s+up\s+repositor(?:y|ies)?)|(?:screen\s*recordings?|screenshots?|demo\s+scripts?|demonstration\s+artifacts?)|(?:install(?:ed?|ing)\s+dependencies|configur(?:ed?|ing)\s+code\s+linters?|code\s+formatting|eslint|prettier)|(?:\b(?:vercel|netlify|render|heroku)\b.*(?:automatic\s+redeploy|push(?:es)?\s+to\s+`?main`?|`?main`?\s+branch|`?main`?\s+(?:branch\s+)?push(?:es)?))|(?:\b\d{1,3}%\s+of\s+the\s+codebase\s+written\s+in\b)|(?:(?:updat(?:ed?|ing)|wrot(?:e|ing)|maintain(?:ed?|ing))\s+(?:documentation|readme(?:\.md)?|docs?|setup\s+guide(?:lines?)?))/i;
+  /(?:set(?:ting)?\s+up|configur(?:ed?|ing)|creat(?:ed?|ing)|instrument(?:ed?|ing)|manag(?:ed?|ing)|defin(?:ed?|ing))\s+(?:environment\s+variables?|\.env(?:[a-z0-9_.-]+)?|local\s+config(?:uration)?|ports?|local\s+tokens?)|(?:setting\s+ports?)|(?:filesystem\s+hygiene|organiz(?:ed?|ing)\s+assets|creat(?:ed?|ing)\s+folders?|clean(?:ed?|ing)?\s+up\s+repositor(?:y|ies)?)|(?:screen\s*recordings?|screenshots?|demo\s+scripts?|demonstration\s+artifacts?)|(?:install(?:ed?|ing)\s+dependencies|configur(?:ed?|ing)\s+code\s+linters?|code\s+formatting|eslint|prettier)|(?:\b(?:vercel|netlify|render|heroku)\b.*(?:automatic\s+redeploy|push(?:es)?\s+to\s+`?main`?|`?main`?\s+branch|`?main`?\s+(?:branch\s+)?push(?:es)?))|(?:\b\d{1,3}%\s+of\s+the\s+codebase\s+written\s+in\b)|(?:(?:updat(?:ed?|ing)|wrot(?:e|ing)|maintain(?:ed?|ing))\s+(?:documentation|readme(?:\.md)?|docs?|setup\s+guide(?:lines?)?))|(?:\b(?:localhost(?::\d+)?|127\.0\.0\.1(?::\d+)?|0\.0\.0\.0)\b)|(?:\b(?:npm|yarn|pnpm|bun|vite|cargo|mvn|gradle|python)\s+(?:run\s+)?(?:dev|start|serve)\b)|(?:\bdeployed\b.*\blocal\s+development\s+environment\b)|(?:\b(?:env\s+files?|\.env(?:\.[a-z0-9_-]+)?|environment\s+variables?)\b.*(?:api\s+keys?|secrets?|store|sensitive))/i;
 
 const KNOWN_FRAMEWORKS = new Set([
   "node.js",
@@ -68,7 +70,7 @@ function isCodeFilename(token: string): boolean {
   if (dotIdx === -1) return false;
   const ext = clean.slice(dotIdx + 1);
 
-  return ALL_FILE_EXTENSIONS_SET.has(ext);
+  return CODE_FILE_EXTENSIONS_SET.has(ext);
 }
 
 /**
@@ -82,7 +84,13 @@ function isCodeFilename(token: string): boolean {
 export function stripFileSystemArtifacts(bullet: string): string {
   let text = bullet;
 
-  // 1. Normalize raw data file extension phrases: `.txt files` -> `text files`, `.json files` -> `JSON files`
+  // 1. Preserve named datasets and reference benchmarks cited with data extensions (e.g. `Old Faithful.txt` -> `Old Faithful dataset`)
+  text = text.replace(
+    /`?([A-Z][a-zA-Z0-9_\-\s]*?)\.(?:txt|csv|tsv|json)`?(?:\s+(?:dataset|benchmark|corpus|data))?/g,
+    "$1 dataset"
+  );
+
+  // 1b. Normalize raw data file extension phrases: `.txt files` -> `text files`, `.json files` -> `JSON files`
   text = text.replace(/`?\.([a-zA-Z0-9]+)`?\s+files?\b/gi, (_m, ext) => {
     const lower = ext.toLowerCase();
     if (lower === "txt") return "text files";
@@ -148,6 +156,17 @@ export function stripFileSystemArtifacts(bullet: string): string {
     }
   );
 
+  // 5b. Code filenames preceding architectural role descriptors (e.g. `thread.py utility` -> `thread utility`, `auth.ts service` -> `auth service`)
+  text = text.replace(
+    /`?@?(?:[a-zA-Z0-9_\-\.]+\/)*([a-zA-Z0-9_\-]+)\.([a-zA-Z0-9]+)`?\s+(utility|module|script|tool|harness|service|interface|pipeline|middleware|helper|worker)\b/gi,
+    (match, baseName, ext, descriptor) => {
+      if (isCodeFilename(`${baseName}.${ext}`)) {
+        return `${baseName} ${descriptor}`;
+      }
+      return match;
+    }
+  );
+
   // 6. Standalone code filename mentions before punctuation or comma
   text = text.replace(
     /(^|\s)`?@?(?:[a-zA-Z0-9_\-\.]+\/)*[a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+`?(?=[\s,.;:!?]|$)/gi,
@@ -168,9 +187,13 @@ export function stripFileSystemArtifacts(bullet: string): string {
     "$1"
   );
 
-  // 8. Clean stranded prepositions resulting from removals (e.g. "adding text files to with one word" -> "adding text files with one word")
+  // 8. Clean stranded prepositions resulting from removals (e.g. "using and thread_with_trace" -> "using thread_with_trace", "adding text files to with one word" -> "adding text files with one word")
   text = text.replace(
-    /\b(?:through|via|across|in|from|within|inside|to|into|under|at)\s+(with|for|by|where|and|or|to\s+[a-z]+)\b/gi,
+    /\b(using|with|via|through|across|in|from|within|inside|to|into|under|at)\s+and\s+/gi,
+    "$1 "
+  );
+  text = text.replace(
+    /\b(?:through|via|across|in|from|within|inside|to|into|under|at)\s+(with|for|by|where|or|to\s+[a-z]+)\b/gi,
     "$1"
   );
 
@@ -204,7 +227,7 @@ export function stripFilenamePhrases(bullet: string): string {
  */
 export function unrollPermissivePhrasing(bullet: string): string {
   const match = bullet.match(
-    /^(?:Allowed|Enabled|Permitted)\s+users\s+(?:to\s+)?([a-z]+)\s+(.+)$/i
+    /^(?:Allowed|Enabled|Permitted|Allowing|Enabling|Permitting)\s+users\s+(?:to\s+)?([a-z]+)\s+(.+)$/i
   );
   if (!match) return bullet;
 
@@ -275,6 +298,15 @@ export function cleanTrivialPrimitives(bullet: string): string {
   );
   cleaned = cleaned.replace(
     /\b(?:using|via)\s+(?:the\s+)?`?fetch\(\)?`?\s*(?:api|function|method)?(?:,\s*|\s+)?/gi,
+    ""
+  );
+  // Elevate trivial print/console.log diagnostics to high-signal inspection phrasing
+  cleaned = cleaned.replace(
+    /\b(?:utilizing|using|via)\s+(?:(?:python|javascript|node)['’]?s\s+)?(?:`?print`?|`?console\.log`?)\s*(?:function|method|\(\))?\s+to\b/gi,
+    "to inspect and"
+  );
+  cleaned = cleaned.replace(
+    /\b(?:utilizing|using|via)\s+(?:(?:python|javascript|node)['’]?s\s+)?(?:`?print`?|`?console\.log`?)\s*(?:function|method|\(\)|statements?|calls?)?(?:,\s*|\s+)?/gi,
     ""
   );
   cleaned = cleaned.replace(/,\s*,/g, ",");
@@ -362,7 +394,10 @@ export interface AuditedBullet {
 /**
  * Audits the technical substantiveness of a bullet on a 0.0 to 10.0 scale.
  */
-export function auditBulletSubstantiveness(bullet: string): AuditedBullet {
+export function auditBulletSubstantiveness(
+  bullet: string,
+  sourceText?: string | null
+): AuditedBullet {
   if (LOW_SIGNAL_CHORE_REGEX.test(bullet)) {
     return {
       bullet,
@@ -375,7 +410,16 @@ export function auditBulletSubstantiveness(bullet: string): AuditedBullet {
 
   let score = 4.0;
   const hasMetric = detectMetric(bullet);
-  if (hasMetric) score += 2.0;
+  if (hasMetric) {
+    if (sourceText) {
+      const metricCheck = verifyAndScrubBulletMetrics({ bullet, sourceText });
+      if (metricCheck.groundedNumbers.length > 0) {
+        score += 2.0;
+      }
+    } else {
+      score += 2.0;
+    }
+  }
 
   // Architectural Signals (+1.5 each)
   if (
@@ -443,6 +487,12 @@ export function auditBulletSubstantiveness(bullet: string): AuditedBullet {
     )
   ) {
     score -= 1.5;
+  }
+
+  // Word count floor and stub penalty: standalone fragments (<= 6 words without quantitative metrics)
+  const wordTokens = bullet.split(/\s+/).filter(Boolean);
+  if (wordTokens.length <= 6 && !hasMetric) {
+    score -= 2.5;
   }
 
   return {
@@ -608,6 +658,148 @@ function convertParticipleToPastTense(participle: string): string | null {
   return stem.charAt(0).toUpperCase() + stem.slice(1) + "ed";
 }
 
+const ADJECTIVE_PAST_PARTICIPLES = new Set([
+  "distributed",
+  "structured",
+  "unstructured",
+  "shared",
+  "isolated",
+  "federated",
+  "automated",
+  "customized",
+  "centralized",
+  "decoupled",
+  "authenticated",
+  "encrypted",
+  "normalized",
+  "indexed",
+  "bounded",
+  "sharded",
+]);
+
+function convertPastTenseToParticiple(verb: string): string | null {
+  const lower = verb.toLowerCase();
+  const clean = lower === "identifyed" ? "identified" : lower;
+
+  const irregulars: Record<string, string> = {
+    built: "building",
+    held: "holding",
+    made: "making",
+    ran: "running",
+    wrote: "writing",
+    led: "leading",
+    kept: "keeping",
+    found: "finding",
+    bound: "binding",
+    sent: "sending",
+  };
+  if (irregulars[clean]) return irregulars[clean];
+
+  let stem = clean;
+  if (stem.endsWith("ed")) {
+    stem = stem.slice(0, -2);
+  } else if (stem.endsWith("d")) {
+    stem = stem.slice(0, -1);
+  } else {
+    return null;
+  }
+
+  if (stem.endsWith("i")) {
+    return stem.slice(0, -1) + "ying";
+  }
+  if (stem.endsWith("e")) {
+    return stem.slice(0, -1) + "ing";
+  }
+
+  if (
+    stem.endsWith("prov") ||
+    stem.endsWith("clos") ||
+    stem.endsWith("at") ||
+    stem.endsWith("duc") ||
+    stem.endsWith("cut") ||
+    stem.endsWith("lut") ||
+    stem.endsWith("bl") ||
+    stem.endsWith("dl") ||
+    stem.endsWith("tl") ||
+    stem.endsWith("lin") ||
+    stem.endsWith("min") ||
+    stem.endsWith("vin") ||
+    stem.endsWith("sin")
+  ) {
+    return stem + "ing";
+  }
+
+  if (/^[a-z]*[^aeiou][aeiou][bcdfgklmnprstvz]$/i.test(stem) && stem.length <= 4) {
+    return stem + stem.slice(-1) + "ing";
+  }
+
+  return stem + "ing";
+}
+
+/**
+ * Harmonizes compound predicate coordination across both directions:
+ * 1. Simple past head verb conjoined with dangling present participle:
+ *    "Selected candidate evidence and generating tailored bullets" -> "... and generated tailored bullets"
+ * 2. Participial / gerund clause conjoined with mismatched past verb:
+ *    "optimizing search efficiency and improved AI decision-making" -> "... and improving AI decision-making"
+ *    "ensuring fairness and prevented infinite loops" -> "... and preventing infinite loops"
+ */
+export function harmonizeCoordinatedVerbs(bullet: string): string {
+  let result = bullet;
+
+  // 1. Simple past head verb with dangling participle:
+  result = result.replace(
+    /^([A-Z][a-z]+(?:ed|t|ilt|ound|ung|ept|aught|ought|rew|rote|ade|ted|sed|ded|ked|red|med|ned))\b(.+?\band\s+)([a-z]+ing)\b/g,
+    (_match, leadVerb, middle, participle) => {
+      if (
+        /^(?:learning|caching|training|matching|parsing|routing|testing|rendering|typing|styling|profiling)$/i.test(
+          participle
+        )
+      ) {
+        return _match;
+      }
+      const converted = convertParticipleToPastTense(participle);
+      if (converted) {
+        return `${leadVerb}${middle}${converted.toLowerCase()}`;
+      }
+      return _match;
+    }
+  );
+
+  // 2. Participial/gerund lead clause conjoined with mismatched past verb:
+  result = result.replace(
+    /(^|,\s*|\b(?:including|by|for|while|through|without|after|before)\s+)([a-zA-Z]+ing)\b([^,;]*?\band\s+)([a-zA-Z]+(?:ed|d|t|yed))\b/gi,
+    (match, intro, gerund, middle, pastVerb) => {
+      if (ADJECTIVE_PAST_PARTICIPLES.has(pastVerb.toLowerCase())) {
+        return match;
+      }
+      const converted = convertPastTenseToParticiple(pastVerb);
+      if (converted) {
+        return `${intro}${gerund}${middle}${converted}`;
+      }
+      return match;
+    }
+  );
+
+  // 3. Serial participial/gerund list with trailing past tense verb following 'and':
+  // e.g. "including inheriting from base, implementing the method, and registered the class" -> "... and registering the class"
+  result = result.replace(
+    /((?:^|,\s*|\b(?:including|by|for|while|through|without|after|before)\s+)(?:[a-zA-Z]+ing\b[^,;]+,\s*)+and\s+)([a-zA-Z]+(?:ed|d|t|yed))\b/gi,
+    (match, prefix, pastVerb) => {
+      if (ADJECTIVE_PAST_PARTICIPLES.has(pastVerb.toLowerCase())) {
+        return match;
+      }
+      const converted = convertPastTenseToParticiple(pastVerb);
+      if (converted) {
+        return `${prefix}${converted}`;
+      }
+      return match;
+    }
+  );
+
+  return result;
+}
+
 /**
  * Sanitizes a single bullet string by:
  * 1. Stripping leading bullet markers (•, -, *, etc.)
@@ -619,8 +811,9 @@ function convertParticipleToPastTense(participle: string): string | null {
  * 7. Unrolling formulaic title-prefix templates into direct active verbs
  * 8. Normalizing phonetic indefinite articles (a HTTP -> an HTTP)
  * 9. Stripping leading/trailing quotes from code symbols, file paths, and package names
- * 10. Cleaning up orphan punctuation marks (orphan commas before periods, double periods, etc.)
- * 11. Ensuring proper terminal punctuation
+ * 10. Harmonizing coordinated verb participles into past tense
+ * 11. Cleaning up orphan punctuation marks, commas, and dangling terminal conjunctions
+ * 12. Ensuring proper terminal punctuation
  */
 export function sanitizeBulletString(bullet: string): string {
   let cleaned = bullet.trim();
@@ -687,6 +880,24 @@ export function sanitizeBulletString(bullet: string): string {
     "$1n $2"
   );
 
+  // 8b. Normalize dropped direct objects / bare infinitives after verbs like utilizing/leveraging/using
+  // e.g. "orchestration mechanism utilizing to gate" -> "orchestration mechanism to gate"
+  cleaned = cleaned.replace(
+    /\b(?:utilizing|leveraging|using)\s+to\s+([a-z]+)\b/gi,
+    "to $1"
+  );
+
+  // 8c. Fix malformed participles and typos (e.g. "to create and ading" -> "to create and add", "ading" -> "adding")
+  cleaned = cleaned.replace(/\bto\s+([a-z]+)\s+and\s+ading\b/gi, "to $1 and add");
+  cleaned = cleaned.replace(/\bading\b/gi, "adding");
+
+  // 8d. Clean singular indefinite article before plural file/record/dataset nouns
+  // e.g. "a text files" -> "text files", "a markdown documents" -> "markdown documents"
+  cleaned = cleaned.replace(
+    /\ba\s+((?:[a-zA-Z0-9_\-]+\s+)*(?:text\s+files|markdown\s+documents|JSON\s+records|CSV\s+data\s+files|data\s+files|files|documents|records|datasets))\b/gi,
+    "$1"
+  );
+
   // 9. Strip quotes around code symbols, file paths, and package names (e.g. 'express', "FastAPI", 'src/app')
   cleaned = cleaned.replace(
     /(^|[\s(])["'“‘](@?[a-zA-Z0-9_\-./]+)["'”’]?(?=[\s),.;:!?]|$)/g,
@@ -705,7 +916,13 @@ export function sanitizeBulletString(bullet: string): string {
     cleaned = cleaned.replace(/(^|\s)'|'(?=[.,;:!?]|\s|$)/g, "$1");
   }
 
-  // 10. Clean up orphan punctuation marks and commas
+  // 9b. Clean orphan commas before infinitives (e.g. "Next.js, to store" -> "Next.js to store")
+  cleaned = cleaned.replace(/,\s+(to\s+[a-z]+)/gi, " $1");
+
+  // 10. Harmonize coordinated verb participles into past tense
+  cleaned = harmonizeCoordinatedVerbs(cleaned);
+
+  // 11. Clean up orphan punctuation marks, commas, and dangling prepositions/conjunctions
   cleaned = cleaned
     .replace(/\s+([.,;:!?])/g, "$1") // Remove space before punctuation
     .replace(/([,:;])\s*\./g, ".") // Orphan comma/colon before period -> period
@@ -715,7 +932,22 @@ export function sanitizeBulletString(bullet: string): string {
     .replace(/,\s*,/g, ",")
     .trim();
 
-  // 11. Ensure terminal punctuation
+  // 11b. Iteratively strip dangling trailing conjunctions, prepositions, or lone dangling participles right before terminal punctuation
+  let prevCleaned = "";
+  while (prevCleaned !== cleaned) {
+    prevCleaned = cleaned;
+    // Strip trailing dangling naked coordinating participle before punctuation (e.g. "pack creation and merged." -> "pack creation.")
+    cleaned = cleaned.replace(/\s+and\s+[a-z]+(?:ed|d|t|ing)\s*([.,;:!?]+)$/i, "$1");
+    // Strip dangling coordinating or subordinating conjunctions / prepositions right before terminal punctuation
+    cleaned = cleaned.replace(
+      /\s+(?:and|or|but|nor|so|yet|with|to|for|via|by|in|at|from|when|while|as|because)\s*([.,;:!?]+)$/i,
+      "$1"
+    );
+    // Clean any orphan comma, colon, or semicolon exposed before the terminal punctuation
+    cleaned = cleaned.replace(/([,:;])\s*([.!?])/g, "$2");
+  }
+
+  // 12. Ensure terminal punctuation
   if (cleaned && !/[.!?]$/.test(cleaned)) {
     cleaned += ".";
   }
@@ -818,6 +1050,36 @@ export function isUngroundedHallucination(bullet: string, contextCorpus: string)
     if (!hasDockerGrounding) return true;
   }
 
+  // 9. Sensory / UI cues falsely framed as security hardening, exploit mitigation, or anti-tamper
+  if (
+    /\b(?:audio|sound|animation|haptic|visual|color|styling)\b/i.test(bLower) &&
+    /\b(?:security|exploit|anti-tamper|vulnerability|hardening)\b/i.test(bLower)
+  ) {
+    return true;
+  }
+
+  // 10. Security hardening and exploit mitigation claims on ungrounded repos
+  if (
+    /\b(?:hardened\s+(?:game\s+|app(?:lication)?\s+)?security|minimiz(?:ing|ed)\s+(?:potential\s+)?exploits?|vulnerability\s+mitigation|anti-tamper)\b/i.test(bLower)
+  ) {
+    const hasSecurityGrounding =
+      /\b(?:security|auth|token|jwt|credential|crypt|permission|sanitize|vulnerability|exploit|role|access-control|acl)\b/i.test(
+        normCorpus
+      );
+    if (!hasSecurityGrounding) return true;
+  }
+
+  // 11. Domain engine grounding (game engine, physics engine, simulation engine) on ungrounded repos
+  if (
+    /\b(?:game\s+engine|physics\s+engine|compiler\s+pipeline|operating\s+system\s+kernel)\b/i.test(bLower)
+  ) {
+    const hasDomainGrounding =
+      /\b(?:game|physics|engine|simulation|compiler|kernel|minimax|alpha-beta|board|player|sprite)\b/i.test(
+        normCorpus
+      );
+    if (!hasDomainGrounding) return true;
+  }
+
   return false;
 }
 
@@ -839,6 +1101,13 @@ const VERB_ALTERNATIVES: Record<string, string[]> = {
  * Diversifies leading action verbs across bullets on the same project card to break repetitive verb carousels.
  */
 export function diversifyLeadingVerbs(bullets: string[]): string[] {
+  // Pre-scan all initial lead verbs so we know which verbs are already active on this card
+  const activeVerbs = new Set<string>();
+  for (const bullet of bullets) {
+    const match = bullet.match(/^([A-Z][a-z]+)\b/);
+    if (match) activeVerbs.add(match[1]!);
+  }
+
   const seenVerbs = new Map<string, number>();
 
   return bullets.map((bullet) => {
@@ -851,8 +1120,14 @@ export function diversifyLeadingVerbs(bullets: string[]): string[] {
 
     if (count > 0 && VERB_ALTERNATIVES[leadVerb]) {
       const alternatives = VERB_ALTERNATIVES[leadVerb]!;
-      const replacement = alternatives[(count - 1) % alternatives.length]!;
-      return bullet.replace(new RegExp(`^${leadVerb}\\b`), replacement);
+      // Select the first alternative that is not currently in activeVerbs
+      let chosen = alternatives.find((alt) => !activeVerbs.has(alt));
+      if (!chosen) {
+        // Fallback: cycle through alternatives
+        chosen = alternatives[(count - 1) % alternatives.length]!;
+      }
+      activeVerbs.add(chosen);
+      return bullet.replace(new RegExp(`^${leadVerb}\\b`), chosen);
     }
 
     return bullet;
@@ -903,6 +1178,14 @@ export function adaptRepoToProjectItem(params: {
 
     bullet = unrollPermissivePhrasing(bullet);
     bullet = cleanTrivialPrimitives(bullet);
+
+    // Scrub ungrounded synthetic percentage gain clauses (e.g. "by 35% efficiency")
+    const scrubbedMetric = verifyAndScrubBulletMetrics({
+      bullet,
+      sourceText: contextCorpus,
+    });
+    bullet = scrubbedMetric.bullet;
+
     bullet = sanitizeBulletString(bullet); // Final polish after unrolling/cleaning
 
     // Omit ungrounded cross-repo hallucinations
@@ -926,7 +1209,7 @@ export function adaptRepoToProjectItem(params: {
       }
     }
 
-    const audited = auditBulletSubstantiveness(bullet);
+    const audited = auditBulletSubstantiveness(bullet, contextCorpus);
     if (!audited.isChore) {
       auditedPool.push({
         ...audited,

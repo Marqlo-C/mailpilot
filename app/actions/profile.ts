@@ -40,6 +40,12 @@ import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import { parseResumeToStructuredProfile } from "@/lib/profile/resume-parser";
 import { ensurePersistentProfileForAccount } from "@/lib/profile/persistent-profile";
 import {
+  saveDevCachedResume,
+  getDevCachedResume,
+  getDevCachedResumeMetadata,
+  type DevCachedResumeMetadata,
+} from "@/lib/profile/dev-resume-cache";
+import {
   awardsSchema,
   certificationsSchema,
   getEmptyMasterProfileData,
@@ -134,11 +140,21 @@ export async function extractResumeDraft(
 > {
   try {
     const accountId = String(formData.get("accountId") ?? "");
-    const file = formData.get("file");
+    let file = formData.get("file");
+    const useDevCachedResume =
+      String(formData.get("useDevCachedResume") ?? "") === "true";
     const devModelOverride =
       String(formData.get("devModelOverride") ?? "").trim() || undefined;
     if (!accountId) {
       return { ok: false, error: "accountId is required" };
+    }
+    if (!(file instanceof File) && useDevCachedResume) {
+      const cached = await getDevCachedResume(accountId);
+      if (cached) {
+        file = new File([new Uint8Array(cached.buffer)], cached.fileName, {
+          type: cached.fileType,
+        });
+      }
     }
     if (!(file instanceof File)) {
       return { ok: false, error: "Resume file is required" };
@@ -173,6 +189,15 @@ export async function extractResumeDraft(
     // Reconstruct a File-like for text extractors that expect File
     const rebuilt = new File([buffer], file.name, { type: file.type });
     const text = await extractTextFromFile(rebuilt);
+
+    if (process.env.NODE_ENV === "development") {
+      void saveDevCachedResume(accountId, {
+        fileName: file.name,
+        fileType: file.type,
+        buffer,
+        sourceText: text,
+      });
+    }
     const rules = parseAccountRules(account.settings?.rules);
     const draft = await parseResumeToStructuredProfile(text, {
       llmProvider:
@@ -227,17 +252,17 @@ export async function applyResumeUpload(
   let profileDraft = extracted.data.profile;
   const sourceText = extracted.data.sourceText;
   const overwriteAll = String(formData.get("overwriteAll") ?? "") === "true";
+  const forceReinfer = String(formData.get("forceReinfer") ?? "") === "true";
   const devModelOverride =
     String(formData.get("devModelOverride") ?? "").trim() || undefined;
 
   // 2. GitHub handle from the new document, or from the form when merging.
   const documentGithub = githubProfileUrlInText(sourceText);
   const inputGithub = String(formData.get("githubUsername") ?? "").trim();
-  const targetGithubHandle = overwriteAll
-    ? documentGithub
-    : resolveGithubHandle(inputGithub, profileDraft.links);
+  const targetGithubHandle =
+    resolveGithubHandle(inputGithub, profileDraft.links) || documentGithub;
 
-  if (overwriteAll && !documentGithub) {
+  if (overwriteAll && !targetGithubHandle) {
     profileDraft = {
       ...profileDraft,
       links: profileDraft.links.filter((link) => !isGithubProfileUrl(link.url)),
@@ -266,6 +291,8 @@ export async function applyResumeUpload(
         allowCloudFallback: rules.allowCloudFallback,
         accountRules: rules,
         devModelOverride,
+        bypassCache: forceReinfer,
+        forceRefresh: forceReinfer,
       });
 
       const linkedGithub = `https://github.com/${username}`;
@@ -288,7 +315,33 @@ export async function applyResumeUpload(
           technologies: gp.technologies,
           link: gp.link,
           bullets: gp.bullets,
+          origin: gp.origin,
         }));
+
+      if (forceReinfer) {
+        // When force-reinferring in development, refresh matching resume projects with newly inferred GitHub bullets
+        for (const gp of githubProjects) {
+          const matchIndex = profileDraft.projects.findIndex(
+            (p) =>
+              p.name.toLowerCase().replace(/[^a-z0-9]/g, "") ===
+              gp.name.toLowerCase().replace(/[^a-z0-9]/g, "")
+          );
+          if (matchIndex >= 0) {
+            profileDraft.projects[matchIndex] = {
+              ...profileDraft.projects[matchIndex]!,
+              bullets: gp.bullets,
+              link: gp.link || profileDraft.projects[matchIndex]!.link,
+              technologies: [
+                ...new Set([
+                  ...(profileDraft.projects[matchIndex]!.technologies || []),
+                  ...gp.technologies,
+                ]),
+              ],
+              origin: gp.origin,
+            };
+          }
+        }
+      }
 
       const hasGithubLink = profileDraft.links.some(
         (l) =>
@@ -316,9 +369,11 @@ export async function applyResumeUpload(
   }
 
   return saveMasterProfile(accountId, profileDraft, {
-    summary: overwriteAll
-      ? "Before Resume Replacement"
-      : "Before Resume Extraction",
+    summary: forceReinfer
+      ? "Development Test Run"
+      : overwriteAll
+        ? "Before Resume Replacement"
+        : "Before Resume Extraction",
     overwriteAll,
   });
 }
@@ -1076,7 +1131,8 @@ export async function updateLinkedAccounts(
 export async function importGitHubProjects(
   accountId: string,
   githubHandleOrUrl: string,
-  devModelOverride?: string | null
+  devModelOverride?: string | null,
+  options?: { forceRefresh?: boolean }
 ): Promise<ActionResult<{ imported: number }>> {
   const handle = githubHandleOrUrl.trim();
   if (!handle) {
@@ -1121,6 +1177,8 @@ export async function importGitHubProjects(
       allowCloudFallback: rules.allowCloudFallback,
       accountRules: rules,
       devModelOverride,
+      bypassCache: options?.forceRefresh,
+      forceRefresh: options?.forceRefresh,
     });
     const linkedGithub = `https://github.com/${username}`;
 
@@ -1241,4 +1299,18 @@ export async function exportMasterProfilePdfAction(
     };
   }
 }
+
+/**
+ * Returns metadata about the dev-cached resume for instant repeated benchmark runs.
+ */
+export async function getDevCachedResumeInfo(
+  accountId: string
+): Promise<ActionResult<DevCachedResumeMetadata | null>> {
+  if (process.env.NODE_ENV !== "development") {
+    return { ok: true, data: null };
+  }
+  const meta = await getDevCachedResumeMetadata(accountId);
+  return { ok: true, data: meta };
+}
+
 

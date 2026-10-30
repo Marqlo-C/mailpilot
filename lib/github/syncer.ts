@@ -167,9 +167,11 @@ export async function syncGitHubProjects(
     const cachedEntry = cacheLedger.get(cacheKey);
     const isParserCurrent =
       cachedEntry?.parserVersion === GITHUB_PARSER_VERSION;
+    const bypassCache = Boolean(options.bypassCache || options.forceRefresh);
 
     // Fast Bypass Check: If cached pushed_at matches exactly AND parser version is current, reuse cached project
     if (
+      !bypassCache &&
       cachedEntry &&
       isParserCurrent &&
       repo.pushed_at &&
@@ -213,7 +215,7 @@ export async function syncGitHubProjects(
       const isParserCurrent =
         cachedEntry?.parserVersion === GITHUB_PARSER_VERSION;
 
-      if (cachedEntry?.etag && isParserCurrent) {
+      if (!bypassCache && cachedEntry?.etag && isParserCurrent) {
         treeHeaders["If-None-Match"] = cachedEntry.etag;
       }
 
@@ -222,7 +224,7 @@ export async function syncGitHubProjects(
         next: { revalidate: 0 },
       });
 
-      if (treeRes.status === 304 && cachedEntry && isParserCurrent) {
+      if (!bypassCache && treeRes.status === 304 && cachedEntry && isParserCurrent) {
         // Unmodified on GitHub and parser version is current; reuse cached project item directly
         return cachedEntry.project;
       }

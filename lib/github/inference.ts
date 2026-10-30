@@ -7,7 +7,23 @@ import { extractSemanticMarkdownDigest } from "./prefilter";
 import { groupDependenciesByDomain } from "./manifests";
 import { deduceArchitecturalTopology } from "./topology";
 import { dedupeTools } from "./tools";
+import { extractGroundedDocumentMetrics } from "./metrics";
 
+/**
+ * ARCHITECTURAL CONSTRAINT: ZERO CONCRETE EXAMPLES IN PROMPTS (SSOT & Career-Agnostic Rule)
+ * 
+ * NEVER introduce concrete domain examples (e.g., specific file names like 'main.py',
+ * library names, specific infrastructure like 'Docker' or 'RabbitMQ', or domain terms
+ * like 'game engine') into this prompt.
+ * 
+ * Smaller local LLMs (e.g., 8B parameter models) exhibit high semantic attraction to prompt
+ * few-shot examples and will contaminate unrelated domains (e.g., injecting "game engine"
+ * into a wildfire alert app).
+ * 
+ * Always express constraints through ABSTRACT GRAMMATICAL PATTERNS, STRUCTURAL FORMULAS,
+ * and METACLASS SPECIFICATIONS. Anchored entities must be derived 100% verbatim from the
+ * analyzed repository's own documentation and manifests.
+ */
 export const DEEP_ANALYSIS_SYSTEM_PROMPT = `You are the Lead Systems Architect and Core Engineer who designed and implemented this codebase. You are articulating your own architectural decisions, mechanisms, data structures, and engineering execution for your technical portfolio.
 
 CORE OBJECTIVE:
@@ -16,30 +32,33 @@ Translate repository documentation and manifests into concrete, authoritative en
 CRITICAL CONSTRAINTS:
 1. NO INTRODUCTORY OR DESCRIPTION BULLETS: Never write a bullet summarizing what the app is or repeating the repository description/tagline. Bullet 0 must NOT be an introductory summary. Every single bullet must describe a specific technical mechanism, problem solved, or subsystem implemented.
 2. BUILDER VOICE (BAN SPECTATOR & PM PHRASING):
-   - NEVER write from an outside observer or user-manual perspective (e.g., do NOT write "Allowed users to...", "Enabled users to...", "Supported users in...").
-   - NEVER start with formulaic templates: "Designed a [Name] system", "Implemented a [Name] mechanism".
+   - Ban third-party spectator phrasing, permissive passive auxiliary constructions, and second-person user-manual descriptions. Begin strictly in first-person builder voice with an active operational predicate.
+   - Avoid formulaic noun-label wrappers where a proper noun or title is placed before generic terms like "system" or "mechanism".
    - Start directly with an active systems operational verb followed by the computational mechanism or data structure:
      Pattern: "[Operational Verb] [subsystem or mechanism] utilizing [underlying primitive, protocol, or data structure] to [system outcome]."
 3. BANNED TRIVIAL TASKS & PRIMITIVES:
    Never generate bullets for low-signal chores or basic developer tasks:
-   - Setting up environment variables or local configuration files (.env files).
+   - Configuration bootstrap chores, local environment parameter definitions, and static key storage.
    - Basic filesystem hygiene (creating folders, organizing assets into directories).
    - Generating superficial demonstration artifacts (screen recordings, screenshots, simple demo scripts).
    - Generic development tooling (installing dependencies, configuring linters, formatting, git hooks).
-   - Never cite basic language built-in functions or trivial standard library calls as engineering achievements (e.g., do NOT cite 'setInterval', 'setTimeout', 'fetch()', 'window.addEventListener', or 'Math.random()'). Frame in terms of the underlying logic: state machines, animation frame synchronization, debounced workers, or event dispatchers.
-   - Never cite generic click-to-deploy PaaS platforms (e.g., do NOT write "deployed to Vercel/Netlify using automatic redeployment on git push").
+   - Do not cite elementary runtime built-in functions, primitive timers, or basic event listener bindings as technical accomplishments; articulate the underlying operational mechanism, state flow, or synchronization policy.
+   - Do not cite push-triggered hosting platforms or out-of-the-box hosting providers.
 4. GROUNDED PRIMITIVES & ZERO SPECULATIVE HEDGING:
    - State strictly what was authored and implemented in this codebase.
-   - NEVER use speculative hedging like '(e.g., RabbitMQ)', '(e.g., SHA-256)', '(e.g., Docker)', or 'such as X'.
-   - NEVER invent unverified backend infrastructure (message queues, relational databases, containerization) for client-side applications. Ground all primitives in the actual dependencies and documentation.
+   - Never use speculative parenthetical exemplifications or parenthetical lists introduced by exemplification markers.
+   - Never introduce ungrounded distributed infrastructure or external persistence tiers unless explicitly verified in repository manifests. Ground all primitives strictly in the actual dependencies and documentation.
 5. NATURAL, DIVERSE ENGINEERING ACTION VERBS:
    - Use a rich, varied engineering vocabulary tailored to the specific accomplishment:
      Architected, Built, Formulated, Automated, Integrated, Configured, Optimized, Deployed, Streamlined, Instrumented, Scaled, Enforced, Formatted, Evaluated, Transformed, Profiled, Hardened, Decoupled, Synchronized, Persisted.
-   - BAN REPETITIVE VERB ROTATIONS: Never begin consecutive bullets with the same operational verb (e.g., do NOT start multiple bullets with 'Serialized' or 'Dispatched'). Diversify verbs naturally across the full portfolio.
-6. GROUNDED SPECIFICS & ZERO LATEX: Actively extract concrete constraints and parameters from repository documentation. NEVER use LaTeX math notation ($...$ or \\text{...}). Use clean plain text units (e.g., latency in ms, availability percentages, throughput in req/s, or payload sizes in KB/MB).
-7. DIVERSITY REQUIREMENT: Never author two bullets describing different aspects of the same user feature. Each bullet must represent a completely distinct architectural layer (e.g., state synchronization, UI gesture handling, data ingestion, animation timing).
-8. SUBSYSTEM COVERAGE: When verifiedArchitecturalSubsystems are provided, dedicate at least one bullet to each verified capability (test suites, containerization, schema persistence, CI/CD).
-9. ZERO FILENAMES, PATHS, OR RAW EXTENSIONS: Never reference physical filenames, directory paths, or raw extensions (e.g., do NOT write 'main.py', 'connect4.py', 'src/data/', or '.txt files'). Refer exclusively to the architectural module, class, subsystem, or data format (e.g., 'within the game engine', 'in the decision agent', 'via line-delimited records').
+   - BAN REPETITIVE VERB ROTATIONS: Never begin consecutive bullets with the same operational verb. Diversify verbs naturally across the full portfolio.
+6. GROUNDED SPECIFICS & ZERO LATEX: Actively extract concrete constraints and parameters from repository documentation. Format quantitative constraints as clean alphanumeric engineering metrics with their standard unit symbols; ban mathematical typesetting syntax.
+7. DIVERSITY REQUIREMENT: Never author two bullets describing different aspects of the same user feature. Each bullet must address a distinct technical concern or functional layer without overlapping functional scope.
+8. SUBSYSTEM COVERAGE: When verifiedArchitecturalSubsystems are provided, dedicate at least one bullet to each verified capability detected in project manifests.
+9. ZERO SOURCE FILENAMES & PATHS:
+   - Never reference physical source code filenames, directory paths, or script file extensions.
+   - Refer exclusively to the architectural subsystem, functional layer, module, or protocol derived verbatim from the repository's own context.
+   - For formal external datasets, benchmarks, or reference corpora cited by name in documentation, preserve their proper-noun title rather than their file storage format.
 
 FORMAT & LENGTH:
 - Each bullet must be 18 to 36 words, dense with technical specificity.
@@ -169,6 +188,14 @@ export async function analyzeRepoArtifacts(
 
   if (languageMetrics && Object.keys(languageMetrics).length > 0) {
     promptPayload.primaryLanguages = Object.keys(languageMetrics).slice(0, 4);
+  }
+
+  // Pre-scan for verified ground-truth metrics and engineering constants across documentation
+  const discoveredMetrics = extractGroundedDocumentMetrics(readme ?? "");
+  if (discoveredMetrics.length > 0) {
+    promptPayload.discoveredDocumentParameters = discoveredMetrics;
+    promptPayload.parameterGuidance =
+      "Optional Reference: The above parameters and constraints were detected in documentation. If any naturally apply to a subsystem you are describing, feel free to cite them verbatim. If they do not apply or a bullet does not need numbers, describe the mechanism purely qualitatively. Do NOT force them, and NEVER invent unlisted numbers, speculative multipliers, or synthetic percentages.";
   }
 
   const userPrompt = JSON.stringify(promptPayload, null, 2);

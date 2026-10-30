@@ -22,6 +22,7 @@ import {
   getProjectBaseName,
   normalizeProjectName,
 } from "@/lib/utils/format";
+import { diversifyLeadingVerbs } from "@/lib/github/lens";
 
 /** True when an address is missing or a synthetic placeholder. */
 export function isPlaceholderEmail(email?: string | null): boolean {
@@ -606,6 +607,11 @@ export function consolidateProfiles(
     (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
   );
 
+  const diversifiedProjects = projects.map((p) => ({
+    ...p,
+    bullets: diversifyLeadingVerbs(p.bullets),
+  }));
+
   return {
     fullName: preferPopulated(existing.fullName, incoming.fullName) || "Unknown",
     email,
@@ -615,7 +621,7 @@ export function consolidateProfiles(
     links: mergedLinks,
     skills,
     experiences,
-    projects,
+    projects: diversifiedProjects,
     education,
     certifications: mergeCertifications(
       existing.certifications ?? [],

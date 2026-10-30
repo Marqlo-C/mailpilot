@@ -12,6 +12,7 @@ import {
 } from "@/lib/validations/profile";
 import { decryptPhoneAtRest } from "@/lib/core/crypto";
 import { revisionRecordedAt } from "@/lib/profile/revision-diff";
+import { diversifyLeadingVerbs } from "@/lib/github/lens";
 
 const MAX_HISTORY_STATES = 4;
 
@@ -131,7 +132,10 @@ export function serializeUserProfileToInput(
         description: p.description,
         technologies: p.technologies,
         link: p.link,
-        bullets: p.bullets,
+        bullets: diversifyLeadingVerbs(p.bullets),
+        origin: (p.link && p.link.toLowerCase().includes("github.com")
+          ? "GITHUB_INFERRED"
+          : undefined) as MasterProfileInput["projects"][number]["origin"],
       }))
       .sort((a, b) =>
         (a.name || "").localeCompare(b.name || "", undefined, {

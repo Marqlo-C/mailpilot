@@ -728,6 +728,15 @@ Respectful collaboration is strictly required.
         "Profiled and benchmarked agent performance using the included test scripts, reporting wins, ties, losses, and total points."
       );
 
+      // Stranded preposition before coordinate conjunction when first file is stripped
+      expect(
+        sanitizeBulletString(
+          "Designed time-limiting mechanism for selected players using thread.py and thread_with_trace, substituting random moves."
+        )
+      ).toBe(
+        "Designed time-limiting mechanism for selected players using thread_with_trace, substituting random moves."
+      );
+
       // Preserves valid runtime/framework names like Next.js and Node.js
       expect(
         sanitizeBulletString(
@@ -815,7 +824,7 @@ Respectful collaboration is strictly required.
           "Developed a Rate-Throttled Batching system, executing category lookups sequentially and batching queries in groups of 3 with a $150\\text{ ms}$ delay to avoid HTTP 429 errors."
         )
       ).toBe(
-        "Executed category lookups sequentially and batching queries in groups of 3 with a 150ms delay to avoid HTTP 429 errors."
+        "Executed category lookups sequentially and batched queries in groups of 3 with a 150ms delay to avoid HTTP 429 errors."
       );
 
       expect(
@@ -850,6 +859,112 @@ Respectful collaboration is strictly required.
         )
       ).toBe(
         "Implemented an SSRF mitigation layer using DNS pre-resolution."
+      );
+    });
+
+    it("strips dangling trailing conjunctions and prepositions before terminal punctuation", () => {
+      expect(
+        sanitizeBulletString(
+          "Formulated a time-limiting mechanism utilizing a killable thread utility to terminate move threads and substitute random moves when limits are exceeded and."
+        )
+      ).toBe(
+        "Formulated a time-limiting mechanism utilizing a killable thread utility to terminate move threads and substitute random moves when limits are exceeded."
+      );
+
+      expect(
+        sanitizeBulletString(
+          "Engineered an autonomous routing controller deploying fallback nodes while."
+        )
+      ).toBe(
+        "Engineered an autonomous routing controller deploying fallback nodes."
+      );
+
+      expect(
+        sanitizeBulletString(
+          "Utilized TypeScript and Next.js, to store and retrieve word packs, including custom pack creation and merged."
+        )
+      ).toBe(
+        "Utilized TypeScript and Next.js to store and retrieve word packs, including custom pack creation."
+      );
+    });
+
+    it("harmonizes compound predicate coordination across coordinating conjunctions", () => {
+      expect(
+        sanitizeBulletString(
+          "Selected relevant evidence from candidate profiles and generating tailored bullet points."
+        )
+      ).toBe(
+        "Selected relevant evidence from candidate profiles and generated tailored bullet points."
+      );
+
+      expect(
+        sanitizeBulletString(
+          "Built a real-time geocoding system and deploying to production."
+        )
+      ).toBe(
+        "Built a real-time geocoding system and deployed to production."
+      );
+
+      // Gerund lead clause conjoined with mismatched past verb (e.g. optimizing ... and improved)
+      expect(
+        sanitizeBulletString(
+          "Integrated minimax algorithm utilizing iterative deepening to evaluate board states, optimizing search efficiency and improved AI decision-making."
+        )
+      ).toBe(
+        "Integrated minimax algorithm utilizing iterative deepening to evaluate board states, optimizing search efficiency and improving AI decision-making."
+      );
+
+      expect(
+        sanitizeBulletString(
+          "Designed time limiting mechanism allowing for flexible per-player time limits, ensuring fairness and prevented infinite loops."
+        )
+      ).toBe(
+        "Designed time limiting mechanism allowing for flexible per-player time limits, ensuring fairness and preventing infinite loops."
+      );
+
+      expect(
+        sanitizeBulletString(
+          "Designed a system to register and load new player agents by inheriting from connect4Player and implemented the play method."
+        )
+      ).toBe(
+        "Designed a system to register and load new player agents by inheriting from connect4Player and implementing the play method."
+      );
+
+      expect(
+        sanitizeBulletString(
+          "Utilizing React to provide a responsive interface for locating nearby fires and identifyed communications towers at risk."
+        )
+      ).toBe(
+        "Utilizing React to provide a responsive interface for locating nearby fires and identifying communications towers at risk."
+      );
+
+      // Preserves valid adjective past participles modifying nouns
+      expect(
+        sanitizeBulletString(
+          "Engineered scalable data streaming pipelines and distributed systems."
+        )
+      ).toBe(
+        "Engineered scalable data streaming pipelines and distributed systems."
+      );
+    });
+
+    it("preserves filename noun before architectural descriptors during file scrubbing", () => {
+      expect(
+        sanitizeBulletString(
+          "Integrated a matchup benchmarking script utilizing the thread.py utility to evaluate agent performance."
+        )
+      ).toBe(
+        "Integrated a matchup benchmarking script utilizing the thread utility to evaluate agent performance."
+      );
+    });
+
+    it("preserves named datasets and reference benchmarks during sanitization", () => {
+      expect(
+        sanitizeBulletString(
+          "Integrated the Old Faithful.txt dataset to analyze and compare delay distributions."
+        )
+      ).toBe(
+        "Integrated the Old Faithful dataset to analyze and compare delay distributions."
       );
     });
 
@@ -964,7 +1079,7 @@ Respectful collaboration is strictly required.
   describe("Ban on Low-Signal Developer Setup and Hygiene Chores", () => {
     it("specifies explicit negative constraints in DEEP_ANALYSIS_SYSTEM_PROMPT", () => {
       expect(DEEP_ANALYSIS_SYSTEM_PROMPT).toContain("BANNED TRIVIAL TASKS");
-      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).toContain("Setting up environment variables");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).toContain("Configuration bootstrap chores");
       expect(DEEP_ANALYSIS_SYSTEM_PROMPT).toContain("Basic filesystem hygiene");
       expect(DEEP_ANALYSIS_SYSTEM_PROMPT).toContain("superficial demonstration artifacts");
       expect(DEEP_ANALYSIS_SYSTEM_PROMPT).toContain("Generic development tooling");
@@ -1015,6 +1130,16 @@ Respectful collaboration is strictly required.
       expect(LOW_SIGNAL_CHORE_REGEX.test("Generated screen recordings and screenshots")).toBe(true);
       expect(LOW_SIGNAL_CHORE_REGEX.test("Configuring code linters and prettier")).toBe(true);
       expect(LOW_SIGNAL_CHORE_REGEX.test("Installing dependencies and packages")).toBe(true);
+      expect(
+        LOW_SIGNAL_CHORE_REGEX.test(
+          "Deployed the application to local development environment via npm run dev, serving at http://localhost:5173."
+        )
+      ).toBe(true);
+      expect(
+        LOW_SIGNAL_CHORE_REGEX.test(
+          "Instrumented environmental variables, utilizing ENV files to securely store API keys and other sensitive information."
+        )
+      ).toBe(true);
 
       // Does NOT match genuine engineering bullets
       expect(LOW_SIGNAL_CHORE_REGEX.test("Architected distributed storage ring")).toBe(false);
@@ -1166,9 +1291,9 @@ Respectful collaboration is strictly required.
     });
 
     it("preserves unrecognized tools in their original casing without duplicates", () => {
-      const tools = ["scikit-learn", "Scikit-Learn", "actix-web", "ACTIX-WEB", "tokio"];
+      const tools = ["my-custom-engine", "My-Custom-Engine", "actix-web", "ACTIX-WEB", "tokio"];
       const result = dedupeTools(tools);
-      expect(result).toEqual(["scikit-learn", "actix-web", "tokio"]);
+      expect(result).toEqual(["my-custom-engine", "actix-web", "tokio"]);
     });
   });
 
@@ -1280,6 +1405,63 @@ Respectful collaboration is strictly required.
       expect(projects[0]).toEqual(existingProject);
       // Verify LLM was bypassed (0 calls)
       expect(mockLLM).not.toHaveBeenCalled();
+    });
+
+    it("forces fresh LLM inference when bypassCache is true even if pushed_at and version match exactly", async () => {
+      clearGlobalRepoCache();
+      const mockLLM = vi.mocked(callLLMWithFallback);
+      mockLLM.mockResolvedValueOnce({
+        bullets: ["Freshly evaluated distributed lock implementation without cache."],
+        extractedTechnologies: ["Rust"],
+      });
+
+      const mockRepo = {
+        name: "cached-engine",
+        description: "Cached systems engine",
+        html_url: "https://github.com/developer/cached-engine",
+        fork: false,
+        archived: false,
+        language: "Rust",
+        topics: ["cache"],
+        stargazers_count: 88,
+        forks_count: 12,
+        default_branch: "main",
+        size: 5000,
+        pushed_at: "2026-10-01T12:00:00Z",
+      };
+
+      const cacheLedger = new Map();
+      const existingProject = {
+        name: "Cached Engine",
+        description: "Cached systems engine",
+        technologies: ["Rust"],
+        link: "https://github.com/developer/cached-engine",
+        bullets: ["Old cached bullet from previous run."],
+        origin: "GITHUB_INFERRED" as const,
+      };
+
+      cacheLedger.set("developer/cached-engine", {
+        etag: '"etag-12345"',
+        pushedAt: "2026-10-01T12:00:00Z",
+        parserVersion: GITHUB_PARSER_VERSION,
+        project: existingProject,
+      });
+
+      vi.spyOn(globalThis, "fetch").mockImplementationOnce(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => [mockRepo],
+      } as unknown as Response));
+
+      const projects = await syncGitHubProjects("developer", {
+        cacheLedger,
+        rawFetcher: vi.fn().mockResolvedValue("# Cached Engine\nImplementation details"),
+        bypassCache: true,
+      });
+
+      expect(projects).toHaveLength(1);
+      expect(mockLLM).toHaveBeenCalled();
+      expect(projects[0].bullets[0]).toContain("Freshly evaluated distributed lock");
     });
   });
 
@@ -1738,6 +1920,14 @@ Respectful collaboration is strictly required.
       expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("emergency SOS");
       expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("HTTP 206");
       expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("candidate proximity");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("within the game engine");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("connect4.py");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("main.py");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("RabbitMQ");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("Docker");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("SHA-256");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("Vercel");
+      expect(DEEP_ANALYSIS_SYSTEM_PROMPT).not.toContain("setInterval");
     });
 
     it("rejects ungrounded cross-repo hallucinations in adaptRepoToProjectItem while preserving grounded ones", () => {
@@ -1778,7 +1968,31 @@ Respectful collaboration is strictly required.
       expect(bulletsStr).toContain("minimax AI agent");
       expect(bulletsStr).toContain("Monte Carlo");
 
-      // On a grounded project (e.g. SafeHaven with geospatial shelter search), Haversine is grounded
+      // Rejects ungrounded game engine leak into wildfire alert app
+      const embergencyCorpus =
+        "embergency wildfire alert app maps geocoding openweathermap react vite";
+      expect(
+        isUngroundedHallucination(
+          "Built a Real-time geocoding mechanism within the game engine, utilizing OpenWeatherMap API to locate nearby fires and extract lat/lon coordinates.",
+          embergencyCorpus
+        )
+      ).toBe(true);
+
+      // Rejects incongruous audio UI cues framed as security hardening / anti-exploit
+      const toesDownCorpus =
+        "toes down mobile word party game audio effects nextjs typescript";
+      expect(
+        isUngroundedHallucination(
+          "Hardened game security by incorporating audio feedback for correct and skip actions, enhancing user engagement and minimizing potential exploits.",
+          toesDownCorpus
+        )
+      ).toBe(true);
+
+      // Penalizes standalone fragmented layout stubs with 6 words and no quantitative metrics
+      const stubAudit = auditBulletSubstantiveness(
+        "Guaranteed strict 1-page Letter layout geometry."
+      );
+      expect(stubAudit.score).toBeLessThanOrEqual(2.0);
       const safeHavenCorpus =
         "safehaven domestic violence platform geospatial coordinates haversine shelter radius search audio streaming emergency sos";
       expect(
@@ -2045,6 +2259,94 @@ Respectful collaboration is strictly required.
       expect(allText).toContain("ASCII telemetry");
       expect(allText).toContain("database persistence");
       expect(allText).toContain("inference router");
+    });
+
+    it("normalizes dropped direct objects and bare infinitives after utilizing/leveraging/using", () => {
+      const bullet1 =
+        "Architected an orchestration mechanism utilizing to gate all application subsystems during high-traffic spikes.";
+      expect(sanitizeBulletString(bullet1)).toBe(
+        "Architected an orchestration mechanism to gate all application subsystems during high-traffic spikes."
+      );
+
+      const bullet2 =
+        "Built a media streaming engine leveraging to support admissible incident documentation.";
+      expect(sanitizeBulletString(bullet2)).toBe(
+        "Built a media streaming engine to support admissible incident documentation."
+      );
+    });
+
+    it("cleans malformed participles, typos, and singular articles before plural noun phrases", () => {
+      const raw =
+        "Permitted users to create and ading custom packs by adding a text files to the data repository.";
+      const cleaned = sanitizeBulletString(unrollPermissivePhrasing(raw));
+      expect(cleaned).not.toContain("ading");
+      expect(cleaned).not.toContain("a text files");
+      expect(cleaned).toBe(
+        "Engineered and added custom packs by adding text files to the data repository."
+      );
+    });
+
+    it("harmonizes serial gerund lists when trailing conjunction verbs switch to past tense", () => {
+      const raw =
+        "Engineered agent architecture, including inheriting from basePlayer, implementing the play method, and registered the class in the agents mapping.";
+      const cleaned = sanitizeBulletString(raw);
+      expect(cleaned).toBe(
+        "Engineered agent architecture, including inheriting from basePlayer, implementing the play method, and registering the class in the agents mapping."
+      );
+    });
+
+    it("excludes build plugins, css processors, and compiler scaffolding while preserving build tools and test runners", () => {
+      const rawTools = [
+        "Vite",
+        "@vitejs/plugin-react",
+        "vite-plugin-pwa",
+        "postcss",
+        "autoprefixer",
+        "@rollup/plugin-node-resolve",
+        "babel-plugin-styled-components",
+        "Vitest",
+        "Webpack",
+      ];
+      const filtered = dedupeTools(rawTools);
+      expect(filtered).toContain("Vite");
+      expect(filtered).toContain("Vitest");
+      expect(filtered).toContain("Webpack");
+      expect(filtered).not.toContain("@vitejs/plugin-react");
+      expect(filtered).not.toContain("vite-plugin-pwa");
+      expect(filtered).not.toContain("postcss");
+      expect(filtered).not.toContain("autoprefixer");
+      expect(filtered).not.toContain("@rollup/plugin-node-resolve");
+      expect(filtered).not.toContain("babel-plugin-styled-components");
+    });
+
+    it("elevates standard library print and console diagnostics to active inspection phrasing", () => {
+      const raw =
+        "Engineered an iterative diagnostics pipeline utilizing Python's print function to output execution times.";
+      const cleaned = cleanTrivialPrimitives(raw);
+      expect(cleaned).toBe(
+        "Engineered an iterative diagnostics pipeline to inspect and output execution times."
+      );
+    });
+
+    it("avoids lead verb collisions when diversifying repeated leading verbs across a project card", () => {
+      const bullets = [
+        "Engineered a distributed cache layer with Redis.",
+        "Architected an event-driven pub/sub queue.",
+        "Engineered a resilient database retry loop.",
+        "Engineered an observability pipeline with OpenTelemetry.",
+      ];
+      const diversified = diversifyLeadingVerbs(bullets);
+      // Lead verbs across all 4 bullets must be unique!
+      const leadVerbs = diversified.map((b) => b.match(/^([A-Z][a-z]+)\b/)![1]);
+      const uniqueVerbs = new Set(leadVerbs);
+      expect(uniqueVerbs.size).toBe(4);
+      expect(leadVerbs[0]).toBe("Engineered");
+      expect(leadVerbs[1]).toBe("Architected");
+      expect(leadVerbs[2]).not.toBe("Engineered");
+      expect(leadVerbs[2]).not.toBe("Architected");
+      expect(leadVerbs[3]).not.toBe("Engineered");
+      expect(leadVerbs[3]).not.toBe("Architected");
+      expect(leadVerbs[3]).not.toBe(leadVerbs[2]);
     });
   });
 });
