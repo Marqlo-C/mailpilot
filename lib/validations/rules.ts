@@ -205,6 +205,20 @@ export const accountRulesSchema = z.object({
       awards: true,
       interests: true,
     }),
+  /**
+   * Extensible Project Metadata (origins, bulletOrigins, companion variants)
+   * Keyed by normalized project name.
+   */
+  projectMeta: z
+    .record(
+      z.string(),
+      z.object({
+        origin: z.string().optional(),
+        bulletOrigins: z.record(z.string(), z.string()).optional(),
+        variants: z.array(z.any()).optional(),
+      })
+    )
+    .default({}),
 });
 
 export type ScrapingAntUsage = z.infer<

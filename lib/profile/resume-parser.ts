@@ -1181,6 +1181,7 @@ export async function parseResumeToStructuredProfile(
     technologies: p.technologies,
     link: p.link ?? null,
     bullets: [...p.bullets],
+    origin: "HUMAN_VERIFIED" as const,
   }));
   placeNarratives(interpretedSkills.narratives, projects, experiences);
 

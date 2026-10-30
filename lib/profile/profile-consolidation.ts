@@ -23,6 +23,21 @@ import {
   normalizeProjectName,
 } from "@/lib/utils/format";
 import { diversifyLeadingVerbs } from "@/lib/github/lens";
+import {
+  deduplicateProjectCollection,
+  deduplicateWorkExperienceCollection,
+  hasThematicOverlap,
+  normalizeString,
+  tokenizeThematicWords,
+} from "@/lib/profile/deduplication";
+
+export {
+  deduplicateProjectCollection,
+  deduplicateWorkExperienceCollection,
+  hasThematicOverlap,
+  normalizeString,
+  tokenizeThematicWords,
+};
 
 /** True when an address is missing or a synthetic placeholder. */
 export function isPlaceholderEmail(email?: string | null): boolean {
@@ -114,38 +129,6 @@ function mergeInterests(existing: string[], incoming: string[]): string[] {
   return normalizedInterests;
 }
 
-function normalizeString(str: string): string {
-  return str.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function tokenizeThematicWords(text: string): Set<string> {
-  const stopwords = new Set([
-    "the", "and", "with", "for", "from", "that", "this", "into", "across",
-    "using", "their", "them", "line", "word", "users", "each", "game",
-    "which", "then", "per", "via", "under", "over", "allow", "allowing",
-    "ensure", "ensuring", "tools", "such", "application"
-  ]);
-  return new Set(
-    text
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, " ")
-      .split(/\s+/)
-      .filter((w) => w.length > 3 && !stopwords.has(w))
-  );
-}
-
-function hasThematicOverlap(bulletA: string, bulletB: string): boolean {
-  const tokensA = tokenizeThematicWords(bulletA);
-  const tokensB = tokenizeThematicWords(bulletB);
-  if (tokensA.size === 0 || tokensB.size === 0) return false;
-
-  let shared = 0;
-  for (const t of tokensB) {
-    if (tokensA.has(t)) shared++;
-  }
-  const minSize = Math.min(tokensA.size, tokensB.size);
-  return minSize > 0 && shared / minSize >= 0.5;
-}
 
 function ensureAbsoluteUrl(raw: string): string {
   const normalized = normalizeProfileUrl(raw);
@@ -359,8 +342,12 @@ export function consolidateProfiles(
   options: ConsolidationOptions = {}
 ): MasterProfileInput {
   if (options.overwriteAll) {
-    const sortedProjects = [...incoming.projects].sort((a, b) =>
-      (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+    const deduplicatedProjects = deduplicateProjectCollection(
+      incoming.projects ?? [],
+      { preserveRawNames: true }
+    );
+    const deduplicatedExperiences = deduplicateWorkExperienceCollection(
+      incoming.experiences ?? []
     );
     return {
       fullName: incoming.fullName?.trim() || "",
@@ -370,8 +357,8 @@ export function consolidateProfiles(
       summary: incoming.summary?.trim() || null,
       links: incoming.links ?? [],
       skills: incoming.skills ?? [],
-      experiences: incoming.experiences ?? [],
-      projects: sortedProjects,
+      experiences: deduplicatedExperiences,
+      projects: deduplicatedProjects,
       education: incoming.education ?? [],
       certifications: incoming.certifications ?? [],
       awards: incoming.awards ?? [],
@@ -380,156 +367,14 @@ export function consolidateProfiles(
   }
 
   const skills = mergeSkillGroups(existing.skills, incoming.skills);
-
-  const experiences: WorkExperienceInput[] = [...existing.experiences];
-
-  for (const incExp of incoming.experiences) {
-    const incCompanyNorm = normalizeString(incExp.company);
-    const existingIndex = experiences.findIndex((e) => {
-      const eCompanyNorm = normalizeString(e.company);
-      if (!eCompanyNorm || !incCompanyNorm) return false;
-      return (
-        eCompanyNorm === incCompanyNorm ||
-        eCompanyNorm.includes(incCompanyNorm) ||
-        incCompanyNorm.includes(eCompanyNorm)
-      );
-    });
-
-    if (existingIndex >= 0) {
-      const match = experiences[existingIndex]!;
-      const existingBulletTexts = new Set(
-        match.bullets.map((b) => normalizeString(b.rawText))
-      );
-      const newBullets = incExp.bullets.filter(
-        (b) => !existingBulletTexts.has(normalizeString(b.rawText))
-      );
-
-      experiences[existingIndex] = {
-        ...match,
-        role: match.role || incExp.role,
-        location: preferPopulated(match.location, incExp.location),
-        category: match.category || incExp.category || "Work",
-        startDate: match.startDate || incExp.startDate,
-        endDate: match.endDate ?? incExp.endDate,
-        bullets: [...match.bullets, ...newBullets],
-      };
-    } else {
-      experiences.push({
-        ...incExp,
-        displayOrder: experiences.length,
-      });
-    }
-  }
-
-  const projects: ProjectInput[] = existing.projects.map((p) => ({
-    ...p,
-    name: normalizeProjectName(p.name),
-  }));
-
-  for (const incProj of incoming.projects) {
-    const cleanIncName = normalizeProjectName(incProj.name);
-    const incNameNorm = normalizeString(cleanIncName);
-    const incBaseNorm = normalizeString(getProjectBaseName(cleanIncName));
-
-    const existingIndex = projects.findIndex((p) => {
-      const pNorm = normalizeString(p.name);
-      if (pNorm === incNameNorm) return true;
-      if (
-        Boolean(p.link) &&
-        Boolean(incProj.link) &&
-        (p.link ?? "").toLowerCase() === (incProj.link ?? "").toLowerCase()
-      ) {
-        return true;
-      }
-      const pBaseNorm = normalizeString(getProjectBaseName(p.name));
-      if (
-        pBaseNorm &&
-        incBaseNorm &&
-        pBaseNorm === incBaseNorm &&
-        pBaseNorm.length >= 3
-      ) {
-        return true;
-      }
-      return false;
-    });
-
-    const finalDesc =
-      (existingIndex >= 0 ? projects[existingIndex]!.description : null) ||
-      incProj.description;
-    const finalDescNorm = finalDesc ? normalizeString(finalDesc) : "";
-
-    const isDescriptionBullet = (bullet: string) => {
-      if (!finalDescNorm) return false;
-      const bNorm = normalizeString(bullet);
-      return (
-        bNorm === finalDescNorm ||
-        (finalDescNorm.length >= 10 && bNorm.startsWith(finalDescNorm))
-      );
-    };
-
-    if (existingIndex >= 0) {
-      const match = projects[existingIndex]!;
-      const isHumanVerified = match.origin === "HUMAN_VERIFIED";
-
-      // Human-Verified Protection: Repositories or projects marked with origin: "HUMAN_VERIFIED"
-      // must NEVER have their bullet points overwritten or diluted on re-sync.
-      let combinedBullets: string[];
-      if (isHumanVerified) {
-        combinedBullets = match.bullets;
-      } else if (
-        match.origin === "GITHUB_INFERRED" &&
-        incProj.origin === "GITHUB_INFERRED" &&
-        incProj.bullets.length > 0
-      ) {
-        // When both are automated GitHub syncs, refresh with incoming bullets to avoid infinite bloat across re-syncs
-        combinedBullets = incProj.bullets
-          .filter((b) => !isDescriptionBullet(b))
-          .slice(0, 10);
-      } else {
-        const existingBullets = new Set(
-          match.bullets.map((b) => normalizeString(b))
-        );
-        const deduplicatedIncoming = incProj.bullets.filter((incBullet) => {
-          if (existingBullets.has(normalizeString(incBullet))) return false;
-          // Thematic duplicate check against existing bullets on the same card
-          for (const exBullet of match.bullets) {
-            if (hasThematicOverlap(exBullet, incBullet)) {
-              return false;
-            }
-          }
-          return true;
-        });
-
-        combinedBullets = [...match.bullets, ...deduplicatedIncoming]
-          .filter((b) => !isDescriptionBullet(b))
-          .slice(0, 10);
-      }
-
-      projects[existingIndex] = {
-        ...match,
-        name: cleanIncName || match.name,
-        description: finalDesc,
-        technologies: mergeStringBuckets(
-          match.technologies,
-          incProj.technologies
-        ),
-        link: match.link || incProj.link,
-        bullets: combinedBullets,
-        origin: match.origin || incProj.origin,
-      };
-    } else {
-      const filteredBullets = incProj.bullets
-        .filter((b) => !isDescriptionBullet(b))
-        .slice(0, 10);
-
-      projects.push({
-        ...incProj,
-        name: cleanIncName,
-        bullets: filteredBullets,
-        origin: incProj.origin,
-      });
-    }
-  }
+  const experiences = deduplicateWorkExperienceCollection([
+    ...(existing.experiences ?? []),
+    ...(incoming.experiences ?? []),
+  ]);
+  const projects = deduplicateProjectCollection([
+    ...(existing.projects ?? []),
+    ...(incoming.projects ?? []),
+  ]);
 
   const education = [...existing.education];
   for (const incEd of incoming.education) {
@@ -603,15 +448,6 @@ export function consolidateProfiles(
         ? incoming.email.trim()
         : "";
 
-  projects.sort((a, b) =>
-    (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
-  );
-
-  const diversifiedProjects = projects.map((p) => ({
-    ...p,
-    bullets: diversifyLeadingVerbs(p.bullets),
-  }));
-
   return {
     fullName: preferPopulated(existing.fullName, incoming.fullName) || "Unknown",
     email,
@@ -621,7 +457,7 @@ export function consolidateProfiles(
     links: mergedLinks,
     skills,
     experiences,
-    projects: diversifiedProjects,
+    projects,
     education,
     certifications: mergeCertifications(
       existing.certifications ?? [],

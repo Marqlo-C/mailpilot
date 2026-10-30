@@ -17,6 +17,7 @@ import {
   Trophy,
   UserRound,
   Users,
+  Layers,
 } from "lucide-react";
 import {
   NestedCardLevel,
@@ -26,6 +27,7 @@ import {
   SettingsSectionCard,
   SettingsStatusPill,
   SlidableBadgeRow,
+  SLIDABLE_BADGE_ROW_LEADING_OFFSET_PX,
 } from "@/components/ui/tactile";
 import { ManualProfileEditor } from "@/components/profile/manual-profile-editor";
 import { PersonaViewer } from "@/components/profile/persona-viewer";
@@ -211,6 +213,70 @@ function ProfileUpdatedStamp({ iso }: { iso: string }) {
   );
 }
 
+function FormattedBulletText({
+  text,
+  hasMetric,
+  variantsCount = 0,
+  onToggleVariants,
+}: {
+  text: string;
+  hasMetric: boolean;
+  variantsCount?: number;
+  onToggleVariants?: () => void;
+}) {
+  const trimmed = text.trim();
+  const words = trimmed.split(/\s+/);
+
+  const metricBadge = hasMetric ? (
+    <Badge
+      variant="outline"
+      className="ml-1.5 inline-flex align-middle rounded-md px-1.5 py-0 font-mono text-[9px] shrink-0 whitespace-nowrap"
+    >
+      metric
+    </Badge>
+  ) : null;
+
+  const variantButton =
+    variantsCount > 0 && onToggleVariants ? (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleVariants();
+        }}
+        className="ml-1.5 inline-flex align-middle items-center gap-1 rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0 cursor-pointer whitespace-nowrap"
+        title="Toggle companion variants"
+      >
+        <Layers className="size-2.5 shrink-0" />
+        <span>{`+${variantsCount} ${variantsCount === 1 ? "variant" : "variants"}`}</span>
+      </button>
+    ) : null;
+
+  if (words.length <= 1 || (!hasMetric && variantsCount === 0)) {
+    return (
+      <span className="inline">
+        <span>{trimmed}</span>
+        {metricBadge}
+        {variantButton}
+      </span>
+    );
+  }
+
+  const leadingText = words.slice(0, -1).join(" ") + " ";
+  const lastWord = words[words.length - 1];
+
+  return (
+    <span className="inline">
+      <span>{leadingText}</span>
+      <span className="inline-block whitespace-nowrap">
+        <span>{lastWord}</span>
+        {metricBadge}
+        {variantButton}
+      </span>
+    </span>
+  );
+}
+
 /**
  * Unified Master Profile card:
  * Level 1 SettingsSectionCard wrapping top identity window and Level 2 SettingsFeatureCard
@@ -246,6 +312,15 @@ export function MasterProfileCard({
     setOpenItems((prev) => ({
       ...prev,
       [key]: !(prev[key] ?? defaultOpen),
+    }));
+  }, []);
+
+  const [expandedVariants, setExpandedVariants] = useState<Record<string, boolean>>({});
+
+  const toggleVariant = useCallback((key: string) => {
+    setExpandedVariants((prev) => ({
+      ...prev,
+      [key]: !prev[key],
     }));
   }, []);
 
@@ -617,19 +692,46 @@ export function MasterProfileCard({
                         curvedDivider
                       >
                         <EntryBulletList
-                          items={exp.bullets.map((b) => ({
-                            key: b.id,
-                            content: (
-                              <>
-                                {b.rawText}
-                                {b.hasMetric ? (
-                                  <Badge variant="outline" className="ml-2 rounded-md px-2 py-0.5 font-mono text-[10px]">
-                                    metric
-                                  </Badge>
-                                ) : null}
-                              </>
-                            ),
-                          }))}
+                          items={exp.bullets.map((b, bIdx) => {
+                            const bulletVariants = b.variants || [];
+                            const variantKey = `${itemKey}-bullet-${b.id || bIdx}-variants`;
+                            const isVariantExpanded = expandedVariants[variantKey] ?? false;
+
+                            return {
+                              key: b.id,
+                              content: (
+                                <div className="space-y-1 w-full">
+                                  <div className="text-xs leading-relaxed text-foreground/90">
+                                    <FormattedBulletText
+                                      text={b.rawText}
+                                      hasMetric={b.hasMetric}
+                                      variantsCount={bulletVariants.length}
+                                      onToggleVariants={() => toggleVariant(variantKey)}
+                                    />
+                                  </div>
+                                  {bulletVariants.length > 0 && isVariantExpanded ? (
+                                    <div className="mt-1.5 ml-1 border-l-2 border-border/60 pl-2.5 py-1 space-y-1.5 animate-in fade-in-50 duration-150">
+                                      {bulletVariants.map((v, vIdx) => (
+                                        <div
+                                          key={`exp-v-${vIdx}`}
+                                          className="rounded bg-muted/30 p-2 text-[11px] leading-relaxed text-muted-foreground border border-border/40"
+                                        >
+                                          <div className="flex items-center gap-1.5 mb-1 text-[10px] font-medium text-foreground/80">
+                                            <Badge variant="outline" className="text-[9px] px-1 py-0">
+                                              {v.origin === "HUMAN_VERIFIED"
+                                                ? "Prior Revision"
+                                                : "Variant"}
+                                            </Badge>
+                                          </div>
+                                          <p>{v.text}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ),
+                            };
+                          })}
                         />
                       </SettingsEntryCard>
                     );
@@ -796,26 +898,164 @@ export function MasterProfileCard({
                             ))}
                           </SlidableBadgeRow>
                         )}
-                        {project.bullets.length > 0 ? (
-                          <EntryBulletList
-                            items={project.bullets.map((bullet, bIdx) => ({
-                              key: `proj-bullet-${bIdx}`,
+                        {project.bullets.length > 0 ? (() => {
+                          const renderBulletItem = (bullet: string, bIdx: number, sourceKey = "bullet") => {
+                            const bulletVariants = (project.variants || []).filter(
+                              (v) => v.shadowOf === bullet || v.shadowOf === String(bIdx)
+                            );
+                            const variantKey = `${itemKey}-${sourceKey}-${bIdx}-variants`;
+                            const isVariantExpanded = expandedVariants[variantKey] ?? false;
+
+                            return {
+                              key: `proj-${sourceKey}-${bIdx}`,
                               content: (
-                                <>
-                                  {bullet}
-                                  {detectMetric(bullet) ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="ml-2 rounded-md px-2 py-0.5 font-mono text-[10px]"
-                                    >
-                                      metric
-                                    </Badge>
+                                <div className="space-y-1 w-full">
+                                  <div className="text-xs leading-relaxed text-foreground/90">
+                                    <FormattedBulletText
+                                      text={bullet}
+                                      hasMetric={detectMetric(bullet)}
+                                      variantsCount={bulletVariants.length}
+                                      onToggleVariants={() => toggleVariant(variantKey)}
+                                    />
+                                  </div>
+                                  {bulletVariants.length > 0 && isVariantExpanded ? (
+                                    <div className="mt-1.5 ml-1 border-l-2 border-border/60 pl-2.5 py-1 space-y-1.5 animate-in fade-in-50 duration-150">
+                                      {bulletVariants.map((v, vIdx) => (
+                                        <div
+                                          key={`v-${vIdx}`}
+                                          className="rounded bg-muted/30 p-2 text-[11px] leading-relaxed text-muted-foreground border border-border/40"
+                                        >
+                                          <div className="flex items-center gap-1.5 mb-1 text-[10px] font-medium text-foreground/80">
+                                            <Badge variant="outline" className="text-[9px] px-1 py-0">
+                                              {v.origin === "HUMAN_VERIFIED"
+                                                ? "Prior Revision"
+                                                : v.origin === "GITHUB_INFERRED"
+                                                ? "Inferred Variant"
+                                                : "Variant"}
+                                            </Badge>
+                                            {v.confidenceScore ? (
+                                              <span className="text-muted-foreground">
+                                                {Math.round(v.confidenceScore * 100)}% match
+                                              </span>
+                                            ) : null}
+                                          </div>
+                                          <p>{v.text}</p>
+                                        </div>
+                                      ))}
+                                    </div>
                                   ) : null}
-                                </>
+                                </div>
                               ),
-                            }))}
-                          />
-                        ) : null}
+                            };
+                          };
+
+                          const isHumanBullet = (bullet: string, idx: number) => {
+                            const origin =
+                              project.bulletOrigins?.[bullet] ??
+                              project.bulletOrigins?.[String(idx)] ??
+                              project.origin;
+                            return origin === "HUMAN_VERIFIED" || origin === undefined;
+                          };
+
+                          const resumeBullets = project.bullets
+                            .map((b, idx) => ({ b, idx }))
+                            .filter(({ b, idx }) => isHumanBullet(b, idx));
+
+                          const inferredBullets = project.bullets
+                            .map((b, idx) => ({ b, idx }))
+                            .filter(({ b, idx }) => !isHumanBullet(b, idx));
+
+                          const hasSplit = resumeBullets.length > 0 && inferredBullets.length > 0;
+
+                          if (hasSplit) {
+                            return (
+                              <div className="space-y-3.5 pt-1">
+                                <div className="space-y-2">
+                                  <div
+                                    className="flex items-center"
+                                    style={{
+                                      marginInline: `${SLIDABLE_BADGE_ROW_LEADING_OFFSET_PX}px`,
+                                    }}
+                                  >
+                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                      User-Verified
+                                    </span>
+                                  </div>
+                                  <EntryBulletList
+                                    items={resumeBullets.map(({ b, idx }) =>
+                                      renderBulletItem(b, idx, "resume")
+                                    )}
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <div
+                                    className="relative py-2 my-1"
+                                    style={{
+                                      marginInline: `${SLIDABLE_BADGE_ROW_LEADING_OFFSET_PX}px`,
+                                    }}
+                                  >
+                                    <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                                      <div className="w-full border-t border-border/60" />
+                                    </div>
+                                    <div className="relative flex items-center justify-start">
+                                      <span className="bg-card pr-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                        Externally-Sourced
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <EntryBulletList
+                                    items={inferredBullets.map(({ b, idx }) =>
+                                      renderBulletItem(b, idx, "inferred")
+                                    )}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (project.origin === "GITHUB_INFERRED" || inferredBullets.length === project.bullets.length) {
+                            return (
+                              <div className="space-y-2 pt-1">
+                                <div
+                                  className="flex items-center"
+                                  style={{
+                                    marginInline: `${SLIDABLE_BADGE_ROW_LEADING_OFFSET_PX}px`,
+                                  }}
+                                >
+                                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Externally-Sourced
+                                  </span>
+                                </div>
+                                <EntryBulletList
+                                  items={project.bullets.map((b, idx) =>
+                                    renderBulletItem(b, idx, "inferred")
+                                  )}
+                                />
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-2 pt-1">
+                              <div
+                                className="flex items-center"
+                                style={{
+                                  marginInline: `${SLIDABLE_BADGE_ROW_LEADING_OFFSET_PX}px`,
+                                }}
+                              >
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                  User-Verified
+                                </span>
+                              </div>
+                              <EntryBulletList
+                                items={project.bullets.map((b, idx) =>
+                                  renderBulletItem(b, idx, "resume")
+                                )}
+                              />
+                            </div>
+                          );
+                        })() : null}
                         {project.technologies.length === 0 && project.bullets.length === 0 ? (
                           <p className="text-xs text-muted-foreground">No additional details recorded.</p>
                         ) : null}
