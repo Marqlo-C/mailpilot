@@ -13,8 +13,20 @@ import {
   deduplicateWorkExperienceCollection,
   hasThematicOverlap,
   stripLegalSuffixes,
+  calculateEntitySimilarity,
+  isEducationMatch,
+  deduplicateEducationCollection,
+  isCertificationMatch,
+  deduplicateCertificationCollection,
+  isAwardMatch,
+  deduplicateAwardCollection,
   MAX_PRIMARY_PROJECT_BULLETS,
 } from "@/lib/profile/deduplication";
+import {
+  areDateRangesCompatible,
+  normalizeDateString,
+  resolveGranularDate,
+} from "@/lib/utils/date";
 import { consolidateProfiles } from "@/lib/profile/profile-consolidation";
 import { getEmptyMasterProfileData } from "@/lib/validations/profile";
 
@@ -489,6 +501,341 @@ describe("Universal Deduplication & Typology Engine", () => {
       const consolidated = deduplicateWorkExperienceCollection([role1, role2]);
       expect(consolidated).toHaveLength(1);
       expect(consolidated[0]!.bullets).toHaveLength(2);
+    });
+
+    it("correctly matches US Navy and United States Navy for Cryptologic Technician Networking", () => {
+      const exp1 = {
+        company: "US Navy",
+        role: "Cryptologic Technician Networking",
+        location: "Fort Meade, MD",
+        category: "Work",
+        startDate: "2018-06",
+        endDate: "2022-06",
+        bullets: [{ id: "b1", rawText: "Executed computer network operations and network vulnerability assessments.", technologies: [], hasMetric: false }],
+        displayOrder: 0,
+      };
+
+      const exp2 = {
+        company: "United States Navy",
+        role: "Cryptologic Technician Networking",
+        location: "Fort Meade, MD",
+        category: "Work",
+        startDate: "2018-06",
+        endDate: "2022-06",
+        bullets: [{ id: "b2", rawText: "Maintained critical cryptographic and network analysis infrastructure.", technologies: [], hasMetric: false }],
+        displayOrder: 1,
+      };
+
+      const isMatch = isWorkExperienceMatch(exp1, exp2);
+      expect(isMatch).toBe(true);
+
+      const consolidated = deduplicateWorkExperienceCollection([exp1, exp2]);
+      expect(consolidated).toHaveLength(1);
+      expect(consolidated[0]!.bullets).toHaveLength(2);
+    });
+
+    it("does NOT merge identical roles at two completely different companies", () => {
+      const google = {
+        company: "Google",
+        role: "Software Engineer",
+        location: null,
+        category: "Work",
+        startDate: "2020-01",
+        endDate: "2023-01",
+        bullets: [{ id: "b1", rawText: "Built search features.", technologies: [], hasMetric: false }],
+        displayOrder: 0,
+      };
+
+      const meta = {
+        company: "Meta",
+        role: "Software Engineer",
+        location: null,
+        category: "Work",
+        startDate: "2020-01",
+        endDate: "2023-01",
+        bullets: [{ id: "b2", rawText: "Built social graph features.", technologies: [], hasMetric: false }],
+        displayOrder: 1,
+      };
+
+      expect(isWorkExperienceMatch(google, meta)).toBe(false);
+      const consolidated = deduplicateWorkExperienceCollection([google, meta]);
+      expect(consolidated).toHaveLength(2);
+    });
+
+    it("does NOT merge different branches or distinct agencies sharing general prefixes (e.g. US Navy vs US Army)", () => {
+      const navy = {
+        company: "US Navy",
+        role: "Technician",
+        location: null,
+        category: "Work",
+        bullets: [{ id: "b1", rawText: "Naval technical duties.", technologies: [], hasMetric: false }],
+        displayOrder: 0,
+      };
+
+      const army = {
+        company: "US Army",
+        role: "Technician",
+        location: null,
+        category: "Work",
+        bullets: [{ id: "b2", rawText: "Army technical duties.", technologies: [], hasMetric: false }],
+        displayOrder: 1,
+      };
+
+      expect(isWorkExperienceMatch(navy, army)).toBe(false);
+    });
+
+    it("merges 2012-2020 and Aug 2012 - Jun 2020 while keeping the Aug and Jun variations", () => {
+      const coarse = {
+        company: "Acme Corp",
+        role: "Systems Engineer",
+        location: null,
+        category: "Work",
+        startDate: "2012",
+        endDate: "2020",
+        bullets: [{ id: "b1", rawText: "Engineered scalable backend pipelines.", technologies: [], hasMetric: false }],
+        displayOrder: 0,
+      };
+
+      const granular = {
+        company: "Acme Corp",
+        role: "Systems Engineer",
+        location: null,
+        category: "Work",
+        startDate: "Aug 2012",
+        endDate: "Jun 2020",
+        bullets: [{ id: "b2", rawText: "Maintained fault-tolerant services.", technologies: [], hasMetric: false }],
+        displayOrder: 1,
+      };
+
+      expect(isWorkExperienceMatch(coarse, granular)).toBe(true);
+
+      const consolidated = deduplicateWorkExperienceCollection([coarse, granular]);
+      expect(consolidated).toHaveLength(1);
+      // Keeps the Aug and Jun variations
+      expect(consolidated[0]!.startDate).toBe("Aug 2012");
+      expect(consolidated[0]!.endDate).toBe("Jun 2020");
+      expect(consolidated[0]!.bullets).toHaveLength(2);
+    });
+
+    it("distinguishes 2012-2020 from 2012-2022 as distinct tenures", () => {
+      const tenure1 = {
+        company: "Acme Corp",
+        role: "Systems Engineer",
+        location: null,
+        category: "Work",
+        startDate: "2012",
+        endDate: "2020",
+        bullets: [{ id: "b1", rawText: "Tenure 1 bullet.", technologies: [], hasMetric: false }],
+        displayOrder: 0,
+      };
+
+      const tenure2 = {
+        company: "Acme Corp",
+        role: "Systems Engineer",
+        location: null,
+        category: "Work",
+        startDate: "2012",
+        endDate: "2022",
+        bullets: [{ id: "b2", rawText: "Tenure 2 bullet.", technologies: [], hasMetric: false }],
+        displayOrder: 1,
+      };
+
+      expect(isWorkExperienceMatch(tenure1, tenure2)).toBe(false);
+      const consolidated = deduplicateWorkExperienceCollection([tenure1, tenure2]);
+      expect(consolidated).toHaveLength(2);
+    });
+
+    it("does NOT falsely treat '2012' vs 'Aug 2012' start dates as a promotion", () => {
+      const roleCoarse = {
+        company: "Stripe",
+        role: "Backend Architect",
+        location: null,
+        category: "Work",
+        startDate: "2012",
+        endDate: "2018",
+        bullets: [{ id: "b1", rawText: "Architected systems.", technologies: [], hasMetric: false }],
+        displayOrder: 0,
+      };
+
+      const roleGranular = {
+        company: "Stripe",
+        role: "Backend Architect",
+        location: null,
+        category: "Work",
+        startDate: "Aug 2012",
+        endDate: "Jun 2018",
+        bullets: [{ id: "b2", rawText: "Led systems architecture.", technologies: [], hasMetric: false }],
+        displayOrder: 1,
+      };
+
+      expect(isWorkExperienceMatch(roleCoarse, roleGranular)).toBe(true);
+      const consolidated = deduplicateWorkExperienceCollection([roleCoarse, roleGranular]);
+      expect(consolidated).toHaveLength(1);
+      expect(consolidated[0]!.startDate).toBe("Aug 2012");
+      expect(consolidated[0]!.endDate).toBe("Jun 2018");
+    });
+  });
+
+  describe("8. Unified Education Deduplication Engine", () => {
+    it("deduplicates institutional abbreviations and acronyms (e.g. MIT vs Massachusetts Institute of Technology)", () => {
+      const ed1 = {
+        institution: "MIT",
+        degree: "B.S. in Computer Science",
+        fieldOfStudy: "Computer Science",
+        graduationDate: "2022-05",
+        status: "GRADUATED" as const,
+        honors: ["Dean's List"],
+        coursework: ["Algorithms"],
+      };
+
+      const ed2 = {
+        institution: "Massachusetts Institute of Technology",
+        degree: "Bachelor of Science in Computer Science",
+        fieldOfStudy: "Computer Science",
+        graduationDate: "2022-05",
+        status: "GRADUATED" as const,
+        honors: ["Tau Beta Pi"],
+        coursework: ["Operating Systems"],
+      };
+
+      expect(isEducationMatch(ed1, ed2)).toBe(true);
+
+      const consolidated = deduplicateEducationCollection([ed1, ed2]);
+      expect(consolidated).toHaveLength(1);
+      expect(consolidated[0]!.honors).toHaveLength(2);
+      expect(consolidated[0]!.coursework).toHaveLength(2);
+    });
+
+    it("preserves separate degrees at the same school (e.g. BS vs MS)", () => {
+      const bs = {
+        institution: "Stanford University",
+        degree: "B.S. in Computer Science",
+        fieldOfStudy: "Computer Science",
+        graduationDate: "2020-06",
+        status: "GRADUATED" as const,
+        honors: [],
+        coursework: [],
+      };
+
+      const ms = {
+        institution: "Stanford University",
+        degree: "M.S. in Computer Science",
+        fieldOfStudy: "Computer Science",
+        graduationDate: "2022-06",
+        status: "GRADUATED" as const,
+        honors: [],
+        coursework: [],
+      };
+
+      expect(isEducationMatch(bs, ms)).toBe(false);
+      const consolidated = deduplicateEducationCollection([bs, ms]);
+      expect(consolidated).toHaveLength(2);
+    });
+
+    it("does NOT merge distinct institutions that share the generic word 'University'", () => {
+      const uWash = {
+        institution: "University of Washington",
+        degree: "B.S.",
+        status: "GRADUATED" as const,
+        honors: [],
+        coursework: [],
+      };
+
+      const uFlorida = {
+        institution: "University of Florida",
+        degree: "B.S.",
+        status: "GRADUATED" as const,
+        honors: [],
+        coursework: [],
+      };
+
+      expect(isEducationMatch(uWash, uFlorida)).toBe(false);
+    });
+  });
+
+  describe("9. Unified Certification Deduplication Engine", () => {
+    it("deduplicates credential formatting differences (e.g. AWS Certified Solutions Architect variations)", () => {
+      const cert1 = {
+        name: "AWS Certified Solutions Architect – Associate",
+        issuer: "Amazon Web Services",
+        date: "2023-01",
+      };
+
+      const cert2 = {
+        name: "AWS Certified Solutions Architect (Associate)",
+        issuer: "AWS",
+        date: "2023-01",
+      };
+
+      expect(isCertificationMatch(cert1, cert2)).toBe(true);
+      const consolidated = deduplicateCertificationCollection([cert1, cert2]);
+      expect(consolidated).toHaveLength(1);
+    });
+
+    it("does not merge certifications from different topics or issuers", () => {
+      const cert1 = {
+        name: "CompTIA Security+",
+        issuer: "CompTIA",
+      };
+
+      const cert2 = {
+        name: "CompTIA Network+",
+        issuer: "CompTIA",
+      };
+
+      expect(isCertificationMatch(cert1, cert2)).toBe(false);
+    });
+  });
+
+  describe("10. Unified Award & Honor Deduplication Engine", () => {
+    it("deduplicates minor award title variations", () => {
+      const award1 = {
+        title: "Dean's Honor List",
+        issuer: "Faculty of Engineering",
+        date: "2022",
+      };
+
+      const award2 = {
+        title: "Dean's List",
+        issuer: "Faculty of Engineering",
+        date: "2022",
+      };
+
+      expect(isAwardMatch(award1, award2)).toBe(true);
+      const consolidated = deduplicateAwardCollection([award1, award2]);
+      expect(consolidated).toHaveLength(1);
+    });
+  });
+
+  describe("11. Date Normalization & Range Safety Engine", () => {
+    it("standardizes any date with a month into 'Mmm YYYY' format", () => {
+      expect(normalizeDateString("2012-08")).toBe("Aug 2012");
+      expect(normalizeDateString("08/2012")).toBe("Aug 2012");
+      expect(normalizeDateString("august 2012")).toBe("Aug 2012");
+      expect(normalizeDateString("Aug. 2012")).toBe("Aug 2012");
+      expect(normalizeDateString("Sept 2021")).toBe("Sep 2021");
+      expect(normalizeDateString("2012")).toBe("2012");
+      expect(normalizeDateString("present")).toBe("Present");
+      expect(normalizeDateString("Expected May 2026")).toBe("Expected May 2026");
+    });
+
+    it("evaluates range compatibility accurately and resolves granular dates", () => {
+      expect(
+        areDateRangesCompatible(
+          { start: "2012", end: "2020" },
+          { start: "Aug 2012", end: "Jun 2020" }
+        )
+      ).toBe(true);
+
+      expect(
+        areDateRangesCompatible(
+          { start: "2012", end: "2020" },
+          { start: "2012", end: "2022" }
+        )
+      ).toBe(false);
+
+      expect(resolveGranularDate("2012", "Aug 2012")).toBe("Aug 2012");
+      expect(resolveGranularDate("2020", "Jun 2020")).toBe("Jun 2020");
     });
   });
 });

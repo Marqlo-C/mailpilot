@@ -71,7 +71,7 @@ export const tailoredResumeDataSchema = z.object({
 });
 
 export const tailorConfigSchema = z.object({
-  includeSummary: z.boolean().default(false),
+  includeSummary: z.boolean().default(true),
   inventMetrics: z.boolean().optional(),
 });
 
@@ -218,9 +218,12 @@ export function previewFromStoredDraft(
   stored: z.infer<typeof storedResumeDraftSchema>
 ): OpportunityResumePreview {
   const config = tailorConfigSchema.safeParse(row.tailorConfig ?? {});
-  const includeSummary = config.success
-    ? config.data.includeSummary
-    : stored.draft.exportConfig.includeSummary;
+  const includeSummary =
+    typeof stored.draft.exportConfig.includeSummary === "boolean"
+      ? stored.draft.exportConfig.includeSummary
+      : config.success
+        ? config.data.includeSummary
+        : true;
   const compiled = draftToPdfInput(stored.draft);
   return {
     filename: stored.filename ?? "Resume.pdf",

@@ -813,8 +813,8 @@ describe("Resume Drafting & Tailoring Architecture", () => {
       });
 
       expect(budget.density).toBe("SPARSE");
-      expect(budget.bulletBudgetMax).toBe(14);
-      expect(budget.bulletsPerProjectMax).toBe(4);
+      expect(budget.bulletBudgetMax).toBe(12);
+      expect(budget.bulletsPerProjectMax).toBe(3);
     });
 
     it("ranks and selects relevant projects in heuristicProjectIds", () => {
@@ -1063,7 +1063,7 @@ describe("Resume Drafting & Tailoring Architecture", () => {
         "alex@example.com • 555-0100 • San Francisco, CA • portfolio.example.com • Docker • React.js • Kubernetes";
       const sanitized = sanitizeResumeContactLine(contaminated);
       expect(sanitized).toBe(
-        "alex@example.com • 555-0100 • San Francisco, CA • portfolio.example.com"
+        "alex@example.com | 555-0100 | San Francisco, CA | portfolio.example.com"
       );
     });
 
@@ -1072,7 +1072,7 @@ describe("Resume Drafting & Tailoring Architecture", () => {
         "alex@example.com | 555-0100 | Austin, TX | github.com/alextaylor | Python | AWS";
       const sanitized = sanitizeResumeContactLine(pipeContaminated);
       expect(sanitized).toBe(
-        "alex@example.com • 555-0100 • Austin, TX • github.com/alextaylor"
+        "alex@example.com | 555-0100 | Austin, TX | github.com/alextaylor"
       );
     });
 
@@ -1138,7 +1138,7 @@ describe("Resume Drafting & Tailoring Architecture", () => {
         "marquiseclott@gmail.com • (213) 817-0484 • Sacramento, CA • linkedin.com/in/marq-lott • marqlo-c.github.io • github.com/Marqlo-C • Socket.io";
       const sanitized = sanitizeResumeContactLine(realWorldContaminated);
       expect(sanitized).toBe(
-        "marquiseclott@gmail.com • (213) 817-0484 • Sacramento, CA • linkedin.com/in/marq-lott • marqlo-c.github.io • github.com/Marqlo-C"
+        "marquiseclott@gmail.com | (213) 817-0484 | Sacramento, CA | linkedin.com/in/marq-lott | marqlo-c.github.io | github.com/Marqlo-C"
       );
       expect(sanitized).not.toContain("Socket.io");
     });

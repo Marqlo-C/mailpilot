@@ -402,7 +402,7 @@ export async function updateApplicationStatus(
 
 export async function downloadTailoredPdfAction(
   applicationId: string,
-  includeSummary = false
+  includeSummary = true
 ): Promise<ActionResult<{ base64: string; filename: string }>> {
   // Lazy import to keep action surface thin
   const { generateTailoredResumePdf } = await import("@/lib/document/pdf-generator");

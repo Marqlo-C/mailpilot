@@ -1,7 +1,15 @@
 import JSZip from "jszip";
 
 import { activeResumeNodes } from "@/lib/resume-draft";
-import { sanitizeResumeContactLine } from "@/lib/utils/format";
+import {
+  formatEducationDates,
+  sanitizeResumeContactLine,
+} from "@/lib/utils/format";
+import {
+  RESUME_FONTS,
+  RESUME_SPACING,
+  RESUME_TYPOGRAPHY,
+} from "@/lib/resume-draft/layout.ssot";
 import { skillCategoryLabel } from "@/lib/profile/skill-groups";
 import type {
   ResumeDraftNode,
@@ -29,13 +37,13 @@ function escapeXml(value: string): string {
 }
 
 function run(text: string, options: { bold?: boolean; size?: number; color?: string } = {}): string {
-  const size = options.size ?? 20;
+  const size = options.size ?? RESUME_TYPOGRAPHY.body.pt * 2;
   const props = [
     options.bold ? "<w:b/>" : "",
     `<w:sz w:val="${size}"/>`,
     `<w:szCs w:val="${size}"/>`,
     options.color ? `<w:color w:val="${options.color}"/>` : "",
-    `<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>`,
+    `<w:rFonts w:ascii="${RESUME_FONTS.primary}" w:hAnsi="${RESUME_FONTS.primary}"/>`,
   ].join("");
   return `<w:r><w:rPr>${props}</w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`;
 }
@@ -44,13 +52,16 @@ function spacing(before = 40, after = 40): string {
   return `<w:spacing w:before="${before}" w:after="${after}" w:line="240" w:lineRule="auto"/>`;
 }
 
-function sectionHeading(label: string): string {
+function sectionHeading(label: string, isFirst = false): string {
   return `<w:p>
     <w:pPr>
-      ${spacing(80, 40)}
+      ${spacing(
+        isFirst ? 0 : RESUME_SPACING.sectionBefore.dxa,
+        RESUME_SPACING.sectionHeadingBottom.dxa
+      )}
       <w:pBdr><w:bottom w:val="single" w:sz="4" w:space="1" w:color="D1D5DB"/></w:pBdr>
     </w:pPr>
-    ${run(label, { bold: true, size: 22 })}
+    ${run(label, { bold: true, size: RESUME_TYPOGRAPHY.heading.pt * 2 })}
   </w:p>`;
 }
 
@@ -62,35 +73,57 @@ function bulletParagraph(text: string): string {
   return `<w:p>
     <w:pPr>
       <w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>
-      ${spacing(0, 40)}
+      ${spacing(0, RESUME_SPACING.bulletSpacing.dxa)}
     </w:pPr>
-    ${run(text)}
+    ${run(text, { size: RESUME_TYPOGRAPHY.bullet.pt * 2 })}
   </w:p>`;
 }
 
-function roleParagraph(title: string, trailing: string | null): string {
+function roleParagraph(
+  title: string,
+  trailing: string | null,
+  beforeDxa = RESUME_SPACING.roleToRole.dxa,
+  afterDxa = RESUME_SPACING.roleTitleToFirstBullet.dxa
+): string {
   const date = trailing
-    ? `<w:r><w:tab/></w:r>${run(trailing, { size: 18, color: "4B5563" })}`
+    ? `<w:r><w:tab/></w:r>${run(trailing, { size: RESUME_TYPOGRAPHY.muted.pt * 2, color: "4B5563" })}`
     : "";
   return `<w:p>
     <w:pPr>
-      <w:tabs><w:tab w:val="right" w:pos="10080"/></w:tabs>
-      ${spacing(40, 20)}
+      <w:tabs><w:tab w:val="right" w:pos="10800"/></w:tabs>
+      ${spacing(beforeDxa, afterDxa)}
     </w:pPr>
-    ${run(title, { bold: true })}${date}
+    ${run(title, { bold: true, size: RESUME_TYPOGRAPHY.roleTitle.pt * 2 })}${date}
   </w:p>`;
 }
 
 function datesFor(node: ResumeDraftNode): string | null {
-  if (node.type !== "experience_header") return null;
-  const start =
-    typeof node.metadata?.startDate === "string" ? node.metadata.startDate : "";
-  if (!start) return null;
-  const end =
-    typeof node.metadata?.endDate === "string" && node.metadata.endDate
-      ? node.metadata.endDate
-      : "Present";
-  return `${start} – ${end}`;
+  if (node.type === "experience_header") {
+    const start =
+      typeof node.metadata?.startDate === "string" ? node.metadata.startDate : "";
+    if (!start) return null;
+    const end =
+      typeof node.metadata?.endDate === "string" && node.metadata.endDate
+        ? node.metadata.endDate
+        : "Present";
+    return `${start} – ${end}`;
+  }
+  if (node.type === "education_item") {
+    const start =
+      typeof node.metadata?.startDate === "string"
+        ? node.metadata.startDate
+        : "";
+    const end =
+      typeof node.metadata?.graduationDate === "string"
+        ? node.metadata.graduationDate
+        : "";
+    const status =
+      typeof node.metadata?.status === "string"
+        ? (node.metadata.status as any)
+        : "GRADUATED";
+    return formatEducationDates({ startDate: start, graduationDate: end, status });
+  }
+  return null;
 }
 
 function skillLine(groups: ResumeDraftNode[]): string {
@@ -114,10 +147,13 @@ export async function compileResumeDocx(
   const body: string[] = [];
   let lastSection: ResumeDraftNode["section"] | null = null;
 
+  let hasRenderedFirstHeading = false;
   const pushHeading = (section: ResumeDraftNode["section"]) => {
     const label = SECTION_LABEL[section];
     if (!label || section === lastSection) return;
-    body.push(sectionHeading(label));
+    const isFirst = !hasRenderedFirstHeading;
+    body.push(sectionHeading(label, isFirst));
+    hasRenderedFirstHeading = true;
     lastSection = section;
   };
 
@@ -125,9 +161,12 @@ export async function compileResumeDocx(
     const item = active[index];
     if (item.type === "header") {
       body.push(
-        `<w:p><w:pPr>${spacing(0, 40)}</w:pPr>${run(item.content, {
+        `<w:p><w:pPr><w:jc w:val="center"/>${spacing(
+          0,
+          RESUME_SPACING.nameToContact.dxa
+        )}</w:pPr>${run(item.content, {
           bold: true,
-          size: 36,
+          size: RESUME_TYPOGRAPHY.name.pt * 2,
         })}</w:p>`
       );
       const contact = sanitizeResumeContactLine(
@@ -137,8 +176,11 @@ export async function compileResumeDocx(
       );
       if (contact) {
         body.push(
-          `<w:p><w:pPr>${spacing(0, 80)}</w:pPr>${run(contact, {
-            size: 18,
+          `<w:p><w:pPr><w:jc w:val="center"/>${spacing(
+            0,
+            RESUME_SPACING.contactToFirstSection.dxa
+          )}</w:pPr>${run(contact, {
+            size: RESUME_TYPOGRAPHY.contact.pt * 2,
             color: "374151",
           })}</w:p>`
         );
@@ -173,12 +215,25 @@ export async function compileResumeDocx(
       continue;
     }
 
+    if (item.type === "education_item") {
+      const dates = datesFor(item);
+      let title = item.content;
+      if (dates && title.endsWith(`(${dates})`)) {
+        title = title.slice(0, -`(${dates})`.length).trim();
+        if (title.endsWith("—")) title = title.slice(0, -1).trim();
+      }
+      body.push(
+        roleParagraph(title, dates, RESUME_SPACING.degreeToDegree.dxa, 0)
+      );
+      continue;
+    }
+
     if (item.type === "experience_bullet" || item.type === "project_bullet") {
       body.push(bulletParagraph(item.content));
       continue;
     }
 
-      body.push(bodyParagraph(run(item.content)));
+    body.push(bodyParagraph(run(item.content)));
   }
 
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -187,7 +242,7 @@ export async function compileResumeDocx(
     ${body.join("")}
     <w:sectPr>
       <w:pgSz w:w="12240" w:h="15840"/>
-      <w:pgMar w:top="720" w:right="1080" w:bottom="720" w:left="1080"/>
+      <w:pgMar w:top="640" w:right="720" w:bottom="640" w:left="720"/>
     </w:sectPr>
   </w:body>
 </w:document>`;

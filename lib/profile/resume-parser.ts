@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { z } from "zod";
 
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
@@ -5,6 +6,7 @@ import { isPlaceholderEmail } from "@/lib/profile/profile-consolidation";
 import { interpretSkillGroups, isCourseworkLabel } from "@/lib/profile/skill-groups";
 import type { SkillGroup, SkillItem } from "@/lib/types/resume-draft";
 import { normalizeProjectName } from "@/lib/utils/format";
+import { normalizeDateString } from "@/lib/utils/date";
 import { githubProfileRoot, isVerifiedProfileUrl, normalizeProfileUrl } from "@/lib/utils/url";
 import {
   awardsSchema,
@@ -953,11 +955,14 @@ export function normalizeEducationDatesAndStatus<
   }
   if (!status) status = "GRADUATED";
 
+  const normStart = normalizeDateString(start);
+  const normGrad = normalizeDateString(graduation);
+
   return {
     ...item,
-    startDate: start,
-    graduationDate: graduation,
-    endDate: graduation,
+    startDate: normStart ?? start,
+    graduationDate: normGrad ?? graduation,
+    endDate: normGrad ?? graduation,
     status,
   };
 }
@@ -1161,12 +1166,12 @@ export async function parseResumeToStructuredProfile(
       role: placed.role,
       location: placed.location,
       category: experienceCategory(exp.category, sliced),
-      startDate: exp.startDate || "Present",
-      endDate: exp.endDate ?? null,
+      startDate: normalizeDateString(exp.startDate) || exp.startDate || "Present",
+      endDate: normalizeDateString(exp.endDate) ?? exp.endDate ?? null,
       displayOrder: index,
       bullets: (placed.bullets ?? []).map((bullet, bulletIndex) =>
         experienceBulletSchema.parse({
-          id: `exp-${index}-b-${bulletIndex}`,
+          id: `exp-${index}-b-${bulletIndex}-${randomUUID().slice(0, 8)}`,
           rawText: bullet.rawText,
           technologies: inferTechnologies(bullet.rawText, skillTerms),
           hasMetric: detectMetric(bullet.rawText),

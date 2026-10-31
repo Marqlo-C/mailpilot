@@ -34,6 +34,10 @@ import {
   resolveResumeDraftLens,
   sortExperiencesReverseChronological,
 } from "@/lib/resume-draft/lens";
+import {
+  estimateFixedSectionsHeight,
+  clampPdfContentToPhysicalCeiling,
+} from "@/lib/resume-draft/physics";
 import type { ResumeExportConfig } from "@/lib/resume-draft/schema.ssot";
 import {
   skillCategoryLabel,
@@ -265,9 +269,7 @@ export function digestTailoredResume(input: {
               id: `edu:${ed.id ?? index}:${opportunityId}`,
               type: "education_item",
               section: "education",
-              content: `${[degree, school].filter(Boolean).join(" — ")}${
-                formatEducationDates(ed) ? ` (${formatEducationDates(ed)})` : ""
-              }`,
+              content: [degree, school].filter(Boolean).join(" — "),
               metadata: {
                 institution: ed.institution,
                 subSchool: ed.subSchool ?? null,
@@ -512,16 +514,59 @@ export function draftToPdfInput(
       coursework: [],
     }));
 
+  const rawBudget = draft.exportConfig.pageBudget;
+  const targetPages: 1 | 2 = String(rawBudget) === "2" ? 2 : 1;
+
+  let finalSkillGroups = skillGroups;
+  const totalSkillsCount = skillGroups.reduce((acc, g) => acc + g.items.length, 0);
+  if (targetPages === 1 && totalSkillsCount > 24) {
+    const perCategoryCap = Math.max(4, Math.floor(24 / Math.max(1, skillGroups.length)));
+    finalSkillGroups = skillGroups
+      .map((g) => ({
+        ...g,
+        items: g.items.slice(0, perCategoryCap),
+      }))
+      .filter((g) => g.items.length > 0);
+  }
+
+  const fixedSectionsHeight = estimateFixedSectionsHeight({
+    hasSummary: draft.exportConfig.includeSummary && Boolean(summary?.content.trim()),
+    summaryText: summary?.content,
+    skillsCount: finalSkillGroups.reduce((acc, g) => acc + g.items.length, 0),
+    skillsLineCount: finalSkillGroups.length,
+    educationCount: education.length,
+    certificationsCount: certifications.length,
+    awardsCount: awards.length,
+    interestsCount: interests.length,
+    disabledSections: draft.exportConfig.disabledSections,
+  });
+
+  const {
+    experiences: finalExperiences,
+    projects: finalProjects,
+    didClamp,
+  } = clampPdfContentToPhysicalCeiling({
+    targetPages,
+    fixedSectionsHeight,
+    experiences,
+    projects,
+  });
+
+  const warningFlags = [...(draft.exportConfig.warningFlags ?? [])];
+  if (didClamp && !warningFlags.includes("PAGE_BUDGET_OVERFLOW")) {
+    warningFlags.push("PAGE_BUDGET_OVERFLOW");
+  }
+
   return {
     headerName: header?.content.trim() || profile?.fullName || "",
     contactLine: sanitizeResumeContactLine(
       asString(header?.metadata?.contactLine) ||
         (profile ? buildResumeContactLine(profile) : "")
     ),
-    experiences,
-    projects,
+    experiences: finalExperiences,
+    projects: finalProjects,
     tailoredSummary: summary?.content.trim() || null,
-    skillGroups,
+    skillGroups: finalSkillGroups,
     includeSummary:
       draft.exportConfig.includeSummary && Boolean(summary?.content.trim()),
     education,
@@ -530,7 +575,7 @@ export function draftToPdfInput(
     interests,
     sectionOrder: draft.exportConfig.sectionOrder ?? null,
     disabledSections: draft.exportConfig.disabledSections ?? null,
-    warningFlags: draft.exportConfig.warningFlags ?? [],
+    warningFlags,
   };
 }
 

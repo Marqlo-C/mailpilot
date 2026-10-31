@@ -1,7 +1,11 @@
+import { randomUUID } from "crypto";
 import {
   detectMetric,
+  type AwardItem,
   type BulletTypology,
   type BulletVariant,
+  type CertificationItem,
+  type EducationInput,
   type ProjectInput,
   type WorkExperienceInput,
 } from "@/lib/validations/profile";
@@ -11,6 +15,12 @@ import {
   normalizeProjectName,
   sanitizeBulletText,
 } from "@/lib/utils/format";
+import {
+  areDatePointsCompatible,
+  areDateRangesCompatible,
+  normalizeDateString,
+  resolveGranularDate,
+} from "@/lib/utils/date";
 
 export const MAX_PRIMARY_PROJECT_BULLETS = 15;
 export const MAX_PRIMARY_EXPERIENCE_BULLETS = 15;
@@ -79,6 +89,166 @@ export function hasThematicOverlap(
   }
   const minSize = Math.min(tokensA.size, tokensB.size);
   return minSize > 0 && shared / minSize >= threshold;
+}
+
+/** Generic organizational / institutional nouns that should not by themselves confirm a match. */
+export const GENERIC_ORG_TOKENS = new Set([
+  "inc", "incorporated", "llc", "ltd", "corp", "corporation", "co", "company",
+  "university", "college", "school", "institute", "institution", "academy",
+  "department", "division", "foundation", "hospital", "center", "centre",
+  "group", "services", "system", "systems", "team", "technologies",
+  "technology", "association", "lab", "labs", "laboratory", "club", "society"
+]);
+
+const PREPOSITION_CONJUNCTION_STOPWORDS = new Set([
+  "of", "in", "at", "on", "by", "for", "from", "with", "and", "the", "a", "an", "to"
+]);
+
+/**
+ * Extracts substantive entity tokens and generates acronyms/initialisms for multi-word phrases.
+ * Universal and career-agnostic: generates acronyms mathematically from words without hardcoding.
+ */
+export function tokenizeEntityWords(text: string | null | undefined): {
+  words: string[];
+  allTokens: Set<string>;
+  distinctiveTokens: Set<string>;
+  acronyms: Set<string>;
+} {
+  const allTokens = new Set<string>();
+  const distinctiveTokens = new Set<string>();
+  const acronyms = new Set<string>();
+
+  if (!text) return { words: [], allTokens, distinctiveTokens, acronyms };
+
+  // Strip possessives and punctuation, then split into words
+  const words = text
+    .toLowerCase()
+    .replace(/'s\b/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 0 && !PREPOSITION_CONJUNCTION_STOPWORDS.has(w) && !UNIVERSAL_STOPWORDS.has(w));
+
+  for (const w of words) {
+    if (w.length > 1) {
+      allTokens.add(w);
+      if (!GENERIC_ORG_TOKENS.has(w)) {
+        distinctiveTokens.add(w);
+      }
+    }
+  }
+
+  // Generate initialisms from multi-word sequences (e.g. "United States Navy" -> "usn", "us")
+  if (words.length >= 2) {
+    const fullAcronym = words.map((w) => w[0]).join("");
+    if (fullAcronym.length >= 2 && fullAcronym.length <= 6) {
+      acronyms.add(fullAcronym);
+      allTokens.add(fullAcronym);
+    }
+
+    // Leading 2-word geographic/organizational prefix acronym (e.g. "united states" in "united states navy" -> "us")
+    if (words.length >= 3) {
+      const prefixAcronym = words.slice(0, 2).map((w) => w[0]).join("");
+      if (prefixAcronym.length >= 2) {
+        acronyms.add(prefixAcronym);
+        allTokens.add(prefixAcronym);
+      }
+    }
+  }
+
+  return { words, allTokens, distinctiveTokens, acronyms };
+}
+
+const LEGAL_SUFFIX_RE =
+  /,?\s*\b(inc(?:orporated)?|llc|ltd|corp(?:oration)?|gmbh|co|llp|plc|p\.?c\.?)\b\.?$/i;
+
+export function stripLegalSuffixes(company: string | null | undefined): string {
+  if (!company) return "";
+  return company.replace(LEGAL_SUFFIX_RE, "").trim();
+}
+
+/**
+ * Computes career-agnostic similarity between two entity names (companies, institutions, issuers).
+ * Evaluates exact match, substring inclusion, token containment, and acronym overlap.
+ */
+export function calculateEntitySimilarity(
+  nameA: string | null | undefined,
+  nameB: string | null | undefined
+): {
+  score: number;
+  isMatch: boolean;
+  overlap: number;
+  jaccard: number;
+} {
+  if (!nameA || !nameB) {
+    return { score: 0, isMatch: false, overlap: 0, jaccard: 0 };
+  }
+
+  const cleanA = stripLegalSuffixes(nameA);
+  const cleanB = stripLegalSuffixes(nameB);
+  const normA = normalizeString(cleanA);
+  const normB = normalizeString(cleanB);
+
+  // Exact normalized match
+  if (normA && normB && normA === normB) {
+    return { score: 1.0, isMatch: true, overlap: 1.0, jaccard: 1.0 };
+  }
+
+  // Contiguous substring match for long entity names (length >= 5)
+  if (normA && normB && normA.length >= 5 && normB.length >= 5) {
+    if (normA.includes(normB) || normB.includes(normA)) {
+      return { score: 0.95, isMatch: true, overlap: 0.95, jaccard: 0.95 };
+    }
+  }
+
+  const entityA = tokenizeEntityWords(cleanA);
+  const entityB = tokenizeEntityWords(cleanB);
+
+  // Distinctive word overlap
+  let sharedDistinctive = 0;
+  for (const w of entityB.distinctiveTokens) {
+    if (entityA.distinctiveTokens.has(w)) sharedDistinctive++;
+  }
+  const minDistinctive = Math.min(entityA.distinctiveTokens.size, entityB.distinctiveTokens.size);
+  const distinctiveOverlap = minDistinctive > 0 ? sharedDistinctive / minDistinctive : 0;
+  const jaccard = calculateJaccardSimilarity(entityA.distinctiveTokens, entityB.distinctiveTokens);
+
+  // Acronym link check
+  let hasAcronymLink = false;
+  for (const ac of entityB.acronyms) {
+    if (entityA.words.includes(ac) || normA === ac) {
+      hasAcronymLink = true;
+      break;
+    }
+  }
+  if (!hasAcronymLink) {
+    for (const ac of entityA.acronyms) {
+      if (entityB.words.includes(ac) || normB === ac) {
+        hasAcronymLink = true;
+        break;
+      }
+    }
+  }
+
+  // Check for conflicting distinctive words (e.g. Navy vs Army)
+  const unsharedA = Array.from(entityA.distinctiveTokens).filter(
+    (w) => !entityB.distinctiveTokens.has(w) && !entityB.acronyms.has(w)
+  );
+  const unsharedB = Array.from(entityB.distinctiveTokens).filter(
+    (w) => !entityA.distinctiveTokens.has(w) && !entityA.acronyms.has(w)
+  );
+  const hasWordConflict = unsharedA.length > 0 && unsharedB.length > 0;
+
+  // Acronym matching branch
+  if (hasAcronymLink && !hasWordConflict) {
+    return { score: 0.85, isMatch: true, overlap: 1.0, jaccard: Math.max(jaccard, 0.5) };
+  }
+
+  // High substantive token overlap without conflict
+  if (distinctiveOverlap >= 0.70 && minDistinctive >= 1 && !hasWordConflict) {
+    return { score: Math.max(jaccard, distinctiveOverlap * 0.85), isMatch: true, overlap: distinctiveOverlap, jaccard };
+  }
+
+  return { score: Math.max(jaccard, distinctiveOverlap * 0.5), isMatch: false, overlap: distinctiveOverlap, jaccard };
 }
 
 /* -------------------------------------------------------------------------
@@ -769,14 +939,6 @@ export function deduplicateProjectCollection(
  * 7. Work Experience Role & Promotion Matching
  * ------------------------------------------------------------------------- */
 
-const LEGAL_SUFFIX_RE =
-  /,?\s*\b(inc(?:orporated)?|llc|ltd|corp(?:oration)?|gmbh|co|llp|plc|p\.?c\.?)\b\.?$/i;
-
-export function stripLegalSuffixes(company: string | null | undefined): string {
-  if (!company) return "";
-  return company.replace(LEGAL_SUFFIX_RE, "").trim();
-}
-
 /**
  * Checks whether two work experiences describe the same tenure and role.
  * Accurately prevents merging promotions (distinct roles at the same employer).
@@ -785,33 +947,59 @@ export function isWorkExperienceMatch(
   a: Partial<WorkExperienceInput> & { company: string },
   b: Partial<WorkExperienceInput> & { company: string }
 ): boolean {
-  const compA = normalizeString(stripLegalSuffixes(a.company));
-  const compB = normalizeString(stripLegalSuffixes(b.company));
-  if (!compA || !compB) return false;
+  if (!a.company || !b.company) return false;
 
-  const companyMatch =
-    compA === compB || compA.includes(compB) || compB.includes(compA);
-  if (!companyMatch) return false;
-
-  // Check Category (Work vs Leadership vs Volunteer vs Clinical)
+  // 1. Check Category (Work vs Leadership vs Volunteer vs Clinical vs Activities)
   const catA = (a.category || "Work").toLowerCase();
   const catB = (b.category || "Work").toLowerCase();
   if (catA !== catB) return false;
 
-  // Role title comparison
-  const roleA = normalizeString(a.role);
-  const roleB = normalizeString(b.role);
-  if (roleA && roleB && roleA === roleB) return true;
+  // 2. Company Affinity Check (Probabilistic multi-signal)
+  const compSim = calculateEntitySimilarity(a.company, b.company);
+  if (!compSim.isMatch) return false;
 
-  // If role titles are distinct, check if dates are sequential promotions
+  // 3. Date range safety (different time spans, e.g. 2012-2020 vs 2012-2022, represent distinct tenures)
+  const rangeA = { start: a.startDate, end: a.endDate };
+  const rangeB = { start: b.startDate, end: b.endDate };
+  if (!areDateRangesCompatible(rangeA, rangeB)) {
+    return false;
+  }
+
+  // 4. Sequential promotion check (distinct start dates at same employer with different titles)
   const startA = a.startDate?.trim() || "";
   const startB = b.startDate?.trim() || "";
-  if (startA && startB && startA !== startB) {
+  if (startA && startB && !areDatePointsCompatible(startA, startB)) {
     // Distinct start dates at same employer with different role titles = distinct promotion
     return false;
   }
 
-  // If one role title is a subset or missing
+  // 5. Role title comparison
+  const roleA = normalizeString(a.role);
+  const roleB = normalizeString(b.role);
+  if (roleA && roleB && roleA === roleB) return true;
+
+  // 6. Role token similarity (handling minor title differences / punctuation)
+  if (a.role && b.role) {
+    const roleSim = calculateEntitySimilarity(a.role, b.role);
+    if (roleSim.isMatch && roleSim.overlap >= 0.70) {
+      return true;
+    }
+  }
+
+  // 7. Subsystem / Bullet probe check
+  if (a.bullets?.length && b.bullets?.length) {
+    for (const bA of a.bullets) {
+      const textA = typeof bA === "string" ? bA : bA.rawText;
+      for (const bB of b.bullets) {
+        const textB = typeof bB === "string" ? bB : bB.rawText;
+        if (hasThematicOverlap(textA, textB, 0.40)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  // 8. If one role title is a subset or missing
   if (!roleA || !roleB || roleA.includes(roleB) || roleB.includes(roleA)) {
     return true;
   }
@@ -841,18 +1029,29 @@ export function reconcileWorkExperiencePair(
     if (!existingMatch) {
       // Check thematic overlap against existing bullets
       let overlapIndex = -1;
+      let highestOverlap = 0;
+      const incTokens = tokenizeThematicWords(incBullet.rawText);
+
       for (let i = 0; i < mergedBullets.length; i++) {
-        if (hasThematicOverlap(mergedBullets[i]!.rawText, incBullet.rawText, 0.60)) {
+        const bTokens = tokenizeThematicWords(mergedBullets[i]!.rawText);
+        const ov = calculateOverlapCoefficient(bTokens, incTokens);
+        if (ov >= 0.40 && ov > highestOverlap) {
+          highestOverlap = ov;
           overlapIndex = i;
-          break;
         }
       }
 
       if (overlapIndex >= 0) {
         // High thematic overlap between human bullets: incoming recency takes lead, old saved as variant
         const oldBullet = mergedBullets[overlapIndex]!;
+        const idClash = mergedBullets.some((b, idx) => idx !== overlapIndex && b.id === incBullet.id);
+        const resolvedId = idClash
+          ? `exp-b-${randomUUID().slice(0, 8)}`
+          : incBullet.id;
+
         mergedBullets[overlapIndex] = {
           ...incBullet,
+          id: resolvedId,
           typologies: incBullet.typologies?.length
             ? incBullet.typologies
             : classifyBulletTypologies(incBullet.rawText),
@@ -872,8 +1071,14 @@ export function reconcileWorkExperiencePair(
           ],
         };
       } else if (mergedBullets.length < MAX_PRIMARY_EXPERIENCE_BULLETS) {
+        const idClash = mergedBullets.some((b) => b.id === incBullet.id);
+        const resolvedId = idClash
+          ? `exp-b-${randomUUID().slice(0, 8)}`
+          : incBullet.id;
+
         mergedBullets.push({
           ...incBullet,
+          id: resolvedId,
           typologies: incBullet.typologies?.length
             ? incBullet.typologies
             : classifyBulletTypologies(incBullet.rawText),
@@ -887,8 +1092,12 @@ export function reconcileWorkExperiencePair(
     role: target.role || incoming.role,
     location: target.location || incoming.location || null,
     category: target.category || incoming.category || "Work",
-    startDate: target.startDate || incoming.startDate,
-    endDate: target.endDate ?? incoming.endDate,
+    startDate:
+      resolveGranularDate(target.startDate, incoming.startDate) ||
+      target.startDate ||
+      incoming.startDate ||
+      "Present",
+    endDate: resolveGranularDate(target.endDate, incoming.endDate),
     bullets: mergedBullets.slice(0, MAX_PRIMARY_EXPERIENCE_BULLETS),
   };
 }
@@ -916,6 +1125,8 @@ export function deduplicateWorkExperienceCollection(
     } else {
       consolidated.push({
         ...exp,
+        startDate: normalizeDateString(exp.startDate) || exp.startDate,
+        endDate: normalizeDateString(exp.endDate) ?? exp.endDate,
         bullets: exp.bullets.map((b) => ({
           ...b,
           typologies: b.typologies?.length
@@ -926,5 +1137,243 @@ export function deduplicateWorkExperienceCollection(
     }
   }
 
+  return consolidated;
+}
+
+/* -------------------------------------------------------------------------
+ * 8. Education Program Deduplication
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Normalizes degree level to a canonical tier for career-agnostic comparison.
+ */
+export function normalizeDegreeLevel(degree: string | null | undefined): string | null {
+  if (!degree) return null;
+  const lower = degree.toLowerCase();
+  if (/\b(?:bachelor|bachelors|b\.?s\.?|b\.?a\.?|b\.?s\.?e\.?|b\.?f\.?a\.?|b\.?b\.?a\.?|b\.?eng)\b/i.test(lower)) return "bachelor";
+  if (/\b(?:master|masters|m\.?s\.?|m\.?a\.?|m\.?b\.?a\.?|m\.?s\.?c\.?|m\.?f\.?a\.?|m\.?eng|m\.?p\.?s\.?)\b/i.test(lower)) return "master";
+  if (/\b(?:doctor|doctorate|ph\.?d\.?|m\.?d\.?|j\.?d\.?|ed\.?d\.?)\b/i.test(lower)) return "doctorate";
+  if (/\b(?:associate|associates|a\.?a\.?|a\.?s\.?|a\.?a\.?s\.?)\b/i.test(lower)) return "associate";
+  return null;
+}
+
+/**
+ * Checks whether two education entries describe the same degree program.
+ */
+export function isEducationMatch(
+  a: Partial<EducationInput> & { institution: string },
+  b: Partial<EducationInput> & { institution: string }
+): boolean {
+  if (!a.institution || !b.institution) return false;
+
+  // 1. Institution similarity (handling abbreviations, acronyms, and institutional variations)
+  const instSim = calculateEntitySimilarity(a.institution, b.institution);
+  if (!instSim.isMatch) return false;
+
+  // 2. SubSchool distinction (e.g. Wharton vs School of Engineering)
+  const subA = normalizeString(a.subSchool ?? "");
+  const subB = normalizeString(b.subSchool ?? "");
+  if (subA && subB && subA !== subB) return false;
+
+  // 3. Degree tier comparison (BS vs MS vs PhD must not collapse)
+  const levelA = normalizeDegreeLevel(a.degree);
+  const levelB = normalizeDegreeLevel(b.degree);
+  if (levelA && levelB && levelA !== levelB) {
+    return false;
+  }
+
+  // 4. Exact degree strings
+  const degA = normalizeString(a.degree ?? "");
+  const degB = normalizeString(b.degree ?? "");
+  if (degA && degB && degA === degB) return true;
+
+  // 5. Field of study alignment
+  const fieldA = normalizeString(a.fieldOfStudy ?? "");
+  const fieldB = normalizeString(b.fieldOfStudy ?? "");
+  if (fieldA && fieldB) {
+    const fieldSim = calculateEntitySimilarity(a.fieldOfStudy, b.fieldOfStudy);
+    if (!fieldSim.isMatch && fieldA !== fieldB) {
+      return false;
+    }
+  }
+
+  // 6. Date range compatibility check
+  const rangeA = { start: a.startDate, end: a.graduationDate || a.endDate };
+  const rangeB = { start: b.startDate, end: b.graduationDate || b.endDate };
+  if (!areDateRangesCompatible(rangeA, rangeB)) {
+    if (degA !== degB) return false;
+  }
+
+  return true;
+}
+
+export function reconcileEducationPair(
+  target: EducationInput,
+  incoming: EducationInput
+): EducationInput {
+  return {
+    ...target,
+    degree: target.degree || incoming.degree,
+    subSchool: target.subSchool || incoming.subSchool,
+    fieldOfStudy: target.fieldOfStudy || incoming.fieldOfStudy,
+    startDate:
+      resolveGranularDate(target.startDate, incoming.startDate) ||
+      target.startDate ||
+      incoming.startDate ||
+      "Present",
+    graduationDate: resolveGranularDate(target.graduationDate, incoming.graduationDate),
+    status:
+      incoming.status && incoming.status !== "GRADUATED"
+        ? incoming.status
+        : target.status ?? incoming.status ?? "GRADUATED",
+    gpa: target.gpa || incoming.gpa,
+    honors: [...(target.honors ?? []), ...(incoming.honors ?? [])].filter(
+      (honor, index, list) =>
+        list.findIndex((item) => item.toLowerCase() === honor.toLowerCase()) === index
+    ),
+    coursework: [...(target.coursework ?? []), ...(incoming.coursework ?? [])].filter(
+      (course, index, list) =>
+        list.findIndex((item) => item.toLowerCase() === course.toLowerCase()) === index
+    ),
+  };
+}
+
+export function deduplicateEducationCollection(
+  education: EducationInput[]
+): EducationInput[] {
+  const consolidated: EducationInput[] = [];
+  for (const ed of education) {
+    if (!ed.institution || !ed.institution.trim()) continue;
+    const matchIndex = consolidated.findIndex((e) => isEducationMatch(e, ed));
+    if (matchIndex >= 0) {
+      consolidated[matchIndex] = reconcileEducationPair(consolidated[matchIndex]!, ed);
+    } else {
+      consolidated.push({
+        ...ed,
+        startDate: normalizeDateString(ed.startDate) || ed.startDate,
+        graduationDate: normalizeDateString(ed.graduationDate) || ed.graduationDate,
+      });
+    }
+  }
+  return consolidated;
+}
+
+/* -------------------------------------------------------------------------
+ * 9. Credential & Certification Deduplication
+ * ------------------------------------------------------------------------- */
+
+export function isCertificationMatch(
+  a: CertificationItem,
+  b: CertificationItem
+): boolean {
+  if (!a.name || !b.name) return false;
+
+  const normA = normalizeString(a.name);
+  const normB = normalizeString(b.name);
+  if (normA && normB && normA === normB) return true;
+
+  const nameSim = calculateEntitySimilarity(a.name, b.name);
+  if (nameSim.isMatch && nameSim.overlap >= 0.70) {
+    if (a.issuer && b.issuer) {
+      const issuerSim = calculateEntitySimilarity(a.issuer, b.issuer);
+      if (!issuerSim.isMatch && issuerSim.score < 0.40) return false;
+    }
+    if (a.date && b.date && !areDatePointsCompatible(a.date, b.date)) {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+export function reconcileCertificationPair(
+  target: CertificationItem,
+  incoming: CertificationItem
+): CertificationItem {
+  return {
+    ...target,
+    issuer: target.issuer || incoming.issuer,
+    date: resolveGranularDate(target.date, incoming.date),
+    url: target.url || incoming.url,
+  };
+}
+
+export function deduplicateCertificationCollection(
+  certifications: CertificationItem[]
+): CertificationItem[] {
+  const consolidated: CertificationItem[] = [];
+  for (const cert of certifications) {
+    if (!cert.name || !cert.name.trim()) continue;
+    const matchIndex = consolidated.findIndex((c) => isCertificationMatch(c, cert));
+    if (matchIndex >= 0) {
+      consolidated[matchIndex] = reconcileCertificationPair(consolidated[matchIndex]!, cert);
+    } else {
+      consolidated.push({
+        ...cert,
+        date: normalizeDateString(cert.date) || cert.date,
+      });
+    }
+  }
+  return consolidated;
+}
+
+/* -------------------------------------------------------------------------
+ * 10. Award & Honor Deduplication
+ * ------------------------------------------------------------------------- */
+
+export function isAwardMatch(
+  a: AwardItem,
+  b: AwardItem
+): boolean {
+  if (!a.title || !b.title) return false;
+
+  const normA = normalizeString(a.title);
+  const normB = normalizeString(b.title);
+  if (normA && normB && normA === normB) return true;
+
+  const titleSim = calculateEntitySimilarity(a.title, b.title);
+  if (titleSim.isMatch && titleSim.overlap >= 0.70) {
+    if (a.issuer && b.issuer) {
+      const issuerSim = calculateEntitySimilarity(a.issuer, b.issuer);
+      if (!issuerSim.isMatch && issuerSim.score < 0.40) return false;
+    }
+    if (a.date && b.date && !areDatePointsCompatible(a.date, b.date)) {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+export function reconcileAwardPair(
+  target: AwardItem,
+  incoming: AwardItem
+): AwardItem {
+  return {
+    ...target,
+    issuer: target.issuer || incoming.issuer,
+    date: resolveGranularDate(target.date, incoming.date),
+    description: target.description || incoming.description,
+  };
+}
+
+export function deduplicateAwardCollection(
+  awards: AwardItem[]
+): AwardItem[] {
+  const consolidated: AwardItem[] = [];
+  for (const award of awards) {
+    if (!award.title || !award.title.trim()) continue;
+    const matchIndex = consolidated.findIndex((a) => isAwardMatch(a, award));
+    if (matchIndex >= 0) {
+      consolidated[matchIndex] = reconcileAwardPair(consolidated[matchIndex]!, award);
+    } else {
+      consolidated.push({
+        ...award,
+        date: normalizeDateString(award.date) || award.date,
+      });
+    }
+  }
   return consolidated;
 }

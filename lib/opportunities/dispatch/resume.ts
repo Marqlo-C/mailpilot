@@ -83,7 +83,7 @@ export async function buildOpportunityResumePreview(
   const includeSummary =
     options.includeSummary !== undefined
       ? options.includeSummary
-      : (accountRules.resumePreferences?.includeSummary ?? false);
+      : (accountRules.resumePreferences?.includeSummary ?? true);
   const inventMetrics =
     options.inventMetrics !== undefined
       ? options.inventMetrics
@@ -463,7 +463,7 @@ export async function refineOpportunityResume(
   opportunityId: string,
   instruction: string,
   previousExperiences?: WorkExperienceInput[] | null,
-  includeSummary = false,
+  includeSummary = true,
   inventMetrics?: boolean,
   devModelOverride?: string | null
 ): Promise<OpportunityResumePreview> {
