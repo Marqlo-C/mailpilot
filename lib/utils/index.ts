@@ -6,6 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export * from "./company-logo";
+export * from "./date";
 export * from "./domain";
 export * from "./format-distance";
 export * from "./bridge-scripts";

@@ -13,7 +13,7 @@ export const resumePageBudgetSchema = z.union([
 
 export const resumePreferencesSchema = z.object({
   /** When false, tailored resumes omit the professional summary by default. */
-  includeSummary: z.boolean().default(false),
+  includeSummary: z.boolean().default(true),
   /**
    * When true, outbound opportunity drafts/sends attach the tailored resume PDF
    * unless the reviewer toggles it off for that send.
@@ -45,7 +45,7 @@ export const resumePreferencesSchema = z.object({
 export type ResumePreferences = z.infer<typeof resumePreferencesSchema>;
 
 export const DEFAULT_RESUME_PREFERENCES: ResumePreferences = {
-  includeSummary: false,
+  includeSummary: true,
   attachPdfByDefault: true,
   maxPages: "auto",
   sectionOrder: [

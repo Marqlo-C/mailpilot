@@ -407,7 +407,7 @@ export async function getOpportunityResumeStateAction(
  */
 export async function prepareOpportunityResumeForReview(
   opportunityId: string,
-  includeSummary = false
+  includeSummary = true
 ): Promise<ActionResult<OpportunityResumePreview | null>> {
   const opportunity = await prisma.jobOpportunity.findUnique({
     where: { id: opportunityId },
@@ -466,7 +466,7 @@ export async function hydrateOpportunitySpecAction(
 
 export async function generateOpportunityResumeAction(
   opportunityId: string,
-  includeSummary = false,
+  includeSummary = true,
   inventMetrics?: boolean,
   devModelOverride?: string | null
 ): Promise<ActionResult<OpportunityResumePreview>> {
@@ -499,7 +499,7 @@ export async function generateOpportunityResumeAction(
 
 export async function regenerateOpportunityResumeAction(
   opportunityId: string,
-  includeSummary = false,
+  includeSummary = true,
   inventMetrics?: boolean,
   devModelOverride?: string | null
 ): Promise<ActionResult<OpportunityResumePreview>> {
@@ -625,7 +625,7 @@ export async function refineOpportunityResumeAction(
   opportunityId: string,
   instruction: string,
   previousExperiences?: WorkExperienceInput[] | null,
-  includeSummary = false,
+  includeSummary = true,
   inventMetrics?: boolean,
   devModelOverride?: string | null
 ): Promise<ActionResult<OpportunityResumePreview>> {

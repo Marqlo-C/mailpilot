@@ -24,17 +24,29 @@ import {
 } from "@/lib/utils/format";
 import { diversifyLeadingVerbs } from "@/lib/github/lens";
 import {
+  deduplicateAwardCollection,
+  deduplicateCertificationCollection,
+  deduplicateEducationCollection,
   deduplicateProjectCollection,
   deduplicateWorkExperienceCollection,
   hasThematicOverlap,
+  isAwardMatch,
+  isCertificationMatch,
+  isEducationMatch,
   normalizeString,
   tokenizeThematicWords,
 } from "@/lib/profile/deduplication";
 
 export {
+  deduplicateAwardCollection,
+  deduplicateCertificationCollection,
+  deduplicateEducationCollection,
   deduplicateProjectCollection,
   deduplicateWorkExperienceCollection,
   hasThematicOverlap,
+  isAwardMatch,
+  isCertificationMatch,
+  isEducationMatch,
   normalizeString,
   tokenizeThematicWords,
 };
@@ -66,53 +78,11 @@ function mergeCertifications(
   existing: CertificationItem[],
   incoming: CertificationItem[]
 ): CertificationItem[] {
-  const certMap = new Map<string, CertificationItem>();
-  for (const item of existing) {
-    const key = item.name.trim().toLowerCase();
-    if (!key) continue;
-    certMap.set(key, { ...item });
-  }
-  for (const item of incoming) {
-    const key = item.name.trim().toLowerCase();
-    if (!key) continue;
-    const existingItem = certMap.get(key);
-    if (existingItem) {
-      certMap.set(key, {
-        ...existingItem,
-        issuer: existingItem.issuer || item.issuer,
-        date: existingItem.date || item.date,
-        url: existingItem.url || item.url,
-      });
-    } else {
-      certMap.set(key, { ...item });
-    }
-  }
-  return Array.from(certMap.values());
+  return deduplicateCertificationCollection([...existing, ...incoming]);
 }
 
 function mergeAwards(existing: AwardItem[], incoming: AwardItem[]): AwardItem[] {
-  const awardMap = new Map<string, AwardItem>();
-  for (const item of existing) {
-    const key = item.title.trim().toLowerCase();
-    if (!key) continue;
-    awardMap.set(key, { ...item });
-  }
-  for (const item of incoming) {
-    const key = item.title.trim().toLowerCase();
-    if (!key) continue;
-    const existingItem = awardMap.get(key);
-    if (existingItem) {
-      awardMap.set(key, {
-        ...existingItem,
-        issuer: existingItem.issuer || item.issuer,
-        date: existingItem.date || item.date,
-        description: existingItem.description || item.description,
-      });
-    } else {
-      awardMap.set(key, { ...item });
-    }
-  }
-  return Array.from(awardMap.values());
+  return deduplicateAwardCollection([...existing, ...incoming]);
 }
 
 function mergeInterests(existing: string[], incoming: string[]): string[] {
@@ -349,6 +319,15 @@ export function consolidateProfiles(
     const deduplicatedExperiences = deduplicateWorkExperienceCollection(
       incoming.experiences ?? []
     );
+    const deduplicatedEducation = deduplicateEducationCollection(
+      incoming.education ?? []
+    );
+    const deduplicatedCertifications = deduplicateCertificationCollection(
+      incoming.certifications ?? []
+    );
+    const deduplicatedAwards = deduplicateAwardCollection(
+      incoming.awards ?? []
+    );
     return {
       fullName: incoming.fullName?.trim() || "",
       email: !isPlaceholderEmail(incoming.email) ? incoming.email.trim() : "",
@@ -359,9 +338,9 @@ export function consolidateProfiles(
       skills: incoming.skills ?? [],
       experiences: deduplicatedExperiences,
       projects: deduplicatedProjects,
-      education: incoming.education ?? [],
-      certifications: incoming.certifications ?? [],
-      awards: incoming.awards ?? [],
+      education: deduplicatedEducation,
+      certifications: deduplicatedCertifications,
+      awards: deduplicatedAwards,
       interests: incoming.interests ?? [],
     };
   }
@@ -375,55 +354,18 @@ export function consolidateProfiles(
     ...(existing.projects ?? []),
     ...(incoming.projects ?? []),
   ]);
-
-  const education = [...existing.education];
-  for (const incEd of incoming.education) {
-    const existingIndex = education.findIndex((e) => {
-      if (normalizeString(e.institution) !== normalizeString(incEd.institution)) {
-        return false;
-      }
-      const existingSchool = normalizeString(e.subSchool ?? "");
-      const incomingSchool = normalizeString(incEd.subSchool ?? "");
-      if (existingSchool && incomingSchool && existingSchool !== incomingSchool) {
-        return false;
-      }
-      const existingDegree = normalizeString(e.degree ?? "");
-      const incomingDegree = normalizeString(incEd.degree ?? "");
-      if (existingDegree && incomingDegree && existingDegree !== incomingDegree) {
-        return false;
-      }
-      return true;
-    });
-
-    if (existingIndex >= 0) {
-      const match = education[existingIndex]!;
-      education[existingIndex] = {
-        ...match,
-        degree: match.degree || incEd.degree,
-        subSchool: match.subSchool || incEd.subSchool,
-        fieldOfStudy: match.fieldOfStudy || incEd.fieldOfStudy,
-        startDate: match.startDate || incEd.startDate,
-        graduationDate: match.graduationDate || incEd.graduationDate,
-        status:
-          incEd.status && incEd.status !== "GRADUATED"
-            ? incEd.status
-            : match.status ?? incEd.status ?? "GRADUATED",
-        gpa: match.gpa || incEd.gpa,
-        honors: [...(match.honors ?? []), ...(incEd.honors ?? [])].filter(
-          (honor, index, list) =>
-            list.findIndex((item) => item.toLowerCase() === honor.toLowerCase()) ===
-            index
-        ),
-        coursework: [...(match.coursework ?? []), ...(incEd.coursework ?? [])].filter(
-          (course, index, list) =>
-            list.findIndex((item) => item.toLowerCase() === course.toLowerCase()) ===
-            index
-        ),
-      };
-    } else {
-      education.push(incEd);
-    }
-  }
+  const education = deduplicateEducationCollection([
+    ...(existing.education ?? []),
+    ...(incoming.education ?? []),
+  ]);
+  const certifications = deduplicateCertificationCollection([
+    ...(existing.certifications ?? []),
+    ...(incoming.certifications ?? []),
+  ]);
+  const awards = deduplicateAwardCollection([
+    ...(existing.awards ?? []),
+    ...(incoming.awards ?? []),
+  ]);
 
   const cleanExistingLinks = existing.links.filter(
     (l) => !isDisallowedContactHost(l.url) && isVerifiedProfileUrl(l.url)
@@ -459,11 +401,8 @@ export function consolidateProfiles(
     experiences,
     projects,
     education,
-    certifications: mergeCertifications(
-      existing.certifications ?? [],
-      incoming.certifications ?? []
-    ),
-    awards: mergeAwards(existing.awards ?? [], incoming.awards ?? []),
+    certifications,
+    awards,
     interests: mergeInterests(existing.interests ?? [], incoming.interests ?? []),
   };
 }

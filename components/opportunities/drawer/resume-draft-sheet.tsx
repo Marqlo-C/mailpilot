@@ -7,7 +7,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { skillCategoryLabel } from "@/lib/profile/skill-groups";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/types/resume-draft";
 import { cn } from "@/lib/utils";
-import { sanitizeResumeContactLine } from "@/lib/utils/format";
+import {
+  formatEducationDates,
+  parseContactHeaderItems,
+  sanitizeResumeContactLine,
+} from "@/lib/utils/format";
+import {
+  RESUME_FONTS,
+  RESUME_SPACING,
+  RESUME_TYPOGRAPHY,
+} from "@/lib/resume-draft/layout.ssot";
 
 export const SHEET_WIDTH = 816;
 export const PAGE_HEIGHT = 1056;
@@ -35,7 +44,7 @@ const SECTION_LABEL: Record<ResumeDraftNode["section"], string | null> = {
 };
 
 const SECTION_HEADING_CLASS =
-  "mb-1.5 mt-2.5 border-b border-[#D1D5DB] pb-0.5 text-[14.67px] font-bold uppercase tracking-normal text-[#111827]";
+  "border-b border-[#D1D5DB] pb-0.5 font-bold uppercase tracking-normal text-[#111827]";
 
 export function getBlockId(block: DraftBlock): string {
   return block.kind === "skills"
@@ -176,12 +185,14 @@ function EditableLine({
   value,
   disabled,
   className,
+  style,
   onCommit,
   as = "div",
 }: {
   value: string;
   disabled?: boolean;
   className?: string;
+  style?: React.CSSProperties;
   onCommit: (next: string) => void;
   as?: "div" | "span";
 }) {
@@ -206,6 +217,7 @@ function EditableLine({
       contentEditable={!disabled}
       suppressContentEditableWarning
       className={className}
+      style={style}
       onBlur={(event) => {
         const next = event.currentTarget.textContent ?? "";
         if (next !== value) onCommit(next);
@@ -215,15 +227,32 @@ function EditableLine({
 }
 
 function datesFor(node: ResumeDraftNode): string | null {
-  if (node.type !== "experience_header") return null;
-  const start =
-    typeof node.metadata?.startDate === "string" ? node.metadata.startDate : "";
-  const end =
-    typeof node.metadata?.endDate === "string" && node.metadata.endDate
-      ? node.metadata.endDate
-      : "Present";
-  if (!start) return null;
-  return `${start} – ${end}`;
+  if (node.type === "experience_header") {
+    const start =
+      typeof node.metadata?.startDate === "string" ? node.metadata.startDate : "";
+    const end =
+      typeof node.metadata?.endDate === "string" && node.metadata.endDate
+        ? node.metadata.endDate
+        : "Present";
+    if (!start) return null;
+    return `${start} – ${end}`;
+  }
+  if (node.type === "education_item") {
+    const start =
+      typeof node.metadata?.startDate === "string"
+        ? node.metadata.startDate
+        : "";
+    const end =
+      typeof node.metadata?.graduationDate === "string"
+        ? node.metadata.graduationDate
+        : "";
+    const status =
+      typeof node.metadata?.status === "string"
+        ? (node.metadata.status as "GRADUATED" | "IN_PROGRESS")
+        : "GRADUATED";
+    return formatEducationDates({ startDate: start, graduationDate: end, status });
+  }
+  return null;
 }
 
 function skillLabel(node: ResumeDraftNode): string | null {
@@ -292,6 +321,13 @@ export function ResumeDraftSheet({
   const zoom = zoomChoice === "fit" ? fitScale : zoomChoice;
 
   const blocks = useMemo(() => buildBlocks(draft), [draft]);
+  const firstHeadingBlockId = useMemo(() => {
+    for (const b of blocks) {
+      if (b.kind === "skills") return getBlockId(b);
+      if (b.kind === "node" && b.heading) return getBlockId(b);
+    }
+    return null;
+  }, [blocks]);
 
   useIsomorphicLayoutEffect(() => {
     const container = pagesContainerRef.current;
@@ -401,6 +437,7 @@ export function ResumeDraftSheet({
 
   function renderBlock(block: DraftBlock) {
     const blockId = getBlockId(block);
+    const isFirstHeading = blockId === firstHeadingBlockId;
 
     if (block.kind === "skills") {
       return (
@@ -409,7 +446,16 @@ export function ResumeDraftSheet({
           data-draft-block-id={blockId}
           className="min-w-0 max-w-full flow-root"
         >
-          <h3 className={SECTION_HEADING_CLASS}>Skills</h3>
+          <h3
+            className={SECTION_HEADING_CLASS}
+            style={{
+              fontSize: `${RESUME_TYPOGRAPHY.heading.px}px`,
+              marginTop: isFirstHeading ? 0 : `${RESUME_SPACING.sectionBefore.px}px`,
+              marginBottom: `${RESUME_SPACING.sectionHeadingBottom.px}px`,
+            }}
+          >
+            Skills
+          </h3>
           <div className="group relative">
             <div className="absolute -left-6 top-[2px] flex flex-col gap-px">
               {block.nodes.map((node) => (
@@ -424,7 +470,13 @@ export function ResumeDraftSheet({
                 />
               ))}
             </div>
-            <p className="font-normal text-[12px] leading-[1.4] text-[#111827]">
+            <p
+              className="font-normal text-[#111827]"
+              style={{
+                fontSize: `${RESUME_TYPOGRAPHY.skills.px}px`,
+                lineHeight: RESUME_TYPOGRAPHY.skills.lineHeight,
+              }}
+            >
               {block.nodes.map((node, skillIndex) => {
                 const label = skillLabel(node);
                 return (
@@ -479,15 +531,48 @@ export function ResumeDraftSheet({
       node.type === "experience_bullet" || node.type === "project_bullet";
     const role =
       node.type === "experience_header" || node.type === "project_header";
+    const isEducation = node.type === "education_item";
     const trailing = datesFor(node) ?? projectTrailing(node);
+    const content =
+      isEducation && trailing && node.content.endsWith(` (${trailing})`)
+        ? node.content.slice(0, -` (${trailing})`.length).trim()
+        : node.content;
     return (
       <div
         key={blockId}
         data-draft-block-id={blockId}
         className="min-w-0 max-w-full flow-root"
+        style={{
+          marginTop:
+            role && !heading
+              ? `${RESUME_SPACING.roleToRole.px}px`
+              : isEducation && !heading
+                ? `${RESUME_SPACING.degreeToDegree.px}px`
+                : undefined,
+        }}
       >
-        {heading ? <h3 className={SECTION_HEADING_CLASS}>{heading}</h3> : null}
-        <div className={cn("group relative", bullet && "mb-0.5")}>
+        {heading ? (
+          <h3
+            className={SECTION_HEADING_CLASS}
+            style={{
+              fontSize: `${RESUME_TYPOGRAPHY.heading.px}px`,
+              marginTop: isFirstHeading ? 0 : `${RESUME_SPACING.sectionBefore.px}px`,
+              marginBottom: `${RESUME_SPACING.sectionHeadingBottom.px}px`,
+            }}
+          >
+            {heading}
+          </h3>
+        ) : null}
+        <div
+          className="group relative"
+          style={{
+            marginBottom: bullet
+              ? `${RESUME_SPACING.bulletSpacing.px}px`
+              : role
+                ? `${RESUME_SPACING.roleTitleToFirstBullet.px}px`
+                : undefined,
+          }}
+        >
           <Checkbox
             checked={node.selected}
             disabled={disabled}
@@ -502,27 +587,72 @@ export function ResumeDraftSheet({
             className={cn(
               "min-w-0",
               !node.selected && "opacity-40",
-              bullet &&
-                "relative pl-3 before:absolute before:left-0 before:content-['•']",
-              role && "flex items-baseline justify-between gap-3"
+              bullet && "flex items-start",
+              (role || isEducation) && "flex items-baseline justify-between",
+              node.type === "header" && "text-center"
             )}
+            style={{
+              marginLeft: bullet ? `${RESUME_SPACING.bulletMarginLeft.px}px` : undefined,
+              gap: (role || isEducation) ? `${RESUME_SPACING.roleTitleToTrailingGap.px}px` : undefined,
+            }}
           >
-            <EditableLine
-              value={node.content}
-              disabled={disabled}
-              onCommit={(next) => onCommit(node.id, next)}
-              className={cn(
-                "min-w-0 whitespace-pre-wrap break-normal outline-none focus:bg-[#f8fafc]",
-                role && "flex-1 font-bold",
-                node.type === "header" &&
-                  "text-[24px] font-bold leading-tight",
-                node.type !== "header" &&
-                  node.section === "contact" &&
-                  "text-[12px] text-[#374151]"
-              )}
-            />
+            {bullet ? (
+              <span
+                aria-hidden="true"
+                style={{
+                  width: `${RESUME_SPACING.bulletMarkerWidth.px}px`,
+                  flexShrink: 0,
+                  fontSize: `${RESUME_TYPOGRAPHY.bullet.px}px`,
+                  lineHeight: RESUME_TYPOGRAPHY.bullet.lineHeight,
+                  userSelect: "none",
+                }}
+              >
+                •
+              </span>
+            ) : null}
+            <div className={cn("min-w-0", (bullet || role || isEducation) && "flex-1")}>
+              <EditableLine
+                value={content}
+                disabled={disabled}
+                onCommit={(next) => onCommit(node.id, next)}
+                className={cn(
+                  "min-w-0 whitespace-pre-wrap break-normal outline-none focus:bg-[#f8fafc]",
+                  role && "font-bold",
+                  node.type === "header" &&
+                    "font-bold leading-tight text-center",
+                  node.type !== "header" &&
+                    node.section === "contact" &&
+                    "tracking-tight text-[#374151] text-center",
+                  node.section === "summary" && "text-[#111827]",
+                  bullet && "text-[#111827]"
+                )}
+                style={{
+                  fontSize:
+                    role
+                      ? `${RESUME_TYPOGRAPHY.roleTitle.px}px`
+                      : isEducation
+                        ? `${RESUME_TYPOGRAPHY.educationTitle.px}px`
+                        : node.type === "header"
+                          ? `${RESUME_TYPOGRAPHY.name.px}px`
+                          : node.section === "contact"
+                            ? `${RESUME_TYPOGRAPHY.contact.px}px`
+                            : node.section === "summary"
+                              ? `${RESUME_TYPOGRAPHY.summary.px}px`
+                              : bullet
+                                ? `${RESUME_TYPOGRAPHY.bullet.px}px`
+                                : `${RESUME_TYPOGRAPHY.body.px}px`,
+                  lineHeight:
+                    node.section === "summary" || bullet || isEducation
+                      ? RESUME_TYPOGRAPHY.body.lineHeight
+                      : undefined,
+                }}
+              />
+            </div>
             {trailing ? (
-              <span className="shrink-0 text-right text-[12px] text-[#4B5563]">
+              <span
+                className="shrink-0 text-right text-[#4B5563]"
+                style={{ fontSize: `${RESUME_TYPOGRAPHY.muted.px}px` }}
+              >
                 {trailing}
               </span>
             ) : null}
@@ -530,8 +660,37 @@ export function ResumeDraftSheet({
           {node.type === "header" &&
           typeof node.metadata?.contactLine === "string" &&
           node.metadata.contactLine ? (
-            <p className="mb-2.5 text-[12px] text-[#374151]">
-              {sanitizeResumeContactLine(node.metadata.contactLine)}
+            <p
+              className="text-center leading-tight tracking-tight text-[#374151]"
+              style={{
+                fontSize: `${RESUME_TYPOGRAPHY.contact.px}px`,
+                marginTop: `${RESUME_SPACING.nameToContact.px}px`,
+                marginBottom: `${RESUME_SPACING.contactToFirstSection.px}px`,
+              }}
+            >
+              {parseContactHeaderItems(node.metadata.contactLine).map(
+                (item, idx) => (
+                  <span key={idx} className="inline-block whitespace-nowrap">
+                    {idx > 0 && (
+                      <span className="mx-1 text-muted-foreground/60 select-none">
+                        |
+                      </span>
+                    )}
+                    {item.href ? (
+                      <a
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#1F2937] dark:text-zinc-200 no-underline hover:text-foreground"
+                      >
+                        {item.label}
+                      </a>
+                    ) : (
+                      <span>{item.label}</span>
+                    )}
+                  </span>
+                )
+              )}
             </p>
           ) : null}
           {refineForm(node.id)}
@@ -608,8 +767,8 @@ export function ResumeDraftSheet({
             {displayPages.map((pageBlocks, pageIndex) => (
               <div
                 key={pageIndex}
-                className="relative w-[816px] h-[1056px] max-h-[1056px] overflow-hidden bg-white px-[40px] py-[32px] font-['Helvetica',Arial,sans-serif] text-[13.33px] leading-[1.4] text-[#111827] shadow-lg rounded-sm"
-                style={{ fontFamily: "Helvetica, Arial, sans-serif" }}
+                className="relative w-[816px] h-[1056px] max-h-[1056px] overflow-hidden bg-white px-[48px] py-[32px] font-['Calibri',Carlito,sans-serif] text-[13.33px] leading-[1.15] text-[#111827] shadow-lg rounded-sm"
+                style={{ fontFamily: "Calibri, Carlito, sans-serif" }}
               >
                 {pageBlocks.map((block) => renderBlock(block))}
                 <div className="absolute bottom-2 right-4 text-[10px] text-muted-foreground/60 select-none">

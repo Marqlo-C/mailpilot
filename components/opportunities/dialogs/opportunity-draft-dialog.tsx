@@ -186,7 +186,7 @@ export function OpportunityDraftDialog({
   const [resumePdfUrl, setResumePdfUrl] = useState<string | null>(null);
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [resumeStateLoaded, setResumeStateLoaded] = useState(false);
-  const [includeSummary, setIncludeSummary] = useState(false);
+  const [includeSummary, setIncludeSummary] = useState(true);
   const [attachResume, setAttachResume] = useState(true);
   const [showRationale, setShowRationale] = useState(false);
 

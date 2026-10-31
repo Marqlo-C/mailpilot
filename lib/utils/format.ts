@@ -335,7 +335,66 @@ export function sanitizeResumeContactLine(
       .filter((item) => isAuthenticContactItem(item))
   );
 
-  return validElements.join(" • ");
+  return validElements.join(" | ");
+}
+
+export interface ContactHeaderItem {
+  raw: string;
+  label: string;
+  href: string | null;
+  type: "email" | "phone" | "url" | "text";
+}
+
+/**
+ * Splits a contact header line into structured contact items with clean labels and hrefs.
+ * Ensures ATS parsability and supports email, phone, and profile links.
+ */
+export function parseContactHeaderItems(
+  contactLine: string | null | undefined
+): ContactHeaderItem[] {
+  if (!contactLine) return [];
+  const sanitized = sanitizeResumeContactLine(contactLine);
+  if (!sanitized) return [];
+
+  const tokens = sanitized.split(/\s*\|\s*|\s*•\s*|\s*·\s*/).filter(Boolean);
+  return tokens.map((token) => {
+    const trimmed = token.trim();
+    if (trimmed.includes("@") && !trimmed.includes("/")) {
+      return {
+        raw: trimmed,
+        label: trimmed,
+        href: `mailto:${trimmed}`,
+        type: "email",
+      };
+    }
+    if (/^\+?[\d\s().-]{7,20}$/.test(trimmed)) {
+      const tel = trimmed.replace(/[^\d+]/g, "");
+      return {
+        raw: trimmed,
+        label: trimmed,
+        href: `tel:${tel}`,
+        type: "phone",
+      };
+    }
+    if (
+      isResumeHeaderLink(trimmed) ||
+      /^(https?:\/\/|[a-z0-9-]+\.[a-z]{2,})/i.test(trimmed)
+    ) {
+      const href = trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
+      return {
+        raw: trimmed,
+        label: cleanDisplayUrl(trimmed),
+        href,
+        type: "url",
+      };
+    }
+    return {
+      raw: trimmed,
+      label: trimmed,
+      href: null,
+      type: "text",
+    };
+  });
 }
 
 /**
@@ -380,7 +439,7 @@ export function buildResumeContactLine(profile: {
     .map((item) => item?.trim())
     .filter((item): item is string => Boolean(item) && isAuthenticContactItem(item));
 
-  return dedupeContactItems(verified).join(" • ");
+  return dedupeContactItems(verified).join(" | ");
 }
 
 export const KNOWN_PROJECT_ACRONYMS: Record<string, string> = {

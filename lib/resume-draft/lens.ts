@@ -312,7 +312,7 @@ export function resolveResumeDraftLens(input: {
         : "auto";
 
   const includeSummary: boolean =
-    draftOverrides?.includeSummary ?? prefs?.includeSummary ?? false;
+    draftOverrides?.includeSummary ?? prefs?.includeSummary ?? true;
 
   const disabledRaw = draftOverrides?.disabledSections ?? prefs?.disabledSections ?? [];
   const disabledSections = disabledRaw

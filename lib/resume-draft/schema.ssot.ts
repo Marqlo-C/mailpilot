@@ -78,7 +78,7 @@ export const resumeDraftNodeSchema = z.object({
 export type ResumeDraftNode = z.infer<typeof resumeDraftNodeSchema>;
 
 export const resumeExportConfigSchema = z.object({
-  includeSummary: z.boolean().default(false),
+  includeSummary: z.boolean().default(true),
   pageBudget: resumePageBudgetSchema.default("auto"),
   sectionOrder: z.array(z.string()).optional(),
   disabledSections: z.array(z.string()).optional(),
@@ -155,9 +155,12 @@ export interface ElasticBudgetParams {
   projectCount: number;
   hasSummary: boolean;
   totalSourceBullets: number;
+  educationCount?: number;
+  credentialCount?: number;
   matchedRequirementsCount?: number;
   inFieldRoleCount?: number;
   isCareerSwitcher?: boolean;
+  disabledSections?: string[];
 }
 
 export interface ElasticBudgetResult {
@@ -168,4 +171,5 @@ export interface ElasticBudgetResult {
   bulletsPerRoleMin: number;
   bulletsPerProjectMax: number;
   warningFlags: string[];
+  availableContentHeightPoints?: number;
 }

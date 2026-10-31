@@ -9,10 +9,26 @@ import {
   StyleSheet,
   Font,
   renderToBuffer,
+  Link,
 } from "@react-pdf/renderer";
 
 // Disable automatic mid-word hyphenation splitting across lines globally
 Font.registerHyphenationCallback((word) => [word]);
+
+const CALIBRI_REGULAR = path.join(process.cwd(), "public/fonts/Calibri.ttf");
+const CALIBRI_BOLD = path.join(process.cwd(), "public/fonts/Calibri-Bold.ttf");
+
+try {
+  Font.register({
+    family: "Calibri",
+    fonts: [
+      { src: CALIBRI_REGULAR, fontWeight: "normal" },
+      { src: CALIBRI_BOLD, fontWeight: "bold" },
+    ],
+  });
+} catch {
+  // Graceful fallback to default system font
+}
 
 import type {
   MasterProfileInput,
@@ -21,6 +37,11 @@ import type {
 } from "@/lib/validations/profile";
 import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import type { SkillGroup } from "@/lib/types/resume-draft";
+import {
+  RESUME_FONTS,
+  RESUME_SPACING,
+  RESUME_TYPOGRAPHY,
+} from "@/lib/resume-draft/layout.ssot";
 import {
   DEFAULT_SECTION_ORDER,
   RESUME_SECTION_KEYS,
@@ -33,6 +54,7 @@ import {
   formatEducationTitle,
   formatExperienceHeading,
   formatSchoolName,
+  parseContactHeaderItems,
   sanitizeResumeContactLine,
 } from "@/lib/utils/format";
 import { categorizeProfileUrl, isResumeHeaderLink } from "@/lib/utils/url";
@@ -44,75 +66,129 @@ export const cleanContactUrl = cleanDisplayUrl;
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 32,
-    paddingBottom: 32,
-    paddingHorizontal: 40,
-    fontSize: 10,
-    fontFamily: "Helvetica",
+    paddingTop: RESUME_SPACING.pagePaddingTop.pt,
+    paddingBottom: RESUME_SPACING.pagePaddingBottom.pt,
+    paddingHorizontal: RESUME_SPACING.pagePaddingHorizontal.pt,
+    fontSize: RESUME_TYPOGRAPHY.body.pt,
+    fontFamily: RESUME_FONTS.primary,
     color: "#111827",
   },
   headerRow: {
-    flexDirection: "row",
+    marginBottom: RESUME_SPACING.nameToContact.pt,
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  brandMark: {
-    width: 28,
-    height: 28,
+    width: "100%",
   },
   name: {
-    fontSize: 18,
-    fontFamily: "Helvetica-Bold",
-    marginBottom: 4,
+    fontSize: RESUME_TYPOGRAPHY.name.pt,
+    fontFamily: RESUME_FONTS.primary,
+    fontWeight: "bold",
+    marginBottom: RESUME_SPACING.nameToContact.pt,
+    textAlign: "center",
+    width: "100%",
   },
   contact: {
-    fontSize: 9,
+    fontSize: RESUME_TYPOGRAPHY.contact.pt,
+    fontFamily: RESUME_FONTS.primary,
     color: "#374151",
-    marginBottom: 10,
+    marginBottom: RESUME_SPACING.contactToFirstSection.pt,
+    textAlign: "center",
+    width: "100%",
+  },
+  contactLink: {
+    color: "#1F2937",
+    textDecoration: "none",
+  },
+  contactSeparator: {
+    color: "#9CA3AF",
+  },
+  summary: {
+    fontSize: RESUME_TYPOGRAPHY.summary.pt,
+    fontFamily: RESUME_FONTS.primary,
+    lineHeight: RESUME_TYPOGRAPHY.summary.lineHeight,
+    color: "#111827",
   },
   section: {
-    marginTop: 10,
+    marginTop: RESUME_SPACING.sectionBefore.pt,
   },
   heading: {
-    fontSize: 11,
-    fontFamily: "Helvetica-Bold",
+    fontSize: RESUME_TYPOGRAPHY.heading.pt,
+    fontFamily: RESUME_FONTS.primary,
+    fontWeight: "bold",
     textTransform: "uppercase",
     borderBottomWidth: 1,
     borderBottomColor: "#D1D5DB",
     paddingBottom: 2,
-    marginBottom: 6,
+    marginBottom: RESUME_SPACING.sectionHeadingBottom.pt,
   },
   roleHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 2,
+    marginBottom: RESUME_SPACING.roleTitleToFirstBullet.pt,
   },
   roleTitle: {
-    fontFamily: "Helvetica-Bold",
-    fontSize: 10,
+    fontFamily: RESUME_FONTS.primary,
+    fontWeight: "bold",
+    fontSize: RESUME_TYPOGRAPHY.roleTitle.pt,
     flex: 1,
-    marginRight: 8,
+    marginRight: RESUME_SPACING.roleTitleToTrailingGap.pt,
+  },
+  educationRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  educationTitle: {
+    fontFamily: RESUME_FONTS.primary,
+    fontSize: RESUME_TYPOGRAPHY.educationTitle.pt,
+    lineHeight: RESUME_TYPOGRAPHY.educationTitle.lineHeight,
+    flex: 1,
+    marginRight: RESUME_SPACING.roleTitleToTrailingGap.pt,
+  },
+  bodyItem: {
+    fontFamily: RESUME_FONTS.primary,
+    fontSize: RESUME_TYPOGRAPHY.body.pt,
+    lineHeight: RESUME_TYPOGRAPHY.body.lineHeight,
   },
   muted: {
+    fontFamily: RESUME_FONTS.primary,
     color: "#4B5563",
-    fontSize: 9,
+    fontSize: RESUME_TYPOGRAPHY.muted.pt,
     textAlign: "right",
     flexShrink: 0,
   },
+  bulletRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginLeft: RESUME_SPACING.bulletMarginLeft.pt,
+    marginBottom: RESUME_SPACING.bulletSpacing.pt,
+  },
+  bulletMarker: {
+    fontFamily: RESUME_FONTS.primary,
+    width: RESUME_SPACING.bulletMarkerWidth.pt,
+    fontSize: RESUME_TYPOGRAPHY.bullet.pt,
+    lineHeight: RESUME_TYPOGRAPHY.bullet.lineHeight,
+  },
+  bulletContent: {
+    fontFamily: RESUME_FONTS.primary,
+    flex: 1,
+    fontSize: RESUME_TYPOGRAPHY.bullet.pt,
+    lineHeight: RESUME_TYPOGRAPHY.bullet.lineHeight,
+  },
   bullet: {
     marginLeft: 8,
-    marginBottom: 2,
+    marginBottom: RESUME_SPACING.bulletSpacing.pt,
     maxWidth: "95%",
   },
   skills: {
-    fontSize: 9,
-    lineHeight: 1.4,
+    fontFamily: RESUME_FONTS.primary,
+    fontSize: RESUME_TYPOGRAPHY.skills.pt,
+    lineHeight: RESUME_TYPOGRAPHY.skills.lineHeight,
   },
   skillLabel: {
-    fontFamily: "Helvetica-Bold",
-    fontSize: 9,
+    fontFamily: RESUME_FONTS.primary,
+    fontWeight: "bold",
+    fontSize: RESUME_TYPOGRAPHY.skills.pt,
   },
 });
 
@@ -135,10 +211,7 @@ type PdfInput = {
   includeVariants?: boolean;
 };
 
-const INVERTED_LOGO_PATH = path.join(
-  process.cwd(),
-  "public/logos/transparent-logo.png"
-);
+
 
 function ResumeDocument({
   profile,
@@ -201,21 +274,22 @@ function ResumeDocument({
     }
   }
 
-  const renderSection = (key: string) => {
+  const renderSection = (key: string, isFirstSection = false) => {
+    const sectionStyle = [styles.section, isFirstSection ? { marginTop: 0 } : undefined];
     switch (key) {
       case "summary":
         if (!showSummary) return null;
         return (
-          <View key="summary" style={styles.section}>
+          <View key="summary" style={sectionStyle}>
             <Text style={styles.heading}>Summary</Text>
-            <Text>{tailoredSummary || profile.summary}</Text>
+            <Text style={styles.summary}>{tailoredSummary || profile.summary}</Text>
           </View>
         );
 
       case "skills":
         if (renderedGroups.length === 0) return null;
         return (
-          <View key="skills" style={styles.section}>
+          <View key="skills" style={sectionStyle}>
             <Text style={styles.heading}>Skills</Text>
             <Text style={styles.skills}>
               {renderedGroups.flatMap((group, index) => {
@@ -243,34 +317,48 @@ function ResumeDocument({
       case "experience":
         if (experiences.length === 0) return null;
         return (
-          <View key="experience" style={styles.section}>
+          <View key="experience" style={sectionStyle}>
             <Text style={styles.heading}>Experience</Text>
-            {experiences.map((exp) => (
-              <View key={`${exp.company}-${exp.role}`} style={{ marginBottom: 8 }}>
-                <View style={styles.roleHeader}>
-                  <Text style={styles.roleTitle}>
-                    {formatExperienceHeading(exp.role, exp.company, exp.location) || exp.role}
-                  </Text>
-                  <Text style={styles.muted}>
-                    {exp.startDate} – {exp.endDate ?? "Present"}
-                  </Text>
+            {experiences.map((exp, expIdx) => {
+              const isLastExp = expIdx === experiences.length - 1;
+              return (
+                <View
+                  key={`${exp.company}-${exp.role}`}
+                  style={{ marginBottom: isLastExp ? 0 : RESUME_SPACING.roleToRole.pt }}
+                >
+                  <View style={styles.roleHeader}>
+                    <Text style={styles.roleTitle}>
+                      {formatExperienceHeading(exp.role, exp.company, exp.location) || exp.role}
+                    </Text>
+                    <Text style={styles.muted}>
+                      {exp.startDate} – {exp.endDate ?? "Present"}
+                    </Text>
+                  </View>
+                  {exp.bullets.map((b, bIdx) => (
+                    <View
+                      key={b.id}
+                      style={[
+                        styles.bulletRow,
+                        bIdx === exp.bullets.length - 1 ? { marginBottom: 0 } : undefined,
+                      ]}
+                    >
+                      <Text style={styles.bulletMarker}>•</Text>
+                      <Text style={styles.bulletContent}>{b.rawText}</Text>
+                    </View>
+                  ))}
                 </View>
-                {exp.bullets.map((b) => (
-                  <Text key={b.id} style={styles.bullet}>
-                    • {b.rawText}
-                  </Text>
-                ))}
-              </View>
-            ))}
+              );
+            })}
           </View>
         );
 
       case "projects":
         if (!projects || projects.length === 0) return null;
         return (
-          <View key="projects" style={styles.section}>
+          <View key="projects" style={sectionStyle}>
             <Text style={styles.heading}>Projects</Text>
-            {projects.map((proj) => {
+            {projects.map((proj, projIdx) => {
+              const isLastProj = projIdx === projects.length - 1;
               const variantBullets =
                 includeVariants && proj.variants
                   ? proj.variants
@@ -291,10 +379,10 @@ function ResumeDocument({
                     : [];
 
               return (
-                <View key={proj.name} style={{ marginBottom: 6 }}>
+                <View key={proj.name} style={{ marginBottom: isLastProj ? 0 : RESUME_SPACING.roleToRole.pt }}>
                   <View style={styles.roleHeader}>
                     <Text style={styles.roleTitle}>
-                      <Text style={{ fontFamily: "Helvetica-Bold" }}>{proj.name}</Text>
+                      <Text style={{ fontFamily: RESUME_FONTS.primary, fontWeight: "bold" }}>{proj.name}</Text>
                     </Text>
                     {proj.technologies.length > 0 ? (
                       <Text style={styles.muted}>
@@ -303,9 +391,16 @@ function ResumeDocument({
                     ) : null}
                   </View>
                   {displayBullets.map((bullet, idx) => (
-                    <Text key={idx} style={styles.bullet}>
-                      • {bullet}
-                    </Text>
+                    <View
+                      key={idx}
+                      style={[
+                        styles.bulletRow,
+                        idx === displayBullets.length - 1 ? { marginBottom: 0 } : undefined,
+                      ]}
+                    >
+                      <Text style={styles.bulletMarker}>•</Text>
+                      <Text style={styles.bulletContent}>{bullet}</Text>
+                    </View>
                   ))}
                 </View>
               );
@@ -316,19 +411,31 @@ function ResumeDocument({
       case "education":
         if (educationRows.length === 0) return null;
         return (
-          <View key="education" style={styles.section}>
+          <View key="education" style={sectionStyle}>
             <Text style={styles.heading}>Education</Text>
-            {educationRows.map((ed) => {
+            {educationRows.map((ed, edIdx) => {
               const degreeText = formatEducationTitle(ed.degree, ed.fieldOfStudy);
               const school = formatSchoolName(ed.institution, ed.subSchool);
-              const heading = [degreeText, school].filter(Boolean).join(" — ");
+              const dates = formatEducationDates(ed);
+              const isLastEd = edIdx === educationRows.length - 1;
               return (
-                <Text
+                <View
                   key={`${ed.institution}-${ed.subSchool ?? ""}-${ed.degree}`}
-                  style={{ marginBottom: 3 }}
+                  style={[
+                    styles.educationRow,
+                    { marginBottom: isLastEd ? 0 : RESUME_SPACING.degreeToDegree.pt },
+                  ]}
                 >
-                  {formatEducationDates(ed) ? `${heading} (${formatEducationDates(ed)})` : heading}
-                </Text>
+                  <Text style={styles.educationTitle}>
+                    {degreeText ? (
+                      <Text style={{ fontFamily: RESUME_FONTS.primary, fontWeight: "bold" }}>
+                        {degreeText}
+                      </Text>
+                    ) : null}
+                    {degreeText && school ? ` — ${school}` : school}
+                  </Text>
+                  {dates ? <Text style={styles.muted}>{dates}</Text> : null}
+                </View>
               );
             })}
           </View>
@@ -337,10 +444,16 @@ function ResumeDocument({
       case "certifications":
         if (certificationRows.length === 0) return null;
         return (
-          <View key="certifications" style={styles.section}>
+          <View key="certifications" style={sectionStyle}>
             <Text style={styles.heading}>Certifications & Licenses</Text>
-            {certificationRows.map((item) => (
-              <Text key={item.name} style={{ marginBottom: 3 }}>
+            {certificationRows.map((item, idx) => (
+              <Text
+                key={item.name}
+                style={[
+                  styles.bodyItem,
+                  { marginBottom: idx === certificationRows.length - 1 ? 0 : RESUME_SPACING.certToCert.pt },
+                ]}
+              >
                 {item.name}
                 {item.issuer ? ` — ${item.issuer}` : ""}
                 {item.date ? ` (${item.date})` : ""}
@@ -352,10 +465,16 @@ function ResumeDocument({
       case "awards":
         if (awardRows.length === 0) return null;
         return (
-          <View key="awards" style={styles.section}>
+          <View key="awards" style={sectionStyle}>
             <Text style={styles.heading}>Honors & Awards</Text>
-            {awardRows.map((item) => (
-              <Text key={item.title} style={{ marginBottom: 3 }}>
+            {awardRows.map((item, idx) => (
+              <Text
+                key={item.title}
+                style={[
+                  styles.bodyItem,
+                  { marginBottom: idx === awardRows.length - 1 ? 0 : RESUME_SPACING.certToCert.pt },
+                ]}
+              >
                 {item.title}
                 {item.issuer ? ` — ${item.issuer}` : ""}
                 {item.date ? ` (${item.date})` : ""}
@@ -384,11 +503,36 @@ function ResumeDocument({
       <Page size="LETTER" style={styles.page}>
         <View style={styles.headerRow}>
           <Text style={styles.name}>{displayName}</Text>
-          {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image */}
-          <Image src={INVERTED_LOGO_PATH} style={styles.brandMark} />
         </View>
-        {contact ? <Text style={styles.contact}>{contact}</Text> : null}
-        {effectiveOrder.map((sectionKey) => renderSection(sectionKey))}
+        {contact ? (
+          <Text style={styles.contact}>
+            {parseContactHeaderItems(contact).map((item, idx) => (
+              <React.Fragment key={idx}>
+                {idx > 0 ? (
+                  <Text style={styles.contactSeparator}>{" | "}</Text>
+                ) : null}
+                {item.href ? (
+                  <Link src={item.href} style={styles.contactLink}>
+                    {item.label}
+                  </Link>
+                ) : (
+                  <Text>{item.label}</Text>
+                )}
+              </React.Fragment>
+            ))}
+          </Text>
+        ) : null}
+        {(() => {
+          let hasRenderedFirstSection = false;
+          return effectiveOrder.map((sectionKey) => {
+            const isFirst = !hasRenderedFirstSection;
+            const element = renderSection(sectionKey, isFirst);
+            if (element) {
+              hasRenderedFirstSection = true;
+            }
+            return element;
+          });
+        })()}
       </Page>
     </Document>
   );
