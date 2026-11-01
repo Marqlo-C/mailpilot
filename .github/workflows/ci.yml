@@ -43,3 +43,13 @@ jobs:
 
       - name: Dry-Run Production Build
         run: npm run build
+
+      - name: Build & Package Chrome Extension
+        run: npm run package:extension
+
+      - name: Upload Chrome Extension Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mailpilot-chrome-extension
+          path: mailpilot-extension.zip
+          retention-days: 30

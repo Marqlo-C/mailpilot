@@ -12,7 +12,9 @@
     "ollama:bridge": "node scripts/ollama-bridge.mjs",
     "bundle": "npx repomix@latest --include 'lib/**,prisma/**,app/actions/**,app/api/**,types/**,components/**' --watch",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:extension": "vite build --config extension/vite.config.ts",
+    "package:extension": "npm run build:extension && node scripts/package-extension.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -51,6 +53,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/chrome": "^0.3.7",
     "@types/jszip": "^3.4.0",
     "@types/node": "^26.6.2",
     "@types/papaparse": "^5.5.2",

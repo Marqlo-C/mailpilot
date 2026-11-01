@@ -70,3 +70,8 @@ Test Outputs/
 # Temporary Audit Tests
 scripts/temp-resume-llm-audit.ts
 lib/__tests__/temp-resume-llm-audit.test.ts
+
+# Chrome Extension Build Artifacts
+extension/dist/
+mailpilot-extension.zip
+public/downloads/mailpilot-extension.zip

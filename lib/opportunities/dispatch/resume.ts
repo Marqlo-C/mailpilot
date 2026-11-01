@@ -52,6 +52,7 @@ export async function buildOpportunityResumePreview(
     forceRegenerate?: boolean;
     inventMetrics?: boolean;
     devModelOverride?: string | null;
+    targetPages?: "auto" | 1 | 2;
   } = {}
 ): Promise<OpportunityResumePreview | null> {
   const opportunity = await prisma.jobOpportunity.findFirst({
@@ -232,6 +233,7 @@ export async function buildOpportunityResumePreview(
       includeSummary,
       inventMetrics,
       targetPages:
+        options.targetPages ??
         accountRules.targetPageBudget ??
         accountRules.resumePreferences?.maxPages ??
         "auto",
@@ -248,6 +250,9 @@ export async function buildOpportunityResumePreview(
     tailored,
     includeSummary,
     rules: accountRules,
+    exportOverrides: options.targetPages
+      ? { pageBudget: options.targetPages, includeSummary }
+      : undefined,
   });
   const compiled = draftToPdfInput(draft, profile);
 
@@ -447,6 +452,7 @@ export async function prepareOpportunityResume(
     forceRegenerate?: boolean;
     inventMetrics?: boolean;
     devModelOverride?: string | null;
+    targetPages?: "auto" | 1 | 2;
   } = {}
 ): Promise<OpportunityResumePreview | null> {
   return buildOpportunityResumePreview(accountId, opportunityId, {
@@ -454,6 +460,7 @@ export async function prepareOpportunityResume(
     forceRegenerate: options.forceRegenerate === true,
     inventMetrics: options.inventMetrics,
     devModelOverride: options.devModelOverride,
+    targetPages: options.targetPages,
   });
 }
 
