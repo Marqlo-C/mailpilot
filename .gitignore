@@ -33,6 +33,9 @@ switch-ollama.sh
 .scraper-failures.json
 test-hasdata-*.json
 .glassdoor-hasdata-sample.*
+/Test Outputs/*
+/Delete/*
+
 
 # Debug
 npm-debug.log*
