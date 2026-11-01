@@ -408,6 +408,8 @@ export async function downloadTailoredPdfAction(
   const { generateTailoredResumePdf } = await import("@/lib/document/pdf-generator");
   const { tailorResumeForJob } = await import("@/lib/resume-tailor");
   const { getMasterProfile } = await import("@/app/actions/profile");
+  const { storedResumeDraftSchema } = await import("@/lib/types/resume-draft");
+  const { renderDraftPdf } = await import("@/lib/opportunities/dispatch/composer");
 
   const application = await prisma.jobApplication.findUnique({
     where: { id: applicationId },
@@ -429,6 +431,40 @@ export async function downloadTailoredPdfAction(
   }
 
   const { updatedAt: _updatedAt, ...profile } = profileResult.data;
+
+  // Check if an existing opportunity draft has already been created or tailored for this application
+  const opportunity = await prisma.jobOpportunity.findFirst({
+    where: {
+      accountId: application.accountId,
+      OR: [
+        { id: application.id },
+        ...(application.messageId ? [{ emailMessage: { messageId: application.messageId } }] : []),
+        ...(application.companyName && application.roleTitle
+          ? [{ company: application.companyName, title: application.roleTitle }]
+          : []),
+      ],
+    },
+    select: {
+      id: true,
+      tailoredResumePdf: true,
+      tailoredResumeData: true,
+    },
+  });
+
+  if (opportunity?.tailoredResumeData) {
+    const stored = storedResumeDraftSchema.safeParse(opportunity.tailoredResumeData);
+    if (stored.success && stored.data.draft) {
+      const pdf = await renderDraftPdf(profile, stored.data.draft);
+      return {
+        ok: true,
+        data: {
+          base64: pdf.toString("base64"),
+          filename: stored.data.filename ?? `${profile.fullName.replace(/\s+/g, "_")}_Resume.pdf`,
+        },
+      };
+    }
+  }
+
   const settings = await prisma.accountSettings.findUnique({
     where: { accountId: application.accountId },
   });

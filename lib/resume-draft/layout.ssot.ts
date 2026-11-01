@@ -102,3 +102,34 @@ export const RESUME_SPACING = {
   certToCert: makeSpacingToken(3),
   interestToInterest: makeSpacingToken(3),
 } as const;
+
+/**
+ * Physical Page Geometry (US Letter: 8.5in x 11in)
+ * - 72 pt/inch in PDF -> 612pt x 792pt
+ * - 96 px/inch in Web Preview (CSS) -> 816px x 1056px
+ * - Margins: Top 32pt (42.67px), Bottom 32pt (42.67px), Horizontal 36pt (48px)
+ * - Printable Area: 540pt x 728pt -> 720px x 970.67px
+ * - Safe Printable Ceiling: 720pt -> 960px (incorporating font leading & kerning buffer)
+ */
+export const RESUME_PAGE_GEOMETRY = {
+  sheetWidthPt: 612,
+  sheetHeightPt: 792,
+  sheetWidthPx: 816,
+  sheetHeightPx: 1056,
+
+  paddingTopPt: 32,
+  paddingBottomPt: 32,
+  paddingHorizontalPt: 36,
+
+  paddingTopPx: RESUME_SPACING.pagePaddingTop.px, // 42.67
+  paddingBottomPx: RESUME_SPACING.pagePaddingBottom.px, // 42.67
+  paddingHorizontalPx: RESUME_SPACING.pagePaddingHorizontal.px, // 48
+
+  printableWidthPt: 540,
+  printableHeightPt: 728,
+  printableWidthPx: ptToPx(540), // 720
+  printableHeightPx: ptToPx(728), // 970.67
+
+  safeCeilingPoints: 720,
+  safeCeilingPx: ptToPx(720), // 960
+} as const;

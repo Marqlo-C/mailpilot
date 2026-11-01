@@ -111,7 +111,9 @@ describe("PDF Spacing & Education Layout Verification", () => {
     expect(buffer.length).toBeGreaterThan(1000);
 
     const artifactDir = "/Users/marqlott/.gemini/antigravity-cli/brain/8b95052b-8d35-4a9e-a59b-69b6b2bb17cd";
-    const outPdf = path.join(artifactDir, "standardized_spacing_sample.pdf");
-    fs.writeFileSync(outPdf, buffer);
+    if (fs.existsSync(artifactDir)) {
+      const outPdf = path.join(artifactDir, "standardized_spacing_sample.pdf");
+      fs.writeFileSync(outPdf, buffer);
+    }
   });
 });
