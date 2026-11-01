@@ -120,7 +120,7 @@ export function digestTailoredResume(input: {
       ? tailoredGroups
       : skillGroupsFromUnknown(profile.skills);
 
-  const experiences =
+  const rawExperiences =
     resolved.inclusionMode === "MANUAL"
       ? sortExperiencesReverseChronological(
           tailored.selectedExperience.length > 0
@@ -131,7 +131,7 @@ export function digestTailoredResume(input: {
         ? sortExperiencesReverseChronological(tailored.selectedExperience)
         : resolved.profile.experiences;
 
-  const projects =
+  const rawProjects =
     resolved.inclusionMode === "MANUAL"
       ? tailored.selectedProjects.length > 0
         ? tailored.selectedProjects
@@ -141,6 +141,49 @@ export function digestTailoredResume(input: {
       : tailored.selectedProjects;
   const education = resolved.profile.education;
   const summary = tailored.tailoredSummary?.trim() || profile.summary?.trim() || "";
+
+  const rawBudget = resolved.pageBudget;
+  const targetPages: 1 | 2 = String(rawBudget) === "2" ? 2 : 1;
+
+  let finalSkillGroups = skillGroups;
+  const totalSkillsCount = skillGroups.reduce((acc, g) => acc + g.items.length, 0);
+  if (targetPages === 1 && totalSkillsCount > 24) {
+    const perCategoryCap = Math.max(4, Math.floor(24 / Math.max(1, skillGroups.length)));
+    finalSkillGroups = skillGroups
+      .map((g) => ({
+        ...g,
+        items: g.items.slice(0, perCategoryCap),
+      }))
+      .filter((g) => g.items.length > 0);
+  }
+
+  const fixedSectionsHeight = estimateFixedSectionsHeight({
+    hasSummary: resolved.includeSummary && Boolean(summary),
+    summaryText: summary,
+    skillsCount: finalSkillGroups.reduce((acc, g) => acc + g.items.length, 0),
+    skillsLineCount: finalSkillGroups.length,
+    educationCount: education.length,
+    certificationsCount: profile.certifications?.length ?? 0,
+    awardsCount: profile.awards?.length ?? 0,
+    interestsCount: profile.interests?.length ?? 0,
+    disabledSections: resolved.disabledSections,
+  });
+
+  const {
+    experiences,
+    projects,
+    didClamp,
+  } = clampPdfContentToPhysicalCeiling({
+    targetPages,
+    fixedSectionsHeight,
+    experiences: rawExperiences,
+    projects: rawProjects,
+  });
+
+  const warningFlags = [...(tailored.warningFlags ?? [])];
+  if (didClamp && !warningFlags.includes("PAGE_BUDGET_OVERFLOW")) {
+    warningFlags.push("PAGE_BUDGET_OVERFLOW");
+  }
 
   // Append sections strictly following resolved.sectionOrder
   for (const section of resolved.sectionOrder) {
@@ -160,7 +203,7 @@ export function digestTailoredResume(input: {
       }
 
       case "skills": {
-        skillGroups.forEach((group, index) => {
+        finalSkillGroups.forEach((group, index) => {
           const content = group.items.map((item) => item.name).join(", ");
           const slug =
             group.label
@@ -355,7 +398,7 @@ export function digestTailoredResume(input: {
       orderingMode: resolved.orderingMode,
       inclusionMode: resolved.inclusionMode,
       inventMetrics: resolved.inventMetrics,
-      warningFlags: tailored.warningFlags ?? [],
+      warningFlags,
     },
     updatedAt: new Date().toISOString(),
   });

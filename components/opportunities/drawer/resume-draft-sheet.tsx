@@ -14,15 +14,18 @@ import {
 } from "@/lib/utils/format";
 import {
   RESUME_FONTS,
+  RESUME_PAGE_GEOMETRY,
   RESUME_SPACING,
   RESUME_TYPOGRAPHY,
 } from "@/lib/resume-draft/layout.ssot";
 
-export const SHEET_WIDTH = 816;
-export const PAGE_HEIGHT = 1056;
-export const PAGE_PADDING_Y = 64; // py-[32px] => 32px top + 32px bottom
-export const PRINTABLE_HEIGHT = PAGE_HEIGHT - PAGE_PADDING_Y; // 992px
-export const PAGE_GAP = 24; // gap-6 = 24px
+export const SHEET_WIDTH = RESUME_PAGE_GEOMETRY.sheetWidthPx;
+export const PAGE_HEIGHT = RESUME_PAGE_GEOMETRY.sheetHeightPx;
+export const PAGE_PADDING_TOP = RESUME_PAGE_GEOMETRY.paddingTopPx;
+export const PAGE_PADDING_BOTTOM = RESUME_PAGE_GEOMETRY.paddingBottomPx;
+export const PAGE_PADDING_X = RESUME_PAGE_GEOMETRY.paddingHorizontalPx;
+export const PRINTABLE_HEIGHT = RESUME_PAGE_GEOMETRY.safeCeilingPx;
+export const PAGE_GAP = 24;
 
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
@@ -56,42 +59,83 @@ export function estimateBlockHeight(
   block: DraftBlock,
   refineFor?: string | null
 ): number {
+  const sectionHeadingH = Math.round(
+    RESUME_TYPOGRAPHY.heading.px * RESUME_TYPOGRAPHY.heading.lineHeight +
+      RESUME_SPACING.sectionBefore.px +
+      RESUME_SPACING.sectionHeadingBottom.px
+  );
+
   if (block.kind === "skills") {
-    const headingHeight = 32;
+    const headingHeight = sectionHeadingH;
     const totalChars = block.nodes.reduce(
       (acc, n) => acc + (skillLabel(n)?.length ?? 0) + n.content.length + 5,
       0
     );
     const lines = Math.max(1, Math.ceil(totalChars / 95));
+    const lineHeight = Math.round(
+      RESUME_TYPOGRAPHY.skills.px * RESUME_TYPOGRAPHY.skills.lineHeight
+    );
     const refineExtra = block.nodes.some((n) => n.id === refineFor) ? 36 : 0;
-    return headingHeight + lines * 18 + refineExtra;
+    return headingHeight + lines * lineHeight + refineExtra;
   }
 
   const { node, heading } = block;
-  let h = heading ? 32 : 0;
+  const h = heading ? sectionHeadingH : 0;
 
   if (node.type === "header") {
     const hasContact =
       typeof node.metadata?.contactLine === "string" &&
       Boolean(node.metadata.contactLine);
-    return h + 36 + (hasContact ? 26 : 0);
+    const nameH = Math.round(
+      RESUME_TYPOGRAPHY.name.px * RESUME_TYPOGRAPHY.name.lineHeight +
+        RESUME_SPACING.nameToContact.px
+    );
+    const contactH = hasContact
+      ? Math.round(
+          RESUME_TYPOGRAPHY.contact.px * RESUME_TYPOGRAPHY.contact.lineHeight +
+            RESUME_SPACING.contactToFirstSection.px
+        )
+      : 0;
+    return h + nameH + contactH;
   }
 
   const refineExtra = refineFor === node.id ? 36 : 0;
 
   if (node.type === "experience_header" || node.type === "project_header") {
-    return h + 24 + refineExtra;
+    const roleH = Math.round(
+      RESUME_TYPOGRAPHY.roleTitle.px * RESUME_TYPOGRAPHY.roleTitle.lineHeight +
+        RESUME_SPACING.roleTitleToFirstBullet.px +
+        (heading ? 0 : RESUME_SPACING.roleToRole.px)
+    );
+    return h + roleH + refineExtra;
   }
 
   const bullet =
     node.type === "experience_bullet" || node.type === "project_bullet";
   if (bullet) {
     const lines = Math.max(1, Math.ceil(node.content.length / 90));
-    return h + lines * 19 + 2 + refineExtra;
+    const bulletH =
+      lines * 18 +
+      Math.round(RESUME_SPACING.bulletSpacing.px) +
+      2;
+    return h + bulletH + refineExtra;
+  }
+
+  if (node.type === "education_item") {
+    const eduH = Math.round(
+      RESUME_TYPOGRAPHY.educationTitle.px *
+        RESUME_TYPOGRAPHY.educationTitle.lineHeight +
+        (heading ? 0 : RESUME_SPACING.degreeToDegree.px)
+    );
+    return h + eduH + refineExtra;
   }
 
   const lines = Math.max(1, Math.ceil(node.content.length / 90));
-  return h + lines * 19 + 4 + refineExtra;
+  const bodyH =
+    lines *
+      Math.round(RESUME_TYPOGRAPHY.body.px * RESUME_TYPOGRAPHY.body.lineHeight) +
+    4;
+  return h + bodyH + refineExtra;
 }
 
 export function buildBlocks(draft: TailoredResumeDraft): DraftBlock[] {
@@ -117,6 +161,37 @@ export function buildBlocks(draft: TailoredResumeDraft): DraftBlock[] {
   return blocks;
 }
 
+export function getEntityTotalHeight(
+  startIndex: number,
+  blocks: DraftBlock[],
+  blockHeights: Record<string, number>,
+  refineFor?: string | null
+): number {
+  const headerBlock = blocks[startIndex];
+  if (headerBlock.kind !== "node") return 0;
+  const headerId = headerBlock.node.id;
+  const headerH = blockHeights[headerId] ?? estimateBlockHeight(headerBlock, refineFor);
+  let total = headerH;
+
+  for (let j = startIndex + 1; j < blocks.length; j++) {
+    const next = blocks[j];
+    if (next.kind !== "node") break;
+    const isChild =
+      next.node.parentId === headerId ||
+      (headerBlock.node.type === "experience_header" &&
+        next.node.type === "experience_bullet" &&
+        (!next.node.parentId || next.node.parentId === headerId)) ||
+      (headerBlock.node.type === "project_header" &&
+        next.node.type === "project_bullet" &&
+        (!next.node.parentId || next.node.parentId === headerId));
+    if (!isChild) break;
+    const nextId = next.node.id;
+    const nextH = blockHeights[nextId] ?? estimateBlockHeight(next, refineFor);
+    total += nextH;
+  }
+  return total;
+}
+
 export function partitionBlocksIntoPages(
   blocks: DraftBlock[],
   blockHeights: Record<string, number>,
@@ -133,36 +208,79 @@ export function partitionBlocksIntoPages(
     const blockId = getBlockId(block);
     const h = blockHeights[blockId] ?? estimateBlockHeight(block, refineFor);
 
+    // OPTION 1: Role/Project Atomicity (Preemptive look-ahead)
+    // If this block is a role or project header, check whether the entire role/project
+    // (header + all its bullets) can fit in the remaining space of currentPage.
+    // If it cannot fit on currentPage, but CAN fit on a clean single page,
+    // move the entire entity to the next page as an atomic unit (matching PDF wrap={false}).
+    const isRoleOrProjectHeader =
+      block.kind === "node" &&
+      (block.node.type === "experience_header" ||
+        block.node.type === "project_header");
+
+    if (isRoleOrProjectHeader && currentPage.length > 0) {
+      const entityTotalHeight = getEntityTotalHeight(
+        i,
+        blocks,
+        blockHeights,
+        refineFor
+      );
+      if (
+        entityTotalHeight <= PRINTABLE_HEIGHT &&
+        currentHeight + entityTotalHeight > PRINTABLE_HEIGHT
+      ) {
+        result.push(currentPage);
+        currentPage = [block];
+        currentHeight = h;
+        continue;
+      }
+    }
+
     // If adding this block overflows printable height (and currentPage isn't empty)
     if (currentHeight + h > PRINTABLE_HEIGHT && currentPage.length > 0) {
-      // Orphan header protection:
-      // If the last block placed on currentPage was a role header (experience_header or project_header),
-      // and this block is its bullet, avoid leaving an orphan header at the bottom of the page.
-      const lastBlock = currentPage[currentPage.length - 1];
-      const isLastBlockRoleHeader =
-        lastBlock?.kind === "node" &&
-        (lastBlock.node.type === "experience_header" ||
-          lastBlock.node.type === "project_header");
+      // Role/Project Atomicity fallback:
+      // If this block is a bullet belonging to a role/project header currently on currentPage,
+      // and there is prior content on currentPage before that header, pull the entire role
+      // (header + all preceding bullets of this role) forward onto the new page.
+      let roleHeaderIdx = -1;
+      if (block.kind === "node") {
+        const parentId = block.node.parentId;
+        if (parentId) {
+          roleHeaderIdx = currentPage.findIndex(
+            (b) => b.kind === "node" && b.node.id === parentId
+          );
+        } else if (
+          block.node.type === "experience_bullet" ||
+          block.node.type === "project_bullet"
+        ) {
+          const expectedHeaderType =
+            block.node.type === "experience_bullet"
+              ? "experience_header"
+              : "project_header";
+          for (let k = currentPage.length - 1; k >= 0; k--) {
+            const candidate = currentPage[k];
+            if (
+              candidate.kind === "node" &&
+              candidate.node.type === expectedHeaderType
+            ) {
+              roleHeaderIdx = k;
+              break;
+            }
+          }
+        }
+      }
 
-      const isBulletOfRoleHeader =
-        lastBlock?.kind === "node" &&
-        block.kind === "node" &&
-        ((lastBlock.node.type === "experience_header" &&
-          block.node.type === "experience_bullet") ||
-          (lastBlock.node.type === "project_header" &&
-            block.node.type === "project_bullet"));
+      if (roleHeaderIdx > 0) {
+        // Move header and already placed bullets of this role to the new page
+        const precedingBlocks = currentPage.slice(0, roleHeaderIdx);
+        const roleBlocks = currentPage.slice(roleHeaderIdx);
+        result.push(precedingBlocks);
 
-      if (isLastBlockRoleHeader && isBulletOfRoleHeader && currentPage.length > 1) {
-        // Pop the role header so it travels with this bullet onto the new page
-        currentPage.pop();
-        result.push(currentPage);
-
-        const lastBlockId = getBlockId(lastBlock);
-        const lastBlockH =
-          blockHeights[lastBlockId] ??
-          estimateBlockHeight(lastBlock, refineFor);
-        currentPage = [lastBlock, block];
-        currentHeight = lastBlockH + h;
+        currentPage = [...roleBlocks, block];
+        currentHeight = currentPage.reduce((sum, b) => {
+          const id = getBlockId(b);
+          return sum + (blockHeights[id] ?? estimateBlockHeight(b, refineFor));
+        }, 0);
       } else {
         result.push(currentPage);
         currentPage = [block];
@@ -342,8 +460,12 @@ export function ResumeDraftSheet({
     elements.forEach((el) => {
       const id = el.getAttribute("data-draft-block-id");
       if (!id) return;
-      // offsetHeight provides unscaled CSS pixels independent of zoom transforms
-      const measured = el.offsetHeight;
+      // offsetHeight provides unscaled CSS pixels independent of zoom transforms.
+      // Include vertical margins (marginTop + marginBottom) so layout matches physical point geometry.
+      const comp = window.getComputedStyle(el);
+      const marginTop = parseFloat(comp.marginTop) || 0;
+      const marginBottom = parseFloat(comp.marginBottom) || 0;
+      const measured = Math.ceil(el.offsetHeight + marginTop + marginBottom);
       const previous = blockHeights[id];
       if (previous === undefined || Math.abs(previous - measured) > 1) {
         nextHeights[id] = measured;
@@ -767,11 +889,35 @@ export function ResumeDraftSheet({
             {displayPages.map((pageBlocks, pageIndex) => (
               <div
                 key={pageIndex}
-                className="relative w-[816px] h-[1056px] max-h-[1056px] overflow-hidden bg-white px-[48px] py-[32px] font-['Calibri',Carlito,sans-serif] text-[13.33px] leading-[1.15] text-[#111827] shadow-lg rounded-sm"
-                style={{ fontFamily: "Calibri, Carlito, sans-serif" }}
+                className="relative overflow-hidden bg-white text-[#111827] shadow-lg rounded-sm"
+                style={{
+                  width: `${SHEET_WIDTH}px`,
+                  height: `${PAGE_HEIGHT}px`,
+                  maxHeight: `${PAGE_HEIGHT}px`,
+                  paddingTop: `${PAGE_PADDING_TOP}px`,
+                  paddingBottom: `${PAGE_PADDING_BOTTOM}px`,
+                  paddingLeft: `${PAGE_PADDING_X}px`,
+                  paddingRight: `${PAGE_PADDING_X}px`,
+                  fontFamily: RESUME_FONTS.fallbackCss,
+                  fontSize: `${RESUME_TYPOGRAPHY.body.px}px`,
+                  lineHeight: RESUME_TYPOGRAPHY.body.lineHeight,
+                }}
               >
-                {pageBlocks.map((block) => renderBlock(block))}
-                <div className="absolute bottom-2 right-4 text-[10px] text-muted-foreground/60 select-none">
+                <div
+                  className="w-full"
+                  style={{
+                    maxHeight: `${PRINTABLE_HEIGHT}px`,
+                  }}
+                >
+                  {pageBlocks.map((block) => renderBlock(block))}
+                </div>
+                <div
+                  className="absolute text-[10px] text-muted-foreground/60 select-none"
+                  style={{
+                    bottom: "12px",
+                    right: `${PAGE_PADDING_X}px`,
+                  }}
+                >
                   Page {pageIndex + 1} of {totalPages}
                 </div>
               </div>

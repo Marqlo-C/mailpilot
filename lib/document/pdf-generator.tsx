@@ -324,6 +324,7 @@ function ResumeDocument({
               return (
                 <View
                   key={`${exp.company}-${exp.role}`}
+                  wrap={false}
                   style={{ marginBottom: isLastExp ? 0 : RESUME_SPACING.roleToRole.pt }}
                 >
                   <View style={styles.roleHeader}>
@@ -379,7 +380,11 @@ function ResumeDocument({
                     : [];
 
               return (
-                <View key={proj.name} style={{ marginBottom: isLastProj ? 0 : RESUME_SPACING.roleToRole.pt }}>
+                <View
+                  key={proj.name}
+                  wrap={false}
+                  style={{ marginBottom: isLastProj ? 0 : RESUME_SPACING.roleToRole.pt }}
+                >
                   <View style={styles.roleHeader}>
                     <Text style={styles.roleTitle}>
                       <Text style={{ fontFamily: RESUME_FONTS.primary, fontWeight: "bold" }}>{proj.name}</Text>
@@ -421,6 +426,7 @@ function ResumeDocument({
               return (
                 <View
                   key={`${ed.institution}-${ed.subSchool ?? ""}-${ed.degree}`}
+                  wrap={false}
                   style={[
                     styles.educationRow,
                     { marginBottom: isLastEd ? 0 : RESUME_SPACING.degreeToDegree.pt },

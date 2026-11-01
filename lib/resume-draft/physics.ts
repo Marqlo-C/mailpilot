@@ -1,5 +1,5 @@
 import type { WorkExperienceInput, ProjectInput } from "@/lib/validations/profile";
-import { RESUME_SPACING, RESUME_TYPOGRAPHY } from "./layout.ssot";
+import { RESUME_PAGE_GEOMETRY, RESUME_SPACING, RESUME_TYPOGRAPHY } from "./layout.ssot";
 import {
   measureBulletHeightPoints,
   measureSummaryHeightPoints,
@@ -16,10 +16,10 @@ export { measureBulletHeightPoints, measureSummaryHeightPoints };
  * ============================================================================
  */
 
-export const RESUME_PAGE_HEIGHT_POINTS = 792;
-export const RESUME_MARGIN_POINTS = RESUME_SPACING.pagePaddingTop.pt;
-export const PRINTABLE_PAGE_HEIGHT_POINTS = 728;
-export const SAFE_PAGE_CEILING_POINTS = 720; // 8pt safety buffer for font kerning/leading
+export const RESUME_PAGE_HEIGHT_POINTS = RESUME_PAGE_GEOMETRY.sheetHeightPt;
+export const RESUME_MARGIN_POINTS = RESUME_PAGE_GEOMETRY.paddingTopPt;
+export const PRINTABLE_PAGE_HEIGHT_POINTS = RESUME_PAGE_GEOMETRY.printableHeightPt;
+export const SAFE_PAGE_CEILING_POINTS = RESUME_PAGE_GEOMETRY.safeCeilingPoints;
 
 export const HEIGHT_CONSTANTS = {
   CONTACT_HEADER: Math.round(

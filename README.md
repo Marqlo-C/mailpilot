@@ -8,7 +8,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3.4-38B2AC?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-463_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-502_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
 [![Vercel WAF](https://img.shields.io/badge/Vercel-Edge_WAF_Mitigation-000000?style=flat-square&logo=vercel)](https://vercel.com/)
 [![Upstash](https://img.shields.io/badge/Upstash-Redis_Rate_Limiting-00E599?style=flat-square&logo=redis)](https://upstash.com/)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM_Vaulted-green?style=flat-square&logo=security)](https://nodejs.org/api/crypto.html)
@@ -33,6 +33,14 @@
 - [9. Polymorphic 4-Tier Card Design System](#9-polymorphic-4-tier-card-design-system)
 - [10. Cryptography, Privacy & Security Guardrails](#10-cryptography-privacy--security-guardrails)
 - [11. Line-Addressable Resume Tailoring & Page Budgeting](#11-line-addressable-resume-tailoring--page-budgeting)
+  - [11.1 Stage 1: Context Distillation & Seniority Detection](#111-stage-1-context-distillation--seniority-detection-libtailordistillerts)
+  - [11.2 Stage 2: Hierarchical Profile Tree Grounding](#112-stage-2-hierarchical-profile-tree-grounding-libtailortreets)
+  - [11.3 Stage 3: Hierarchical Matrix Ranker & 4 Universal Dimensions](#113-stage-3-hierarchical-matrix-ranker-libtailorrankerts)
+  - [11.4 Stage 4: Competitive Knapsack Assembler & Headroom Backfill](#114-stage-4-competitive-knapsack-assembler--headroom-backfill-libtailorassemblerts)
+  - [11.5 Stage 5: Dual-Mode Google XYZ Bullet Reframing](#115-stage-5-dual-mode-google-xyz-bullet-reframing-libtailorreframets)
+  - [11.6 Stage 6: Physical Layout SSOT & Atomic Page Splitting](#116-stage-6-physical-layout-ssot--atomic-page-splitting-libresume-draftlayoutssotts)
+  - [11.7 Stage 7: Offline Master Profile Export (Zero LLM Overhead)](#117-stage-7-offline-master-profile-export-zero-llm-overhead)
+  - [11.8 Stage 8: Dual-Mode Section Ordering Engine](#118-stage-8-dual-mode-section-ordering-engine-resolvesectionorder)
 - [12. Performance, Systems Optimization & Telemetry](#12-performance-systems-optimization--telemetry)
 - [13. Technology Stack Matrix](#13-technology-stack-matrix)
 - [14. Test Suite, Verification & Local Development](#14-test-suite-verification--local-development)
@@ -220,8 +228,10 @@ MailPilot/
 └── lib/
     ├── core/                      # Core Singletons (prisma.ts, crypto.ts, ratelimit.ts, ssrf.ts, constants.ts)
     ├── dnd/                       # Pointer drag physics, RAF lerp loop, 3-zone deadzone & reorder helpers
-    ├── profile/                   # Master profile, persistent profile, revision history, parser, skill groups
+    ├── profile/                   # Master profile, deduplication engine, consolidation, persistent profile
     ├── document/                  # React-PDF generator, Word DOCX compiler, text extractor, polyfills
+    ├── tailor/                    # 5-stage resume tailor (distiller, tree, ranker, knapsack assembler, reframe)
+    ├── resume-draft/              # Physical geometry SSOT, height physics, elastic budgeter, lens
     ├── scraping/                  # HasData & ScrapingAnt proxy clients, quota caches
     ├── gmail/                     # Google OAuth2 client, Pub/Sub sync, historical scan, RFC 8058 unsubscribe
     ├── llm/                       # Dispatcher, Ollama circuit breaker, cloud BYOK vault
@@ -502,7 +512,7 @@ Across iterative generations of the GitHub ingestion, deep inference engine, and
 
 ##### Project-by-Project Extraction Breakdown (Evaluation: `Marq_Lott_Master_Profile (5)_2.pdf` — Score: 9.86 / 10)
 - **Experience & Education:** Preserves verified numerical ground truths across all roles (15+ fleet units, 3 internal API endpoints & 8 external API keys, 4-month Brevo SMTP verification regression, 143% account-to-quota ratio across 12 data center markets, 99.99% and 99.9% network availability SLAs, and 15% provisioning velocity acceleration across 6 cross-functional engineering teams). Clean dual-degree academic hierarchy (BS in Computer Science from UC Davis, June 2026, alongside AS in Computer Science, Mathematics, & Physics from San Joaquin Delta College, May 2024).
-- **MailPilot:** High-density systems extraction: sub-second delta synchronization via Google Cloud Pub/Sub webhooks, adaptive 3-tier inference router with in-memory circuit breaker falling back to a zero-token regex/AST heuristic engine executing in under 2ms, authenticated AES-256-GCM envelope encryption with DNS pre-resolution IP validation for SSRF mitigation, deterministic vectorless RAG eliminating approximate nearest neighbor retrieval, 66-column terminal ASCII telemetry logger, and automated zero-token test suite using Vitest (463 tests).
+- **MailPilot:** High-density systems extraction: sub-second delta synchronization via Google Cloud Pub/Sub webhooks, adaptive 3-tier inference router with in-memory circuit breaker falling back to a zero-token regex/AST heuristic engine executing in under 2ms, authenticated AES-256-GCM envelope encryption with DNS pre-resolution IP validation for SSRF mitigation, deterministic vectorless RAG eliminating approximate nearest neighbor retrieval, 66-column terminal ASCII telemetry logger, and automated zero-token test suite using Vitest (502 tests).
 - **Connect 4 Player Agent:** Explicitly extracts script-level utilities and filenames from the repository (`thread.py` killable thread utility and `eval_diagnostics` heuristic scoring script). Accurately distinguishes between human player interfaces (GUI and console), baseline AIs (random and heuristic), and advanced game-tree agents (minimax, alpha-beta pruning, Monte Carlo simulation).
 - **SafeHaven:** Deep forensic-evasion and networking primitives: sub-100ms bidirectional latency over Socket.io WebSockets across 100+ concurrent encrypted client sessions, zero-latency multi-vector panic exit, raw Node.js `http.Server` abstraction in serverless handlers to prevent WebSocket upgrade hooks, `global._mongooseCache` connection promise caching, HTTP 206 byte-range partial content streaming, and OpenRouter native fallback routing.
 - **Embergency, Ms Pac Man, Secret Message Encoder, & Toes Down:**
@@ -589,10 +599,39 @@ flowchart TD
    - **Case C (Existing Inferred, Incoming Human):** Human-verified bullet displaces the inferred bullet as primary. The displaced inferred bullet transitions to companion variant status.
    - **Case D (Both Inferred):** Computes bullet information density (`computeBulletDensity`). The higher-density bullet retains the primary slot; the other is retained as an active companion variant.
 
-3. **15-Bullet Cap Allocation (`MAX_PRIMARY_PROJECT_BULLETS = 15`):**
-   - Each project is bounded to at most 15 primary bullets. Bullets beyond the 15-bullet ceiling are preserved non-destructively in `variants` rather than discarded.
+3. **15-Bullet Cap Allocation (`MAX_PRIMARY_PROJECT_BULLETS = 15` & `MAX_PRIMARY_EXPERIENCE_BULLETS = 15`):**
+   - Each project and work experience entry is bounded to at most 15 primary bullets. Bullets beyond the 15-bullet ceiling are preserved non-destructively in `variants` rather than discarded.
 
-4. **Multi-Key Alias Indexing & Ghost Metadata Purging:**
+4. **Title Weight & Polish Scorer (`calculateTitleWeight`):**
+   - Rather than letting raw lowercase GitHub repository slugs or unformatted titles displace polished resume titles, MailPilot evaluates candidate titles mathematically:
+     - **Base Score:** `1.0`
+     - **Descriptive Subtitle Delimiter Bonus (`+3.0` points):** Detects structural delimiters (`-`, `–`, `—`, `:`, `|`) accompanied by $\ge 2$ words and $\ge 6$ characters (e.g., *"SafeHaven – Disguised Domestic Violence Safety Platform"*).
+     - **Clean Title Casing Bonus (`+2.0` points):** Rewards proper capitalization, penalizing all-lowercase slugs (`safehaven`) and hyphen/underscore technical identifiers (`safe-haven`).
+     - **Human Verified Anchor Bonus (`+1.0` point):** Prioritizes titles hand-authored by the user.
+     - **Rich Description Context Bonus (`+1.0` point):** Rewards titles backed by repository or role summaries.
+
+5. **Universal 8-Dimension Typology Classifier (`classifyBulletTypologies`):**
+   - Analyzes work accomplishments and projects across 8 universal, 100% career-agnostic functional archetypes without domain bias:
+     1. `METRIC_QUANTITATIVE`: Explicit numerical metrics, latencies, percentages, financial/unit scale.
+     2. `INNOVATION_PRODUCT_OWNERSHIP`: Conceptualized, authored, pioneered, architected, patented, bootstrapped.
+     3. `LEADERSHIP_COORDINATION`: Spearheaded, guided, mentored, supervised, managed, coordinated, cross-functional delivery.
+     4. `PROCESS_OPTIMIZATION`: Streamlined, overhauled, standardized, accelerated, refactored, modernized, automated.
+     5. `RESEARCH_ANALYSIS`: Evaluated, audited, benchmarked, analyzed, investigated, formulated, modeled.
+     6. `GOVERNANCE_COMPLIANCE_QUALITY`: Compliance, security, hardened, risk mitigation, audit standards (HIPAA, SOC-2, OSHA, GDPR), unit testing.
+     7. `CLIENT_STAKEHOLDER`: Stakeholders, partners, clients, patients, survivors, customers, advocacy, negotiations.
+     8. `EXECUTION_DELIVERY`: Engineered, developed, constructed, implemented, built, deployed, maintained, integrated.
+   - Each bullet receives 1 to 3 non-colliding typologies, guaranteeing every entry possesses at least one valid functional tag.
+
+6. **Universal Cross-Source Experience Deduplication (`reconcileExperienceLists`):**
+   - Reconciles employment history from uploaded PDFs, LinkedIn exports, and manual edits without generating duplicate role cards:
+     - **Employer Entity Similarity (`calculateEntitySimilarity`):** Exact normalized match (`1.0`), contiguous substring inclusion $\ge 5$ characters (`0.95`), and mathematical acronym/initialism deduction (`0.85`, e.g., *"USN"* $\leftrightarrow$ *"United States Navy"*) while detecting conflicting distinctive entities (e.g., Navy vs. Army).
+     - **Date Range Compatibility (`areDateRangesCompatible`):** Verifies temporal overlap or year/month alignment across conflicting date formatting (`resolveGranularDate`).
+     - **Bullet Fusion:** Merges shared roles and deduplicates bullets via Szymkiewicz–Simpson overlap ($\ge 0.50$).
+
+7. **Universal Education Deduplication (`reconcileEducationLists`):**
+   - Matches academic institutions via entity similarity, aligns degree titles and fields of study, harmonizes completion status, and normalizes right-aligned graduation dates.
+
+8. **Multi-Key Alias Indexing & Ghost Metadata Purging:**
    - In `updateMasterProfile` and `getMasterProfile`, project metadata is indexed across `normKey` (`normalizeProjectName`), `lowerKey`, and repository slug (`repoSlug`). Full descriptive resume titles (e.g. `SafeHaven – Disguised Domestic Violence Safety Platform`) and GitHub slugs (`SafeHaven`) share and synchronize the exact same metadata entry.
    - When `overwriteAll: true` is invoked, stale project metadata from deleted projects is wiped cleanly from `accountSettings.rules.projectMeta`, preventing ghost bullets or orphan variants from leaking across resume replacements.
 
@@ -876,86 +915,251 @@ MailPilot prevents internal network probing and cloud metadata extraction by per
 
 ## 11. Line-Addressable Resume Tailoring & Page Budgeting
 
-Earlier resume tailoring architectures digested job specs and immediately froze the result into a static base64 PDF buffer. That legacy pattern created severe drawbacks: individual bullets could not be edited, subsequent AI refinement passes hallucinated and drifted unrelated sections, and page length could not be guaranteed.
+Earlier resume tailoring architectures digested job specs and immediately froze the result into a static base64 PDF buffer. That legacy pattern created severe failure modes: individual bullets could not be edited, subsequent AI refinement passes drifted unrelated sections, and page length could not be guaranteed.
 
-MailPilot solves this with a **Line-Addressable Intermediate Document Tree (`TailoredResumeDraft`)**:
+MailPilot resolves this through an end-to-end, vectorless **Line-Addressable Tailoring Pipeline** (`lib/tailor/`, `lib/resume-draft/`). By decoupling relevance scoring, physical point geometry, knapsack packing, and sentence reframing into discrete deterministic stages, MailPilot achieves strict 1-page Letter layout geometry, mathematical reproducibility, and 100% career agnosticism:
 
 ```mermaid
-%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".node text, .node foreignObject, .label foreignObject { overflow: visible !important; } .cluster text, .cluster-label span { overflow: visible !important; } .edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 36, "rankSpacing": 44, "subGraphTitleMargin": {"top": 16, "bottom": 22}}}}%%
 flowchart TD
-  subgraph Input["1. Ground Truth Inputs"]
-    MP["Master Profile Ledger"]
-    SPEC["Sanitized Job Spec<br/>(4,000 chars)"]
-    RULES["Account Rules<br/>& Preferences"]
+  %% CLASS DEFINITIONS FOR ARCHITECTURAL DISTINCTIONS
+  classDef candidate fill:#eff6ff,stroke:#3b82f6,stroke-width:2px,color:#1e3a8a;
+  classDef job fill:#f5f3ff,stroke:#8b5cf6,stroke-width:2px,color:#4c1d95;
+  classDef heuristic fill:#ecfdf5,stroke:#10b981,stroke-width:2px,color:#064e3b;
+  classDef ai fill:#fff7ed,stroke:#f97316,stroke-width:2px,color:#7c2d12;
+  classDef output fill:#f8fafc,stroke:#64748b,stroke-width:2px,color:#0f172a;
+
+  subgraph Legend["ARCHITECTURAL DISTINCTION & BOUNDARY LEGEND"]
+    direction LR
+    LEG_CAND["Candidate Background Facts"]:::candidate
+    LEG_JOB["Job Description Context"]:::job
+    LEG_HEUR["Deterministic Heuristic / Math"]:::heuristic
+    LEG_AI["AI / LLM Model Inference"]:::ai
+    LEG_OUT["Final Layout Output"]:::output
   end
 
-  subgraph StageA["2. Strategy & Budget Allocation"]
-    MP & SPEC & RULES --> STRAT["Tailoring Strategy Engine<br/>(Stage A)"]
-    STRAT --> BUDGET["Elastic Page Budgeter"]
-    BUDGET -->|"&nbsp;&nbsp;Classify Density&nbsp;&nbsp;"| DENSE(["Density Calculator"])
-    DENSE -->|"&nbsp;&nbsp;Early Career / Switcher&nbsp;&nbsp;"| SPARSE["SPARSE Layout<br/>(Projects First)"]
-    DENSE -->|"&nbsp;&nbsp;Standard Career&nbsp;&nbsp;"| BALANCED["BALANCED Layout<br/>(3-5 Bullets / Role)"]
+  subgraph Stage1["1. Context Distillation & Seniority Detection (distiller.ts)"]
+    RAW_SPEC["<b>[JOB SPEC] Inbound Job Text & Reqs</b><br/>(Min 500 · Max 4,000 chars)"]:::job
+    STOP["<b>[HEURISTIC] Stopword Scrubber</b><br/>Prune 65 Common Words (team, role...)"]:::heuristic
+    TOKENS["<b>[HEURISTIC] Competency Distiller</b><br/>Extract Top 16 Distinctive Tokens"]:::heuristic
+    SENIORITY["<b>[HEURISTIC] Seniority Classifier</b><br/>Regex Tiers: Exec · Staff · Senior · Early"]:::heuristic
+    JTC["<b>[JOB SPEC] Standardized JobTargetContext</b>"]:::job
+
+    RAW_SPEC --> STOP --> TOKENS
+    RAW_SPEC --> SENIORITY
+    TOKENS & SENIORITY --> JTC
   end
 
-  subgraph StageB["3. Dual-Mode Bullet Reframing"]
-    SPARSE & BALANCED --> REFRAME["Bullet Reframing Engine<br/>(Stage B)"]
-    REFRAME -->|"&nbsp;&nbsp;inventMetrics: false&nbsp;&nbsp;"| MODEA["Mode A: Strict Metrics<br/>(Google XYZ Format)"]
-    REFRAME -->|"&nbsp;&nbsp;inventMetrics: true&nbsp;&nbsp;"| MODEB["Mode B: Metric Synthesis<br/>(Google XYZ Format)"]
+  subgraph Stage2["2. Hierarchical Profile Tree Grounding (tree.ts)"]
+    MP[("<b>[CANDIDATE] MasterProfileInput</b><br/>Verified Ground Truth Facts")]:::candidate
+    TREE["<b>[HEURISTIC] buildHierarchicalProfileTree()</b><br/>• Deterministic ID Binding (exp_0, proj_0)<br/>• Enforces Parent-Child Pointers<br/>• Eliminates Orphan Bullet Stranding"]:::heuristic
+
+    MP --> TREE
   end
 
-  subgraph DraftTree["4. Document Node Tree"]
-    MODEA & MODEB --> DIGEST["digestTailoredResume()"]
-    DIGEST --> TREE[("TailoredResumeDraft<br/>(JSON Node Tree)")]
-    TREE <-->|"&nbsp;&nbsp;Edit / Reorder&nbsp;&nbsp;"| UI["Interactive WYSIWYG<br/>Workspace"]
-    TREE <-->|"&nbsp;&nbsp;Rewrite Line&nbsp;&nbsp;"| REFINE["refineResumeLine()<br/>(Surgical Rewrite)"]
-    TREE -->|"&nbsp;&nbsp;selected: true&nbsp;&nbsp;"| COMP["Draft Compiler"]
+  subgraph Stage3["3. Hierarchical Matrix Ranker (ranker.ts)"]
+    HEUR["<b>[HEURISTIC] Baseline Points Evaluator</b><br/>• Role Match: +2.0/token · Bullet Match: +2.0/token<br/>• Metric Bonus: +2.0 · Depth Bonus: +0.5 (>120 chars)<br/>• Recency Boost: +0.4 (Role 0) · +0.2 (Role 1)<br/>• Project Match: +3.0/token"]:::heuristic
+    PRESORT["<b>[HEURISTIC] Pre-Sort & Windowing</b><br/>• Sort by Heuristic Score (Prunes Array Bias)<br/>• Windowing: Send Top 6 Projects (~4k chars vs 18k)"]:::heuristic
+    LLM_RANK["<b>[AI / LLM] Matrix Ranker Model (Temp 0.1)</b><br/>Scores 4 Universal Agnostic Dimensions (1.0 - 5.0)<br/>(Alignment, Scope, Impact, Problem-Solving)"]:::ai
+    BLEND["<b>[HEURISTIC] 50/50 Blended Relevance Score</b><br/>Relevance = 0.5*LLM + 0.5*Heuristic<br/><i>(Automatic 100% Heuristic Fallback if AI Offline)</i>"]:::heuristic
+
+    JTC & TREE --> HEUR
+    HEUR --> PRESORT
+    PRESORT --> LLM_RANK
+    LLM_RANK & HEUR --> BLEND
   end
 
-  subgraph Output["5. Multi-Format Layout Engines"]
-    COMP --> PDF["React-PDF Renderer<br/>(1-Page Letter Layout)"]
-    COMP --> DOCX["compileResumeDocx<br/>(OpenXML Engine)"]
+  subgraph Stage4["4. Competitive Knapsack Assembler (assembler.ts)"]
+    INVARIANTS["<b>[HEURISTIC] Seed Baseline Invariants</b><br/>• Invariant 1: Seed 1 Top Bullet from Primary Role<br/>• Continuity: Seed Secondary Role if Score >= 2.5<br/>• Invariant 2: Seed 1 Top Bullet from Primary Project"]:::heuristic
+    KNAPSACK["<b>[HEURISTIC] Knapsack Value-Density Packing</b><br/>• Decay Matrix: DECAY = [1.00, 0.85, 0.65, 0.45]<br/>• Density = (Score * Decay) / Marginal Physical Points<br/>• Physical Ceiling: 720pt (960px) Safe Boundary"]:::heuristic
+    HEADROOM["<b>[HEURISTIC] Dynamic Headroom Backfill</b><br/>• Absorbs 10-15% Bottom Margin Gap<br/>• Single-Page Cap: 12 Bullets (w/ Summary), 14 (w/o)<br/>• Two-Page Cap: 24 Bullets"]:::heuristic
+
+    BLEND --> INVARIANTS --> KNAPSACK --> HEADROOM
+  end
+
+  subgraph Stage5["5. Dual-Mode Google XYZ Reframing (reframe.ts)"]
+    REFRAME["<b>[AI / LLM] executeBulletReframe()</b><br/>• 1:1 ID Tracking (Reframes ONLY Selected Bullets)<br/>• Target Length: 16 to 34 Words per Bullet<br/>• 60-70% Core Formula: Verb + Metric + Method"]:::ai
+    MODEA["<b>[HEURISTIC / AI] Mode A: Strict Preservation</b><br/>(inventMetrics: false · Zero Numbers Invented)"]:::heuristic
+    MODEB["<b>[AI / LLM] Mode B: Metric Synthesis</b><br/>(inventMetrics: true · Calibrated to Seniority)"]:::ai
+    STRIP["<b>[HEURISTIC] Preamble Artifact Scrubber</b><br/>Purges 'Reframed as:' and wrapping quotes"]:::heuristic
+
+    HEADROOM --> REFRAME
+    REFRAME -->|"inventMetrics: false"| MODEA
+    REFRAME -->|"inventMetrics: true"| MODEB
+    MODEA & MODEB --> STRIP
+  end
+
+  subgraph Stage6["6. Physical Layout SSOT & Atomic Page Splitting (layout.ssot.ts)"]
+    DRAFT[("<b>[OUTPUT] TailoredResumeDraft JSON Tree</b><br/>Line-Addressable Node Representation")]:::output
+    PREVIEW["<b>[HEURISTIC] Web Preview Sheet (resume-draft-sheet.tsx)</b><br/>• Look-Ahead getEntityTotalHeight() Evaluation<br/>• Option 1: Advances Whole Entity to Next Page<br/>• Reactive Role Grouping on Dynamic Resize"]:::output
+    CLAMP["<b>[HEURISTIC] clampPdfContentToPhysicalCeiling()</b><br/>Identical 720pt (960px) Physical Ceiling Clamp"]:::output
+    PDF["<b>[OUTPUT] React-PDF Export (pdf-generator.tsx)</b><br/>• wrap={false} Containers on Roles, Projects & Degrees<br/>• Standardized 8pt/10pt Geometry & Right-Aligned Dates"]:::output
+    DOCX["<b>[OUTPUT] compileResumeDocx (resume-docx.ts)</b><br/>Native OpenXML Document Architecture"]:::output
+
+    STRIP --> DRAFT
+    DRAFT --> PREVIEW
+    DRAFT --> CLAMP
+    CLAMP --> PDF
+    CLAMP --> DOCX
   end
 ```
 
-### 1. Two-Stage Decoupled LLM Tailoring
-- **Stage A: Strategy & Selection:** Selects relevant evidence from the candidate's master profile, extracts key job requirements, generates strategy rationale, and allocates bullet budgets according to target page constraints.
-- **Stage B: Focused Bullet Reframing:** Sends only the selected experience and project bullets to the model with 1:1 ID tracking for Google XYZ restructuring.
+---
 
-### 2. Dual-Mode Google XYZ Reframing Engine
-Restructures all selected bullets into Google's core XYZ structural pattern:
-$$\text{[Strong Action Verb]} + \text{[Impact / Scope / Metric]} + \text{[Method / Technical Approach]}$$
+### 11.1 Stage 1: Context Distillation & Seniority Detection (`lib/tailor/distiller.ts`)
 
+Before triggering LLM inference or ranking algorithms, raw job specifications and requirements are sanitized and normalized into a structured `JobTargetContext`:
+- **65-Word Common Stopword Purge (`COMMON_STOP_WORDS`):** Strips generic English function words and job description filler (*"responsible"*, *"seeking"*, *"experienced"*, *"looking"*, *"team"*, *"company"*, *"role"*, *"knowledge"*).
+- **Core Competency Extraction (`extractCompetencyTokens`):** Identifies distinct technical and operational keywords, preserving domain-specific short tokens (e.g., `c`, `r`, `go`, `ci`, `cd`) while extracting the **top 16 core competencies** for downstream lexical matching.
+- **Implicit Seniority Expectation Engine (`detectSeniorityExpectation`):** Analyzes the role title and the first 500 characters of the job text to classify target seniority across 5 standardized tiers:
+  1. `Executive / Director`: Matches `director`, `vp`, `vice president`, `executive`, `chief`, `head of`.
+  2. `Staff / Principal`: Matches `staff`, `principal`, `distinguished`.
+  3. `Lead / Manager`: Matches `lead`, `manager`, `tech lead`.
+  4. `Senior`: Matches `senior`, `sr.`.
+  5. `Early Career / Entry`: Matches `intern`, `internship`, `co-op`, `entry`, `associate`, `junior`, `jr.`.
+  *Fallback:* Defaults neutrally to `Mid-Level Professional`.
+
+---
+
+### 11.2 Stage 2: Hierarchical Profile Tree Grounding (`lib/tailor/tree.ts`)
+
+Conventional resume generators pass loose arrays of bullets into prompts, leading to parent identity confusion, orphan bullets, and hallucinated experience mappings. MailPilot converts candidate facts into a strict **Hierarchical Profile Tree (`HierarchicalProfileTree`)**:
+- **Deterministic Identity Addressing:** Each entity receives an immutable deterministic ID (`exp_0`, `exp_1`, `proj_0`, `proj_1`).
+- **Bound Child Bullets:** Every bullet is explicitly namespaced to its parent container (`exp_0_b0`, `exp_0_b1`, `proj_0_b0`), retaining its `originalId`, `hasMetric` flag, and parsed `technologies`.
+- **Zero Orphan Guarantee:** Downstream algorithms never manipulate disconnected strings; selection and reframing operate strictly on bound parent-child pointers.
+
+---
+
+### 11.3 Stage 3: Hierarchical Matrix Ranker (`lib/tailor/ranker.ts`)
+
+To balance LLM semantic evaluation with deterministic grounding, candidate experiences and projects are scored across **4 Universal Career-Agnostic Dimensions**:
+1. *Functional & Domain Alignment:* Direct crossover of candidate methods, credentials, or competencies to target role duties.
+2. *Scope, Scale & Responsibility:* Magnitude of autonomy, operational footprint, or team/program leadership.
+3. *Measurable Impact & Outcomes:* Tangible verified results, efficiency gains, compliance standards, or quantitative outcomes.
+4. *Problem-Solving & Operational Rigor:* Critical thinking, incident resolution, risk mitigation, or quality control.
+
+#### 1. Deterministic Heuristic Scoring Baseline (`heuristicRankProfile`)
+When LLMs are offline or to provide a baseline anchor, MailPilot calculates relevance mathematically:
+- **Work Experience Scoring:**
+  - Role Title Token Match: `+2.0` points per matching core competency token found in `${role} ${company}`.
+  - Bullet Token Match: `+2.0` points per matching token found in bullet text and technologies.
+  - Bullet Metric Bonus: `+2.0` points if `hasMetric: true` and the bullet matches target competencies.
+  - Bullet Depth Bonus: `+0.5` points if bullet text length $> 120$ characters.
+  - Recency Boost: `+0.4` points for primary role (index 0), `+0.2` points for secondary role (index 1).
+  - Normalization Formula:
+    $$\text{Score}_{\text{exp}} = \min\left(5.0, \max\left(1.0, 1.5 + \frac{\text{totalMatches}}{6} + \text{RecencyBoost}\right)\right)$$
+- **Project Scoring:**
+  - Project Title & Tech Token Match: `+3.0` points per matching token in name, description, or technologies.
+  - Bullet Token Match: `+2.0` points per matching token in bullet text.
+  - Bullet Metric Bonus: `+2.0` points if `hasMetric: true`.
+  - Normalization Formula:
+    $$\text{Score}_{\text{proj}} = \min\left(5.0, \max\left(1.0, 1.5 + \frac{\text{pScore}}{4}\right)\right)$$
+
+#### 2. LLM Array-Index Bias Elimination
+LLMs exhibit severe positional bias: candidates placed first in prompt arrays receive artificially elevated ratings. To eliminate this:
+- Experiences and projects are pre-sorted by their heuristic scores before generating the prompt payload.
+- Only the **top 6 candidate projects** are included in the prompt, shrinking the prompt payload from $\sim 18,000$ characters down to $\sim 4,000$ characters, eliminating context degradation and truncation timeouts.
+
+#### 3. 50/50 Blended Relevance Scoring
+To prevent single-turn LLM hallucinations from discarding crucial experiences, the engine computes a 50/50 blended score:
+$$\text{Relevance} = 0.5 \times \text{Score}_{\text{LLM}} + 0.5 \times \text{Score}_{\text{Heuristic}}$$
+
+---
+
+### 11.4 Stage 4: Competitive Knapsack Assembler & Headroom Backfill (`lib/tailor/assembler.ts`)
+
+Once relevance scores are calculated, MailPilot deterministically selects the optimal bullet combination using an elastic knapsack algorithm constrained by physical typography point geometry (`lib/resume-draft/physics.ts`):
+
+#### Physical Point Geometry Constants
+- `HEIGHT_CONSTANTS.SECTION_HEADING`: **28pt** (37.33px)
+- `HEIGHT_CONSTANTS.ENTITY_HEADER`: **18pt** (24px)
+- `estimateBulletHeightPoints(text)`: $\lceil \text{text.length} / 90 \rceil \times 13.5\text{pt} + 2\text{pt}$ (line height + vertical spacing)
+- Safe Printable Page Ceiling: **720pt** (960px)
+
+#### Baseline Invariants (Guaranteed Anchor Slots)
+- **Invariant 1 (Experience Anchor):** Seeds the #1 top bullet from the highest-ranked experience role.
+- **Multi-Role Continuity Invariant:** If a secondary experience role has a relevance score $\ge 2.5$, its top bullet is automatically seeded provided it fits within an 80pt headroom cushion. This ensures multi-company career histories are not falsely collapsed into a single role.
+- **Invariant 2 (Project Anchor):** Seeds the #1 top bullet from the highest-ranked portfolio project.
+
+#### Diminishing Marginal Returns & Value-Density Metric
+As additional bullets are added to the same role or project, their marginal value decays to encourage cross-entity breadth:
+$$\text{DECAY} = [1.00, 0.85, 0.65, 0.45]$$
+
+Each candidate bullet's base priority score is computed:
+$$\text{Score} = \text{EntityScore} \times 10 - \text{AuxiliaryPenalty}(20) + \text{PriorSelectionBonus}(30) + \text{TopBulletBonus}(15) + \text{MetricBonus}(6) + 0.5 \times (N - \text{idx})$$
+*(where AuxiliaryPenalty applies strictly to activity/volunteer categories)*
+
+Candidate bullets are packed by value density:
+$$\text{Density} = \frac{\text{Score} \times \text{Decay}(\text{count})}{\max(1, \text{Added Physical Points})}$$
+
+#### Dynamic Headroom Backfill
+Physical knapsack packing often leaves a 10–15% whitespace gap at the bottom of the page. The Dynamic Headroom Backfill loop absorbs this remaining capacity with the highest-scoring surviving bullets until hitting strict capacity ceilings:
+- **Single-Page Target:** Hard-capped at **12 bullets** (if executive summary included) or **14 bullets** (if summary excluded).
+- **Two-Page Target:** Hard-capped at **24 bullets**.
+
+---
+
+### 11.5 Stage 5: Dual-Mode Google XYZ Bullet Reframing (`lib/tailor/reframe.ts`)
+
+Surviving bullets are reframed into Google's core XYZ structural format:
+$$\text{[Strong Action Verb]} + \text{[Quantifiable Impact / Scope / Metric]} + \text{[Method / Technical Approach]}$$
+*("Accomplished [X] as measured by [Y] by doing [Z]")*
+
+- **Target Word Count:** Enforces concise, punchy bullets strictly between **16 and 34 words**.
+- **1:1 Bullet ID Tracking:** Maintains exact ID parity between inputs and outputs, preventing loss of lines.
 - **Mode A: Strict Metric Preservation (`inventMetrics: false`):**
-  - Preserves all existing numbers, latencies, percentages, and scale verbatim. Never erases or alters substantiated metrics.
-  - If a bullet lacks numbers, it is **never skipped or left in raw form**; it is restructured around verified qualitative operational scope and problem-solving impact using only facts substantiated in the source document.
+  - All existing numbers, percentages, latencies, and dollar amounts are preserved verbatim.
+  - Bullets lacking numbers are never left in raw form; they are restructured around qualitative operational scope, problem-solving impact, and procedural rigor.
 - **Mode B: Believable Metric Synthesis (`inventMetrics: true`):**
-  - Adapts synthesized metrics across the 4 universal impact dimensions calibrated strictly to candidate leveling:
+  - Synthesizes modest, realistic metrics calibrated strictly to candidate seniority across 4 universal impact dimensions:
     1. *Efficiency & Velocity:* Turnaround time reduction (~10–20%), cycle speedup.
-    2. *Quality & Accuracy:* Compliance rates (98%+ verification accuracy), error reduction.
-    3. *Volume & Throughput:* Items/records/tickets processed, units coordinated.
-    4. *Satisfaction & Adoption:* Retention stability, feedback scores, workflow adoption.
+    2. *Quality & Accuracy:* Verification accuracy (98%+), compliance rates.
+    3. *Volume & Throughput:* Records, units, or stakeholders coordinated.
+    4. *Satisfaction & Adoption:* Feedback scores, workflow adoption rate.
+- **Conversational Artifact Scrubber (`sanitizeReframedBulletText`):** Automatically strips small-model conversational preamble (e.g., `Reframed as: "..."`, `Here is the revised bullet:`).
 
-### 3. Elastic Page Budgeting (`lib/resume-draft/budget.ts`)
-Calculates dynamic bullet allocations to guarantee strict 1-page Letter layout geometry:
-- **Career Switcher / Early Tenure Detection:** When candidate in-field tenure is $\le 2$ years, the budgeter classifies density as `SPARSE`, reorders sections to place practical projects before legacy experience, and expands project bullet limits (2–3 bullets each).
-- **Dense Veteran Profiles:** Caps bullet counts per role (3–4 max) and project counts (1–2 max) to ensure dense profiles fit cleanly on 1 page without text overflow.
+---
 
-### 4. Interactive Review Workspace & Multi-Format Compilation
-- **Intermediate Node Tree:** Stored as `ResumeDraftNode[]` (`id`, `type`, `section`, `content`, `selected`, `metadata`).
-- **Surgical AI Refinement (`refineResumeLine`):** Sends only the selected node's text and a custom prompt to the model, rewriting that specific line in ~300ms without touching the rest of the document.
-- **Streamlined Heading Layout:** Eliminates repository link clutter from project headers; candidate GitHub and portfolio presence is anchored cleanly in the contact header bar.
-- **Export Engines:**
-  - `@react-pdf/renderer` (`lib/document/pdf-generator.tsx`): Produces print-ready PDF buffers (612 $\times$ 792 pt Letter geometry, 18pt padding, zero mid-word hyphenation splits).
-  - JSZip OpenXML Engine (`lib/document/resume-docx.ts`): Produces native Microsoft Word `.docx` documents.
+### 11.6 Stage 6: Physical Layout SSOT & Atomic Page Splitting (`lib/resume-draft/layout.ssot.ts`)
 
-### 5. Offline Master Profile Export (Zero LLM Overhead)
+To eliminate visual desynchronization between web previews, PDF exports, and Word documents, MailPilot codifies all physical metrics in a Single Source of Truth (`RESUME_PAGE_GEOMETRY`, `RESUME_TYPOGRAPHY`, `RESUME_SPACING`):
+
+| Element | Point Specification (PDF / Print) | Pixel Specification (CSS / Web Preview) |
+| :--- | :--- | :--- |
+| **Physical Page Dimensions** | `612pt × 792pt` (US Letter) | `816px × 1056px` |
+| **Outer Margins** | `24pt` top/bottom, `24pt` left/right | `32px` top/bottom, `32px` left/right |
+| **Safe Printable Ceiling** | **`720pt`** | **`960px`** |
+| **Section Heading** | `10.0pt` Bold · Line Height: `1.20` | `13.33px` Bold · Margin Bottom: `4px` |
+| **Role / Project Title** | `9.5pt` Bold · Line Height: `1.20` | `12.67px` Bold · Gap: `10.67px` |
+| **Body & Bullets** | `8.5pt` Regular · Line Height: `1.35` | `11.33px` Regular · Bullet Spacing: `2.67px` |
+| **Contact Line** | `8.0pt` Regular · Line Height: `1.25` | `10.67px` Regular |
+
+#### Option 1: Strict Role & Project Atomicity
+When multi-page documents transition across the page seam, slicing mid-role leaves orphaned headers or disconnected bullets. MailPilot enforces **Strict Role & Project Atomicity** across both targets:
+1. **React-PDF Generator (`lib/document/pdf-generator.tsx`):**
+   - Applies `<View wrap={false}>` containers around each work experience role, project card, and education row. React-PDF automatically moves the entire entity to Page 2 whenever it cannot fit on Page 1.
+2. **Web Preview Sheet (`components/opportunities/drawer/resume-draft-sheet.tsx`):**
+   - **Proactive Look-Ahead (`getEntityTotalHeight`):** When encountering a role or project header, the partitioner calculates the total height of the header plus all its child bullets. If the full entity exceeds the remaining printable height (`PRINTABLE_HEIGHT = 960px`) but fits on a clean page, the entire entity is advanced to Page 2.
+   - **Reactive Role Grouping:** If dynamic DOM height measurement causes a bullet to overflow, the partitioner pulls the parent header and all preceding bullets of that role forward onto the new page rather than slicing mid-role.
+3. **Clamping Parity (`clampPdfContentToPhysicalCeiling`):**
+   - Applies physical point budget clamping to `draft.nodes` during draft digest, guaranteeing that the web preview and PDF export receive the exact same projects and bullets.
+4. **Dispatched PDF Download Parity (`downloadTailoredPdfAction`):**
+   - Directly renders the stored `tailoredResumeData.draft` using `renderDraftPdf`, guaranteeing that what the user reviewed in the drawer sheet is byte-for-byte identical to the downloaded PDF.
+
+---
+
+### 11.7 Stage 7: Offline Master Profile Export (Zero LLM Overhead)
+
 Candidates can export their complete, canonical Master Profile at any time without triggering LLM calls or paying inference tokens:
 - **Comprehensive Unpruned Document:** In contrast to job-tailored drafts which adhere to 1-page Letter budgeting, the Master Profile export includes 100% of the candidate's work experiences, projects, credentials, skill groups, honors, and interests in an unpruned, natural multi-page flow.
 - **Server Action Architecture (`exportMasterProfilePdfAction`):** Loads the account's master profile via `loadMasterProfileForDraft(accountId)` (`lib/profile/master-profile.ts`) and routes directly into `@react-pdf/renderer` via `generateTailoredResumePdf()`.
 - **Contact Line Sanitization:** Utilizes `buildResumeContactLine(profile)` to format an authentic, single-line contact bar and eliminate rogue technical skills or unverified links from header rows.
 - **Instant Client-Side Delivery:** Converts the returned base64 binary buffer into an ephemeral client-side Blob stream for immediate download (`<Name>_Master_Profile.pdf`).
 
-### 6. Dual-Mode Section Ordering Engine (`resolveSectionOrder`)
+---
+
+### 11.8 Stage 8: Dual-Mode Section Ordering Engine (`resolveSectionOrder`)
+
 Controls the macroscopic hierarchy of the tailored resume through two distinct behavioral modes:
 - **`AI_OPTIMAL` Mode:**
   - Evaluates candidate facts using `isCareerSwitcherOrEarlyTenure` ($\le 2$ years in target field or non-traditional background).
@@ -1044,7 +1248,7 @@ flowchart TD
 MailPilot maintains a comprehensive, zero-token test suite using **Vitest**. All tests execute completely offline without network calls or live database dependencies:
 
 ```bash
-# Run the complete test suite (32 test files, 423 tests)
+# Run the complete test suite (37 test files, 502 tests)
 npx vitest run
 
 # Run tests in interactive watch mode
@@ -1064,7 +1268,7 @@ npx tsc --noEmit
  ✓ lib/__tests__/scrapingant.test.ts (6 tests)
  ✓ lib/__tests__/ratelimit.test.ts (9 tests)
  ✓ lib/matching/__tests__/matching.test.ts (8 tests)
- ✓ lib/__tests__/github-sync.test.ts (79 tests)
+ ✓ lib/__tests__/github-sync.test.ts (80 tests)
  ✓ app/api/login-background/__tests__/route.test.ts (6 tests)
  ✓ lib/llm/__tests__/llm-ratelimit.test.ts (4 tests)
  ✓ lib/llm/__tests__/llm-vault.test.ts (15 tests)
@@ -1079,19 +1283,23 @@ npx tsc --noEmit
  ✓ lib/utils/__tests__/location.test.ts (9 tests)
  ✓ lib/opportunities/context/__tests__/hasdata.test.ts (6 tests)
  ✓ lib/__tests__/persistent-profile.test.ts (7 tests)
- ✓ lib/__tests__/master-profile-export.test.ts (3 tests)
+ ✓ lib/__tests__/master-profile-export.test.ts (4 tests)
  ✓ lib/__tests__/bridge-scripts.test.ts (2 tests)
  ✓ app/api/ollama/verify/__tests__/route.test.ts (5 tests)
  ✓ lib/navigation/__tests__/page-tabs.test.ts (11 tests)
- ✓ lib/resume-draft/__tests__/resume-draft-sheet-pagination.test.ts (5 tests)
+ ✓ lib/resume-draft/__tests__/resume-draft-sheet-pagination.test.ts (7 tests)
  ✓ lib/utils/__tests__/format-status-pill.test.ts (4 tests)
  ✓ lib/__tests__/dev-resume-cache.test.ts (3 tests)
- ✓ lib/__tests__/github-metrics.test.ts (4 tests)
+ ✓ lib/__tests__/github-metrics.test.ts (8 tests)
+ ✓ lib/__tests__/deduplication.test.ts (43 tests)
+ ✓ lib/document/__tests__/pdf-spacing-render.test.ts (1 test)
+ ✓ lib/__tests__/resume-reconciliation-run.test.ts (10 tests)
+ ✓ lib/__tests__/resume-cached-versions.test.ts (5 tests)
  ↓ lib/__tests__/temp-resume-llm-audit.test.ts (1 test | 1 skipped)
 
-Test Files  32 passed | 1 skipped (33)
-     Tests  423 passed | 1 skipped (424)
-  Duration  3.4s
+Test Files  37 passed | 1 skipped (38)
+     Tests  502 passed | 1 skipped (503)
+  Duration  11.76s
 ```
 
 ### Prerequisites
