@@ -1,6 +1,44 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import {
+  ArrowBigLeftDash,
+  Briefcase,
+  BriefcasePlus,
+  Building2,
+  CheckCircle2,
+  CircleDollarSign,
+  Compass,
+  Download,
+  ExternalLink,
+  Loader2,
+  MapPin,
+  RefreshCw,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
+
+import "@/app/globals.css";
+import { ResumeDraftSheet } from "@/components/opportunities/drawer/resume-draft-sheet";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { CompanyLogo } from "@/components/ui/company-logo";
+import {
+  darkRailListClassName,
+  darkRailTriggerClassName,
+  lightRailListClassName,
+  lightRailTriggerClassName,
+} from "@/components/ui/tactile/segmented-tabs";
+import { SettingsSectionCard } from "@/components/ui/tactile/nested-settings-card";
+import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
+import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
+import { cn } from "@/lib/utils";
+import type { TailoredResumeDraft } from "@/lib/types/resume-draft";
+import {
   checkSession,
   exportDraftDocument,
   getEnvironment,
@@ -15,13 +53,11 @@ import type {
   ExtractedJobContext,
   ExtensionSession,
   OpportunityResumePreview,
-  ResumeDraftNode,
 } from "../lib/types";
-import { extractJobContextFromDocument } from "../content/extractor";
 
 export function SidePanelApp() {
-  const [env, setEnv] = useState<Environment>("prod");
-  const [baseUrl, setBaseUrl] = useState<string>("https://mailpilot-prod.vercel.app");
+  const [env, setEnv] = useState<Environment>("dev");
+  const [baseUrl, setBaseUrl] = useState<string>("http://localhost:3000");
   const [session, setSession] = useState<ExtensionSession | null>(null);
   const [checkingSession, setCheckingSession] = useState<boolean>(true);
 
@@ -45,17 +81,9 @@ export function SidePanelApp() {
   const [opportunityId, setOpportunityId] = useState<string | null>(null);
   const [preview, setPreview] = useState<OpportunityResumePreview | null>(null);
   const [activeTab, setActiveTab] = useState<"job" | "draft">("job");
-
-  // Inline Editing & Surgical Refinement
-  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState<string>("");
-  const [refiningNodeId, setRefiningNodeId] = useState<string | null>(null);
-  const [refineInstruction, setRefineInstruction] = useState<string>("");
-  const [isRefining, setIsRefining] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
 
-  // Initial load: resolve environment and session
   useEffect(() => {
     refreshSession();
   }, []);
@@ -76,8 +104,8 @@ export function SidePanelApp() {
   }
 
   async function handleSwitchEnvironment(targetEnv: Environment) {
-    let targetUrl = "https://mailpilot-prod.vercel.app";
-    if (targetEnv === "dev") targetUrl = "http://localhost:3000";
+    let targetUrl = "http://localhost:3000";
+    if (targetEnv === "prod") targetUrl = "https://mailpilot-prod.vercel.app";
     await saveEnvironment(targetEnv, targetUrl);
     setEnv(targetEnv);
     setBaseUrl(targetUrl);
@@ -97,14 +125,12 @@ export function SidePanelApp() {
         throw new Error("Cannot extract from browser internal pages. Navigate to a job listing.");
       }
 
-      // Execute client-side extraction in page context
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: () => {
-          // Direct execution of extractor logic inside the host page DOM
           const doc = document;
           const href = window.location.href;
-          
+
           function clean(str: string | null | undefined): string {
             if (!str) return "";
             return str
@@ -120,7 +146,6 @@ export function SidePanelApp() {
               .trim();
           }
 
-          // Check JSON-LD
           let jsonLdResult: any = null;
           const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
           for (const s of Array.from(scripts)) {
@@ -128,15 +153,19 @@ export function SidePanelApp() {
               const parsed = JSON.parse(s.textContent || "{}");
               const items = Array.isArray(parsed) ? parsed : [parsed];
               for (const it of items) {
-                const isJob = it["@type"] === "JobPosting" || (Array.isArray(it["@graph"]) && it["@graph"].some((g: any) => g["@type"] === "JobPosting"));
-                const target = it["@type"] === "JobPosting" ? it : it["@graph"]?.find((g: any) => g["@type"] === "JobPosting");
+                const target =
+                  it["@type"] === "JobPosting"
+                    ? it
+                    : it["@graph"]?.find((g: any) => g["@type"] === "JobPosting");
                 if (target) {
                   jsonLdResult = {
                     title: clean(target.title),
                     company: clean(target.hiringOrganization?.name),
                     description: clean(target.description),
                     location: target.jobLocation?.address?.addressLocality,
-                    salary: target.baseSalary?.value?.minValue ? `$${target.baseSalary.value.minValue} - $${target.baseSalary.value.maxValue}` : undefined,
+                    salary: target.baseSalary?.value?.minValue
+                      ? `$${target.baseSalary.value.minValue} - $${target.baseSalary.value.maxValue}`
+                      : undefined,
                   };
                   break;
                 }
@@ -144,7 +173,6 @@ export function SidePanelApp() {
             } catch {}
           }
 
-          // DOM Selectors
           function q(selectors: string[]): string {
             for (const sel of selectors) {
               const el = doc.querySelector(sel);
@@ -172,37 +200,53 @@ export function SidePanelApp() {
             "[data-automation-id='companyName']",
           ]);
 
-          const domDesc = q([
-            "#job-details",
-            "#jobDescriptionText",
-            ".jobDescriptionContent",
-            "#content",
-            "[data-automation-id='jobPostingDescription']",
-            ".section-wrapper.page-full-width",
-            "#job-description",
-          ]);
-
           const domLocation = q([
             ".job-details-jobs-unified-top-card__bullet",
-            "[data-testid='jobsearch-JobInfoHeader-companyLocation']",
-            "[data-test='job-location']",
+            "[data-testid='inlineHeader-companyLocation']",
+            "[data-test='location']",
             ".location",
+            "[data-automation-id='locations']",
           ]);
 
           const domSalary = q([
-            "#salaryInfoAndJobType",
-            "[data-test='detailSalary']",
-            ".compensation__salary",
+            ".job-details-jobs-unified-top-card__job-insight--highlight",
+            "[data-testid='attribute_snippets_section']",
+            ".salary",
+          ]);
+
+          const domDesc = q([
+            "#job-details",
+            "#jobDescriptionText",
+            "[data-test='job-description']",
+            ".posting-description",
+            ".section-page",
+            "[data-automation-id='jobPostingDescription']",
+            "article",
+            "main",
           ]);
 
           return {
             title: jsonLdResult?.title || domTitle || clean(doc.title),
             company: jsonLdResult?.company || domCompany || "",
-            description: jsonLdResult?.description || domDesc || clean(doc.body?.innerText?.slice(0, 3000)),
             location: jsonLdResult?.location || domLocation || undefined,
             salary: jsonLdResult?.salary || domSalary || undefined,
             url: href,
-            source: href.includes("linkedin") ? "LinkedIn" : href.includes("indeed") ? "Indeed" : href.includes("glassdoor") ? "Glassdoor" : "Web",
+            description: jsonLdResult?.description || domDesc || clean(doc.body.innerText).slice(0, 5000),
+            source: href.includes("linkedin")
+              ? "LinkedIn"
+              : href.includes("greenhouse.io")
+              ? "Greenhouse"
+              : href.includes("lever.co")
+              ? "Lever"
+              : href.includes("ashbyhq.com")
+              ? "Ashby"
+              : href.includes("workday")
+              ? "Workday"
+              : href.includes("indeed")
+              ? "Indeed"
+              : href.includes("glassdoor")
+              ? "Glassdoor"
+              : "Web",
             extractedAt: new Date().toISOString(),
           };
         },
@@ -225,7 +269,10 @@ export function SidePanelApp() {
     }
   }
 
-  async function handleTriggerTailoring() {
+  async function handleTriggerTailoring(customOptions?: {
+    summaryOverride?: boolean;
+    budgetOverride?: "auto" | 1 | 2;
+  }) {
     if (!company.trim() || !title.trim()) {
       setTailorError("Please enter both Company name and Role title.");
       return;
@@ -234,6 +281,15 @@ export function SidePanelApp() {
       setTailorError("Job description cannot be empty.");
       return;
     }
+
+    const targetSummary =
+      customOptions?.summaryOverride !== undefined
+        ? customOptions.summaryOverride
+        : includeSummary;
+    const targetBudget =
+      customOptions?.budgetOverride !== undefined
+        ? customOptions.budgetOverride
+        : pageBudget;
 
     setIsTailoring(true);
     setTailorError(null);
@@ -245,8 +301,8 @@ export function SidePanelApp() {
         url: url.trim() || undefined,
         location: location.trim() || undefined,
         salary: salary.trim() || undefined,
-        pageBudget,
-        includeSummary,
+        pageBudget: targetBudget,
+        includeSummary: targetSummary,
         opportunityId: opportunityId || undefined,
       });
 
@@ -256,6 +312,12 @@ export function SidePanelApp() {
 
       setOpportunityId(res.opportunityId);
       setPreview(res.preview);
+      if (customOptions?.summaryOverride !== undefined) {
+        setIncludeSummary(customOptions.summaryOverride);
+      }
+      if (customOptions?.budgetOverride !== undefined) {
+        setPageBudget(customOptions.budgetOverride);
+      }
       setActiveTab("draft");
     } catch (err) {
       setTailorError(err instanceof Error ? err.message : "Tailoring request failed");
@@ -264,45 +326,12 @@ export function SidePanelApp() {
     }
   }
 
-  async function handleToggleNode(node: ResumeDraftNode) {
-    if (!opportunityId || !preview) return;
-    const newSelected = !node.selected;
-
-    // Optimistic UI update
-    const updatedNodes = preview.draft.nodes.map((n) =>
-      n.id === node.id ? { ...n, selected: newSelected } : n
-    );
-    setPreview({
-      ...preview,
-      draft: { ...preview.draft, nodes: updatedNodes },
-    });
-
-    try {
-      const res = await updateDraftNode({
-        opportunityId,
-        nodeId: node.id,
-        selected: newSelected,
-      });
-      if (res.ok) setPreview(res.preview);
-    } catch (err) {
-      console.error("Toggle node failed", err);
-    }
+  async function handleRegenerate() {
+    await handleTriggerTailoring();
   }
 
-  async function handleSaveNodeEdit(nodeId: string) {
+  async function handleCommit(nodeId: string, content: string) {
     if (!opportunityId || !preview) return;
-    const content = editingText.trim();
-    setEditingNodeId(null);
-
-    // Optimistic UI update
-    const updatedNodes = preview.draft.nodes.map((n) =>
-      n.id === nodeId ? { ...n, content } : n
-    );
-    setPreview({
-      ...preview,
-      draft: { ...preview.draft, nodes: updatedNodes },
-    });
-
     try {
       const res = await updateDraftNode({
         opportunityId,
@@ -315,7 +344,21 @@ export function SidePanelApp() {
     }
   }
 
-  async function handleReorderNode(nodeId: string, direction: "up" | "down") {
+  async function handleToggle(nodeId: string, selected: boolean) {
+    if (!opportunityId || !preview) return;
+    try {
+      const res = await updateDraftNode({
+        opportunityId,
+        nodeId,
+        selected,
+      });
+      if (res.ok) setPreview(res.preview);
+    } catch (err) {
+      console.error("Toggle node failed", err);
+    }
+  }
+
+  async function handleMove(nodeId: string, direction: "up" | "down") {
     if (!opportunityId || !preview) return;
     try {
       const res = await reorderDraftNode({
@@ -329,24 +372,17 @@ export function SidePanelApp() {
     }
   }
 
-  async function handleRefineNode(nodeId: string) {
-    if (!opportunityId || !refineInstruction.trim()) return;
-    setIsRefining(true);
+  async function handleRefine(nodeId: string, instruction: string) {
+    if (!opportunityId || !instruction.trim()) return;
     try {
       const res = await refineDraftNode({
         opportunityId,
         nodeId,
-        instruction: refineInstruction.trim(),
+        instruction: instruction.trim(),
       });
-      if (res.ok) {
-        setPreview(res.preview);
-        setRefiningNodeId(null);
-        setRefineInstruction("");
-      }
+      if (res.ok) setPreview(res.preview);
     } catch (err) {
       console.error("Refine node failed", err);
-    } finally {
-      setIsRefining(false);
     }
   }
 
@@ -360,8 +396,10 @@ export function SidePanelApp() {
         throw new Error(res.error || "Export failed");
       }
 
-      // Download via data URL
-      const mime = format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      const mime =
+        format === "pdf"
+          ? "application/pdf"
+          : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
       const dataUrl = `data:${mime};base64,${res.base64}`;
 
       if (chrome.downloads?.download) {
@@ -370,647 +408,537 @@ export function SidePanelApp() {
           filename: res.filename,
           saveAs: true,
         });
+        setExportMessage(`Saved ${res.filename}`);
       } else {
-        const a = document.createElement("a");
-        a.href = dataUrl;
-        a.download = res.filename;
-        a.click();
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = res.filename;
+        link.click();
+        setExportMessage(`Downloaded ${res.filename}`);
       }
-      setExportMessage(`Successfully exported ${res.filename}`);
-      setTimeout(() => setExportMessage(null), 4000);
     } catch (err) {
       setExportMessage(err instanceof Error ? err.message : "Export failed");
     } finally {
       setIsExporting(false);
+      setTimeout(() => setExportMessage(null), 4000);
     }
   }
 
-  // Filter nodes into sections for the draft sheet
-  const draftNodes = preview?.draft?.nodes ?? [];
-  const headerNode = draftNodes.find((n) => n.type === "header");
-  const summaryNode = draftNodes.find((n) => n.section === "summary" && n.type === "summary");
-  const skillNodes = draftNodes.filter((n) => n.section === "skills" && n.type === "skill_group");
-  const experienceNodes = draftNodes.filter((n) => n.section === "experience");
-  const projectNodes = draftNodes.filter((n) => n.section === "projects");
-  const educationNodes = draftNodes.filter((n) => n.section === "education");
+  const companyLogoSrc = company ? getCompanyLogoUrl(company, null, url) : null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", backgroundColor: "#0b0f19", color: "#f3f4f6" }}>
-      {/* Top Header Bar */}
-      <header style={{ padding: "12px 16px", borderBottom: "1px solid #1f2937", backgroundColor: "#111827", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <img src="icons/icon-48.png" alt="MailPilot" style={{ width: "24px", height: "24px", borderRadius: "4px" }} />
-          <span style={{ fontWeight: 700, fontSize: "14px", letterSpacing: "-0.01em", color: "#ffffff" }}>MailPilot</span>
-          <span style={{ fontSize: "10px", backgroundColor: "#2563eb", color: "#ffffff", padding: "2px 6px", borderRadius: "10px", fontWeight: 600 }}>Companion</span>
+    <div className="flex h-screen w-screen flex-col bg-canvas-fixed text-foreground antialiased selection:bg-primary/20 selection:text-primary">
+      {/* MailPilot Top Navigation Deck */}
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border/80 bg-[#181e26] text-white px-3 shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-[22%]">
+            <img
+              src="logos/colored-logo-only.png"
+              alt="MailPilot"
+              className="h-full w-full scale-125 object-contain"
+            />
+          </span>
+          <div className="flex items-center">
+            <span className="relative flex h-7 shrink-0 items-center overflow-hidden">
+              <img
+                src="logos/transparent-white-wordmark-inline.png"
+                alt="MailPilot"
+                className="pointer-events-none h-[54px] w-auto max-w-none object-contain"
+              />
+            </span>
+            <span
+              className="-ml-0.5 font-sans text-sm font-semibold tracking-tight select-none text-[#fdad76]"
+              style={{ color: "#fdad76" }}
+            >
+              +
+            </span>
+          </div>
+          <Badge variant="outline" className="h-4 px-1.5 py-0 text-[10px] font-medium border-white/20 bg-white/5 text-[#e4f7f3]">
+            Companion
+          </Badge>
         </div>
 
-        {/* Environment Switcher */}
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <div style={{ display: "flex", backgroundColor: "#1f2937", borderRadius: "6px", padding: "2px" }}>
+        {/* Connected Indicator & Environment Tab Rail */}
+        <div className="flex items-center gap-2">
+          {/* Connected Indicator (Left of Tab Rail) */}
+          <div
+            title={
+              session?.ok
+                ? `Connected as ${session.profile?.fullName || session.account?.email}`
+                : "Not connected to MailPilot"
+            }
+            className={cn(
+              "h-2.5 w-2.5 rounded-full transition-all",
+              checkingSession
+                ? "bg-white/40 animate-pulse"
+                : session?.ok
+                ? "bg-emerald-400 ring-2 ring-emerald-400/20"
+                : "bg-destructive ring-2 ring-destructive/20"
+            )}
+          />
+
+          {/* Dark Tab Rail from UI Setting */}
+          <div
+            className={cn(darkRailListClassName, "p-0.5 pr-3 gap-2 rounded-lg shadow-sm")}
+            data-mp-tab-rail=""
+            role="radiogroup"
+            aria-label="Environment"
+          >
             <button
+              type="button"
+              role="radio"
+              aria-checked={env === "dev"}
+              data-state={env === "dev" ? "active" : "inactive"}
+              className={cn(darkRailTriggerClassName, "px-2 py-0.5 text-[11px] rounded-md")}
               onClick={() => handleSwitchEnvironment("dev")}
-              style={{
-                padding: "3px 8px",
-                fontSize: "11px",
-                fontWeight: 600,
-                borderRadius: "4px",
-                border: "none",
-                cursor: "pointer",
-                backgroundColor: env === "dev" ? "#3b82f6" : "transparent",
-                color: env === "dev" ? "#ffffff" : "#9ca3af",
-              }}
             >
               Dev :3000
             </button>
             <button
+              type="button"
+              role="radio"
+              aria-checked={env === "prod"}
+              data-state={env === "prod" ? "active" : "inactive"}
+              className={cn(darkRailTriggerClassName, "px-2 py-0.5 text-[11px] rounded-md")}
               onClick={() => handleSwitchEnvironment("prod")}
-              style={{
-                padding: "3px 8px",
-                fontSize: "11px",
-                fontWeight: 600,
-                borderRadius: "4px",
-                border: "none",
-                cursor: "pointer",
-                backgroundColor: env === "prod" ? "#2563eb" : "transparent",
-                color: env === "prod" ? "#ffffff" : "#9ca3af",
-              }}
             >
-              Prod
+              Production
             </button>
           </div>
-
-          {/* Connection Status Indicator */}
-          <div
-            title={session?.ok ? `Connected as ${session.profile?.fullName || session.account?.email}` : "Not logged in or unreachable"}
-            style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              backgroundColor: checkingSession ? "#9ca3af" : session?.ok ? "#10b981" : "#ef4444",
-            }}
-          />
         </div>
       </header>
 
-      {/* User Session Bar */}
-      <div style={{ padding: "8px 16px", backgroundColor: "#182234", borderBottom: "1px solid #1f2937", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      {/* Account Session Header Strip (Styled like MailPilot Toolbar) */}
+      <div className="flex h-9 shrink-0 items-center justify-between border-b border-border/50 bg-card/75 px-3 text-xs shadow-2xs backdrop-blur-md">
         {checkingSession ? (
-          <span style={{ color: "#9ca3af" }}>Checking connection...</span>
+          <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+            <Loader2 className="h-3 w-3 animate-spin" /> Verifying session…
+          </span>
         ) : session?.ok ? (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden" }}>
-            <div style={{ width: "20px", height: "20px", borderRadius: "50%", backgroundColor: "#3b82f6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: "bold" }}>
-              {session.profile?.fullName?.[0] || session.account?.name?.[0] || "U"}
-            </div>
-            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              <span style={{ fontWeight: 600, color: "#e5e7eb" }}>{session.profile?.fullName || session.account?.name}</span>
-              {session.profile?.email && (
-                <span style={{ color: "#9ca3af", marginLeft: "4px" }}>• {session.profile.email}</span>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-            <span style={{ color: "#f87171" }}>Not authenticated to {env === "dev" ? "localhost" : "MailPilot"}</span>
-            <a
-              href={baseUrl}
-              target="_blank"
-              rel="noreferrer"
-              style={{ color: "#60a5fa", textDecoration: "none", fontWeight: 600 }}
-            >
-              Log In →
-            </a>
-          </div>
-        )}
-
-        {preview && (
-          <div style={{ display: "flex", gap: "4px" }}>
-            <button
-              onClick={() => setActiveTab("job")}
-              style={{
-                padding: "2px 8px",
-                fontSize: "11px",
-                borderRadius: "4px",
-                border: "none",
-                cursor: "pointer",
-                backgroundColor: activeTab === "job" ? "#374151" : "transparent",
-                color: activeTab === "job" ? "#ffffff" : "#9ca3af",
-              }}
-            >
-              Job
-            </button>
-            <button
-              onClick={() => setActiveTab("draft")}
-              style={{
-                padding: "2px 8px",
-                fontSize: "11px",
-                borderRadius: "4px",
-                border: "none",
-                cursor: "pointer",
-                backgroundColor: activeTab === "draft" ? "#2563eb" : "transparent",
-                color: "#ffffff",
-                fontWeight: 600,
-              }}
-            >
-              Resume Draft ✨
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Main Content Area */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-        {activeTab === "job" ? (
-          <div>
-            {/* Extractor Trigger Card */}
-            <div style={{ backgroundColor: "#131b2e", border: "1px solid #1e293b", borderRadius: "8px", padding: "14px", marginBottom: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-                <div>
-                  <h3 style={{ fontSize: "14px", fontWeight: 600, color: "#f9fafb" }}>Active Tab Extractor</h3>
-                  <p style={{ fontSize: "11px", color: "#94a3b8" }}>Extract job context directly from LinkedIn, Indeed, Glassdoor, etc.</p>
-                </div>
-                <button
-                  onClick={handleExtractFromTab}
-                  disabled={isExtracting}
-                  style={{
-                    backgroundColor: "#2563eb",
-                    color: "#ffffff",
-                    border: "none",
-                    borderRadius: "6px",
-                    padding: "6px 12px",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    cursor: isExtracting ? "not-allowed" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                  }}
-                >
-                  {isExtracting ? "Extracting..." : "Detect Job Context"}
-                </button>
-              </div>
-
-              {extracted?.source && (
-                <div style={{ display: "inline-block", fontSize: "10px", fontWeight: 600, color: "#38bdf8", backgroundColor: "rgba(56, 189, 248, 0.1)", padding: "2px 6px", borderRadius: "4px", marginBottom: "12px" }}>
-                  Source: {extracted.source}
-                </div>
-              )}
-
-              {/* Editable Fields */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#cbd5e1", marginBottom: "4px" }}>Role Title</label>
-                  <input
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Senior Software Engineer"
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", backgroundColor: "#0f172a", border: "1px solid #334155", color: "#ffffff", fontSize: "12px" }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#cbd5e1", marginBottom: "4px" }}>Company Name</label>
-                  <input
-                    type="text"
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    placeholder="e.g. Stripe"
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", backgroundColor: "#0f172a", border: "1px solid #334155", color: "#ffffff", fontSize: "12px" }}
-                  />
-                </div>
-
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#cbd5e1", marginBottom: "4px" }}>Location</label>
-                    <input
-                      type="text"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      placeholder="e.g. San Francisco, CA"
-                      style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", backgroundColor: "#0f172a", border: "1px solid #334155", color: "#ffffff", fontSize: "12px" }}
-                    />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#cbd5e1", marginBottom: "4px" }}>Salary</label>
-                    <input
-                      type="text"
-                      value={salary}
-                      onChange={(e) => setSalary(e.target.value)}
-                      placeholder="e.g. $140,000 - $180,000"
-                      style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", backgroundColor: "#0f172a", border: "1px solid #334155", color: "#ffffff", fontSize: "12px" }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#cbd5e1", marginBottom: "4px" }}>Job Description</label>
-                  <textarea
-                    rows={6}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Paste or inspect job description text..."
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", backgroundColor: "#0f172a", border: "1px solid #334155", color: "#ffffff", fontSize: "11px", fontFamily: "inherit" }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Tailoring Budget & Controls */}
-            <div style={{ backgroundColor: "#131b2e", border: "1px solid #1e293b", borderRadius: "8px", padding: "14px", marginBottom: "16px" }}>
-              <h4 style={{ fontSize: "13px", fontWeight: 600, color: "#f9fafb", marginBottom: "8px" }}>Tailoring Strategy</h4>
-              <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "12px" }}>
-                <span style={{ fontSize: "11px", color: "#94a3b8" }}>Target Budget:</span>
-                {(["auto", 1, 2] as const).map((b) => (
-                  <button
-                    key={b}
-                    onClick={() => setPageBudget(b)}
-                    style={{
-                      padding: "4px 10px",
-                      fontSize: "11px",
-                      borderRadius: "4px",
-                      border: "none",
-                      cursor: "pointer",
-                      backgroundColor: pageBudget === b ? "#2563eb" : "#1e293b",
-                      color: pageBudget === b ? "#ffffff" : "#94a3b8",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {b === "auto" ? "Auto Fit" : `${b} Page${b > 1 ? "s" : ""}`}
-                  </button>
-                ))}
-              </div>
-
-              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#cbd5e1", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={includeSummary}
-                  onChange={(e) => setIncludeSummary(e.target.checked)}
+          <div className="flex items-center gap-2 overflow-hidden">
+            <span className="relative flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/60 shadow-xs">
+              {session.account?.picture ? (
+                <img
+                  src={session.account.picture}
+                  alt={session.profile?.fullName || session.account?.name || "Account"}
+                  referrerPolicy="no-referrer"
+                  className="h-full w-full object-cover"
                 />
-                Include Executive Summary
-              </label>
-            </div>
-
-            {tailorError && (
-              <div style={{ padding: "10px", borderRadius: "6px", backgroundColor: "rgba(239, 68, 68, 0.15)", border: "1px solid #ef4444", color: "#fca5a5", fontSize: "12px", marginBottom: "14px" }}>
-                {tailorError}
-              </div>
+              ) : (
+                <span className="flex h-full w-full items-center justify-center bg-primary/10 text-[9px] font-bold text-primary">
+                  {session.profile?.fullName?.[0] || session.account?.name?.[0] || "U"}
+                </span>
+              )}
+            </span>
+            <span className="truncate font-medium text-foreground text-xs">
+              {session.profile?.fullName || session.account?.name}
+            </span>
+            {session.account?.email && (
+              <>
+                <span className="h-3 w-px bg-border/60 shrink-0" aria-hidden="true" />
+                <span className="truncate text-muted-foreground text-[11px]">{session.account.email}</span>
+              </>
             )}
-
             <button
-              onClick={handleTriggerTailoring}
-              disabled={isTailoring || !session?.ok}
-              style={{
-                width: "100%",
-                padding: "10px",
-                backgroundColor: isTailoring || !session?.ok ? "#374151" : "#16a34a",
-                color: "#ffffff",
-                fontWeight: 700,
-                fontSize: "13px",
-                borderRadius: "6px",
-                border: "none",
-                cursor: isTailoring || !session?.ok ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-              }}
+              type="button"
+              onClick={refreshSession}
+              title="Refresh connection"
+              className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground transition-colors ml-0.5 cursor-pointer"
             >
-              {isTailoring ? "Tailoring Resume (Syncing to Leads)..." : "Tailor Resume & Save to Leads"}
+              <RefreshCw className="h-3 w-3" />
             </button>
           </div>
         ) : (
-          /* Interactive Resume Draft Sheet (WYSIWYG Layout Physics) */
-          <div>
-            {/* Action Bar */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-              <div style={{ display: "flex", gap: "6px" }}>
-                <button
-                  onClick={() => handleExport("pdf")}
-                  disabled={isExporting}
-                  style={{
-                    backgroundColor: "#dc2626",
-                    color: "#ffffff",
-                    border: "none",
-                    borderRadius: "4px",
-                    padding: "5px 10px",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Download PDF
-                </button>
-                <button
-                  onClick={() => handleExport("docx")}
-                  disabled={isExporting}
-                  style={{
-                    backgroundColor: "#2563eb",
-                    color: "#ffffff",
-                    border: "none",
-                    borderRadius: "4px",
-                    padding: "5px 10px",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Download DOCX
-                </button>
-              </div>
-
+          <div className="flex w-full items-center justify-between">
+            <span className="text-destructive font-medium text-xs">
+              Not authenticated ({env === "dev" ? "localhost:3000" : "Production"})
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={refreshSession}
+                title="Retry connection"
+                className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+              >
+                <RefreshCw className="h-3 w-3" />
+              </button>
               <a
                 href={baseUrl}
                 target="_blank"
                 rel="noreferrer"
-                style={{ fontSize: "11px", color: "#60a5fa", textDecoration: "none", fontWeight: 600 }}
+                className="text-primary hover:underline inline-flex items-center gap-1 font-medium text-xs"
               >
-                View in MailPilot Leads ↗
+                Sign in <ExternalLink className="h-3 w-3" />
               </a>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 shrink-0">
+          {(activeTab === "job" || !preview) && (
+            <button
+              type="button"
+              onClick={handleExtractFromTab}
+              disabled={isExtracting}
+              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-input/60 bg-card px-2.5 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer disabled:pointer-events-none disabled:opacity-50"
+              title="Import job details from the active browser tab"
+            >
+              {isExtracting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Compass className="h-3.5 w-3.5 text-primary" />
+              )}
+              <span>{isExtracting ? "Importing…" : "Import from Tab"}</span>
+            </button>
+          )}
+
+          {preview && (
+            <div
+              className={cn(lightRailListClassName, "p-0.5 pr-2.5 gap-2 rounded-lg shadow-2xs self-center")}
+              role="tablist"
+              aria-label="View Navigation"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "job"}
+                data-state={activeTab === "job" ? "active" : "inactive"}
+                className={cn(lightRailTriggerClassName, "px-2 py-0.5 text-[11px] rounded-md")}
+                onClick={() => setActiveTab("job")}
+              >
+                Job
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "draft"}
+                data-state={activeTab === "draft" ? "active" : "inactive"}
+                className={cn(lightRailTriggerClassName, "px-2 py-0.5 text-[11px] rounded-md")}
+                onClick={() => setActiveTab("draft")}
+              >
+                Draft
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Main Body Content */}
+      <main className="flex-1 overflow-y-auto">
+        {activeTab === "job" || !preview ? (
+          <div className="p-4 space-y-4 max-w-xl mx-auto">
+            {tailorError && (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                {tailorError}
+              </div>
+            )}
+
+            {/* 1. Master Job Details First-Level Card */}
+            <SettingsSectionCard
+              icon={<SettingsFeatureLogo icon={BriefcasePlus} />}
+              title="Job Details"
+              subtitle="Import job details from your active tab above or enter them below."
+              curvedDivider
+            >
+              {/* Inner Opportunity Card */}
+              <Card className="border-border/70 bg-card/60 shadow-xs">
+                <CardHeader className="pb-3 pt-3.5 px-3.5">
+                  <div className="flex items-start gap-3">
+                    <CompanyLogo
+                      src={companyLogoSrc}
+                      name={company || "Company"}
+                      size="md"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className="text-sm font-semibold truncate">
+                        {company || "No company extracted"}
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {title || "No role title specified"}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="outline" className="text-[10px] font-medium">
+                        External link
+                      </Badge>
+                      {extracted?.source && (
+                        <span className="text-[10px] text-muted-foreground">
+                          via {extracted.source}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-3 px-3.5 pb-3.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[10.5px] font-medium text-muted-foreground">Company Name</Label>
+                      <Input
+                        value={company}
+                        onChange={(e) => {
+                          setCompany(e.target.value);
+                          setOpportunityId(null);
+                        }}
+                        placeholder="e.g. DoorDash"
+                        className="h-8 text-xs md:text-xs font-sans placeholder:text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10.5px] font-medium text-muted-foreground">Role Title</Label>
+                      <Input
+                        value={title}
+                        onChange={(e) => {
+                          setTitle(e.target.value);
+                          setOpportunityId(null);
+                        }}
+                        placeholder="e.g. Senior Software Engineer"
+                        className="h-8 text-xs md:text-xs font-sans placeholder:text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[10.5px] font-medium text-muted-foreground">Location</Label>
+                      <div className="relative">
+                        <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input
+                          value={location}
+                          onChange={(e) => setLocation(e.target.value)}
+                          placeholder="e.g. San Francisco, CA"
+                          className="h-8 pl-7 text-xs md:text-xs font-sans placeholder:text-xs"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10.5px] font-medium text-muted-foreground">Salary / Comp</Label>
+                      <div className="relative">
+                        <CircleDollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input
+                          value={salary}
+                          onChange={(e) => setSalary(e.target.value)}
+                          placeholder="e.g. $160k - $210k"
+                          className="h-8 pl-7 text-xs md:text-xs font-sans placeholder:text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[10.5px] font-medium text-muted-foreground">Application URL</Label>
+                    <Input
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="h-8 text-xs md:text-xs font-sans placeholder:text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[10.5px] font-medium text-muted-foreground">Job Description</Label>
+                      <span className="text-[10px] text-muted-foreground">
+                        {description.length} chars
+                      </span>
+                    </div>
+                    <textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Paste full job description or extract from current page..."
+                      rows={6}
+                      className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs md:text-xs font-sans shadow-xs placeholder:text-muted-foreground placeholder:text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring leading-relaxed"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </SettingsSectionCard>
+
+            {/* 2. Tailoring Preferences & Action Card (First-Level Card without Title/Subtitle) */}
+            <div className="rounded-xl border border-border/80 bg-card shadow-md overflow-hidden">
+              {/* Toolbar Strip: Include Summary + Budget Controls */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 bg-muted/30 px-3.5 py-2.5">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <Checkbox
+                    checked={includeSummary}
+                    onCheckedChange={(val) => setIncludeSummary(Boolean(val))}
+                  />
+                  <span className="text-xs font-medium text-foreground">
+                    Include Summary
+                  </span>
+                </label>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-muted-foreground font-medium">
+                    Budget:
+                  </span>
+                  <div className="flex rounded-md border border-input/60 bg-card p-0.5 shadow-2xs">
+                    {(["auto", 1, 2] as const).map((b) => (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={() => setPageBudget(b)}
+                        className={cn(
+                          "rounded px-2 py-0.5 text-[11px] font-medium transition-colors",
+                          pageBudget === b
+                            ? "bg-muted text-foreground font-semibold shadow-xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {b === "auto" ? "Auto" : `${b}p`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Area */}
+              <div className="p-3.5 space-y-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleTriggerTailoring()}
+                  disabled={isTailoring || !session?.ok}
+                  className={cn(
+                    PRIMARY_ACTION_BTN_CLASSNAME,
+                    "w-full h-10 font-semibold gap-2 justify-center shadow-xs cursor-pointer"
+                  )}
+                >
+                  {isTailoring ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-[#e4f7f3]" />
+                      <span>Tailoring with Ace AI…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 text-[#e4f7f3]" />
+                      <span>{preview ? "Regenerate Tailored Resume" : "Tailor Resume"}</span>
+                    </>
+                  )}
+                </button>
+
+                {!session?.ok && (
+                  <p className="text-center text-[11px] text-destructive">
+                    Please log into MailPilot above before tailoring.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Tailored Resume Review Sheet View */
+          <div className="flex h-full flex-col">
+            {/* Draft Action Bar (MailPilot Toolbar Style) */}
+            <div className="sticky top-0 z-20 relative flex items-center justify-between border-b border-border/50 bg-card/80 px-3 py-2 shadow-sm backdrop-blur-md">
+              {/* Left Group: Job Back + Regenerate Buttons */}
+              <div className="z-10 flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("job")}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-input/60 bg-card px-2.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                  title="Back to Job Details"
+                >
+                  <ArrowBigLeftDash className="h-3.5 w-3.5 fill-current" />
+                  <span>Job</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleRegenerate}
+                  disabled={isTailoring}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-input/60 bg-card px-2.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer disabled:pointer-events-none disabled:opacity-50"
+                  title="Regenerate Tailored Resume"
+                >
+                  <RotateCcw className={cn("h-3 w-3", isTailoring && "animate-spin")} />
+                  <span>{isTailoring ? "Regenerating…" : "Regenerate"}</span>
+                </button>
+              </div>
+
+              {/* Center Group: Summary & Budget Controls Centered Across Full Bar Width */}
+              <div className="pointer-events-none absolute inset-x-0 inset-y-0 flex items-center justify-center">
+                <div className="pointer-events-auto flex items-center gap-2.5">
+                  <label className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-foreground/80 hover:text-foreground cursor-pointer select-none">
+                    <Checkbox
+                      checked={includeSummary}
+                      onCheckedChange={(val) => {
+                        const next = Boolean(val);
+                        setIncludeSummary(next);
+                        void handleTriggerTailoring({ summaryOverride: next });
+                      }}
+                    />
+                    <span>Summary</span>
+                  </label>
+
+                  <div className="h-3.5 w-px bg-border/60 shrink-0" aria-hidden="true" />
+
+                  <div className="inline-flex rounded-md border border-input/60 bg-card p-0.5 shadow-sm">
+                    {(["auto", 1, 2] as const).map((b) => (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={() => {
+                          setPageBudget(b);
+                          void handleTriggerTailoring({ budgetOverride: b });
+                        }}
+                        className={cn(
+                          "rounded px-2 py-0.5 text-xs font-medium transition-colors",
+                          pageBudget === b
+                            ? "bg-muted text-foreground font-semibold shadow-xs"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                        )}
+                      >
+                        {b === "auto" ? "Auto" : `${b}p`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Group: View in Leads in Toolbar Button Style */}
+              <div className="z-10 flex items-center shrink-0">
+                <a
+                  href={`${baseUrl}/jobs?tab=leads`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-input/60 bg-card px-2.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                  title="View leads in MailPilot"
+                >
+                  <span>View in Leads</span>
+                  <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                </a>
+              </div>
             </div>
 
             {exportMessage && (
-              <div style={{ padding: "8px 12px", borderRadius: "4px", backgroundColor: "rgba(16, 185, 129, 0.2)", border: "1px solid #10b981", color: "#6ee7b7", fontSize: "11px", marginBottom: "12px" }}>
+              <div className="bg-primary/10 border-b border-primary/20 px-3 py-1.5 text-center text-xs font-medium text-primary">
                 {exportMessage}
               </div>
             )}
 
-            {/* Resume Sheet Container (Simulating Printable Page) */}
-            <div
-              style={{
-                backgroundColor: "#ffffff",
-                color: "#111827",
-                borderRadius: "4px",
-                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)",
-                padding: "24px 20px",
-                fontFamily: "var(--font-sans)",
-                fontSize: "10pt",
-                lineHeight: 1.35,
-                position: "relative",
-              }}
-            >
-              {/* Header */}
-              {headerNode && (
-                <div style={{ textAlign: "center", marginBottom: "14px", borderBottom: "1px solid #e5e7eb", paddingBottom: "10px" }}>
-                  <h1 style={{ fontSize: "18pt", fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", margin: "0 0 4px 0" }}>
-                    {headerNode.content}
-                  </h1>
-                  {typeof headerNode.metadata?.contactLine === "string" && (
-                    <div style={{ fontSize: "8.5pt", color: "#4b5563" }}>
-                      {headerNode.metadata.contactLine}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Executive Summary */}
-              {summaryNode && summaryNode.selected && (
-                <div style={{ marginBottom: "12px" }}>
-                  <div style={{ borderBottom: "1px solid #d1d5db", paddingBottom: "2px", fontWeight: 700, fontSize: "9pt", letterSpacing: "0.05em", color: "#111827", textTransform: "uppercase", marginBottom: "4px", display: "flex", justifyContent: "space-between" }}>
-                    <span>Professional Summary</span>
-                    <button
-                      onClick={() => handleToggleNode(summaryNode)}
-                      style={{ fontSize: "9px", background: "none", border: "none", color: "#9ca3af", cursor: "pointer" }}
-                    >
-                      Hide
-                    </button>
-                  </div>
-                  <p style={{ fontSize: "8.5pt", color: "#374151", margin: 0 }}>{summaryNode.content}</p>
-                </div>
-              )}
-
-              {/* Skills */}
-              {skillNodes.length > 0 && (
-                <div style={{ marginBottom: "12px" }}>
-                  <div style={{ borderBottom: "1px solid #d1d5db", paddingBottom: "2px", fontWeight: 700, fontSize: "9pt", letterSpacing: "0.05em", color: "#111827", textTransform: "uppercase", marginBottom: "4px" }}>
-                    Technical Skills
-                  </div>
-                  {skillNodes.map((s) => (
-                    <div key={s.id} style={{ fontSize: "8.5pt", color: "#374151", marginBottom: "2px" }}>
-                      <strong>{s.metadata?.label as string || "Skills"}: </strong>
-                      {s.content}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Experience */}
-              {experienceNodes.length > 0 && (
-                <div style={{ marginBottom: "12px" }}>
-                  <div style={{ borderBottom: "1px solid #d1d5db", paddingBottom: "2px", fontWeight: 700, fontSize: "9pt", letterSpacing: "0.05em", color: "#111827", textTransform: "uppercase", marginBottom: "6px" }}>
-                    Professional Experience
-                  </div>
-
-                  {experienceNodes.map((item) => {
-                    if (item.type === "experience_header") {
-                      return (
-                        <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "8px", marginBottom: "2px" }}>
-                          <div>
-                            <strong style={{ fontSize: "9pt", color: "#111827" }}>{item.content}</strong>
-                            {typeof item.metadata?.company === "string" && (
-                              <span style={{ fontSize: "8.5pt", color: "#4b5563" }}> • {item.metadata.company}</span>
-                            )}
-                          </div>
-                          {typeof item.metadata?.dates === "string" && (
-                            <span style={{ fontSize: "8pt", color: "#6b7280" }}>{item.metadata.dates}</span>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    // Experience Bullet
-                    return (
-                      <div
-                        key={item.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: "6px",
-                          marginBottom: "3px",
-                          opacity: item.selected ? 1 : 0.4,
-                          backgroundColor: editingNodeId === item.id ? "rgba(59, 130, 246, 0.05)" : "transparent",
-                          borderRadius: "3px",
-                          padding: "2px 0",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={item.selected}
-                          onChange={() => handleToggleNode(item)}
-                          style={{ marginTop: "3px", cursor: "pointer" }}
-                        />
-                        <div style={{ flex: 1 }}>
-                          {editingNodeId === item.id ? (
-                            <div style={{ display: "flex", gap: "4px" }}>
-                              <textarea
-                                value={editingText}
-                                onChange={(e) => setEditingText(e.target.value)}
-                                style={{ width: "100%", fontSize: "8.5pt", padding: "4px", borderRadius: "3px", border: "1px solid #3b82f6" }}
-                                rows={2}
-                              />
-                              <button
-                                onClick={() => handleSaveNodeEdit(item.id)}
-                                style={{ backgroundColor: "#2563eb", color: "#ffffff", border: "none", borderRadius: "3px", padding: "2px 6px", fontSize: "10px", cursor: "pointer" }}
-                              >
-                                Save
-                              </button>
-                            </div>
-                          ) : (
-                            <div style={{ fontSize: "8.5pt", color: "#374151" }}>
-                              <span>• {item.content}</span>
-                              <div style={{ display: "inline-flex", gap: "4px", marginLeft: "6px" }}>
-                                <button
-                                  onClick={() => {
-                                    setEditingNodeId(item.id);
-                                    setEditingText(item.content);
-                                  }}
-                                  style={{ fontSize: "9px", background: "none", border: "none", color: "#9ca3af", cursor: "pointer" }}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => handleReorderNode(item.id, "up")}
-                                  style={{ fontSize: "9px", background: "none", border: "none", color: "#9ca3af", cursor: "pointer" }}
-                                >
-                                  ▲
-                                </button>
-                                <button
-                                  onClick={() => handleReorderNode(item.id, "down")}
-                                  style={{ fontSize: "9px", background: "none", border: "none", color: "#9ca3af", cursor: "pointer" }}
-                                >
-                                  ▼
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setRefiningNodeId(refiningNodeId === item.id ? null : item.id);
-                                    setRefineInstruction("");
-                                  }}
-                                  style={{ fontSize: "9px", background: "none", border: "none", color: "#6366f1", cursor: "pointer", fontWeight: 600 }}
-                                >
-                                  ✨ Refine
-                                </button>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Refine Line Dialog */}
-                          {refiningNodeId === item.id && (
-                            <div style={{ marginTop: "4px", padding: "6px", backgroundColor: "#f3f4f6", borderRadius: "4px", border: "1px solid #e5e7eb" }}>
-                              <input
-                                type="text"
-                                placeholder="Refine line with AI: e.g. Add metrics, emphasize latency..."
-                                value={refineInstruction}
-                                onChange={(e) => setRefineInstruction(e.target.value)}
-                                style={{ width: "100%", fontSize: "9px", padding: "4px 6px", marginBottom: "4px", borderRadius: "3px", border: "1px solid #d1d5db" }}
-                              />
-                              <div style={{ display: "flex", justifyContent: "flex-end", gap: "4px" }}>
-                                <button
-                                  onClick={() => setRefiningNodeId(null)}
-                                  style={{ fontSize: "9px", background: "none", border: "none", color: "#6b7280", cursor: "pointer" }}
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  onClick={() => handleRefineNode(item.id)}
-                                  disabled={isRefining}
-                                  style={{ backgroundColor: "#6366f1", color: "#ffffff", border: "none", borderRadius: "3px", padding: "2px 8px", fontSize: "9px", cursor: isRefining ? "not-allowed" : "pointer" }}
-                                >
-                                  {isRefining ? "Refining..." : "Rewrite"}
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Projects */}
-              {projectNodes.length > 0 && (
-                <div style={{ marginBottom: "12px" }}>
-                  <div style={{ borderBottom: "1px solid #d1d5db", paddingBottom: "2px", fontWeight: 700, fontSize: "9pt", letterSpacing: "0.05em", color: "#111827", textTransform: "uppercase", marginBottom: "6px" }}>
-                    Notable Projects
-                  </div>
-                  {projectNodes.map((item) => {
-                    if (item.type === "project_header") {
-                      return (
-                        <div key={item.id} style={{ marginTop: "6px", marginBottom: "2px" }}>
-                          <strong style={{ fontSize: "9pt", color: "#111827" }}>{item.content}</strong>
-                          {typeof item.metadata?.techStack === "string" && (
-                            <span style={{ fontSize: "8pt", color: "#4b5563" }}> | {item.metadata.techStack}</span>
-                          )}
-                        </div>
-                      );
-                    }
-                    return (
-                      <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: "6px", marginBottom: "2px", opacity: item.selected ? 1 : 0.4 }}>
-                        <input
-                          type="checkbox"
-                          checked={item.selected}
-                          onChange={() => handleToggleNode(item)}
-                          style={{ marginTop: "3px", cursor: "pointer" }}
-                        />
-                        <span style={{ fontSize: "8.5pt", color: "#374151" }}>• {item.content}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Page 1 Ceiling Boundary Marker */}
-              <div
-                style={{
-                  margin: "16px 0",
-                  borderTop: "1.5px dashed #ef4444",
-                  position: "relative",
-                  textAlign: "center",
-                }}
-              >
-                <span
-                  style={{
-                    position: "absolute",
-                    top: "-8px",
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    backgroundColor: "#fef2f2",
-                    color: "#dc2626",
-                    padding: "0 8px",
-                    fontSize: "8px",
-                    fontWeight: 700,
-                    letterSpacing: "0.05em",
-                    borderRadius: "3px",
-                    border: "1px solid #fecaca",
-                  }}
-                >
-                  Page 1 Boundary (792pt)
-                </span>
-              </div>
-
-              {/* Education */}
-              {educationNodes.length > 0 && (
-                <div>
-                  <div style={{ borderBottom: "1px solid #d1d5db", paddingBottom: "2px", fontWeight: 700, fontSize: "9pt", letterSpacing: "0.05em", color: "#111827", textTransform: "uppercase", marginBottom: "4px" }}>
-                    Education
-                  </div>
-                  {educationNodes.map((item) => (
-                    <div key={item.id} style={{ fontSize: "8.5pt", color: "#374151", marginBottom: "2px" }}>
-                      {item.content}
-                    </div>
-                  ))}
-                </div>
-              )}
+            {/* Embedded ResumeDraftSheet Container */}
+            <div className="flex-1 min-h-0 overflow-hidden bg-muted/10">
+              <ResumeDraftSheet
+                draft={preview.draft}
+                disabled={isTailoring}
+                exporting={isExporting}
+                onExport={handleExport}
+                onCommit={handleCommit}
+                onToggle={handleToggle}
+                onMove={handleMove}
+                onRefine={handleRefine}
+              />
             </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }
 
-// Mount Side Panel
 const rootEl = document.getElementById("root");
 if (rootEl) {
-  const root = ReactDOM.createRoot(rootEl);
-  root.render(<SidePanelApp />);
+  ReactDOM.createRoot(rootEl).render(
+    <React.StrictMode>
+      <SidePanelApp />
+    </React.StrictMode>
+  );
 }

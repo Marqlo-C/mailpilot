@@ -1,5 +1,7 @@
+import { isKnownJobDomain } from "@/lib/constants/job-sources";
+
 const CORPORATE_SUFFIXES_REGEX =
-  /\b(?:llc|inc|corp|corporation|technologies|technology|software|solutions|services|group|co|ltd|gmbh|holding|holdings|enterprises|partners|international|global)\b/gi;
+  /\b(?:llc|inc|corp|corporation|tech|technologies|technology|software|solutions|services|group|co|ltd|gmbh|holding|holdings|enterprises|partners|international|global)\b/gi;
 
 /**
  * Strips corporate legal suffixes and cleans company name into a candidate apex domain.
@@ -17,6 +19,14 @@ export function inferApexDomainFromCompanyName(companyName: string): string | nu
   if (words.length === 0) {
     const rawClean = companyName.toLowerCase().replace(/[^a-z0-9]/g, "");
     return rawClean && rawClean.length >= 2 ? `${rawClean}.com` : null;
+  }
+  // For multi-word company names (e.g. "Pizza Hut", "Best Buy", "General Motors"),
+  // concatenate the words into a single domain name candidate.
+  if (words.length > 1) {
+    const joined = words.join("").toLowerCase();
+    if (joined.length >= 2) {
+      return `${joined}.com`;
+    }
   }
   const base = words[0].toLowerCase();
   if (base.length < 2) return null;
@@ -92,10 +102,16 @@ export function inferDomainFromUrl(url: string | null | undefined): string | nul
     const host = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
     if (
       !host ||
+      isKnownJobDomain(host) ||
       host.includes("linkedin.com") ||
       host.includes("indeed.com") ||
       host.includes("glassdoor.com") ||
       host.includes("google.com") ||
+      host.includes("greenhouse.io") ||
+      host.includes("lever.co") ||
+      host.includes("ashbyhq.com") ||
+      host.includes("workday.com") ||
+      host.includes("myworkdayjobs.com") ||
       host.includes("mailto")
     ) {
       return null;

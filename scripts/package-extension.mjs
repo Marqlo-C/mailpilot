@@ -26,7 +26,7 @@ async function addDirectoryToZip(zip, folderPath, relativePrefix = "") {
 }
 
 async function packageExtension() {
-  console.log("📦 Packaging MailPilot Chrome Extension Companion...");
+  console.log("📦 Packaging Mail Pilot + Companion...");
 
   if (!fs.existsSync(distDir)) {
     console.error("❌ extension/dist directory not found. Please run 'npm run build:extension' first.");

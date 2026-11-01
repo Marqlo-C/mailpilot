@@ -222,8 +222,20 @@ export async function compileResumeDocx(
         title = title.slice(0, -`(${dates})`.length).trim();
         if (title.endsWith("—")) title = title.slice(0, -1).trim();
       }
+      const parts = title.split(" — ");
+      let runs: string;
+      if (parts.length > 1) {
+        const degree = parts[0];
+        const school = parts.slice(1).join(" — ");
+        runs = `${run(degree, { bold: true, size: RESUME_TYPOGRAPHY.roleTitle.pt * 2 })}${run(` — ${school}`, { size: RESUME_TYPOGRAPHY.roleTitle.pt * 2 })}`;
+      } else {
+        runs = run(title, { bold: true, size: RESUME_TYPOGRAPHY.roleTitle.pt * 2 });
+      }
+      const date = dates
+        ? `<w:r><w:tab/></w:r>${run(dates, { size: RESUME_TYPOGRAPHY.muted.pt * 2, color: "4B5563" })}`
+        : "";
       body.push(
-        roleParagraph(title, dates, RESUME_SPACING.degreeToDegree.dxa, 0)
+        `<w:p><w:pPr><w:tabs><w:tab w:val="right" w:pos="10800"/></w:tabs>${spacing(RESUME_SPACING.degreeToDegree.dxa, 0)}</w:pPr>${runs}${date}</w:p>`
       );
       continue;
     }

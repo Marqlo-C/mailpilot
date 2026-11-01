@@ -11,7 +11,12 @@ import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
 import { JOB_RADAR_PAGE_TABS } from "@/lib/navigation/page-tabs";
 import { readServerActivePageTab } from "@/lib/navigation/page-tabs-server";
 
-export default async function JobsPage() {
+export default async function JobsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ tab?: string; opportunityId?: string }>;
+}) {
+  const params = searchParams ? await searchParams : {};
   const active = await getActiveAccount();
   const [jobs, opportunities, profileResult, initialTab] = await Promise.all([
     active ? getJobsForAccount(active.id) : [],
@@ -57,7 +62,8 @@ export default async function JobsPage() {
   return (
     <JobsRadar
       accountId={active.id}
-      initialTab={initialTab ?? undefined}
+      initialTab={params.tab ?? initialTab ?? undefined}
+      initialOpportunityId={params.opportunityId}
       jobs={jobs}
       opportunities={opportunities}
       profile={profile}

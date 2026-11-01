@@ -12,10 +12,10 @@ const STORAGE_KEY_CUSTOM_URL = "mailpilot_custom_url";
 export async function getEnvironment(): Promise<{ env: Environment; url: string }> {
   return new Promise((resolve) => {
     chrome.storage.local.get([STORAGE_KEY_ENV, STORAGE_KEY_CUSTOM_URL], (res) => {
-      const env = (res[STORAGE_KEY_ENV] as Environment) || "prod";
-      let url = "https://mailpilot-prod.vercel.app";
-      if (env === "dev") {
-        url = "http://localhost:3000";
+      const env = (res[STORAGE_KEY_ENV] as Environment) || "dev";
+      let url = "http://localhost:3000";
+      if (env === "prod") {
+        url = "https://mailpilot-prod.vercel.app";
       } else if (env === "custom" && typeof res[STORAGE_KEY_CUSTOM_URL] === "string") {
         url = res[STORAGE_KEY_CUSTOM_URL];
       }
@@ -38,15 +38,35 @@ export async function setEnvironment(env: Environment, customUrl?: string): Prom
 
 async function getSessionCookie(baseUrl: string): Promise<string | null> {
   try {
-    if (chrome.cookies?.get) {
+    if (chrome.cookies) {
+      const formattedUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+
+      // 1. Try mailpilot_session on baseUrl
       const cookie = await chrome.cookies.get({
-        url: baseUrl,
+        url: formattedUrl,
         name: "mailpilot_session",
       });
-      return cookie?.value ?? null;
+      if (cookie?.value) return cookie.value;
+
+      // 2. Try activeAccountId on baseUrl
+      const activeCookie = await chrome.cookies.get({
+        url: formattedUrl,
+        name: "activeAccountId",
+      });
+      if (activeCookie?.value) return activeCookie.value;
+
+      // 3. Fallback: domain-wide search across all cookies for this host
+      try {
+        const domain = new URL(baseUrl).hostname;
+        const allCookies = await chrome.cookies.getAll({ domain });
+        const match = allCookies.find(
+          (c) => c.name === "mailpilot_session" || c.name === "activeAccountId"
+        );
+        if (match?.value) return match.value;
+      } catch {}
     }
-  } catch {
-    // If cookie API is restricted on specific hosts, fall back to credentials: "include"
+  } catch (err) {
+    console.warn("[api-client] Failed to get session cookie via chrome.cookies:", err);
   }
   return null;
 }
