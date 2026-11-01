@@ -95,6 +95,7 @@ type JobsRadarProps = {
   matchThreshold: number;
   retentionDays?: number;
   initialTab?: string;
+  initialOpportunityId?: string;
 };
 
 const tabDescriptions: Record<string, string> = {
@@ -138,6 +139,7 @@ export function JobsRadar({
   matchThreshold,
   retentionDays = 30,
   initialTab,
+  initialOpportunityId,
 }: JobsRadarProps) {
   const router = useRouter();
   const {

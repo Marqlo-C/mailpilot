@@ -4,6 +4,18 @@ import fs from "fs";
 
 export default defineConfig({
   root: path.resolve(__dirname),
+  esbuild: {
+    jsx: "automatic",
+    include: /\.[jt]sx?$/,
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, ".."),
+    },
+  },
+  css: {
+    postcss: path.resolve(__dirname, "../postcss.config.mjs"),
+  },
   build: {
     outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
@@ -41,7 +53,31 @@ export default defineConfig({
           fs.copyFileSync(manifestSrc, manifestDest);
         }
 
-        // Copy icons
+        // Copy fonts
+        const fontsSrc = path.resolve(__dirname, "../public/fonts");
+        const fontsDest = path.resolve(distDir, "fonts");
+        if (fs.existsSync(fontsSrc)) {
+          if (!fs.existsSync(fontsDest)) {
+            fs.mkdirSync(fontsDest, { recursive: true });
+          }
+          const fontFiles = fs.readdirSync(fontsSrc);
+          for (const file of fontFiles) {
+            fs.copyFileSync(path.join(fontsSrc, file), path.join(fontsDest, file));
+          }
+        }
+
+        // Copy logos
+        const logosSrc = path.resolve(__dirname, "../public/logos");
+        const logosDest = path.resolve(distDir, "logos");
+        if (fs.existsSync(logosSrc)) {
+          if (!fs.existsSync(logosDest)) {
+            fs.mkdirSync(logosDest, { recursive: true });
+          }
+          const logoFiles = fs.readdirSync(logosSrc);
+          for (const file of logoFiles) {
+            fs.copyFileSync(path.join(logosSrc, file), path.join(logosDest, file));
+          }
+        }
         const iconsSrc = path.resolve(__dirname, "icons");
         const iconsDest = path.resolve(distDir, "icons");
         if (fs.existsSync(iconsSrc)) {

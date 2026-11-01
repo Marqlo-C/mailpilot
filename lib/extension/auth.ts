@@ -34,20 +34,29 @@ export async function getExtensionAccountId(
   // Parse directly from Request cookie header
   const cookieHeader = request.headers.get("cookie");
   if (cookieHeader) {
-    const regex = new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`);
-    const match = cookieHeader.match(regex);
-    if (match && match[1]) {
-      const token = decodeURIComponent(match[1].trim());
-      try {
-        const account = await prisma.account.findFirst({
-          where: { id: token, isActive: true },
-          select: { id: true },
-        });
-        if (account?.id) {
-          return account.id;
+    for (const cookieName of [
+      SESSION_COOKIE,
+      "activeAccountId",
+      "mailpilot_session",
+    ]) {
+      const regex = new RegExp(`(?:^|;\\s*)${cookieName}=([^;]+)`);
+      const match = cookieHeader.match(regex);
+      if (match && match[1]) {
+        const token = decodeURIComponent(match[1].trim());
+        try {
+          const account = await prisma.account.findFirst({
+            where: { id: token, isActive: true },
+            select: { id: true },
+          });
+          if (account?.id) {
+            return account.id;
+          }
+        } catch (err) {
+          console.error(
+            "[extension-auth] Failed to authenticate cookie token:",
+            err
+          );
         }
-      } catch (err) {
-        console.error("[extension-auth] Failed to authenticate cookie token:", err);
       }
     }
   }

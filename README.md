@@ -1238,6 +1238,7 @@ flowchart TD
 | **Inference Router** | **Multi-Provider BYOK** | Local Ollama + Cloud REST | Multi-tier failover: Zero-clone Ollama (Quick Tunnel) $\to$ OpenRouter $\to$ `PENDING_AI` parking. |
 | **Scraping & Parsing** | **Custom AST & JSON Parsers** | Schema.org JSON-LD, Nuxt 3 AST | Anti-bot spec extraction, Nuxt state un-flattening, LinkedIn Guest API, HasData/ScrapingAnt proxies. |
 | **Logging & Telemetry** | **Pino & TableLogger** | Pino v10 + 66-col ASCII | Structured JSON logging in production; formatted ASCII telemetry in dev. |
+| **Browser Extension** | **Chrome Extension MV3** | Side Panel API + React 19 + Vite | Mail Pilot + Companion: Client-side listing extraction, resume tailoring, and real-time pagination engine. |
 | **Testing** | **Vitest** | v4.1 (Zero-Token Mocks) | Deterministic, offline unit and integration test suite. |
 
 ---
@@ -1334,6 +1335,16 @@ Test Files  37 passed | 1 skipped (38)
    npm run dev
    ```
    Open `http://localhost:3000` in your browser.
+
+5. **Build and Package Mail Pilot + Companion (Chrome Extension):**
+   ```bash
+   # Compile extension to extension/dist
+   npm run build:extension
+
+   # Build and package production ZIP archive (mailpilot-extension.zip)
+   npm run package:extension
+   ```
+   See [extension/README.md](file:///users/marqlott/desktop/MailPilot/extension/README.md) for full installation and architecture details.
 
 ### Key Environment Variables
 

@@ -13,6 +13,8 @@ describe("Company Logo & Monogram Generation", () => {
       expect(inferApexDomainFromCompanyName("IBM Corp")).toBe("ibm.com");
       expect(inferApexDomainFromCompanyName("Datadog, Inc.")).toBe("datadog.com");
       expect(inferApexDomainFromCompanyName("StudySmarter GmbH")).toBe("studysmarter.com");
+      expect(inferApexDomainFromCompanyName("Pizza Hut")).toBe("pizzahut.com");
+      expect(inferApexDomainFromCompanyName("Best Buy")).toBe("bestbuy.com");
       expect(inferApexDomainFromCompanyName("Acme Software Solutions LLC")).toBe("acme.com");
       expect(inferApexDomainFromCompanyName("Google LLC")).toBe("google.com");
       expect(inferApexDomainFromCompanyName("Apple")).toBe("apple.com");

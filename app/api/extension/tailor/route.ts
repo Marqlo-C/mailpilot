@@ -3,6 +3,7 @@ import { prisma } from "@/lib/core/prisma";
 import { getExtensionAccountId } from "@/lib/extension/auth";
 import { handleOptionsCors, jsonWithCors } from "@/lib/extension/cors";
 import { prepareOpportunityResume } from "@/lib/opportunities/dispatch/resume";
+import { getCompanyLogoUrl, inferApexDomainFromCompanyName } from "@/lib/utils/company-logo";
 
 const tailorRequestSchema = z.object({
   company: z.string().min(1, "Company name is required"),
@@ -65,12 +66,17 @@ export async function POST(request: Request) {
     if (opportunityId) {
       const existing = await prisma.jobOpportunity.findFirst({
         where: { id: opportunityId, accountId },
-        select: { id: true },
+        select: { id: true, company: true, title: true },
       });
-      if (!existing) {
+      // If the incoming company name does not match the existing opportunity,
+      // treat it as a distinct opportunity rather than overwriting the previous one.
+      if (!existing || existing.company.trim().toLowerCase() !== company.trim().toLowerCase()) {
         opportunityId = undefined;
       }
     }
+
+    const apexDomain = inferApexDomainFromCompanyName(company.trim());
+    const logoUrl = getCompanyLogoUrl(company.trim(), apexDomain, url?.trim() || null);
 
     if (!opportunityId) {
       const existingLead = await prisma.jobOpportunity.findFirst({
@@ -78,7 +84,7 @@ export async function POST(request: Request) {
           accountId,
           company: { equals: company.trim(), mode: "insensitive" },
           title: { equals: title.trim(), mode: "insensitive" },
-          status: "LEAD",
+          status: { in: ["DISCOVERED", "LEAD"] },
         },
         select: { id: true },
       });
@@ -92,6 +98,16 @@ export async function POST(request: Request) {
             applyUrl: url?.trim() || undefined,
             location: location?.trim() || undefined,
             salary: salary?.trim() || undefined,
+            status: "DISCOVERED",
+            matchScore: 100,
+            matchReason: "Tailored via Mail Pilot + Companion",
+            companyDomain: apexDomain,
+            logoUrl: logoUrl,
+            applicationType: "EXTERNAL_LINK",
+            recipientEmail: null,
+            recipientName: null,
+            draftSubject: null,
+            draftBody: null,
             isArchived: false,
           },
         });
@@ -105,15 +121,47 @@ export async function POST(request: Request) {
             applyUrl: url?.trim() || null,
             location: location?.trim() || null,
             salary: salary?.trim() || null,
-            status: "LEAD",
+            status: "DISCOVERED",
+            matchScore: 100,
+            matchReason: "Tailored via Mail Pilot + Companion",
+            companyDomain: apexDomain,
+            logoUrl: logoUrl,
             isArchived: false,
             applicationType: "EXTERNAL_LINK",
+            recipientEmail: null,
+            recipientName: null,
+            draftSubject: null,
+            draftBody: null,
             classificationMethod: "CHROME_EXTENSION",
           },
           select: { id: true },
         });
         opportunityId = created.id;
       }
+    } else {
+      // Re-tailoring existing opportunity: ensure it stays marked as DISCOVERED and unarchived
+      await prisma.jobOpportunity.update({
+        where: { id: opportunityId },
+        data: {
+          company: company.trim(),
+          title: title.trim(),
+          description: description.trim(),
+          applyUrl: url?.trim() || null,
+          location: location?.trim() || null,
+          salary: salary?.trim() || null,
+          status: "DISCOVERED",
+          matchScore: 100,
+          matchReason: "Tailored via Mail Pilot + Companion",
+          companyDomain: apexDomain,
+          logoUrl: logoUrl,
+          applicationType: "EXTERNAL_LINK",
+          recipientEmail: null,
+          recipientName: null,
+          draftSubject: null,
+          draftBody: null,
+          isArchived: false,
+        },
+      });
     }
 
     const preview = await prepareOpportunityResume(accountId, opportunityId, {

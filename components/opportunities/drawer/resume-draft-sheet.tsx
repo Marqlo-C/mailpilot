@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 
 import { Checkbox } from "@/components/ui/checkbox";
@@ -299,6 +299,16 @@ export function partitionBlocksIntoPages(
   return result;
 }
 
+function renderEducationHtml(val: string): string {
+  const parts = val.split(" — ");
+  if (parts.length > 1) {
+    const degree = parts[0];
+    const school = parts.slice(1).join(" — ");
+    return `<strong class="font-bold">${degree}</strong> — <span>${school}</span>`;
+  }
+  return `<strong class="font-bold">${val}</strong>`;
+}
+
 function EditableLine({
   value,
   disabled,
@@ -306,6 +316,7 @@ function EditableLine({
   style,
   onCommit,
   as = "div",
+  renderHtml,
 }: {
   value: string;
   disabled?: boolean;
@@ -313,18 +324,27 @@ function EditableLine({
   style?: React.CSSProperties;
   onCommit: (next: string) => void;
   as?: "div" | "span";
+  renderHtml?: (val: string) => string;
 }) {
   const ref = useRef<HTMLElement>(null);
   const assign = (el: HTMLElement | null) => {
     ref.current = el;
     if (!el || document.activeElement === el) return;
-    if (el.textContent !== value) el.textContent = value;
+    if (renderHtml) {
+      el.innerHTML = renderHtml(value);
+    } else {
+      if (el.textContent !== value) el.textContent = value;
+    }
   };
   useEffect(() => {
     const el = ref.current;
     if (!el || document.activeElement === el) return;
-    if (el.textContent !== value) el.textContent = value;
-  }, [value]);
+    if (renderHtml) {
+      el.innerHTML = renderHtml(value);
+    } else {
+      if (el.textContent !== value) el.textContent = value;
+    }
+  }, [value, renderHtml]);
 
   const Tag = as;
   return (
@@ -336,9 +356,17 @@ function EditableLine({
       suppressContentEditableWarning
       className={className}
       style={style}
+      onFocus={(event) => {
+        if (renderHtml) {
+          event.currentTarget.textContent = value;
+        }
+      }}
       onBlur={(event) => {
         const next = event.currentTarget.textContent ?? "";
         if (next !== value) onCommit(next);
+        if (renderHtml) {
+          event.currentTarget.innerHTML = renderHtml(next);
+        }
       }}
     />
   );
@@ -447,7 +475,7 @@ export function ResumeDraftSheet({
     return null;
   }, [blocks]);
 
-  useIsomorphicLayoutEffect(() => {
+  const remeasure = useCallback(() => {
     const container = pagesContainerRef.current;
     if (!container) return;
 
@@ -455,7 +483,7 @@ export function ResumeDraftSheet({
       "[data-draft-block-id]"
     );
     let hasChanged = false;
-    const nextHeights: Record<string, number> = { ...blockHeights };
+    const nextHeights: Record<string, number> = {};
 
     elements.forEach((el) => {
       const id = el.getAttribute("data-draft-block-id");
@@ -466,17 +494,29 @@ export function ResumeDraftSheet({
       const marginTop = parseFloat(comp.marginTop) || 0;
       const marginBottom = parseFloat(comp.marginBottom) || 0;
       const measured = Math.ceil(el.offsetHeight + marginTop + marginBottom);
+      nextHeights[id] = measured;
       const previous = blockHeights[id];
       if (previous === undefined || Math.abs(previous - measured) > 1) {
-        nextHeights[id] = measured;
         hasChanged = true;
       }
     });
 
-    if (hasChanged) {
+    if (hasChanged || Object.keys(blockHeights).length !== Object.keys(nextHeights).length) {
       setBlockHeights(nextHeights);
     }
-  }, [blocks, refineFor]);
+  }, [blockHeights]);
+
+  useIsomorphicLayoutEffect(() => {
+    remeasure();
+  }, [blocks, refineFor, remeasure]);
+
+  useEffect(() => {
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      document.fonts.ready.then(() => {
+        remeasure();
+      });
+    }
+  }, [remeasure]);
 
   const pages = useMemo(
     () => partitionBlocksIntoPages(blocks, blockHeights, refineFor),
@@ -736,6 +776,7 @@ export function ResumeDraftSheet({
               <EditableLine
                 value={content}
                 disabled={disabled}
+                renderHtml={isEducation ? renderEducationHtml : undefined}
                 onCommit={(next) => onCommit(node.id, next)}
                 className={cn(
                   "min-w-0 whitespace-pre-wrap break-normal outline-none focus:bg-[#f8fafc]",
@@ -824,7 +865,7 @@ export function ResumeDraftSheet({
 
   return (
     <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-x-hidden">
-      <div className="flex w-full max-w-full shrink-0 items-center justify-end gap-2 border-b border-border/60 px-3 py-2">
+      <div className="flex w-full max-w-full shrink-0 items-center justify-end gap-2 border-b border-border/60 bg-card px-3 py-2 text-xs">
         <div className="mr-auto inline-flex rounded-md border border-border bg-card p-0.5">
           {(
             [
@@ -867,6 +908,13 @@ export function ResumeDraftSheet({
           Export DOCX
         </button>
       </div>
+
+      {/* Tiny progressive fade under the buttons in the space before resume begins */}
+      <div
+        className="pointer-events-none h-2.5 w-full shrink-0 -mb-2.5 z-10 bg-gradient-to-b from-card to-transparent"
+        aria-hidden="true"
+      />
+
       <div
         ref={viewportRef}
         className="flex h-full min-h-0 w-full max-w-full flex-1 overflow-auto bg-slate-100/70 dark:bg-zinc-900/60 p-4"
