@@ -47,39 +47,51 @@ async function getSessionCookie(baseUrl: string): Promise<string | null> {
   try {
     if (chrome.cookies) {
       const formattedUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+      const targetDomain = new URL(baseUrl).hostname;
 
-      // 1. Try mailpilot_session on baseUrl
+      // 1. Try exact URL lookup for session cookie
       const cookie = await chrome.cookies.get({
         url: formattedUrl,
         name: "mailpilot_session",
       });
       if (cookie?.value) return cookie.value;
 
-      // 2. Try activeAccountId on baseUrl
+      // 2. Try exact URL lookup for activeAccountId
       const activeCookie = await chrome.cookies.get({
         url: formattedUrl,
         name: "activeAccountId",
       });
       if (activeCookie?.value) return activeCookie.value;
 
-      // 3. Fallback: domain-wide search across all cookies for this host
+      // 3. Search across all cookies for mailpilot_session
       try {
-        const domain = new URL(baseUrl).hostname;
-        const allCookies = await chrome.cookies.getAll({ domain });
-        const match = allCookies.find(
-          (c) => c.name === "mailpilot_session" || c.name === "activeAccountId"
-        );
-        if (match?.value) return match.value;
+        const sessionCookies = await chrome.cookies.getAll({ name: "mailpilot_session" });
+        if (sessionCookies.length > 0) {
+          const matchTarget = sessionCookies.find((c) => c.domain.includes(targetDomain) || targetDomain.includes(c.domain.replace(/^\./, "")));
+          if (matchTarget?.value) return matchTarget.value;
+          const matchKnown = sessionCookies.find((c) =>
+            KNOWN_PROD_HOSTNAMES.some((h) => c.domain.includes(h) || h.includes(c.domain.replace(/^\./, "")))
+          );
+          if (matchKnown?.value) return matchKnown.value;
+          const matchVercel = sessionCookies.find((c) => c.domain.includes("vercel.app"));
+          if (matchVercel?.value) return matchVercel.value;
+          return sessionCookies[0].value;
+        }
       } catch {}
 
-      // 4. Secondary fallback: check across known production host aliases
+      // 4. Search across all cookies for activeAccountId
       try {
-        for (const host of KNOWN_PROD_HOSTNAMES) {
-          const aliasCookies = await chrome.cookies.getAll({ domain: host });
-          const match = aliasCookies.find(
-            (c) => c.name === "mailpilot_session" || c.name === "activeAccountId"
+        const accountCookies = await chrome.cookies.getAll({ name: "activeAccountId" });
+        if (accountCookies.length > 0) {
+          const matchTarget = accountCookies.find((c) => c.domain.includes(targetDomain) || targetDomain.includes(c.domain.replace(/^\./, "")));
+          if (matchTarget?.value) return matchTarget.value;
+          const matchKnown = accountCookies.find((c) =>
+            KNOWN_PROD_HOSTNAMES.some((h) => c.domain.includes(h) || h.includes(c.domain.replace(/^\./, "")))
           );
-          if (match?.value) return match.value;
+          if (matchKnown?.value) return matchKnown.value;
+          const matchVercel = accountCookies.find((c) => c.domain.includes("vercel.app"));
+          if (matchVercel?.value) return matchVercel.value;
+          return accountCookies[0].value;
         }
       } catch {}
     }
