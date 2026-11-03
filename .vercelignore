@@ -1,10 +1,10 @@
-# Chrome Extension Companion source & build artifacts
-extension/
+# Chrome Extension Companion build artifacts
+/extension/dist/
 mailpilot-extension.zip
 
 # Temporary Analysis Dumps & Scripts
-Delete/
-Test Outputs/
+/Delete/
+/Test Outputs/
 scripts/temp-resume-llm-audit.ts
 lib/__tests__/temp-resume-llm-audit.test.ts
 .scraper-failures.json

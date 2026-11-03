@@ -56,8 +56,8 @@ import type {
 } from "../lib/types";
 
 export function SidePanelApp() {
-  const [env, setEnv] = useState<Environment>("dev");
-  const [baseUrl, setBaseUrl] = useState<string>("http://localhost:3000");
+  const [env, setEnv] = useState<Environment>("prod");
+  const [baseUrl, setBaseUrl] = useState<string>("https://mailpilot-prod.vercel.app");
   const [session, setSession] = useState<ExtensionSession | null>(null);
   const [checkingSession, setCheckingSession] = useState<boolean>(true);
 
