@@ -9,13 +9,20 @@ import type {
 const STORAGE_KEY_ENV = "mailpilot_env";
 const STORAGE_KEY_CUSTOM_URL = "mailpilot_custom_url";
 
+const KNOWN_PROD_HOSTNAMES = [
+  "mailpilot-prod.vercel.app",
+  "mailpilot-theta-lake.vercel.app",
+  "mailpilot-marquiseclott-1600s-projects.vercel.app",
+  "mailpilot.vercel.app",
+];
+
 export async function getEnvironment(): Promise<{ env: Environment; url: string }> {
   return new Promise((resolve) => {
     chrome.storage.local.get([STORAGE_KEY_ENV, STORAGE_KEY_CUSTOM_URL], (res) => {
-      const env = (res[STORAGE_KEY_ENV] as Environment) || "dev";
-      let url = "http://localhost:3000";
-      if (env === "prod") {
-        url = "https://mailpilot-prod.vercel.app";
+      const env = (res[STORAGE_KEY_ENV] as Environment) || "prod";
+      let url = "https://mailpilot-prod.vercel.app";
+      if (env === "dev") {
+        url = "http://localhost:3000";
       } else if (env === "custom" && typeof res[STORAGE_KEY_CUSTOM_URL] === "string") {
         url = res[STORAGE_KEY_CUSTOM_URL];
       }
@@ -63,6 +70,17 @@ async function getSessionCookie(baseUrl: string): Promise<string | null> {
           (c) => c.name === "mailpilot_session" || c.name === "activeAccountId"
         );
         if (match?.value) return match.value;
+      } catch {}
+
+      // 4. Secondary fallback: check across known production host aliases
+      try {
+        for (const host of KNOWN_PROD_HOSTNAMES) {
+          const aliasCookies = await chrome.cookies.getAll({ domain: host });
+          const match = aliasCookies.find(
+            (c) => c.name === "mailpilot_session" || c.name === "activeAccountId"
+          );
+          if (match?.value) return match.value;
+        }
       } catch {}
     }
   } catch (err) {

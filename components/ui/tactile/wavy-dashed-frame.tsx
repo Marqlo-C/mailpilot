@@ -53,7 +53,7 @@ export function WavyDashedFrame({
     <div ref={ref} className={cn("relative", className)} {...rest}>
       {d ? (
         <svg
-          className="pointer-events-none absolute inset-0 h-full w-full text-border/70"
+          className="pointer-events-none absolute inset-0 h-full w-full text-muted-foreground/30"
           viewBox={`0 0 ${size.w} ${size.h}`}
           fill="none"
           aria-hidden="true"
