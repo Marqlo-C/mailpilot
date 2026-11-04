@@ -2,6 +2,7 @@
 
 import {
   ToolbarDivider,
+  ToolbarHalf,
   ToolbarHistoryStatusFilter,
   ToolbarMetaRow,
   ToolbarRoot,
@@ -100,60 +101,104 @@ export function PipelineToolbar({
     // Above the listing grid so the search filters panel isn't painted under cards.
     <div className="relative z-20 mb-0">
       <ToolbarRoot className="mb-1.5">
-        <ToolbarSelectAll
-          checked={isAllSelected}
-          indeterminate={isIndeterminate}
-          onToggle={onToggleSelectAll}
-          label={selectLabel}
-          disabled={!canSelect}
-        />
-
         {showScore ? (
           <>
+            <ToolbarHalf>
+              <ToolbarSelectAll
+                checked={isAllSelected}
+                indeterminate={isIndeterminate}
+                onToggle={onToggleSelectAll}
+                label={selectLabel}
+                disabled={!canSelect}
+              />
+              <ToolbarDivider />
+              <ToolbarScoreSlider
+                value={minScore}
+                disabled={scoreDisabled}
+                onChange={onMinScoreChange}
+                onCommit={onMinScoreCommit}
+              />
+            </ToolbarHalf>
             <ToolbarDivider />
-            <ToolbarScoreSlider
-              value={minScore}
-              disabled={scoreDisabled}
-              onChange={onMinScoreChange}
-              onCommit={onMinScoreCommit}
-            />
+            <ToolbarHalf>
+              <ToolbarSearch
+                searchQuery={searchQuery}
+                onSearchChange={onSearchQueryChange}
+                placeholder="Looking for a role, company, or city? Let's get started..."
+                ariaLabel="Search jobs by role, company, or city"
+              >
+                {showSource ? (
+                  <ToolbarSearchAddon label="Filter · Source">
+                    <ToolbarSourceFilter
+                      value={sourceFilter}
+                      onChange={onSourceFilterChange!}
+                    />
+                  </ToolbarSearchAddon>
+                ) : null}
+
+                {showHistoryStatus ? (
+                  <ToolbarSearchAddon label="Filter · Status">
+                    <ToolbarHistoryStatusFilter
+                      value={historyFilter}
+                      onChange={onHistoryFilterChange!}
+                    />
+                  </ToolbarSearchAddon>
+                ) : null}
+
+                <ToolbarSearchAddon label="Sort">
+                  <ToolbarSortSelect
+                    activeTab={activeTab}
+                    sortOption={sortOption}
+                    onSortOptionChange={onSortOptionChange}
+                  />
+                </ToolbarSearchAddon>
+              </ToolbarSearch>
+            </ToolbarHalf>
           </>
-        ) : null}
-
-        <ToolbarDivider />
-
-        <ToolbarSearch
-          searchQuery={searchQuery}
-          onSearchChange={onSearchQueryChange}
-          placeholder="Looking for a role, company, or city? Let's get started..."
-          ariaLabel="Search jobs by role, company, or city"
-        >
-          {showSource ? (
-            <ToolbarSearchAddon label="Filter · Source">
-              <ToolbarSourceFilter
-                value={sourceFilter}
-                onChange={onSourceFilterChange!}
-              />
-            </ToolbarSearchAddon>
-          ) : null}
-
-          {showHistoryStatus ? (
-            <ToolbarSearchAddon label="Filter · Status">
-              <ToolbarHistoryStatusFilter
-                value={historyFilter}
-                onChange={onHistoryFilterChange!}
-              />
-            </ToolbarSearchAddon>
-          ) : null}
-
-          <ToolbarSearchAddon label="Sort">
-            <ToolbarSortSelect
-              activeTab={activeTab}
-              sortOption={sortOption}
-              onSortOptionChange={onSortOptionChange}
+        ) : (
+          <>
+            <ToolbarSelectAll
+              checked={isAllSelected}
+              indeterminate={isIndeterminate}
+              onToggle={onToggleSelectAll}
+              label={selectLabel}
+              disabled={!canSelect}
             />
-          </ToolbarSearchAddon>
-        </ToolbarSearch>
+            <ToolbarDivider />
+            <ToolbarSearch
+              searchQuery={searchQuery}
+              onSearchChange={onSearchQueryChange}
+              placeholder="Looking for a role, company, or city? Let's get started..."
+              ariaLabel="Search jobs by role, company, or city"
+            >
+              {showSource ? (
+                <ToolbarSearchAddon label="Filter · Source">
+                  <ToolbarSourceFilter
+                    value={sourceFilter}
+                    onChange={onSourceFilterChange!}
+                  />
+                </ToolbarSearchAddon>
+              ) : null}
+
+              {showHistoryStatus ? (
+                <ToolbarSearchAddon label="Filter · Status">
+                  <ToolbarHistoryStatusFilter
+                    value={historyFilter}
+                    onChange={onHistoryFilterChange!}
+                  />
+                </ToolbarSearchAddon>
+              ) : null}
+
+              <ToolbarSearchAddon label="Sort">
+                <ToolbarSortSelect
+                  activeTab={activeTab}
+                  sortOption={sortOption}
+                  onSortOptionChange={onSortOptionChange}
+                />
+              </ToolbarSearchAddon>
+            </ToolbarSearch>
+          </>
+        )}
       </ToolbarRoot>
 
       <ToolbarMetaRow>

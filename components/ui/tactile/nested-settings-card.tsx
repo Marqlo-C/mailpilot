@@ -305,50 +305,109 @@ export function TruncatedSubtitleWithTooltip({
 }
 
 /**
- * Curved divider separating card header from body.
- * Arches across horizontally and curves downward into the card body at both ends
- * with the card's 12px (rounded-xl) corner radius.
+ * Curved divider separating card/sidebar header from body.
+ * Arches across horizontally and curves downward into the body at both ends,
+ * matching the host’s corner radius (12 = rounded-xl, 16 = rounded-2xl).
  */
-export function CurvedCardDivider({ className }: { className?: string }) {
+export function CurvedCardDivider({
+  className,
+  /** Corner radius in px. Defaults to settings-card `rounded-xl`. */
+  radius = 12,
+}: {
+  className?: string;
+  radius?: number;
+}) {
+  const r = Math.max(radius, 2);
+  const size = r;
+  const sweep = r - 0.5;
   return (
     <div
       aria-hidden="true"
       className={cn(
-        "relative flex w-full items-start overflow-hidden pointer-events-none select-none text-border/60 -mb-3 z-10",
+        "relative z-10 flex w-full items-start overflow-hidden pointer-events-none select-none text-border/60 -mb-3",
         className
       )}
     >
-      {/* Left corner arc: curves from (0.5, 12) on left border up to (12, 0.5) */}
+      {/* Left corner: from side wall up to the hairline */}
       <svg
-        width="12"
-        height="12"
-        viewBox="0 0 12 12"
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
         fill="none"
         className="shrink-0 overflow-visible"
       >
         <path
-          d="M 0.5 12 A 11.5 11.5 0 0 1 12 0.5"
+          d={`M 0.5 ${size} A ${sweep} ${sweep} 0 0 1 ${size} 0.5`}
           stroke="currentColor"
           strokeWidth="1"
         />
       </svg>
 
-      {/* Center horizontal line */}
       <div className="flex-1 border-t border-current" />
 
-      {/* Right corner arc: curves from (0, 0.5) down to (11.5, 12) on right border */}
+      {/* Right corner: from hairline down the side wall */}
       <svg
-        width="12"
-        height="12"
-        viewBox="0 0 12 12"
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
         fill="none"
         className="shrink-0 overflow-visible"
       >
         <path
-          d="M 0 0.5 A 11.5 11.5 0 0 1 11.5 12"
+          d={`M 0 0.5 A ${sweep} ${sweep} 0 0 1 ${size - 0.5} ${size}`}
           stroke="currentColor"
           strokeWidth="1"
         />
+      </svg>
+    </div>
+  );
+}
+
+/**
+ * Vertical separator that traces the same silhouette as a rounded-2xl
+ * pill’s left outer edge (end-cap): top corner → left side → bottom corner.
+ *
+ * Defaults match the bottom bulk-action pill (`h-11` + `rounded-2xl`).
+ */
+export function CurvedVerticalDivider({
+  className,
+  /** Pill height in px (bulk flyout shell is 44 / h-11). */
+  height = 44,
+  /** Corner radius in px (`rounded-2xl` = 16). */
+  radius = 16,
+}: {
+  className?: string;
+  height?: number;
+  radius?: number;
+}) {
+  const r = Math.min(radius, height / 2);
+  const w = r + 1;
+  // Left outer edge of a rounded-2xl rect, top → bottom (bulges left).
+  const d = [
+    `M ${r} 0.5`,
+    `A ${r - 0.5} ${r - 0.5} 0 0 0 0.5 ${r}`,
+    `L 0.5 ${height - r}`,
+    `A ${r - 0.5} ${r - 0.5} 0 0 0 ${r} ${height - 0.5}`,
+  ].join(" ");
+
+  return (
+    <div
+      aria-hidden="true"
+      className={cn(
+        // Same quiet ink as sidebar plate borders / hairlines.
+        "pointer-events-none flex shrink-0 items-center justify-center text-white/10 select-none",
+        className
+      )}
+      style={{ width: w, height }}
+    >
+      <svg
+        width={w}
+        height={height}
+        viewBox={`0 0 ${w} ${height}`}
+        fill="none"
+        className="overflow-visible"
+      >
+        <path d={d} stroke="currentColor" strokeWidth="1" fill="none" />
       </svg>
     </div>
   );

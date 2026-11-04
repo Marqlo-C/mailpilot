@@ -69,6 +69,29 @@ export function ToolbarRoot({
   );
 }
 
+/**
+ * Equal flex share of {@link ToolbarRoot}. Pair two of these around a
+ * {@link ToolbarDivider} so the rule sits at the measured midpoint.
+ */
+export function ToolbarHalf({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 flex-1 basis-0 items-center gap-3",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
 /** Secondary meta bar under the filter card (counts + page size). */
 export function ToolbarMetaRow({
   children,
@@ -169,14 +192,15 @@ export function ToolbarScoreSlider({
   ariaLabel?: string;
 }) {
   return (
-    <div className="flex items-center gap-2">
+    // Fills the remaining width of its {@link ToolbarHalf} parent.
+    <div className="flex min-w-0 flex-1 items-center gap-2">
       <label
         htmlFor={inputId}
         className="flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs font-medium text-foreground/75 transition-colors hover:text-foreground"
       >
         {label}
       </label>
-      <div className="relative inline-flex items-center">
+      <div className="relative inline-flex shrink-0 items-center">
         <input
           id={inputId}
           type="number"
@@ -213,8 +237,8 @@ export function ToolbarScoreSlider({
         disabled={disabled}
         onChange={(val) => onChange?.(val)}
         onCommit={(val) => onCommit?.(val)}
-        widthClassName="w-28 sm:w-36"
-        className="ml-2.5 sm:ml-3"
+        widthClassName="min-w-0 w-full"
+        className="ml-2.5 min-w-0 flex-1 sm:ml-3"
         aria-label={ariaLabel}
       />
     </div>
@@ -670,7 +694,7 @@ export function ToolbarTelemetry({
           onClick={onResetFilters}
           className="ml-1.5 cursor-pointer text-[11px] font-medium text-teal-600 underline underline-offset-2 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300"
         >
-          Reset filters
+          Reset
         </button>
       ) : null}
     </div>

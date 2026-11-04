@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  createContext,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -9,53 +11,77 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 
 import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
-import { TabCountBadge } from "@/components/ui/tactile/segmented-tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  TabCountBadge,
+  darkPlateClassName,
+} from "@/components/ui/tactile/segmented-tabs";
+import { CurvedVerticalDivider } from "@/components/ui/tactile/nested-settings-card";
 import { APP_CONTENT_CENTER_X_CLASS } from "@/lib/app-content-center";
 import { cn } from "@/lib/utils";
 
-/** Tiny dot separator between flyout action chips. */
-export function BulkActionDot({ className }: { className?: string }) {
+/**
+ * Straight mid-pill rule between action chips — same length as
+ * {@link ToolbarDivider} after Select all (`h-4`), quiet like sidebar hairlines.
+ */
+export function BulkActionSeparator({ className }: { className?: string }) {
   return (
     <span
       aria-hidden
-      className={cn(
-        "h-[2px] w-[2px] shrink-0 rounded-full bg-[hsl(var(--sidebar-foreground))]/45",
-        className
-      )}
+      className={cn("mx-1 h-4 w-px shrink-0 bg-white/10", className)}
     />
   );
 }
 
-/** Default (non-destructive) action chip — sidebar-nav inactive ink. */
+/** @deprecated Prefer {@link BulkActionSeparator}. */
+export function BulkActionDot(props: { className?: string }) {
+  return <BulkActionSeparator {...props} />;
+}
+
+/** Default action chip — same type + hover/active as sidebar rows. */
 export const BULK_ACTION_BTN_CLASSNAME =
-  "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium text-[hsl(var(--sidebar-foreground))]/65 transition-colors hover:bg-white/10 hover:text-[hsl(var(--sidebar-foreground))] disabled:opacity-50";
+  "inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-[13px] font-medium tracking-normal text-[#e4f7f3]/60 transition-colors duration-150 hover:bg-white/10 hover:text-[#e4f7f3] active:bg-[hsl(var(--sidebar-highlight))] active:text-[#e4f7f3] disabled:opacity-50";
 
 /** Alias — neutral flyout chip (non-tinted actions). */
 export const BULK_ACTION_PLAIN_BTN_CLASSNAME = BULK_ACTION_BTN_CLASSNAME;
 
 /** Destructive action chip — same red family as Delete Emails. */
 export const BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME =
-  "group inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium text-[#fb7185] transition-colors hover:bg-[#C21E11]/15 hover:text-[#C21E11] disabled:opacity-50";
+  "group inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-[13px] font-medium tracking-normal text-[#fb7185] transition-colors duration-150 hover:bg-[#C21E11]/15 hover:text-[#C21E11] active:bg-[#C21E11]/20 disabled:opacity-50";
 
-/** Default count pill on the dark sidebar flyout. */
-export const BULK_ACTION_COUNT_CLASSNAME =
-  "bg-white/15 text-[hsl(var(--sidebar-foreground))]/90 group-data-[state=active]:bg-white/15 group-data-[state=active]:text-[hsl(var(--sidebar-foreground))]";
+/** Same chip as tab-rail / sidebar count pills. */
+export const BULK_ACTION_COUNT_CLASSNAME = "";
 
-/** Count pill tint matching destructive flyout text. */
+/** Count pill tint matching destructive flyout text — same size as tab chips. */
 export const BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME =
-  "bg-[#fb7185]/20 text-[#fb7185] group-hover:bg-[#C21E11]/20 group-hover:text-[#C21E11] group-data-[state=active]:bg-[#fb7185]/20 group-data-[state=active]:text-[#fb7185]";
+  "rounded-md border border-[#fb7185]/55 bg-[#fb7185]/15 px-1.5 py-0.5 text-[10px] font-bold leading-none text-[#fb7185] group-hover:border-[#C21E11]/55 group-hover:bg-[#C21E11]/15 group-hover:text-[#C21E11] group-data-[state=active]:border-[#fb7185]/55 group-data-[state=active]:bg-[#fb7185]/15 group-data-[state=active]:text-[#fb7185]";
 
 /** Dismiss chip — #C21E11 label before hover. */
 export const BULK_ACTION_DISMISS_BTN_CLASSNAME =
-  "group inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium text-[#C21E11] transition-colors hover:bg-[#C21E11]/15 hover:text-[#C21E11] disabled:opacity-50";
+  "group inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-[13px] font-medium tracking-normal text-[#C21E11] transition-colors duration-150 hover:bg-[#C21E11]/15 hover:text-[#C21E11] active:bg-[#C21E11]/20 disabled:opacity-50";
 
-/** Count pill matching the Dismiss label. */
+/** Count pill matching the Dismiss/Delete label — hairline outline, tab-chip size. */
 export const BULK_ACTION_COUNT_DISMISS_CLASSNAME =
-  "bg-[#C21E11]/20 text-[#C21E11] group-data-[state=active]:bg-[#C21E11]/20 group-data-[state=active]:text-[#C21E11]";
+  "rounded-md border border-white/10 bg-[#C21E11]/15 px-1.5 py-0.5 text-[10px] font-bold leading-none text-[#C21E11] group-data-[state=active]:border-white/10 group-data-[state=active]:bg-[#C21E11]/15 group-data-[state=active]:text-[#C21E11]";
 
-/** Count pill for flyout action labels — sidebar-flyout chrome by default. */
+/** Same plate + density as SidebarFlyout; width hugs the longest option. */
+const BULK_CANCEL_MENU_CONTENT_CLASS = cn(
+  "z-[160] flex w-max min-w-0 flex-col gap-1 rounded-2xl p-1.5 text-[#e4f7f3]",
+  darkPlateClassName
+);
+
+const BULK_CANCEL_MENU_ITEM_CLASS =
+  "flex h-9 cursor-pointer items-center rounded-xl px-3 text-[13px] font-medium tracking-normal text-[#e4f7f3]/60 transition-colors duration-150 focus:bg-white/10 focus:text-[#e4f7f3] data-[highlighted]:bg-white/10 data-[highlighted]:text-[#e4f7f3]";
+
+/** Count pill for flyout action labels — same style as tab/sidebar counts. */
 export function BulkActionCount({
   count,
   className,
@@ -63,16 +89,30 @@ export function BulkActionCount({
   count: number;
   className?: string;
 }) {
-  return (
-    <TabCountBadge
-      count={count}
-      className={cn(BULK_ACTION_COUNT_CLASSNAME, className)}
-    />
-  );
+  return <TabCountBadge count={count} className={className} />;
 }
 
-const BULK_FLYOUT_PILL_CLASSNAME =
-  "flex h-11 min-w-0 shrink-0 flex-nowrap items-center gap-1.5 overflow-x-auto rounded-full border border-[hsl(var(--sidebar))] bg-[hsl(var(--sidebar))] px-4 text-[hsl(var(--sidebar-foreground))] shadow-md";
+/**
+ * Squircle action/status shell — sidebar-panel plate, rounded-2xl.
+ * Cancel/X stays circular via {@link BULK_FLYOUT_CANCEL_CLASSNAME}.
+ */
+export const BULK_FLYOUT_PILL_CLASSNAME = cn(
+  "flex h-11 min-w-0 shrink-0 flex-nowrap items-center gap-1 overflow-x-auto rounded-2xl px-1.5 text-[#e4f7f3]",
+  darkPlateClassName
+);
+
+/**
+ * Circular clear/cancel — opaque sidebar plate (hover uses highlight, not
+ * translucent white/10 which made the control look clear).
+ */
+export const BULK_FLYOUT_CANCEL_CLASSNAME =
+  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[hsl(var(--sidebar-panel))] p-0 text-[#e4f7f3]/65 shadow-md transition-colors duration-150 hover:bg-[hsl(var(--sidebar-highlight))] hover:text-[#C21E11] active:bg-[hsl(var(--sidebar-highlight))] disabled:opacity-60 [&_svg]:size-4 [&_svg]:text-current";
+
+/** Fixed bottom host for selection / classifying flyouts. */
+export const BULK_FLYOUT_HOST_CLASSNAME = cn(
+  APP_CONTENT_CENTER_X_CLASS,
+  "fixed bottom-[calc(1.5rem+var(--app-mobile-bottom-inset,0px))] z-40 w-max max-w-[min(96vw,calc(100vw-var(--app-sidebar-width,0px)-1.5rem))] -translate-x-1/2 md:bottom-2"
+);
 
 /** Labeled action cluster inside the flyout (e.g. Snapshot icon → Create / Delete). */
 export function BulkActionSection({
@@ -90,20 +130,18 @@ export function BulkActionSection({
   return (
     <div
       className={cn(
-        "flex shrink-0 flex-nowrap items-center gap-1.5",
+        "flex shrink-0 flex-nowrap items-center gap-1",
         className
       )}
     >
       <span
-        className="inline-flex shrink-0 items-center px-1.5 text-xs font-semibold text-[hsl(var(--sidebar-foreground))]/65"
+        className="inline-flex shrink-0 items-center px-1.5 text-[13px] font-medium tracking-normal text-[#e4f7f3]/60"
         aria-label={labelText}
       >
         {label}
       </span>
-      <span
-        aria-hidden
-        className="mx-1 h-4 w-px shrink-0 bg-[hsl(var(--sidebar-foreground))]/20"
-      />
+      {/* Same silhouette as this pill’s left outer edge (h-11 / rounded-2xl). */}
+      <CurvedVerticalDivider className="-mx-0.5" height={44} radius={16} />
       {children}
     </div>
   );
@@ -118,12 +156,49 @@ type BulkActionsFlyoutProps = {
    * the same way the clear control is.
    */
   trailing?: ReactNode;
+  /**
+   * Optional status cluster (e.g. classifying pill) after trailing /
+   * Unsubscribe so sync status shares the bar without a second flyout.
+   * Owns its own chrome — not wrapped in the action pill shell.
+   */
+  status?: ReactNode;
+  /**
+   * When sync is active alongside selection, the single X opens a choice
+   * between clearing selection and stopping classification.
+   */
+  syncActive?: boolean;
+  onStopSync?: () => void;
   className?: string;
   /** Accessible region label. */
   label?: string;
 };
 
 type FlyoutPhase = "prep" | "in" | "idle" | "out";
+
+type BulkActionsOpenContextValue = {
+  open: boolean;
+  setOpen: (open: boolean) => void;
+};
+
+const BulkActionsOpenContext = createContext<BulkActionsOpenContextValue>({
+  open: false,
+  setOpen: () => {},
+});
+
+/** App-shell provider so GlobalSyncTracker can yield to the selection flyout. */
+export function BulkActionsOpenProvider({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <BulkActionsOpenContext.Provider value={{ open, setOpen }}>
+      {children}
+    </BulkActionsOpenContext.Provider>
+  );
+}
+
+/** True while the selection flyout is mounted (including leave animation). */
+export function useBulkActionsOpen() {
+  return useContext(BulkActionsOpenContext).open;
+}
 
 /** Same enter/exit timing as the selection flyout. */
 export function useFlyoutPresence(open: boolean) {
@@ -205,17 +280,33 @@ export function BulkActionsFlyout({
   onCancel,
   children,
   trailing,
+  status,
+  syncActive = false,
+  onStopSync,
   className,
   label = "Bulk actions toolbar",
 }: BulkActionsFlyoutProps) {
   const cancelPendingRef = useRef(false);
+  const { setOpen: setBulkOpen } = useContext(BulkActionsOpenContext);
   const { mounted, phase, style, onAnimationEnd } = useFlyoutPresence(
     selectedCount > 0
   );
+  const chooseOnCancel = Boolean(syncActive && onStopSync);
 
   useEffect(() => {
     if (selectedCount > 0) cancelPendingRef.current = false;
   }, [selectedCount]);
+
+  useEffect(() => {
+    setBulkOpen(mounted);
+    return () => setBulkOpen(false);
+  }, [mounted, setBulkOpen]);
+
+  function clearSelection() {
+    if (cancelPendingRef.current) return;
+    cancelPendingRef.current = true;
+    onCancel();
+  }
 
   if (!mounted || typeof document === "undefined") return null;
 
@@ -229,11 +320,7 @@ export function BulkActionsFlyout({
       data-dnd-ignore
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
-      className={cn(
-        APP_CONTENT_CENTER_X_CLASS,
-        "fixed bottom-[calc(1.5rem+var(--app-mobile-bottom-inset,0px))] z-40 w-max max-w-[min(96vw,calc(100vw-var(--app-sidebar-width,0px)-1.5rem))] -translate-x-1/2 md:bottom-2",
-        className
-      )}
+      className={cn(BULK_FLYOUT_HOST_CLASSNAME, className)}
     >
       <div
         className={cn(
@@ -254,18 +341,52 @@ export function BulkActionsFlyout({
           </div>
         ) : null}
 
+        {status ? (
+          <div className="mp-flyout-chunk shrink-0">{status}</div>
+        ) : null}
+
         <div className="mp-flyout-chunk shrink-0">
-          <CancelTaskButton
-            onCancel={() => {
-              if (cancelPendingRef.current) return;
-              cancelPendingRef.current = true;
-              onCancel();
-            }}
-            title="Clear selection"
-            // Full turn before pills meet; hold through the rest of converge.
-            spinMs={600}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--sidebar))] bg-[hsl(var(--sidebar))] p-0 text-[hsl(var(--sidebar-foreground))]/65 shadow-md hover:bg-[hsl(var(--sidebar))] hover:text-[#C21E11] [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-current"
-          />
+          {chooseOnCancel ? (
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  title="Clear selection or stop classifying"
+                  aria-label="Clear selection or stop classifying"
+                  className={BULK_FLYOUT_CANCEL_CLASSNAME}
+                >
+                  <X className="size-4 text-current" aria-hidden />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="center"
+                side="top"
+                sideOffset={8}
+                className={BULK_CANCEL_MENU_CONTENT_CLASS}
+              >
+                <DropdownMenuItem
+                  className={BULK_CANCEL_MENU_ITEM_CLASS}
+                  onSelect={() => clearSelection()}
+                >
+                  Clear selection
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className={BULK_CANCEL_MENU_ITEM_CLASS}
+                  onSelect={() => onStopSync?.()}
+                >
+                  Stop classifying
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <CancelTaskButton
+              onCancel={clearSelection}
+              title="Clear selection"
+              // Full turn before pills meet; hold through the rest of converge.
+              spinMs={600}
+              className={BULK_FLYOUT_CANCEL_CLASSNAME}
+            />
+          )}
         </div>
       </div>
     </div>,

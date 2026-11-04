@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { XCircle } from "lucide-react";
+import { X, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -12,15 +12,21 @@ type CancelTaskButtonProps = {
   disabled?: boolean;
   /** CCW spin duration on click (ms). */
   spinMs?: number;
+  /**
+   * Icon affordance. Default X matches search-bar clear.
+   * Use Trash2 when the action deletes or permanently drops persisted data.
+   */
+  icon?: LucideIcon;
 };
 
-/** Red circular cancel control for an in-flight abortable AI task. */
+/** Circular control for abortable tasks or destructive clears. */
 export function CancelTaskButton({
   onCancel,
   title = "Cancel",
   className,
   disabled,
   spinMs = 500,
+  icon: Icon = X,
 }: CancelTaskButtonProps) {
   const [rotationDeg, setRotationDeg] = useState(0);
 
@@ -37,12 +43,13 @@ export function CancelTaskButton({
       aria-label={title}
       disabled={disabled}
       className={cn(
-        "rounded-full p-1 text-destructive transition-colors hover:bg-destructive/10 disabled:pointer-events-none disabled:opacity-50",
+        "rounded-full p-1 text-current transition-colors hover:bg-white/10 disabled:pointer-events-none disabled:opacity-50",
         className
       )}
     >
-      <XCircle
-        className="h-4 w-4 text-red-500"
+      <Icon
+        className="size-4 text-current"
+        aria-hidden
         style={{
           transform: `rotate(${rotationDeg}deg)`,
           transition: `transform ${spinMs}ms cubic-bezier(0.33, 0.1, 0.2, 1)`,

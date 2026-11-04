@@ -33,9 +33,9 @@ import {
   BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME,
   BULK_ACTION_DISMISS_BTN_CLASSNAME,
   BulkActionCount,
-  BulkActionDot,
-  BulkActionsFlyout,
+  BulkActionSeparator,
 } from "@/components/ui/composites/bulk-actions-flyout";
+import { BulkActionsWithClassifying } from "@/components/layout/bulk-actions-with-classifying";
 import { PipelinePaginationFooter } from "@/components/ui/composites/pipeline-pagination";
 import { useLastClickedId } from "@/hooks/use-last-clicked-id";
 import { useCardListGestures } from "@/hooks/use-card-list-gestures";
@@ -674,7 +674,7 @@ export function OpportunitiesView({
         onPageChange={changePage}
       />
 
-      <BulkActionsFlyout
+      <BulkActionsWithClassifying
         selectedCount={selectedIds.length}
         onCancel={clearSelection}
       >
@@ -706,7 +706,7 @@ export function OpportunitiesView({
 
             {archivedSelectedIds.length > 0 ? (
               <>
-                <BulkActionDot />
+                <BulkActionSeparator />
                 <button
                   type="button"
                   disabled={busy}
@@ -738,7 +738,7 @@ export function OpportunitiesView({
 
             {dismissedSelectedIds.length > 0 ? (
               <>
-                <BulkActionDot />
+                <BulkActionSeparator />
                 <button
                   type="button"
                   disabled={busy}
@@ -790,7 +790,7 @@ export function OpportunitiesView({
 
             {variant === "leads" ? (
               <>
-                <BulkActionDot />
+                <BulkActionSeparator />
                 <button
                   type="button"
                   disabled={busy}
@@ -817,7 +817,7 @@ export function OpportunitiesView({
               </>
             ) : null}
 
-            <BulkActionDot />
+            <BulkActionSeparator />
             <button
               type="button"
               disabled={busy}
@@ -846,7 +846,7 @@ export function OpportunitiesView({
             </button>
           </>
         )}
-      </BulkActionsFlyout>
+      </BulkActionsWithClassifying>
     </div>
   );
 

@@ -2,6 +2,7 @@
 
 import {
   ToolbarDivider,
+  ToolbarHalf,
   ToolbarMetaRow,
   ToolbarNativeSelect,
   ToolbarRoot,
@@ -81,69 +82,122 @@ export function SubscriptionsToolbar({
     // Above the listing grid so the search filters panel isn't painted under cards.
     <div className="relative z-20 mb-0">
       <ToolbarRoot className="mb-1.5">
-        <ToolbarSelectAll
-          checked={isAllSelected}
-          indeterminate={isIndeterminate}
-          onToggle={onToggleSelectAll}
-          label={selectLabel}
-          disabled={!canSelect}
-        />
-
         {showClutterSlider ? (
           <>
+            <ToolbarHalf>
+              <ToolbarSelectAll
+                checked={isAllSelected}
+                indeterminate={isIndeterminate}
+                onToggle={onToggleSelectAll}
+                label={selectLabel}
+                disabled={!canSelect}
+              />
+              <ToolbarDivider />
+              <ToolbarScoreSlider
+                value={clutterThreshold}
+                onChange={onClutterThresholdChange}
+                onCommit={onClutterThresholdChange}
+                label="Clutter Threshold:"
+                inputId="clutter-score-threshold-input"
+                ariaLabel="Clutter score threshold"
+              />
+            </ToolbarHalf>
             <ToolbarDivider />
-            <ToolbarScoreSlider
-              value={clutterThreshold}
-              onChange={onClutterThresholdChange}
-              onCommit={onClutterThresholdChange}
-              label="Clutter Threshold:"
-              inputId="clutter-score-threshold-input"
-              ariaLabel="Clutter score threshold"
-            />
+            <ToolbarHalf>
+              <ToolbarSearch
+                searchQuery={searchQuery}
+                onSearchChange={onSearchQueryChange}
+                placeholder="Looking for a sender or newsletter? Find it here..."
+                ariaLabel="Search subscriptions by sender or newsletter"
+              >
+                <ToolbarSearchAddon label="Filter · Category">
+                  <ToolbarNativeSelect
+                    value={categoryFilter}
+                    onChange={(e) =>
+                      onCategoryFilterChange(
+                        e.target.value as SubscriptionCategoryFilter
+                      )
+                    }
+                    aria-label="Filter by category"
+                  >
+                    <option value="all">All Categories</option>
+                    <option value="promotions">Promotions</option>
+                    <option value="newsletters">Newsletters</option>
+                    <option value="alerts">Alerts</option>
+                  </ToolbarNativeSelect>
+                </ToolbarSearchAddon>
+
+                <ToolbarSearchAddon label="Sort">
+                  <ToolbarNativeSelect
+                    value={sortOption}
+                    onChange={(e) =>
+                      onSortOptionChange(
+                        e.target.value as SubscriptionSortOption
+                      )
+                    }
+                    aria-label="Sort subscriptions"
+                  >
+                    <option value="clutter_desc">Highest Clutter</option>
+                    <option value="freq_desc">Most Frequent</option>
+                    <option value="freq_asc">Least Frequent</option>
+                    <option value="alpha">Alphabetical</option>
+                    <option value="custom">Custom</option>
+                  </ToolbarNativeSelect>
+                </ToolbarSearchAddon>
+              </ToolbarSearch>
+            </ToolbarHalf>
           </>
-        ) : null}
-
-        <ToolbarDivider />
-
-        <ToolbarSearch
-          searchQuery={searchQuery}
-          onSearchChange={onSearchQueryChange}
-          placeholder="Looking for a sender or newsletter? Find it here..."
-          ariaLabel="Search subscriptions by sender or newsletter"
-        >
-          <ToolbarSearchAddon label="Filter · Category">
-            <ToolbarNativeSelect
-              value={categoryFilter}
-              onChange={(e) =>
-                onCategoryFilterChange(
-                  e.target.value as SubscriptionCategoryFilter
-                )
-              }
-              aria-label="Filter by category"
+        ) : (
+          <>
+            <ToolbarSelectAll
+              checked={isAllSelected}
+              indeterminate={isIndeterminate}
+              onToggle={onToggleSelectAll}
+              label={selectLabel}
+              disabled={!canSelect}
+            />
+            <ToolbarDivider />
+            <ToolbarSearch
+              searchQuery={searchQuery}
+              onSearchChange={onSearchQueryChange}
+              placeholder="Looking for a sender or newsletter? Find it here..."
+              ariaLabel="Search subscriptions by sender or newsletter"
             >
-              <option value="all">All Categories</option>
-              <option value="promotions">Promotions</option>
-              <option value="newsletters">Newsletters</option>
-              <option value="alerts">Alerts</option>
-            </ToolbarNativeSelect>
-          </ToolbarSearchAddon>
+              <ToolbarSearchAddon label="Filter · Category">
+                <ToolbarNativeSelect
+                  value={categoryFilter}
+                  onChange={(e) =>
+                    onCategoryFilterChange(
+                      e.target.value as SubscriptionCategoryFilter
+                    )
+                  }
+                  aria-label="Filter by category"
+                >
+                  <option value="all">All Categories</option>
+                  <option value="promotions">Promotions</option>
+                  <option value="newsletters">Newsletters</option>
+                  <option value="alerts">Alerts</option>
+                </ToolbarNativeSelect>
+              </ToolbarSearchAddon>
 
-          <ToolbarSearchAddon label="Sort">
-            <ToolbarNativeSelect
-              value={sortOption}
-              onChange={(e) =>
-                onSortOptionChange(e.target.value as SubscriptionSortOption)
-              }
-              aria-label="Sort subscriptions"
-            >
-              <option value="clutter_desc">Highest Clutter</option>
-              <option value="freq_desc">Most Frequent</option>
-              <option value="freq_asc">Least Frequent</option>
-              <option value="alpha">Alphabetical</option>
-              <option value="custom">Custom</option>
-            </ToolbarNativeSelect>
-          </ToolbarSearchAddon>
-        </ToolbarSearch>
+              <ToolbarSearchAddon label="Sort">
+                <ToolbarNativeSelect
+                  value={sortOption}
+                  onChange={(e) =>
+                    onSortOptionChange(e.target.value as SubscriptionSortOption)
+                  }
+                  aria-label="Sort subscriptions"
+                >
+                  <option value="clutter_desc">Highest Clutter</option>
+                  <option value="freq_desc">Most Frequent</option>
+                  <option value="freq_asc">Least Frequent</option>
+                  <option value="alpha">Alphabetical</option>
+                  <option value="custom">Custom</option>
+                </ToolbarNativeSelect>
+              </ToolbarSearchAddon>
+            </ToolbarSearch>
+          </>
+        )}
       </ToolbarRoot>
 
       <ToolbarMetaRow>

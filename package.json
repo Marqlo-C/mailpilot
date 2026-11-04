@@ -17,6 +17,7 @@
     "package:extension": "npm run build:extension && node scripts/package-extension.mjs"
   },
   "dependencies": {
+    "@praticon-glyphs/react": "^0.3.0",
     "@prisma/client": "^6.19.3",
     "@radix-ui/react-avatar": "^1.2.6",
     "@radix-ui/react-dialog": "^1.1.23",

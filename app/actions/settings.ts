@@ -951,7 +951,7 @@ export type ApiKeyStatus = {
   maskedHasDataApiKey: string | null;
 };
 
-/** Masked key status for the sidebar key dialog. Never returns raw secrets. */
+/** Masked key status for the sidebar key flyout. Never returns raw secrets. */
 export async function readApiKeyStatus(
   accountId: string
 ): Promise<ActionResult<ApiKeyStatus>> {
@@ -971,6 +971,37 @@ export async function readApiKeyStatus(
       maskedApiKey: rules.maskedApiKey,
       maskedScrapingAntApiKey: rules.maskedScrapingAntApiKey,
       maskedHasDataApiKey: rules.maskedHasDataApiKey,
+    },
+  };
+}
+
+export type OllamaStatus = {
+  ollamaModel: string;
+  localOllamaUrl: string;
+  bridgeConnected: boolean;
+  availableModels: string[];
+};
+
+/** Current local-model settings for the sidebar Ollama flyout. */
+export async function readOllamaStatus(
+  accountId: string
+): Promise<ActionResult<OllamaStatus>> {
+  const active = await getActiveAccount();
+  if (!active || active.id !== accountId) {
+    return { ok: false, error: "Account not found" };
+  }
+
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId },
+  });
+  const rules = parseAccountRules(settings?.rules);
+  return {
+    ok: true,
+    data: {
+      ollamaModel: settings?.ollamaModel?.trim() || "llama3.1:8b",
+      localOllamaUrl: settings?.localOllamaUrl?.trim() || "",
+      bridgeConnected: rules.bridgeConnected,
+      availableModels: rules.availableModels,
     },
   };
 }
