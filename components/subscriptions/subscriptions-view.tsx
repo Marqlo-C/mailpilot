@@ -1903,21 +1903,21 @@ function LastBriefingIconButton({
  * alternating long / short / dashed strokes (matches the flash reference).
  */
 const SNAPSHOT_FLASH_RAYS = [
-  { a: -78, len: 10.5, kind: "dash" },
-  { a: -66, len: 13.5, kind: "long" },
-  { a: -54, len: 8.5, kind: "short" },
-  { a: -42, len: 12, kind: "dash" },
-  { a: -30, len: 14, kind: "long" },
-  { a: -18, len: 9, kind: "short" },
-  { a: -9, len: 11.5, kind: "dash" },
-  { a: 0, len: 14.5, kind: "long" },
-  { a: 9, len: 11.5, kind: "dash" },
-  { a: 18, len: 9, kind: "short" },
-  { a: 30, len: 14, kind: "long" },
-  { a: 42, len: 12, kind: "dash" },
-  { a: 54, len: 8.5, kind: "short" },
-  { a: 66, len: 13.5, kind: "long" },
-  { a: 78, len: 10.5, kind: "dash" },
+  { a: -78, len: 9, kind: "dash" },
+  { a: -66, len: 11.5, kind: "long" },
+  { a: -54, len: 7.5, kind: "short" },
+  { a: -42, len: 10.5, kind: "dash" },
+  { a: -30, len: 12, kind: "long" },
+  { a: -18, len: 8, kind: "short" },
+  { a: -9, len: 10, kind: "dash" },
+  { a: 0, len: 12.5, kind: "long" },
+  { a: 9, len: 10, kind: "dash" },
+  { a: 18, len: 8, kind: "short" },
+  { a: 30, len: 12, kind: "long" },
+  { a: 42, len: 10.5, kind: "dash" },
+  { a: 54, len: 7.5, kind: "short" },
+  { a: 66, len: 11.5, kind: "long" },
+  { a: 78, len: 9, kind: "dash" },
 ] as const;
 
 const SNAPSHOT_FLASH_CX = 16;

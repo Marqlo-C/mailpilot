@@ -3,7 +3,10 @@ import { NextResponse } from "next/server";
 
 import { logStory, syncLog } from "@/lib/logging";
 import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
-import { runOpportunitySync } from "@/lib/opportunities/sync";
+import {
+  CRON_SYNC_MAX_MESSAGES,
+  runOpportunitySync,
+} from "@/lib/opportunities/sync";
 import { prisma } from "@/lib/core/prisma";
 
 /** Hobby-friendly ceiling so multi-account runs stay under the platform limit. */
@@ -35,8 +38,9 @@ function isAuthorized(request: Request): boolean {
 
 /**
  * GitHub Actions (or other) cron ping — sequential inbox sync for all
- * accounts with active Google refresh tokens. Caps each cycle at 10 emails
- * to stay under the 60s Hobby timeout.
+ * accounts with active Google refresh tokens. Caps each cycle’s Gmail
+ * job-query at CRON_SYNC_MAX_MESSAGES to stay under the 60s Hobby timeout
+ * (account syncMaxMessages may be higher for manual Sync Inbox).
  */
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
@@ -90,7 +94,8 @@ export async function GET(request: Request) {
 
         const syncResult = await runOpportunitySync(account.id, {
           forceRescan: false,
-          maxMessages: 10,
+          // Hard Hobby ceiling; account syncMaxMessages only raises manual Sync Inbox.
+          maxMessages: CRON_SYNC_MAX_MESSAGES,
         });
 
         try {

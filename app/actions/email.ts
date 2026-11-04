@@ -154,10 +154,11 @@ export async function syncInboxOpportunities(
     });
 
     try {
+      // Batch ceilings come from AccountSettings.rules (syncMaxMessages /
+      // pendingAiDrainLimit); runOpportunitySync resolves defaults.
       const result = await runOpportunitySync(syncAccountId, {
         forceRescan,
         lookbackDays,
-        maxMessages: 50,
       });
       processed = result.processed;
 
