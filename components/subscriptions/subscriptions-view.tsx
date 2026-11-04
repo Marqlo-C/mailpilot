@@ -72,6 +72,7 @@ import { selectCheckboxClassName } from "@/components/ui/styles/select-checkbox"
 import { useLastClickedId } from "@/hooks/use-last-clicked-id";
 import {
   getSelectionGroupEdges,
+  selectHighlightCardGroupClassName,
   selectHighlightGroupClassName,
   type SelectionGroupEdges,
 } from "@/components/ui/styles/select-highlight";
@@ -1823,9 +1824,18 @@ function LastReceivedStatBadge({
 const METRICS_GAP_CLASS = "gap-2.5";
 
 
+/**
+ * Mobile card shell — `border-2` matches Job Radar / selection highlight so
+ * multiselect only recolors the edge (no wider/shorter jump).
+ */
+const SUBSCRIPTION_CARD_SHELL_CLASS =
+  "rounded-xl border-2 bg-card p-4 shadow-md";
+
 /** Job Radar card hover — border lift + shadow (mobile cards). */
-const SUBSCRIPTION_CARD_SURFACE_CLASS =
-  "rounded-xl border border-border/80 bg-card p-4 shadow-md transition-all duration-200 hover:border-border hover:shadow-lg";
+const SUBSCRIPTION_CARD_SURFACE_CLASS = cn(
+  SUBSCRIPTION_CARD_SHELL_CLASS,
+  "border-border/80 transition-[border-color,box-shadow] duration-200 hover:border-border hover:shadow-lg"
+);
 
 /** Desktop table row hover — same family, background tint instead of shadow. */
 const SUBSCRIPTION_ROW_HOVER_CLASS =
@@ -1929,8 +1939,11 @@ function SnapshotFlashRays({ muted = false }: { muted?: boolean }) {
     <svg
       viewBox="0 0 32 18"
       className={cn(
-        "pointer-events-none absolute -top-[12px] left-1/2 z-[1] h-[14px] w-[26px] -translate-x-[calc(50%+3px)] text-current transition-opacity duration-300",
-        muted ? "opacity-25" : "opacity-70 group-hover/snap:opacity-100"
+        // Warm flash — #ffaa70 family (not the teal button ink).
+        "pointer-events-none absolute -top-[12px] left-1/2 z-[1] h-[14px] w-[26px] -translate-x-[calc(50%+3px)] transition-[color,opacity] duration-300",
+        muted
+          ? "text-[#ffaa70]/35 opacity-40"
+          : "text-[#ffaa70] opacity-85 group-hover/snap:text-[#ffc08a] group-hover/snap:opacity-100"
       )}
       fill="none"
       aria-hidden
@@ -2039,9 +2052,11 @@ function SubscriptionRowActions({
           <RowMenuTrigger
             label="Subscription actions"
             disabled={disabled}
+            // Keep the same h-8/w-4 chrome when locked — swapping to solid
+            // `bg-muted` made the ⋮ read larger and shifted neighbors.
             className={
               disabled
-                ? "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground"
+                ? "pointer-events-none opacity-55 hover:bg-[#e4f7f3] hover:text-[#181e26]"
                 : undefined
             }
           />
@@ -2143,12 +2158,16 @@ function SubscriptionDesktopRow({
           <WavyDashedRule orientation="horizontal" />
         </div>
       ) : null}
-      {/* Card midpoint — same x as toolbar half split when both are full-bleed */}
-      {!selected ? (
-        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2">
-          <WavyDashedRule orientation="vertical" length={16} />
-        </div>
-      ) : null}
+      {/* Card midpoint — same x as toolbar half split when both are full-bleed.
+          Stay mounted when selected so layout does not jump. */}
+      <div
+        className={cn(
+          "pointer-events-none absolute left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2",
+          selected && "invisible"
+        )}
+      >
+        <WavyDashedRule orientation="vertical" length={16} />
+      </div>
 
       <div className="flex h-full w-1/2 min-w-0 items-center gap-3 pl-3 pr-3">
         <input
@@ -2212,11 +2231,14 @@ function SubscriptionDesktopRow({
           />
         </div>
 
-        {!selected ? (
-          <WavyDashedRule orientation="vertical" length={16} className="mx-1" />
-        ) : null}
+        <WavyDashedRule
+          orientation="vertical"
+          length={16}
+          className={cn("mx-1", selected && "invisible")}
+        />
 
-        <div className="flex h-full min-w-0 flex-1 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-4 pr-1">
+        {/* pr-2.5 matches gap-2.5 so ⋮ sits evenly vs left button and card edge */}
+        <div className="flex h-full min-w-0 flex-1 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-4 pr-2.5">
           <SubscriptionRowActions
             sub={sub}
             onBriefing={onBriefing}
@@ -2284,10 +2306,10 @@ function ActiveDesktopTable({
     <div
       data-dnd-list
       className={cn(
-        "relative hidden w-full overflow-hidden rounded-xl bg-card shadow-md transition-shadow duration-200 hover:shadow-lg md:block",
-        // Drop the shell stroke when selection paints the list edge — avoids a
-        // double border that makes the teal look inset/off at the corners.
-        selectionTouchesShell ? "border-0" : "border border-border/80"
+        // No layout border — toggling border↔border-0 shifted size. Resting
+        // edge is a ring (box-shadow); clear it when selection paints flush.
+        "relative hidden w-full overflow-hidden rounded-xl border-0 bg-card shadow-md transition-[box-shadow] duration-200 hover:shadow-lg md:block",
+        selectionTouchesShell ? "ring-0" : "ring-1 ring-border/80"
       )}
     >
       {subscriptions.map((sub, index) => {
@@ -2397,11 +2419,9 @@ function ActiveMobileCards({
               "relative select-none",
               selected
                 ? cn(
-                    // No default `border` — highlight stroke owns the perimeter.
-                    "bg-card p-4 transition-all duration-200",
-                    selectHighlightGroupClassName(selectionGroup, {
-                      radius: "xl",
-                    }),
+                    SUBSCRIPTION_CARD_SHELL_CLASS,
+                    "transition-[background,border-color,border-radius,margin] duration-200",
+                    selectHighlightCardGroupClassName(selectionGroup),
                     // Collapse gaps inside a selected run so the perimeter reads as one block.
                     nextSelected ? "mb-0" : "mb-3"
                   )
@@ -2612,7 +2632,8 @@ function ArchiveDesktopRow({
 
         <WavyDashedRule orientation="vertical" length={16} className="mx-1" />
 
-        <div className="flex h-full min-w-0 flex-1 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-4 pr-1">
+        {/* pr-2.5 matches gap-2.5 so ⋮ sits evenly vs left button and card edge */}
+        <div className="flex h-full min-w-0 flex-1 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-4 pr-2.5">
           <ArchiveRowActions
             entry={entry}
             pending={pending}

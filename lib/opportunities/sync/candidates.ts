@@ -132,15 +132,17 @@ export type GatherSyncCandidatesInput = {
 export type GatherSyncCandidatesResult = {
   targetIds: string[];
   combinedCandidateIds: string[];
+  /** PENDING_AI message IDs included in this run (pre-dedupe drain set). */
+  pendingIds: string[];
   historyExpired: boolean;
 };
 
 /**
  * Gathers candidate message IDs for opportunity synchronization:
  * 1. Runs delta sync (processInboxDelta) when historyId is present and not forceRescan.
- * 2. Runs Gmail search query (incremental or wide lookback).
- * 3. Merges up to `pendingAiDrainLimit` PENDING_AI backlog messages.
- * 4. Deduplicates against known EmailMessage and JobApplication records in the DB.
+ * 2. Pulls up to `pendingAiDrainLimit` PENDING_AI rows (oldest first).
+ * 3. Runs Gmail search query (incremental or wide lookback).
+ * 4. Deduplicates; classify order is pending slice first, then fresh search hits.
  */
 export async function gatherSyncCandidates(
   input: GatherSyncCandidatesInput
@@ -178,18 +180,12 @@ export async function gatherSyncCandidates(
     lastSyncedAt: account.lastSyncedAt,
   });
 
-  logStory(syncLog, "Step 2/4 — Job search + PENDING_AI drain", {
+  logStory(syncLog, "Step 2/4 — PENDING_AI drain + job search", {
     window: windowLabel,
     "skipping delta ids": deltaIdSet.size,
   });
 
-  // ── Step 2: Job search + PENDING_AI; dedupe vs delta + known rows ───────
-  const listedIds = await listGmailMessageIds(gmail, query, maxMessages);
-  // Delta already digested these; skip re-fetch (PENDING_AI still drained below).
-  const gmailMessageIds = listedIds.filter((id) => !deltaIdSet.has(id));
-  const skippedAsDeltaDupes = listedIds.length - gmailMessageIds.length;
-
-  // Drain backlogged PENDING_AI so Sync Inbox / cron clear the queue over time.
+  // ── Step 2a: PENDING_AI drain (after delta so freshly parked rows qualify) ─
   const pendingRows =
     pendingAiDrainLimit > 0
       ? await prisma.emailMessage.findMany({
@@ -198,20 +194,28 @@ export async function gatherSyncCandidates(
             emailCategory: "PENDING_AI",
           },
           select: { messageId: true },
+          orderBy: { createdAt: "asc" },
           take: pendingAiDrainLimit,
         })
       : [];
   const pendingIds = pendingRows.map((r) => r.messageId);
+  const pendingSet = new Set(pendingIds);
 
+  // ── Step 2b: Job search; skip ids already digested in delta ─────────────
+  const listedIds = await listGmailMessageIds(gmail, query, maxMessages);
+  const gmailMessageIds = listedIds.filter((id) => !deltaIdSet.has(id));
+  const skippedAsDeltaDupes = listedIds.length - gmailMessageIds.length;
+
+  // Pending first, then search-only ids (Set keeps uniqueness).
   const combinedCandidateIds = Array.from(
-    new Set([...gmailMessageIds, ...pendingIds])
+    new Set([...pendingIds, ...gmailMessageIds])
   );
 
   logStory(syncLog, "Candidate scoop", {
+    "PENDING_AI backlog pulled": pendingIds.length,
     "Gmail job search hits": listedIds.length,
     "already digested in delta (skipped)": skippedAsDeltaDupes,
     "fresh from search": gmailMessageIds.length,
-    "PENDING_AI backlog pulled": pendingIds.length,
     "combined unique": combinedCandidateIds.length,
   });
 
@@ -219,6 +223,7 @@ export async function gatherSyncCandidates(
     return {
       targetIds: [],
       combinedCandidateIds: [],
+      pendingIds: [],
       historyExpired,
     };
   }
@@ -249,7 +254,7 @@ export async function gatherSyncCandidates(
       ...processedApps.map((row) => row.messageId),
     ]);
     // PENDING_AI rows must still run even if a JobApplication row exists.
-    const pendingSet = new Set(pendingIds);
+    // Preserve pending-first order from combinedCandidateIds.
     targetIds = combinedCandidateIds.filter(
       (id) => pendingSet.has(id) || !processedSet.has(id)
     );
@@ -267,6 +272,7 @@ export async function gatherSyncCandidates(
   return {
     targetIds,
     combinedCandidateIds,
+    pendingIds,
     historyExpired,
   };
 }

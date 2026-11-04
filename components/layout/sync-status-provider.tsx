@@ -19,18 +19,29 @@ import {
 import { toast } from "sonner";
 import { SYNC_LOCK_STALE_MS } from "@/lib/core/constants";
 import { startSyncStatusBackoffPoll } from "@/lib/gmail/sync-status-poll";
+import {
+  parseSyncKind,
+  type SyncKind,
+} from "@/lib/opportunities/sync/kinds";
 
 export const SYNC_STARTED_EVENT = "mailpilot:sync-started";
+
+export type SyncStartedDetail = {
+  kind?: SyncKind;
+};
 
 type SyncStatusContextValue = {
   accountId: string | null;
   isSyncing: boolean;
+  syncKind: SyncKind | null;
   pendingCount: number;
   lastSyncProcessed: number | null;
   totalToProcess: number | null;
+  lastSyncPendingProcessed: number | null;
+  syncPendingTotal: number | null;
   justFinished: boolean;
   showForceReset: boolean;
-  markSyncStarted: () => void;
+  markSyncStarted: (kind?: SyncKind) => void;
   markSyncFailed: () => void;
   forceReset: () => Promise<void>;
   flushPendingClassification: () => Promise<boolean>;
@@ -57,6 +68,7 @@ export function SyncStatusProvider({
 }: SyncStatusProviderProps) {
   const router = useRouter();
   const [isSyncing, setIsSyncing] = useState(initialIsSyncing);
+  const [syncKind, setSyncKind] = useState<SyncKind | null>(null);
   const [pendingCount, setPendingCount] = useState(
     initialPendingClassificationCount
   );
@@ -64,12 +76,25 @@ export function SyncStatusProvider({
     null
   );
   const [totalToProcess, setTotalToProcess] = useState<number | null>(null);
+  const [lastSyncPendingProcessed, setLastSyncPendingProcessed] = useState<
+    number | null
+  >(null);
+  const [syncPendingTotal, setSyncPendingTotal] = useState<number | null>(null);
   const [justFinished, setJustFinished] = useState(false);
   const [showForceReset, setShowForceReset] = useState(false);
   const disposePollRef = useRef<(() => void) | null>(null);
   const wasSyncingRef = useRef(initialIsSyncing);
+  const syncKindRef = useRef<SyncKind | null>(null);
   const pendingCountRef = useRef(initialPendingClassificationCount);
   pendingCountRef.current = pendingCount;
+
+  const clearProgress = useCallback(() => {
+    setLastSyncProcessed(null);
+    setTotalToProcess(null);
+    setLastSyncPendingProcessed(null);
+    setSyncPendingTotal(null);
+    setSyncKind(null);
+  }, []);
 
   useEffect(() => {
     setIsSyncing(initialIsSyncing);
@@ -77,33 +102,35 @@ export function SyncStatusProvider({
     wasSyncingRef.current = initialIsSyncing;
     if (!initialIsSyncing) {
       setShowForceReset(false);
-      setLastSyncProcessed(null);
-      setTotalToProcess(null);
+      clearProgress();
     }
-  }, [accountId, initialIsSyncing, initialPendingClassificationCount]);
+  }, [accountId, initialIsSyncing, initialPendingClassificationCount, clearProgress]);
 
-  const markSyncStarted = useCallback(() => {
+  const markSyncStarted = useCallback((kind: SyncKind = "inbox") => {
     wasSyncingRef.current = true;
     setShowForceReset(false);
     setJustFinished(false);
     setIsSyncing(true);
+    syncKindRef.current = kind;
+    setSyncKind(kind);
     setLastSyncProcessed(0);
-    setTotalToProcess(
-      pendingCountRef.current > 0 ? pendingCountRef.current : null
-    );
+    setLastSyncPendingProcessed(0);
+    // Do not seed totals from backlog COUNT — wait for server batch sizes.
+    setTotalToProcess(null);
+    setSyncPendingTotal(null);
   }, []);
 
   const markSyncFailed = useCallback(() => {
     wasSyncingRef.current = false;
     setIsSyncing(false);
     setShowForceReset(false);
-    setLastSyncProcessed(null);
-    setTotalToProcess(null);
-  }, []);
+    clearProgress();
+  }, [clearProgress]);
 
   useEffect(() => {
-    function handleSyncStart() {
-      markSyncStarted();
+    function handleSyncStart(event: Event) {
+      const detail = (event as CustomEvent<SyncStartedDetail>).detail;
+      markSyncStarted(detail?.kind === "queued" ? "queued" : "inbox");
     }
     window.addEventListener(SYNC_STARTED_EVENT, handleSyncStart);
     return () => window.removeEventListener(SYNC_STARTED_EVENT, handleSyncStart);
@@ -129,8 +156,7 @@ export function SyncStatusProvider({
         wasSyncingRef.current = false;
         setIsSyncing(false);
         setShowForceReset(false);
-        setLastSyncProcessed(null);
-        setTotalToProcess(null);
+        clearProgress();
       },
       onTick: async () => {
         try {
@@ -142,8 +168,7 @@ export function SyncStatusProvider({
             if (consecutiveErrors >= 4) {
               wasSyncingRef.current = false;
               setIsSyncing(false);
-              setLastSyncProcessed(null);
-              setTotalToProcess(null);
+              clearProgress();
               return "stop";
             }
             return "continue";
@@ -155,10 +180,19 @@ export function SyncStatusProvider({
             pendingClassificationCount?: number;
             lastSyncProcessed?: number | null;
             syncTotal?: number | null;
+            syncKind?: string | null;
+            syncPendingTotal?: number | null;
+            lastSyncPendingProcessed?: number | null;
           };
 
           if (typeof data.pendingClassificationCount === "number") {
             setPendingCount(data.pendingClassificationCount);
+          }
+
+          const kind = parseSyncKind(data.syncKind ?? null);
+          if (kind) {
+            syncKindRef.current = kind;
+            setSyncKind(kind);
           }
 
           if (typeof data.lastSyncProcessed === "number") {
@@ -167,20 +201,16 @@ export function SyncStatusProvider({
 
           if (typeof data.syncTotal === "number" && data.syncTotal > 0) {
             setTotalToProcess(data.syncTotal);
-          } else if (typeof data.lastSyncProcessed === "number") {
-            setTotalToProcess((prev) => {
-              if (prev !== null) return prev;
-              if (
-                typeof data.pendingClassificationCount === "number" &&
-                data.pendingClassificationCount > 0
-              ) {
-                return Math.max(
-                  data.pendingClassificationCount,
-                  data.lastSyncProcessed ?? 0
-                );
-              }
-              return null;
-            });
+          }
+
+          if (typeof data.syncPendingTotal === "number") {
+            setSyncPendingTotal(
+              data.syncPendingTotal > 0 ? data.syncPendingTotal : null
+            );
+          }
+
+          if (typeof data.lastSyncPendingProcessed === "number") {
+            setLastSyncPendingProcessed(data.lastSyncPendingProcessed);
           }
 
           if (data.isSyncing) {
@@ -192,14 +222,17 @@ export function SyncStatusProvider({
             wasSyncingRef.current = false;
             setIsSyncing(false);
             setShowForceReset(false);
+            // Keep kind briefly so the complete toast matches the run type.
+            setSyncKind(syncKindRef.current);
             setJustFinished(true);
             setLastSyncProcessed(null);
             setTotalToProcess(null);
+            setLastSyncPendingProcessed(null);
+            setSyncPendingTotal(null);
             router.refresh();
           } else {
             setIsSyncing(false);
-            setLastSyncProcessed(null);
-            setTotalToProcess(null);
+            clearProgress();
           }
           return "stop";
         } catch (err) {
@@ -208,8 +241,7 @@ export function SyncStatusProvider({
           if (consecutiveErrors >= 4) {
             wasSyncingRef.current = false;
             setIsSyncing(false);
-            setLastSyncProcessed(null);
-            setTotalToProcess(null);
+            clearProgress();
             return "stop";
           }
           return "continue";
@@ -221,11 +253,15 @@ export function SyncStatusProvider({
       disposePollRef.current?.();
       disposePollRef.current = null;
     };
-  }, [accountId, isSyncing, router]);
+  }, [accountId, isSyncing, router, clearProgress]);
 
   useEffect(() => {
     if (!justFinished) return;
-    const timer = setTimeout(() => setJustFinished(false), 3500);
+    const timer = setTimeout(() => {
+      setJustFinished(false);
+      syncKindRef.current = null;
+      setSyncKind(null);
+    }, 3500);
     return () => clearTimeout(timer);
   }, [justFinished]);
 
@@ -250,23 +286,25 @@ export function SyncStatusProvider({
     setIsSyncing(false);
     setShowForceReset(false);
     setJustFinished(false);
-    setLastSyncProcessed(null);
-    setTotalToProcess(null);
+    clearProgress();
     try {
       await forceResetSyncStatus();
     } catch (error) {
       console.error("forceResetSyncStatus failed", error);
     }
     router.refresh();
-  }, [router]);
+  }, [router, clearProgress]);
 
   const value = useMemo(
     () => ({
       accountId,
       isSyncing,
+      syncKind,
       pendingCount,
       lastSyncProcessed,
       totalToProcess,
+      lastSyncPendingProcessed,
+      syncPendingTotal,
       justFinished,
       showForceReset,
       markSyncStarted,
@@ -277,9 +315,12 @@ export function SyncStatusProvider({
     [
       accountId,
       isSyncing,
+      syncKind,
       pendingCount,
       lastSyncProcessed,
       totalToProcess,
+      lastSyncPendingProcessed,
+      syncPendingTotal,
       justFinished,
       showForceReset,
       markSyncStarted,

@@ -57,7 +57,10 @@ export function FlyoutIconPill({
   if (!secondary) {
     return (
       <div
-        className={cn(PILL_SHELL_CLASS, matchPairWidth && dualWidthClass)}
+        className={cn(
+          PILL_SHELL_CLASS,
+          matchPairWidth ? dualWidthClass : "size-8"
+        )}
       >
         <button
           type="button"

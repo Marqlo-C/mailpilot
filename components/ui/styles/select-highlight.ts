@@ -146,3 +146,38 @@ export function selectHighlightGroupClassName(
   }
   return parts.join(" ");
 }
+
+/**
+ * Mobile subscription cards — real `border-2` highlight (Job Radar style).
+ * Pair with a resting `border-2` shell so selection only recolors edges;
+ * inset-shadow strokes were overriding `shadow-md` and shifting the box.
+ */
+export function selectHighlightCardGroupClassName(
+  edges: SelectionGroupEdges
+): string {
+  if (!edges.selected) return "";
+  const parts = [
+    SELECT_HIGHLIGHT_FILL_CLASSNAME,
+    SELECT_HIGHLIGHT_ROW_LAYOUT_CLASSNAME,
+    "border-2",
+  ];
+  if (edges.isGroupStart && edges.isGroupEnd) {
+    parts.push("rounded-xl border-[#9BC6D8]/95");
+  } else if (edges.isGroupStart) {
+    parts.push(
+      "rounded-t-xl rounded-b-none",
+      "border-t-[#9BC6D8]/95 border-x-[#9BC6D8]/95 border-b-transparent"
+    );
+  } else if (edges.isGroupEnd) {
+    parts.push(
+      "rounded-b-xl rounded-t-none",
+      "border-b-[#9BC6D8]/95 border-x-[#9BC6D8]/95 border-t-transparent"
+    );
+  } else {
+    parts.push(
+      "rounded-none",
+      "border-x-[#9BC6D8]/95 border-y-transparent"
+    );
+  }
+  return parts.join(" ");
+}

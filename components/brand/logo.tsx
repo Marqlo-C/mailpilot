@@ -158,26 +158,17 @@ export function NavLogo({
         "inline-flex max-w-full items-center overflow-hidden",
         className
       )}
-      aria-label="MailPilot"
+      aria-label="Mail Pilot"
     >
       {/* Mobile / narrow: icon only */}
       <span className="lg:hidden">{planeTile}</span>
 
-      {/* Desktop: plane + wordmark — gap is 25% tighter than gap-2.5 (10px → 7.5px) */}
+      {/* Desktop: plane + Duplet wordmark — gap is 25% tighter than gap-2.5 (10px → 7.5px) */}
       <span className="hidden items-center gap-[7.5px] lg:inline-flex">
         {planeTile}
 
-        <span className="relative flex h-8 shrink-0 items-center overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={WHITE_WORDMARK_SRC}
-            alt=""
-            width={180}
-            height={68}
-            decoding="async"
-            fetchPriority="high"
-            className="pointer-events-none h-[68px] w-auto max-w-none object-contain"
-          />
+        <span className="flex h-8 shrink-0 items-center whitespace-nowrap text-[1.35rem] font-bold leading-none tracking-tight text-white [font-family:'Duplet_Rounded',sans-serif]">
+          Mail Pilot
         </span>
       </span>
     </span>

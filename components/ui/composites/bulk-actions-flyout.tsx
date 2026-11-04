@@ -168,6 +168,8 @@ type BulkActionsFlyoutProps = {
    */
   syncActive?: boolean;
   onStopSync?: () => void;
+  /** Label for stopping the active sync (e.g. Stop reviewing / Stop sorting). */
+  stopSyncLabel?: string;
   className?: string;
   /** Accessible region label. */
   label?: string;
@@ -176,20 +178,42 @@ type BulkActionsFlyoutProps = {
 type FlyoutPhase = "prep" | "in" | "idle" | "out";
 
 type BulkActionsOpenContextValue = {
+  /** Selection flyout mounted (including leave animation). */
   open: boolean;
   setOpen: (open: boolean) => void;
+  /** True as soon as selectedCount > 0 — sync tracker yields before bulk mounts. */
+  selectionRequested: boolean;
+  setSelectionRequested: (value: boolean) => void;
+  /** Standalone sync flyout mounted (including leave animation). */
+  syncTrackerMounted: boolean;
+  setSyncTrackerMounted: (value: boolean) => void;
 };
 
 const BulkActionsOpenContext = createContext<BulkActionsOpenContextValue>({
   open: false,
   setOpen: () => {},
+  selectionRequested: false,
+  setSelectionRequested: () => {},
+  syncTrackerMounted: false,
+  setSyncTrackerMounted: () => {},
 });
 
 /** App-shell provider so GlobalSyncTracker can yield to the selection flyout. */
 export function BulkActionsOpenProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [selectionRequested, setSelectionRequested] = useState(false);
+  const [syncTrackerMounted, setSyncTrackerMounted] = useState(false);
   return (
-    <BulkActionsOpenContext.Provider value={{ open, setOpen }}>
+    <BulkActionsOpenContext.Provider
+      value={{
+        open,
+        setOpen,
+        selectionRequested,
+        setSelectionRequested,
+        syncTrackerMounted,
+        setSyncTrackerMounted,
+      }}
+    >
       {children}
     </BulkActionsOpenContext.Provider>
   );
@@ -198,6 +222,11 @@ export function BulkActionsOpenProvider({ children }: { children: ReactNode }) {
 /** True while the selection flyout is mounted (including leave animation). */
 export function useBulkActionsOpen() {
   return useContext(BulkActionsOpenContext).open;
+}
+
+/** Shared handoff between standalone sync tracker and selection flyout. */
+export function useBulkActionsHandoff() {
+  return useContext(BulkActionsOpenContext);
 }
 
 /** Same enter/exit timing as the selection flyout. */
@@ -283,19 +312,52 @@ export function BulkActionsFlyout({
   status,
   syncActive = false,
   onStopSync,
+  stopSyncLabel = "Stop sorting",
   className,
   label = "Bulk actions toolbar",
 }: BulkActionsFlyoutProps) {
   const cancelPendingRef = useRef(false);
-  const { setOpen: setBulkOpen } = useContext(BulkActionsOpenContext);
+  const {
+    setOpen: setBulkOpen,
+    setSelectionRequested,
+    syncTrackerMounted,
+  } = useBulkActionsHandoff();
+  // Wait for the standalone sync flyout to finish leaving so both don't overlap.
   const { mounted, phase, style, onAnimationEnd } = useFlyoutPresence(
-    selectedCount > 0
+    selectedCount > 0 && !syncTrackerMounted
   );
   const chooseOnCancel = Boolean(syncActive && onStopSync);
+  const stopLabel = stopSyncLabel.trim() || "Stop sorting";
+
+  // Selection hits 0 on the same render that starts leave — phase is still
+  // idle/in that frame, so gate on selectedCount (not phase) or we'd freeze
+  // the already-collapsed Snapshot / Delete / counts chrome.
+  const lingerRef = useRef({
+    children,
+    trailing,
+    status,
+    chooseOnCancel,
+    stopLabel,
+  });
+  if (selectedCount > 0) {
+    lingerRef.current = {
+      children,
+      trailing,
+      status,
+      chooseOnCancel,
+      stopLabel,
+    };
+  }
+  const shown = lingerRef.current;
 
   useEffect(() => {
     if (selectedCount > 0) cancelPendingRef.current = false;
   }, [selectedCount]);
+
+  useEffect(() => {
+    setSelectionRequested(selectedCount > 0);
+    return () => setSelectionRequested(false);
+  }, [selectedCount, setSelectionRequested]);
 
   useEffect(() => {
     setBulkOpen(mounted);
@@ -332,27 +394,27 @@ export function BulkActionsFlyout({
         onAnimationEnd={onAnimationEnd}
       >
         <div className={cn("mp-flyout-chunk", BULK_FLYOUT_PILL_CLASSNAME)}>
-          {children}
+          {shown.children}
         </div>
 
-        {trailing ? (
+        {shown.trailing ? (
           <div className={cn("mp-flyout-chunk", BULK_FLYOUT_PILL_CLASSNAME)}>
-            {trailing}
+            {shown.trailing}
           </div>
         ) : null}
 
-        {status ? (
-          <div className="mp-flyout-chunk shrink-0">{status}</div>
+        {shown.status ? (
+          <div className="mp-flyout-chunk shrink-0">{shown.status}</div>
         ) : null}
 
         <div className="mp-flyout-chunk shrink-0">
-          {chooseOnCancel ? (
+          {shown.chooseOnCancel ? (
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  title="Clear selection or stop classifying"
-                  aria-label="Clear selection or stop classifying"
+                  title={`Clear selection or ${shown.stopLabel.toLowerCase()}`}
+                  aria-label={`Clear selection or ${shown.stopLabel.toLowerCase()}`}
                   className={BULK_FLYOUT_CANCEL_CLASSNAME}
                 >
                   <X className="size-4 text-current" aria-hidden />
@@ -374,7 +436,7 @@ export function BulkActionsFlyout({
                   className={BULK_CANCEL_MENU_ITEM_CLASS}
                   onSelect={() => onStopSync?.()}
                 >
-                  Stop classifying
+                  {shown.stopLabel}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

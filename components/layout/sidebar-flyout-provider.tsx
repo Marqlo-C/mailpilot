@@ -14,7 +14,7 @@ import {
 
 /** Brief pause so a fly-by doesn't open the menu. */
 export const SIDEBAR_FLYOUT_OPEN_DELAY_MS = 500;
-export const SIDEBAR_FLYOUT_CLOSE_DELAY_MS = 80;
+export const SIDEBAR_FLYOUT_CLOSE_DELAY_MS = 180;
 /**
  * Collapsed tab menu's bridge covers the status edge. A short dwell lets a
  * pass-through to the tabs keep going, and a pause on the edge opens status.
@@ -25,6 +25,7 @@ export type SidebarFlyoutId =
   | { kind: "nav"; href: string }
   | { kind: "telemetry" }
   | { kind: "keys" }
+  | { kind: "resume" }
   | { kind: "ollama" };
 
 type SidebarFlyoutContextValue = {

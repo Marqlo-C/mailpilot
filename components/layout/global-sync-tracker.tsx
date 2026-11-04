@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -11,6 +12,7 @@ import {
   BULK_FLYOUT_CANCEL_CLASSNAME,
   BULK_FLYOUT_HOST_CLASSNAME,
   BULK_FLYOUT_PILL_CLASSNAME,
+  useBulkActionsHandoff,
   useBulkActionsOpen,
   useFlyoutPresence,
 } from "@/components/ui/composites/bulk-actions-flyout";
@@ -18,15 +20,40 @@ import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button"
 import { cn } from "@/lib/utils";
 
 /**
- * Standalone classifying flyout — separate status pill + cancel circle.
- * Yields while selection is open; shared bar uses one X with a choice menu.
+ * Standalone sort/review flyout — status pill + cancel.
+ * On multiselect: leave fully first, then the selection bar mounts.
+ * On clear selection: selection leaves fully first, then this remounts.
  */
 export function GlobalSyncTracker() {
   const bulkOpen = useBulkActionsOpen();
+  const { selectionRequested, setSyncTrackerMounted } = useBulkActionsHandoff();
   const visible = useClassifyingFlyoutVisible();
-  const { isSyncing, forceReset } = useSyncStatus();
-  const open = visible && !bulkOpen;
+  const { isSyncing, justFinished, syncKind, forceReset } = useSyncStatus();
+  const open = visible && !selectionRequested && !bulkOpen;
   const { mounted, phase, style, onAnimationEnd } = useFlyoutPresence(open);
+  // Yielding to multiselect — purpose-built shorter leave (not a time-ramp).
+  const retractFast = phase === "out" && selectionRequested;
+  // Keep the X through leave so exit is slide+fold, not only-child compress.
+  // One effect: never clear on the pre-mount frame while sync is already active
+  // (that race left Ace reviewing with no X for the whole run).
+  const [showCancel, setShowCancel] = useState(false);
+  useEffect(() => {
+    if (isSyncing || justFinished) {
+      setShowCancel(true);
+    } else if (!mounted) {
+      setShowCancel(false);
+    }
+  }, [isSyncing, justFinished, mounted]);
+
+  useEffect(() => {
+    setSyncTrackerMounted(mounted);
+    return () => setSyncTrackerMounted(false);
+  }, [mounted, setSyncTrackerMounted]);
+
+  const stopTitle =
+    syncKind === "queued"
+      ? "Stop reviewing — remaining emails stay awaiting Ace"
+      : "Stop sorting — remaining emails stay awaiting Ace";
 
   if (!mounted || typeof document === "undefined") return null;
 
@@ -34,7 +61,9 @@ export function GlobalSyncTracker() {
     <aside
       role="status"
       aria-live="polite"
-      aria-label="Opportunity classification status"
+      aria-label={
+        syncKind === "queued" ? "Ace queue review status" : "Inbox sort status"
+      }
       data-dnd-ignore
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
@@ -44,22 +73,27 @@ export function GlobalSyncTracker() {
         className={cn(
           "flex origin-center flex-nowrap items-center gap-2.5",
           phase === "in" && "mp-flyout-pop",
-          phase === "out" && "mp-flyout-retract"
+          phase === "out" &&
+            (retractFast ? "mp-flyout-retract-fast" : "mp-flyout-retract")
         )}
         style={style}
         onAnimationEnd={onAnimationEnd}
       >
         <div className={cn("mp-flyout-chunk", BULK_FLYOUT_PILL_CLASSNAME)}>
-          <ClassifyingFlyoutStatus />
+          <ClassifyingFlyoutStatus linger={phase === "out"} />
         </div>
 
-        {isSyncing ? (
+        {showCancel ? (
           <div className="mp-flyout-chunk shrink-0">
             <CancelTaskButton
               onCancel={() => void forceReset()}
-              title="Cancel sync — remaining emails stay in the queue"
+              title={stopTitle}
               spinMs={600}
-              className={BULK_FLYOUT_CANCEL_CLASSNAME}
+              // Don't disable — disabled:opacity makes the X go clear on sync end / leave.
+              className={cn(
+                BULK_FLYOUT_CANCEL_CLASSNAME,
+                !isSyncing && "pointer-events-none"
+              )}
             />
           </div>
         ) : null}

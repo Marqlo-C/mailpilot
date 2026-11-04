@@ -18,6 +18,23 @@
   font-display: block;
 }
 
+/* Brand wordmark face (sidebar MailPilot+ accent, digests). */
+@font-face {
+  font-family: 'Duplet Rounded';
+  src: url('/fonts/DupletRounded-Semibold-BF6606345a87ef5.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Duplet Rounded';
+  src: url('/fonts/DupletRounded-Bold-BF6606345a47d2e.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   :root {
     --background: 220 14% 90%;
@@ -200,7 +217,7 @@ html[data-mp-rail-action="dark"] [data-mp-rail-action] {
     transform: scale(1) translateY(0);
     gap: 0.625rem;
   }
-  /* Pills meet (~945ms); fold after is snappier (~380ms). */
+  /* Pills meet (~745ms @ 1050ms); fold after is snappier (~305ms). */
   71% {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -225,49 +242,109 @@ html[data-mp-rail-action="dark"] [data-mp-rail-action] {
   }
 }
 
+/*
+ * Sort → multiselect yield: purpose-built shorter exit (not a time-ramp of
+ * the long retract). Ease-out slide together, softer fold.
+ */
+@keyframes mp-flyout-retract-yield {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    gap: 0.625rem;
+  }
+  58% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    gap: 0;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+    gap: 0;
+  }
+}
+
+@keyframes mp-flyout-chunk-inward-yield {
+  0% {
+    transform: translateX(0);
+  }
+  58% {
+    transform: translateX(var(--mp-inward, 0px));
+  }
+  100% {
+    transform: translateX(var(--mp-inward, 0px));
+  }
+}
+
 .mp-flyout-pop {
   animation: mp-flyout-pop 589ms cubic-bezier(0.22, 1.2, 0.36, 1) both;
 }
 
 .mp-flyout-retract {
-  animation: mp-flyout-retract 1330ms cubic-bezier(0.33, 0.1, 0.2, 1) both;
+  /* Modestly quicker than the original 1330ms; same curve, not a harsh ramp. */
+  animation: mp-flyout-retract 1050ms cubic-bezier(0.33, 0.1, 0.2, 1) both;
   /* Sliding pieces must not re-enter hover and restart the leave. */
   pointer-events: none;
 }
 
-.mp-flyout-retract > .mp-flyout-chunk {
-  animation: mp-flyout-chunk-inward 1330ms cubic-bezier(0.33, 0.1, 0.2, 1) both;
+.mp-flyout-retract-fast {
+  animation: mp-flyout-retract-yield 680ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  pointer-events: none;
 }
 
-.mp-flyout-retract > .mp-flyout-chunk:first-child {
+.mp-flyout-retract > .mp-flyout-chunk {
+  animation: mp-flyout-chunk-inward 1050ms cubic-bezier(0.33, 0.1, 0.2, 1) both;
+}
+
+.mp-flyout-retract-fast > .mp-flyout-chunk {
+  animation: mp-flyout-chunk-inward-yield 680ms cubic-bezier(0.22, 0.61, 0.36, 1)
+    both;
+}
+
+/* 3+ chunks: ends slide 22px toward a stationary middle (X↔neighbor ≈ 22px). */
+.mp-flyout-retract > .mp-flyout-chunk:first-child,
+.mp-flyout-retract-fast > .mp-flyout-chunk:first-child {
   --mp-inward: 22px;
 }
 
-.mp-flyout-retract > .mp-flyout-chunk:last-child {
+.mp-flyout-retract > .mp-flyout-chunk:last-child,
+.mp-flyout-retract-fast > .mp-flyout-chunk:last-child {
   --mp-inward: -22px;
 }
 
-.mp-flyout-retract > .mp-flyout-chunk:only-child {
+.mp-flyout-retract > .mp-flyout-chunk:only-child,
+.mp-flyout-retract-fast > .mp-flyout-chunk:only-child {
   --mp-inward: 0px;
 }
 
-.mp-flyout-retract > .mp-flyout-chunk:not(:first-child):not(:last-child) {
+.mp-flyout-retract > .mp-flyout-chunk:not(:first-child):not(:last-child),
+.mp-flyout-retract-fast > .mp-flyout-chunk:not(:first-child):not(:last-child) {
   --mp-inward: 0px;
 }
 
-/* Telemetry dismiss circle is 32px, so half the slide of the 44px selection X. */
-.mp-flyout-retract-status > .mp-flyout-chunk:first-child:not(:only-child) {
-  --mp-inward: 16px;
+/*
+ * Exactly 2 chunks (sort+X or multiselect+X): both used to move ±22px, so they
+ * closed 44px relative — twice the multiselect+status+X feel. Halve each side
+ * so relative meet matches that 22px X→neighbor overlap.
+ */
+.mp-flyout-retract > .mp-flyout-chunk:first-child:nth-last-child(2),
+.mp-flyout-retract-fast > .mp-flyout-chunk:first-child:nth-last-child(2),
+.mp-flyout-retract-status > .mp-flyout-chunk:first-child:nth-last-child(2) {
+  --mp-inward: 11px;
 }
 
-.mp-flyout-retract-status > .mp-flyout-chunk:last-child:not(:only-child) {
-  --mp-inward: -16px;
+.mp-flyout-retract > .mp-flyout-chunk:last-child:nth-child(2),
+.mp-flyout-retract-fast > .mp-flyout-chunk:last-child:nth-child(2),
+.mp-flyout-retract-status > .mp-flyout-chunk:last-child:nth-child(2) {
+  --mp-inward: -11px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .mp-flyout-pop,
   .mp-flyout-retract,
+  .mp-flyout-retract-fast,
   .mp-flyout-retract > .mp-flyout-chunk,
+  .mp-flyout-retract-fast > .mp-flyout-chunk,
   .mp-flyout-retract-status > .mp-flyout-chunk {
     animation-duration: 1ms;
   }

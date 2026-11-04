@@ -27,6 +27,7 @@ import {
   sleep,
   RATE_LIMIT_BASE_MS,
 } from "./candidates";
+import { SYNC_KIND_INBOX } from "./kinds";
 import {
   clampPendingAiDrain,
   clampSyncMaxMessages,
@@ -38,7 +39,9 @@ import { refreshScrapingAntUsageAfterSync } from "@/lib/scraping/scrapingant";
 
 export * from "./candidates";
 export * from "./dedupe";
+export * from "./kinds";
 export * from "./limits";
+export * from "./pending-drain";
 export * from "./processor";
 
 export type OpportunitySyncOptions = {
@@ -67,8 +70,8 @@ function normalizeProvider(value: string | null | undefined): LlmProvider {
  *
  * Pipeline:
  * 1. `processInboxDelta` — subscriptions + history catch-up.
- * 2. Job Gmail search (`after:lastSyncedAt` or lookback) + PENDING_AI drain.
- * 3. Classify / persist job candidates with 350ms pacing & real-time counter updates.
+ * 2. PENDING_AI drain (settings cap) then Gmail job search.
+ * 3. Classify pending-first, then search hits; dual telemetry counters.
  * 4. Commit `lastSyncedAt` watermark and emit sync summary.
  */
 export async function runOpportunitySync(
@@ -151,7 +154,7 @@ export async function runOpportunitySync(
 
     const gmail = await getGmailClientForAccount(account);
 
-    const { targetIds, combinedCandidateIds, historyExpired } =
+    const { targetIds, combinedCandidateIds, pendingIds, historyExpired } =
       await gatherSyncCandidates({
         gmail,
         account,
@@ -160,6 +163,10 @@ export async function runOpportunitySync(
         maxMessages,
         pendingAiDrainLimit,
       });
+
+    const pendingInBatch = new Set(
+      pendingIds.filter((id) => targetIds.includes(id))
+    );
 
     if (combinedCandidateIds.length === 0 || targetIds.length === 0) {
       logStory(
@@ -174,8 +181,11 @@ export async function runOpportunitySync(
           lastSyncedAt: runStartedAt,
           isSyncing: false,
           syncError: null,
+          syncKind: null,
           lastSyncProcessed: 0,
           syncTotal: null,
+          syncPendingTotal: null,
+          lastSyncPendingProcessed: null,
         },
       });
       return {
@@ -223,19 +233,24 @@ export async function runOpportunitySync(
       provider: llmProvider,
     });
 
-    // Record candidate total so live UI telemetry renders numerator and denominator (# / #)
+    // Flyout = full batch; sidebar Ace line = PENDING_AI slice only.
     await prisma.account.update({
       where: { id: accountId },
       data: {
+        syncKind: SYNC_KIND_INBOX,
         syncTotal: targetIds.length,
         lastSyncProcessed: 0,
+        syncPendingTotal: pendingInBatch.size,
+        lastSyncPendingProcessed: 0,
       },
     });
 
     let didUseScrapingAnt = false;
+    let pendingProcessed = 0;
 
     for (let i = 0; i < targetIds.length; i++) {
       const messageId = targetIds[i];
+      const isPendingSlice = pendingInBatch.has(messageId);
 
       const currentState = await prisma.account.findUnique({
         where: { id: accountId },
@@ -253,7 +268,12 @@ export async function runOpportunitySync(
         await prisma.account
           .update({
             where: { id: accountId },
-            data: { syncTotal: null },
+            data: {
+              syncTotal: null,
+              syncKind: null,
+              syncPendingTotal: null,
+              lastSyncPendingProcessed: null,
+            },
           })
           .catch(() => {});
         break;
@@ -295,12 +315,16 @@ export async function runOpportunitySync(
         }
       }
 
-      // Real-time progress update for the header pill
+      if (isPendingSlice) {
+        pendingProcessed += 1;
+      }
+
       await prisma.account.update({
         where: { id: accountId },
         data: {
           syncHeartbeatAt: new Date(),
           lastSyncProcessed: i + 1,
+          lastSyncPendingProcessed: pendingProcessed,
         },
       });
 
@@ -323,8 +347,11 @@ export async function runOpportunitySync(
         lastSyncedAt: runStartedAt,
         isSyncing: false,
         syncError: null,
+        syncKind: null,
         lastSyncProcessed: targetIds.length,
         syncTotal: null,
+        syncPendingTotal: null,
+        lastSyncPendingProcessed: null,
       },
     });
 
@@ -371,7 +398,10 @@ export async function runOpportunitySync(
         where: { id: accountId },
         data: {
           isSyncing: false,
+          syncKind: null,
           syncTotal: null,
+          syncPendingTotal: null,
+          lastSyncPendingProcessed: null,
         },
       });
     } catch {

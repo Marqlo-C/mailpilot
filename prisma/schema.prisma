@@ -83,6 +83,12 @@ model Account {
   lastSyncProcessed   Int?
   /// Total candidate emails queued for the active sync run (for live UI progress numerator/denominator).
   syncTotal           Int?
+  /// Active run kind: "inbox" (full Sync Inbox) or "queued" (Ace reviewing PENDING_AI only).
+  syncKind            String?
+  /// PENDING_AI slice size for the active run (sidebar Ace progress).
+  syncPendingTotal    Int?
+  /// How many of that PENDING_AI slice have been processed so far.
+  lastSyncPendingProcessed Int?
   /// Touched by the background worker each batch so hang detection uses liveness, not lock start.
   syncHeartbeatAt     DateTime?
 
