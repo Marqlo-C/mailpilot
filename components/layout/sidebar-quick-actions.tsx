@@ -18,6 +18,7 @@ import {
   OllamaFlyout,
   prefetchOllamaStatus,
 } from "@/components/layout/ollama-flyout";
+import { ResumeUploadFlyout } from "@/components/layout/resume-upload-flyout";
 import {
   SECTION_TITLE_CLASS,
   SidebarFlyout,
@@ -27,7 +28,6 @@ import {
   useSidebarFlyout,
 } from "@/components/layout/sidebar-flyout-provider";
 import { downloadMasterProfile } from "@/components/profile/export-master-profile-button";
-import { ResumeUploadDialog } from "@/components/profile/resume-upload-dialog";
 import { tabRailInactiveTextClassName } from "@/components/ui/tactile/segmented-tabs";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -35,7 +35,7 @@ import { toast } from "sonner";
 const ACTION_ROW_CLASS =
   "group/action flex rounded-xl text-[#e4f7f3]/60 transition-colors duration-150 hover:bg-white/10 hover:text-[#e4f7f3] disabled:pointer-events-none disabled:opacity-50";
 
-type QuickFlyout = "keys" | "ollama";
+type QuickFlyout = "keys" | "resume" | "ollama";
 
 const QuickActionButton = forwardRef<
   HTMLButtonElement,
@@ -121,6 +121,7 @@ export function SidebarQuickActions({
     scheduleOpen,
     scheduleClose,
     cancelScheduledOpen,
+    cancelScheduledClose,
     closeNow,
   } = useSidebarFlyout();
 
@@ -138,13 +139,20 @@ export function SidebarQuickActions({
     if (!accountId) return;
     // Start the server read during the open dwell so content is ready on show.
     if (kind === "keys") prefetchApiKeyStatus(accountId);
-    else prefetchOllamaStatus(accountId);
+    else if (kind === "ollama") prefetchOllamaStatus(accountId);
+    // Re-entering button or bridge after a brief leave must kill the close timer.
+    cancelScheduledClose();
     if (isOpen({ kind })) {
       cancelScheduledOpen();
       return;
     }
     // Same short dwell as telemetry — 500ms felt like the flyout was “loading.”
     scheduleOpen({ kind }, SIDEBAR_TELEMETRY_OPEN_DELAY_MS);
+  }
+
+  function onFlyoutEnter() {
+    cancelScheduledOpen();
+    cancelScheduledClose();
   }
 
   function onLeave(
@@ -170,10 +178,19 @@ export function SidebarQuickActions({
     ) {
       return;
     }
+    // Always kill a pending open — skimming Resume→Export used to leave the
+    // dwell timer armed, so the menu popped open after you'd already moved on.
+    cancelScheduledOpen();
     // Keep a click-pinned panel; hover-only panels close like nav menus.
     if (isOpen({ kind })) {
       scheduleClose();
     }
+  }
+
+  /** Non-flyout rows must dismiss neighbors' hover menus / pending opens. */
+  function onNonFlyoutEnter() {
+    cancelScheduledOpen();
+    scheduleClose();
   }
 
   async function exportProfile() {
@@ -191,6 +208,7 @@ export function SidebarQuickActions({
   }
 
   const keysOpen = isOpen({ kind: "keys" });
+  const resumeOpen = isOpen({ kind: "resume" });
   const ollamaOpen = isOpen({ kind: "ollama" });
 
   return (
@@ -201,33 +219,41 @@ export function SidebarQuickActions({
       {collapsed ? null : (
         <span className={SECTION_TITLE_CLASS}>Quick Actions</span>
       )}
-      {accountId ? (
-        <ResumeUploadDialog
-          accountId={accountId}
-          trigger={
-            <QuickActionButton
-              collapsed={collapsed}
-              label="Upload Resume"
-              icon={CloudUpload}
-            />
-          }
-        />
-      ) : (
+      <div
+        className="relative"
+        data-sidebar-quick-flyout=""
+        onPointerEnter={() => onEnter("resume")}
+        onPointerLeave={(event) => onLeave(event, "resume")}
+      >
         <QuickActionButton
           collapsed={collapsed}
           label="Upload Resume"
           icon={CloudUpload}
-          disabled
+          disabled={!accountId}
+          active={resumeOpen}
+          onClick={() => {
+            if (!ensureAccount() || !accountId) return;
+            togglePinned({ kind: "resume" });
+          }}
         />
-      )}
-      <QuickActionButton
-        collapsed={collapsed}
-        label="Export Profile"
-        icon={CloudDownload}
-        disabled={!accountId}
-        pending={exporting}
-        onClick={() => void exportProfile()}
-      />
+        {accountId ? (
+          <QuickActionFlyoutHost collapsed={collapsed} open={resumeOpen}>
+            <div onPointerEnter={onFlyoutEnter}>
+              <ResumeUploadFlyout accountId={accountId} />
+            </div>
+          </QuickActionFlyoutHost>
+        ) : null}
+      </div>
+      <div onPointerEnter={onNonFlyoutEnter}>
+        <QuickActionButton
+          collapsed={collapsed}
+          label="Export Profile"
+          icon={CloudDownload}
+          disabled={!accountId}
+          pending={exporting}
+          onClick={() => void exportProfile()}
+        />
+      </div>
       <div
         className="relative"
         data-sidebar-quick-flyout=""
@@ -248,7 +274,7 @@ export function SidebarQuickActions({
         />
         {accountId ? (
           <QuickActionFlyoutHost collapsed={collapsed} open={keysOpen}>
-            <div onPointerEnter={() => cancelScheduledOpen()}>
+            <div onPointerEnter={onFlyoutEnter}>
               <ApiKeysFlyout accountId={accountId} />
             </div>
           </QuickActionFlyoutHost>
@@ -274,10 +300,7 @@ export function SidebarQuickActions({
         />
         {accountId ? (
           <QuickActionFlyoutHost collapsed={collapsed} open={ollamaOpen}>
-            <div
-              onPointerEnter={() => cancelScheduledOpen()}
-              onPointerLeave={(event) => onLeave(event, "ollama")}
-            >
+            <div onPointerEnter={onFlyoutEnter}>
               <OllamaFlyout accountId={accountId} />
             </div>
           </QuickActionFlyoutHost>

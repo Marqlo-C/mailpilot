@@ -11,24 +11,27 @@ import { BulkActionsFlyout } from "@/components/ui/composites/bulk-actions-flyou
 
 type BulkActionsWithClassifyingProps = Omit<
   ComponentProps<typeof BulkActionsFlyout>,
-  "status" | "onStopSync" | "syncActive"
+  "status" | "onStopSync" | "syncActive" | "stopSyncLabel"
 >;
 
 /**
- * Selection flyout that absorbs classifying status while open.
- * When sync is active, the single X asks clear-selection vs stop-classifying.
+ * Selection flyout that absorbs sync status while open.
+ * When sync is active, the single X asks clear-selection vs stop reviewing/sorting.
  */
 export function BulkActionsWithClassifying(
   props: BulkActionsWithClassifyingProps
 ) {
   const classifying = useClassifyingFlyoutVisible();
-  const { isSyncing, forceReset } = useSyncStatus();
+  const { isSyncing, syncKind, forceReset } = useSyncStatus();
+  const stopSyncLabel =
+    syncKind === "queued" ? "Stop reviewing" : "Stop sorting";
 
   return (
     <BulkActionsFlyout
       {...props}
       status={classifying ? <ClassifyingFlyoutStatusPill /> : undefined}
       syncActive={isSyncing}
+      stopSyncLabel={stopSyncLabel}
       onStopSync={() => void forceReset()}
     />
   );

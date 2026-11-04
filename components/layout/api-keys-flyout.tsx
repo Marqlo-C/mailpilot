@@ -272,7 +272,7 @@ export function ApiKeysFlyout({ accountId }: { accountId: string }) {
           pending={pending}
           onChange={setCloudKey}
           onSave={saveCloudKey}
-          onClear={status?.maskedApiKey ? clearCloudKey : undefined}
+          onClear={clearCloudKey}
         />
       </section>
 
@@ -297,20 +297,17 @@ export function ApiKeysFlyout({ accountId }: { accountId: string }) {
             "ScrapingAnt API key saved"
           )
         }
-        onClear={
-          status?.maskedScrapingAntApiKey
-            ? () =>
-                clearProxyKey(
-                  () => clearScrapingAntApiKey(accountId),
-                  () =>
-                    setStatus((current) =>
-                      current
-                        ? { ...current, maskedScrapingAntApiKey: null }
-                        : current
-                    ),
-                  "ScrapingAnt API key cleared"
-                )
-            : undefined
+        onClear={() =>
+          clearProxyKey(
+            () => clearScrapingAntApiKey(accountId),
+            () =>
+              setStatus((current) =>
+                current
+                  ? { ...current, maskedScrapingAntApiKey: null }
+                  : current
+              ),
+            "ScrapingAnt API key cleared"
+          )
         }
       />
 
@@ -335,20 +332,17 @@ export function ApiKeysFlyout({ accountId }: { accountId: string }) {
             "HasData API key saved"
           )
         }
-        onClear={
-          status?.maskedHasDataApiKey
-            ? () =>
-                clearProxyKey(
-                  () => clearHasDataApiKey(accountId),
-                  () =>
-                    setStatus((current) =>
-                      current
-                        ? { ...current, maskedHasDataApiKey: null }
-                        : current
-                    ),
-                  "HasData API key cleared"
-                )
-            : undefined
+        onClear={() =>
+          clearProxyKey(
+            () => clearHasDataApiKey(accountId),
+            () =>
+              setStatus((current) =>
+                current
+                  ? { ...current, maskedHasDataApiKey: null }
+                  : current
+              ),
+            "HasData API key cleared"
+          )
         }
       />
     </div>
@@ -372,8 +366,9 @@ function KeyRow({
   pending: boolean;
   onChange: (value: string) => void;
   onSave: () => void;
-  onClear?: () => void;
+  onClear: () => void;
 }) {
+  const hasSavedKey = Boolean(masked);
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-1.5">
       <label htmlFor={id} className={cn(FLYOUT_LABEL_CLASS, "px-0.5")}>
@@ -400,16 +395,12 @@ function KeyRow({
           onClick: onSave,
           disabled: pending,
         }}
-        secondary={
-          onClear
-            ? {
-                icon: Trash2,
-                label: "Delete key",
-                onClick: onClear,
-                disabled: pending,
-              }
-            : undefined
-        }
+        secondary={{
+          icon: Trash2,
+          label: hasSavedKey ? "Delete key" : "No key saved",
+          onClick: onClear,
+          disabled: pending || !hasSavedKey,
+        }}
       />
     </div>
   );

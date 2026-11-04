@@ -14,7 +14,10 @@ import { getAuthenticatedAccountId } from "@/lib/auth";
 import { getActiveAccount } from "@/lib/data";
 import { logStory, syncLockLog, syncLog } from "@/lib/logging";
 import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
-import { runOpportunitySync } from "@/lib/opportunities/sync";
+import {
+  runOpportunitySync,
+  runPendingAiQueueDrain,
+} from "@/lib/opportunities/sync";
 import { prisma } from "@/lib/core/prisma";
 import { checkRateLimit } from "@/lib/core/ratelimit";
 
@@ -42,8 +45,11 @@ export async function forceResetSyncStatus(): Promise<ActionResult> {
     data: {
       isSyncing: false,
       syncError: null,
+      syncKind: null,
       syncTotal: null,
       lastSyncProcessed: 0,
+      syncPendingTotal: null,
+      lastSyncPendingProcessed: null,
       lastSyncedAt: new Date(),
     },
   });
@@ -131,8 +137,11 @@ export async function syncInboxOpportunities(
     data: {
       isSyncing: true,
       syncError: null,
+      syncKind: "inbox",
       lastSyncProcessed: 0,
       syncTotal: null,
+      syncPendingTotal: null,
+      lastSyncPendingProcessed: null,
       syncHeartbeatAt: new Date(),
     },
   });
@@ -204,8 +213,11 @@ export async function syncInboxOpportunities(
             isSyncing: false,
             ...(stampedLastSyncedAt ? { lastSyncedAt: runStartedAt } : {}),
             syncError: errorMessage,
+            syncKind: null,
             lastSyncProcessed: errorMessage ? null : processed,
             syncTotal: null,
+            syncPendingTotal: null,
+            lastSyncPendingProcessed: null,
           },
         });
 
@@ -253,6 +265,162 @@ export async function syncInboxOpportunities(
         : "Sync started in background",
       mode,
     },
+  };
+}
+
+const drainQueuedSchema = z.object({
+  accountId: z.string().min(1).optional(),
+});
+
+/**
+ * Ace queue only — classify PENDING_AI up to the account drain cap.
+ * Same sync lock / cancel flyout as Sync Inbox; does not run delta/search
+ * and does not advance `lastSyncedAt`.
+ */
+export async function drainPendingAiQueue(
+  input: { accountId?: string } = {}
+): Promise<ActionResult<{ message: string }>> {
+  const parsed = drainQueuedSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid input" };
+  }
+
+  let accountId = parsed.data.accountId;
+  if (!accountId) {
+    const active = await getActiveAccount();
+    if (!active) {
+      return { ok: false, error: "Unauthorized — connect a Gmail account first" };
+    }
+    accountId = active.id;
+  }
+
+  const sessionAccountId = await getAuthenticatedAccountId();
+  if (!sessionAccountId) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  const [account, sessionAccount] = await Promise.all([
+    prisma.account.findUnique({
+      where: { id: accountId },
+      select: {
+        id: true,
+        isActive: true,
+        isSyncing: true,
+        updatedAt: true,
+        persistentProfileId: true,
+      },
+    }),
+    prisma.account.findUnique({
+      where: { id: sessionAccountId },
+      select: { persistentProfileId: true },
+    }),
+  ]);
+
+  if (!account || !account.isActive) {
+    return { ok: false, error: "Account not found or inactive" };
+  }
+
+  const sameProfile =
+    account.persistentProfileId != null &&
+    account.persistentProfileId === sessionAccount?.persistentProfileId;
+  if (account.id !== sessionAccountId && !sameProfile) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  const rateLimit = await checkRateLimit(`sync:${account.id}`, "strict");
+  if (!rateLimit.success) {
+    return {
+      ok: false,
+      error: "Sync rate limit reached. Please wait a few seconds before trying again.",
+    };
+  }
+
+  if (account.isSyncing) {
+    const lockAgeMs = Date.now() - account.updatedAt.getTime();
+    if (lockAgeMs <= SYNC_LOCK_STALE_MS) {
+      return {
+        ok: true,
+        data: { message: "Sync already running in background" },
+      };
+    }
+    syncLockLog.warn(
+      { ageSec: Math.round(lockAgeMs / 1000) },
+      "Clearing stale sync lock before Ace queue drain"
+    );
+  }
+
+  await prisma.account.update({
+    where: { id: account.id },
+    data: {
+      isSyncing: true,
+      syncError: null,
+      syncKind: "queued",
+      lastSyncProcessed: 0,
+      syncTotal: null,
+      syncPendingTotal: null,
+      lastSyncPendingProcessed: null,
+      syncHeartbeatAt: new Date(),
+    },
+  });
+
+  const drainAccountId = account.id;
+
+  after(async () => {
+    let errorMessage: string | null = null;
+    let processed = 0;
+
+    try {
+      const result = await runPendingAiQueueDrain(drainAccountId);
+      processed = result.processed;
+      revalidatePath("/");
+      revalidatePath("/jobs");
+      revalidatePath("/subscriptions");
+    } catch (error) {
+      syncLog.error({ err: error }, "drainPendingAiQueue background failed");
+      if (
+        error instanceof InsufficientScopeError ||
+        isInsufficientScopeError(error)
+      ) {
+        errorMessage = REAUTH_REQUIRED_MESSAGE;
+      } else {
+        errorMessage =
+          error instanceof Error ? error.message : "Ace queue review failed";
+      }
+    } finally {
+      try {
+        await prisma.account.update({
+          where: { id: drainAccountId },
+          data: {
+            isSyncing: false,
+            // Do not advance lastSyncedAt — this path never runs delta/search.
+            syncError: errorMessage,
+            syncKind: null,
+            lastSyncProcessed: errorMessage ? null : processed,
+            syncTotal: null,
+            syncPendingTotal: null,
+            lastSyncPendingProcessed: null,
+          },
+        });
+      } catch (finalizeError) {
+        syncLog.error(
+          { err: finalizeError },
+          "Failed to clear isSyncing after Ace queue drain"
+        );
+        try {
+          await prisma.account.update({
+            where: { id: drainAccountId },
+            data: { isSyncing: false },
+          });
+        } catch (retryError) {
+          syncLog.error({ err: retryError }, "Retry clear isSyncing also failed");
+        }
+      }
+    }
+  });
+
+  return {
+    ok: true,
+    data: { message: "Ace is reviewing queued emails" },
   };
 }
 

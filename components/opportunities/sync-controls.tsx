@@ -6,7 +6,10 @@ import { ChevronDown, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { syncInboxOpportunities } from "@/app/actions/email";
-import { SYNC_STARTED_EVENT } from "@/components/layout/sync-status-provider";
+import {
+  SYNC_STARTED_EVENT,
+  type SyncStartedDetail,
+} from "@/components/layout/sync-status-provider";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -44,7 +47,11 @@ export function SyncControls({
     }
 
     // Activate bottom indicator immediately (before the server round-trip).
-    window.dispatchEvent(new Event(SYNC_STARTED_EVENT));
+    window.dispatchEvent(
+      new CustomEvent<SyncStartedDetail>(SYNC_STARTED_EVENT, {
+        detail: { kind: "inbox" },
+      })
+    );
 
     startTransition(async () => {
       const result = await syncInboxOpportunities({

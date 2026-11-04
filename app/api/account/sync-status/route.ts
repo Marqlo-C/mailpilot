@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { SYNC_HEARTBEAT_STALE_MS } from "@/lib/core/constants";
 import { getActiveAccount } from "@/lib/data";
 import { syncLockLog } from "@/lib/logging";
+import { parseSyncKind } from "@/lib/opportunities/sync/kinds";
 import { prisma } from "@/lib/core/prisma";
 
 export const runtime = "nodejs";
@@ -25,6 +26,9 @@ export async function GET() {
           syncError: null,
           wasStaleReset: false,
           pendingClassificationCount: 0,
+          syncKind: null,
+          syncPendingTotal: null,
+          lastSyncPendingProcessed: null,
         },
         { status: 401 }
       );
@@ -40,6 +44,9 @@ export async function GET() {
           syncError: true,
           lastSyncProcessed: true,
           syncTotal: true,
+          syncKind: true,
+          syncPendingTotal: true,
+          lastSyncPendingProcessed: true,
           updatedAt: true,
           syncHeartbeatAt: true,
         },
@@ -60,6 +67,9 @@ export async function GET() {
         syncError: null,
         wasStaleReset: false,
         pendingClassificationCount: 0,
+        syncKind: null,
+        syncPendingTotal: null,
+        lastSyncPendingProcessed: null,
       });
     }
 
@@ -83,7 +93,10 @@ export async function GET() {
           data: {
             isSyncing: false,
             syncError,
+            syncKind: null,
             syncTotal: null,
+            syncPendingTotal: null,
+            lastSyncPendingProcessed: null,
           },
         });
         return NextResponse.json({
@@ -94,6 +107,9 @@ export async function GET() {
           syncTotal: null,
           wasStaleReset: true,
           pendingClassificationCount,
+          syncKind: null,
+          syncPendingTotal: null,
+          lastSyncPendingProcessed: null,
         });
       }
     }
@@ -106,6 +122,9 @@ export async function GET() {
       syncTotal: account.syncTotal ?? null,
       wasStaleReset: false,
       pendingClassificationCount,
+      syncKind: parseSyncKind(account.syncKind),
+      syncPendingTotal: account.syncPendingTotal ?? null,
+      lastSyncPendingProcessed: account.lastSyncPendingProcessed ?? null,
     });
   } catch (error) {
     console.error("GET /api/account/sync-status failed", error);
@@ -115,6 +134,9 @@ export async function GET() {
       syncError: null,
       wasStaleReset: false,
       pendingClassificationCount: 0,
+      syncKind: null,
+      syncPendingTotal: null,
+      lastSyncPendingProcessed: null,
     });
   }
 }

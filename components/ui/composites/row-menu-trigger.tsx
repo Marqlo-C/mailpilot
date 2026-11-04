@@ -41,15 +41,15 @@ export const RowMenuTrigger = React.forwardRef<
       ref={ref}
       type={type}
       variant="ghost"
-      size="icon"
+      // Avoid size="icon" (h-9 w-9) — tall thin kebab: h-8 × half-width.
       className={cn(
-        // Rest + hover: secondary-teal dots. Hover fill stays sidebar.
-        "h-8 w-8 rounded-lg border-0 bg-muted/70 text-[hsl(174_32%_42%)] shadow-none hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(174_32%_42%)]",
+        // Invert of primary CTA (Unsubscribe): mint fill, dark shell dots.
+        "h-8 w-4 min-w-4 shrink-0 rounded-lg border-0 bg-[#e4f7f3] p-0 text-[#181e26] shadow-none hover:bg-[#181e26] hover:text-[#e4f7f3] [&_svg]:size-4",
         className
       )}
       {...props}
     >
-      <SolidKebab className="size-5" />
+      <SolidKebab className="size-4" />
       <span className="sr-only">{label}</span>
     </Button>
   );

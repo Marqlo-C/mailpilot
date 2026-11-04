@@ -505,7 +505,8 @@ export function OpportunityCard({
       </div>
 
       {/* 5. Pinned bottom action bar — secondary · primary · ⋮ */}
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/[0.12] py-3 pl-4 pr-1 sm:pl-5">
+      {/* pr matches action gap-2 so ⋮ sits evenly vs left button and card edge */}
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/[0.12] py-3 pl-4 pr-2 sm:pl-5">
             <div className="flex min-w-0 items-center">
               {variant === "history" && dismissed ? (
                 <span className="inline-flex items-center gap-1 px-1 text-[11px] text-muted-foreground">
@@ -659,7 +660,7 @@ export function OpportunityCard({
                   disabled={actionsLocked}
                   className={
                     isSelected
-                      ? "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground"
+                      ? "pointer-events-none opacity-55 hover:bg-[#e4f7f3] hover:text-[#181e26]"
                       : undefined
                   }
                 />
@@ -747,7 +748,7 @@ export function OpportunityCard({
                   disabled={actionsLocked}
                   className={
                     isSelected
-                      ? "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground"
+                      ? "pointer-events-none opacity-55 hover:bg-[#e4f7f3] hover:text-[#181e26]"
                       : undefined
                   }
                 />

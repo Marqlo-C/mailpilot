@@ -8,19 +8,24 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { BroomSparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
-import { syncInboxOpportunities } from "@/app/actions/email";
+import { drainPendingAiQueue } from "@/app/actions/email";
 import { Logo } from "@/components/brand/logo";
+import { FlyoutIconPill } from "@/components/layout/sidebar-flyout-chrome";
 import {
   SYNC_STARTED_EVENT,
   useSyncStatus,
+  type SyncStartedDetail,
 } from "@/components/layout/sync-status-provider";
+import { useSidebarFlyout } from "@/components/layout/sidebar-flyout-provider";
 import { useFlyoutPresence } from "@/components/ui/composites/bulk-actions-flyout";
-import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
 import { ConfirmActionDialog } from "@/components/ui/composites/confirm-action-dialog";
 import { cn } from "@/lib/utils";
+
+/** Sidebar status copy — white label; state is carried by the colored dot only. */
+const STATUS_TEXT_CLASS = "text-[#e4f7f3]";
 
 type SyncTelemetryProps = {
   connected?: boolean;
@@ -56,31 +61,44 @@ export function SyncTelemetry({
 }: SyncTelemetryProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const { closeNow: closeSidebarFlyout } = useSidebarFlyout();
   const {
     accountId,
     isSyncing,
+    syncKind,
     pendingCount,
     lastSyncProcessed,
     totalToProcess,
+    lastSyncPendingProcessed,
+    syncPendingTotal,
     markSyncStarted,
     markSyncFailed,
+    forceReset,
     flushPendingClassification,
   } = useSyncStatus();
   const [flushing, startFlush] = useTransition();
   const [confirmFlush, setConfirmFlush] = useState(false);
   const [flushCount, setFlushCount] = useState(0);
+  const stopSyncTitle =
+    syncKind === "queued" ? "Stop reviewing" : "Stop sorting";
 
-  function handleTriggerSync() {
+  /** Awaiting chip → Ace queue only (no delta / search). */
+  function handleDrainQueued() {
     if (!accountId || isSyncing || pending) return;
 
-    window.dispatchEvent(new Event(SYNC_STARTED_EVENT));
-    markSyncStarted();
+    // Dismiss the sidebar awaiting panel before Ace reviewing mounts at the
+    // bottom — don't morph this flyout into a duplicate status flash.
+    if (panel) closeSidebarFlyout();
+
+    window.dispatchEvent(
+      new CustomEvent<SyncStartedDetail>(SYNC_STARTED_EVENT, {
+        detail: { kind: "queued" },
+      })
+    );
+    markSyncStarted("queued");
 
     startTransition(async () => {
-      const result = await syncInboxOpportunities({
-        accountId,
-        forceRescan: false,
-      });
+      const result = await drainPendingAiQueue({ accountId });
 
       if (!result.ok) {
         toast.error(result.error);
@@ -88,7 +106,7 @@ export function SyncTelemetry({
         return;
       }
 
-      toast.success(result.data?.message ?? "Sync started in background");
+      toast.success(result.data?.message ?? "Ace is reviewing queued emails");
       router.refresh();
     });
   }
@@ -112,6 +130,7 @@ export function SyncTelemetry({
   );
   // Stay expanded through the leave animation after the pointer has gone.
   const forceOpen = panel || (dotRest && presence.mounted);
+  const showTelemetryActions = !compact && !(dotRest && !forceOpen);
 
   useEffect(() => {
     onPresenceChange?.(presence.mounted);
@@ -135,95 +154,155 @@ export function SyncTelemetry({
     );
   }
 
-  const syncProgressLabel = useMemo(() => {
+  /** Sidebar during sync: Ace queued slice only (not full inbox total). */
+  const aceQueuedProgressLabel = useMemo(() => {
     if (!isSyncing) return null;
-    if (lastSyncProcessed && lastSyncProcessed > 0) {
-      if (totalToProcess && totalToProcess >= lastSyncProcessed) {
-        return `${lastSyncProcessed} / ${totalToProcess}`;
+
+    if (syncKind === "queued") {
+      const processed = lastSyncPendingProcessed ?? lastSyncProcessed;
+      const total = syncPendingTotal ?? totalToProcess;
+      if (processed != null && processed > 0) {
+        if (total != null && total >= processed) {
+          return `${processed} / ${total}`;
+        }
+        return `${processed}`;
       }
-      if (pendingCount > 0 && pendingCount >= lastSyncProcessed) {
-        return `${lastSyncProcessed} / ${pendingCount}`;
-      }
-      return `${lastSyncProcessed}`;
+      return null;
+    }
+
+    // Full inbox: show Ace ratio only while the pending slice is still running.
+    const processed = lastSyncPendingProcessed;
+    const total = syncPendingTotal;
+    if (
+      total != null &&
+      total > 0 &&
+      processed != null &&
+      processed > 0 &&
+      processed < total
+    ) {
+      return `${processed} / ${total}`;
+    }
+    if (total != null && total > 0 && processed === 0) {
+      return null; // "Ace reviewing queued…" until first tick
     }
     return null;
-  }, [isSyncing, lastSyncProcessed, totalToProcess, pendingCount]);
+  }, [
+    isSyncing,
+    syncKind,
+    lastSyncPendingProcessed,
+    syncPendingTotal,
+    lastSyncProcessed,
+    totalToProcess,
+  ]);
 
   if (overlay && !panel && !presence.mounted) return null;
-  const restCircleClass = !dotRest
-    ? ""
-    : forceOpen
-      ? "h-8 w-max shrink-0 justify-start gap-1.5 whitespace-nowrap px-2.5 py-0 transition-[padding,gap,background-color,background-image,color,border-color]"
-      : "size-6 shrink-0 justify-center gap-0 whitespace-nowrap p-0";
-  /** Opaque sidebar plate plus the status tint, so the flyout is not see-through. */
-  const restPlateMuted = !dotRest
-    ? ""
-    : forceOpen
-      ? "!bg-[hsl(var(--sidebar))] !bg-[linear-gradient(rgb(255_255_255/0.1),rgb(255_255_255/0.1))]"
-      : "";
-  const restPlateSky = !dotRest
-    ? ""
-    : forceOpen
-      ? "!bg-[hsl(var(--sidebar))] !bg-[linear-gradient(rgb(56_189_248/0.15),rgb(56_189_248/0.15))]"
-      : "";
-  const restPlateReady = !dotRest
-    ? ""
-    : forceOpen
-      ? "!bg-[hsl(var(--sidebar))] !bg-[linear-gradient(rgb(52_211_153/0.15),rgb(52_211_153/0.15))]"
-      : "";
-  /** Awaiting-classification flyout matches the high-clutter score chip. */
-  const restAwaitingClass = !dotRest
-    ? ""
-    : forceOpen
-      ? "!border-[#c21f10] !bg-[hsl(var(--sidebar))] !bg-[linear-gradient(rgb(194_31_16/0.1),rgb(194_31_16/0.1))] !text-[#c21f10] dark:!border-[#fb6230] dark:!bg-[hsl(var(--sidebar))] dark:!bg-[linear-gradient(rgb(251_98_48/0.18),rgb(251_98_48/0.18))] dark:!text-[#fb6230]"
+  /** Collapsed edge: only the colored dot. Expanded: label beside the dot, no pill chrome. */
+  const restDotOnlyClass =
+    dotRest && !forceOpen
+      ? "size-6 shrink-0 justify-center gap-0 p-0"
       : "";
   const restLabelClass = dotRest
     ? forceOpen
       ? "inline whitespace-nowrap"
       : "hidden whitespace-nowrap"
     : "";
+  /** Match Subscriptions / Jobs tab flyout rows (size + weight only). */
+  const statusRowClass =
+    "inline-flex items-center gap-1.5 whitespace-nowrap text-[13px] font-medium tracking-normal";
 
   const statusLabel = !connected
     ? "Offline"
     : isSyncing
-      ? syncProgressLabel
-        ? syncProgressLabel.includes("/")
-          ? `Classifying ${syncProgressLabel} emails`
-          : `Classifying email ${syncProgressLabel}`
-        : pendingCount > 0
-          ? `Classifying ${pendingCount} ${pendingCount === 1 ? "email" : "emails"}`
-          : "Syncing inbox"
+      ? aceQueuedProgressLabel
+        ? `Ace reviewing ${aceQueuedProgressLabel}`
+        : syncKind === "queued" || (syncPendingTotal && syncPendingTotal > 0)
+          ? "Ace reviewing"
+          : "Sorting inbox"
       : pendingCount > 0
-        ? `${pendingCount} ${pendingCount === 1 ? "email" : "emails"} awaiting classification`
+        ? `${pendingCount} ${pendingCount === 1 ? "email" : "emails"} awaiting Ace`
         : "Inbox up to date";
+
+  const syncingLabel = aceQueuedProgressLabel ? (
+    <>
+      Ace reviewing{" "}
+      <span className="tabular-nums">{aceQueuedProgressLabel}</span>…
+    </>
+  ) : syncKind === "queued" ||
+    (syncPendingTotal != null &&
+      syncPendingTotal > 0 &&
+      (lastSyncPendingProcessed == null ||
+        lastSyncPendingProcessed < syncPendingTotal)) ? (
+    <>Ace reviewing…</>
+  ) : (
+    <>Sorting inbox…</>
+  );
+
+  /** Same size-8 circular control as Local Ollama’s check-connection button. */
+  const telemetryActions = showTelemetryActions ? (
+    <div
+      className={cn(
+        "mp-flyout-chunk flex shrink-0 items-center justify-center",
+        isSyncing ? "size-8" : undefined
+      )}
+    >
+      {isSyncing ? (
+        <FlyoutIconPill
+          matchPairWidth={false}
+          primary={{
+            icon: X,
+            label: stopSyncTitle,
+            onClick: () => {
+              // Same as broom: close before state flips so Ace reviewing
+              // doesn't morph into "# emails awaiting Ace" in this panel.
+              if (panel) closeSidebarFlyout();
+              void forceReset();
+            },
+          }}
+        />
+      ) : (
+        <FlyoutIconPill
+          primary={{
+            icon: BroomSparkles,
+            label: "Start Ace review",
+            onClick: handleDrainQueued,
+            disabled: pending || isSyncing,
+            busy: pending,
+          }}
+          secondary={{
+            icon: Trash2,
+            label: "Clear emails awaiting Ace",
+            onClick: handleFlushPending,
+            disabled: flushing || isSyncing,
+          }}
+        />
+      )}
+    </div>
+  ) : null;
 
   if (!connected) {
     return (
       <div
         className={cn(
-          "inline-flex select-none items-center gap-2 text-xs text-muted-foreground",
-          onSidebar && "text-white/55",
+          "inline-flex select-none items-center gap-2 text-[13px] font-medium tracking-normal",
+          STATUS_TEXT_CLASS,
           className
         )}
         title={compact || dotRest ? statusLabel : undefined}
       >
         {motionWrap(
-        <div
-          className={cn(
-            "group inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-secondary/60 px-2.5 py-0.5 text-xs font-medium text-muted-foreground",
-            onSidebar &&
-              "border-white/15 bg-white/10 text-white/70",
-            compact && "px-2 py-2",
-            restCircleClass,
-            restPlateMuted,
-            forceOpen && "mp-flyout-chunk"
-          )}
-        >
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-60" />
-          {compact ? null : (
-            <span className={restLabelClass}>Offline</span>
-          )}
-        </div>
+          <div
+            className={cn(
+              statusRowClass,
+              STATUS_TEXT_CLASS,
+              restDotOnlyClass,
+              forceOpen && "mp-flyout-chunk"
+            )}
+          >
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#e4f7f3]/50" />
+            {compact ? null : (
+              <span className={restLabelClass}>Offline</span>
+            )}
+          </div>
         )}
         {compact || onSidebar ? null : (
           <>
@@ -248,134 +327,136 @@ export function SyncTelemetry({
       title={compact || dotRest ? statusLabel : undefined}
     >
       {isSyncing ? (
-        motionWrap(<div
+        <div
           className={cn(
-            "group flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-1 text-xs font-medium text-sky-700/80 dark:border-sky-400/40 dark:bg-sky-400/15 dark:text-sky-300/85",
-            onSidebar &&
-              "border-sky-300/35 bg-sky-400/15 text-sky-100",
-            compact && "px-2 py-2",
-            onSidebar && !compact && !dotRest && "w-full whitespace-normal text-left",
-            restCircleClass,
-            restPlateSky,
-            forceOpen && "mp-flyout-chunk"
+            "group/syncing",
+            showTelemetryActions
+              ? "flex h-8 origin-center flex-nowrap items-center gap-1.5"
+              : "inline-flex items-center gap-1.5",
+            showTelemetryActions &&
+              !panel &&
+              presence.phase === "in" &&
+              "mp-flyout-pop",
+            showTelemetryActions &&
+              !panel &&
+              presence.phase === "out" &&
+              "mp-flyout-retract mp-flyout-retract-status",
+            onSidebar && !compact && !dotRest && "w-full"
           )}
+          style={
+            showTelemetryActions && !panel ? presence.style : undefined
+          }
+          onAnimationEnd={
+            showTelemetryActions && !panel
+              ? presence.onAnimationEnd
+              : undefined
+          }
         >
-          <span className="relative flex h-1.5 w-1.5 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-500 opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
-          </span>
-          {compact ? null : syncProgressLabel ? (
-            <span className={restLabelClass}>
-              Classifying{" "}
-              <span className="font-bold tabular-nums">
-                {syncProgressLabel}
-              </span>{" "}
-              emails…
+          <div
+            className={cn(
+              statusRowClass,
+              STATUS_TEXT_CLASS,
+              "h-8",
+              restDotOnlyClass,
+              (forceOpen || panel || showTelemetryActions) && "mp-flyout-chunk"
+            )}
+          >
+            <span className="relative flex h-1.5 w-1.5 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-500 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
             </span>
-          ) : pendingCount > 0 ? (
-            <span className={restLabelClass}>
-              Classifying{" "}
-              <span className="font-bold tabular-nums">{pendingCount}</span>{" "}
-              {pendingCount === 1 ? "email" : "emails"}…
-            </span>
-          ) : (
-            <span className={restLabelClass}>Syncing inbox…</span>
-          )}
-        </div>)
+            {compact ? null : (
+              <span className={restLabelClass}>{syncingLabel}</span>
+            )}
+          </div>
+          {telemetryActions}
+        </div>
       ) : pendingCount > 0 ? (
         <div
           className={cn(
             "group/awaiting",
-            forceOpen
-              ? "flex origin-center flex-nowrap items-center gap-2.5"
+            showTelemetryActions || forceOpen
+              ? "flex h-8 origin-center flex-nowrap items-center gap-1.5"
               : "inline-flex items-center gap-1.5",
             forceOpen && !panel && presence.phase === "in" && "mp-flyout-pop",
-            forceOpen && !panel && presence.phase === "out" && "mp-flyout-retract mp-flyout-retract-status",
+            forceOpen &&
+              !panel &&
+              presence.phase === "out" &&
+              "mp-flyout-retract mp-flyout-retract-status",
             onSidebar && !compact && !dotRest && "w-full"
           )}
           style={forceOpen && !panel ? presence.style : undefined}
-          onAnimationEnd={forceOpen && !panel ? presence.onAnimationEnd : undefined}
+          onAnimationEnd={
+            forceOpen && !panel ? presence.onAnimationEnd : undefined
+          }
         >
-          <button
-            type="button"
-            onClick={handleTriggerSync}
-            disabled={pending}
-            aria-label={statusLabel}
+          {showTelemetryActions ? (
+            <div
+              className={cn(
+                statusRowClass,
+                STATUS_TEXT_CLASS,
+                "h-8",
+                restDotOnlyClass,
+                (forceOpen || panel) && "mp-flyout-chunk"
+              )}
+            >
+              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#c21f10] opacity-75 dark:bg-[#fb6230]" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#c21f10] dark:bg-[#fb6230]" />
+              </span>
+              {compact ? null : (
+                <span className={restLabelClass}>
+                  <span className="tabular-nums">{pendingCount}</span>{" "}
+                  {pendingCount === 1 ? "email" : "emails"} awaiting Ace
+                </span>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleDrainQueued}
+              disabled={pending}
+              aria-label={statusLabel}
+              className={cn(
+                statusRowClass,
+                STATUS_TEXT_CLASS,
+                "h-8 bg-transparent p-0 transition-opacity hover:opacity-80 disabled:opacity-60",
+                restDotOnlyClass,
+                forceOpen && "mp-flyout-chunk"
+              )}
+            >
+              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#c21f10] opacity-75 dark:bg-[#fb6230]" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#c21f10] dark:bg-[#fb6230]" />
+              </span>
+              {compact ? null : (
+                <span className={restLabelClass}>
+                  <span className="tabular-nums">{pendingCount}</span>{" "}
+                  {pendingCount === 1 ? "email" : "emails"} awaiting Ace
+                </span>
+              )}
+            </button>
+          )}
+          {telemetryActions}
+        </div>
+      ) : (
+        motionWrap(
+          <div
             className={cn(
-              "flex items-center gap-1.5 rounded-full border border-[#c21f10]/35 bg-[#c21f10]/10 px-2.5 py-1 text-xs font-medium text-[#c21f10] transition-colors hover:bg-[#c21f10]/18 disabled:opacity-60 dark:border-[#fb6230]/40 dark:bg-[#fb6230]/18 dark:text-[#fb6230] dark:hover:bg-[#fb6230]/28",
-              onSidebar &&
-                "border-[#fb6230]/40 bg-[#fb6230]/18 text-[#fb6230] hover:bg-[#fb6230]/28",
-              compact && "px-2 py-2",
-              onSidebar &&
-                !compact &&
-                !dotRest &&
-                "min-w-0 flex-1 whitespace-normal text-left",
-              !dotRest
-                ? ""
-                : forceOpen
-                  ? "h-8 w-max shrink-0 justify-start gap-1.5 whitespace-nowrap px-2.5 py-0"
-                  : "size-6 shrink-0 justify-center gap-0 whitespace-nowrap p-0",
-              !dotRest
-                ? ""
-                : forceOpen
-                  ? restAwaitingClass
-                  : "",
+              statusRowClass,
+              STATUS_TEXT_CLASS,
+              restDotOnlyClass,
               forceOpen && "mp-flyout-chunk"
             )}
           >
             <span className="relative flex h-1.5 w-1.5 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#c21f10] opacity-75 dark:bg-[#fb6230]" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#c21f10] dark:bg-[#fb6230]" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
             </span>
             {compact ? null : (
-              <span
-                className={
-                  !dotRest
-                    ? ""
-                    : forceOpen
-                      ? "inline whitespace-nowrap"
-                      : "hidden whitespace-nowrap"
-                }
-              >
-                <span className="font-bold tabular-nums">{pendingCount}</span>{" "}
-                {pendingCount === 1 ? "email" : "emails"} awaiting classification
-              </span>
+              <span className={restLabelClass}>Inbox up to date</span>
             )}
-          </button>
-          {compact ? null : (
-            <CancelTaskButton
-              onCancel={handleFlushPending}
-              disabled={flushing}
-              title="Delete awaiting emails from queue"
-              icon={Trash2}
-              spinMs={600}
-              className={cn(
-                "mp-flyout-chunk flex size-8 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--sidebar))] bg-[hsl(var(--sidebar))] p-0 text-[hsl(var(--sidebar-foreground))]/65 shadow-md hover:bg-[hsl(var(--sidebar))] hover:text-[#C21E11] disabled:opacity-60 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-current",
-                dotRest && !forceOpen && "hidden"
-              )}
-            />
-          )}
-        </div>
-      ) : (
-        motionWrap(<div
-          className={cn(
-            "group flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-700/80 dark:border-emerald-400/40 dark:bg-emerald-400/15 dark:text-emerald-300/85",
-            onSidebar &&
-              "border-emerald-300/35 bg-emerald-400/15 text-emerald-100",
-            compact && "px-2 py-2",
-            onSidebar && !compact && !dotRest && "w-full",
-            restCircleClass,
-            restPlateReady,
-            forceOpen && "mp-flyout-chunk"
-          )}
-        >
-          <span className="relative flex h-1.5 w-1.5 shrink-0">
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          </span>
-          {compact ? null : (
-            <span className={restLabelClass}>Inbox up to date</span>
-          )}
-        </div>)
+          </div>
+        )
       )}
       <ConfirmActionDialog
         open={confirmFlush}
@@ -385,7 +466,7 @@ export function SyncTelemetry({
         title="Clearing emails from queue:"
         primary={`${flushCount} ${flushCount === 1 ? "email" : "emails"}`}
         logo={<Logo variant="icon" size="md" showWordmark={false} />}
-        description="We’ll skip AI classification for these emails and let them expire naturally. Don’t worry—any emails tied to your active jobs will stay right where they are."
+        description="We’ll skip Ace review for these emails and let them expire naturally. Don’t worry—any emails tied to your active jobs will stay right where they are."
         emphasis="Are you sure you want to proceed?"
         confirmLabel="Dismiss"
         pending={flushing}
