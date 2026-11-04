@@ -85,6 +85,15 @@ export const accountRulesSchema = z.object({
    */
   matchScoreThreshold: z.number().int().min(0).max(100).optional(),
   maxAutoSendsPerDay: z.number().min(1).max(20).default(5),
+  /**
+   * Max Gmail job-search hits per Sync Inbox run (not historical scan).
+   * Cron still applies its own lower safety ceiling.
+   */
+  syncMaxMessages: z.number().int().min(1).max(100).default(50),
+  /**
+   * Max PENDING_AI backlog rows drained into each opportunity sync.
+   */
+  pendingAiDrainLimit: z.number().int().min(0).max(50).default(10),
   /** Days before DISMISSED History items are permanently purged. */
   dismissedRetentionDays: z.preprocess((value) => {
     if (value === 7 || value === 14 || value === 30) return value;

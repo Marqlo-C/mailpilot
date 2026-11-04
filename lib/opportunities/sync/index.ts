@@ -20,17 +20,25 @@ import {
   purgeExpiredDismissed,
   pruneHeuristicOpportunities,
 } from "@/lib/opportunities/cleanup";
+import { parseAccountRules } from "@/lib/validations/rules";
 import {
   gatherSyncCandidates,
   isRateLimited,
   sleep,
   RATE_LIMIT_BASE_MS,
 } from "./candidates";
+import {
+  clampPendingAiDrain,
+  clampSyncMaxMessages,
+  DEFAULT_PENDING_AI_DRAIN,
+  DEFAULT_SYNC_MAX_MESSAGES,
+} from "./limits";
 import { processSyncMessage } from "./processor";
 import { refreshScrapingAntUsageAfterSync } from "@/lib/scraping/scrapingant";
 
 export * from "./candidates";
 export * from "./dedupe";
+export * from "./limits";
 export * from "./processor";
 
 export type OpportunitySyncOptions = {
@@ -38,6 +46,8 @@ export type OpportunitySyncOptions = {
   lookbackDays?: number;
   /** Cap Gmail list size (Hobby / free-tier friendly). */
   maxMessages?: number;
+  /** Cap PENDING_AI backlog drained into this run. */
+  pendingAiDrainLimit?: number;
 };
 
 export type OpportunitySyncResult = {
@@ -57,7 +67,7 @@ function normalizeProvider(value: string | null | undefined): LlmProvider {
  *
  * Pipeline:
  * 1. `processInboxDelta` — subscriptions + history catch-up.
- * 2. Job Gmail search (`after:lastSyncedAt` or lookback) + ≤10 `PENDING_AI` drain.
+ * 2. Job Gmail search (`after:lastSyncedAt` or lookback) + PENDING_AI drain.
  * 3. Classify / persist job candidates with 350ms pacing & real-time counter updates.
  * 4. Commit `lastSyncedAt` watermark and emit sync summary.
  */
@@ -67,7 +77,6 @@ export async function runOpportunitySync(
 ): Promise<OpportunitySyncResult> {
   const forceRescan = options.forceRescan === true;
   const lookbackDays = options.lookbackDays ?? 14;
-  const maxMessages = options.maxMessages ?? 25;
   const runStartedAt = new Date();
 
   try {
@@ -98,10 +107,34 @@ export async function runOpportunitySync(
       );
     }
 
+    const accountRules = parseAccountRules(account.settings?.rules);
+    const configuredMaxMessages = clampSyncMaxMessages(
+      accountRules.syncMaxMessages ?? DEFAULT_SYNC_MAX_MESSAGES
+    );
+    // Callers (e.g. cron) may pass a lower safety ceiling; never raise above account rules.
+    const maxMessages =
+      options.maxMessages != null
+        ? Math.min(
+            clampSyncMaxMessages(options.maxMessages),
+            configuredMaxMessages
+          )
+        : configuredMaxMessages;
+    const configuredPendingAiDrain = clampPendingAiDrain(
+      accountRules.pendingAiDrainLimit ?? DEFAULT_PENDING_AI_DRAIN
+    );
+    const pendingAiDrainLimit =
+      options.pendingAiDrainLimit != null
+        ? Math.min(
+            clampPendingAiDrain(options.pendingAiDrainLimit),
+            configuredPendingAiDrain
+          )
+        : configuredPendingAiDrain;
+
     logStory(syncLog, "Sync Inbox starting", {
       mailbox: account.email,
       mode: forceRescan ? "force rescan" : "incremental",
       "max job-query messages": maxMessages,
+      "pending AI drain": pendingAiDrainLimit,
       "previous lastSyncedAt":
         account.lastSyncedAt?.toISOString() ?? "(never)",
     });
@@ -125,6 +158,7 @@ export async function runOpportunitySync(
         forceRescan,
         lookbackDays,
         maxMessages,
+        pendingAiDrainLimit,
       });
 
     if (combinedCandidateIds.length === 0 || targetIds.length === 0) {

@@ -125,6 +125,8 @@ export type GatherSyncCandidatesInput = {
   forceRescan: boolean;
   lookbackDays: number;
   maxMessages: number;
+  /** Max PENDING_AI backlog rows to merge into this sync. */
+  pendingAiDrainLimit: number;
 };
 
 export type GatherSyncCandidatesResult = {
@@ -137,13 +139,20 @@ export type GatherSyncCandidatesResult = {
  * Gathers candidate message IDs for opportunity synchronization:
  * 1. Runs delta sync (processInboxDelta) when historyId is present and not forceRescan.
  * 2. Runs Gmail search query (incremental or wide lookback).
- * 3. Merges up to 10 PENDING_AI backlog messages.
+ * 3. Merges up to `pendingAiDrainLimit` PENDING_AI backlog messages.
  * 4. Deduplicates against known EmailMessage and JobApplication records in the DB.
  */
 export async function gatherSyncCandidates(
   input: GatherSyncCandidatesInput
 ): Promise<GatherSyncCandidatesResult> {
-  const { gmail, account, forceRescan, lookbackDays, maxMessages } = input;
+  const {
+    gmail,
+    account,
+    forceRescan,
+    lookbackDays,
+    maxMessages,
+    pendingAiDrainLimit,
+  } = input;
 
   // ── Step 1: History delta first (Pub/Sub catch-up + subscriptions) ─────
   let historyExpired = false;
@@ -180,15 +189,18 @@ export async function gatherSyncCandidates(
   const gmailMessageIds = listedIds.filter((id) => !deltaIdSet.has(id));
   const skippedAsDeltaDupes = listedIds.length - gmailMessageIds.length;
 
-  // Pull up to 10 backlogged PENDING_AI emails so Sync Inbox drains the queue.
-  const pendingRows = await prisma.emailMessage.findMany({
-    where: {
-      accountId: account.id,
-      emailCategory: "PENDING_AI",
-    },
-    select: { messageId: true },
-    take: 10,
-  });
+  // Drain backlogged PENDING_AI so Sync Inbox / cron clear the queue over time.
+  const pendingRows =
+    pendingAiDrainLimit > 0
+      ? await prisma.emailMessage.findMany({
+          where: {
+            accountId: account.id,
+            emailCategory: "PENDING_AI",
+          },
+          select: { messageId: true },
+          take: pendingAiDrainLimit,
+        })
+      : [];
   const pendingIds = pendingRows.map((r) => r.messageId);
 
   const combinedCandidateIds = Array.from(

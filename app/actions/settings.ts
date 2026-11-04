@@ -44,6 +44,8 @@ const ruleKeySchema = z.enum([
   "applicationMode",
   "matchScoreThreshold", // deprecated: routed to updateMatchThreshold
   "maxAutoSendsPerDay",
+  "syncMaxMessages",
+  "pendingAiDrainLimit",
   "dismissedRetentionDays",
   "excludedTitles",
   "bridgeSecret",
