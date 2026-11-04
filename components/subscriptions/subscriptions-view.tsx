@@ -20,13 +20,14 @@ import {
   Loader2,
   History,
   Mail,
-  Summary,
   Trash2,
   UserRoundMinus,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { Snapshot } from "@praticon-glyphs/react";
 import { SyncControls } from "@/components/opportunities/sync-controls";
+import { WavyDashedRule } from "@/components/ui/tactile/wavy-dashed-frame";
 import { BriefingDialog } from "@/components/subscriptions/briefing-dialog";
 import { EmailPreviewDialog } from "@/components/subscriptions/email-preview-dialog";
 import {
@@ -45,10 +46,10 @@ import {
   BULK_ACTION_COUNT_DISMISS_CLASSNAME,
   BULK_ACTION_DISMISS_BTN_CLASSNAME,
   BulkActionCount,
-  BulkActionDot,
   BulkActionSection,
-  BulkActionsFlyout,
+  BulkActionSeparator,
 } from "@/components/ui/composites/bulk-actions-flyout";
+import { BulkActionsWithClassifying } from "@/components/layout/bulk-actions-with-classifying";
 import { ConfirmActionDialog } from "@/components/ui/composites/confirm-action-dialog";
 import { RowMenuTrigger } from "@/components/ui/composites/row-menu-trigger";
 import { CompanyLogo } from "@/components/ui/company-logo";
@@ -1250,7 +1251,7 @@ export function SubscriptionsView({
       </Tabs>
 
       {activeTab === "active" ? (
-        <BulkActionsFlyout
+        <BulkActionsWithClassifying
           selectedCount={selectedIds.length}
           onCancel={clearSelection}
           trailing={
@@ -1273,8 +1274,9 @@ export function SubscriptionsView({
           <BulkActionSection
             labelText="Snapshot"
             label={
-              <Summary
-                className="h-4 w-4 text-[hsl(var(--sidebar-foreground))]/65"
+              <Snapshot
+                size={18}
+                className="text-[#e4f7f3]/60"
                 aria-hidden
               />
             }
@@ -1294,7 +1296,7 @@ export function SubscriptionsView({
 
             {selectedWithBriefingIds.length > 0 ? (
               <>
-                <BulkActionDot />
+                <BulkActionSeparator />
                 <button
                   type="button"
                   disabled={pending || briefingPending || deletePending}
@@ -1317,7 +1319,7 @@ export function SubscriptionsView({
               </>
             ) : null}
           </BulkActionSection>
-        </BulkActionsFlyout>
+        </BulkActionsWithClassifying>
       ) : null}
 
       <BriefingDialog
@@ -1608,6 +1610,8 @@ function IconStatBadge({
   truncateValue = false,
   title,
   selected = false,
+  /** Job-card style: one gray fill + tiny `|` instead of a hard icon rail. */
+  pipeDivider = false,
 }: {
   icon?: ReactNode;
   value: string;
@@ -1620,12 +1624,54 @@ function IconStatBadge({
   title?: string;
   /** Let row/card select fill show through opaque pill surfaces. */
   selected?: boolean;
+  pipeDivider?: boolean;
 }) {
-  const badge = (
+  const badge = pipeDivider ? (
     <div
       className={cn(
-        "inline-flex h-[30px] shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/40",
-        width ? null : "min-w-[54px]",
+        // Same shell as the split-rail pills (h-7 / rounded-md / w-5 rail) —
+        // `|` is absolutely centered on the old border so width is unchanged.
+        "inline-flex h-7 shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/40 text-muted-foreground",
+        selected ? "bg-muted/50" : "bg-muted/60",
+        width ? null : "min-w-[44px]",
+        className
+      )}
+      style={width ? { width } : undefined}
+    >
+      {icon ? (
+        <div className="flex w-5 shrink-0 items-center justify-center text-muted-foreground/70">
+          {icon}
+        </div>
+      ) : null}
+      <div
+        className={cn(
+          "relative flex min-w-0 flex-1 items-center justify-center px-1",
+          SCORE_PERCENT_CLASSNAME,
+          "text-[11px] tracking-normal text-muted-foreground",
+          valueClassName,
+          selected && "text-muted-foreground"
+        )}
+      >
+        {icon ? (
+          <span
+            className="pointer-events-none absolute top-1/2 left-0 z-10 -translate-y-1/2 text-[10px] font-normal leading-none text-border/80"
+            aria-hidden
+          >
+            |
+          </span>
+        ) : null}
+        <span
+          className={cn(truncateValue && "w-full min-w-0 truncate text-center")}
+        >
+          {value}
+        </span>
+      </div>
+    </div>
+  ) : (
+    <div
+      className={cn(
+        "inline-flex h-7 shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/40",
+        width ? null : "min-w-[44px]",
         className
       )}
       style={width ? { width } : undefined}
@@ -1633,7 +1679,7 @@ function IconStatBadge({
       {icon ? (
         <div
           className={cn(
-            "flex w-7 shrink-0 items-center justify-center border-r border-border/40 text-muted-foreground/75",
+            "flex w-5 shrink-0 items-center justify-center border-r border-border/40 text-muted-foreground/75",
             selected ? "bg-muted/50" : "bg-muted/40"
           )}
         >
@@ -1642,8 +1688,9 @@ function IconStatBadge({
       ) : null}
       <div
         className={cn(
-          "flex min-w-0 flex-1 items-center justify-center px-1.5",
+          "flex min-w-0 flex-1 items-center justify-center px-1",
           SCORE_PERCENT_CLASSNAME,
+          "text-[11px]",
           valueClassName ?? "bg-card text-foreground",
           selected && SELECT_MUTED_PILL_VALUE_CLASSNAME
         )}
@@ -1690,11 +1737,10 @@ function computeMetricColumnWidths(
   for (const item of items) {
     maxEmailChars = Math.max(maxEmailChars, String(item.emailCount).length);
   }
-  // Value-only clutter; icon rail (~2.5ch) + value for the others. Received capped.
-  const clutterCh = 4.5;
-  const emailsCh = Math.max(6.5, maxEmailChars + 3.5);
-  // Fits short labels like "11mo" (+ icon rail); no "ago" suffix. Longer values ellipsis.
-  const receivedCh = 7.5;
+  // Sized for 11px type + compact icon rail (~2ch). Received capped; longer ellipsis.
+  const clutterCh = 3.75;
+  const emailsCh = Math.max(5.25, maxEmailChars + 2.75);
+  const receivedCh = 6.25;
   return {
     clutter: `${clutterCh}ch`,
     emails: `${emailsCh}ch`,
@@ -1721,7 +1767,6 @@ function ClutterStatBadge({
           ? SELECT_MUTED_PILL_VALUE_CLASSNAME
           : CLUTTER_VALUE_CLASSES[tier]
       }
-      className="border-transparent"
       width={width}
       selected={selected}
     />
@@ -1740,11 +1785,12 @@ function EmailsStatBadge({
   return (
     <IconStatBadge
       title="Email volume"
-      icon={<Mail className="size-3.5" aria-hidden />}
+      icon={<Mail className="size-3" aria-hidden />}
       value={String(count)}
-      valueClassName="bg-card text-muted-foreground"
+      valueClassName="font-medium"
       width={width}
       selected={selected}
+      pipeDivider
     />
   );
 }
@@ -1762,18 +1808,20 @@ function LastReceivedStatBadge({
   return (
     <IconStatBadge
       title="Last received"
-      icon={<History className="size-3.5" aria-hidden />}
+      icon={<History className="size-3" aria-hidden />}
       value={value}
-      valueClassName="bg-card font-medium tracking-normal text-muted-foreground/70"
-      width={width ?? "9.5ch"}
+      valueClassName="font-normal"
+      width={width ?? "6.25ch"}
       truncateValue
       selected={selected}
+      pipeDivider
     />
   );
 }
 
 /** Same gap as Create Snapshot ↔ Unsubscribe (`gap-2.5`). */
 const METRICS_GAP_CLASS = "gap-2.5";
+
 
 /** Job Radar card hover — border lift + shadow (mobile cards). */
 const SUBSCRIPTION_CARD_SURFACE_CLASS =
@@ -1850,6 +1898,94 @@ function LastBriefingIconButton({
   );
 }
 
+/**
+ * Camera-flash sunburst above the Snapshot glyph — straight rays with
+ * alternating long / short / dashed strokes (matches the flash reference).
+ */
+const SNAPSHOT_FLASH_RAYS = [
+  { a: -78, len: 10.5, kind: "dash" },
+  { a: -66, len: 13.5, kind: "long" },
+  { a: -54, len: 8.5, kind: "short" },
+  { a: -42, len: 12, kind: "dash" },
+  { a: -30, len: 14, kind: "long" },
+  { a: -18, len: 9, kind: "short" },
+  { a: -9, len: 11.5, kind: "dash" },
+  { a: 0, len: 14.5, kind: "long" },
+  { a: 9, len: 11.5, kind: "dash" },
+  { a: 18, len: 9, kind: "short" },
+  { a: 30, len: 14, kind: "long" },
+  { a: 42, len: 12, kind: "dash" },
+  { a: 54, len: 8.5, kind: "short" },
+  { a: 66, len: 13.5, kind: "long" },
+  { a: 78, len: 10.5, kind: "dash" },
+] as const;
+
+const SNAPSHOT_FLASH_CX = 16;
+const SNAPSHOT_FLASH_CY = 17;
+const SNAPSHOT_FLASH_INNER = 3.2;
+
+function SnapshotFlashRays({ muted = false }: { muted?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 32 18"
+      className={cn(
+        "pointer-events-none absolute -top-[12px] left-1/2 z-[1] h-[14px] w-[26px] -translate-x-[calc(50%+3px)] text-current transition-opacity duration-300",
+        muted ? "opacity-25" : "opacity-70 group-hover/snap:opacity-100"
+      )}
+      fill="none"
+      aria-hidden
+    >
+      {SNAPSHOT_FLASH_RAYS.map((ray) => {
+        const rad = (ray.a * Math.PI) / 180;
+        const s = Math.sin(rad);
+        const c = Math.cos(rad);
+        const x1 = SNAPSHOT_FLASH_CX + s * SNAPSHOT_FLASH_INNER;
+        const y1 = SNAPSHOT_FLASH_CY - c * SNAPSHOT_FLASH_INNER;
+        const x2 = SNAPSHOT_FLASH_CX + s * ray.len;
+        const y2 = SNAPSHOT_FLASH_CY - c * ray.len;
+        const dashed = ray.kind === "dash";
+        return (
+          <line
+            key={ray.a}
+            x1={x1}
+            y1={y1}
+            x2={x2}
+            y2={y2}
+            stroke="currentColor"
+            strokeWidth={dashed ? 0.95 : ray.kind === "long" ? 1.25 : 1.1}
+            strokeLinecap="round"
+            strokeDasharray={dashed ? "1.15 1.35" : undefined}
+            opacity={ray.kind === "short" ? 0.85 : 1}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
+/** Outline ring with a top notch so the flash isn’t crossed by the border. */
+function SnapshotFlashBorderNotch({ muted = false }: { muted?: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        // -inset-px: sit on the button’s outer border box (inset-0 is inside the
+        // transparent 1px border and reads ~2px short).
+        "pointer-events-none absolute -inset-px rounded-lg border",
+        muted
+          ? "border-[#899499]"
+          : "border-[hsl(174_32%_42%)] group-hover/snap:border-[#1ab5af]",
+        // Full rect minus ellipse at icon/flash — biased right so the top
+        // border clears the flash’s rightmost rays.
+        "[mask-image:linear-gradient(#000_0_0),radial-gradient(ellipse_16px_7px_at_19px_0,#000_100%,#0000)]",
+        "[mask-composite:exclude]",
+        "[-webkit-mask-image:linear-gradient(#000_0_0),radial-gradient(ellipse_16px_7px_at_19px_0,#000_100%,#0000)]",
+        "[-webkit-mask-composite:destination-out]"
+      )}
+    />
+  );
+}
+
 function SubscriptionRowActions({
   sub,
   onBriefing,
@@ -1869,14 +2005,21 @@ function SubscriptionRowActions({
         type="button"
         disabled={disabled}
         onClick={() => onBriefing(sub)}
-        className={
+        className={cn(
           disabled
             ? SECONDARY_ACTION_BTN_MUTED_CLASSNAME
-            : SECONDARY_ACTION_BTN_CLASSNAME
-        }
+            : SECONDARY_ACTION_BTN_CLASSNAME,
+          // Real border replaced by notched ring so flash can cross the top edge.
+          // h-8 matches Unsubscribe (py-1.5 + text-xs + border).
+          "group/snap relative h-8 shrink-0 items-center whitespace-nowrap border-transparent hover:border-transparent"
+        )}
       >
-        <Summary className="h-3.5 w-3.5" />
-        <span>Create Snapshot</span>
+        <SnapshotFlashBorderNotch muted={disabled} />
+        <span className="relative z-[1] inline-flex shrink-0 translate-x-px">
+          <SnapshotFlashRays muted={disabled} />
+          <Snapshot size={16} className="-translate-y-px" />
+        </span>
+        <span className="relative z-[1] whitespace-nowrap">Create Snapshot</span>
       </button>
       <button
         type="button"
@@ -1940,6 +2083,7 @@ function SubscriptionDesktopRow({
   onToggleRow,
   itemProps,
   showInsertBefore,
+  showRowDivider,
   clutter,
   briefing,
   metricWidths,
@@ -1959,6 +2103,12 @@ function SubscriptionDesktopRow({
   onToggleRow: (id: string) => void;
   itemProps: ReturnType<BindItem>;
   showInsertBefore: boolean;
+  /**
+   * Wavy dashed hairline under the row. False on the last card, when this row
+   * is selected, or when the next row is selected (avoids peeking past the
+   * multiselect perimeter).
+   */
+  showRowDivider: boolean;
   clutter: number;
   briefing: ResolvedBriefing | null;
   metricWidths: MetricColumnWidths;
@@ -1973,14 +2123,14 @@ function SubscriptionDesktopRow({
       {...itemRest}
       style={itemStyle}
       className={cn(
-        "relative flex h-16 cursor-default items-center pl-3 pr-4 select-none",
+        "relative flex h-16 cursor-default items-center select-none",
         SUBSCRIPTION_ROW_HOVER_CLASS,
         selected
           ? selectHighlightGroupClassName(selectionGroup, {
               startRadius: selectionStartRadius,
               endRadius: selectionEndRadius,
             })
-          : "border-b border-[hsl(220_16%_88%)] last:border-b-0"
+          : null
       )}
     >
       {showInsertBefore ? (
@@ -1988,8 +2138,19 @@ function SubscriptionDesktopRow({
           <InsertMarker />
         </div>
       ) : null}
-      {/* Zone 1: Contact & Identity — grows so the first divider sits closer to metrics */}
-      <div className="flex min-w-0 flex-1 items-center gap-3 border-r border-border/40 pr-5">
+      {showRowDivider ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] translate-y-1/2">
+          <WavyDashedRule orientation="horizontal" />
+        </div>
+      ) : null}
+      {/* Card midpoint — same x as toolbar half split when both are full-bleed */}
+      {!selected ? (
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2">
+          <WavyDashedRule orientation="vertical" length={16} />
+        </div>
+      ) : null}
+
+      <div className="flex h-full w-1/2 min-w-0 items-center gap-3 pl-3 pr-3">
         <input
           type="checkbox"
           checked={selected}
@@ -2031,39 +2192,39 @@ function SubscriptionDesktopRow({
         </div>
       </div>
 
-      {/* Zone 2: Analytics — shrink-wrapped to the pills (no flex grow) */}
-      <div
-        className={cn(
-          "flex shrink-0 items-center border-r border-border/40 px-3",
-          METRICS_GAP_CLASS
-        )}
-      >
-        <LastReceivedStatBadge
-          date={sub.lastReceivedAt}
-          width={metricWidths.received}
-          selected={selected}
-        />
-        <EmailsStatBadge
-          count={sub.emailCount}
-          width={metricWidths.emails}
-          selected={selected}
-        />
-        <ClutterStatBadge
-          score={clutter}
-          width={metricWidths.clutter}
-          selected={selected}
-        />
-      </div>
+      <div className="flex h-full w-1/2 min-w-0 items-center">
+        {/* pl/pr-4 = ToolbarRoot gap-3 + ToolbarDivider mx-1 (divider → search) */}
+        <div className={cn("flex shrink-0 items-center px-4", METRICS_GAP_CLASS)}>
+          <LastReceivedStatBadge
+            date={sub.lastReceivedAt}
+            width={metricWidths.received}
+            selected={selected}
+          />
+          <EmailsStatBadge
+            count={sub.emailCount}
+            width={metricWidths.emails}
+            selected={selected}
+          />
+          <ClutterStatBadge
+            score={clutter}
+            width={metricWidths.clutter}
+            selected={selected}
+          />
+        </div>
 
-      {/* Zone 3: Actions */}
-      <div className="-mr-4 flex h-16 shrink-0 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-4 pr-1">
-        <SubscriptionRowActions
-          sub={sub}
-          onBriefing={onBriefing}
-          onUnsubscribe={onUnsubscribe}
-          onViewLastEmail={onViewLastEmail}
-          disabled={selected}
-        />
+        {!selected ? (
+          <WavyDashedRule orientation="vertical" length={16} className="mx-1" />
+        ) : null}
+
+        <div className="flex h-full min-w-0 flex-1 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-4 pr-1">
+          <SubscriptionRowActions
+            sub={sub}
+            onBriefing={onBriefing}
+            onUnsubscribe={onUnsubscribe}
+            onViewLastEmail={onViewLastEmail}
+            disabled={selected}
+          />
+        </div>
       </div>
     </div>
   );
@@ -2151,6 +2312,11 @@ function ActiveDesktopTable({
             onToggleRow={onToggleRow}
             itemProps={bindItem(sub.id)}
             showInsertBefore={insertBeforeId === sub.id}
+            showRowDivider={
+              index < subscriptions.length - 1 &&
+              !selectionGroup.selected &&
+              !selectedIds.includes(subscriptions[index + 1]?.id ?? "")
+            }
             clutter={clutter}
             briefing={briefing}
             metricWidths={metricWidths}
@@ -2388,12 +2554,14 @@ function ArchiveDesktopRow({
   entry,
   pending,
   metricWidths,
+  showRowDivider,
   onCleanup,
   onDeleteRecord,
 }: {
   entry: ArchiveEntry;
   pending: boolean;
   metricWidths: MetricColumnWidths;
+  showRowDivider: boolean;
   onCleanup: (entry: ArchiveEntry) => void;
   onDeleteRecord: (entry: ArchiveEntry) => void;
 }) {
@@ -2403,11 +2571,20 @@ function ArchiveDesktopRow({
   return (
     <div
       className={cn(
-        "flex h-16 items-center border-b border-[hsl(220_16%_88%)] pl-3 pr-4 last:border-b-0",
+        "relative flex h-16 items-center",
         SUBSCRIPTION_ROW_HOVER_CLASS
       )}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-3 border-r border-border/40 pr-5">
+      {showRowDivider ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] translate-y-1/2">
+          <WavyDashedRule orientation="horizontal" />
+        </div>
+      ) : null}
+      <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2">
+        <WavyDashedRule orientation="vertical" length={16} />
+      </div>
+
+      <div className="flex h-full w-1/2 min-w-0 items-center gap-3 pl-3 pr-3">
         <CompanyLogo
           src={senderLogoSrc(entry.senderEmail)}
           name={entry.senderName ?? entry.senderEmail}
@@ -2423,27 +2600,26 @@ function ArchiveDesktopRow({
         </div>
       </div>
 
-      <div
-        className={cn(
-          "flex shrink-0 items-center border-r border-border/40 px-3",
-          METRICS_GAP_CLASS
-        )}
-      >
-        <LastReceivedStatBadge
-          date={entry.lastReceivedAt}
-          width={metricWidths.received}
-        />
-        <EmailsStatBadge count={emailCount} width={metricWidths.emails} />
-        <ClutterStatBadge score={clutter} width={metricWidths.clutter} />
-      </div>
+      <div className="flex h-full w-1/2 min-w-0 items-center">
+        <div className={cn("flex shrink-0 items-center px-4", METRICS_GAP_CLASS)}>
+          <LastReceivedStatBadge
+            date={entry.lastReceivedAt}
+            width={metricWidths.received}
+          />
+          <EmailsStatBadge count={emailCount} width={metricWidths.emails} />
+          <ClutterStatBadge score={clutter} width={metricWidths.clutter} />
+        </div>
 
-      <div className="-mr-4 flex h-16 shrink-0 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-4 pr-1">
-        <ArchiveRowActions
-          entry={entry}
-          pending={pending}
-          onCleanup={onCleanup}
-          onDeleteRecord={onDeleteRecord}
-        />
+        <WavyDashedRule orientation="vertical" length={16} className="mx-1" />
+
+        <div className="flex h-full min-w-0 flex-1 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-4 pr-1">
+          <ArchiveRowActions
+            entry={entry}
+            pending={pending}
+            onCleanup={onCleanup}
+            onDeleteRecord={onDeleteRecord}
+          />
+        </div>
       </div>
     </div>
   );
@@ -2472,12 +2648,13 @@ function ArchiveDesktopTable({
 
   return (
     <div className="hidden w-full overflow-hidden rounded-xl border border-border/80 bg-card shadow-md transition-shadow duration-200 hover:shadow-lg md:block">
-      {entries.map((entry) => (
+      {entries.map((entry, index) => (
         <ArchiveDesktopRow
           key={entry.key}
           entry={entry}
           pending={cleanupPendingKey === entry.key || pending}
           metricWidths={metricWidths}
+          showRowDivider={index < entries.length - 1}
           onCleanup={onCleanup}
           onDeleteRecord={onDeleteRecord}
         />

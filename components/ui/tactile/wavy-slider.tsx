@@ -188,7 +188,7 @@ export function WavySlider({
         style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
       >
         <svg
-          className="h-3 w-full"
+          className="h-3 w-full drop-shadow-[0_0_6px_rgba(26,181,175,0.35)]"
           viewBox={`0 0 ${waveVbW} ${WAVE_VB_H}`}
           preserveAspectRatio="none"
           fill="none"
@@ -223,13 +223,14 @@ export function WavySlider({
       >
         <div
           className={cn(
-            "absolute z-0 h-7 w-7 scale-0 rounded-full border border-[#1ab5af]/30 bg-[#e4f7f3] transition-transform duration-150 ease-out dark:bg-[#1ab5af]/20",
-            "group-hover:scale-100 group-focus-within:scale-100",
+            "absolute z-0 h-7 w-7 scale-0 rounded-full border border-[#1ab5af]/30 bg-[#e4f7f3] transition-transform duration-300 ease-out dark:bg-[#1ab5af]/20",
+            // Hover / press only for pointer; focus-visible so mouse drag doesn't leave a sticky halo
+            "group-hover:scale-100 group-has-[:focus-visible]:scale-100",
             "group-active:scale-125",
-            "group-focus-within:ring-2 group-focus-within:ring-[#1ab5af]/40"
+            "group-has-[:focus-visible]:ring-2 group-has-[:focus-visible]:ring-[#1ab5af]/40"
           )}
         />
-        <div className="relative z-10 h-2.5 w-2.5 rounded-full bg-[#1ab5af] shadow-sm transition-transform duration-100 group-active:scale-110" />
+        <div className="relative z-10 h-2.5 w-2.5 rounded-full bg-[#1ab5af] shadow-[0_0_6px_rgba(26,181,175,0.35)] transition-transform duration-100 group-active:scale-110" />
       </div>
 
       {/* Transparent interaction layer */}

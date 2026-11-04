@@ -13,8 +13,11 @@ import { Logo, NavLogo } from "@/components/brand/logo";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { GlobalSyncTracker } from "@/components/layout/global-sync-tracker";
 import { SidebarNav, SIDEBAR_NAV, SIDEBAR_PRIMARY_NAV, SIDEBAR_SETTINGS_NAV } from "@/components/layout/sidebar-nav";
+import { SidebarFlyoutProvider } from "@/components/layout/sidebar-flyout-provider";
 import { SidebarQuickActions } from "@/components/layout/sidebar-quick-actions";
 import { SyncStatusProvider } from "@/components/layout/sync-status-provider";
+import { BulkActionsOpenProvider } from "@/components/ui/composites/bulk-actions-flyout";
+import { CurvedCardDivider } from "@/components/ui/tactile/nested-settings-card";
 import { TabRailProvider, darkPlateClassName } from "@/components/ui/tactile/segmented-tabs";
 import { RailActionProvider } from "@/components/ui/rail-action";
 import { SyncTelemetry } from "@/components/opportunities/sync-telemetry";
@@ -96,8 +99,10 @@ export function AppShell({
       initialIsSyncing={initialIsSyncing}
       initialPendingClassificationCount={initialPendingClassificationCount}
     >
+    <BulkActionsOpenProvider>
     <TabRailProvider accountId={activeAccountId}>
     <RailActionProvider accountId={activeAccountId}>
+    <SidebarFlyoutProvider>
     <div className="min-h-screen md:flex md:h-dvh md:min-h-0 md:overflow-hidden md:py-1.5 md:pl-1.5">
       <GlobalSyncTracker />
 
@@ -113,7 +118,7 @@ export function AppShell({
           if (!(target instanceof Element)) return;
           if (
             target.closest(
-              "a, button, input, select, textarea, [role='menuitem'], [data-sync-pill], nav"
+              "a, button, input, select, textarea, [role='menuitem'], [data-sync-pill], [data-sidebar-flyout], nav"
             )
           ) {
             return;
@@ -164,7 +169,11 @@ export function AppShell({
               </button>
             </div>
           )}
-          <div className={SHELL_HAIRLINE_CLASS} aria-hidden="true" />
+          {/* Full-bleed so arcs meet the sidebar’s rounded-2xl side walls. */}
+          <CurvedCardDivider
+            radius={16}
+            className="mb-0 text-white/10"
+          />
         </div>
 
         <div className="relative z-10 flex min-h-0 flex-1 flex-col">
@@ -270,8 +279,10 @@ export function AppShell({
         </ul>
       </nav>
     </div>
+    </SidebarFlyoutProvider>
     </RailActionProvider>
     </TabRailProvider>
+    </BulkActionsOpenProvider>
     </SyncStatusProvider>
   );
 }

@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Cog, MailCheck, Radar, SquareKanban } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 
 import { SyncTelemetry } from "@/components/opportunities/sync-telemetry";
 import { useSyncStatus } from "@/components/layout/sync-status-provider";
+import {
+  SIDEBAR_TELEMETRY_OPEN_DELAY_MS,
+  useSidebarFlyout,
+} from "@/components/layout/sidebar-flyout-provider";
 import {
   clearSidebarPageTab,
   rememberSidebarPageTab,
@@ -41,18 +45,9 @@ export const SIDEBAR_SETTINGS_NAV = SIDEBAR_NAV.filter(
 export const SECTION_TITLE_CLASS =
   "select-none pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-stone-500";
 
-/** Compact gap under the hairline before Console. */
+/** Compact gap under the logo divider before Navigation. */
 const SHELL_NAV_CLASS =
-  "relative z-10 flex shrink-0 flex-col gap-1 px-3 pb-2 pt-3";
-
-/** Brief pause so a fly-by doesn't open the menu. */
-const FLYOUT_OPEN_DELAY_MS = 500;
-const FLYOUT_CLOSE_DELAY_MS = 80;
-/**
- * Collapsed tab menu's bridge covers the status edge. A short dwell lets a
- * pass-through to the tabs keep going, and a pause on the edge opens status.
- */
-const TELEMETRY_OPEN_DELAY_MS = 280;
+  "relative z-10 flex shrink-0 flex-col gap-1 px-3 pb-2 pt-1.5";
 
 /** Same right-edge capsule as the active page mark. */
 const NAV_EDGE_MARK_CLASS =
@@ -132,51 +127,29 @@ export function SidebarNav({
 }) {
   const pathname = usePathname();
   const { isSyncing, pendingCount } = useSyncStatus();
-  const [openHref, setOpenHref] = useState<string | null>(null);
-  const [railOpen, setRailOpen] = useState(false);
-  const openTimerRef = useRef<number | null>(null);
-  const closeTimerRef = useRef<number | null>(null);
+  const {
+    open: flyout,
+    isOpen,
+    openNow,
+    scheduleOpen,
+    scheduleClose,
+    cancelScheduledOpen,
+    closeNow,
+  } = useSidebarFlyout();
   const telemetryTimerRef = useRef<number | null>(null);
 
-  function clearTimer(timerRef: MutableRefObject<number | null>) {
-    if (timerRef.current === null) return;
-    window.clearTimeout(timerRef.current);
-    timerRef.current = null;
-  }
-
   function cancelTelemetryOpen() {
-    clearTimer(telemetryTimerRef);
+    if (telemetryTimerRef.current === null) return;
+    window.clearTimeout(telemetryTimerRef.current);
+    telemetryTimerRef.current = null;
   }
 
   function scheduleTelemetryOpen() {
-    clearTimer(telemetryTimerRef);
+    cancelTelemetryOpen();
     telemetryTimerRef.current = window.setTimeout(() => {
       telemetryTimerRef.current = null;
-      clearTimer(openTimerRef);
-      clearTimer(closeTimerRef);
-      setOpenHref(null);
-      setRailOpen(true);
-    }, TELEMETRY_OPEN_DELAY_MS);
-  }
-
-  function scheduleFlyoutOpen(href: string) {
-    cancelTelemetryOpen();
-    clearTimer(closeTimerRef);
-    clearTimer(openTimerRef);
-    openTimerRef.current = window.setTimeout(() => {
-      openTimerRef.current = null;
-      setOpenHref(href);
-    }, FLYOUT_OPEN_DELAY_MS);
-  }
-
-  function scheduleFlyoutClose() {
-    cancelTelemetryOpen();
-    clearTimer(openTimerRef);
-    clearTimer(closeTimerRef);
-    closeTimerRef.current = window.setTimeout(() => {
-      closeTimerRef.current = null;
-      setOpenHref(null);
-    }, FLYOUT_CLOSE_DELAY_MS);
+      openNow({ kind: "telemetry" });
+    }, SIDEBAR_TELEMETRY_OPEN_DELAY_MS);
   }
 
   function resumeTabFlyout(next: EventTarget | null, from: Element) {
@@ -184,45 +157,17 @@ export function SidebarNav({
     if (!row || !(next instanceof Node) || !row.contains(next)) return;
     const href = row.getAttribute("data-nav-href");
     if (!href) return;
-    scheduleFlyoutOpen(href);
+    scheduleOpen({ kind: "nav", href });
   }
 
   useEffect(() => {
-    const openTimer = openTimerRef;
-    const closeTimer = closeTimerRef;
-    const telemetryTimer = telemetryTimerRef;
-    return () => {
-      if (openTimer.current !== null) window.clearTimeout(openTimer.current);
-      if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
-      if (telemetryTimer.current !== null) {
-        window.clearTimeout(telemetryTimer.current);
-      }
-    };
+    return () => cancelTelemetryOpen();
   }, []);
 
   useEffect(() => {
-    if (!openHref) return;
-    if (isNavActive(pathname, openHref)) setOpenHref(null);
-  }, [pathname, openHref]);
-
-  useEffect(() => {
-    if (!openHref) return;
-    function onPointerDown(event: PointerEvent) {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (target.closest("[data-sidebar-tab-menu]")) return;
-      setOpenHref(null);
-    }
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpenHref(null);
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [openHref]);
+    if (flyout?.kind !== "nav") return;
+    if (isNavActive(pathname, flyout.href)) closeNow();
+  }, [pathname, flyout, closeNow]);
 
   return (
     <nav
@@ -236,7 +181,8 @@ export function SidebarNav({
         const active = isNavActive(pathname, item.href);
         const tabs = sidebarTabsForHref(item.href);
         const showTabs = !active && tabs.length > 0;
-        const open = showTabs && openHref === item.href;
+        const open = showTabs && isOpen({ kind: "nav", href: item.href });
+        const railOpen = isOpen({ kind: "telemetry" }) && item.href === "/jobs";
         const showJobRadarStatus = item.href === "/jobs";
         const Icon = item.icon;
         return (
@@ -246,16 +192,16 @@ export function SidebarNav({
             data-sidebar-tab-menu={showTabs ? "" : undefined}
             data-nav-href={item.href}
             onPointerEnter={() => {
-              clearTimer(closeTimerRef);
+              cancelTelemetryOpen();
               if (!showTabs) {
-                clearTimer(openTimerRef);
+                cancelScheduledOpen();
                 return;
               }
-              if (openHref === item.href) {
-                clearTimer(openTimerRef);
+              if (isOpen({ kind: "nav", href: item.href })) {
+                cancelScheduledOpen();
                 return;
               }
-              scheduleFlyoutOpen(item.href);
+              scheduleOpen({ kind: "nav", href: item.href });
             }}
             onPointerLeave={(event) => {
               const next = event.relatedTarget;
@@ -265,7 +211,7 @@ export function SidebarNav({
               ) {
                 return;
               }
-              scheduleFlyoutClose();
+              scheduleClose();
             }}
           >
             <div
@@ -319,7 +265,7 @@ export function SidebarNav({
                   title={collapsed && !showTabs ? item.label : undefined}
                   onClick={() => {
                     clearSidebarPageTab();
-                    setOpenHref(null);
+                    closeNow();
                   }}
                   className={cn(
                     "flex items-center gap-3",
@@ -366,14 +312,13 @@ export function SidebarNav({
                       : "-right-2 z-10 w-8"
                   )}
                   onPointerEnter={() => {
-                    if (collapsed && openHref === item.href) {
+                    if (collapsed && isOpen({ kind: "nav", href: item.href })) {
                       scheduleTelemetryOpen();
                       return;
                     }
                     cancelTelemetryOpen();
-                    clearTimer(openTimerRef);
-                    setOpenHref(null);
-                    setRailOpen(true);
+                    cancelScheduledOpen();
+                    openNow({ kind: "telemetry" });
                   }}
                   onPointerLeave={(event) => {
                     cancelTelemetryOpen();
@@ -390,7 +335,7 @@ export function SidebarNav({
                     ) {
                       return;
                     }
-                    setRailOpen(false);
+                    scheduleClose();
                     resumeTabFlyout(next, event.currentTarget);
                   }}
                 />
@@ -401,7 +346,7 @@ export function SidebarNav({
                   tabs={tabs}
                   tabCounts={tabCounts}
                   collapsed={collapsed}
-                  onPick={() => setOpenHref(null)}
+                  onPick={() => closeNow()}
                 />
               ) : null}
               {showJobRadarStatus && railOpen ? (
@@ -416,7 +361,7 @@ export function SidebarNav({
                     ) {
                       return;
                     }
-                    setRailOpen(false);
+                    scheduleClose();
                     resumeTabFlyout(next, event.currentTarget);
                   }}
                 >
@@ -436,16 +381,18 @@ export function SidebarNav({
   );
 }
 
-function SidebarFlyout({
+export function SidebarFlyout({
   collapsed,
   children,
   marker,
   onPointerLeave,
+  className,
 }: {
   collapsed: boolean;
   children: ReactNode;
   marker?: string;
   onPointerLeave?: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  className?: string;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [shift, setShift] = useState(0);
@@ -483,7 +430,8 @@ function SidebarFlyout({
       <div
         className={cn(
           "flex w-max flex-col gap-1 rounded-2xl p-1.5",
-          darkPlateClassName
+          darkPlateClassName,
+          className
         )}
       >
         {children}

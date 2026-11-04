@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { syncInboxOpportunities } from "@/app/actions/email";
@@ -345,7 +346,8 @@ export function SyncTelemetry({
             <CancelTaskButton
               onCancel={handleFlushPending}
               disabled={flushing}
-              title="Dismiss awaiting emails"
+              title="Delete awaiting emails from queue"
+              icon={Trash2}
               spinMs={600}
               className={cn(
                 "mp-flyout-chunk flex size-8 shrink-0 items-center justify-center rounded-full border border-[hsl(var(--sidebar))] bg-[hsl(var(--sidebar))] p-0 text-[hsl(var(--sidebar-foreground))]/65 shadow-md hover:bg-[hsl(var(--sidebar))] hover:text-[#C21E11] disabled:opacity-60 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-current",

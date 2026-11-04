@@ -27,6 +27,7 @@ const OVERLAY_SELECTOR = [
   "[data-sonner-toaster]",
   "[data-bulk-actions]",
   "[data-filter-panel]",
+  "[data-sidebar-flyout]",
 ].join(",");
 
 export type FrozenItemRect = {

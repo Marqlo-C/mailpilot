@@ -1,77 +1,70 @@
 "use client";
 
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { createPortal } from "react-dom";
 
 import {
-  SYNC_STARTED_EVENT,
-  useSyncStatus,
-} from "@/components/layout/sync-status-provider";
+  ClassifyingFlyoutStatus,
+  useClassifyingFlyoutVisible,
+} from "@/components/layout/classifying-flyout-status";
+import { useSyncStatus } from "@/components/layout/sync-status-provider";
+import {
+  BULK_FLYOUT_CANCEL_CLASSNAME,
+  BULK_FLYOUT_HOST_CLASSNAME,
+  BULK_FLYOUT_PILL_CLASSNAME,
+  useBulkActionsOpen,
+  useFlyoutPresence,
+} from "@/components/ui/composites/bulk-actions-flyout";
+import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
 import { cn } from "@/lib/utils";
 
-export { SYNC_STARTED_EVENT };
-
 /**
- * Bottom-right floating sync capsule. Reads shared sync status (no own poller).
+ * Standalone classifying flyout — separate status pill + cancel circle.
+ * Yields while selection is open; shared bar uses one X with a choice menu.
  */
 export function GlobalSyncTracker() {
-  const {
-    accountId,
-    isSyncing,
-    justFinished,
-    lastSyncProcessed,
-    totalToProcess,
-    forceReset,
-  } = useSyncStatus();
+  const bulkOpen = useBulkActionsOpen();
+  const visible = useClassifyingFlyoutVisible();
+  const { isSyncing, forceReset } = useSyncStatus();
+  const open = visible && !bulkOpen;
+  const { mounted, phase, style, onAnimationEnd } = useFlyoutPresence(open);
 
-  if (!accountId || (!isSyncing && !justFinished)) {
-    return null;
-  }
+  if (!mounted || typeof document === "undefined") return null;
 
-  const syncProgress =
-    isSyncing && lastSyncProcessed && lastSyncProcessed > 0
-      ? totalToProcess && totalToProcess >= lastSyncProcessed
-        ? `${lastSyncProcessed} / ${totalToProcess}`
-        : `${lastSyncProcessed}`
-      : null;
-
-  return (
+  return createPortal(
     <aside
       role="status"
       aria-live="polite"
-      className={cn(
-        "fixed bottom-5 right-5 z-50 flex max-w-[min(92vw,24rem)] items-center gap-3 rounded-full border border-border bg-background/95 px-4 py-2.5 text-sm shadow-xl backdrop-blur",
-        "mb-16 md:mb-0",
-        "animate-in fade-in slide-in-from-bottom-2"
-      )}
+      aria-label="Opportunity classification status"
+      data-dnd-ignore
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      className={BULK_FLYOUT_HOST_CLASSNAME}
     >
-      {isSyncing ? (
-        <>
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-          <span className="font-medium text-foreground">
-            {syncProgress
-              ? syncProgress.includes("/")
-                ? `Classifying ${syncProgress} opportunities…`
-                : `Classifying opportunity ${syncProgress}…`
-              : "Scanning inbox for opportunities…"}
-          </span>
-          <button
-            type="button"
-            onClick={() => void forceReset()}
-            className="ml-1 inline-flex shrink-0 text-rose-500 transition-colors hover:text-rose-600"
-            title="Cancel sync — remaining emails stay in the queue"
-            aria-label="Cancel sync"
-          >
-            <XCircle className="h-5 w-5" />
-          </button>
-        </>
-      ) : (
-        <>
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
-          <span className="font-medium text-foreground">
-            Scan complete — opportunities updated
-          </span>
-        </>
-      )}
-    </aside>
+      <div
+        className={cn(
+          "flex origin-center flex-nowrap items-center gap-2.5",
+          phase === "in" && "mp-flyout-pop",
+          phase === "out" && "mp-flyout-retract"
+        )}
+        style={style}
+        onAnimationEnd={onAnimationEnd}
+      >
+        <div className={cn("mp-flyout-chunk", BULK_FLYOUT_PILL_CLASSNAME)}>
+          <ClassifyingFlyoutStatus />
+        </div>
+
+        {isSyncing ? (
+          <div className="mp-flyout-chunk shrink-0">
+            <CancelTaskButton
+              onCancel={() => void forceReset()}
+              title="Cancel sync — remaining emails stay in the queue"
+              spinMs={600}
+              className={BULK_FLYOUT_CANCEL_CLASSNAME}
+            />
+          </div>
+        ) : null}
+      </div>
+    </aside>,
+    document.body
   );
 }
