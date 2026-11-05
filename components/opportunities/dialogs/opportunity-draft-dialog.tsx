@@ -43,6 +43,7 @@ import {
   type OpportunityResumePreview,
   type OriginalEmailPreview,
 } from "@/app/actions/opportunities";
+import { useSidebarCollapse } from "@/components/layout/sidebar-collapse-provider";
 import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
 import { ResumeDraftSheet } from "@/components/opportunities/drawer/resume-draft-sheet";
 import { Button } from "@/components/ui/button";
@@ -200,6 +201,7 @@ export function OpportunityDraftDialog({
     cancelAll,
     isTaskActive,
   } = useTaskAbortManager();
+  const { setDraftResumeSidebarMode } = useSidebarCollapse();
   const emailSnapshotRef = useRef<{ subject: string; body: string } | null>(
     null
   );
@@ -240,6 +242,15 @@ export function OpportunityDraftDialog({
     setEmailSplitPct(next);
     emailSplitPctRef.current = next;
   }, []);
+
+  // Free horizontal room for the resume pane; restore only if we collapsed it.
+  useEffect(() => {
+    const needsSpace = open && attachResume;
+    setDraftResumeSidebarMode(needsSpace);
+    return () => {
+      setDraftResumeSidebarMode(false);
+    };
+  }, [open, attachResume, setDraftResumeSidebarMode]);
 
   useEffect(() => {
     emailSplitPctRef.current = emailSplitPct;

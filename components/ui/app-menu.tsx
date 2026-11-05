@@ -40,9 +40,9 @@ export const appMenuClassNames = {
       "flex h-6 w-full cursor-pointer items-center justify-between gap-1.5 rounded-md border border-border/50 bg-card px-2 text-[11px] font-medium text-foreground shadow-md outline-none transition-colors hover:bg-card focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
     content:
       "z-50 min-w-[8rem] overflow-hidden rounded-lg border border-border/50 bg-card p-1 text-foreground shadow-md",
-    item: "cursor-pointer gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium text-foreground/80 focus:bg-muted focus:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-3.5",
+    item: "cursor-pointer justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium text-foreground/80 focus:bg-muted focus:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-3.5",
     itemMeta:
-      "cursor-pointer gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-foreground/80 focus:bg-muted focus:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:!size-2.5",
+      "cursor-pointer justify-between gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-foreground/80 focus:bg-muted focus:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:!size-2.5",
     label: "px-2.5 py-1.5 text-xs font-semibold text-foreground",
     separator: "-mx-1 my-1 h-px bg-border/60",
     chevron: "size-3.5 shrink-0 text-muted-foreground/70",

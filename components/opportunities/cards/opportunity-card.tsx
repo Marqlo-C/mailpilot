@@ -407,8 +407,8 @@ export function OpportunityCard({
         <div
           className={cn("min-w-0 flex-1", isSelected && "text-muted-foreground")}
         >
-          <div className="flex h-[14px] items-center gap-1.5">
-            <h4 className="truncate text-[11px] font-semibold uppercase leading-none tracking-wider text-muted-foreground">
+          <div className="flex h-4 items-center gap-1.5">
+            <h4 className="truncate text-xs font-semibold uppercase leading-none tracking-wide text-muted-foreground">
               {opportunity.company}
             </h4>
             {statusTag}
@@ -479,7 +479,7 @@ export function OpportunityCard({
         </div>
       </div>
 
-      {/* 4. Content body — description starts in from the logo; AI row keeps tighter inset */}
+      {/* 4. Content body — description aligns with first metadata pill; AI row keeps tighter inset */}
       <div
         className={cn(
           "flex flex-1 flex-col justify-start py-3.5",
@@ -487,7 +487,7 @@ export function OpportunityCard({
         )}
       >
         {displayDescription ? (
-          <p className="min-h-[2.5rem] line-clamp-2 px-8 text-xs leading-relaxed text-foreground/80 sm:px-9 dark:text-foreground/85">
+          <p className="min-h-[2.5rem] line-clamp-2 px-6 text-xs leading-relaxed text-foreground/80 sm:px-7 dark:text-foreground/85">
             {displayDescription}
           </p>
         ) : null}

@@ -127,8 +127,8 @@ export function SyncControls({
             disabled={disabled}
             onSelect={() => runSync(false)}
           >
-            Check for new mail
-            <span className="ml-auto text-xs text-muted-foreground">
+            <span>Check for new mail</span>
+            <span className="shrink-0 text-xs font-normal text-muted-foreground">
               Default
             </span>
           </AppMenuItem>
@@ -142,8 +142,8 @@ export function SyncControls({
               disabled={disabled}
               onSelect={() => runSync(true, option.days)}
             >
-              {option.label}
-              <span className="ml-auto text-xs text-muted-foreground">
+              <span>{option.label}</span>
+              <span className="shrink-0 text-right text-xs font-normal text-muted-foreground">
                 {option.hint}
               </span>
             </AppMenuItem>
