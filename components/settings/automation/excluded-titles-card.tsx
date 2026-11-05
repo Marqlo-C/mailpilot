@@ -6,24 +6,35 @@ import { Plus, ShieldBan, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { addExcludedTitle, removeExcludedTitle } from "@/app/actions/settings";
-import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
-import { SettingsSectionCard } from "@/components/ui/tactile/nested-settings-card";
+import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
+import {
+  SettingsFeatureCard,
+  SettingsStatusPill,
+} from "@/components/ui/tactile/nested-settings-card";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { cn } from "@/lib/utils";
 
 type ExcludedTitlesCardProps = {
   accountId: string | null;
   excludedTitles: string[];
+  isExpanded: boolean;
+  onToggle: () => void;
 };
 
+/**
+ * L2 — Roles trained via “Less like this” that stay soft-hidden.
+ */
 export function ExcludedTitlesCard({
   accountId,
   excludedTitles,
+  isExpanded,
+  onToggle,
 }: ExcludedTitlesCardProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [draft, setDraft] = useState("");
   const disabled = !accountId || pending;
+  const count = excludedTitles.length;
 
   function handleAdd() {
     if (!accountId) return;
@@ -55,28 +66,30 @@ export function ExcludedTitlesCard({
   }
 
   return (
-    <SettingsSectionCard
-      className={SETTINGS_CARD_CLASSNAME}
-      icon={
-        <ShieldBan
-          className="size-8 -translate-y-0.5 scale-[1.15] origin-center text-primary shrink-0"
-          aria-hidden="true"
-        />
+    <SettingsFeatureCard
+      logo={<SettingsFeatureLogo icon={ShieldBan} />}
+      title="Roles to hide"
+      subtitle="Titles you marked “Less like this.” Matching listings are soft-hidden on Job Radar."
+      statusBadge={
+        <SettingsStatusPill count={count} hasItems={count > 0}>
+          {count === 0 ? "None" : `${count} hidden`}
+        </SettingsStatusPill>
       }
-      title="Excluded Job Titles"
-      subtitle="Roles flagged with 'Less like this' — matching listings are penalized and soft-hidden."
+      isExpanded={isExpanded}
+      onToggle={onToggle}
       curvedDivider
     >
       <div className="space-y-4">
-        {!accountId && (
+        {!accountId ? (
           <p className="text-sm text-muted-foreground">
-            Connect an account to manage excluded titles.
+            Connect an account to manage hidden roles.
           </p>
-        )}
+        ) : null}
 
         {excludedTitles.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border/80 px-4 py-6 text-center text-xs text-muted-foreground">
-            No excluded titles yet. Select &quot;Less like this&quot; from the &quot;…&quot; menu on any opportunity card to train the filter.
+            Nothing excluded yet. On any opportunity card, open the ⋮ menu and
+            choose &quot;Less like this&quot; — or add a title below.
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -113,7 +126,7 @@ export function ExcludedTitlesCard({
                 handleAdd();
               }
             }}
-            className="h-8 flex-1 rounded-lg border border-border/60 bg-card px-3 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-border focus:ring-1 focus:ring-ring"
+            className="h-8 flex-1 rounded-lg border border-border/60 bg-card px-3 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-border focus:ring-1 focus:ring-ring"
           />
           <button
             type="button"
@@ -125,10 +138,10 @@ export function ExcludedTitlesCard({
             )}
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>Add Title</span>
+            <span>Add title</span>
           </button>
         </div>
       </div>
-    </SettingsSectionCard>
+    </SettingsFeatureCard>
   );
 }

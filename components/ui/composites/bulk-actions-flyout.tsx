@@ -16,9 +16,11 @@ import { X } from "lucide-react";
 import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import {
+  AppMenuContent,
+  AppMenuItem,
+} from "@/components/ui/app-menu";
+import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -72,15 +74,6 @@ export const BULK_ACTION_DISMISS_BTN_CLASSNAME =
 /** Count pill matching the Dismiss/Delete label — hairline outline, tab-chip size. */
 export const BULK_ACTION_COUNT_DISMISS_CLASSNAME =
   "rounded-md border border-white/10 bg-[#C21E11]/15 px-1.5 py-0.5 text-[10px] font-bold leading-none text-[#C21E11] group-data-[state=active]:border-white/10 group-data-[state=active]:bg-[#C21E11]/15 group-data-[state=active]:text-[#C21E11]";
-
-/** Same plate + density as SidebarFlyout; width hugs the longest option. */
-const BULK_CANCEL_MENU_CONTENT_CLASS = cn(
-  "z-[160] flex w-max min-w-0 flex-col gap-1 rounded-2xl p-1.5 text-[#e4f7f3]",
-  darkPlateClassName
-);
-
-const BULK_CANCEL_MENU_ITEM_CLASS =
-  "flex h-9 cursor-pointer items-center rounded-xl px-3 text-[13px] font-medium tracking-normal text-[#e4f7f3]/60 transition-colors duration-150 focus:bg-white/10 focus:text-[#e4f7f3] data-[highlighted]:bg-white/10 data-[highlighted]:text-[#e4f7f3]";
 
 /** Count pill for flyout action labels — same style as tab/sidebar counts. */
 export function BulkActionCount({
@@ -425,25 +418,26 @@ export function BulkActionsFlyout({
                   </button>
                 </DropdownMenuTrigger>
               </LabelTooltip>
-              <DropdownMenuContent
+              <AppMenuContent
+                surface="dark"
                 align="center"
                 side="top"
                 sideOffset={8}
-                className={BULK_CANCEL_MENU_CONTENT_CLASS}
+                className="w-max min-w-0 rounded-2xl p-1.5"
               >
-                <DropdownMenuItem
-                  className={BULK_CANCEL_MENU_ITEM_CLASS}
+                <AppMenuItem
+                  className="h-9 rounded-xl px-3 text-[13px]"
                   onSelect={() => clearSelection()}
                 >
                   Clear selection
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className={BULK_CANCEL_MENU_ITEM_CLASS}
+                </AppMenuItem>
+                <AppMenuItem
+                  className="h-9 rounded-xl px-3 text-[13px]"
                   onSelect={() => onStopSync?.()}
                 >
                   {shown.stopLabel}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
+                </AppMenuItem>
+              </AppMenuContent>
             </DropdownMenu>
           ) : (
             <CancelTaskButton

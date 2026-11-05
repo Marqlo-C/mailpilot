@@ -13,6 +13,7 @@ import {
 } from "@/app/actions/settings";
 import type { CloudLlmProvider } from "@/lib/llm/provider.ssot";
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
+import { AppMenuSelect } from "@/components/ui/app-menu";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
@@ -783,17 +784,20 @@ export function AiModelsCard({
                 >
                   Active dev model (client-only / localStorage)
                 </Label>
-                <select
+                <AppMenuSelect
                   id="dev-ollama-model"
-                  className="flex h-10 w-full rounded-lg border border-border/80 bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  surface="light"
+                  disabled={disabled}
                   value={
                     devModels.includes(devSelectedModel)
                       ? devSelectedModel
-                      : devModels[0]
+                      : (devModels[0] ?? "")
                   }
-                  disabled={disabled}
-                  onChange={(event) => {
-                    const next = event.target.value;
+                  options={devModels.map((name) => ({
+                    value: name,
+                    label: name,
+                  }))}
+                  onChange={(next) => {
                     setDevSelectedModel(next);
                     try {
                       localStorage.setItem(DEV_OLLAMA_MODEL_STORAGE_KEY, next);
@@ -802,13 +806,7 @@ export function AiModelsCard({
                     }
                     toast.success(`Dev model set to ${next} (local only)`);
                   }}
-                >
-                  {devModels.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             ) : null}
           </div>

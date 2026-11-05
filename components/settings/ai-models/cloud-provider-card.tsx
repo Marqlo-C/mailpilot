@@ -3,8 +3,6 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Check,
-  ChevronDown,
   Cloud,
   Cpu,
   CpuAi,
@@ -27,13 +25,8 @@ import {
   PROVIDER_ENDPOINTS,
 } from "@/lib/llm/provider.ssot";
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
+import { AppMenuSelect } from "@/components/ui/app-menu";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import {
   SettingsFeatureCard,
@@ -326,68 +319,39 @@ export function CloudProviderCard({
                 </code>
               </p>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  id="cloud-provider"
-                  type="button"
-                  disabled={disabled}
-                  className="flex h-8 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-border/50 bg-card px-3 text-xs font-medium text-foreground shadow-sm transition-[box-shadow,border-color] outline-none hover:bg-card focus:border-border focus:shadow data-[state=open]:border-border data-[state=open]:shadow disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <span className="truncate">
-                    {PROVIDER_LABELS[cloudProvider] ?? cloudProvider}
-                  </span>
-                  <ChevronDown
-                    className="size-4 shrink-0 text-muted-foreground/70"
-                    aria-hidden="true"
-                  />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-lg border border-border/50 bg-card p-1 shadow-md"
-              >
-                {CLOUD_LLM_PROVIDERS.map((p) => {
-                  const isSelected = p === cloudProvider;
-                  return (
-                    <DropdownMenuItem
-                      key={p}
-                      onSelect={() => {
-                        if (p === cloudProvider) return;
-                        const nextModelProvider =
-                          savedCloudModel && !savedCloudModelProvider
-                            ? cloudProvider
-                            : savedCloudModelProvider;
-                        setSavedCloudModelProvider(nextModelProvider);
-                        setCloudProvider(p);
-                        setCloudModelOverride(
-                          resolveScopedModelInput(
-                            p,
-                            savedCloudModel,
-                            nextModelProvider
-                          )
-                        );
-                        if (accountId) {
-                          startTransition(async () => {
-                            await updateRule(accountId, "cloudProvider", p);
-                            router.refresh();
-                          });
-                        }
-                      }}
-                      className="cursor-pointer justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium"
-                    >
-                      <span className="truncate">{PROVIDER_LABELS[p] ?? p}</span>
-                      <Check
-                        className={cn(
-                          "size-3.5 shrink-0",
-                          isSelected ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <AppMenuSelect
+              id="cloud-provider"
+              surface="light"
+              disabled={disabled}
+              value={cloudProvider}
+              options={CLOUD_LLM_PROVIDERS.map((p) => ({
+                value: p,
+                label: PROVIDER_LABELS[p] ?? p,
+              }))}
+              onChange={(next) => {
+                const p = next as CloudLlmProvider;
+                if (p === cloudProvider) return;
+                const nextModelProvider =
+                  savedCloudModel && !savedCloudModelProvider
+                    ? cloudProvider
+                    : savedCloudModelProvider;
+                setSavedCloudModelProvider(nextModelProvider);
+                setCloudProvider(p);
+                setCloudModelOverride(
+                  resolveScopedModelInput(
+                    p,
+                    savedCloudModel,
+                    nextModelProvider
+                  )
+                );
+                if (accountId) {
+                  startTransition(async () => {
+                    await updateRule(accountId, "cloudProvider", p);
+                    router.refresh();
+                  });
+                }
+              }}
+            />
           </div>
 
           {/* Model Name Override */}

@@ -8,12 +8,7 @@ import { ExportMasterProfileButton } from "@/components/profile/export-master-pr
 import { ResumeUploadDialog } from "@/components/profile/resume-upload-dialog";
 import { AccountsCard } from "@/components/settings/accounts";
 import { AiModelsCard } from "@/components/settings/ai-models";
-import {
-  ExcludedTitlesCard,
-  JobRadarRulesCard,
-  LifecycleRulesCard,
-  RetentionPolicyCard,
-} from "@/components/settings/automation";
+import { AutomationCard } from "@/components/settings/automation";
 import { OutboundTailoringCard } from "@/components/settings/outbound";
 import {
   MasterProfileCard,
@@ -41,6 +36,7 @@ import {
   readActivePageTab,
   type SettingsPageTab,
 } from "@/lib/navigation/page-tabs";
+import { cn } from "@/lib/utils";
 import type { AccountRules } from "@/lib/validations/rules";
 
 type SettingsViewProps = {
@@ -131,8 +127,9 @@ export function SettingsView({
         }}
       >
         <CommandDeckFrame
+          bodyWidth="deck"
           rail={
-        <div className={tabRailRowClassName}>
+        <div className={cn(tabRailRowClassName, "mb-0")}>
           <TabsList className={segmentedTabsListClassName} data-mp-tab-rail="">
             {SETTINGS_PAGE_TABS.map((item) => (
               <TabsTrigger
@@ -241,24 +238,11 @@ export function SettingsView({
           className="mt-0 space-y-4 data-[state=inactive]:hidden"
         >
           {visitedTabs.has("automation") ? (
-            <>
-              <JobRadarRulesCard
-                accountId={activeAccountId}
-                rules={rules}
-                matchThreshold={matchThreshold}
-              />
-              <RetentionPolicyCard
-                currentDays={rules.dismissedRetentionDays}
-              />
-              <LifecycleRulesCard
-                accountId={activeAccountId}
-                rules={rules}
-              />
-              <ExcludedTitlesCard
-                accountId={activeAccountId}
-                excludedTitles={rules.excludedTitles}
-              />
-            </>
+            <AutomationCard
+              accountId={activeAccountId}
+              rules={rules}
+              matchThreshold={matchThreshold}
+            />
           ) : null}
         </TabsContent>
 

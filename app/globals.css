@@ -252,6 +252,24 @@ html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button[aria-pressed="true"]
   );
 }
 
+/*
+ * Draft review modal widths — always capped to the main column
+ * (sidebar → right edge). !important beats ActionDialogShell size tokens.
+ *
+ * Email-only: a notch over the old max-w-2xl; grows as the sidebar compresses.
+ * With resume: nearly fill the column in either sidebar state.
+ */
+.mp-draft-modal-width {
+  max-width: min(
+    calc(44rem + (256px - min(var(--app-sidebar-width, 0px), 256px)) * 0.45),
+    calc(100vw - var(--app-sidebar-width, 0px) - 2rem)
+  ) !important;
+}
+.mp-draft-modal-width-resume {
+  width: calc(100vw - var(--app-sidebar-width, 0px) - 2rem) !important;
+  max-width: calc(100vw - var(--app-sidebar-width, 0px) - 2rem) !important;
+}
+
 /* Teal fill + white check (native accent-color picks black on this teal). */
 .mp-select-checkbox {
   appearance: none;

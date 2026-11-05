@@ -83,3 +83,8 @@ export function useToolbarTheme() {
   }
   return context;
 }
+
+/** Light when outside the provider (e.g. isolated stories / settings). */
+export function useToolbarThemeVariant(): ToolbarVariant {
+  return useContext(ToolbarThemeContext)?.variant ?? "light";
+}

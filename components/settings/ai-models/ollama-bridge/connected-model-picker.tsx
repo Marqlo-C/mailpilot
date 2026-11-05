@@ -1,14 +1,9 @@
 "use client";
 
-import { Check, ChevronDown, Cpu, Globe, Loader2, RefreshCw } from "lucide-react";
+import { Cpu, Globe, Loader2, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { AppMenuSelect } from "@/components/ui/app-menu";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { SettingsStatusCard } from "@/components/ui/tactile/nested-settings-card";
 import { cn } from "@/lib/utils";
@@ -172,48 +167,21 @@ export function ConnectedModelPicker({
           </div>
 
           {selectOptions.length > 0 ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  id="ollama-model"
-                  type="button"
-                  disabled={disabled}
-                  className="flex h-8 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-border/50 bg-card px-3 font-mono text-xs font-medium text-foreground shadow-sm transition-[box-shadow,border-color] outline-none hover:bg-card focus:border-border focus:shadow data-[state=open]:border-border data-[state=open]:shadow disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <span className="truncate">{activeOption}</span>
-                  <ChevronDown
-                    className="size-4 shrink-0 text-muted-foreground/70"
-                    aria-hidden="true"
-                  />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-lg border border-border/50 bg-card p-1 shadow-md"
-              >
-                {selectOptions.map((name) => {
-                  const isSelected = name === activeOption;
-                  return (
-                    <DropdownMenuItem
-                      key={name}
-                      onSelect={() => {
-                        if (name === activeOption) return;
-                        onSelectModel(name);
-                      }}
-                      className="cursor-pointer justify-between gap-2 rounded-md px-2.5 py-1.5 font-mono text-xs font-medium"
-                    >
-                      <span className="truncate">{name}</span>
-                      <Check
-                        className={cn(
-                          "size-3.5 shrink-0",
-                          isSelected ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <AppMenuSelect
+              id="ollama-model"
+              surface="light"
+              disabled={disabled}
+              value={activeOption}
+              triggerClassName="font-mono"
+              options={selectOptions.map((name) => ({
+                value: name,
+                label: <span className="font-mono">{name}</span>,
+              }))}
+              onChange={(name) => {
+                if (name === activeOption) return;
+                onSelectModel(name);
+              }}
+            />
           ) : (
             <p className="text-xs text-muted-foreground">
               No models returned. Click Refresh.

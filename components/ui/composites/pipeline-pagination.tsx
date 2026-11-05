@@ -1,7 +1,8 @@
 "use client";
 
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import { ToolbarMenuSelect } from "@/components/ui/app-menu";
 import { PAGE_SIZE_OPTIONS } from "@/hooks/use-pagination";
 import { cn } from "@/lib/utils";
 
@@ -24,24 +25,19 @@ export function ToolbarPageSizeSelect({
       )}
     >
       <span>Show:</span>
-      <span className="relative inline-flex">
-        <select
-          value={value}
-          onChange={(e) => onChange(Number.parseInt(e.target.value, 10))}
-          className="h-6 cursor-pointer appearance-none rounded-md border border-border/50 bg-card py-0 pl-2 pr-6 text-[11px] text-foreground shadow-md transition-colors hover:bg-card focus:outline-none focus:ring-1 focus:ring-ring"
-          aria-label="Rows per page"
-        >
-          {options.map((size) => (
-            <option key={size} value={size}>
-              {size}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          className="pointer-events-none absolute top-1/2 right-2 size-2.5 -translate-y-1/2 text-foreground/70"
-          aria-hidden
-        />
-      </span>
+      <ToolbarMenuSelect
+        size="meta"
+        value={String(value)}
+        onChange={(next) => onChange(Number.parseInt(next, 10))}
+        aria-label="Rows per page"
+        // Wider than content on purpose — menu locks to this bar.
+        className="w-auto min-w-[4.5rem]"
+        matchTriggerWidth
+        options={options.map((size) => ({
+          value: String(size),
+          label: String(size),
+        }))}
+      />
     </label>
   );
 }

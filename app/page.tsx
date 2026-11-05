@@ -218,7 +218,7 @@ export default async function ConsolePage() {
                 <div>
                   <h2 className="text-base font-semibold">Loudest senders</h2>
                   <CardDescription>
-                    Subscribed by clutter score
+                    Subscribed by noise level
                   </CardDescription>
                 </div>
                 <DigestLink href="/subscriptions">Subscriptions</DigestLink>

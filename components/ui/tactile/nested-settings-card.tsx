@@ -9,6 +9,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { SETTINGS_SECTION_ICON_CLASSNAME } from "@/components/settings/settings-chrome";
+import { ENTRY_CHIP_CLASSNAME } from "@/components/ui/tactile/entry-chip";
 import { formatStatusPillTitle } from "@/lib/utils/format";
 import { SLIDABLE_BADGE_ROW_LEADING_OFFSET_PX } from "./slidable-badge-row";
 
@@ -30,7 +32,8 @@ export const NESTED_PILL_TYPOGRAPHY = {
     dot: "size-1.5",
   },
   3: {
-    container: "rounded-md border border-border/60 text-muted-foreground px-2 py-0.5 text-[10px] gap-1 tracking-tight",
+    // Same chrome as {@link EntryChip} / profile date chips.
+    container: cn(ENTRY_CHIP_CLASSNAME, "gap-1 tracking-tight"),
     dot: "size-1",
   },
   4: {
@@ -514,10 +517,17 @@ export function NestedSettingsCard({
             )}
           >
             {leading && (
-              <div className={cn("shrink-0", level === 4 && "mt-0.5")}>
+              <div
+                className={cn(
+                  "shrink-0",
+                  level === 1 && SETTINGS_SECTION_ICON_CLASSNAME,
+                  level === 4 && "mt-0.5"
+                )}
+              >
                 {leading}
               </div>
             )}
+
             <div className="min-w-0 space-y-0.5 flex-1">
               <div className={styles.title}>{title}</div>
               {subtitle && (
@@ -638,9 +648,11 @@ export function SettingsFeatureCard({
   onToggle,
   disabled = false,
   curvedDivider = true,
+  footer,
   children,
   className,
   headerClassName,
+  contentClassName,
 }: {
   logo?: React.ReactNode;
   title: React.ReactNode;
@@ -650,9 +662,11 @@ export function SettingsFeatureCard({
   onToggle?: () => void;
   disabled?: boolean;
   curvedDivider?: boolean;
+  footer?: React.ReactNode;
   children?: React.ReactNode;
   className?: string;
   headerClassName?: string;
+  contentClassName?: string;
 }) {
   return (
     <NestedSettingsCard
@@ -666,8 +680,10 @@ export function SettingsFeatureCard({
       onToggle={onToggle}
       disabled={disabled}
       curvedDivider={curvedDivider}
+      footer={footer}
       className={className}
       headerClassName={headerClassName}
+      contentClassName={contentClassName}
     >
       {children}
     </NestedSettingsCard>
@@ -793,6 +809,7 @@ export function SettingsEntryCard({
   onToggle,
   disabled = false,
   curvedDivider = true,
+  footer,
   children,
   className,
   headerClassName,
@@ -808,6 +825,7 @@ export function SettingsEntryCard({
   onToggle?: () => void;
   disabled?: boolean;
   curvedDivider?: boolean;
+  footer?: React.ReactNode;
   children?: React.ReactNode;
   className?: string;
   headerClassName?: string;
@@ -834,6 +852,7 @@ export function SettingsEntryCard({
       onToggle={onToggle}
       disabled={disabled}
       curvedDivider={curvedDivider}
+      footer={footer}
       className={className}
       headerClassName={headerClassName}
       contentClassName={contentClassName}

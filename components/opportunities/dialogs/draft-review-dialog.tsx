@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
+import { APP_DRAFT_MODAL_WIDTH_CLASS } from "@/lib/app-content-center";
 import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 import { cn } from "@/lib/utils";
 
@@ -162,7 +163,10 @@ export function DraftReviewDialog({
       onOpenChange={onOpenChange}
       pending={pending}
       size="xl"
-      contentClassName="sm:max-w-2xl"
+      contentClassName={cn(
+        "h-[88vh] max-h-[900px] w-full",
+        APP_DRAFT_MODAL_WIDTH_CLASS
+      )}
       identity={{
         title: "Responding to:",
         primary: roleTitle,

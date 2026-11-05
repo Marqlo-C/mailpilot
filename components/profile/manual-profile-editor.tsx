@@ -17,6 +17,7 @@ import { toast } from "sonner";
 
 import { resetMasterProfile, updateMasterProfile } from "@/app/actions/profile";
 import { ExportMasterProfileButton } from "@/components/profile/export-master-profile-button";
+import { AppMenuSelect } from "@/components/ui/app-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -789,11 +790,15 @@ export function ManualProfileEditor({
                       />
                       <div className="space-y-2">
                         <Label>Enrollment</Label>
-                        <select
-                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                        <AppMenuSelect
+                          surface="light"
                           value={ed.status ?? "GRADUATED"}
-                          onChange={(event) => {
-                            const status = event.target.value;
+                          options={[
+                            { value: "GRADUATED", label: "Graduated" },
+                            { value: "IN_PROGRESS", label: "In progress" },
+                            { value: "UNSURE", label: "Unsure" },
+                          ]}
+                          onChange={(status) => {
                             if (
                               status !== "GRADUATED" &&
                               status !== "IN_PROGRESS" &&
@@ -808,11 +813,7 @@ export function ManualProfileEditor({
                               ),
                             }));
                           }}
-                        >
-                          <option value="GRADUATED">Graduated</option>
-                          <option value="IN_PROGRESS">In progress</option>
-                          <option value="UNSURE">Unsure</option>
-                        </select>
+                        />
                       </div>
                       <Field
                         label="GPA"
@@ -1420,19 +1421,17 @@ function ExperienceEditor({
         />
         <div className="space-y-2">
           <Label>Category</Label>
-          <select
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+          <AppMenuSelect
+            surface="light"
             value={experience.category || "Work"}
-            onChange={(e) =>
-              onChange({ ...experience, category: e.target.value || "Work" })
+            options={categoryOptions(experience.category).map((category) => ({
+              value: category,
+              label: category,
+            }))}
+            onChange={(next) =>
+              onChange({ ...experience, category: next || "Work" })
             }
-          >
-            {categoryOptions(experience.category).map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
+          />
         </div>
         <Field
           label="Start Date"
