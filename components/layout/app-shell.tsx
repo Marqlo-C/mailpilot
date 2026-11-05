@@ -7,12 +7,16 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import { Logo, NavLogo } from "@/components/brand/logo";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { GlobalSyncTracker } from "@/components/layout/global-sync-tracker";
 import { SidebarNav, SIDEBAR_NAV, SIDEBAR_PRIMARY_NAV, SIDEBAR_SETTINGS_NAV } from "@/components/layout/sidebar-nav";
+import {
+  SidebarCollapseProvider,
+  useSidebarCollapse,
+} from "@/components/layout/sidebar-collapse-provider";
 import { SidebarFlyoutProvider } from "@/components/layout/sidebar-flyout-provider";
 import { SidebarQuickActions } from "@/components/layout/sidebar-quick-actions";
 import { SyncStatusProvider } from "@/components/layout/sync-status-provider";
@@ -54,7 +58,15 @@ type AppShellProps = {
   children: React.ReactNode;
 };
 
-export function AppShell({
+export function AppShell(props: AppShellProps) {
+  return (
+    <SidebarCollapseProvider>
+      <AppShellInner {...props} />
+    </SidebarCollapseProvider>
+  );
+}
+
+function AppShellInner({
   accounts,
   activeAccountId,
   activeEmail,
@@ -64,8 +76,7 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-  const toggleSidebar = () => setCollapsed((open) => !open);
+  const { collapsed, setCollapsed, toggleSidebar } = useSidebarCollapse();
   /** Desktop sidebar widths: expanded w-64 (256px), collapsed w-[64px]. */
   const sidebarWidthPx = collapsed ? 64 : 256;
   /** Left float inset (ml equivalent). Content centering starts after this gap. */
