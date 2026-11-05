@@ -31,6 +31,9 @@ export const tabRailRowClassName =
 export const commandDeckClassName =
   "scroll-edge-out sticky flow-root top-[4.25rem] z-30 -mx-4 -mt-4 rounded-b-2xl bg-canvas-fixed px-4 pt-4 md:top-0 md:-mx-6 md:-mt-[9px] md:px-6 md:pt-1";
 
+/** 18px inset each side — rail, Sync, toolbar, and full-deck bodies share this. */
+export const commandDeckColumnClassName = "mx-auto w-[calc(100%-36px)]";
+
 /**
  * Listing under the sticky deck. Stays below `.scroll-edge-out`’s fade
  * padding so cards aren’t masked at rest. Inset vs the wider rail/toolbar column.
@@ -38,31 +41,50 @@ export const commandDeckClassName =
 export const commandDeckBodyClassName =
   "relative z-0 mx-auto w-full max-w-6xl";
 
+/** Body aligned to the rail + action / toolbar column (Settings). */
+export const commandDeckWideBodyClassName = cn(
+  "relative z-0",
+  commandDeckColumnClassName
+);
+
+/** Rail → toolbar gap when the rail row uses `mb-0` (matches `.scroll-edge-out` fade). */
+const COMMAND_DECK_STACK_GAP = "space-y-2.5";
+
 export function CommandDeckFrame({
   rail,
   toolbar = null,
+  bodyWidth = "listing",
   children,
 }: {
   rail: ReactNode;
   /** Filter toolbar rendered with the rail so it is in the first paint. */
   toolbar?: ReactNode;
+  /**
+   * `listing` — max-w-6xl (Job Radar / Subscriptions cards).
+   * `deck` — same width as the tab rail + top actions column (Settings).
+   */
+  bodyWidth?: "listing" | "deck";
   children: ReactNode;
 }) {
   return (
     <>
       <header className={commandDeckClassName}>
         <div
-          className={cn(
-            // 18px inset each side — rail, Sync, and toolbar share this width.
-            "mx-auto w-[calc(100%-36px)]",
-            toolbar != null ? "space-y-2.5" : "space-y-3"
-          )}
+          className={cn(commandDeckColumnClassName, COMMAND_DECK_STACK_GAP)}
         >
           {rail}
           {toolbar}
         </div>
       </header>
-      <div className={commandDeckBodyClassName}>{children}</div>
+      <div
+        className={
+          bodyWidth === "deck"
+            ? commandDeckWideBodyClassName
+            : commandDeckBodyClassName
+        }
+      >
+        {children}
+      </div>
     </>
   );
 }

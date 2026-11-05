@@ -5,11 +5,23 @@
 export const SETTINGS_CARD_CLASSNAME =
   "border-border/50 bg-card/80 shadow-md backdrop-blur-sm transition-shadow hover:shadow-md";
 
+/**
+ * Soft teal for Level 1 section icons (between brand `#1ab5af` and teal-600).
+ * Same ink as toolbar Reset / View Snapshot links.
+ * Keep the hex literal in the Tailwind class so JIT can see it.
+ */
+export const SETTINGS_SECTION_ICON_COLOR = "#129f96";
+export const SETTINGS_SECTION_ICON_CLASSNAME =
+  "text-[#129f96] [&_svg]:!text-[#129f96]";
+
 /** Nested control rows inside settings cards. */
 export const SETTINGS_ROW_CLASSNAME =
   "rounded-lg border border-border/50 bg-card/70 p-3";
 
-/** Native selects inside settings cards (bg-card, not global background). */
+/**
+ * @deprecated Prefer {@link AppMenuSelect} (`surface="light"`).
+ * Kept for any leftover native `<select>` call sites.
+ */
 export const SETTINGS_SELECT_CLASSNAME =
   "h-9 cursor-pointer rounded-md border border-border/50 bg-card px-3 text-sm text-foreground shadow-sm outline-none transition-colors hover:bg-card focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 

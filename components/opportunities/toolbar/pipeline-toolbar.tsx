@@ -132,7 +132,7 @@ export function PipelineToolbar({
                 ariaLabel="Search jobs by role, company, or city"
               >
                 {showSource ? (
-                  <ToolbarSearchAddon label="Filter · Source">
+                  <ToolbarSearchAddon label="Filter · Type">
                     <ToolbarSourceFilter
                       value={sourceFilter}
                       onChange={onSourceFilterChange!}
@@ -178,7 +178,7 @@ export function PipelineToolbar({
               ariaLabel="Search jobs by role, company, or city"
             >
               {showSource ? (
-                <ToolbarSearchAddon label="Filter · Source">
+                <ToolbarSearchAddon label="Filter · Type">
                   <ToolbarSourceFilter
                     value={sourceFilter}
                     onChange={onSourceFilterChange!}

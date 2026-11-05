@@ -55,9 +55,11 @@ import { RowMenuTrigger } from "@/components/ui/composites/row-menu-trigger";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { DialogIdentityLogoStack } from "@/components/ui/composites/dialog-identity-header";
 import {
+  AppMenuContent,
+  AppMenuItem,
+} from "@/components/ui/app-menu";
+import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PipelinePaginationFooter } from "@/components/ui/composites/pipeline-pagination";
@@ -215,7 +217,6 @@ type SubscriptionsViewProps = {
   accountId: string;
   subscriptions: Subscription[];
   history: SubscriptionHistory[];
-  defaultCleanup: CleanupAction;
   latestBriefing?: LatestBriefingProp | null;
   initialTab?: string;
 };
@@ -230,7 +231,6 @@ export function SubscriptionsView({
   accountId,
   subscriptions,
   history,
-  defaultCleanup,
   latestBriefing = null,
   initialTab,
 }: SubscriptionsViewProps) {
@@ -259,7 +259,7 @@ export function SubscriptionsView({
   const [pending, startTransition] = useTransition();
   const [cleanupPending, setCleanupPending] = useState<string | null>(null);
   const [cleanupChoice, setCleanupChoice] =
-    useState<CleanupAction>(defaultCleanup);
+    useState<CleanupAction>("NONE");
   const [deleteRecordTarget, setDeleteRecordTarget] =
     useState<ArchiveEntry | null>(null);
   const [deleteRecordPending, setDeleteRecordPending] = useState(false);
@@ -290,10 +290,10 @@ export function SubscriptionsView({
 
   useEffect(() => {
     if (unsubscribeDialogOpen) {
-      setCleanupChoice(defaultCleanup);
+      setCleanupChoice("NONE");
       setError(null);
     }
-  }, [unsubscribeDialogOpen, defaultCleanup]);
+  }, [unsubscribeDialogOpen]);
 
   function setClutterThreshold(value: number) {
     const next = Math.max(0, Math.min(100, Math.round(value)));
@@ -942,7 +942,7 @@ export function SubscriptionsView({
     onReorder: handleReorder,
     onDropZone: handleDropZone,
     onReorderBlocked: () => {
-      toast.message("Switch to Custom sort to rearrange", {
+      toast.message("Switch to Custom order to rearrange", {
         action: {
           label: "Custom",
           onClick: () => changeSortOption("custom"),
@@ -1171,7 +1171,7 @@ export function SubscriptionsView({
           ) : filteredActive.length === 0 ? (
             <EmptyState
               title="No matching subscriptions"
-              body="Try lowering the clutter threshold or clearing search filters."
+              body="Try lowering the noise filter or clearing search filters."
             />
           ) : (
             <>
@@ -1223,7 +1223,7 @@ export function SubscriptionsView({
           ) : filteredArchive.length === 0 ? (
             <EmptyState
               title="No matching archived senders"
-              body="Try lowering the clutter threshold or clearing search filters."
+              body="Try lowering the noise filter or clearing search filters."
             />
           ) : (
             <>
@@ -1764,7 +1764,7 @@ function ClutterStatBadge({
   const tier = clutterScoreTier(score);
   return (
     <IconStatBadge
-      title="Clutter score"
+      title="Noise level"
       value={`${score}%`}
       valueClassName={
         selected
@@ -1906,11 +1906,11 @@ function LastBriefingIconButton({
           "inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold transition-colors",
           disabled
             ? "pointer-events-none text-muted-foreground"
-            : "text-teal-600 hover:bg-teal-600/10 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300"
+            : "text-[#129f96] hover:bg-[#129f96]/10 hover:text-[#0f8f87]"
         )}
       >
         <Eye className="size-3" />
-        View Snapshot
+        Snapshot
       </button>
     </LabelTooltip>
   );
@@ -1962,16 +1962,16 @@ function SubscriptionRowActions({
             }
           />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem
+        <AppMenuContent align="end" className="w-56">
+          <AppMenuItem
             className="cursor-pointer gap-2"
             disabled={disabled}
             onClick={() => onViewLastEmail(sub)}
           >
             <Mail className="size-4 text-muted-foreground" />
             <span>View last received email</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
+          </AppMenuItem>
+        </AppMenuContent>
       </DropdownMenu>
     </>
   );
@@ -2451,15 +2451,15 @@ function ArchiveRowActions({
         <DropdownMenuTrigger asChild>
           <RowMenuTrigger label="Archive actions" disabled={pending} />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem
+        <AppMenuContent align="end" className="w-56">
+          <AppMenuItem
             className="cursor-pointer gap-2 text-[#c21f10] focus:bg-[#c21f10]/10 focus:text-[#c21f10] dark:text-[#fb6230] dark:focus:bg-[#fb6230]/10 dark:focus:text-[#fb6230]"
             onClick={() => onDeleteRecord(entry)}
           >
             <DatabaseX className="size-4" />
             <span>Delete Record</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
+          </AppMenuItem>
+        </AppMenuContent>
       </DropdownMenu>
     </div>
   );

@@ -12,11 +12,13 @@ import {
 } from "@/components/layout/sync-status-provider";
 import { Button } from "@/components/ui/button";
 import {
+  AppMenuContent,
+  AppMenuItem,
+  AppMenuLabel,
+  AppMenuSeparator,
+} from "@/components/ui/app-menu";
+import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -27,8 +29,15 @@ type SyncControlsProps = {
   className?: string;
 };
 
+const RESCAN_OPTIONS = [
+  { days: 1, label: "Today", hint: "Last 24 hours" },
+  { days: 5, label: "Past 5 days", hint: "Catch recent misses" },
+  { days: 10, label: "Past 10 days", hint: "Broader check" },
+  { days: 14, label: "Past 14 days", hint: "Full recent window" },
+] as const;
+
 /**
- * Dual-mode inbox sync with granular force-rescan lookbacks (today / 5 / 10 / 14 days).
+ * Inbox sync control — primary checks new mail; menu rescans recent history.
  */
 export function SyncControls({
   accountId,
@@ -69,9 +78,9 @@ export function SyncControls({
         result.data?.message ??
           (forceRescan
             ? lookbackDays === 1
-              ? "Force rescan (today) started"
-              : `Force rescan (${lookbackDays}d) started`
-            : "Sync started in background")
+              ? "Checking today’s mail…"
+              : `Checking the past ${lookbackDays} days…`
+            : "Checking for new mail…")
       );
       router.refresh();
     });
@@ -109,50 +118,37 @@ export function SyncControls({
             <ChevronDown className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-72">
-          <DropdownMenuLabel>Inbox sync</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
+        <AppMenuContent
+          surface={variant === "dark" ? "dark" : "light"}
+          align="end"
+          className="w-64"
+        >
+          <AppMenuItem
             disabled={disabled}
             onSelect={() => runSync(false)}
           >
-            Sync Inbox
+            Check for new mail
             <span className="ml-auto text-xs text-muted-foreground">
-              new mail only
+              Default
             </span>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-            Force rescan &amp; backfill
-          </DropdownMenuLabel>
-          <DropdownMenuItem
-            disabled={disabled}
-            onSelect={() => runSync(true, 1)}
-          >
-            Today
-            <span className="ml-auto text-xs text-muted-foreground">
-              last 24h
-            </span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={disabled}
-            onSelect={() => runSync(true, 5)}
-          >
-            Quick Rescan (Last 5 Days)
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={disabled}
-            onSelect={() => runSync(true, 10)}
-          >
-            Standard Rescan (Last 10 Days)
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={disabled}
-            onSelect={() => runSync(true, 14)}
-          >
-            Deep Backfill (Last 14 Days)
-          </DropdownMenuItem>
-        </DropdownMenuContent>
+          </AppMenuItem>
+          <AppMenuSeparator />
+          <AppMenuLabel className="text-xs font-normal text-muted-foreground">
+            Re-check recent mail
+          </AppMenuLabel>
+          {RESCAN_OPTIONS.map((option) => (
+            <AppMenuItem
+              key={option.days}
+              disabled={disabled}
+              onSelect={() => runSync(true, option.days)}
+            >
+              {option.label}
+              <span className="ml-auto text-xs text-muted-foreground">
+                {option.hint}
+              </span>
+            </AppMenuItem>
+          ))}
+        </AppMenuContent>
       </DropdownMenu>
     </div>
   );

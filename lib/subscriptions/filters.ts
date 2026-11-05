@@ -11,6 +11,18 @@ export type SubscriptionSortOption =
   | "alpha"
   | "custom";
 
+/** Sort dropdown labels — keep in sync with {@link SubscriptionSortOption}. */
+export const SUBSCRIPTION_SORT_OPTIONS: {
+  value: SubscriptionSortOption;
+  label: string;
+}[] = [
+  { value: "clutter_desc", label: "Highest Noise" },
+  { value: "freq_desc", label: "Most Frequent" },
+  { value: "freq_asc", label: "Least Frequent" },
+  { value: "alpha", label: "Alphabetical" },
+  { value: "custom", label: "Custom" },
+];
+
 type ClutterInput = {
   emailCount: number;
   lastReceivedAt?: Date | string | null;

@@ -8,6 +8,7 @@ import {
   useState,
   useTransition,
   type ChangeEvent,
+  type CSSProperties,
 } from "react";
 import type { JobOpportunity } from "@prisma/client";
 import {
@@ -45,6 +46,10 @@ import {
 import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
 import { ResumeDraftSheet } from "@/components/opportunities/drawer/resume-draft-sheet";
 import { Button } from "@/components/ui/button";
+import {
+  APP_DRAFT_MODAL_WIDTH_CLASS,
+  APP_DRAFT_MODAL_WIDTH_WITH_RESUME_CLASS,
+} from "@/lib/app-content-center";
 import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 import { getDevOllamaModelOverride } from "@/components/settings/ai-models";
 import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
@@ -72,6 +77,38 @@ import { cn } from "@/lib/utils";
 const TASK_RESUME = "resume-generation";
 const TASK_EMAIL_REFINE = "email-refine";
 const TASK_EMAIL_DRAFT = "email-draft";
+
+const DRAFT_SPLIT_STORAGE_KEY = "mp-draft-email-resume-split";
+const DRAFT_SPLIT_DEFAULT = 48;
+const DRAFT_SPLIT_MIN = 28;
+const DRAFT_SPLIT_MAX = 72;
+
+function readDraftSplitPct(): number {
+  if (typeof window === "undefined") return DRAFT_SPLIT_DEFAULT;
+  try {
+    const raw = localStorage.getItem(DRAFT_SPLIT_STORAGE_KEY);
+    if (!raw) return DRAFT_SPLIT_DEFAULT;
+    const next = Number(raw);
+    if (
+      !Number.isFinite(next) ||
+      next < DRAFT_SPLIT_MIN ||
+      next > DRAFT_SPLIT_MAX
+    ) {
+      return DRAFT_SPLIT_DEFAULT;
+    }
+    return next;
+  } catch {
+    return DRAFT_SPLIT_DEFAULT;
+  }
+}
+
+function writeDraftSplitPct(pct: number) {
+  try {
+    localStorage.setItem(DRAFT_SPLIT_STORAGE_KEY, String(pct));
+  } catch {
+    // ignore quota / private mode
+  }
+}
 
 const EMAIL_REFINE_PLACEHOLDER =
   "Ask Ace AI to refine email (e.g., make it more concise, emphasize relevant experience, adjust tone)…";
@@ -189,10 +226,64 @@ export function OpportunityDraftDialog({
   const [includeSummary, setIncludeSummary] = useState(true);
   const [attachResume, setAttachResume] = useState(true);
   const [showRationale, setShowRationale] = useState(false);
+  const [emailSplitPct, setEmailSplitPct] = useState(DRAFT_SPLIT_DEFAULT);
+  const [splitDragging, setSplitDragging] = useState(false);
+  const splitRowRef = useRef<HTMLDivElement>(null);
+  const emailSplitPctRef = useRef(emailSplitPct);
 
   const resumeBusy = isTaskActive(TASK_RESUME);
   const refining = isTaskActive(TASK_EMAIL_REFINE);
   const retrying = isTaskActive(TASK_EMAIL_DRAFT);
+
+  useEffect(() => {
+    const next = readDraftSplitPct();
+    setEmailSplitPct(next);
+    emailSplitPctRef.current = next;
+  }, []);
+
+  useEffect(() => {
+    emailSplitPctRef.current = emailSplitPct;
+  }, [emailSplitPct]);
+
+  useEffect(() => {
+    if (!splitDragging) return;
+
+    function onPointerMove(event: PointerEvent) {
+      const row = splitRowRef.current;
+      if (!row) return;
+      const rect = row.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const next = Math.min(
+        DRAFT_SPLIT_MAX,
+        Math.max(
+          DRAFT_SPLIT_MIN,
+          ((event.clientX - rect.left) / rect.width) * 100
+        )
+      );
+      emailSplitPctRef.current = next;
+      setEmailSplitPct(next);
+    }
+
+    function onPointerUp() {
+      setSplitDragging(false);
+      writeDraftSplitPct(emailSplitPctRef.current);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [splitDragging]);
 
   useEffect(() => {
     if (!open || !opportunity) return;
@@ -661,8 +752,10 @@ export function OpportunityDraftDialog({
       pending={pending}
       size="xl"
       contentClassName={cn(
-        "h-[88vh] max-h-[900px] transition-all duration-300 ease-in-out sm:max-w-2xl",
-        attachResume && "w-[94vw] max-w-6xl sm:max-w-6xl"
+        "h-[88vh] max-h-[900px] w-full transition-all duration-300 ease-in-out",
+        attachResume
+          ? APP_DRAFT_MODAL_WIDTH_WITH_RESUME_CLASS
+          : APP_DRAFT_MODAL_WIDTH_CLASS
       )}
       bodyClassName="flex flex-col overflow-hidden p-0"
       identity={{
@@ -738,17 +831,30 @@ export function OpportunityDraftDialog({
           <p className="flex-1 px-6 py-8 text-sm text-destructive">{error}</p>
         ) : (
           <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden">
-            {/* Tier 2: main split */}
+            {/* Tier 2: main split — drag the gutter to resize email vs resume */}
             <div
+              ref={splitRowRef}
               className={cn(
-                "grid min-h-0 min-w-0 w-full max-w-full flex-1 gap-4 overflow-x-hidden px-6 py-4 transition-all duration-300 ease-in-out",
-                attachResume
-                  ? "grid-cols-1 lg:grid-cols-2"
-                  : "grid-cols-1"
+                "flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col gap-4 overflow-x-hidden px-6 py-4",
+                attachResume && "lg:flex-row lg:gap-0",
+                !splitDragging && "transition-[gap] duration-300 ease-in-out"
               )}
+              style={
+                attachResume
+                  ? ({
+                      ["--draft-email-split"]: `${emailSplitPct}%`,
+                    } as CSSProperties)
+                  : undefined
+              }
             >
               {/* Left: seamless email composer */}
-              <div className="flex h-full min-h-0 min-w-0 w-full max-w-full flex-col divide-y overflow-x-hidden overflow-hidden rounded-lg border bg-card text-sm focus-within:ring-1 focus-within:ring-ring">
+              <div
+                className={cn(
+                  "flex h-full min-h-0 min-w-0 w-full max-w-full flex-col divide-y overflow-x-hidden overflow-hidden rounded-lg border bg-card text-sm focus-within:ring-1 focus-within:ring-ring lg:min-h-0",
+                  attachResume &&
+                    "lg:max-w-full lg:shrink-0 lg:grow-0 lg:[flex-basis:var(--draft-email-split)]"
+                )}
+              >
                 <div className="flex flex-none items-center px-3 py-2">
                   <Label
                     htmlFor="opp-draft-to"
@@ -864,9 +970,62 @@ export function OpportunityDraftDialog({
                 </div>
               </div>
 
+              {attachResume ? (
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Resize email and resume panes"
+                  aria-valuemin={DRAFT_SPLIT_MIN}
+                  aria-valuemax={DRAFT_SPLIT_MAX}
+                  aria-valuenow={Math.round(emailSplitPct)}
+                  tabIndex={0}
+                  className={cn(
+                    "group relative hidden w-4 shrink-0 cursor-col-resize touch-none lg:block",
+                    splitDragging && "bg-border/40"
+                  )}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    setSplitDragging(true);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+                      return;
+                    }
+                    event.preventDefault();
+                    const delta = event.key === "ArrowLeft" ? -2 : 2;
+                    setEmailSplitPct((prev) => {
+                      const next = Math.min(
+                        DRAFT_SPLIT_MAX,
+                        Math.max(DRAFT_SPLIT_MIN, prev + delta)
+                      );
+                      emailSplitPctRef.current = next;
+                      writeDraftSplitPct(next);
+                      return next;
+                    });
+                  }}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "absolute inset-y-3 left-1/2 w-px -translate-x-1/2 rounded-full bg-border transition-colors",
+                      splitDragging
+                        ? "bg-[#129f96]"
+                        : "group-hover:bg-foreground/40"
+                    )}
+                  />
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "absolute left-1/2 top-1/2 h-8 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border/80",
+                      splitDragging && "bg-[#129f96]"
+                    )}
+                  />
+                </div>
+              ) : null}
+
               {/* Right: flush PDF + ATS rationale */}
               {attachResume ? (
-                <div className="mt-0 flex h-full min-h-0 min-w-0 w-full max-w-full flex-col overflow-x-hidden overflow-hidden rounded-lg border border-border/60 bg-muted/10 pt-0 duration-300 animate-in fade-in-0 slide-in-from-right-4">
+                <div className="mt-0 flex h-full min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden overflow-hidden rounded-lg border border-border/60 bg-muted/10 pt-0 duration-300 animate-in fade-in-0 slide-in-from-right-4 lg:min-w-0">
                   <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col gap-2 overflow-x-hidden overflow-hidden p-0">
                     {resumeBusy && !resume ? (
                       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-3 text-sm text-muted-foreground">

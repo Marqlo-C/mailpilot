@@ -5,13 +5,15 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type ComponentPropsWithoutRef,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Layers, ListFilter, Mic, Search, X } from "lucide-react";
+import { Layers, ListFilter, Mic, Search, X } from "lucide-react";
 
+import { ToolbarMenuSelect } from "@/components/ui/app-menu";
 import { SELECT_CHECKBOX_CLASSNAME } from "@/components/ui/styles/select-checkbox";
+import { LabelTooltip } from "@/components/ui/tooltip";
+import { NumericField } from "@/components/ui/tactile/numeric-field";
 import { WavySlider } from "@/components/ui/tactile/wavy-slider";
 import type {
   HistoryStatusFilter,
@@ -20,33 +22,8 @@ import type {
 import { TAB_SORT_CONFIG, type JobsTabKey } from "@/lib/opportunities/sorting";
 import { cn } from "@/lib/utils";
 
-/**
- * Native select with a custom chevron so left inset (to text) matches
- * right inset (from arrow to edge). Browser arrows sit flush and look uneven.
- */
-export function ToolbarNativeSelect({
-  className,
-  children,
-  ...props
-}: ComponentPropsWithoutRef<"select">) {
-  return (
-    <div className="relative inline-flex shrink-0">
-      <select
-        {...props}
-        className={cn(
-          "h-7 cursor-pointer appearance-none rounded-md border border-input/60 bg-card py-0 pl-2.5 pr-7 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-card focus:bg-card focus:outline-none focus:ring-1 focus:ring-ring",
-          className
-        )}
-      >
-        {children}
-      </select>
-      <ChevronDown
-        className="pointer-events-none absolute top-1/2 right-2.5 size-3 -translate-y-1/2 text-muted-foreground"
-        aria-hidden
-      />
-    </div>
-  );
-}
+/** Toolbar filter/sort select — tracks light/dark toolbar preference. */
+export const ToolbarNativeSelect = ToolbarMenuSelect;
 
 export function ToolbarRoot({
   children,
@@ -181,62 +158,53 @@ export function ToolbarScoreSlider({
   disabled = false,
   onChange,
   onCommit,
-  label = "Match Threshold:",
+  label = "Match Filter:",
+  labelTooltip,
   inputId = "fit-score-threshold-input",
-  ariaLabel = "Match score threshold",
+  ariaLabel = "Match filter",
 }: {
   value: number;
   disabled?: boolean;
   onChange?: (value: number) => void;
   onCommit?: (value: number) => void;
   label?: string;
+  /** Hover description for the label (e.g. how Noise / Match is scored). */
+  labelTooltip?: string;
   inputId?: string;
   ariaLabel?: string;
 }) {
+  const labelNode = (
+    <label
+      htmlFor={inputId}
+      className="flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs font-medium text-foreground/75 transition-colors hover:text-foreground"
+    >
+      {label}
+    </label>
+  );
+
   return (
     // Fills the remaining width of its {@link ToolbarHalf} parent.
     <div className="flex min-w-0 flex-1 items-center gap-2">
-      <label
-        htmlFor={inputId}
-        className="flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs font-medium text-foreground/75 transition-colors hover:text-foreground"
-      >
-        {label}
-      </label>
-      <div className="relative inline-flex shrink-0 items-center">
-        <input
-          id={inputId}
-          type="number"
-          min={0}
-          max={100}
-          step={1}
-          disabled={disabled}
-          value={value}
-          onChange={(e) => {
-            const val =
-              e.target.value === ""
-                ? 0
-                : Math.max(
-                    0,
-                    Math.min(100, parseInt(e.target.value, 10) || 0)
-                  );
-            onChange?.(val);
-          }}
-          onBlur={() => onCommit?.(value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.currentTarget.blur();
-            }
-          }}
-          className="h-7 w-14 rounded-md border border-input bg-card pr-3 text-center text-xs font-medium shadow-sm transition-colors [appearance:textfield] hover:bg-card focus:bg-card focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-          aria-label={`${ariaLabel} percent`}
-        />
-        <span
-          data-mp-toolbar-unit=""
-          className="pointer-events-none absolute right-1 text-[11px] text-foreground/65"
-        >
-          %
-        </span>
-      </div>
+      {labelTooltip ? (
+        <LabelTooltip label={labelTooltip} side="bottom" contentClassName="max-w-xs text-left">
+          {labelNode}
+        </LabelTooltip>
+      ) : (
+        labelNode
+      )}
+      <NumericField
+        id={inputId}
+        value={value}
+        min={0}
+        max={100}
+        step={1}
+        percent
+        steppers
+        disabled={disabled}
+        aria-label={ariaLabel}
+        onChange={(val) => onChange?.(val)}
+        onCommit={(val) => onCommit?.(val)}
+      />
       <WavySlider
         value={value}
         disabled={disabled}
@@ -343,6 +311,17 @@ export function ToolbarSearch({
       if (!(target instanceof Node)) return;
       if (rootRef.current?.contains(target)) return;
       if (panelRef.current?.contains(target)) return;
+      // AppMenu / Radix menus portal outside the filter panel. Closing on
+      // mousedown unmounts the select before onSelect fires — sorts/filters
+      // looked broken after the native <select> → AppMenu swap.
+      if (
+        target instanceof Element &&
+        target.closest(
+          "[data-radix-dropdown-menu-content],[data-radix-popper-content-wrapper],[role='menu']"
+        )
+      ) {
+        return;
+      }
       setFiltersOpen(false);
     }
 
@@ -547,13 +526,12 @@ export function ToolbarSearch({
               data-filter-panel
               data-dnd-ignore
               data-mp-toolbar=""
-              className="z-50 flex w-max max-w-full flex-col gap-2.5 rounded-lg border border-border/50 bg-card p-2.5 shadow-md sm:flex-row sm:flex-wrap sm:items-end"
+              className="z-50 flex w-max flex-col gap-2.5 rounded-lg border border-border/50 bg-card p-2.5 shadow-md sm:flex-row sm:flex-wrap sm:items-end"
               style={{
                 position: "fixed",
                 top: panelBox.top,
                 left: panelBox.left + panelBox.width,
                 transform: "translateX(-100%)",
-                maxWidth: panelBox.width,
               }}
             >
               {children}
@@ -579,7 +557,7 @@ export function ToolbarSearchAddon({
   return (
     <div
       className={cn(
-        "flex w-full min-w-0 flex-col gap-1 sm:w-auto [&>div]:w-full sm:[&>div]:w-auto [&_select]:w-full sm:[&_select]:w-auto",
+        "flex w-max max-w-full flex-col gap-1",
         className
       )}
     >
@@ -603,17 +581,18 @@ export function ToolbarSourceFilter({
   className?: string;
 }) {
   return (
-    <ToolbarNativeSelect
+    <ToolbarMenuSelect
       value={value}
-      onChange={(e) => onChange(e.target.value as SourceFilter)}
-      aria-label="Filter by source"
+      onChange={(next) => onChange(next as SourceFilter)}
+      aria-label="Filter by type"
       className={className}
-    >
-      <option value="all">All Sources</option>
-      <option value="easy_apply">Easy Apply</option>
-      <option value="external">External</option>
-      <option value="email_lead">Email Lead</option>
-    </ToolbarNativeSelect>
+      options={[
+        { value: "all", label: "All Types" },
+        { value: "easy_apply", label: "Easy Apply" },
+        { value: "external", label: "External" },
+        { value: "email_lead", label: "Email Lead" },
+      ]}
+    />
   );
 }
 
@@ -627,16 +606,17 @@ export function ToolbarHistoryStatusFilter({
   className?: string;
 }) {
   return (
-    <ToolbarNativeSelect
+    <ToolbarMenuSelect
       value={value}
-      onChange={(e) => onChange(e.target.value as HistoryStatusFilter)}
+      onChange={(next) => onChange(next as HistoryStatusFilter)}
       aria-label="Filter by history status"
       className={className}
-    >
-      <option value="all">All Statuses</option>
-      <option value="archived">Archived</option>
-      <option value="dismissed">Dismissed</option>
-    </ToolbarNativeSelect>
+      options={[
+        { value: "all", label: "All Statuses" },
+        { value: "archived", label: "Archived" },
+        { value: "dismissed", label: "Dismissed" },
+      ]}
+    />
   );
 }
 
@@ -651,20 +631,14 @@ export function ToolbarSortSelect({
   onSortOptionChange: (sort: string) => void;
   className?: string;
 }) {
-  const options = TAB_SORT_CONFIG[activeTab].options;
   return (
-    <ToolbarNativeSelect
+    <ToolbarMenuSelect
       value={sortOption}
-      onChange={(e) => onSortOptionChange(e.target.value)}
+      onChange={onSortOptionChange}
       aria-label="Sort listings"
       className={className}
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </ToolbarNativeSelect>
+      options={TAB_SORT_CONFIG[activeTab].options}
+    />
   );
 }
 
@@ -701,7 +675,7 @@ export function ToolbarTelemetry({
         <button
           type="button"
           onClick={onResetFilters}
-          className="ml-1.5 cursor-pointer text-[11px] font-medium text-teal-600 underline underline-offset-2 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300"
+          className="ml-1.5 cursor-pointer text-[11px] font-medium text-[#129f96] underline underline-offset-2 hover:text-[#0f8f87]"
         >
           Reset
         </button>

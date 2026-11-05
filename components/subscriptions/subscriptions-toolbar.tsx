@@ -13,9 +13,10 @@ import {
   ToolbarTelemetry,
 } from "@/components/opportunities/toolbar/pipeline-toolbar-primitives";
 import { ToolbarPageNav, ToolbarPageSizeSelect } from "@/components/ui/composites/pipeline-pagination";
-import type {
-  SubscriptionCategoryFilter,
-  SubscriptionSortOption,
+import {
+  SUBSCRIPTION_SORT_OPTIONS,
+  type SubscriptionCategoryFilter,
+  type SubscriptionSortOption,
 } from "@/lib/subscriptions/filters";
 
 export type SubscriptionsToolbarProps = {
@@ -45,7 +46,7 @@ export type SubscriptionsToolbarProps = {
 
 /**
  * Two-row Subscriptions filter chrome:
- * 1) Filter card — Select All, Clutter, Search (+ Category/Sort addons)
+ * 1) Filter card — Select All, Noise Filter, Search (+ Category/Sort addons)
  * 2) Meta bar — result counts (left) + page readout and page size (right)
  */
 export function SubscriptionsToolbar({
@@ -101,9 +102,10 @@ export function SubscriptionsToolbar({
                 value={clutterThreshold}
                 onChange={onClutterThresholdChange}
                 onCommit={onClutterThresholdChange}
-                label="Clutter Threshold:"
+                label="Noise Filter:"
+                labelTooltip="Hides quieter senders. Noise rises with mail volume and how recently they emailed. Raise it to keep only the noisiest lists."
                 inputId="clutter-score-threshold-input"
-                ariaLabel="Clutter score threshold"
+                ariaLabel="Noise filter"
               />
             </ToolbarHalf>
             <ToolbarDivider />
@@ -117,36 +119,30 @@ export function SubscriptionsToolbar({
                 <ToolbarSearchAddon label="Filter · Category">
                   <ToolbarNativeSelect
                     value={categoryFilter}
-                    onChange={(e) =>
+                    onChange={(next) =>
                       onCategoryFilterChange(
-                        e.target.value as SubscriptionCategoryFilter
+                        next as SubscriptionCategoryFilter
                       )
                     }
                     aria-label="Filter by category"
-                  >
-                    <option value="all">All Categories</option>
-                    <option value="promotions">Promotions</option>
-                    <option value="newsletters">Newsletters</option>
-                    <option value="alerts">Alerts</option>
-                  </ToolbarNativeSelect>
+                    options={[
+                      { value: "all", label: "All Categories" },
+                      { value: "promotions", label: "Promotions" },
+                      { value: "newsletters", label: "Newsletters" },
+                      { value: "alerts", label: "Alerts" },
+                    ]}
+                  />
                 </ToolbarSearchAddon>
 
                 <ToolbarSearchAddon label="Sort">
                   <ToolbarNativeSelect
                     value={sortOption}
-                    onChange={(e) =>
-                      onSortOptionChange(
-                        e.target.value as SubscriptionSortOption
-                      )
+                    onChange={(next) =>
+                      onSortOptionChange(next as SubscriptionSortOption)
                     }
                     aria-label="Sort subscriptions"
-                  >
-                    <option value="clutter_desc">Highest Clutter</option>
-                    <option value="freq_desc">Most Frequent</option>
-                    <option value="freq_asc">Least Frequent</option>
-                    <option value="alpha">Alphabetical</option>
-                    <option value="custom">Custom</option>
-                  </ToolbarNativeSelect>
+                    options={SUBSCRIPTION_SORT_OPTIONS}
+                  />
                 </ToolbarSearchAddon>
               </ToolbarSearch>
             </ToolbarHalf>
@@ -172,34 +168,30 @@ export function SubscriptionsToolbar({
               <ToolbarSearchAddon label="Filter · Category">
                 <ToolbarNativeSelect
                   value={categoryFilter}
-                  onChange={(e) =>
+                  onChange={(next) =>
                     onCategoryFilterChange(
-                      e.target.value as SubscriptionCategoryFilter
+                      next as SubscriptionCategoryFilter
                     )
                   }
                   aria-label="Filter by category"
-                >
-                  <option value="all">All Categories</option>
-                  <option value="promotions">Promotions</option>
-                  <option value="newsletters">Newsletters</option>
-                  <option value="alerts">Alerts</option>
-                </ToolbarNativeSelect>
+                  options={[
+                    { value: "all", label: "All Categories" },
+                    { value: "promotions", label: "Promotions" },
+                    { value: "newsletters", label: "Newsletters" },
+                    { value: "alerts", label: "Alerts" },
+                  ]}
+                />
               </ToolbarSearchAddon>
 
               <ToolbarSearchAddon label="Sort">
                 <ToolbarNativeSelect
                   value={sortOption}
-                  onChange={(e) =>
-                    onSortOptionChange(e.target.value as SubscriptionSortOption)
+                  onChange={(next) =>
+                    onSortOptionChange(next as SubscriptionSortOption)
                   }
                   aria-label="Sort subscriptions"
-                >
-                  <option value="clutter_desc">Highest Clutter</option>
-                  <option value="freq_desc">Most Frequent</option>
-                  <option value="freq_asc">Least Frequent</option>
-                  <option value="alpha">Alphabetical</option>
-                  <option value="custom">Custom</option>
-                </ToolbarNativeSelect>
+                  options={SUBSCRIPTION_SORT_OPTIONS}
+                />
               </ToolbarSearchAddon>
             </ToolbarSearch>
           </>

@@ -3,17 +3,21 @@ import type { JobApplication, JobOpportunity } from "@prisma/client";
 export type OpportunitySortOption =
   | "match-desc"
   | "received-desc"
+  | "received-asc"
   | "applied-desc"
   | "applied-asc"
   | "dismissed-desc"
   | "dismissed-asc"
   | "salary-desc"
-  | "company-asc";
+  | "company-asc"
+  | "role-asc";
 
 export type ActionRequiredSortOption =
   | "deadline-asc"
   | "recent-desc"
-  | "company-asc";
+  | "recent-asc"
+  | "company-asc"
+  | "role-asc";
 
 export type JobsTabKey = "leads" | "applied" | "action_required" | "history";
 
@@ -25,35 +29,42 @@ export const TAB_SORT_CONFIG: Record<
     defaultSort: "match-desc",
     options: [
       { label: "Best Match", value: "match-desc" },
-      { label: "Newest First", value: "received-desc" },
+      { label: "Newest", value: "received-desc" },
+      { label: "Oldest", value: "received-asc" },
       { label: "Highest Salary", value: "salary-desc" },
       { label: "Company (A–Z)", value: "company-asc" },
+      { label: "Role (A–Z)", value: "role-asc" },
     ],
   },
   applied: {
     defaultSort: "applied-desc",
     options: [
-      { label: "Applied: Newest", value: "applied-desc" },
-      { label: "Applied: Oldest (Follow-up)", value: "applied-asc" },
-      { label: "Company (A–Z)", value: "company-asc" },
+      { label: "Newest", value: "applied-desc" },
+      { label: "Oldest", value: "applied-asc" },
+      { label: "Best Match", value: "match-desc" },
       { label: "Highest Salary", value: "salary-desc" },
+      { label: "Company (A–Z)", value: "company-asc" },
+      { label: "Role (A–Z)", value: "role-asc" },
     ],
   },
   action_required: {
     defaultSort: "deadline-asc",
     options: [
-      { label: "Deadline: Most Urgent", value: "deadline-asc" },
-      { label: "Most Recent", value: "recent-desc" },
+      { label: "Most Urgent", value: "deadline-asc" },
+      { label: "Newest", value: "recent-desc" },
+      { label: "Oldest", value: "recent-asc" },
       { label: "Company (A–Z)", value: "company-asc" },
+      { label: "Role (A–Z)", value: "role-asc" },
     ],
   },
   history: {
     defaultSort: "dismissed-desc",
     options: [
-      { label: "Recently Dismissed", value: "dismissed-desc" },
-      { label: "Purge Imminent", value: "dismissed-asc" },
-      { label: "Highest Match", value: "match-desc" },
+      { label: "Newest", value: "dismissed-desc" },
+      { label: "Oldest", value: "dismissed-asc" },
+      { label: "Best Match", value: "match-desc" },
       { label: "Company (A–Z)", value: "company-asc" },
+      { label: "Role (A–Z)", value: "role-asc" },
     ],
   },
 };
@@ -95,12 +106,19 @@ export function sortOpportunities(
         return (b.salaryMax ?? 0) - (a.salaryMax ?? 0);
       case "company-asc":
         return a.company.localeCompare(b.company);
+      case "role-asc":
+        return a.title.localeCompare(b.title);
       case "match-desc":
         return (b.matchScore ?? 0) - (a.matchScore ?? 0);
       case "deadline-asc":
         // Opportunities have no deadline — newest received first as a stable fallback.
         return (
           new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
+        );
+      case "received-asc":
+      case "recent-asc":
+        return (
+          new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()
         );
       case "recent-desc":
       case "received-desc":
@@ -128,6 +146,13 @@ export function sortActionRequired(
       }
       case "company-asc":
         return (a.companyName ?? "").localeCompare(b.companyName ?? "");
+      case "role-asc":
+        return (a.roleTitle ?? "").localeCompare(b.roleTitle ?? "");
+      case "recent-asc":
+        return (
+          new Date(a.emailDate ?? a.updatedAt).getTime() -
+          new Date(b.emailDate ?? b.updatedAt).getTime()
+        );
       case "recent-desc":
       default:
         return (
@@ -165,8 +190,16 @@ export function sortJobApplications(
         return (b.matchScore ?? 0) - (a.matchScore ?? 0);
       case "company-asc":
         return (a.companyName ?? "").localeCompare(b.companyName ?? "");
+      case "role-asc":
+        return (a.roleTitle ?? "").localeCompare(b.roleTitle ?? "");
       case "match-desc":
         return (b.matchScore ?? 0) - (a.matchScore ?? 0);
+      case "received-asc":
+      case "recent-asc":
+        return (
+          new Date(a.emailDate ?? a.updatedAt).getTime() -
+          new Date(b.emailDate ?? b.updatedAt).getTime()
+        );
       case "received-desc":
       case "recent-desc":
       default:

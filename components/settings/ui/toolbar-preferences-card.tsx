@@ -15,7 +15,7 @@ export function ToolbarPreferencesCard() {
     <SettingsFeatureCard
       logo={<SettingsFeatureLogo icon={PanelTop} />}
       title="Filter Toolbar"
-      subtitle="Clutter / match threshold, search, and filters on Job Radar and Subscriptions. The wavy slider stays the same in both looks."
+      subtitle="Noise filter / match filter, search, and filters on Job Radar and Subscriptions. The wavy slider stays the same in both looks."
       statusBadge={
         <AppearanceModeToggle
           value={variant}

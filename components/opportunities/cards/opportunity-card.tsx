@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useState,
   useTransition,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
@@ -8,6 +9,7 @@ import {
 import { useRouter } from "next/navigation";
 import type { JobOpportunity } from "@prisma/client";
 import {
+  AlignLeft,
   Archive,
   Banknote,
   Calendar,
@@ -36,12 +38,15 @@ import {
 } from "@/lib/opportunities/movement-rules";
 import { runJobCardAction } from "@/lib/opportunities/run-job-move";
 import {
+  AppMenuContent,
+  AppMenuItem,
+  AppMenuSeparator,
+} from "@/components/ui/app-menu";
+import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
 import { RowMenuTrigger } from "@/components/ui/composites/row-menu-trigger";
 import { CompanyLogo } from "@/components/ui/company-logo";
 import { ReceivedMeta } from "@/components/ui/composites/received-meta";
@@ -147,6 +152,7 @@ export function OpportunityCard({
   const { style: itemStyle, ...itemRest } = itemProps ?? {};
   const router = useRouter();
   const [actionPending, startTransition] = useTransition();
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
   const busy = pending || actionPending;
   const actionsLocked = busy || isSelected;
 
@@ -295,6 +301,13 @@ export function OpportunityCard({
       : null;
 
   const displayDescription = cleanOpportunityDescription(opportunity.description);
+  const companyLogoSrc =
+    opportunity.logoUrl ||
+    getCompanyLogoUrl(
+      opportunity.company,
+      opportunity.companyDomain,
+      opportunity.applyUrl
+    );
 
   return (
     <article
@@ -387,14 +400,7 @@ export function OpportunityCard({
       {/* Header: logo + role with clearance below corner pills */}
       <div className="flex items-start gap-3.5 px-6 pt-9 pb-3 sm:px-7">
         <CompanyLogo
-          src={
-            opportunity.logoUrl ||
-            getCompanyLogoUrl(
-              opportunity.company,
-              opportunity.companyDomain,
-              opportunity.applyUrl
-            )
-          }
+          src={companyLogoSrc}
           name={opportunity.company}
           size="lg"
         />
@@ -676,38 +682,48 @@ export function OpportunityCard({
                   }
                 />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <AppMenuContent align="end">
+                {displayDescription ? (
+                  <AppMenuItem
+                    disabled={actionsLocked}
+                    onClick={() => setDescriptionOpen(true)}
+                  >
+                    <AlignLeft className="mr-2 h-4 w-4" />
+                    Full Description
+                  </AppMenuItem>
+                ) : null}
                 {variant === "leads" && canEmail ? (
                   <>
-                    <DropdownMenuItem
+                    {displayDescription ? <AppMenuSeparator /> : null}
+                    <AppMenuItem
                       disabled={actionsLocked}
                       onClick={onReviewDraft}
                     >
                       <Mail className="mr-2 h-4 w-4" />
                       Review Draft
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
+                    </AppMenuItem>
+                    <AppMenuItem
                       disabled={actionsLocked}
                       onClick={onSendNow}
                     >
                       <Send className="mr-2 h-4 w-4" />
                       Send Now
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
+                    </AppMenuItem>
+                    <AppMenuSeparator />
                   </>
                 ) : null}
                 {opportunity.emailMessageId && onViewOriginalEmail ? (
-                  <DropdownMenuItem
+                  <AppMenuItem
                     disabled={actionsLocked}
                     onClick={onViewOriginalEmail}
                   >
                     <Mail className="mr-2 h-4 w-4" />
-                    View Original Email
-                  </DropdownMenuItem>
+                    Original Email
+                  </AppMenuItem>
                 ) : null}
                 {(variant === "applied" || variant === "action") &&
                 validApplyUrl ? (
-                  <DropdownMenuItem asChild disabled={actionsLocked}>
+                  <AppMenuItem asChild disabled={actionsLocked}>
                     <a
                       href={validApplyUrl}
                       target="_blank"
@@ -716,38 +732,38 @@ export function OpportunityCard({
                       <ExternalLink className="mr-2 h-4 w-4" />
                       View Posting
                     </a>
-                  </DropdownMenuItem>
+                  </AppMenuItem>
                 ) : null}
                 {(variant === "leads" || variant === "applied") && (
-                  <DropdownMenuItem
+                  <AppMenuItem
                     disabled={actionsLocked}
                     onClick={runArchive}
                   >
                     <Archive className="mr-2 h-4 w-4" />
                     Archive
-                  </DropdownMenuItem>
+                  </AppMenuItem>
                 )}
-                <DropdownMenuItem
+                <AppMenuItem
                   disabled={actionsLocked}
                   onClick={runDismiss}
                 >
                   <XCircle className="mr-2 h-4 w-4" />
                   Dismiss
-                </DropdownMenuItem>
+                </AppMenuItem>
                 {onLessLikeThis ? (
                   <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
+                    <AppMenuSeparator />
+                    <AppMenuItem
                       disabled={actionsLocked}
                       onClick={onLessLikeThis}
                       className="text-amber-600 focus:bg-amber-50 focus:text-amber-600 dark:text-amber-400 dark:focus:bg-amber-950/50 dark:focus:text-amber-400"
                     >
                       <ThumbsDown className="mr-2 h-4 w-4" />
                       Less like this
-                    </DropdownMenuItem>
+                    </AppMenuItem>
                   </>
                 ) : null}
-              </DropdownMenuContent>
+              </AppMenuContent>
             </DropdownMenu>
           ) : null}
 
@@ -764,31 +780,74 @@ export function OpportunityCard({
                   }
                 />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <AppMenuContent align="end">
+                {displayDescription ? (
+                  <AppMenuItem
+                    disabled={actionsLocked}
+                    onClick={() => setDescriptionOpen(true)}
+                  >
+                    <AlignLeft className="mr-2 h-4 w-4" />
+                    Full Description
+                  </AppMenuItem>
+                ) : null}
+                {displayDescription &&
+                (opportunity.isArchived || dismissed) ? (
+                  <AppMenuSeparator />
+                ) : null}
                 {opportunity.isArchived && !dismissed ? (
-                  <DropdownMenuItem
+                  <AppMenuItem
                     disabled={actionsLocked}
                     onClick={runDismiss}
                   >
                     <XCircle className="mr-2 h-4 w-4" />
                     Dismiss
-                  </DropdownMenuItem>
+                  </AppMenuItem>
                 ) : null}
                 {dismissed ? (
-                  <DropdownMenuItem
+                  <AppMenuItem
                     disabled={actionsLocked}
                     onClick={runDelete}
                     className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete
-                  </DropdownMenuItem>
+                  </AppMenuItem>
                 ) : null}
-              </DropdownMenuContent>
+              </AppMenuContent>
             </DropdownMenu>
           ) : null}
         </div>
       </div>
+
+      {displayDescription ? (
+        <ActionDialogShell
+          open={descriptionOpen}
+          onOpenChange={setDescriptionOpen}
+          size="lg"
+          showCancel={false}
+          identity={{
+            title: "Viewing job description for:",
+            primary: opportunity.title,
+            secondary: opportunity.company,
+            logoSrc: companyLogoSrc,
+            logoName: opportunity.company,
+            emphasize: "primary",
+          }}
+          primaryAction={
+            <button
+              type="button"
+              onClick={() => setDescriptionOpen(false)}
+              className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+            >
+              Close
+            </button>
+          }
+        >
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+            {displayDescription}
+          </p>
+        </ActionDialogShell>
+      ) : null}
     </article>
   );
 }

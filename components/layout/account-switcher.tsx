@@ -10,11 +10,13 @@ import { logoutSession } from "@/app/actions/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
+  AppMenuContent,
+  AppMenuItem,
+  AppMenuLabel,
+  AppMenuSeparator,
+} from "@/components/ui/app-menu";
+import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { AccountSummary } from "@/lib/data";
@@ -67,15 +69,22 @@ export function AccountSwitcher({
     </span>
   );
 
+  const menuSurface = surface === "sidebar" ? "dark" : "light";
+
   const renderAccountMenu = (side: "right" | "top") => (
-    <DropdownMenuContent side={side} align="end" className="mb-1 w-72">
-            <DropdownMenuLabel>Connected accounts</DropdownMenuLabel>
-            <DropdownMenuSeparator />
+    <AppMenuContent
+      surface={menuSurface}
+      side={side}
+      align="end"
+      className="mb-1 w-72"
+    >
+            <AppMenuLabel>Connected accounts</AppMenuLabel>
+            <AppMenuSeparator />
             {accounts.length === 0 ? (
-              <DropdownMenuItem disabled>No accounts yet</DropdownMenuItem>
+              <AppMenuItem disabled>No accounts yet</AppMenuItem>
             ) : (
               accounts.map((account) => (
-                <DropdownMenuItem
+                <AppMenuItem
                   key={account.id}
                   onSelect={() => {
                     startTransition(async () => {
@@ -110,24 +119,24 @@ export function AccountSwitcher({
                       account.id === activeAccountId ? "opacity-100" : "opacity-0"
                     )}
                   />
-                </DropdownMenuItem>
+                </AppMenuItem>
               ))
             )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
+            <AppMenuSeparator />
+            <AppMenuItem
               onSelect={() => {
                 window.location.href = "/api/auth/google?intent=link";
               }}
             >
               <Plus className="h-4 w-4" />
               Link Gmail account
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
+            </AppMenuItem>
+            <AppMenuSeparator />
+            <AppMenuItem asChild>
               <Link href="/settings">Account Settings</Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
+            </AppMenuItem>
+            <AppMenuSeparator />
+            <AppMenuItem
               className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
               onSelect={() => {
                 startTransition(async () => {
@@ -137,8 +146,8 @@ export function AccountSwitcher({
             >
               <LogOut className="h-4 w-4" />
               Log Out
-            </DropdownMenuItem>
-    </DropdownMenuContent>
+            </AppMenuItem>
+    </AppMenuContent>
   );
 
   if (surface === "sidebar") {
@@ -225,18 +234,14 @@ export function AccountSwitcher({
           <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        side="bottom"
-        align="end"
-        className="w-72"
-      >
-        <DropdownMenuLabel>Connected accounts</DropdownMenuLabel>
-        <DropdownMenuSeparator />
+      <AppMenuContent surface="light" side="bottom" align="end" className="w-72">
+        <AppMenuLabel>Connected accounts</AppMenuLabel>
+        <AppMenuSeparator />
         {accounts.length === 0 ? (
-          <DropdownMenuItem disabled>No accounts yet</DropdownMenuItem>
+          <AppMenuItem disabled>No accounts yet</AppMenuItem>
         ) : (
           accounts.map((account) => (
-            <DropdownMenuItem
+            <AppMenuItem
               key={account.id}
               onSelect={() => {
                 startTransition(async () => {
@@ -265,20 +270,20 @@ export function AccountSwitcher({
                   account.id === activeAccountId ? "opacity-100" : "opacity-0"
                 )}
               />
-            </DropdownMenuItem>
+            </AppMenuItem>
           ))
         )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
+        <AppMenuSeparator />
+        <AppMenuItem
           onSelect={() => {
             window.location.href = "/api/auth/google?intent=link";
           }}
         >
           <Plus className="h-4 w-4" />
           Link Gmail account
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
+        </AppMenuItem>
+        <AppMenuSeparator />
+        <AppMenuItem
           className="text-destructive focus:text-destructive"
           onSelect={() => {
             startTransition(async () => {
@@ -288,8 +293,8 @@ export function AccountSwitcher({
         >
           <LogOut className="h-4 w-4" />
           Log Out
-        </DropdownMenuItem>
-      </DropdownMenuContent>
+        </AppMenuItem>
+      </AppMenuContent>
     </DropdownMenu>
   );
 }

@@ -1,11 +1,26 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
-import { CircleDashed, CircleDot, Loader2, Pencil, RotateCcw, RotateCcwClock } from "lucide-react";
+import {
+  CircleCheck,
+  Loader2,
+  Pencil,
+  RotateCcw,
+  RotateCcwClock,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { renameProfileRevision, type ProfileHistoryItem } from "@/app/actions/profile";
 import { Input } from "@/components/ui/input";
+import {
+  DiffKindMark,
+  type DiffKind,
+} from "@/components/ui/tactile/diff-kind-mark";
+import { EntryChip } from "@/components/ui/tactile/entry-chip";
+import {
+  SettingsEntryCard,
+  SettingsStatusPill,
+} from "@/components/ui/tactile/nested-settings-card";
 import {
   Tooltip,
   TooltipContent,
@@ -26,14 +41,6 @@ type ProfileRevisionHistoryProps = {
   pending?: boolean;
   onChange: (items: ProfileHistoryItem[]) => void;
   onRestore: (item: ProfileHistoryItem) => void;
-};
-
-type ChangeKind = "added" | "modified" | "removed";
-
-const KIND_STYLE: Record<ChangeKind, { mark: string; className: string }> = {
-  added: { mark: "+", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
-  modified: { mark: "~", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300" },
-  removed: { mark: "-", className: "bg-[#FAE9E9] text-[#C21E11]" },
 };
 
 export function formatRevisionStamp(iso: string): string {
@@ -92,12 +99,86 @@ function changeRows(diff: {
   added: ProfileDiffChange[];
   modified: ProfileDiffChange[];
   removed: ProfileDiffChange[];
-}): Array<ProfileDiffChange & { kind: ChangeKind }> {
+}): Array<ProfileDiffChange & { kind: DiffKind }> {
   return [
     ...diff.added.map((change) => ({ ...change, kind: "added" as const })),
     ...diff.modified.map((change) => ({ ...change, kind: "modified" as const })),
     ...diff.removed.map((change) => ({ ...change, kind: "removed" as const })),
   ];
+}
+
+const PAPER_HEADER_CLASSNAME =
+  "relative z-[1] flex h-5 items-center text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground";
+
+/**
+ * Tiny paper grid: shared columns so section chips stay label-width while
+ * change blurbs align after the longest label.
+ */
+function RevisionChangePaper({
+  rows,
+}: {
+  rows: Array<ProfileDiffChange & { kind: DiffKind }>;
+}) {
+  return (
+    <div
+      role="table"
+      aria-label="Revision changes"
+      className="relative grid grid-cols-[1.75rem_max-content_minmax(0,1fr)] items-center gap-x-2 overflow-hidden rounded-md bg-muted/15 px-1.5 py-1 shadow-[0_1px_2px_rgba(0,0,0,0.07),0_0_1px_rgba(0,0,0,0.06)]"
+    >
+        <div role="row" className="contents">
+          <span
+            role="columnheader"
+            aria-label="Kind"
+            className={cn(PAPER_HEADER_CLASSNAME, "justify-self-center")}
+          >
+            <CircleCheck className="size-[1em]" aria-hidden strokeWidth={2.25} />
+          </span>
+          <span
+            role="columnheader"
+            className={cn(PAPER_HEADER_CLASSNAME, "justify-self-center px-0.5")}
+          >
+            Section
+          </span>
+          <span
+            role="columnheader"
+            className={cn(PAPER_HEADER_CLASSNAME, "min-w-0 justify-self-center pr-1")}
+          >
+            Change
+          </span>
+        </div>
+        <span
+          aria-hidden
+          className="pointer-events-none relative col-span-3 mb-0.5 h-px bg-border/40"
+        />
+        {rows.map((row, index) => {
+          const last = index === rows.length - 1;
+          return (
+            <div
+              key={`${row.kind}-${row.section}-${index}`}
+              role="row"
+              className="contents"
+            >
+              <DiffKindMark
+                kind={row.kind}
+                className="relative z-[1] justify-self-center"
+              />
+              <EntryChip className="relative z-[1] justify-self-start">
+                {row.section}
+              </EntryChip>
+              <div className="relative z-[1] flex h-6 min-w-0 items-center pr-1">
+                {last ? null : (
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-border/40"
+                  />
+                )}
+                <ChangeBlurb text={row.summary} />
+              </div>
+            </div>
+          );
+        })}
+    </div>
+  );
 }
 
 /**
@@ -156,7 +237,7 @@ export function ProfileRevisionHistory({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <ul className="max-h-[28rem] space-y-2 overflow-y-auto p-1">
+      <ul className="max-h-[28rem] space-y-2.5 overflow-y-auto pb-1.5">
         {items.map((item) => {
           const created = new Date(item.createdAt);
           const editing = editingId === item.id;
@@ -166,123 +247,108 @@ export function ProfileRevisionHistory({
           return (
             <li
               key={item.id}
-              className="rounded-2xl border border-border/50 bg-card/75 p-2.5 shadow-sm"
+              className="list-none rounded-xl transition-[box-shadow] duration-150 hover:shadow-md"
             >
-              <div className="flex items-center gap-2 border-b border-border/40 pb-2">
-                {editing ? (
-                  <Input
-                    autoFocus
-                    value={draft}
-                    aria-label="Revision name"
-                    className="h-8 flex-1 text-sm"
-                    onChange={(event) => setDraft(event.target.value)}
-                    onBlur={() => void commitEdit(item)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        event.currentTarget.blur();
-                      }
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        cancelEdit();
-                      }
-                    }}
-                  />
-                ) : (
-                  <>
+              <SettingsEntryCard
+                curvedDivider={rows.length > 0}
+                className="transition-[border-color,background-color] duration-150 hover:border-border hover:bg-card"
+                leading={
+                  editing ? undefined : (
                     <button
                       type="button"
-                      className={cn(iconButtonClassName, "self-start")}
+                      className={iconButtonClassName}
                       aria-label="Rename revision"
                       disabled={pending}
                       onClick={() => beginEdit(item)}
                     >
-                      <Pencil className="size-4" aria-hidden />
+                      <Pencil className="size-3.5" aria-hidden />
                     </button>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-normal leading-none text-muted-foreground">
-                        {stamp}
-                      </p>
-                      <ChangeBlurb
-                        text={stored.title}
-                        className="mt-1 text-sm font-medium"
-                      />
-                    </div>
-                  </>
+                  )
+                }
+                title={
+                  editing ? (
+                    <Input
+                      autoFocus
+                      value={draft}
+                      aria-label="Revision name"
+                      // Match level-3 title (`text-[13px]`).
+                      className="h-7 w-full text-[13px] font-semibold tracking-tight"
+                      onChange={(event) => setDraft(event.target.value)}
+                      onBlur={() => void commitEdit(item)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          event.currentTarget.blur();
+                        }
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          cancelEdit();
+                        }
+                      }}
+                    />
+                  ) : (
+                    <ChangeBlurb
+                      text={stored.title}
+                      className="text-[13px] font-semibold tracking-tight text-foreground"
+                    />
+                  )
+                }
+                subtitle={
+                  <span className="text-xs font-normal leading-normal text-muted-foreground">
+                    {stamp}
+                  </span>
+                }
+                trailing={
+                  item.isCurrent ? (
+                    <SettingsStatusPill
+                      level={3}
+                      showDot
+                      dotClassName="bg-emerald-500"
+                    >
+                      Current
+                    </SettingsStatusPill>
+                  ) : (
+                    <SettingsStatusPill
+                      level={3}
+                      showDot
+                      dotClassName="bg-muted-foreground/50"
+                    >
+                      Prior
+                    </SettingsStatusPill>
+                  )
+                }
+                contentClassName={cn(
+                  "text-xs leading-relaxed",
+                  rows.length === 0 && "p-0"
                 )}
-                {item.isCurrent ? (
-                  <CircleDot className="size-4 shrink-0 self-start text-emerald-500" aria-label="Current" />
-                ) : (
-                  <CircleDashed className="size-4 shrink-0 self-start text-stone-400" aria-hidden />
-                )}
-              </div>
-              {rows.length > 0 ? (
-                <div className="mt-2 max-h-[13rem] overflow-y-auto py-1 pr-1">
-                <ul className="relative">
-                  <span
-                    aria-hidden
-                    className="pointer-events-none absolute inset-y-0 left-[0.75rem] right-0 bg-muted/15 shadow-[0_1px_2px_rgba(0,0,0,0.07),0_0_1px_rgba(0,0,0,0.06)]"
-                  />
-                  {rows.map((row, index) => {
-                    const style = KIND_STYLE[row.kind];
-                    const last = index === rows.length - 1;
-                    return (
-                      <li
-                        key={`${row.kind}-${row.section}-${index}`}
-                        className="relative grid h-5 w-full grid-cols-[1.75rem_auto_minmax(0,1fr)] items-center gap-2"
+                footer={
+                  <div className="flex items-center justify-between gap-2 text-[11px] leading-normal text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <RotateCcwClock className="size-3 shrink-0" aria-hidden />
+                      {formatDistanceToNow(created, { addSuffix: true })}
+                    </span>
+                    {item.isCurrent ? null : (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:text-foreground"
+                        disabled={pending || editing}
+                        onClick={() => onRestore(item)}
                       >
-                        {last ? null : (
-                          <span
-                            aria-hidden
-                            className="pointer-events-none absolute bottom-0 left-[calc(1.75rem+0.25rem)] right-1.5 h-px bg-border/40"
-                          />
+                        {pending ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <RotateCcw className="size-3" />
                         )}
-                        <span
-                          className={`relative inline-flex h-4 w-4 items-center justify-center justify-self-end rounded text-[10px] font-semibold ${style.className}`}
-                        >
-                          {style.mark}
-                        </span>
-                        <span className="relative z-[1] block">
-                          <span
-                            className="invisible block px-1.5 py-0 text-[10px] font-medium uppercase leading-none tracking-wide"
-                            aria-hidden
-                          >
-                            experience
-                          </span>
-                          <span className="absolute inset-0 block truncate rounded bg-muted px-1.5 py-0 text-center text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground">
-                            {row.section}
-                          </span>
-                        </span>
-                        <div className="relative z-[1] min-w-0 pr-3">
-                          <ChangeBlurb text={row.summary} />
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-                </div>
-              ) : null}
-              <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/40 pt-2">
-                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                  <RotateCcwClock className="h-3 w-3 shrink-0" aria-hidden />
-                  {formatDistanceToNow(created, { addSuffix: true })}
-                </span>
-                {item.isCurrent ? null : (
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-                    disabled={pending || editing}
-                    onClick={() => onRestore(item)}
-                  >
-                    {pending ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <RotateCcw className="h-3 w-3" />
+                        Restore
+                      </button>
                     )}
-                    Restore
-                  </button>
-                )}
-              </div>
+                  </div>
+                }
+              >
+                {rows.length > 0 ? (
+                  <RevisionChangePaper rows={rows} />
+                ) : null}
+              </SettingsEntryCard>
             </li>
           );
         })}

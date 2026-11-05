@@ -46,7 +46,6 @@ export default async function SubscriptionsPage() {
       initialTab={initialTab ?? undefined}
       subscriptions={subscriptions}
       history={history}
-      defaultCleanup={active.rules.autoCleanAfterUnsub}
       latestBriefing={
         latestBriefing
           ? {

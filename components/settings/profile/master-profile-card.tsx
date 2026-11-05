@@ -23,6 +23,9 @@ import {
   NestedCardLevel,
   SettingsEntryCard,
   EntryBulletList,
+  EntryChip,
+  DateChip,
+  ENTRY_CHIP_CLASSNAME,
   SettingsFeatureCard,
   SettingsSectionCard,
   SettingsStatusPill,
@@ -72,30 +75,6 @@ type MasterProfileCardProps = {
   accountId: string | null;
   profile: ProfileSnapshotData | null;
 };
-
-/** Single source of truth for chip sizing (tool count badge, date chips, carousel pills). */
-const ENTRY_CHIP_CLASSNAME =
-  "inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-border/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground";
-
-function EntryChip({
-  children,
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLSpanElement>) {
-  return (
-    <span
-      className={cn(
-        ENTRY_CHIP_CLASSNAME,
-        className
-      )}
-      {...props}
-    >
-      {typeof children === "string" ? formatStatusPillTitle(children) : children}
-    </span>
-  );
-}
-
-const DateChip = EntryChip;
 
 /** Show stored skill headings in Title Case. All-caps labels are recased; mixed case is kept. */
 function skillHeading(label: string): string {

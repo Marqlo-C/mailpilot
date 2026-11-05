@@ -1,15 +1,10 @@
 "use client";
 
-import { Check, ChevronDown, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useSidebarFlyout } from "@/components/layout/sidebar-flyout-provider";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { AppMenuSelect } from "@/components/ui/app-menu";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -24,15 +19,6 @@ const PILL_SHELL_CLASS =
 
 const PILL_BTN_CLASS =
   "inline-flex size-8 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent text-[#e4f7f3]/80 shadow-none transition-colors hover:bg-white/10 hover:text-[#e4f7f3] active:bg-[hsl(var(--sidebar-highlight))] active:text-[#e4f7f3] disabled:pointer-events-none disabled:opacity-25";
-
-const DROPDOWN_TRIGGER_CLASS =
-  "flex h-8 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-medium text-[#e4f7f3] shadow-none outline-none transition-colors hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-white/20 data-[state=open]:bg-[hsl(var(--sidebar-highlight))] data-[state=open]:text-[#e4f7f3] disabled:cursor-not-allowed disabled:opacity-50";
-
-const DROPDOWN_CONTENT_CLASS =
-  "z-[160] rounded-lg border border-white/10 bg-[hsl(var(--sidebar-panel))] p-1 text-[#e4f7f3] shadow-md";
-
-const DROPDOWN_ITEM_CLASS =
-  "cursor-pointer justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium text-[#e4f7f3]/80 focus:bg-white/10 focus:text-[#e4f7f3] data-[highlighted]:bg-white/10 data-[highlighted]:text-[#e4f7f3]";
 
 type FlyoutIconAction = {
   icon: LucideIcon;
@@ -121,7 +107,7 @@ export function FlyoutIconPill({
   );
 }
 
-/** Dark settings-style select for sidebar flyouts. */
+/** Dark settings-style select for sidebar flyouts (`AppMenuSelect` surface). */
 export function FlyoutSelect({
   id,
   value,
@@ -140,67 +126,24 @@ export function FlyoutSelect({
   className?: string;
 }) {
   const { cancelScheduledClose } = useSidebarFlyout();
-  const selected = options.find((option) => option.value === value);
   return (
     // Non-modal: modal menus set body pointer-events:none, which fires
     // pointerleave on hover-open sidebar flyouts and closes them.
-    <DropdownMenu
+    <AppMenuSelect
+      id={id}
+      surface="dark"
       modal={false}
+      value={value}
+      options={options}
+      placeholder={placeholder}
+      disabled={disabled}
+      onChange={onChange}
+      // Full field width — menu matches the bar, not the shortest label.
+      className={cn("w-full", className)}
+      matchTriggerWidth
       onOpenChange={(open) => {
         if (open) cancelScheduledClose();
       }}
-    >
-      <DropdownMenuTrigger asChild>
-        <button
-          id={id}
-          type="button"
-          disabled={disabled || options.length === 0}
-          className={cn(DROPDOWN_TRIGGER_CLASS, className)}
-        >
-          <span className="min-w-0 truncate">
-            {selected?.label ?? placeholder ?? "Select"}
-          </span>
-          <ChevronDown
-            className="mr-0.5 size-3.5 shrink-0 text-[#e4f7f3]/55"
-            aria-hidden="true"
-          />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        className={cn(
-          DROPDOWN_CONTENT_CLASS,
-          "w-[var(--radix-dropdown-menu-trigger-width)]"
-        )}
-      >
-        {options.length === 0 ? (
-          <DropdownMenuItem disabled className={DROPDOWN_ITEM_CLASS}>
-            {placeholder ?? "No options"}
-          </DropdownMenuItem>
-        ) : (
-          options.map((option) => {
-            const isSelected = option.value === value;
-            return (
-              <DropdownMenuItem
-                key={option.value}
-                onSelect={() => {
-                  if (option.value === value) return;
-                  onChange(option.value);
-                }}
-                className={DROPDOWN_ITEM_CLASS}
-              >
-                <span className="truncate">{option.label}</span>
-                <Check
-                  className={cn(
-                    "size-3.5 shrink-0",
-                    isSelected ? "opacity-100" : "opacity-0"
-                  )}
-                />
-              </DropdownMenuItem>
-            );
-          })
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    />
   );
 }

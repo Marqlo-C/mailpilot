@@ -10,6 +10,23 @@ export const APP_CONTENT_CENTER_LEFT =
   "calc(var(--app-sidebar-width, 0px) + (100vw - var(--app-sidebar-width, 0px)) / 2)";
 
 /**
+ * Usable width of the main column (viewport minus sidebar inset + gutter).
+ * Prefer for `max-w-[min(…,${APP_CONTENT_COLUMN_INNER})]` so overlays grow
+ * when the sidebar collapses without spilling under it.
+ */
+export const APP_CONTENT_COLUMN_INNER =
+  "calc(100vw - var(--app-sidebar-width, 0px) - 2rem)";
+
+/**
+ * Draft modal width classes (see `app/globals.css`).
+ * Email-only stays compact (grows a bit when the sidebar collapses);
+ * resume mode nearly fills {@link APP_CONTENT_COLUMN_INNER}.
+ */
+export const APP_DRAFT_MODAL_WIDTH_CLASS = "mp-draft-modal-width";
+export const APP_DRAFT_MODAL_WIDTH_WITH_RESUME_CLASS =
+  "mp-draft-modal-width-resume";
+
+/**
  * Global class (see `app/globals.css`) that sets `left` to
  * {@link APP_CONTENT_CENTER_LEFT}. Pair with `-translate-x-1/2`.
  */
