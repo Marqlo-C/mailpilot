@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
+import { LabelTooltip } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -410,16 +411,20 @@ export function BulkActionsFlyout({
         <div className="mp-flyout-chunk shrink-0">
           {shown.chooseOnCancel ? (
             <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  title={`Clear selection or ${shown.stopLabel.toLowerCase()}`}
-                  aria-label={`Clear selection or ${shown.stopLabel.toLowerCase()}`}
-                  className={BULK_FLYOUT_CANCEL_CLASSNAME}
-                >
-                  <X className="size-4 text-current" aria-hidden />
-                </button>
-              </DropdownMenuTrigger>
+              <LabelTooltip
+                label={`Clear selection or ${shown.stopLabel.toLowerCase()}`}
+                side="top"
+              >
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`Clear selection or ${shown.stopLabel.toLowerCase()}`}
+                    className={BULK_FLYOUT_CANCEL_CLASSNAME}
+                  >
+                    <X className="size-4 text-current" aria-hidden />
+                  </button>
+                </DropdownMenuTrigger>
+              </LabelTooltip>
               <DropdownMenuContent
                 align="center"
                 side="top"

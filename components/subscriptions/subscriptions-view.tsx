@@ -13,7 +13,6 @@ import {
 import { useRouter } from "next/navigation";
 import type { Subscription, SubscriptionHistory } from "@prisma/client";
 import {
-  BadgeInfo,
   CirclePlus,
   DatabaseX,
   Eye,
@@ -25,9 +24,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Snapshot } from "@praticon-glyphs/react";
 import { SyncControls } from "@/components/opportunities/sync-controls";
-import { WavyDashedRule } from "@/components/ui/tactile/wavy-dashed-frame";
+import { SnapshotIcon } from "@/components/icons/snapshot-icon";
+import { WavyDashedLine } from "@/components/ui/tactile/wavy-dashed-line";
 import { BriefingDialog } from "@/components/subscriptions/briefing-dialog";
 import { EmailPreviewDialog } from "@/components/subscriptions/email-preview-dialog";
 import {
@@ -41,6 +40,7 @@ import {
 import { PageFlipBumpers } from "@/components/dnd/page-flip-bumpers";
 import { SubscriptionsToolbar } from "@/components/subscriptions/subscriptions-toolbar";
 import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
+import { CreateSnapshotButton } from "@/components/ui/composites/create-snapshot-button";
 import {
   BULK_ACTION_BTN_CLASSNAME,
   BULK_ACTION_COUNT_DISMISS_CLASSNAME,
@@ -82,12 +82,11 @@ import {
   PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME,
 } from "@/components/ui/styles/primary-action-btn";
 import {
-  SECONDARY_ACTION_BTN_CLASSNAME,
-  SECONDARY_ACTION_BTN_MUTED_CLASSNAME,
   SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME,
 } from "@/components/ui/styles/secondary-action-btn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  LabelTooltip,
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -279,8 +278,8 @@ export function SubscriptionsView({
   const [selectionMode, setSelectionMode] = useState(false);
   const suppressTabChangeRef = useRef(false);
 
-  // Hydrate after mount to avoid SSR/localStorage mismatches.
-  useEffect(() => {
+  // Hydrate before paint so the clutter slider thumb isn't at 0 on first frame.
+  useLayoutEffect(() => {
     setLocalBriefings(listLocalBriefings(accountId));
     const stored = readClutterThreshold(accountId);
     if (stored != null) {
@@ -1080,86 +1079,90 @@ export function SubscriptionsView({
       >
         <CommandDeckFrame
           rail={
-            <>
-        <div className={cn(tabRailRowClassName, "mb-0")}>
-          <div className="flex items-center gap-1.5">
-            <TabsList className={segmentedTabsListClassName} data-mp-tab-rail="">
-              <TabsTrigger
-                value="active"
-                className={segmentedTabsTriggerClassName}
-              >
-                <span>{SUBSCRIPTION_TAB_LABEL.active}</span>
-                <TabCountBadge count={active.length} />
-              </TabsTrigger>
-              <TabsTrigger
-                value="archive"
-                data-dnd-drop-zone="archive"
-                className={cn(
-                  segmentedTabsTriggerClassName,
-                  drag?.dropZone === "archive" &&
-                    "ring-2 ring-[#c21f10]/70 ring-offset-2 ring-offset-background"
-                )}
-              >
-                <span>{SUBSCRIPTION_TAB_LABEL.archive}</span>
-                <TabCountBadge count={archive.length} />
-              </TabsTrigger>
-            </TabsList>
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="inline-flex shrink-0 rounded-full p-0.5 text-muted-foreground/60 transition-colors hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    aria-label="Tab description"
+            <div className={cn(tabRailRowClassName, "mb-0")}>
+              <div className="flex items-center gap-1.5">
+                <TabsList className={segmentedTabsListClassName} data-mp-tab-rail="">
+                  {/*
+                    Tip wraps a span — not TabsTrigger. Tooltip asChild would
+                    overwrite data-state and kill the teal active edge indicator.
+                  */}
+                  <LabelTooltip
+                    label={subscriptionTabDescriptions.active}
+                    side="bottom"
+                    contentClassName="text-left"
                   >
-                    <BadgeInfo className="size-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-xs text-left">
-                  {subscriptionTabDescriptions[activeTab]}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
+                    <span className="inline-flex">
+                      <TabsTrigger
+                        value="active"
+                        className={segmentedTabsTriggerClassName}
+                      >
+                        <span>{SUBSCRIPTION_TAB_LABEL.active}</span>
+                        <TabCountBadge count={active.length} />
+                      </TabsTrigger>
+                    </span>
+                  </LabelTooltip>
+                  <LabelTooltip
+                    label={subscriptionTabDescriptions.archive}
+                    side="bottom"
+                    contentClassName="text-left"
+                  >
+                    <span className="inline-flex">
+                      <TabsTrigger
+                        value="archive"
+                        data-dnd-drop-zone="archive"
+                        className={cn(
+                          segmentedTabsTriggerClassName,
+                          drag?.dropZone === "archive" &&
+                            "ring-2 ring-[#c21f10]/70 ring-offset-2 ring-offset-background"
+                        )}
+                      >
+                        <span>{SUBSCRIPTION_TAB_LABEL.archive}</span>
+                        <TabCountBadge count={archive.length} />
+                      </TabsTrigger>
+                    </span>
+                  </LabelTooltip>
+                </TabsList>
+              </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <SyncControls accountId={accountId} />
-          </div>
-        </div>
-
-        <SubscriptionsToolbar
-          totalCount={toolbarTotal}
-          visibleCount={toolbarVisible}
-          selectedCount={
-            activeTab === "active" ? selectedIds.length : 0
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <SyncControls accountId={accountId} />
+              </div>
+            </div>
           }
-          isAllSelected={activeTab === "active" ? isAllSelected : false}
-          onToggleSelectAll={
-            activeTab === "active" ? toggleSelectAll : () => undefined
-          }
-          clutterThreshold={clutterThreshold}
-          onClutterThresholdChange={changeClutterThreshold}
-          searchQuery={searchQuery}
-          onSearchQueryChange={changeSearchQuery}
-          categoryFilter={categoryFilter}
-          onCategoryFilterChange={changeCategoryFilter}
-          sortOption={sortOption}
-          onSortOptionChange={changeSortOption}
-          showClutterSlider
-          selectEnabled={activeTab === "active"}
-          pageSize={pageSize}
-          onPageSizeChange={changePageSize}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={changePage}
-          hasActiveTransientFilters={hasActiveTransientFilters}
-          onResetTransientFilters={handleResetTransientFilters}
-        />
-            </>
+          toolbar={
+            <SubscriptionsToolbar
+              totalCount={toolbarTotal}
+              visibleCount={toolbarVisible}
+              selectedCount={
+                activeTab === "active" ? selectedIds.length : 0
+              }
+              isAllSelected={activeTab === "active" ? isAllSelected : false}
+              onToggleSelectAll={
+                activeTab === "active" ? toggleSelectAll : () => undefined
+              }
+              clutterThreshold={clutterThreshold}
+              onClutterThresholdChange={changeClutterThreshold}
+              searchQuery={searchQuery}
+              onSearchQueryChange={changeSearchQuery}
+              categoryFilter={categoryFilter}
+              onCategoryFilterChange={changeCategoryFilter}
+              sortOption={sortOption}
+              onSortOptionChange={changeSortOption}
+              showClutterSlider
+              selectEnabled={activeTab === "active"}
+              pageSize={pageSize}
+              onPageSizeChange={changePageSize}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={changePage}
+              hasActiveTransientFilters={hasActiveTransientFilters}
+              onResetTransientFilters={handleResetTransientFilters}
+            />
           }
         >
 
-        <TabsContent value="active" className="relative z-0 mt-0 space-y-3">
+        {/* Near full column (job two-up span), inset 7px/side. */}
+        <TabsContent value="active" className="relative z-0 mt-0 space-y-3 px-[7px]">
           {active.length === 0 ? (
             <EmptyState
               title="No subscribed senders"
@@ -1211,7 +1214,7 @@ export function SubscriptionsView({
           )}
         </TabsContent>
 
-        <TabsContent value="archive" className="relative z-0 mt-0 space-y-3">
+        <TabsContent value="archive" className="relative z-0 mt-0 space-y-3 px-[7px]">
           {archive.length === 0 ? (
             <EmptyState
               title="Archive is empty"
@@ -1275,10 +1278,10 @@ export function SubscriptionsView({
           <BulkActionSection
             labelText="Snapshot"
             label={
-              <Snapshot
-                size={18}
+              <SnapshotIcon
+                width={14}
+                height={14}
                 className="text-[#e4f7f3]/60"
-                aria-hidden
               />
             }
           >
@@ -1291,7 +1294,7 @@ export function SubscriptionsView({
               {briefingPending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : null}
-              Create
+              Send
               <BulkActionCount count={selectedIds.length} />
             </button>
 
@@ -1630,9 +1633,9 @@ function IconStatBadge({
   const badge = pipeDivider ? (
     <div
       className={cn(
-        // Same shell as the split-rail pills (h-7 / rounded-md / w-5 rail) —
+        // Same shell as the split-rail pills (h-6 / rounded-md / w-5 rail) —
         // `|` is absolutely centered on the old border so width is unchanged.
-        "inline-flex h-7 shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/40 text-muted-foreground",
+        "inline-flex h-6 shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/40 text-muted-foreground",
         selected ? "bg-muted/50" : "bg-muted/60",
         width ? null : "min-w-[44px]",
         className
@@ -1671,7 +1674,7 @@ function IconStatBadge({
   ) : (
     <div
       className={cn(
-        "inline-flex h-7 shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/40",
+        "inline-flex h-6 shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/40",
         width ? null : "min-w-[44px]",
         className
       )}
@@ -1820,9 +1823,12 @@ function LastReceivedStatBadge({
   );
 }
 
-/** Same gap as Create Snapshot ↔ Unsubscribe (`gap-2.5`). */
+/** Same gap as Send Snapshot ↔ Unsubscribe (`gap-2.5`). */
 const METRICS_GAP_CLASS = "gap-2.5";
 
+/** Desktop row height — was `h-16` (64px); +2px. Class literal for Tailwind. */
+const SUBSCRIPTION_ROW_HEIGHT_PX = 66;
+const SUBSCRIPTION_ROW_HEIGHT_CLASS = "h-[66px]";
 
 /**
  * Mobile card shell — `border-2` matches Job Radar / selection highlight so
@@ -1884,118 +1890,29 @@ function LastBriefingIconButton({
   onView: (briefing: ResolvedBriefing) => void;
   disabled?: boolean;
 }) {
+  const tip =
+    briefing.source === "db"
+      ? "View snap (cloud)"
+      : "View snap (this device)";
+
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={() => onView(briefing)}
-      title={
-        briefing.source === "db"
-          ? "View snap (cloud)"
-          : "View snap (this device)"
-      }
-      aria-label="View snap"
-      className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold transition-colors",
-        disabled
-          ? "pointer-events-none text-muted-foreground"
-          : "text-teal-700 hover:bg-teal-700/10 dark:text-teal-400"
-      )}
-    >
-      <Eye className="size-3" />
-      View Snapshot
-    </button>
-  );
-}
-
-/**
- * Camera-flash sunburst above the Snapshot glyph — straight rays with
- * alternating long / short / dashed strokes (matches the flash reference).
- */
-const SNAPSHOT_FLASH_RAYS = [
-  { a: -78, len: 9, kind: "dash" },
-  { a: -66, len: 11.5, kind: "long" },
-  { a: -54, len: 7.5, kind: "short" },
-  { a: -42, len: 10.5, kind: "dash" },
-  { a: -30, len: 12, kind: "long" },
-  { a: -18, len: 8, kind: "short" },
-  { a: -9, len: 10, kind: "dash" },
-  { a: 0, len: 12.5, kind: "long" },
-  { a: 9, len: 10, kind: "dash" },
-  { a: 18, len: 8, kind: "short" },
-  { a: 30, len: 12, kind: "long" },
-  { a: 42, len: 10.5, kind: "dash" },
-  { a: 54, len: 7.5, kind: "short" },
-  { a: 66, len: 11.5, kind: "long" },
-  { a: 78, len: 9, kind: "dash" },
-] as const;
-
-const SNAPSHOT_FLASH_CX = 16;
-const SNAPSHOT_FLASH_CY = 17;
-const SNAPSHOT_FLASH_INNER = 3.2;
-
-function SnapshotFlashRays({ muted = false }: { muted?: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 32 18"
-      className={cn(
-        // Warm flash — #ffaa70 family (not the teal button ink).
-        "pointer-events-none absolute -top-[12px] left-1/2 z-[1] h-[14px] w-[26px] -translate-x-[calc(50%+3px)] transition-[color,opacity] duration-300",
-        muted
-          ? "text-[#ffaa70]/35 opacity-40"
-          : "text-[#ffaa70] opacity-85 group-hover/snap:text-[#ffc08a] group-hover/snap:opacity-100"
-      )}
-      fill="none"
-      aria-hidden
-    >
-      {SNAPSHOT_FLASH_RAYS.map((ray) => {
-        const rad = (ray.a * Math.PI) / 180;
-        const s = Math.sin(rad);
-        const c = Math.cos(rad);
-        const x1 = SNAPSHOT_FLASH_CX + s * SNAPSHOT_FLASH_INNER;
-        const y1 = SNAPSHOT_FLASH_CY - c * SNAPSHOT_FLASH_INNER;
-        const x2 = SNAPSHOT_FLASH_CX + s * ray.len;
-        const y2 = SNAPSHOT_FLASH_CY - c * ray.len;
-        const dashed = ray.kind === "dash";
-        return (
-          <line
-            key={ray.a}
-            x1={x1}
-            y1={y1}
-            x2={x2}
-            y2={y2}
-            stroke="currentColor"
-            strokeWidth={dashed ? 0.95 : ray.kind === "long" ? 1.25 : 1.1}
-            strokeLinecap="round"
-            strokeDasharray={dashed ? "1.15 1.35" : undefined}
-            opacity={ray.kind === "short" ? 0.85 : 1}
-          />
-        );
-      })}
-    </svg>
-  );
-}
-
-/** Outline ring with a top notch so the flash isn’t crossed by the border. */
-function SnapshotFlashBorderNotch({ muted = false }: { muted?: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        // -inset-px: sit on the button’s outer border box (inset-0 is inside the
-        // transparent 1px border and reads ~2px short).
-        "pointer-events-none absolute -inset-px rounded-lg border",
-        muted
-          ? "border-[#899499]"
-          : "border-[hsl(174_32%_42%)] group-hover/snap:border-[#1ab5af]",
-        // Full rect minus ellipse at icon/flash — biased right so the top
-        // border clears the flash’s rightmost rays.
-        "[mask-image:linear-gradient(#000_0_0),radial-gradient(ellipse_16px_7px_at_19px_0,#000_100%,#0000)]",
-        "[mask-composite:exclude]",
-        "[-webkit-mask-image:linear-gradient(#000_0_0),radial-gradient(ellipse_16px_7px_at_19px_0,#000_100%,#0000)]",
-        "[-webkit-mask-composite:destination-out]"
-      )}
-    />
+    <LabelTooltip label={disabled ? null : tip} side="top">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onView(briefing)}
+        aria-label="View snap"
+        className={cn(
+          "inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold transition-colors",
+          disabled
+            ? "pointer-events-none text-muted-foreground"
+            : "text-teal-600 hover:bg-teal-600/10 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300"
+        )}
+      >
+        <Eye className="size-3" />
+        View Snapshot
+      </button>
+    </LabelTooltip>
   );
 }
 
@@ -2014,26 +1931,10 @@ function SubscriptionRowActions({
 }) {
   return (
     <>
-      <button
-        type="button"
+      <CreateSnapshotButton
         disabled={disabled}
         onClick={() => onBriefing(sub)}
-        className={cn(
-          disabled
-            ? SECONDARY_ACTION_BTN_MUTED_CLASSNAME
-            : SECONDARY_ACTION_BTN_CLASSNAME,
-          // Real border replaced by notched ring so flash can cross the top edge.
-          // h-8 matches Unsubscribe (py-1.5 + text-xs + border).
-          "group/snap relative h-8 shrink-0 items-center whitespace-nowrap border-transparent hover:border-transparent"
-        )}
-      >
-        <SnapshotFlashBorderNotch muted={disabled} />
-        <span className="relative z-[1] inline-flex shrink-0 translate-x-px">
-          <SnapshotFlashRays muted={disabled} />
-          <Snapshot size={16} className="-translate-y-px" />
-        </span>
-        <span className="relative z-[1] whitespace-nowrap">Create Snapshot</span>
-      </button>
+      />
       <button
         type="button"
         disabled={disabled}
@@ -2138,7 +2039,8 @@ function SubscriptionDesktopRow({
       {...itemRest}
       style={itemStyle}
       className={cn(
-        "relative flex h-16 cursor-default items-center select-none",
+        "relative flex cursor-default items-center select-none",
+        SUBSCRIPTION_ROW_HEIGHT_CLASS,
         SUBSCRIPTION_ROW_HOVER_CLASS,
         selected
           ? selectHighlightGroupClassName(selectionGroup, {
@@ -2155,20 +2057,10 @@ function SubscriptionDesktopRow({
       ) : null}
       {showRowDivider ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] translate-y-1/2">
-          <WavyDashedRule orientation="horizontal" />
+          <WavyDashedLine orientation="horizontal" />
         </div>
       ) : null}
-      {/* Card midpoint — same x as toolbar half split when both are full-bleed.
-          Stay mounted when selected so layout does not jump. */}
-      <div
-        className={cn(
-          "pointer-events-none absolute left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2",
-          selected && "invisible"
-        )}
-      >
-        <WavyDashedRule orientation="vertical" length={16} />
-      </div>
-
+      {/* Left half aligns with toolbar identity; right half with search → actions. */}
       <div className="flex h-full w-1/2 min-w-0 items-center gap-3 pl-3 pr-3">
         <input
           type="checkbox"
@@ -2185,9 +2077,7 @@ function SubscriptionDesktopRow({
           name={sub.senderName ?? sub.senderEmail}
           size="md"
         />
-        <div
-          className={cn("min-w-0", selected && "text-muted-foreground")}
-        >
+        <div className={cn("min-w-0", selected && "text-muted-foreground")}>
           <div className="flex min-w-0 items-center gap-1.5">
             <p
               className={cn(
@@ -2205,15 +2095,15 @@ function SubscriptionDesktopRow({
               />
             ) : null}
           </div>
-          <p className="truncate text-xs text-muted-foreground">
+          <p className="truncate text-[11px] text-muted-foreground">
             {sub.senderEmail}
           </p>
         </div>
       </div>
 
       <div className="flex h-full w-1/2 min-w-0 items-center">
-        {/* pl/pr-4 = ToolbarRoot gap-3 + ToolbarDivider mx-1 (divider → search) */}
-        <div className={cn("flex shrink-0 items-center px-4", METRICS_GAP_CLASS)}>
+        {/* pl-4 = ToolbarRoot gap-3 + ToolbarDivider mx-1 (divider → search) */}
+        <div className={cn("flex shrink-0 items-center pl-4", METRICS_GAP_CLASS)}>
           <LastReceivedStatBadge
             date={sub.lastReceivedAt}
             width={metricWidths.received}
@@ -2231,14 +2121,19 @@ function SubscriptionDesktopRow({
           />
         </div>
 
-        <WavyDashedRule
-          orientation="vertical"
-          length={16}
-          className={cn("mx-1", selected && "invisible")}
-        />
+        {/*
+          Squiggle centered between clutter pill and first CTA. No CTA pl-* —
+          that padding only sat on the right and threw the midpoint off (~12px).
+        */}
+        <div className="flex h-full min-w-0 flex-1 items-center justify-center self-stretch">
+          <WavyDashedLine
+            orientation="vertical"
+            length={SUBSCRIPTION_ROW_HEIGHT_PX}
+          />
+        </div>
 
         {/* pr-2.5 matches gap-2.5 so ⋮ sits evenly vs left button and card edge */}
-        <div className="flex h-full min-w-0 flex-1 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-4 pr-2.5">
+        <div className="flex h-full shrink-0 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pr-2.5">
           <SubscriptionRowActions
             sub={sub}
             onBriefing={onBriefing}
@@ -2468,7 +2363,7 @@ function ActiveMobileCards({
                       />
                     ) : null}
                   </div>
-                  <p className="truncate text-xs text-muted-foreground">
+                  <p className="truncate text-[11px] text-muted-foreground">
                     {sub.senderEmail}
                   </p>
                 </div>
@@ -2591,19 +2486,16 @@ function ArchiveDesktopRow({
   return (
     <div
       className={cn(
-        "relative flex h-16 items-center",
+        "relative flex items-center",
+        SUBSCRIPTION_ROW_HEIGHT_CLASS,
         SUBSCRIPTION_ROW_HOVER_CLASS
       )}
     >
       {showRowDivider ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] translate-y-1/2">
-          <WavyDashedRule orientation="horizontal" />
+          <WavyDashedLine orientation="horizontal" />
         </div>
       ) : null}
-      <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2">
-        <WavyDashedRule orientation="vertical" length={16} />
-      </div>
-
       <div className="flex h-full w-1/2 min-w-0 items-center gap-3 pl-3 pr-3">
         <CompanyLogo
           src={senderLogoSrc(entry.senderEmail)}
@@ -2614,14 +2506,14 @@ function ArchiveDesktopRow({
           <p className="truncate text-sm font-medium text-foreground">
             {entry.senderName ?? "—"}
           </p>
-          <p className="truncate text-xs text-muted-foreground">
+          <p className="truncate text-[11px] text-muted-foreground">
             {entry.senderEmail}
           </p>
         </div>
       </div>
 
       <div className="flex h-full w-1/2 min-w-0 items-center">
-        <div className={cn("flex shrink-0 items-center px-4", METRICS_GAP_CLASS)}>
+        <div className={cn("flex shrink-0 items-center pl-4", METRICS_GAP_CLASS)}>
           <LastReceivedStatBadge
             date={entry.lastReceivedAt}
             width={metricWidths.received}
@@ -2630,10 +2522,15 @@ function ArchiveDesktopRow({
           <ClutterStatBadge score={clutter} width={metricWidths.clutter} />
         </div>
 
-        <WavyDashedRule orientation="vertical" length={16} className="mx-1" />
+        <div className="flex h-full min-w-0 flex-1 items-center justify-center self-stretch">
+          <WavyDashedLine
+            orientation="vertical"
+            length={SUBSCRIPTION_ROW_HEIGHT_PX}
+          />
+        </div>
 
         {/* pr-2.5 matches gap-2.5 so ⋮ sits evenly vs left button and card edge */}
-        <div className="flex h-full min-w-0 flex-1 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-4 pr-2.5">
+        <div className="flex h-full shrink-0 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pr-2.5">
           <ArchiveRowActions
             entry={entry}
             pending={pending}
@@ -2721,7 +2618,7 @@ function ArchiveMobileCards({
                 <p className="truncate text-sm font-medium text-foreground">
                   {entry.senderName ?? entry.senderEmail}
                 </p>
-                <p className="truncate text-xs text-muted-foreground">
+                <p className="truncate text-[11px] text-muted-foreground">
                   {entry.senderEmail}
                 </p>
               </div>

@@ -295,7 +295,7 @@ export function TruncatedSubtitleWithTooltip({
         <TooltipContent
           side="bottom"
           align="start"
-          className="max-w-sm sm:max-w-md whitespace-normal break-words text-left text-xs leading-relaxed"
+          className="max-w-sm whitespace-normal break-words text-left leading-relaxed sm:max-w-md"
         >
           {text}
         </TooltipContent>

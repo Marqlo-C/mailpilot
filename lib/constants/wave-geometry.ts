@@ -24,6 +24,26 @@ export const WAVE_TOGGLE_AMP_Y = 3;
 export const WAVE_TOGGLE_VB_H = 18;
 
 /**
+ * Shared ink for dashed squiggle hairlines and frames
+ * ({@link WavyDashedLine}, {@link WavyDashedFrame}).
+ * Explicit HSL — avoid `currentColor` so parent text color can't retint the stroke.
+ */
+export const WAVY_DASH_STROKE = {
+  /** Matches `muted-foreground` at 30% opacity. */
+  stroke: "hsl(var(--muted-foreground) / 0.3)",
+  strokeWidth: 1,
+  strokeDasharray: "3 3",
+} as const;
+
+/**
+ * Compact amplitude for single wavy dashed lines (card rules, mid-row ticks).
+ * Cross-axis box thickness matches midY * 2 so the stroke stays centered.
+ */
+export const WAVE_DASH_LINE_AMP_Y = 1.5;
+export const WAVE_DASH_LINE_MID_Y = 3;
+export const WAVE_DASH_LINE_VB = 6;
+
+/**
  * Build a squiggle wave line for an exact pixel width without stretching.
  * Extends two full periods to ensure seamless translation with zero phase gaps.
  */

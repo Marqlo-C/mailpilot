@@ -77,7 +77,7 @@ export default async function RootLayout({
         {active?.id ? (
           <script
             dangerouslySetInnerHTML={{
-              __html: `(()=>{try{var id=${JSON.stringify(active.id)};if(localStorage.getItem("mailpilot_tab_rail:"+id)==="dark")document.documentElement.dataset.mpTabRail="dark";if(localStorage.getItem("mailpilot_rail_action:"+id)==="dark")document.documentElement.dataset.mpRailAction="dark";}catch(e){}})();`,
+              __html: `(()=>{try{var id=${JSON.stringify(active.id)};if(localStorage.getItem("mailpilot_tab_rail:"+id)==="dark")document.documentElement.dataset.mpTabRail="dark";if(localStorage.getItem("mailpilot_rail_action:"+id)==="dark")document.documentElement.dataset.mpRailAction="dark";if(localStorage.getItem("mailpilot_toolbar:"+id)==="dark")document.documentElement.dataset.mpToolbar="dark";}catch(e){}})();`,
             }}
           />
         ) : null}

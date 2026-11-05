@@ -720,7 +720,7 @@ export function OpportunityDraftDialog({
                 </span>
               </TooltipTrigger>
               {sendDisabledReason ? (
-                <TooltipContent side="top" className="max-w-xs text-center">
+                <TooltipContent side="top" className="text-center">
                   {sendDisabledReason}
                 </TooltipContent>
               ) : null}

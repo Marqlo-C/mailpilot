@@ -124,7 +124,7 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
                               Reconnect
                             </a>
                           </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-xs text-xs">
+                          <TooltipContent side="top" className="text-left">
                             Renews your Google connection if permissions ever expire.
                           </TooltipContent>
                         </Tooltip>
@@ -155,7 +155,7 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
                               Disconnect
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-xs text-xs">
+                          <TooltipContent side="top" className="text-left">
                             Pauses inbox sync without deleting your saved data or history.
                           </TooltipContent>
                         </Tooltip>

@@ -13,7 +13,6 @@ import { useRouter } from "next/navigation";
 import type { JobApplication, JobOpportunity } from "@prisma/client";
 import {
   Archive,
-  BadgeInfo,
   ExternalLink,
   Mail,
   Send,
@@ -81,9 +80,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+  LabelTooltip,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -458,71 +455,91 @@ export function JobsRadar({
         <div className={cn(tabRailRowClassName, "mb-0")}>
           <div className="flex items-center gap-1.5">
             <TabsList className={segmentedTabsListClassName} data-mp-tab-rail="">
-              <TabsTrigger
-                value="leads"
-                data-dnd-drop-zone="leads"
-                className={cn(
-                  segmentedTabsTriggerClassName,
-                  dragDropZone === "leads" &&
-                    "ring-2 ring-[#1ab5af]/70 ring-offset-2 ring-offset-background"
-                )}
+              {/*
+                Tip wraps a span — not TabsTrigger. Tooltip asChild would
+                overwrite data-state and kill the teal active edge indicator.
+              */}
+              <LabelTooltip
+                label={tabDescriptions.leads}
+                side="bottom"
+                contentClassName="text-left"
               >
-                <span>{JOB_RADAR_TAB_LABEL.leads}</span>
-                <TabCountBadge count={leadCount} />
-              </TabsTrigger>
-              <TabsTrigger
-                value="applied"
-                data-dnd-drop-zone="applied"
-                className={cn(
-                  segmentedTabsTriggerClassName,
-                  dragDropZone === "applied" &&
-                    "ring-2 ring-[#1ab5af]/70 ring-offset-2 ring-offset-background"
-                )}
-              >
-                <span>{JOB_RADAR_TAB_LABEL.applied}</span>
-                <TabCountBadge count={appliedCount} />
-              </TabsTrigger>
-              <TabsTrigger
-                value="action"
-                data-dnd-drop-zone="action_required"
-                className={cn(
-                  segmentedTabsTriggerClassName,
-                  dragDropZone === "action_required" &&
-                    "ring-2 ring-[#955823]/70 ring-offset-2 ring-offset-background dark:ring-[#eba970]/70"
-                )}
-              >
-                <span>{JOB_RADAR_TAB_LABEL.action}</span>
-                <TabCountBadge count={actionCount} />
-              </TabsTrigger>
-              <TabsTrigger
-                value="history"
-                data-dnd-drop-zone="history"
-                className={cn(
-                  segmentedTabsTriggerClassName,
-                  dragDropZone === "history" &&
-                    "ring-2 ring-[#c21f10]/70 ring-offset-2 ring-offset-background"
-                )}
-              >
-                <span>{JOB_RADAR_TAB_LABEL.history}</span>
-                <TabCountBadge count={historyCount} />
-              </TabsTrigger>
-            </TabsList>
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="inline-flex shrink-0 rounded-full p-0.5 text-muted-foreground/60 transition-colors hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    aria-label="Tab description"
+                <span className="inline-flex">
+                  <TabsTrigger
+                    value="leads"
+                    data-dnd-drop-zone="leads"
+                    className={cn(
+                      segmentedTabsTriggerClassName,
+                      dragDropZone === "leads" &&
+                        "ring-2 ring-[#1ab5af]/70 ring-offset-2 ring-offset-background"
+                    )}
                   >
-                    <BadgeInfo className="size-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-xs text-left">
-                  {tabDescriptions[activeTab] ?? tabDescriptions.leads}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                    <span>{JOB_RADAR_TAB_LABEL.leads}</span>
+                    <TabCountBadge count={leadCount} />
+                  </TabsTrigger>
+                </span>
+              </LabelTooltip>
+              <LabelTooltip
+                label={tabDescriptions.applied}
+                side="bottom"
+                contentClassName="text-left"
+              >
+                <span className="inline-flex">
+                  <TabsTrigger
+                    value="applied"
+                    data-dnd-drop-zone="applied"
+                    className={cn(
+                      segmentedTabsTriggerClassName,
+                      dragDropZone === "applied" &&
+                        "ring-2 ring-[#1ab5af]/70 ring-offset-2 ring-offset-background"
+                    )}
+                  >
+                    <span>{JOB_RADAR_TAB_LABEL.applied}</span>
+                    <TabCountBadge count={appliedCount} />
+                  </TabsTrigger>
+                </span>
+              </LabelTooltip>
+              <LabelTooltip
+                label={tabDescriptions.action}
+                side="bottom"
+                contentClassName="text-left"
+              >
+                <span className="inline-flex">
+                  <TabsTrigger
+                    value="action"
+                    data-dnd-drop-zone="action_required"
+                    className={cn(
+                      segmentedTabsTriggerClassName,
+                      dragDropZone === "action_required" &&
+                        "ring-2 ring-[#955823]/70 ring-offset-2 ring-offset-background dark:ring-[#eba970]/70"
+                    )}
+                  >
+                    <span>{JOB_RADAR_TAB_LABEL.action}</span>
+                    <TabCountBadge count={actionCount} />
+                  </TabsTrigger>
+                </span>
+              </LabelTooltip>
+              <LabelTooltip
+                label={tabDescriptions.history}
+                side="bottom"
+                contentClassName="text-left"
+              >
+                <span className="inline-flex">
+                  <TabsTrigger
+                    value="history"
+                    data-dnd-drop-zone="history"
+                    className={cn(
+                      segmentedTabsTriggerClassName,
+                      dragDropZone === "history" &&
+                        "ring-2 ring-[#c21f10]/70 ring-offset-2 ring-offset-background"
+                    )}
+                  >
+                    <span>{JOB_RADAR_TAB_LABEL.history}</span>
+                    <TabCountBadge count={historyCount} />
+                  </TabsTrigger>
+                </span>
+              </LabelTooltip>
+            </TabsList>
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">

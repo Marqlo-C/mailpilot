@@ -131,9 +131,94 @@ html[data-mp-rail-action="dark"] [data-mp-rail-action] {
   border-color: #181e26 !important;
 }
 
-/* Command deck underside fade. The list itself clips at the scroll edge. */
+/* Dark filter toolbar — solid sidebar-panel (same as tab rail / sidebar). Wavy slider unchanged. */
+html[data-mp-toolbar="dark"] [data-mp-toolbar] {
+  background-color: hsl(var(--sidebar-panel)) !important;
+  color: #e4f7f3 !important;
+  border-color: rgb(255 255 255 / 0.1) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar-meta] {
+  color: rgb(228 247 243 / 0.8) !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar] label {
+  color: rgb(228 247 243 / 0.75) !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar] label:hover {
+  color: #e4f7f3 !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar-divider] {
+  background-color: rgb(255 255 255 / 0.18) !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar-unit] {
+  color: rgb(228 247 243 / 0.65) !important;
+}
+/* Search field: border only — no inset fill that reads as a strip under trailing icons. */
+html[data-mp-toolbar="dark"] [data-mp-toolbar-field] {
+  background-color: transparent !important;
+  border-color: rgb(255 255 255 / 0.12) !important;
+  color: rgb(228 247 243 / 0.8) !important;
+  box-shadow: none !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar] input:not([type="range"]):not([type="checkbox"]),
+html[data-mp-toolbar="dark"] [data-mp-toolbar] select {
+  background-color: transparent !important;
+  border-color: rgb(255 255 255 / 0.12) !important;
+  color: #e4f7f3 !important;
+  box-shadow: none !important;
+}
+/* Unchecked select box = same chrome as the % number pill (not light card fill). */
+html[data-mp-toolbar="dark"] [data-mp-toolbar] .mp-select-checkbox {
+  background-color: transparent !important;
+  border-color: rgb(255 255 255 / 0.12) !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar] .mp-select-checkbox:checked {
+  background-color: #1ab5af !important;
+  border-color: #1ab5af !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar-field] input {
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar] input::placeholder {
+  color: rgb(228 247 243 / 0.4) !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar] option {
+  background-color: hsl(var(--sidebar-panel));
+  color: #e4f7f3;
+}
+/* Search / select chrome icons — wavy slider keeps its own teal strokes. */
+html[data-mp-toolbar="dark"] [data-mp-toolbar] :is(.size-3, .size-4):where(svg) {
+  color: rgb(228 247 243 / 0.55);
+}
+/* Ghost trailing actions: no pill fill at rest (avoids backfill under the icon cluster). */
+html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button {
+  background-color: transparent !important;
+  color: #e4f7f3 !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button:hover {
+  background-color: hsl(var(--sidebar-highlight)) !important;
+  color: #e4f7f3 !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button[aria-expanded="true"] {
+  background-color: hsl(var(--sidebar-highlight)) !important;
+  color: #e4f7f3 !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button[aria-pressed="true"] {
+  background-color: hsl(var(--destructive) / 0.25) !important;
+  color: hsl(var(--destructive)) !important;
+}
+
+/*
+ * Command deck underside fade. Padding reserves an empty band below meta so
+ * the toolbar/meta stay opaque and cards at rest sit fully under the band
+ * (not inside the mask). Softens only as the list scrolls up underneath.
+ */
 .scroll-edge-out {
   --scroll-edge-fade: 0.625rem;
+  padding-bottom: var(--scroll-edge-fade);
   -webkit-mask-image: linear-gradient(
     to bottom,
     #000 0,

@@ -104,14 +104,18 @@ export function PipelineToolbar({
         {showScore ? (
           <>
             <ToolbarHalf>
-              <ToolbarSelectAll
-                checked={isAllSelected}
-                indeterminate={isIndeterminate}
-                onToggle={onToggleSelectAll}
-                label={selectLabel}
-                disabled={!canSelect}
-              />
-              <ToolbarDivider />
+              {/* 12px each side — same as subscription row checkboxes (pl-3 / gap-3).
+                  pl-1 + ToolbarRoot px-2 = 12px from the plate edge. */}
+              <div className="flex shrink-0 items-center gap-3 pl-1">
+                <ToolbarSelectAll
+                  checked={isAllSelected}
+                  indeterminate={isIndeterminate}
+                  onToggle={onToggleSelectAll}
+                  label={selectLabel}
+                  disabled={!canSelect}
+                />
+                <ToolbarDivider className="mx-0" />
+              </div>
               <ToolbarScoreSlider
                 value={minScore}
                 disabled={scoreDisabled}
@@ -157,14 +161,16 @@ export function PipelineToolbar({
           </>
         ) : (
           <>
-            <ToolbarSelectAll
-              checked={isAllSelected}
-              indeterminate={isIndeterminate}
-              onToggle={onToggleSelectAll}
-              label={selectLabel}
-              disabled={!canSelect}
-            />
-            <ToolbarDivider />
+            <div className="flex shrink-0 items-center gap-3 pl-1">
+              <ToolbarSelectAll
+                checked={isAllSelected}
+                indeterminate={isIndeterminate}
+                onToggle={onToggleSelectAll}
+                label={selectLabel}
+                disabled={!canSelect}
+              />
+              <ToolbarDivider className="mx-0" />
+            </div>
             <ToolbarSearch
               searchQuery={searchQuery}
               onSearchChange={onSearchQueryChange}

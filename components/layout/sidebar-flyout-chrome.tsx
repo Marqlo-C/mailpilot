@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { LabelTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export const FLYOUT_LABEL_CLASS =
@@ -62,22 +63,23 @@ export function FlyoutIconPill({
           matchPairWidth ? dualWidthClass : "size-8"
         )}
       >
-        <button
-          type="button"
-          title={primary.label}
-          aria-label={primary.label}
-          disabled={primary.disabled}
-          onClick={primary.onClick}
-          className={cn(
-            PILL_BTN_CLASS,
-            "rounded-full",
-            matchPairWidth ? "h-8 w-full" : "size-8"
-          )}
-        >
-          <PrimaryIcon
-            className={cn("size-3.5", primary.busy && "animate-spin")}
-          />
-        </button>
+        <LabelTooltip label={primary.label} side="top">
+          <button
+            type="button"
+            aria-label={primary.label}
+            disabled={primary.disabled}
+            onClick={primary.onClick}
+            className={cn(
+              PILL_BTN_CLASS,
+              "rounded-full",
+              matchPairWidth ? "h-8 w-full" : "size-8"
+            )}
+          >
+            <PrimaryIcon
+              className={cn("size-3.5", primary.busy && "animate-spin")}
+            />
+          </button>
+        </LabelTooltip>
       </div>
     );
   }
@@ -85,34 +87,36 @@ export function FlyoutIconPill({
   const SecondaryIcon = secondary.icon;
   return (
     <div className={cn(PILL_SHELL_CLASS, dualWidthClass)}>
-      <button
-        type="button"
-        title={primary.label}
-        aria-label={primary.label}
-        disabled={primary.disabled}
-        onClick={primary.onClick}
-        className={cn(PILL_BTN_CLASS, "size-8 rounded-l-full")}
-      >
-        <PrimaryIcon
-          className={cn("size-3.5", primary.busy && "animate-spin")}
-        />
-      </button>
+      <LabelTooltip label={primary.label} side="top">
+        <button
+          type="button"
+          aria-label={primary.label}
+          disabled={primary.disabled}
+          onClick={primary.onClick}
+          className={cn(PILL_BTN_CLASS, "size-8 rounded-l-full")}
+        >
+          <PrimaryIcon
+            className={cn("size-3.5", primary.busy && "animate-spin")}
+          />
+        </button>
+      </LabelTooltip>
       <span
         aria-hidden="true"
         className="h-3.5 w-px shrink-0 bg-white/20 pointer-events-none"
       />
-      <button
-        type="button"
-        title={secondary.label}
-        aria-label={secondary.label}
-        disabled={secondary.disabled}
-        onClick={secondary.onClick}
-        className={cn(PILL_BTN_CLASS, "size-8 rounded-r-full")}
-      >
-        <SecondaryIcon
-          className={cn("size-3.5", secondary.busy && "animate-spin")}
-        />
-      </button>
+      <LabelTooltip label={secondary.label} side="top">
+        <button
+          type="button"
+          aria-label={secondary.label}
+          disabled={secondary.disabled}
+          onClick={secondary.onClick}
+          className={cn(PILL_BTN_CLASS, "size-8 rounded-r-full")}
+        >
+          <SecondaryIcon
+            className={cn("size-3.5", secondary.busy && "animate-spin")}
+          />
+        </button>
+      </LabelTooltip>
     </div>
   );
 }

@@ -85,14 +85,18 @@ export function SubscriptionsToolbar({
         {showClutterSlider ? (
           <>
             <ToolbarHalf>
-              <ToolbarSelectAll
-                checked={isAllSelected}
-                indeterminate={isIndeterminate}
-                onToggle={onToggleSelectAll}
-                label={selectLabel}
-                disabled={!canSelect}
-              />
-              <ToolbarDivider />
+              {/* 12px each side — same as subscription row checkboxes (pl-3 / gap-3).
+                  pl-1 + ToolbarRoot px-2 = 12px from the plate edge. */}
+              <div className="flex shrink-0 items-center gap-3 pl-1">
+                <ToolbarSelectAll
+                  checked={isAllSelected}
+                  indeterminate={isIndeterminate}
+                  onToggle={onToggleSelectAll}
+                  label={selectLabel}
+                  disabled={!canSelect}
+                />
+                <ToolbarDivider className="mx-0" />
+              </div>
               <ToolbarScoreSlider
                 value={clutterThreshold}
                 onChange={onClutterThresholdChange}
@@ -149,14 +153,16 @@ export function SubscriptionsToolbar({
           </>
         ) : (
           <>
-            <ToolbarSelectAll
-              checked={isAllSelected}
-              indeterminate={isIndeterminate}
-              onToggle={onToggleSelectAll}
-              label={selectLabel}
-              disabled={!canSelect}
-            />
-            <ToolbarDivider />
+            <div className="flex shrink-0 items-center gap-3 pl-1">
+              <ToolbarSelectAll
+                checked={isAllSelected}
+                indeterminate={isIndeterminate}
+                onToggle={onToggleSelectAll}
+                label={selectLabel}
+                disabled={!canSelect}
+              />
+              <ToolbarDivider className="mx-0" />
+            </div>
             <ToolbarSearch
               searchQuery={searchQuery}
               onSearchChange={onSearchQueryChange}

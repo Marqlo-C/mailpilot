@@ -22,6 +22,7 @@ import {
 import { useSidebarFlyout } from "@/components/layout/sidebar-flyout-provider";
 import { useFlyoutPresence } from "@/components/ui/composites/bulk-actions-flyout";
 import { ConfirmActionDialog } from "@/components/ui/composites/confirm-action-dialog";
+import { LabelTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 /** Sidebar status copy — white label; state is carried by the colored dot only. */
@@ -281,40 +282,48 @@ export function SyncTelemetry({
 
   if (!connected) {
     return (
-      <div
-        className={cn(
-          "inline-flex select-none items-center gap-2 text-[13px] font-medium tracking-normal",
-          STATUS_TEXT_CLASS,
-          className
-        )}
-        title={compact || dotRest ? statusLabel : undefined}
+      <LabelTooltip
+        label={compact || dotRest ? statusLabel : null}
+        side="right"
       >
-        {motionWrap(
-          <div
-            className={cn(
-              statusRowClass,
-              STATUS_TEXT_CLASS,
-              restDotOnlyClass,
-              forceOpen && "mp-flyout-chunk"
-            )}
-          >
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#e4f7f3]/50" />
-            {compact ? null : (
-              <span className={restLabelClass}>Offline</span>
-            )}
-          </div>
-        )}
-        {compact || onSidebar ? null : (
-          <>
-            <span className="text-border">•</span>
-            <span>Connect a Gmail account to get started</span>
-          </>
-        )}
-      </div>
+        <div
+          className={cn(
+            "inline-flex select-none items-center gap-2 text-[13px] font-medium tracking-normal",
+            STATUS_TEXT_CLASS,
+            className
+          )}
+        >
+          {motionWrap(
+            <div
+              className={cn(
+                statusRowClass,
+                STATUS_TEXT_CLASS,
+                restDotOnlyClass,
+                forceOpen && "mp-flyout-chunk"
+              )}
+            >
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#e4f7f3]/50" />
+              {compact ? null : (
+                <span className={restLabelClass}>Offline</span>
+              )}
+            </div>
+          )}
+          {compact || onSidebar ? null : (
+            <>
+              <span className="text-border">•</span>
+              <span>Connect a Gmail account to get started</span>
+            </>
+          )}
+        </div>
+      </LabelTooltip>
     );
   }
 
   return (
+    <LabelTooltip
+      label={compact || dotRest ? statusLabel : null}
+      side="right"
+    >
     <div
       className={cn(
         "inline-flex select-none items-center",
@@ -324,7 +333,6 @@ export function SyncTelemetry({
       data-sync-pill={dotRest ? "1" : undefined}
       role="status"
       aria-live="polite"
-      title={compact || dotRest ? statusLabel : undefined}
     >
       {isSyncing ? (
         <div
@@ -473,6 +481,7 @@ export function SyncTelemetry({
         onConfirm={confirmFlushPending}
       />
     </div>
+    </LabelTooltip>
   );
 }
 
