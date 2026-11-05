@@ -20,9 +20,9 @@ import { cn } from "@/lib/utils";
 
 /** Shared segmented tab rail used on Job Radar and Subscriptions. */
 
-/** Sits in normal flow at the top of the command deck. */
+/** Full shell column — matches filter toolbar; listing/meta stay on `max-w-6xl`. */
 export const tabRailRowClassName =
-  "mb-4 flex flex-wrap items-center justify-between gap-3";
+  "mb-4 flex w-full flex-wrap items-center justify-between gap-3";
 
 /**
  * Sticky command deck. On desktop the negative margin cancels main's top
@@ -30,6 +30,13 @@ export const tabRailRowClassName =
  */
 export const commandDeckClassName =
   "scroll-edge-out sticky flow-root top-[4.25rem] z-30 -mx-4 -mt-4 rounded-b-2xl bg-canvas-fixed px-4 pt-4 md:top-0 md:-mx-6 md:-mt-[9px] md:px-6 md:pt-1";
+
+/**
+ * Listing under the sticky deck. Stays below `.scroll-edge-out`’s fade
+ * padding so cards aren’t masked at rest. Inset vs the wider rail/toolbar column.
+ */
+export const commandDeckBodyClassName =
+  "relative z-0 mx-auto w-full max-w-6xl";
 
 export function CommandDeckFrame({
   rail,
@@ -44,12 +51,18 @@ export function CommandDeckFrame({
   return (
     <>
       <header className={commandDeckClassName}>
-        <div className="space-y-3">
+        <div
+          className={cn(
+            // 18px inset each side — rail, Sync, and toolbar share this width.
+            "mx-auto w-[calc(100%-36px)]",
+            toolbar != null ? "space-y-2.5" : "space-y-3"
+          )}
+        >
           {rail}
           {toolbar}
         </div>
       </header>
-      <div className="relative z-0">{children}</div>
+      <div className={commandDeckBodyClassName}>{children}</div>
     </>
   );
 }

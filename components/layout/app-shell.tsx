@@ -20,6 +20,7 @@ import { BulkActionsOpenProvider } from "@/components/ui/composites/bulk-actions
 import { CurvedCardDivider } from "@/components/ui/tactile/nested-settings-card";
 import { TabRailProvider, darkPlateClassName } from "@/components/ui/tactile/segmented-tabs";
 import { RailActionProvider } from "@/components/ui/rail-action";
+import { ToolbarThemeProvider } from "@/components/ui/toolbar-theme";
 import { SyncTelemetry } from "@/components/opportunities/sync-telemetry";
 import { cn } from "@/lib/utils";
 import type { AccountSummary, SidebarTabCounts } from "@/lib/data";
@@ -28,10 +29,10 @@ import type { AccountSummary, SidebarTabCounts } from "@/lib/data";
 const SHELL_TOP_BAND_CLASS = "flex h-[4.25rem] shrink-0 items-center";
 
 /**
- * `py-3` matches the collapsed horizontal inset. The h-8 mark then sits
- * with its center 28px from the top of the sidebar.
+ * Brand row above the curved divider. `py-2` keeps the mark optically
+ * balanced while lifting Navigation and everything under it.
  */
-const SHELL_BRAND_ROW_CLASS = "flex items-center px-3 py-3";
+const SHELL_BRAND_ROW_CLASS = "flex items-center px-3 py-2";
 
 const SHELL_HAIRLINE_CLASS = "mx-3 border-b border-white/[0.06]";
 
@@ -39,8 +40,9 @@ const SHELL_HAIRLINE_CLASS = "mx-3 border-b border-white/[0.06]";
  * Desktop top padding is canceled by the command deck. The deck then
  * drops the tab rail 4px under the sidebar's top.
  */
+/** Wider than listing `max-w-6xl` so tab rail, Sync, and filter toolbar share one outer column. */
 const SHELL_MAIN_CLASS =
-  "mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-6 md:px-6 md:pb-8 md:pt-[9px]";
+  "mx-auto w-full max-w-[79.2rem] flex-1 px-4 pt-4 pb-6 md:px-6 md:pb-8 md:pt-[9px]";
 
 type AppShellProps = {
   accounts: AccountSummary[];
@@ -64,8 +66,8 @@ export function AppShell({
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const toggleSidebar = () => setCollapsed((open) => !open);
-  /** Desktop sidebar widths: expanded w-60 (240px), collapsed w-[64px]. */
-  const sidebarWidthPx = collapsed ? 64 : 240;
+  /** Desktop sidebar widths: expanded w-64 (256px), collapsed w-[64px]. */
+  const sidebarWidthPx = collapsed ? 64 : 256;
   /** Left float inset (ml equivalent). Content centering starts after this gap. */
   const sidebarOffsetPx = sidebarWidthPx + 6;
 
@@ -102,6 +104,7 @@ export function AppShell({
     <BulkActionsOpenProvider>
     <TabRailProvider accountId={activeAccountId}>
     <RailActionProvider accountId={activeAccountId}>
+    <ToolbarThemeProvider accountId={activeAccountId}>
     <SidebarFlyoutProvider>
     <div className="min-h-screen md:flex md:h-dvh md:min-h-0 md:overflow-hidden md:py-1.5 md:pl-1.5">
       <GlobalSyncTracker />
@@ -111,7 +114,7 @@ export function AppShell({
         className={cn(
           "sticky top-1.5 z-40 hidden h-[calc(100dvh-0.75rem)] shrink-0 cursor-pointer flex-col rounded-2xl text-[hsl(var(--sidebar-foreground))] transition-[width] duration-200 md:flex",
           darkPlateClassName,
-          collapsed ? "w-[64px]" : "w-60"
+          collapsed ? "w-[64px]" : "w-64"
         )}
         onClick={(event) => {
           const target = event.target;
@@ -280,6 +283,7 @@ export function AppShell({
       </nav>
     </div>
     </SidebarFlyoutProvider>
+    </ToolbarThemeProvider>
     </RailActionProvider>
     </TabRailProvider>
     </BulkActionsOpenProvider>

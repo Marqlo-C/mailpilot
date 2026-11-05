@@ -1,22 +1,27 @@
 /**
  * Shared secondary CTA treatments (outline + tint).
- * Muted slider-teal outline: Create Snapshot and other non-destructive secondaries.
+ * Rest: border + label = Unsubscribe shell `#181e26`, transparent fill.
+ * Hover: fill with Unsubscribe mint label `#e4f7f3`; border + text unchanged.
  * Red outline: row Delete Snapshot — same #c21f10 as Delete Emails fill.
  * Flyout Delete Snapshots uses BULK_ACTION_DESTRUCTIVE_* text chips.
+ *
+ * Tailwind needs full class literals below for scanning (do not interpolate hex).
  */
 
-/** Secondary outline — muted teal label + border; full slider teal on hover. */
+/** Unsubscribe shell — secondary rest ink (border + label). */
+export const SECONDARY_ACTION_INK = "#181e26";
+/** Unsubscribe mint label — secondary hover fill. */
+export const SECONDARY_ACTION_HOVER_FILL = "#e4f7f3";
+
 const SECONDARY_ACTION_TONE = {
-  text: "text-[hsl(174_32%_42%)]",
-  borderSoft: "border-[hsl(174_32%_42%)]",
-  hoverText: "hover:text-[#1ab5af]",
-  hoverBorder: "hover:border-[#1ab5af]",
-  hoverBg: "hover:bg-[#1ab5af]/10",
-  flyoutText: "text-[hsl(174_32%_48%)]",
-  flyoutHoverBg: "hover:bg-[#1ab5af]/15",
-  flyoutCountBg: "bg-[hsl(174_32%_42%/0.18)]",
+  text: "text-[#181e26]",
+  borderSoft: "border-[#181e26]",
+  hoverBg: "hover:bg-[#e4f7f3]",
+  flyoutText: "text-[#181e26]/80",
+  flyoutHoverBg: "hover:bg-[#e4f7f3]",
+  flyoutCountBg: "bg-[#181e26]/12",
   flyoutCountActive:
-    "group-data-[state=active]:bg-[hsl(174_32%_42%/0.18)] group-data-[state=active]:text-[hsl(174_32%_48%)]",
+    "group-data-[state=active]:bg-[#181e26]/12 group-data-[state=active]:text-[#181e26]",
 } as const;
 
 const FLYOUT_TEXT_LAYOUT =
@@ -37,23 +42,20 @@ const SECONDARY_DESTRUCTIVE_ACTION_TONE = {
 } as const;
 
 const SECONDARY_OUTLINE_LAYOUT =
-  "inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-50";
+  "inline-flex items-center justify-center gap-1.5 rounded-lg border bg-transparent px-3 py-1.5 text-xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-50";
 
 export const SECONDARY_ACTION_BTN_CLASSNAME = [
   SECONDARY_OUTLINE_LAYOUT,
   SECONDARY_ACTION_TONE.borderSoft,
   SECONDARY_ACTION_TONE.text,
-  SECONDARY_ACTION_TONE.hoverText,
-  SECONDARY_ACTION_TONE.hoverBorder,
   SECONDARY_ACTION_TONE.hoverBg,
 ].join(" ");
 
-/** Text chip for bulk flyout — muted teal at rest; slider teal on hover. */
+/** Text chip for bulk flyout — shell ink; mint fill on hover. */
 export const SECONDARY_ACTION_FLYOUT_BTN_CLASSNAME = [
   FLYOUT_TEXT_LAYOUT,
   SECONDARY_ACTION_TONE.flyoutText,
   SECONDARY_ACTION_TONE.flyoutHoverBg,
-  "hover:text-[#1ab5af]",
 ].join(" ");
 
 /** Count pill tint matching {@link SECONDARY_ACTION_FLYOUT_BTN_CLASSNAME}. */

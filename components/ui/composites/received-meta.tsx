@@ -1,5 +1,8 @@
+"use client";
+
 import { History } from "lucide-react";
 
+import { LabelTooltip } from "@/components/ui/tooltip";
 import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import { cn } from "@/lib/utils";
 
@@ -39,12 +42,11 @@ export function ReceivedMeta({
     : emptyLabel;
 
   return (
-    <span
-      className={cn(RECEIVED_META_CLASSNAME, "shrink-0", className)}
-      title={`${titlePrefix}: ${label}`}
-    >
-      <History className={RECEIVED_META_ICON_CLASSNAME} aria-hidden />
-      <span>{label}</span>
-    </span>
+    <LabelTooltip label={`${titlePrefix}: ${label}`} side="top">
+      <span className={cn(RECEIVED_META_CLASSNAME, "shrink-0", className)}>
+        <History className={RECEIVED_META_ICON_CLASSNAME} aria-hidden />
+        <span>{label}</span>
+      </span>
+    </LabelTooltip>
   );
 }

@@ -22,6 +22,7 @@ import {
   TabCountBadge,
   tabRailInactiveTextClassName,
 } from "@/components/ui/tactile/segmented-tabs";
+import { LabelTooltip } from "@/components/ui/tooltip";
 import type { SidebarTabCounts } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
@@ -47,7 +48,7 @@ export const SECTION_TITLE_CLASS =
 
 /** Compact gap under the logo divider before Navigation. */
 const SHELL_NAV_CLASS =
-  "relative z-10 flex shrink-0 flex-col gap-1 px-3 pb-2 pt-1.5";
+  "relative z-10 flex shrink-0 flex-col gap-1 px-3 pb-2 pt-1";
 
 /** Same right-edge capsule as the active page mark. */
 const NAV_EDGE_MARK_CLASS =
@@ -260,47 +261,51 @@ export function SidebarNav({
                     : "absolute inset-0"
                 )}
               >
-                <Link
-                  href={item.href}
-                  title={collapsed && !showTabs ? item.label : undefined}
-                  onClick={() => {
-                    clearSidebarPageTab();
-                    closeNow();
-                  }}
-                  className={cn(
-                    "flex items-center gap-3",
-                    collapsed && "size-full justify-center",
-                    !collapsed && "h-full w-full px-3"
-                  )}
+                <LabelTooltip
+                  label={collapsed && !showTabs ? item.label : null}
+                  side="right"
                 >
-                  <span className="relative grid size-4 shrink-0 place-items-center">
-                    <Icon
-                      className={cn(
-                        "size-4 shrink-0 transition-colors",
-                        active
-                          ? "text-[#1ab5af]"
-                          : open
-                            ? "text-[#e4f7f3]"
-                            : "text-[#e4f7f3]/60 group-hover/nav:text-[#e4f7f3]"
-                      )}
-                    />
-                  </span>
-                  {!collapsed && (
-                    <span
-                      className={cn(
-                        "whitespace-nowrap text-[13px] font-medium tracking-normal",
-                        active
-                          ? "font-semibold text-[#e4f7f3]"
-                          : cn(
-                              tabRailInactiveTextClassName.dark,
-                              "group-hover/nav:text-[#e4f7f3]"
-                            )
-                      )}
-                    >
-                      {item.label}
+                  <Link
+                    href={item.href}
+                    onClick={() => {
+                      clearSidebarPageTab();
+                      closeNow();
+                    }}
+                    className={cn(
+                      "flex items-center gap-3",
+                      collapsed && "size-full justify-center",
+                      !collapsed && "h-full w-full px-3"
+                    )}
+                  >
+                    <span className="relative grid size-4 shrink-0 place-items-center">
+                      <Icon
+                        className={cn(
+                          "size-4 shrink-0 transition-colors",
+                          active
+                            ? "text-[#1ab5af]"
+                            : open
+                              ? "text-[#e4f7f3]"
+                              : "text-[#e4f7f3]/60 group-hover/nav:text-[#e4f7f3]"
+                        )}
+                      />
                     </span>
-                  )}
-                </Link>
+                    {!collapsed && (
+                      <span
+                        className={cn(
+                          "whitespace-nowrap text-[13px] font-medium tracking-normal",
+                          active
+                            ? "font-semibold text-[#e4f7f3]"
+                            : cn(
+                                tabRailInactiveTextClassName.dark,
+                                "group-hover/nav:text-[#e4f7f3]"
+                              )
+                        )}
+                      >
+                        {item.label}
+                      </span>
+                    )}
+                  </Link>
+                </LabelTooltip>
               </div>
               {showJobRadarStatus ? (
                 <div

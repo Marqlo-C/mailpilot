@@ -29,6 +29,7 @@ import {
 
 import { deleteDismissedPermanently } from "@/app/actions/opportunities";
 import { WavyDashedFrame } from "@/components/ui/tactile/wavy-dashed-frame";
+import { LabelTooltip } from "@/components/ui/tooltip";
 import {
   variantToJobsTabKey,
   type JobCardAction,
@@ -337,44 +338,49 @@ export function OpportunityCard({
           isSelected && "opacity-55"
         )}
       >
-        <div
-          className="inline-flex items-center gap-1 px-2.5 text-[11px] font-medium text-muted-foreground"
-          title={classifyLabel}
-        >
-          {isQuickApply ? (
-            <Zap className="h-3 w-3 fill-amber-500/20 text-amber-500" />
-          ) : isDirectEmail ? (
-            <Mail className="h-3 w-3 text-muted-foreground/80" />
-          ) : (
-            <ExternalLink className="h-3 w-3 text-muted-foreground/80" />
-          )}
-          <span>{classifyLabel}</span>
-        </div>
+        <LabelTooltip label={classifyLabel} side="top">
+          <div className="inline-flex items-center gap-1 px-2.5 text-[11px] font-medium text-muted-foreground">
+            {isQuickApply ? (
+              <Zap className="h-3 w-3 fill-amber-500/20 text-amber-500" />
+            ) : isDirectEmail ? (
+              <Mail className="h-3 w-3 text-muted-foreground/80" />
+            ) : (
+              <ExternalLink className="h-3 w-3 text-muted-foreground/80" />
+            )}
+            <span>{classifyLabel}</span>
+          </div>
+        </LabelTooltip>
         <div className="my-1 w-px bg-border/70" />
         {isApplied ? (
-          <div
-            className="inline-flex items-center gap-1 px-2.5 text-[11px] font-medium text-muted-foreground"
-            title={
+          <LabelTooltip
+            label={
               appliedDate
                 ? new Date(appliedDate).toLocaleString()
                 : "Applied"
             }
+            side="top"
           >
-            Applied {appliedLabel}
-          </div>
+            <div className="inline-flex items-center gap-1 px-2.5 text-[11px] font-medium text-muted-foreground">
+              Applied {appliedLabel}
+            </div>
+          </LabelTooltip>
         ) : (
-          <div
-            className={cn(
-              "inline-flex items-center px-2.5",
-              SCORE_PERCENT_CLASSNAME,
-              isSelected
-                ? "bg-muted/50 text-muted-foreground"
-                : scoreTone(score)
-            )}
-            title={opportunity.matchReason ?? undefined}
+          <LabelTooltip
+            label={opportunity.matchReason ?? null}
+            side="top"
           >
-            {score}%
-          </div>
+            <div
+              className={cn(
+                "inline-flex items-center px-2.5",
+                SCORE_PERCENT_CLASSNAME,
+                isSelected
+                  ? "bg-muted/50 text-muted-foreground"
+                  : scoreTone(score)
+              )}
+            >
+              {score}%
+            </div>
+          </LabelTooltip>
         )}
       </div>
 
@@ -420,39 +426,44 @@ export function OpportunityCard({
         )}
       >
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span
-            className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/40 bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-foreground/80"
-            title={`Location: ${locationRaw || "Not specified"}`}
+          <LabelTooltip
+            label={`Location: ${locationRaw || "Not specified"}`}
+            side="top"
           >
-            <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-            <span className="max-w-[200px] truncate">{locationLabel}</span>
-          </span>
-          <span
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium",
-              isSelected
-                ? "border-border/40 bg-muted/50 text-muted-foreground"
-                : salaryRaw && !/^\$?\s*tbd\b/i.test(salaryRaw)
-                  ? "border-emerald-200/60 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-400"
-                  : "border-border/30 bg-muted/40 text-muted-foreground"
-            )}
-            title={`Salary: ${salaryRaw || "Not specified"}`}
+            <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/40 bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-foreground/80">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+              <span className="max-w-[200px] truncate">{locationLabel}</span>
+            </span>
+          </LabelTooltip>
+          <LabelTooltip
+            label={`Salary: ${salaryRaw || "Not specified"}`}
+            side="top"
           >
-            <Banknote className="h-3.5 w-3.5 shrink-0 opacity-80" />
-            <span>{salaryLabel}</span>
-          </span>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium",
+                isSelected
+                  ? "border-border/40 bg-muted/50 text-muted-foreground"
+                  : salaryRaw && !/^\$?\s*tbd\b/i.test(salaryRaw)
+                    ? "border-emerald-200/60 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-400"
+                    : "border-border/30 bg-muted/40 text-muted-foreground"
+              )}
+            >
+              <Banknote className="h-3.5 w-3.5 shrink-0 opacity-80" />
+              <span>{salaryLabel}</span>
+            </span>
+          </LabelTooltip>
         </div>
 
         <div className="flex shrink-0 items-center gap-3 whitespace-nowrap text-muted-foreground">
           {postedRaw ? (
             <>
-              <span
-                className="inline-flex items-center gap-1.5"
-                title={`Posted: ${postedRaw}`}
-              >
-                <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-                <span>{postedRaw}</span>
-              </span>
+              <LabelTooltip label={`Posted: ${postedRaw}`} side="top">
+                <span className="inline-flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+                  <span>{postedRaw}</span>
+                </span>
+              </LabelTooltip>
               <span className="text-muted-foreground/40" aria-hidden>
                 ·
               </span>

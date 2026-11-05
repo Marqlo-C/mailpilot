@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -57,17 +57,20 @@ export function WavySlider({
 }: WavySliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const waveGroupRef = useRef<SVGGElement>(null);
+  const inactiveWaveGroupRef = useRef<SVGGElement>(null);
   const waveRafRef = useRef<number | null>(null);
   const interactingRef = useRef(false);
   const [trackWidth, setTrackWidth] = useState(0);
   const [waving, setWaving] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = trackRef.current;
     if (!el) return;
 
     const update = () => {
       const next = Math.round(el.getBoundingClientRect().width);
+      // Skip empty tracks so the thumb/wave land before first paint.
+      if (next <= 0) return;
       setTrackWidth((prev) => (prev === next ? prev : next));
     };
 
@@ -85,22 +88,29 @@ export function WavySlider({
     };
   }, []);
 
-  const wavePath = useMemo(
-    () => buildWavePath(trackWidth || WAVE_HALF_PX * 12),
-    [trackWidth]
+  // Waves stop 5px early (half of the 10px end cap) so stroke never overlaps the ball.
+  const waveDrawWidth = Math.max(
+    WAVE_SEGMENT_PX,
+    (trackWidth || WAVE_HALF_PX * 12) - 5
   );
-  const waveVbW = Math.max(WAVE_SEGMENT_PX, trackWidth || WAVE_HALF_PX * 12);
+  const wavePath = useMemo(() => buildWavePath(waveDrawWidth), [waveDrawWidth]);
+  const waveVbW = waveDrawWidth;
 
   const clamped = Math.min(max, Math.max(min, value));
   const pct = max === min ? 0 : ((clamped - min) / (max - min)) * 100;
+
+  function applyWavePhase(phase: number) {
+    const transform = `translate(${-phase} 0)`;
+    waveGroupRef.current?.setAttribute("transform", transform);
+    inactiveWaveGroupRef.current?.setAttribute("transform", transform);
+  }
 
   function stopWave() {
     if (waveRafRef.current != null) {
       cancelAnimationFrame(waveRafRef.current);
       waveRafRef.current = null;
     }
-    const g = waveGroupRef.current;
-    if (g) g.setAttribute("transform", "translate(0 0)");
+    applyWavePhase(0);
     setWaving(false);
   }
 
@@ -119,12 +129,9 @@ export function WavySlider({
 
     setWaving(true);
     const tick = (now: number) => {
-      const g = waveGroupRef.current;
-      if (g) {
-        // Globally synchronized phase; full period so the loop seams invisibly.
-        const phase = getSynchronizedWavePhase(now);
-        g.setAttribute("transform", `translate(${-phase} 0)`);
-      }
+      // Globally synchronized phase; full period so the loop seams invisibly.
+      // Active + inactive share phase so the thumb join stays continuous.
+      applyWavePhase(getSynchronizedWavePhase(now));
       waveRafRef.current = requestAnimationFrame(tick);
     };
     waveRafRef.current = requestAnimationFrame(tick);
@@ -173,18 +180,41 @@ export function WavySlider({
       )}
       data-waving={waving ? "true" : undefined}
     >
-      {/* Finish end cap — centered on track end; no geometric overlap with the bar */}
+      {/* Finish end cap — same diameter as the thumb; sits above the wave */}
       <div
-        className="pointer-events-none absolute top-1/2 right-0 z-[1] h-1.5 w-1.5 translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground/20"
+        className="pointer-events-none absolute top-1/2 right-0 z-[2] h-2.5 w-2.5 translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground/20"
         aria-hidden
       />
 
-      {/* Inactive track stops at finish-cap center (half of 6px dot = 3px) */}
-      <div className="pointer-events-none absolute top-1/2 left-0 right-[3px] z-0 h-[2px] -translate-y-1/2 rounded-full bg-muted-foreground/20" />
+      {/* Waves stop at the end-cap left edge (half of h-2.5) so they never paint over it */}
+      {/* Inactive wavy remainder — solid muted guide (not dashed), same geometry as active */}
+      <div
+        className="pointer-events-none absolute inset-y-0 left-0 right-[5px] z-0 flex items-center transition-[clip-path] duration-75"
+        style={{ clipPath: `inset(0 0 0 ${pct}%)` }}
+        aria-hidden
+      >
+        <svg
+          className="h-3 w-full text-muted-foreground"
+          viewBox={`0 0 ${waveVbW} ${WAVE_VB_H}`}
+          preserveAspectRatio="none"
+          fill="none"
+        >
+          <g ref={inactiveWaveGroupRef}>
+            <path
+              d={wavePath}
+              stroke="currentColor"
+              strokeOpacity={0.2}
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        </svg>
+      </div>
 
       {/* Active wavy track — pixel-locked path, clipped to value % */}
       <div
-        className="pointer-events-none absolute inset-0 z-[1] flex items-center transition-[clip-path] duration-75"
+        className="pointer-events-none absolute inset-y-0 left-0 right-[5px] z-[1] flex items-center transition-[clip-path] duration-75"
         style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
       >
         <svg
@@ -206,10 +236,10 @@ export function WavySlider({
         </svg>
       </div>
 
-      {/* Start origin — same size/centering as finish; hidden under thumb at 0 */}
+      {/* Start origin — 7px; hidden under thumb at 0 */}
       <div
         className={cn(
-          "pointer-events-none absolute top-1/2 left-0 z-[1] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors duration-100",
+          "pointer-events-none absolute top-1/2 left-0 z-[2] h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors duration-100",
           clamped > 0 ? "bg-[#1ab5af]" : "bg-muted-foreground/20 opacity-0"
         )}
         aria-hidden

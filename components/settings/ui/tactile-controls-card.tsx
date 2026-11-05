@@ -7,6 +7,7 @@ import { MeterPreferencesCard } from "@/components/settings/ui/meter-preferences
 import { RailActionPreferencesCard } from "@/components/settings/ui/rail-action-preferences-card";
 import { RailPreferencesCard } from "@/components/settings/ui/rail-preferences-card";
 import { TogglePreferencesCard } from "@/components/settings/ui/toggle-preferences-card";
+import { ToolbarPreferencesCard } from "@/components/settings/ui/toolbar-preferences-card";
 import { SettingsSectionCard } from "@/components/ui/tactile/nested-settings-card";
 
 export function TactileControlsCard({
@@ -24,10 +25,11 @@ export function TactileControlsCard({
         />
       }
       title="Tactile Controls & Themes"
-      subtitle="Choose the look of the tabs, buttons, meters, and switches."
+      subtitle="Choose the look of the tabs, toolbar, buttons, meters, and switches."
       curvedDivider
     >
       <RailPreferencesCard />
+      <ToolbarPreferencesCard />
       <MeterPreferencesCard accountId={accountId} />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 [&>*]:h-full [&>*]:min-w-0">
         <RailActionPreferencesCard />

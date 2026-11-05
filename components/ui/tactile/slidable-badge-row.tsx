@@ -2,6 +2,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+
+import { LabelTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 /**
@@ -199,16 +201,20 @@ export function SlidableBadgeRow({
         className
       )}
     >
-      <button
-        type="button"
-        onClick={scrollLeft}
-        disabled={!hasOverflow || !canScrollLeft}
-        aria-label="Scroll left"
-        title={hasOverflow && canScrollLeft ? "Scroll left" : undefined}
-        className={arrowButtonClassName}
+      <LabelTooltip
+        label={hasOverflow && canScrollLeft ? "Scroll left" : null}
+        side="top"
       >
-        <ChevronLeft className="size-3.5 stroke-[2.25]" aria-hidden="true" />
-      </button>
+        <button
+          type="button"
+          onClick={scrollLeft}
+          disabled={!hasOverflow || !canScrollLeft}
+          aria-label="Scroll left"
+          className={arrowButtonClassName}
+        >
+          <ChevronLeft className="size-3.5 stroke-[2.25]" aria-hidden="true" />
+        </button>
+      </LabelTooltip>
 
       <div
         ref={containerRef}
@@ -231,16 +237,20 @@ export function SlidableBadgeRow({
         {children}
       </div>
 
-      <button
-        type="button"
-        onClick={scrollRight}
-        disabled={!hasOverflow || !canScrollRight}
-        aria-label="Scroll right"
-        title={hasOverflow && canScrollRight ? "Scroll right" : undefined}
-        className={arrowButtonClassName}
+      <LabelTooltip
+        label={hasOverflow && canScrollRight ? "Scroll right" : null}
+        side="top"
       >
-        <ChevronRight className="size-3.5 stroke-[2.25]" aria-hidden="true" />
-      </button>
+        <button
+          type="button"
+          onClick={scrollRight}
+          disabled={!hasOverflow || !canScrollRight}
+          aria-label="Scroll right"
+          className={arrowButtonClassName}
+        >
+          <ChevronRight className="size-3.5 stroke-[2.25]" aria-hidden="true" />
+        </button>
+      </LabelTooltip>
     </div>
   );
 }

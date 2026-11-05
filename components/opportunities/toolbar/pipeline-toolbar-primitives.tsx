@@ -57,10 +57,13 @@ export function ToolbarRoot({
 }) {
   return (
     <div
+      data-mp-toolbar=""
       className={cn(
         // Sit above ToolbarMetaRow so the search filters panel isn't covered
         // by the page-size control (later sibling otherwise paints on top).
-        "relative z-10 flex w-full flex-wrap items-center gap-3 rounded-xl border border-border/50 bg-card/80 p-3 shadow-md backdrop-blur-sm lg:flex-nowrap",
+        // Dark plate: html[data-mp-toolbar=dark] in globals.css.
+        // Full shell column — same width as tab rail + Sync (listing stays max-w-6xl).
+        "relative z-10 flex w-full flex-wrap items-center gap-3 rounded-xl border border-border/50 bg-card/80 px-2 py-2 shadow-md backdrop-blur-sm lg:flex-nowrap",
         className
       )}
     >
@@ -102,8 +105,10 @@ export function ToolbarMetaRow({
 }) {
   return (
     <div
+      data-mp-toolbar-meta=""
       className={cn(
-        "relative z-0 mb-2.5 flex items-center justify-between px-3 py-0.5 text-xs text-foreground/80",
+        // 1px inset past the listing column each side (+2px width/side vs prior). mb-0 — fade gap.
+        "relative z-0 mx-auto mb-0 flex w-full max-w-[calc(72rem-2px)] items-center justify-between px-3 py-0.5 text-xs text-foreground/80",
         className
       )}
     >
@@ -112,10 +117,14 @@ export function ToolbarMetaRow({
   );
 }
 
-export function ToolbarDivider() {
+export function ToolbarDivider({ className }: { className?: string }) {
   return (
     <div
-      className="mx-1 hidden h-4 w-[1px] shrink-0 bg-border/60 sm:block"
+      data-mp-toolbar-divider=""
+      className={cn(
+        "mx-1 hidden h-4 w-[1px] shrink-0 bg-border/60 sm:block",
+        className
+      )}
       aria-hidden
     />
   );
@@ -131,6 +140,7 @@ export function ToolbarSelectAll({
   checked: boolean;
   indeterminate?: boolean;
   onToggle: () => void;
+  /** Accessible name only — no visible Select All / Deselect All text. */
   label: string;
   disabled?: boolean;
 }) {
@@ -145,10 +155,8 @@ export function ToolbarSelectAll({
   return (
     <label
       className={cn(
-        "inline-flex shrink-0 items-center gap-2 text-xs font-medium transition-colors",
-        disabled
-          ? "cursor-not-allowed text-foreground/35"
-          : "cursor-pointer text-foreground/75 hover:text-foreground"
+        "inline-flex shrink-0 items-center",
+        disabled ? "cursor-not-allowed opacity-35" : "cursor-pointer"
       )}
     >
       <input
@@ -157,19 +165,13 @@ export function ToolbarSelectAll({
         checked={checked}
         disabled={disabled}
         onChange={onToggle}
+        aria-label={label}
         className={cn(
           SELECT_CHECKBOX_CLASSNAME,
           "m-0 h-3.5 w-3.5 shrink-0",
           disabled ? "cursor-not-allowed" : "cursor-pointer"
         )}
       />
-      {/* Size to the longer label so Select All ↔ Deselect All never shifts the toolbar. */}
-      <span className="inline-grid">
-        <span className="invisible col-start-1 row-start-1 whitespace-nowrap" aria-hidden>
-          Deselect All
-        </span>
-        <span className="col-start-1 row-start-1 whitespace-nowrap">{label}</span>
-      </span>
     </label>
   );
 }
@@ -228,7 +230,10 @@ export function ToolbarScoreSlider({
           className="h-7 w-14 rounded-md border border-input bg-card pr-3 text-center text-xs font-medium shadow-sm transition-colors [appearance:textfield] hover:bg-card focus:bg-card focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           aria-label={`${ariaLabel} percent`}
         />
-        <span className="pointer-events-none absolute right-1 text-[11px] text-foreground/65">
+        <span
+          data-mp-toolbar-unit=""
+          className="pointer-events-none absolute right-1 text-[11px] text-foreground/65"
+        >
           %
         </span>
       </div>
@@ -472,7 +477,10 @@ export function ToolbarSearch({
       )}
       style={{ flexBasis: preferredInputBasis }}
     >
-      <div className="flex h-8 w-full items-center gap-1.5 rounded-lg border border-border/50 bg-card/75 pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow">
+      <div
+        data-mp-toolbar-field=""
+        className="flex h-8 w-full items-center gap-1.5 rounded-lg border border-border/50 bg-card/75 pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow"
+      >
         <Search
           className="pointer-events-none size-4 shrink-0 text-foreground/45"
           aria-hidden
@@ -538,6 +546,7 @@ export function ToolbarSearch({
               aria-label="Filter and sort"
               data-filter-panel
               data-dnd-ignore
+              data-mp-toolbar=""
               className="z-50 flex w-max max-w-full flex-col gap-2.5 rounded-lg border border-border/50 bg-card p-2.5 shadow-md sm:flex-row sm:flex-wrap sm:items-end"
               style={{
                 position: "fixed",

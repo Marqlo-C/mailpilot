@@ -5,4 +5,5 @@ export * from "./dialog-identity-header";
 export * from "./confirm-action-dialog";
 export * from "./row-menu-trigger";
 export * from "./cancel-task-button";
+export * from "./create-snapshot-button";
 export * from "./received-meta";

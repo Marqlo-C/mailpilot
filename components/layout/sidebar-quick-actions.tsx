@@ -29,6 +29,7 @@ import {
 } from "@/components/layout/sidebar-flyout-provider";
 import { downloadMasterProfile } from "@/components/profile/export-master-profile-button";
 import { tabRailInactiveTextClassName } from "@/components/ui/tactile/segmented-tabs";
+import { LabelTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -52,41 +53,45 @@ const QuickActionButton = forwardRef<
   { collapsed, label, icon: Icon, disabled, pending, active, onClick },
   ref
 ) {
+  // Collapsed label chip — same surface as nav tips. Skip while a flyout is open.
+  const tip = collapsed && !active ? label : null;
+
   return (
-    <button
-      ref={ref}
-      type="button"
-      aria-label={label}
-      aria-expanded={active}
-      title={collapsed ? label : undefined}
-      disabled={disabled || pending}
-      onClick={onClick}
-      className={cn(
-        ACTION_ROW_CLASS,
-        active && "bg-white/10 text-[#e4f7f3]",
-        collapsed
-          ? "mx-auto size-9 shrink-0 items-center justify-center"
-          : "h-9 w-full items-center gap-3 px-3"
-      )}
-    >
-      {pending ? (
-        <Loader2 className="size-4 shrink-0 animate-spin" />
-      ) : (
-        <Icon className="size-4 shrink-0 transition-colors group-hover/action:text-[#e4f7f3]" />
-      )}
-      {collapsed ? null : (
-        <span
-          className={cn(
-            "whitespace-nowrap text-[13px] font-medium tracking-normal",
-            tabRailInactiveTextClassName.dark,
-            "group-hover/action:text-[#e4f7f3]",
-            active && "text-[#e4f7f3]"
-          )}
-        >
-          {label}
-        </span>
-      )}
-    </button>
+    <LabelTooltip label={tip} side="right">
+      <button
+        ref={ref}
+        type="button"
+        aria-label={label}
+        aria-expanded={active}
+        disabled={disabled || pending}
+        onClick={onClick}
+        className={cn(
+          ACTION_ROW_CLASS,
+          active && "bg-white/10 text-[#e4f7f3]",
+          collapsed
+            ? "mx-auto size-9 shrink-0 items-center justify-center"
+            : "h-9 w-full items-center gap-3 px-3"
+        )}
+      >
+        {pending ? (
+          <Loader2 className="size-4 shrink-0 animate-spin" />
+        ) : (
+          <Icon className="size-4 shrink-0 transition-colors group-hover/action:text-[#e4f7f3]" />
+        )}
+        {collapsed ? null : (
+          <span
+            className={cn(
+              "whitespace-nowrap text-[13px] font-medium tracking-normal",
+              tabRailInactiveTextClassName.dark,
+              "group-hover/action:text-[#e4f7f3]",
+              active && "text-[#e4f7f3]"
+            )}
+          >
+            {label}
+          </span>
+        )}
+      </button>
+    </LabelTooltip>
   );
 });
 
