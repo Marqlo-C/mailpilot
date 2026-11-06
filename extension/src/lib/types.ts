@@ -5,6 +5,8 @@ export type ExtractedJobContext = {
   url: string;
   location?: string;
   salary?: string;
+  datePosted?: string;
+  logoUrl?: string;
   source: string;
   extractedAt: string;
 };

@@ -1,9 +1,10 @@
 /**
  * ============================================================================
- * LINK PARSER ENRICHMENT: SCHEMA.ORG JSON-LD EXTRACTOR
+ * LINK PARSER & ENRICHMENT ORCHESTRATOR
  * 
- * Extracts structured JobPosting metadata from public web URLs to hydrate
- * thin email digest listings (< 300 characters).
+ * Unified entry point for link-based opportunity enrichment.
+ * Coordinates Schema.org JSON-LD parsing, Nuxt SSR state parsing,
+ * Semantic DOM extraction, and ScrapingAnt fallbacks with zero-token time.
  * ============================================================================
  */
 
@@ -13,12 +14,55 @@ import { resolveDecryptedScrapingAntKey } from "@/lib/llm/vault";
 import { assertSafeHttpsUrl } from "@/lib/core/ssrf";
 import type { AccountRules } from "@/lib/validations/rules";
 
-export interface ScraperFailureEntry {
-  url: string;
-  status?: number | string;
-  reason: string;
-  timestamp: string;
-}
+// Re-export decoupled types and SSOT contracts
+export type {
+  ScrapedJobPosting,
+  ScrapedJobPostingResult,
+  ScraperFailureEntry,
+  JobSectionCategory,
+  ParsedJobSection,
+  StructuredJobDescription,
+} from "./schema.ssot";
+
+// Re-export submodules for complete backward compatibility
+export {
+  unwrapTrackingUrl,
+  safeDecodeUrl,
+  extractLinkedInJobId,
+  transformToLinkedInGuestUrl,
+} from "./url-unwrapper";
+
+export {
+  htmlToStructuredMarkdown,
+  decodeHtmlEntities,
+} from "./html-markdown";
+
+export {
+  classifySectionHeading,
+  parseStructuredJobSections,
+} from "./section-classifier";
+
+export {
+  extractJsonLdJobPosting,
+  extractNuxtData,
+  isLegitimateJobContent,
+} from "./json-ld-parser";
+
+export { extractJobFromSemanticDom } from "./dom-extractor";
+
+import type {
+  ScrapedJobPosting,
+  ScrapedJobPostingResult,
+  ScraperFailureEntry,
+} from "./schema.ssot";
+import { unwrapTrackingUrl, extractLinkedInJobId } from "./url-unwrapper";
+import {
+  extractJsonLdJobPosting,
+  extractNuxtData,
+  isLegitimateJobContent,
+} from "./json-ld-parser";
+import { extractJobFromSemanticDom } from "./dom-extractor";
+import { parseStructuredJobSections } from "./section-classifier";
 
 /**
  * Dev-only helper to record failed scrape attempts (bot walls, 403s, 429s, timeouts)
@@ -56,385 +100,6 @@ export function recordScraperFailure(entry: ScraperFailureEntry): void {
   }
 }
 
-export interface ScrapedJobPosting {
-  title?: string;
-  company?: string;
-  location?: string;
-  salary?: string;
-  description?: string;
-  applyUrl?: string;
-  datePosted?: string;
-}
-
-export interface ScrapedJobPostingResult {
-  data: ScrapedJobPosting | null;
-  telemetry: string;
-}
-
-function safeDecodeUrl(val: string): string | null {
-  try {
-    let current = val.trim();
-    if (!current) return null;
-
-    if (current.startsWith("//")) {
-      current = "https:" + current;
-    }
-
-    // Up to 5 decode passes to unroll multi-level percent encoding (e.g. tgt=https%253A...)
-    for (let i = 0; i < 5; i++) {
-      if (/^https?:\/\//i.test(current)) {
-        return current.replace(/^http:\/\//i, "https://");
-      }
-      try {
-        const decoded = decodeURIComponent(current);
-        if (decoded === current) break;
-        current = decoded.trim();
-        if (current.startsWith("//")) {
-          current = "https:" + current;
-        }
-      } catch {
-        break;
-      }
-    }
-
-    if (/^https?:\/\//i.test(current)) {
-      return current.replace(/^http:\/\//i, "https://");
-    }
-  } catch {}
-  return null;
-}
-
-/**
- * Unpacks destination target URLs from aggregator or tracking redirects.
- * Handles parameters like tgt, dest, url, target, redirect, r, out, link, to, etc.
- * and recursive redirects, upgrading any http:// targets to https://.
- */
-export function unwrapTrackingUrl(urlString: string, maxDepth: number = 5): string {
-  if (!urlString || typeof urlString !== "string") return "";
-  let normalized = urlString.trim();
-  if (!/^https?:\/\//i.test(normalized)) {
-    return "";
-  }
-  if (/^http:\/\//i.test(normalized)) {
-    normalized = normalized.replace(/^http:\/\//i, "https://");
-  }
-
-  if (maxDepth <= 0) return normalized;
-
-  try {
-    const parsed = new URL(normalized);
-
-    // Direct Glassdoor partner listing redirect bypass:
-    // e.g. glassdoor.com/partner/jobListing.htm?...jobListingId=12345 -> https://www.glassdoor.com/job-listing/?jl=12345
-    if (parsed.hostname.includes("glassdoor.com") && parsed.pathname.includes("jobListing.htm")) {
-      const jlId = parsed.searchParams.get("jobListingId") || parsed.searchParams.get("jl");
-      if (jlId && /^\d+$/.test(jlId)) {
-        return `https://www.glassdoor.com/job-listing/?jl=${jlId}`;
-      }
-      const match = normalized.match(/jobListingId[=%](\d+)/i);
-      if (match && match[1]) {
-        return `https://www.glassdoor.com/job-listing/?jl=${match[1]}`;
-      }
-    }
-
-    // Direct LinkedIn job listing normalization:
-    // e.g. linkedin.com/comm/jobs/view/123?trk=... or currentJobId=123 -> https://www.linkedin.com/jobs/view/123
-    if (parsed.hostname.includes("linkedin.com")) {
-      const match =
-        normalized.match(/linkedin\.com\/(?:comm\/)?jobs\/view\/(\d+)/i) ||
-        normalized.match(/[?&]currentJobId=(\d+)/i);
-      if (match && match[1]) {
-        return `https://www.linkedin.com/jobs/view/${match[1]}`;
-      }
-    }
-
-    // 1. Check known priority parameters
-    const priorityParams = [
-      "tgt",
-      "dest",
-      "url",
-      "target",
-      "redirect",
-      "r",
-      "out",
-      "link",
-      "to",
-      "redirect_url",
-      "redirect_uri",
-      "destination",
-      "dest_url",
-      "destUrl",
-      "target_url",
-      "targetUrl",
-      "next",
-      "u",
-    ];
-
-    for (const key of priorityParams) {
-      const val = parsed.searchParams.get(key);
-      if (val) {
-        const decoded = safeDecodeUrl(val);
-        if (decoded && decoded !== normalized) {
-          return unwrapTrackingUrl(decoded, maxDepth - 1);
-        }
-      }
-    }
-
-    // 2. Check hash fragments (e.g. #tgt=https%3A%2F%2F...)
-    if (parsed.hash && parsed.hash.includes("=")) {
-      const hashQuery = parsed.hash.replace(/^#\/?/, "");
-      const hashParams = new URLSearchParams(hashQuery);
-      for (const key of priorityParams) {
-        const val = hashParams.get(key);
-        if (val) {
-          const decoded = safeDecodeUrl(val);
-          if (decoded && decoded !== normalized) {
-            return unwrapTrackingUrl(decoded, maxDepth - 1);
-          }
-        }
-      }
-    }
-
-    // 3. Scan all searchParams for any embedded http(s) URL
-    for (const [, val] of parsed.searchParams.entries()) {
-      if (
-        val &&
-        (val.includes("http%3A") ||
-          val.includes("https%3A") ||
-          val.includes("http%253A") ||
-          val.includes("https%253A") ||
-          val.startsWith("http://") ||
-          val.startsWith("https://"))
-      ) {
-        const decoded = safeDecodeUrl(val);
-        if (decoded && decoded !== normalized) {
-          return unwrapTrackingUrl(decoded, maxDepth - 1);
-        }
-      }
-    }
-
-    // 4. Pathname regex for embedded destination URLs (e.g. /redirect/https://...)
-    const pathMatch = parsed.pathname.match(/(https?[:%].*)/i);
-    if (pathMatch && pathMatch[1]) {
-      const decoded = safeDecodeUrl(pathMatch[1]);
-      if (decoded && decoded !== normalized) {
-        return unwrapTrackingUrl(decoded, maxDepth - 1);
-      }
-    }
-  } catch {
-    // If not a parseable URL, return normalized
-  }
-
-  return /^https?:\/\//i.test(normalized) ? normalized : "";
-}
-
-/**
- * Parses Schema.org JobPosting JSON-LD blocks out of HTML content.
- */
-export function extractJsonLdJobPosting(html: string): ScrapedJobPosting | null {
-  const scriptRegex =
-    /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
-  let match: RegExpExecArray | null;
-
-  while ((match = scriptRegex.exec(html)) !== null) {
-    try {
-      const parsed = JSON.parse(match[1]);
-      const items = Array.isArray(parsed)
-        ? parsed
-        : parsed["@graph"] && Array.isArray(parsed["@graph"])
-        ? parsed["@graph"]
-        : [parsed];
-
-      for (const item of items) {
-        if (
-          item &&
-          (item["@type"] === "JobPosting" ||
-            (Array.isArray(item["@type"]) && item["@type"].includes("JobPosting")))
-        ) {
-          const title =
-            typeof item.title === "string" ? item.title.trim() : undefined;
-          const company =
-            typeof item.hiringOrganization?.name === "string"
-              ? item.hiringOrganization.name.trim()
-              : undefined;
-
-          let location: string | undefined;
-          if (
-            item.jobLocationType === "TELECOMMUTE" ||
-            item.applicantLocationRequirements
-          ) {
-            location = "Remote";
-          } else if (item.jobLocation?.address) {
-            const addr = item.jobLocation.address;
-            const locality = addr.addressLocality || "";
-            const region = addr.addressRegion || "";
-            if (locality && region) location = `${locality}, ${region}`;
-            else if (locality) location = locality;
-          }
-
-          let salary: string | undefined;
-          const salaryObj = item.baseSalary || item.estimatedSalary;
-          if (typeof salaryObj === "string" && salaryObj.trim()) {
-            salary = salaryObj.trim();
-          } else if (salaryObj && typeof salaryObj === "object") {
-            const val = salaryObj.value || salaryObj;
-            if (typeof val === "object" && val !== null) {
-              const unit = typeof val.unitText === "string" ? ` / ${val.unitText.toLowerCase()}` : "";
-              if (val.minValue != null && val.maxValue != null) {
-                salary = `$${val.minValue} - $${val.maxValue}${unit}`;
-              } else if (val.value != null) {
-                salary = `$${val.value}${unit}`;
-              }
-            } else if (typeof val === "number" || typeof val === "string") {
-              salary = `$${val}`;
-            }
-          }
-
-          let description: string | undefined;
-          if (typeof item.description === "string") {
-            description = item.description
-              .replace(/<[^>]+>/g, " ")
-              .replace(/\s+/g, " ")
-              .trim();
-          }
-
-          const applyUrl =
-            typeof item.url === "string" ? item.url : undefined;
-          const datePosted =
-            typeof item.datePosted === "string" ? item.datePosted : undefined;
-
-          return {
-            title,
-            company,
-            location,
-            salary,
-            description,
-            applyUrl,
-            datePosted,
-          };
-        }
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Parses Nuxt 3 SSR state payload (<script id="__NUXT_DATA__">)
- * to extract rich job specifications from single-page apps (like JobLeads)
- * without requiring a headless browser.
- */
-export function extractNuxtData(html: string): ScrapedJobPosting | null {
-  if (!html || !html.includes('id="__NUXT_DATA__"')) return null;
-
-  const match = html.match(/<script[^>]*id="__NUXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
-  if (!match || !match[1]) return null;
-
-  try {
-    const nuxtArray = JSON.parse(match[1]);
-    if (!Array.isArray(nuxtArray)) return null;
-
-    let title: string | undefined;
-    let company: string | undefined;
-    let location: string | undefined;
-
-    // 1. Extract Title & Location from <title> tag if available
-    const pageTitleMatch = html.match(/<title>([^<]+)<\/title>/i);
-    if (pageTitleMatch && pageTitleMatch[1]) {
-      const parts = pageTitleMatch[1].split("|")[0].split("-");
-      title = parts[0]?.trim();
-      if (parts[1]) location = parts[1]?.trim();
-    }
-
-    // 2. Detect Company candidate in early strings
-    const companyCandidate = nuxtArray.find(
-      (item): item is string =>
-        typeof item === "string" &&
-        item.length > 2 &&
-        item.length < 50 &&
-        !item.startsWith("/") &&
-        !item.startsWith("http") &&
-        (item.includes("Inc") ||
-          item.includes("LLC") ||
-          item.includes("Corp") ||
-          item.includes("Tech") ||
-          item.includes("Technologies") ||
-          item.includes("Solutions") ||
-          item.includes("Group"))
-    );
-    if (companyCandidate) {
-      company = companyCandidate.trim();
-    }
-
-    // 3. Filter candidate strings according to Nuxt specification rules
-    const isJwtToken = (str: string) =>
-      /^eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/.test(str.trim());
-
-    const validParagraphs = nuxtArray
-      .filter((item): item is string => typeof item === "string" && item.length > 80)
-      .filter(
-        (str) =>
-          !isJwtToken(str) &&
-          !str.startsWith("/") &&
-          !str.startsWith("http") &&
-          !str.includes("/_nucf/") &&
-          !str.includes("@font-face") &&
-          !str.includes("data:image") &&
-          !str.startsWith('{"') &&
-          !str.endsWith("}") &&
-          !/seeks a .* to design|all rights reserved|job board/i.test(str)
-      );
-
-    if (validParagraphs.length === 0) return null;
-
-    // Clean inline HTML tags & collapse excess spaces
-    const cleanParagraph = (raw: string) =>
-      raw
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-
-    const uniqueParagraphs = Array.from(new Set(validParagraphs.map(cleanParagraph))).filter(
-      (p) => p.length > 40
-    );
-
-    if (uniqueParagraphs.length === 0) return null;
-
-    const description = uniqueParagraphs.join("\n\n").slice(0, 4000);
-
-    // 4. Detect Date Posted candidate
-    const dateCandidate = nuxtArray.find(
-      (item): item is string =>
-        typeof item === "string" &&
-        /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2})?/.test(item.trim())
-    );
-    const datePosted = dateCandidate ? dateCandidate.trim() : undefined;
-
-    // 5. Detect Salary candidate
-    const salaryCandidate = nuxtArray.find(
-      (item): item is string =>
-        typeof item === "string" &&
-        item.length < 50 &&
-        /\$\s*\d{1,3}(?:,\d{3})*(?:\s*-\s*\$?\d{1,3}(?:,\d{3})*)?/i.test(item.trim())
-    );
-    const salary = salaryCandidate ? salaryCandidate.trim() : undefined;
-
-    return {
-      title,
-      company,
-      location,
-      salary,
-      description,
-      datePosted,
-    };
-  } catch {
-    return null;
-  }
-}
-
 export interface ScrapingAntResult {
   data: ScrapedJobPosting | null;
   status?: number;
@@ -443,7 +108,7 @@ export interface ScrapingAntResult {
 
 /**
  * Fetches and enriches job postings via ScrapingAnt's fast proxy endpoint (browser=false, 1 credit, ~2.5s).
- * Passes HTML through Schema.org JSON-LD, Nuxt 3 SSR state, or direct cleaned body text.
+ * Passes HTML through Schema.org JSON-LD, Nuxt 3 SSR state, or direct semantic DOM.
  */
 export async function fetchViaScrapingAnt(
   url: string,
@@ -491,9 +156,9 @@ export async function fetchViaScrapingAnt(
       return { data: null, status: res.status, errorMsg: "Challenge detected" };
     }
 
-    // 1. Check Schema.org JobPosting JSON-LD
+    // 1. Primary: Schema.org JobPosting JSON-LD
     const jsonLd = extractJsonLdJobPosting(html);
-    if (jsonLd?.description && isLegitimateJobContent(jsonLd.description)) {
+    if (jsonLd?.description && isLegitimateJobContent(jsonLd.coreDescription || jsonLd.description)) {
       return {
         data: {
           ...jsonLd,
@@ -503,9 +168,9 @@ export async function fetchViaScrapingAnt(
       };
     }
 
-    // 2. Check Nuxt 3 SSR State (__NUXT_DATA__)
+    // 2. Secondary: Nuxt 3 SSR State (__NUXT_DATA__)
     const nuxtData = extractNuxtData(html);
-    if (nuxtData?.description && isLegitimateJobContent(nuxtData.description)) {
+    if (nuxtData?.description && isLegitimateJobContent(nuxtData.coreDescription || nuxtData.description)) {
       return {
         data: {
           ...nuxtData,
@@ -515,21 +180,13 @@ export async function fetchViaScrapingAnt(
       };
     }
 
-    // 3. General sanitized body fallback
-    const cleanHtml = html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-      .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
-      .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
-      .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "");
-
-    const text = cleanHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-    if (text.length >= 250 && isLegitimateJobContent(text)) {
+    // 3. Tertiary: Semantic DOM Extraction
+    const domData = extractJobFromSemanticDom(html, url);
+    if (domData?.description && isLegitimateJobContent(domData.coreDescription || domData.description)) {
       return {
         data: {
-          ...(jsonLd ?? {}),
-          description: text.slice(0, 4000),
-          applyUrl: url,
+          ...domData,
+          applyUrl: domData.applyUrl ?? url,
         },
         status: res.status,
       };
@@ -552,33 +209,9 @@ export async function fetchViaScrapingAnt(
 }
 
 /**
- * Extracts numeric job ID from various LinkedIn URL formats.
- */
-export function extractLinkedInJobId(urlString: string): string | null {
-  if (!urlString) return null;
-  const match =
-    urlString.match(/linkedin\.com\/(?:comm\/)?jobs\/view\/(\d+)/i) ||
-    urlString.match(/currentJobId=(\d+)/i) ||
-    urlString.match(/jobs-guest\/jobs\/api\/jobPosting\/(\d+)/i);
-  return match && match[1] ? match[1] : null;
-}
-
-/**
- * Detects LinkedIn job URLs and maps them to the public unauthenticated
- * jobs-guest API endpoint, bypassing login walls.
- */
-export function transformToLinkedInGuestUrl(urlString: string): string | null {
-  const jobId = extractLinkedInJobId(urlString);
-  if (jobId) {
-    return `https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${jobId}`;
-  }
-  return null;
-}
-
-/**
  * Fetches LinkedIn job posting details using a 2-tier fallback strategy:
  * Tier 1: Public unauthenticated jobs-guest API endpoint (/jobs-guest/jobs/api/jobPosting/{id}).
- * Tier 2: Public job view URL with Googlebot User-Agent extracting Schema.org JSON-LD.
+ * Tier 2: Public job view URL with Googlebot User-Agent extracting Schema.org JSON-LD or Semantic DOM.
  * Never routes to external proxies.
  */
 export async function fetchLinkedInGuestPosting(
@@ -613,32 +246,42 @@ export async function fetchLinkedInGuestPosting(
 
     if (res.ok) {
       const html = await res.text();
-      let text = "";
+
+      // 1. Check LinkedIn guest markup directly
       const markupMatch = html.match(
         /<div[^>]*class=["'][^"']*show-more-less-html__markup[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
       );
       if (markupMatch && markupMatch[1]) {
-        text = markupMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-      } else {
-        const cleanHtml = html
-          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-          .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
-          .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
-          .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "");
-        text = cleanHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        const structured = parseStructuredJobSections(markupMatch[1]);
+        const text = structured.coreMarkdown || markupMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (isLegitimateJobContent(text)) {
+          const parsedJsonLd = extractJsonLdJobPosting(html);
+          return {
+            ...(parsedJsonLd ?? {}),
+            description: structured.fullReconstructedMarkdown || text,
+            coreDescription: structured.coreMarkdown || text,
+            overviewSnippet: structured.overviewSnippet,
+            applyUrl: `https://www.linkedin.com/jobs/view/${jobId}`,
+          };
+        }
       }
 
+      // 2. Check JSON-LD in guest response
       const parsedJsonLd = extractJsonLdJobPosting(html);
-      if (!text && parsedJsonLd?.description) {
-        text = parsedJsonLd.description;
+      if (parsedJsonLd?.description && isLegitimateJobContent(parsedJsonLd.coreDescription || parsedJsonLd.description)) {
+        return {
+          ...parsedJsonLd,
+          applyUrl: `https://www.linkedin.com/jobs/view/${jobId}`,
+        };
       }
 
-      if (isLegitimateJobContent(text)) {
+      // 3. Check Semantic DOM in guest response
+      const domData = extractJobFromSemanticDom(html, url);
+      if (domData?.description && isLegitimateJobContent(domData.coreDescription || domData.description)) {
         return {
           ...(parsedJsonLd ?? {}),
-          description: text.slice(0, 4000),
-          applyUrl: url,
+          ...domData,
+          applyUrl: `https://www.linkedin.com/jobs/view/${jobId}`,
         };
       }
     }
@@ -672,25 +315,18 @@ export async function fetchLinkedInGuestPosting(
     if (res.ok) {
       const html = await res.text();
       const parsedJsonLd = extractJsonLdJobPosting(html);
-      if (parsedJsonLd?.description && isLegitimateJobContent(parsedJsonLd.description)) {
+      if (parsedJsonLd?.description && isLegitimateJobContent(parsedJsonLd.coreDescription || parsedJsonLd.description)) {
         return {
           ...parsedJsonLd,
-          description: parsedJsonLd.description.slice(0, 4000),
           applyUrl: url,
         };
       }
 
-      const cleanHtml = html
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-        .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
-        .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
-        .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "");
-      const text = cleanHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-      if (text.length >= 250 && isLegitimateJobContent(text)) {
+      const domData = extractJobFromSemanticDom(html, url);
+      if (domData?.description && isLegitimateJobContent(domData.coreDescription || domData.description)) {
         return {
           ...(parsedJsonLd ?? {}),
-          description: text.slice(0, 4000),
+          ...domData,
           applyUrl: url,
         };
       }
@@ -703,38 +339,9 @@ export async function fetchLinkedInGuestPosting(
 }
 
 /**
- * Structural/semantic validator for job posting content.
- * Discards auth-walled, login-redirected, or bot-challenge pages without brittle string matches.
- */
-export function isLegitimateJobContent(text: string): boolean {
-  if (!text || text.trim().length < 250) return false;
-
-  // Check for presence of common job posting structural markers across disciplines
-  const jobStructureMarkers = [
-    /\b(?:responsibilities|qualifications|requirements|experience|skills|duties|what you('ll| will) do|about the (?:role|position)|about us)\b/i,
-    /\b(?:bachelor|master|degree|years of|salary|benefits|compensation|equal opportunity)\b/i,
-  ];
-
-  const hasJobMarkers = jobStructureMarkers.some((regex) => regex.test(text));
-
-  // Check for auth wall / bot challenge markers
-  const authMarkers = [
-    /\b(?:sign in|log in|login|continue with apple|passkey|enter your email|forgot password)\b/i,
-    /\b(?:verify you are human|security check|cloudflare|attention required|enable cookies)\b/i,
-  ];
-
-  const authCount = authMarkers.filter((regex) => regex.test(text)).length;
-
-  // If heavy auth language and no job structure, it's a blocked page
-  if (authCount >= 2 && !hasJobMarkers) return false;
-  if (!hasJobMarkers) return false;
-
-  return true;
-}
-
-/**
- * Public JSON-LD scraper: fetches public job page and extracts JobPosting LD+JSON.
+ * Public link parser: fetches public job page and extracts JobPosting metadata.
  * For Glassdoor: fast-fails immediately to 0ms (retaining parsed email digest context).
+ * For Indeed: fast-fails immediately to 0ms (retaining parsed email digest context).
  * For LinkedIn: uses public guest endpoint (< 600ms, never routed to proxies).
  * Target ATS / Direct Fetch: attempts direct fetch with desktop browser headers.
  * Proxy Fallback: if direct fetch hits HTTP 403/429 (and domain is not blacklisted),
@@ -784,7 +391,7 @@ export async function scrapeJobPostingJsonLd(
     if (guestData) {
       return {
         data: guestData,
-        telemetry: `Hydrated ${Math.min(guestData.description?.length ?? 0, 4000).toLocaleString()} chars via LinkedIn Guest API`,
+        telemetry: `Hydrated ${Math.min(guestData.description?.length ?? 0, 8000).toLocaleString()} chars via LinkedIn Guest API`,
       };
     }
 
@@ -843,7 +450,7 @@ export async function scrapeJobPostingJsonLd(
 
       // 2. Secondary: Nuxt 3 SSR state (__NUXT_DATA__)
       const nuxtData = extractNuxtData(html);
-      if (nuxtData?.description && isLegitimateJobContent(nuxtData.description)) {
+      if (nuxtData?.description && isLegitimateJobContent(nuxtData.coreDescription || nuxtData.description)) {
         return {
           data: { ...nuxtData, applyUrl: url },
           telemetry: `Hydrated ${nuxtData.description.length.toLocaleString()} chars via Nuxt SSR State`,
@@ -859,14 +466,26 @@ export async function scrapeJobPostingJsonLd(
         .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "");
 
       const text = cleanHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-      if (text.length >= 500 && isLegitimateJobContent(text)) {
+      if (text.length >= 250 && isLegitimateJobContent(text)) {
+        const structured = parseStructuredJobSections(cleanHtml);
         return {
           data: {
             ...(parsed ?? {}),
-            description: text.slice(0, 4000),
+            description: (structured.fullReconstructedMarkdown || text).slice(0, 4000),
+            coreDescription: (structured.coreMarkdown || text).slice(0, 4000),
+            overviewSnippet: structured.overviewSnippet,
             applyUrl: url,
           },
           telemetry: `Hydrated ${Math.min(text.length, 4000).toLocaleString()} chars via Direct HTML`,
+        };
+      }
+
+      // 4. Semantic DOM Extraction fallback
+      const domData = extractJobFromSemanticDom(html, url);
+      if (domData?.description && isLegitimateJobContent(domData.coreDescription || domData.description)) {
+        return {
+          data: { ...domData, applyUrl: url },
+          telemetry: `Hydrated ${domData.description.length.toLocaleString()} chars via Direct HTML`,
         };
       }
 

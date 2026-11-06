@@ -300,19 +300,19 @@ export function normalizeSalaryDisplay(
 
   // Detect time period signals before stripping tokens
   const hasHourlyWord =
-    /(?:\b(?:per\s*hour|per\s*hr|hourly|an\s*hour|an\s*hr|a\s*hour)\b|\/\s*hr\b|\/\s*h\b)/i.test(
+    /(?:\b(?:per\s*hours?|per\s*hr|hourly|an\s*hours?|an\s*hr|a\s*hours?)\b|\/\s*hr\b|\/\s*h\b|\/\s*hours?\b)/i.test(
       raw
     );
   const hasMonthlyWord =
-    /(?:\b(?:per\s*month|monthly|a\s*month)\b|\/\s*mo\b|\/\s*month\b)/i.test(
+    /(?:\b(?:per\s*months?|monthly|a\s*month|an\s*month)\b|\/\s*mo\b|\/\s*months?\b)/i.test(
       raw
     );
   const hasWeeklyWord =
-    /(?:\b(?:per\s*week|weekly|a\s*week)\b|\/\s*wk\b|\/\s*week\b)/i.test(
+    /(?:\b(?:per\s*weeks?|a\s*week|an\s*week|weekly\s*(?:pay|rate|salary|wage|compensation|earnings))\b|\/\s*wk\b|\/\s*weeks?\b)/i.test(
       raw
     );
   const hasAnnualWord =
-    /(?:\b(?:per\s*year|per\s*yr|annually|annual|a\s*year|salary)\b|\/\s*yr\b|\/\s*year\b)/i.test(
+    /(?:\b(?:per\s*years?|per\s*yr|annually|annual|a\s*year|salary)\b|\/\s*yr\b|\/\s*years?\b)/i.test(
       raw
     );
 
@@ -334,19 +334,19 @@ export function normalizeSalaryDisplay(
       " "
     )
     .replace(
-      /(?:\b(?:per\s*hour|per\s*hr|hourly|an\s*hour|an\s*hr|a\s*hour)\b|\/\s*hr\b|\/\s*h\b)[.:,]*/gi,
+      /(?:\b(?:per\s*hours?|per\s*hr|hourly|an\s*hours?|an\s*hr|a\s*hours?)\b|\/\s*hr\b|\/\s*h\b|\/\s*hours?\b)[.:,]*/gi,
       " "
     )
     .replace(
-      /(?:\b(?:per\s*month|monthly|a\s*month)\b|\/\s*mo\b|\/\s*month\b)[.:,]*/gi,
+      /(?:\b(?:per\s*months?|monthly|a\s*month|an\s*month)\b|\/\s*mo\b|\/\s*months?\b)[.:,]*/gi,
       " "
     )
     .replace(
-      /(?:\b(?:per\s*week|weekly|a\s*week)\b|\/\s*wk\b|\/\s*week\b)[.:,]*/gi,
+      /(?:\b(?:per\s*weeks?|a\s*week|an\s*week|weekly\s*(?:pay|rate|salary|wage|compensation|earnings))\b|\/\s*wk\b|\/\s*weeks?\b)[.:,]*/gi,
       " "
     )
     .replace(
-      /(?:\b(?:per\s*year|per\s*yr|annually|annual|a\s*year)\b|\/\s*yr\b|\/\s*year\b)[.:,]*/gi,
+      /(?:\b(?:per\s*years?|per\s*yr|annually|annual|a\s*year)\b|\/\s*yr\b|\/\s*years?\b)[.:,]*/gi,
       " "
     )
     .replace(/\s{2,}/g, " ")
@@ -389,12 +389,12 @@ export function normalizeSalaryDisplay(
   let isHourly = false;
   let multiplier = 1;
 
-  if (hasMonthlyWord) {
+  if (hasHourlyWord) {
+    isHourly = true;
+  } else if (hasMonthlyWord) {
     multiplier = 12;
   } else if (hasWeeklyWord) {
     multiplier = 52;
-  } else if (hasHourlyWord) {
-    isHourly = true;
   } else if (hasAnnualWord) {
     isHourly = false;
   } else if (anyHasK || anyOver1000) {
@@ -415,14 +415,21 @@ export function normalizeSalaryDisplay(
     return `${val}K`;
   }
 
+  function formatRate(n: number): string {
+    const rounded = Math.round(n * 100) / 100;
+    return rounded.toString();
+  }
+
   if (isHourly) {
     if (parsedParts.length >= 2) {
       const min = Math.min(parsedParts[0].num, parsedParts[1].num);
       const max = Math.max(parsedParts[0].num, parsedParts[1].num);
-      if (min === max) return `${currency}${min}/Hr`;
-      return `${currency}${min}-${currency}${max}/Hr`;
+      const minFmt = formatRate(min);
+      const maxFmt = formatRate(max);
+      if (minFmt === maxFmt) return `${currency}${minFmt}/Hr`;
+      return `${currency}${minFmt}-${currency}${maxFmt}/Hr`;
     } else {
-      return `${currency}${parsedParts[0].num}/Hr`;
+      return `${currency}${formatRate(parsedParts[0].num)}/Hr`;
     }
   } else {
     // Annualized (including converted monthly * 12 and weekly * 52)
@@ -459,6 +466,45 @@ export function normalizeSalaryDisplay(
       return `${currency}${v0Str}`;
     }
   }
+}
+
+/**
+ * Scans free-form job text or description for explicit salary/compensation figures
+ * (e.g. "Pay Range: 32.45 - 43.30", "Starting pay $75,000/year", "Salary: $140K-$175K").
+ */
+export function extractSalaryFromText(text: string | null | undefined): string | null {
+  if (!text) return null;
+
+  // 1. Labeled patterns: Pay Range: 32.45 - 43.30, Starting pay $75,000/year, Salary Range: $120,000 - $150,000
+  const labeledRegex =
+    /(?:pay\s+range|salary\s+range|base\s+pay|starting\s+pay|hourly\s+rate|compensation|pay|salary|wages?|wage\s+rate)[:\s]+([$€£]?\s*\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\s*(?:k|K)?\s*(?:-|–|—|to)\s*[$€£]?\s*\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\s*(?:k|K)?(?:\s*(?:\/|\s*per\s*|\s*an?\s*)(?:hr|hours?|yr|years?|week|weeks?|wk|month|months?|mo))?|[$€£]\s*\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\s*(?:k|K)?(?:\s*(?:\/|\s*per\s*|\s*an?\s*)(?:hr|hours?|yr|years?|week|weeks?|wk|month|months?|mo))?)/i;
+
+  const labeledMatch = text.match(labeledRegex);
+  if (labeledMatch && labeledMatch[1]) {
+    const normalized = normalizeSalaryDisplay(labeledMatch[1]);
+    if (normalized) return normalized;
+  }
+
+  // 1b. Phrase patterns: "wages starting at $21.00/hour", "earn up to $21.00 / hr", "starting at $21.00/hour"
+  const phraseRegex =
+    /\b(?:wages?|starting\s+at|earn(?:ing)?(?:\s+up\s+to)?|hourly\s+rate\s+of)\s+([$€£]\s*\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\s*(?:k|K)?(?:\s*(?:-|–|—|to)\s*[$€£]?\s*\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\s*(?:k|K)?)?(?:\s*(?:\/|\s*per\s*|\s*an?\s*)(?:hr|hours?|yr|years?|week|weeks?|wk|month|months?|mo))?)/i;
+  const phraseMatch = text.match(phraseRegex);
+  if (phraseMatch && phraseMatch[1]) {
+    const normalized = normalizeSalaryDisplay(phraseMatch[1]);
+    if (normalized) return normalized;
+  }
+
+  // 2. Generic standalone currency ranges in text: e.g. "$140,000 - $175,000" or "$26 - $28 an hour"
+  const genericRegex =
+    /([$€£]\s*\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\s*(?:k|K)?\s*(?:-|–|—|to)\s*[$€£]?\s*\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\s*(?:k|K)?(?:\s*(?:\/|\s*per\s*|\s*an?\s*)(?:hr|hours?|yr|years?|week|weeks?|wk|month|months?|mo))?)/i;
+
+  const genericMatch = text.match(genericRegex);
+  if (genericMatch && genericMatch[1]) {
+    const normalized = normalizeSalaryDisplay(genericMatch[1]);
+    if (normalized) return normalized;
+  }
+
+  return null;
 }
 
 const DESCRIPTION_CHROME_RE =
