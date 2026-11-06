@@ -133,12 +133,18 @@ export function parseLocation(raw: string | null | undefined): ParsedLocation {
     }
   }
 
-  let text = raw.toLowerCase().trim();
+  let cleaned = raw
+    .replace(/^locations?[:\s]*/i, "")
+    .replace(/^locations?([A-Z])/i, "$1")
+    .trim();
+  let text = cleaned.toLowerCase();
 
   // 1. Detect and strip remote/workplace context
   const isRemote = /\b(remote|work from home|wfh)\b/i.test(text);
   text = text
-    .replace(/\b(remote|hybrid|on-site|onsite|work from home|wfh)\b/gi, " ")
+    .replace(/^locations?[:\s]*/i, "")
+    .replace(/\b(remote|hybrid|on-site|onsite|work from home|wfh)\b(?:\s+in\b)?/gi, " ")
+    .replace(/\s*\(([a-z]+)\)/gi, ", $1")
     .replace(/[()[\]{}]/g, " ")
     .trim();
 
@@ -150,6 +156,18 @@ export function parseLocation(raw: string | null | undefined): ParsedLocation {
 
   if (parts.length === 0) {
     return { city: "", state: null, isRemote };
+  }
+
+  // Handle single token that is directly a state name or code (e.g. "Illinois", "Remote in Illinois", "CA")
+  if (parts.length === 1) {
+    const rawSingle = parts[0]!.replace(/[^a-z]/g, "");
+    const upperSingle = rawSingle.toUpperCase();
+    if (VALID_STATE_CODES.has(upperSingle)) {
+      return { city: "", state: upperSingle, isRemote };
+    }
+    if (US_STATES_AND_TERRITORIES[rawSingle]) {
+      return { city: "", state: US_STATES_AND_TERRITORIES[rawSingle]!, isRemote };
+    }
   }
 
   const city = parts[0]!.replace(/[^a-z0-9\s]/g, "").trim();
@@ -207,4 +225,55 @@ export function isLocationCompatible(
     cityB.includes(cityA);
 
   return cityMatch;
+}
+
+/**
+ * Standardizes a raw location string down to clean "City, ST" format.
+ * - Strips facility prefixes (e.g. "Varenita of Simi Valley, CA" -> "Simi Valley, CA").
+ * - Strips trailing 5-digit zip codes ("Simi Valley, CA 93065" -> "Simi Valley, CA").
+ * - Converts full state names to 2-letter postal codes ("Simi Valley, California" -> "Simi Valley, CA").
+ * - Strips redundant country suffixes ("San Francisco, CA, US" -> "San Francisco, CA").
+ */
+export function standardizeLocation(rawLoc: string | null | undefined): string | undefined {
+  if (!rawLoc) return undefined;
+  let loc = rawLoc.replace(/<[^>]+>/g, " ").replace(/[ \t]+/g, " ").trim();
+  if (!loc) return undefined;
+
+  // Strip label prefix (e.g. "locations: ", "locationsSimi" -> "Simi")
+  loc = loc
+    .replace(/^locations?[:\s]*/i, "")
+    .replace(/^locations?([A-Z])/i, "$1")
+    .trim();
+
+  // Strip campus/facility prefix
+  loc = loc.replace(/^[A-Za-z0-9\s'-]+?\s+of\s+/i, "").trim();
+
+  // Strip trailing 5-digit zip codes
+  loc = loc.replace(/\s+\d{5}(?:-\d{4})?$/i, "").trim();
+
+  // Strip trailing country suffixes if USA (e.g. "San Francisco, CA, US" -> "San Francisco, CA", but not "Remote - US")
+  if (!/^(?:remote|hybrid)\b/i.test(loc)) {
+    loc = loc.replace(/,\s*(?:United States(?: of America)?|USA|US)$/i, "").trim();
+  }
+
+  const parsed = parseLocation(loc);
+  if (parsed.city && parsed.state) {
+    const prefix = parsed.isRemote && /^(?:remote|hybrid)\b/i.test(loc) ? `${loc.split(/[-–—,/]/)[0].trim()} - ` : "";
+    return `${prefix}${parsed.city}, ${parsed.state}`;
+  }
+
+  if (parsed.isRemote) {
+    if (parsed.state && !parsed.city) {
+      return `${parsed.state} (Remote)`;
+    }
+    return loc;
+  }
+
+  if (parsed.city) {
+    return parsed.city;
+  }
+  if (parsed.state) {
+    return parsed.state;
+  }
+  return loc || undefined;
 }

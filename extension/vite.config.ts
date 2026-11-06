@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, build } from "vite";
 import path from "path";
 import fs from "fs";
 
@@ -24,12 +24,10 @@ export default defineConfig({
       input: {
         sidepanel: path.resolve(__dirname, "sidepanel.html"),
         "service-worker": path.resolve(__dirname, "src/background/service-worker.ts"),
-        extractor: path.resolve(__dirname, "src/content/extractor.ts"),
       },
       output: {
         entryFileNames: (chunkInfo) => {
           if (chunkInfo.name === "service-worker") return "service-worker.js";
-          if (chunkInfo.name === "extractor") return "extractor.js";
           return "assets/[name]-[hash].js";
         },
         chunkFileNames: "assets/[name]-[hash].js",
@@ -38,6 +36,31 @@ export default defineConfig({
     },
   },
   plugins: [
+    {
+      name: "build-content-script-iife",
+      async closeBundle() {
+        // Content scripts in Manifest V3 do not support ES modules / import statements.
+        // They must be bundled as an isolated, self-contained IIFE without code splitting.
+        await build({
+          configFile: false,
+          resolve: {
+            alias: {
+              "@": path.resolve(__dirname, ".."),
+            },
+          },
+          build: {
+            outDir: path.resolve(__dirname, "dist"),
+            emptyOutDir: false,
+            lib: {
+              entry: path.resolve(__dirname, "src/content/extractor.ts"),
+              formats: ["iife"],
+              name: "MailPilotExtractor",
+              fileName: () => "extractor.js",
+            },
+          },
+        });
+      },
+    },
     {
       name: "copy-extension-assets",
       closeBundle() {

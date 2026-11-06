@@ -51,6 +51,18 @@ describe("Location Domain & Text Extractor", () => {
       expect(res.isRemote).toBe(false);
     });
 
+    it("cleans concatenated location prefixes such as locationsSimi Valley, CA", () => {
+      const res = parseLocation("locationsSimi Valley, CA");
+      expect(res.city).toBe("Simi Valley");
+      expect(res.state).toBe("CA");
+    });
+
+    it("cleans labeled location strings like Location: Simi Valley, CA", () => {
+      const res = parseLocation("Location: Simi Valley, CA");
+      expect(res.city).toBe("Simi Valley");
+      expect(res.state).toBe("CA");
+    });
+
     it("delegates long free-form text to extractLocationFromText without sentence corruption", () => {
       const longText =
         "We are actively interviewing for an infrastructure engineer in Folsom, CA. Must have 5+ years experience.";

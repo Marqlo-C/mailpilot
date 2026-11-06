@@ -4,6 +4,7 @@ import { getExtensionAccountId } from "@/lib/extension/auth";
 import { handleOptionsCors, jsonWithCors } from "@/lib/extension/cors";
 import { prepareOpportunityResume } from "@/lib/opportunities/dispatch/resume";
 import { getCompanyLogoUrl, inferApexDomainFromCompanyName } from "@/lib/utils/company-logo";
+import { parseStructuredJobSections } from "@/lib/opportunities/context/section-classifier";
 
 const tailorRequestSchema = z.object({
   company: z.string().min(1, "Company name is required"),
@@ -78,6 +79,10 @@ export async function POST(request: Request) {
     const apexDomain = inferApexDomainFromCompanyName(company.trim());
     const logoUrl = getCompanyLogoUrl(company.trim(), apexDomain, url?.trim() || null);
 
+    // Normalize description via unified structured markdown & section parser
+    const structured = parseStructuredJobSections(description);
+    const finalDescription = (structured.fullReconstructedMarkdown || description).trim();
+
     if (!opportunityId) {
       const existingLead = await prisma.jobOpportunity.findFirst({
         where: {
@@ -94,7 +99,7 @@ export async function POST(request: Request) {
         await prisma.jobOpportunity.update({
           where: { id: opportunityId },
           data: {
-            description: description.trim(),
+            description: finalDescription,
             applyUrl: url?.trim() || undefined,
             location: location?.trim() || undefined,
             salary: salary?.trim() || undefined,
@@ -117,7 +122,7 @@ export async function POST(request: Request) {
             accountId,
             company: company.trim(),
             title: title.trim(),
-            description: description.trim(),
+            description: finalDescription,
             applyUrl: url?.trim() || null,
             location: location?.trim() || null,
             salary: salary?.trim() || null,
@@ -145,7 +150,7 @@ export async function POST(request: Request) {
         data: {
           company: company.trim(),
           title: title.trim(),
-          description: description.trim(),
+          description: finalDescription,
           applyUrl: url?.trim() || null,
           location: location?.trim() || null,
           salary: salary?.trim() || null,

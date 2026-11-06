@@ -40,6 +40,42 @@ export function isUnspecifiedPostedAt(value: string | null | undefined): boolean
 }
 
 /**
+ * Anchors a relative date expression (e.g. "3 weeks ago", "Posted 25 days ago", "yesterday", "today")
+ * to an absolute ISO timestamp based on the scrape reference time.
+ * Allows job cards to compute real-time relative distance dynamically.
+ */
+export function relativeTimeToIso(
+  relativeStr: string | null | undefined,
+  now = new Date()
+): string | null {
+  if (!relativeStr) return null;
+  const s = relativeStr.toLowerCase().trim();
+
+  if (/\b(?:today|just\s+now|just\s+posted)\b/i.test(s)) {
+    return now.toISOString();
+  }
+  if (/\byesterday\b/i.test(s)) {
+    const d = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    return d.toISOString();
+  }
+
+  const match = s.match(/(\d+)\+?\s+(minute|hour|day|week|month)s?\s+ago/i);
+  if (!match) return null;
+
+  const count = parseInt(match[1], 10);
+  const unit = match[2].toLowerCase();
+
+  let ms = 0;
+  if (unit === "minute") ms = count * 60 * 1000;
+  else if (unit === "hour") ms = count * 60 * 60 * 1000;
+  else if (unit === "day") ms = count * 24 * 60 * 60 * 1000;
+  else if (unit === "week") ms = count * 7 * 24 * 60 * 60 * 1000;
+  else if (unit === "month") ms = count * 30 * 24 * 60 * 60 * 1000;
+
+  return new Date(now.getTime() - ms).toISOString();
+}
+
+/**
  * Normalizes a postedAt candidate string or extracts a posted/reposted relative date
  * from fallback spec text.
  */

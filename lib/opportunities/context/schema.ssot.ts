@@ -121,3 +121,68 @@ export interface NormalizedJobOpportunity {
   /** Optional one-sentence fit/mismatch explanation */
   matchReason?: string | null;
 }
+
+/* -------------------------------------------------------------------------- */
+/*                 4. LINK PARSER & SCRAPER SSOT TYPES                        */
+/* -------------------------------------------------------------------------- */
+
+export type JobSectionCategory =
+  | "about_company"
+  | "overview"
+  | "responsibilities"
+  | "qualifications_required"
+  | "qualifications_preferred"
+  | "candidate_profile"
+  | "compensation_benefits"
+  | "legal_eeo"
+  | "general";
+
+export interface ParsedJobSection {
+  category: JobSectionCategory;
+  heading: string;
+  body: string;
+  rawHtml?: string;
+}
+
+export interface StructuredJobDescription {
+  /** High-signal role content (overview, duties, requirements) for match/RAG consumption */
+  coreMarkdown: string;
+  /** Complete reconstructed text in natural order (with "About Company") for card modal */
+  fullReconstructedMarkdown: string;
+  /** Concise ~150-char plain English summary for the 2-line card snippet */
+  overviewSnippet: string;
+  /** Itemized sections with categorical classifications */
+  sections: ParsedJobSection[];
+}
+
+export interface ScrapedJobPosting {
+  title?: string;
+  company?: string;
+  location?: string;
+  salary?: string;
+  salaryMax?: number;
+  /** Full reconstructed markdown description (with headings, paragraphs, and about company) */
+  description?: string;
+  /** High-signal core description without company PR for AI matching & tailoring */
+  coreDescription?: string;
+  /** Concise ~150-char plain English summary for the card face */
+  overviewSnippet?: string;
+  applyUrl?: string;
+  datePosted?: string;
+  /** High-res direct logo CDN URL from JSON-LD or semantic DOM */
+  logoUrl?: string;
+  sections?: ParsedJobSection[];
+}
+
+export interface ScrapedJobPostingResult {
+  data: ScrapedJobPosting | null;
+  telemetry: string;
+}
+
+export interface ScraperFailureEntry {
+  url: string;
+  status?: number | string;
+  reason: string;
+  timestamp: string;
+}
+

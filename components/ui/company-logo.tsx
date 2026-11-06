@@ -53,6 +53,7 @@ type CompanyLogoSize = keyof typeof SIZE_CONFIG;
 
 export type CompanyLogoProps = {
   src?: string | null;
+  fallbackSrc?: string | null;
   name: string;
   size?: CompanyLogoSize;
   className?: string;
@@ -60,29 +61,49 @@ export type CompanyLogoProps = {
 };
 
 /**
- * Shared squircle company mark for Job Radar + Subscriptions.
- * Cascades from Google Favicon CDN -> Random CSS gradient with initials / icon.
+ * Shared squircle company mark for Job Radar + Subscriptions + Extension Companion.
+ * Cascades from Direct CDN logo -> Google Favicon CDN -> Fallback Avatar -> Gradient initials.
  * Detects and intercepts Google's 16x16 default fallback globe to prevent generic globe rendering.
  */
 export function CompanyLogo({
   src,
+  fallbackSrc,
   name,
   size = "md",
   className,
   imageClassName,
 }: CompanyLogoProps) {
+  const targetSrc = src || fallbackSrc || null;
+  const [prevProps, setPrevProps] = useState({ src, fallbackSrc, name });
+  const [currentSrc, setCurrentSrc] = useState<string | null>(targetSrc);
   const [failed, setFailed] = useState(false);
-  const [prevSrc, setPrevSrc] = useState(src);
+  const [attemptedFallback, setAttemptedFallback] = useState(false);
 
-  if (prevSrc !== src) {
-    setPrevSrc(src);
+  // Sync state if props change (handles tab switching and dynamic extraction)
+  if (
+    prevProps.src !== src ||
+    prevProps.fallbackSrc !== fallbackSrc ||
+    prevProps.name !== name
+  ) {
+    setPrevProps({ src, fallbackSrc, name });
+    setCurrentSrc(targetSrc);
     setFailed(false);
+    setAttemptedFallback(false);
   }
+
+  const handleImageError = () => {
+    if (!attemptedFallback && fallbackSrc && fallbackSrc !== currentSrc) {
+      setAttemptedFallback(true);
+      setCurrentSrc(fallbackSrc);
+    } else {
+      setFailed(true);
+    }
+  };
 
   const initials = logoInitials(name);
   const { outer, inner, text } = SIZE_CONFIG[size];
   const gradientClass = getGradientClass(name);
-  const showImage = Boolean(src) && !failed;
+  const showImage = Boolean(currentSrc) && !failed;
 
   return (
     <div
@@ -102,7 +123,7 @@ export function CompanyLogo({
         {showImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={src!}
+            src={currentSrc!}
             alt=""
             className={cn("size-full object-cover", imageClassName)}
             loading="lazy"
@@ -111,10 +132,10 @@ export function CompanyLogo({
               // Google Favicon returns a 16x16 default globe icon when no favicon exists for the domain.
               // Legitimate domain favicons requested with sz=128 are scaled to >= 32px or 128px.
               if (img.naturalWidth <= 16 && img.naturalHeight <= 16) {
-                setFailed(true);
+                handleImageError();
               }
             }}
-            onError={() => setFailed(true)}
+            onError={handleImageError}
           />
         ) : initials ? (
           <span
