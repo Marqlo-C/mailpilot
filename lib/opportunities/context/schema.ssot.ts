@@ -163,6 +163,8 @@ export interface ScrapedJobPosting {
   salaryMax?: number;
   /** Full reconstructed markdown description (with headings, paragraphs, and about company) */
   description?: string;
+  /** Raw uncleaned description string from source payload (e.g. JSON-LD raw string) */
+  rawDescription?: string;
   /** High-signal core description without company PR for AI matching & tailoring */
   coreDescription?: string;
   /** Concise ~150-char plain English summary for the card face */

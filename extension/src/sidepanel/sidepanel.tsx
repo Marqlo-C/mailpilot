@@ -179,6 +179,35 @@ export function SidePanelApp() {
                 .trim();
             }
 
+            function htmlToMd(htmlStr: string | null | undefined): string {
+              if (!htmlStr) return "";
+              let s = htmlStr;
+              s = s.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+              s = s.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "");
+              s = s.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (m, level, content) => {
+                const hashes = "#".repeat(Math.min(Number(level), 3));
+                const text = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+                return text ? `\n\n${hashes} ${text}\n\n` : "\n\n";
+              });
+              s = s.replace(/<(?:b|strong)[^>]*>([\s\S]*?)<\/(?:b|strong)>/gi, (m, inner) => {
+                const trimmed = inner.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+                return trimmed ? `**${trimmed}**` : "";
+              });
+              s = s.replace(/<(?:i|em)[^>]*>([\s\S]*?)<\/(?:i|em)>/gi, (m, inner) => {
+                const trimmed = inner.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+                return trimmed ? `*${trimmed}*` : "";
+              });
+              s = s.replace(/<li[^>]*>/gi, "\n- ");
+              s = s.replace(/<\/li>/gi, "");
+              s = s.replace(/<br\s*\/?>/gi, "\n");
+              s = s.replace(/<\/?(?:p|div|section|article|blockquote|ul|ol)[^>]*>/gi, "\n\n");
+              s = s.replace(/<[^>]+>/g, " ");
+              s = s.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&bull;/g, "•");
+              s = s.replace(/[ \t]+/g, " ");
+              s = s.replace(/[ \t]*\n[ \t]*/g, "\n");
+              return s.replace(/\n{3,}/g, "\n\n").trim();
+            }
+
             function stripChrome(text: string): string {
               let s = text;
               // Strip platform applicant stats & preamble
@@ -449,7 +478,8 @@ export function SidePanelApp() {
                     jsonLdResult = {
                       title: clean(target.title),
                       company: clean(target.hiringOrganization?.name),
-                      description: stripChrome(clean(target.description)),
+                      rawDescription: typeof target.description === "string" ? target.description : "",
+                      description: stripChrome(htmlToMd(target.description) || clean(target.description)),
                       location: (() => {
                         const addr = target.jobLocation?.address;
                         if (addr?.addressLocality && addr?.addressRegion) {
@@ -741,32 +771,43 @@ export function SidePanelApp() {
             })();
 
             // High-confidence description selectors before falling back to generic containers
-            const domDesc = q([
-              "[data-testid='jobDetailDescription']",
-              "[data-testid='svx-description-container-inner']",
-              "#BigJobCardId [data-testid='svx-description-container-inner']",
-              ".field-name-body",
-              "[class*='JobDetails_jobDescription']",
-              "[data-test='jobDescription']",
-              ".jobDescriptionContent",
-              "#JobDescriptionContainer",
-              "[data-testid='job-preview-description']",
-              ".job-content-scrollable",
-              ".job-preview2024",
-              "#jobDescriptionText",
-              ".simple-job-description-html",
-              ".react-native-html-content",
-              "[data-testid='expandable-text-box']",
-              "[data-testid='job-details']",
-              "#job-details",
-              ".jobs-description__content",
-              ".show-more-less-html__markup",
-              "[data-test='job-description']",
-              ".posting-description",
-              ".section-page",
-              "[data-automation-id='jobPostingDescription']",
-              "#job-description",
-            ]);
+            const domDescEl = (() => {
+              const selectors = [
+                "[data-testid='jobDetailDescription']",
+                "[data-testid='svx-description-container-inner']",
+                "#BigJobCardId [data-testid='svx-description-container-inner']",
+                ".field-name-body",
+                "[class*='JobDetails_jobDescription']",
+                "[data-test='jobDescription']",
+                ".jobDescriptionContent",
+                "#JobDescriptionContainer",
+                "[data-testid='job-preview-description']",
+                ".job-content-scrollable",
+                ".job-preview2024",
+                "#jobDescriptionText",
+                ".simple-job-description-html",
+                ".react-native-html-content",
+                "[data-testid='expandable-text-box']",
+                "[data-testid='job-details']",
+                "#job-details",
+                ".jobs-description__content",
+                ".show-more-less-html__markup",
+                "[data-test='job-description']",
+                ".posting-description",
+                ".section-page",
+                "[data-automation-id='jobPostingDescription']",
+                "#job-description",
+              ];
+              for (const sel of selectors) {
+                try {
+                  const el = doc.querySelector(sel);
+                  if (el) return el;
+                } catch {}
+              }
+              return null;
+            })();
+            const domDescHtml = domDescEl?.innerHTML || "";
+            const domDesc = domDescEl ? clean(domDescEl.textContent) : "";
 
             // Parse title & company cleanly from compound document title if needed
             let rawTitle = jsonLdResult?.title || domTitle || clean(doc.title);
@@ -856,10 +897,15 @@ export function SidePanelApp() {
               if (inlineSal) domSalary = clean(inlineSal[1]);
             }
 
+            const hasRichHtml = (str?: string) => /<(?:p|h[1-6]|ul|ol|li|strong|b|br|div)\b/i.test(str || "");
             const rawDescCandidate =
-              jsonLdResult?.description ||
-              domDesc ||
-              clean(doc.body.innerText).slice(0, 5000);
+              (jsonLdResult?.description && hasRichHtml(jsonLdResult.rawDescription))
+                ? jsonLdResult.description
+                : (domDescHtml && (hasRichHtml(domDescHtml) || !jsonLdResult?.description || !hasRichHtml(jsonLdResult.rawDescription)))
+                ? htmlToMd(domDescHtml) || domDesc
+                : jsonLdResult?.description ||
+                  domDesc ||
+                  clean(doc.body.innerText).slice(0, 5000);
 
             const finalDescription = stripChrome(rawDescCandidate);
 

@@ -98,8 +98,8 @@ function findJsonLdJobPosting(doc: Document | Element): Partial<ExtractedJobCont
             company = cleanText(jobObj.hiringOrganization);
           }
 
-          const description =
-            typeof jobObj.description === "string" ? cleanDescription(jobObj.description) : "";
+          const rawDescription = typeof jobObj.description === "string" ? jobObj.description : "";
+          const description = rawDescription ? cleanDescription(rawDescription) : "";
 
           let location: string | undefined;
           if (Array.isArray(jobObj.jobLocation)) {
@@ -161,6 +161,7 @@ function findJsonLdJobPosting(doc: Document | Element): Partial<ExtractedJobCont
             return {
               title,
               company,
+              rawDescription,
               description,
               location,
               salary,
@@ -1604,13 +1605,22 @@ export function extractJobContextFromDocument(
     if (isValidCompanyName(atComp)) company = atComp;
   }
 
+  const hasRichHtml = (str?: string) => /<(?:p|h[1-6]|ul|ol|li|strong|b|br|div)\b/i.test(str || "");
+
   // 6. Resolve Description
+  // Prioritize rich HTML over pre-flattened plain text:
+  // If JSON-LD has rich HTML tags, prefer JSON-LD (isolated from site chrome).
+  // If JSON-LD is plain text (e.g. Workday) but DOM description container exists, prefer the rich DOM description!
   const rawDescriptionCandidate =
-    jsonLd?.description ||
-    domDescription ||
-    (activeRoot !== targetDoc.body && activeRoot.textContent ? cleanDescription(activeRoot.innerHTML || activeRoot.textContent) : "") ||
-    (metaDescription ? cleanDescription(metaDescription) : "") ||
-    (targetDoc.body?.innerText ? cleanDescription(targetDoc.body.innerText.slice(0, 4000)) : "");
+    (jsonLd?.description && hasRichHtml(jsonLd.rawDescription))
+      ? jsonLd.description
+      : (domDescription && (hasRichHtml(domDescription) || !jsonLd?.description || !hasRichHtml(jsonLd.rawDescription)))
+      ? domDescription
+      : jsonLd?.description ||
+        domDescription ||
+        (activeRoot !== targetDoc.body && activeRoot.textContent ? cleanDescription(activeRoot.innerHTML || activeRoot.textContent) : "") ||
+        (metaDescription ? cleanDescription(metaDescription) : "") ||
+        (targetDoc.body?.innerText ? cleanDescription(targetDoc.body.innerText.slice(0, 4000)) : "");
 
   const description = cleanDescription(rawDescriptionCandidate);
 

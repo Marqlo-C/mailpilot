@@ -158,11 +158,16 @@ export async function fetchViaScrapingAnt(
 
     // 1. Primary: Schema.org JobPosting JSON-LD
     const jsonLd = extractJsonLdJobPosting(html);
-    if (jsonLd?.description && isLegitimateJobContent(jsonLd.coreDescription || jsonLd.description)) {
+    const hasRichHtmlTags = (str?: string) => /<(?:p|h[1-6]|ul|ol|li|strong|b|br|div)\b/i.test(str || "");
+    const domData = extractJobFromSemanticDom(html, url);
+
+    if (jsonLd?.description && (hasRichHtmlTags(jsonLd.rawDescription) || !domData?.description) && isLegitimateJobContent(jsonLd.coreDescription || jsonLd.description)) {
       return {
         data: {
           ...jsonLd,
           applyUrl: jsonLd.applyUrl ?? url,
+          location: domData?.location || jsonLd.location,
+          logoUrl: jsonLd.logoUrl || domData?.logoUrl,
         },
         status: res.status,
       };
@@ -181,12 +186,16 @@ export async function fetchViaScrapingAnt(
     }
 
     // 3. Tertiary: Semantic DOM Extraction
-    const domData = extractJobFromSemanticDom(html, url);
     if (domData?.description && isLegitimateJobContent(domData.coreDescription || domData.description)) {
       return {
         data: {
+          ...(jsonLd ?? {}),
           ...domData,
-          applyUrl: domData.applyUrl ?? url,
+          applyUrl: domData.applyUrl ?? jsonLd?.applyUrl ?? url,
+          title: jsonLd?.title || domData.title,
+          company: jsonLd?.company || domData.company,
+          salary: jsonLd?.salary || domData.salary,
+          logoUrl: jsonLd?.logoUrl || domData.logoUrl,
         },
         status: res.status,
       };
@@ -440,10 +449,17 @@ export async function scrapeJobPostingJsonLd(
 
       // 1. Primary: Schema.org JobPosting JSON-LD
       const parsed = extractJsonLdJobPosting(html);
-      if (parsed?.description) {
+      const domData = extractJobFromSemanticDom(html, url);
+
+      if (parsed?.description && (hasRichHtmlTags(parsed.rawDescription) || !domData?.description)) {
         const chars = parsed.description.length;
         return {
-          data: { ...parsed, applyUrl: parsed.applyUrl ?? url },
+          data: {
+            ...parsed,
+            applyUrl: parsed.applyUrl ?? url,
+            location: domData?.location || parsed.location,
+            logoUrl: parsed.logoUrl || domData?.logoUrl,
+          },
           telemetry: `Hydrated ${chars.toLocaleString()} chars via JSON-LD`,
         };
       }
@@ -457,7 +473,23 @@ export async function scrapeJobPostingJsonLd(
         };
       }
 
-      // 3. Fallback: Direct clean HTML body text
+      // 3. Fallback: Semantic DOM Extraction (e.g. Workday rich DOM when JSON-LD is plain text)
+      if (domData?.description && isLegitimateJobContent(domData.coreDescription || domData.description)) {
+        return {
+          data: {
+            ...(parsed ?? {}),
+            ...domData,
+            applyUrl: domData.applyUrl ?? parsed?.applyUrl ?? url,
+            title: parsed?.title || domData.title,
+            company: parsed?.company || domData.company,
+            salary: parsed?.salary || domData.salary,
+            logoUrl: parsed?.logoUrl || domData.logoUrl,
+          },
+          telemetry: `Hydrated ${domData.description.length.toLocaleString()} chars via Direct HTML`,
+        };
+      }
+
+      // 4. Fallback: Direct clean HTML body text
       const cleanHtml = html
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
@@ -477,15 +509,6 @@ export async function scrapeJobPostingJsonLd(
             applyUrl: url,
           },
           telemetry: `Hydrated ${Math.min(text.length, 4000).toLocaleString()} chars via Direct HTML`,
-        };
-      }
-
-      // 4. Semantic DOM Extraction fallback
-      const domData = extractJobFromSemanticDom(html, url);
-      if (domData?.description && isLegitimateJobContent(domData.coreDescription || domData.description)) {
-        return {
-          data: { ...domData, applyUrl: url },
-          telemetry: `Hydrated ${domData.description.length.toLocaleString()} chars via Direct HTML`,
         };
       }
 
