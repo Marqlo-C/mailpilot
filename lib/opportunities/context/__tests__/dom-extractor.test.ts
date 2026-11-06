@@ -38,6 +38,22 @@ describe("DOM & Schema.org Extraction on Real HTML Postings", () => {
     expect(parsed?.description).toContain("Sunrise");
   });
 
+  it("extracts Workday jobPostingDescription with markdown bolding and headings (LPN Med Care Manager)", () => {
+    const filename = "LPN Med Care Manager (11_6_2026 4：47：06 AM).html";
+    const filePath = path.join(testHtmlDir, filename);
+    if (!fs.existsSync(filePath)) return;
+
+    const html = fs.readFileSync(filePath, "utf-8");
+    const dom = extractJobFromSemanticDom(html, "https://sunriseseniorliving.wd12.myworkdayjobs.com/en-US/SUNRISE_EXT_CAREERS/job/LPN-Med-Care-Manager_JR126212");
+
+    expect(dom).not.toBeNull();
+    expect(dom?.title).toBe("LPN Med Care Manager");
+    expect(dom?.description).toContain("### Why Join Sunrise Senior Living");
+    expect(dom?.description).toContain("**At Sunrise Senior Living, we believe meaningful work starts with purpose.");
+    expect(dom?.description).toContain("### What You’ll Do");
+    expect(dom?.description).toContain("- Administer medications and treatments per physician orders");
+  });
+
   it("extracts direct CDN logo from Schema.org JobPosting JSON-LD (Smoothstack)", () => {
     const filename = "Entry Level Software Developer ｜ Smoothstack Careers (11_5_2026 5：04：55 PM).html";
     const filePath = path.join(testHtmlDir, filename);

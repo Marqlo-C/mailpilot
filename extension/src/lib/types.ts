@@ -2,6 +2,7 @@ export type ExtractedJobContext = {
   company: string;
   title: string;
   description: string;
+  rawDescription?: string;
   url: string;
   location?: string;
   salary?: string;

@@ -553,4 +553,37 @@ describe("Extension Client-Side Extractor (DOM & JSON-LD)", () => {
     expect(result.salary).toBe("$19/Hr");
     expect(result.logoUrl).toBe("https://d2q79iu7y748jz.cloudfront.net/s/_squarelogo/96x96/ff583a04b6d9ad5530792a3199e38ebe");
   });
+
+  it("prefers rich DOM description over plain-text JSON-LD on Workday postings", () => {
+    const doc = createMockDocument({
+      title: "LPN Med Care Manager",
+      elements: {
+        "[data-automation-id='jobPostingHeader']": "LPN Med Care Manager",
+        "[data-automation-id='companyName']": "Sunrise Senior Living Mgmt Inc",
+        "[data-automation-id='locations'] dd": "Simi Valley, CA",
+        "[data-automation-id='jobPostingDescription']": "<h1><b>Why Join Sunrise Senior Living</b></h1><p><b>At Sunrise Senior Living, we believe meaningful work starts with purpose.</b></p><p>What You’ll Do:<br>• Administer medications and treatments</p>",
+      },
+      jsonLd: JSON.stringify({
+        "@context": "http://schema.org",
+        "@type": "JobPosting",
+        title: "LPN Med Care Manager",
+        hiringOrganization: { "@type": "Organization", name: "Sunrise Senior Living Mgmt Inc" },
+        jobLocation: { address: { addressLocality: "Simi Valley", addressRegion: "CA" } },
+        description: "Why Join Sunrise Senior Living At Sunrise Senior Living, we believe meaningful work starts with purpose. What You’ll Do: • Administer medications and treatments",
+      }),
+    });
+
+    const result = extractJobContextFromDocument(
+      doc,
+      "https://sunriseseniorliving.wd12.myworkdayjobs.com/en-US/SUNRISE_EXT_CAREERS/job/LPN-Med-Care-Manager_JR126212"
+    );
+
+    expect(result.title).toBe("LPN Med Care Manager");
+    expect(result.company).toBe("Sunrise Senior Living Mgmt Inc");
+    expect(result.location).toBe("Simi Valley, CA");
+    expect(result.description).toContain("### Why Join Sunrise Senior Living");
+    expect(result.description).toContain("At Sunrise Senior Living, we believe meaningful work starts with purpose.");
+    expect(result.description).toContain("### What You’ll Do");
+    expect(result.description).toContain("- Administer medications and treatments");
+  });
 });

@@ -409,10 +409,15 @@ export function extractJobFromSemanticDom(
     if (jlTitle) title = jlTitle[1].trim();
   }
 
-  // 2f. Careers / job-title class
+  // 2f. Careers / job-title class or Workday jobPostingHeader
   if (!title) {
-    const jtMatch = html.match(/<h[1-3][^>]*class=["'][^"']*\bjob-title\b[^"']*["'][^>]*>([\s\S]*?)<\/h[1-3]>/i);
-    if (jtMatch) title = jtMatch[1].replace(/<[^>]+>/g, "").trim();
+    const wdTitle = html.match(/data-automation-id=["']?jobPostingHeader["']?[^>]*>([^<]+)</i);
+    if (wdTitle) {
+      title = wdTitle[1].trim();
+    } else {
+      const jtMatch = html.match(/<h[1-3][^>]*class=["'][^"']*\bjob-title\b[^"']*["'][^>]*>([\s\S]*?)<\/h[1-3]>/i);
+      if (jtMatch) title = jtMatch[1].replace(/<[^>]+>/g, "").trim();
+    }
   }
 
   // 2c. Title Tag Patterns across platforms
@@ -1025,6 +1030,12 @@ export function extractJobFromSemanticDom(
   if (!rawDescHtml) {
     const ghDesc = html.match(/<div[^>]*class=["']?[^"'>]*rich-text[^"'>]*["']?[^>]*>([\s\S]*?)<\/div>/i);
     if (ghDesc) rawDescHtml = ghDesc[1];
+  }
+
+  // 8h1. Workday description container
+  if (!rawDescHtml && (html.includes("jobPostingDescription") || /myworkdayjobs\.com/i.test(url + html))) {
+    const wdDesc = html.match(/data-automation-id=["']?jobPostingDescription["']?[^>]*>([\s\S]*?)<\/div>/i);
+    if (wdDesc) rawDescHtml = wdDesc[1];
   }
 
   // 8i. ZipRecruiter Container

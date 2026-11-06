@@ -118,12 +118,14 @@ export function extractJsonLdJobPosting(html: string): ScrapedJobPosting | null 
             }
           }
 
+          let rawDescription: string | undefined;
           let description: string | undefined;
           let coreDescription: string | undefined;
           let overviewSnippet: string | undefined;
           let sections = undefined;
 
           if (typeof item.description === "string" && item.description.trim()) {
+            rawDescription = item.description;
             const structured = parseStructuredJobSections(item.description);
             description = structured.fullReconstructedMarkdown;
             coreDescription = structured.coreMarkdown;
@@ -142,6 +144,7 @@ export function extractJsonLdJobPosting(html: string): ScrapedJobPosting | null 
             location,
             salary,
             salaryMax,
+            rawDescription,
             description,
             coreDescription,
             overviewSnippet,
