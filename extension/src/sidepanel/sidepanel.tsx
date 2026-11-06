@@ -274,6 +274,8 @@ export function SidePanelApp() {
               ".job-details-jobs-unified-top-card__job-title",
               ".jobs-unified-top-card__job-title",
               "[data-testid='vj-job-title']",
+              "[data-testid='jobDetailTitle'] h3",
+              "[data-testid='jobDetailTitle']",
               ".jobsearch-JobInfoHeader-title",
               "[data-test='job-title']",
               ".posting-headline h2",
@@ -398,6 +400,7 @@ export function SidePanelApp() {
             let domSalary = "";
             const salEls = qAll([
               "[data-testid='jobDetailSalary']",
+              "[data-testid='jobDetailSubtitle'] ~ span",
               "[data-testid='svx-job-salary']",
               "#BigJobCardId [data-testid='svx-job-salary']",
               ".field-name-field-job-salary",
@@ -432,6 +435,8 @@ export function SidePanelApp() {
                 "[data-testid='company-widget-logo']",
                 "img[data-testid='company-widget-logo']",
                 ".jobsearch-CompanyAvatar-image",
+                "[data-testid='company-logo']",
+                "[data-testid='company-logo-shadow']",
                 "[data-testid='company-logo'] img",
                 "img[data-automation-id='image']",
                 "[data-automation-id='logoLink'] img",
@@ -460,6 +465,18 @@ export function SidePanelApp() {
                   if (el.closest(".global-nav, .nav, header nav") && !el.closest(".job-details-jobs-unified-top-card__company-logo, [data-testid='company-logo']")) {
                     continue;
                   }
+                  const styleAttr = el.getAttribute("style") || el.querySelector("[style*='background-image']")?.getAttribute("style") || "";
+                  if (styleAttr.includes("background-image")) {
+                    const bgMatch = styleAttr.match(/background-image:\s*url\(([^)]+)\)/i);
+                    if (bgMatch) {
+                      const cleaned = bgMatch[1].replace(/['"]/g, "").trim();
+                      if (cleaned && !/profile-displayphoto|profile-framedphoto|ghost-person|company-banner|banner/i.test(cleaned)) {
+                        if (/^https?:\/\//i.test(cleaned) || (cleaned.startsWith("data:image/") && cleaned.length >= 200)) {
+                          return cleaned;
+                        }
+                      }
+                    }
+                  }
                   const src =
                     el.getAttribute("src") ||
                     el.getAttribute("srcset")?.split(/\s*,\s*|\s+/)[0] ||
@@ -476,11 +493,24 @@ export function SidePanelApp() {
                   }
                 }
               }
+              const scripts = doc.querySelectorAll('script[type="application/ld+json"], script[type*="ld+json"]');
+              for (const s of Array.from(scripts)) {
+                try {
+                  const parsed = JSON.parse(s.textContent || "");
+                  const items = Array.isArray(parsed) ? parsed : [parsed];
+                  for (const item of items) {
+                    if ((item["@type"] === "LocalBusiness" || item["@type"] === "Organization") && typeof item.image === "string") {
+                      return item.image.trim();
+                    }
+                  }
+                } catch {}
+              }
               return undefined;
             })();
 
             // High-confidence description selectors before falling back to generic containers
             const domDesc = q([
+              "[data-testid='jobDetailDescription']",
               "[data-testid='svx-description-container-inner']",
               "#BigJobCardId [data-testid='svx-description-container-inner']",
               ".field-name-body",
@@ -509,6 +539,17 @@ export function SidePanelApp() {
             // Parse title & company cleanly from compound document title if needed
             let rawTitle = jsonLdResult?.title || domTitle || clean(doc.title);
             let rawCompany = (isValidCo(jsonLdResult?.company) ? jsonLdResult?.company : "") || (isValidCo(domCompany) ? domCompany : "");
+
+            if (href.includes("indeed.com") || doc.querySelector("[data-testid='jobDetailSubtitle']")) {
+              const cmpSub = doc.querySelector("[data-testid='jobDetailSubtitle']");
+              if (cmpSub && cmpSub.textContent) {
+                const parts = cmpSub.textContent.split(/\s+-\s+/);
+                if (parts.length >= 2) {
+                  rawCompany = clean(parts[0]);
+                  domLocation = clean(parts[1]);
+                }
+              }
+            }
 
             if (href.includes("ziprecruiter.com") && (!rawCompany || !isValidCo(rawCompany))) {
               const zrCoLink = (doc.querySelector("[data-testid='right-pane'] a[href*='/co/']") || doc.querySelector("a[href*='/co/']")) as HTMLAnchorElement | null;

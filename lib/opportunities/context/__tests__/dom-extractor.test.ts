@@ -263,4 +263,49 @@ describe("DOM & Schema.org Extraction on Real HTML Postings", () => {
     expect(dom?.description).not.toContain("About the role**");
     expect(dom?.description).toContain("### About Skyeton, Inc");
   });
+
+  it("extracts Indeed Wells posting", () => {
+    const filename = "WELLS Jobs in Texas ｜ Indeed.com (11_6_2026 3：02：11 AM).html";
+    const filePath = path.join(testHtmlDir, filename);
+    if (!fs.existsSync(filePath)) return;
+
+    const html = fs.readFileSync(filePath, "utf-8");
+    const dom = extractJobFromSemanticDom(html, "https://www.indeed.com/jobs?q=WELLS&l=Texas");
+    expect(dom?.title).toBe("FIBER, PAINT, & REPAIR TECHNICIAN");
+    expect(dom?.company).toBe("Wells");
+    expect(dom?.location).toBe("Hillsboro, TX");
+    expect(dom?.salary).toBe("$19/Hr");
+    expect(dom?.logoUrl).toBe("https://d2q79iu7y748jz.cloudfront.net/s/_squarelogo/96x96/ff583a04b6d9ad5530792a3199e38ebe");
+    expect(dom?.description).toContain("ABOUT THE ROLE");
+  });
+
+  it("extracts Indeed dual-pane DataAnnotation Software Designer", () => {
+    const filename = "Job Search ｜ Indeed (11_6_2026 3：05：00 AM).html";
+    const filePath = path.join(testHtmlDir, filename);
+    if (!fs.existsSync(filePath)) return;
+
+    const html = fs.readFileSync(filePath, "utf-8");
+    const dom = extractJobFromSemanticDom(html, "https://www.indeed.com/jobs?q=software");
+    expect(dom?.title).toBe("Software Designer - AI Trainer");
+    expect(dom?.company).toBe("DataAnnotation");
+    expect(dom?.location).toBe("Fort Collins, CO");
+    expect(dom?.salary).toBe("$50-$150/Hr");
+    expect(dom?.logoUrl).toMatch(/^data:image\/jpeg;base64,/);
+    expect(dom?.description).toContain("Software Designer - AI Trainer to help train AI models");
+  });
+
+  it("extracts Indeed single-pane Data Integration Developer Partnership HealthPlan", () => {
+    const filename = "Data Integration Developer - Fairfield, CA 94534 - Indeed.com (11_6_2026 3：11：27 AM).html";
+    const filePath = path.join(testHtmlDir, filename);
+    if (!fs.existsSync(filePath)) return;
+
+    const html = fs.readFileSync(filePath, "utf-8");
+    const dom = extractJobFromSemanticDom(html, "https://www.indeed.com/viewjob?jk=123");
+    expect(dom?.title).toBe("Data Integration Developer");
+    expect(dom?.company).toBe("Partnership HealthPlan of California");
+    expect(dom?.location).toBe("Fairfield, CA");
+    expect(dom?.salary).toBe("$106.67K-$138.67K");
+    expect(dom?.logoUrl).toMatch(/^data:image\/jpeg;base64,/);
+    expect(dom?.description).toContain("Data Integration Developer is responsible for designing");
+  });
 });
