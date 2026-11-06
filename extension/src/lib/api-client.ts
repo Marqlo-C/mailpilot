@@ -153,6 +153,7 @@ export async function tailorResume(payload: {
   url?: string;
   location?: string;
   salary?: string;
+  logoUrl?: string;
   pageBudget?: "auto" | 1 | 2;
   includeSummary?: boolean;
   opportunityId?: string;

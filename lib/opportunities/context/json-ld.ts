@@ -48,7 +48,7 @@ export {
   isLegitimateJobContent,
 } from "./json-ld-parser";
 
-export { extractJobFromSemanticDom } from "./dom-extractor";
+export { extractJobFromSemanticDom, extractIndeedSemanticDom } from "./dom-extractor";
 
 import type {
   ScrapedJobPosting,
