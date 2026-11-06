@@ -1053,20 +1053,22 @@ export function extractIndeedJobContext(
   const pane = doc.querySelector("#jobsearch-ViewjobPaneWrapper") || doc;
 
   // 2. Title
-  let title =
-    queryFirstText(pane, [
-      "[data-testid='vj-job-title']",
-      "[data-testid='jobDetailTitle'] h3",
-      "[data-testid='jobDetailTitle']",
-      "[data-testid='jobsearch-JobInfoHeader-title']",
-      ".jobsearch-JobInfoHeader-title",
-      "h1",
-    ]) || "";
+  let title = "";
+  const titleEl = pane.querySelector(
+    "[data-testid='vj-job-title'], [data-testid='jobDetailTitle'] h3, [data-testid='jobDetailTitle'], [data-testid='jobsearch-JobInfoHeader-title'], .jobsearch-JobInfoHeader-title"
+  );
+  if (titleEl) {
+    const raw = cleanText(titleEl.textContent);
+    if (raw && !/\$|\/Hr|\/yr|\b(?:an?\s*hour|a\s*year|full-time|part-time)\b/i.test(raw)) {
+      title = raw;
+    }
+  }
 
   if (!title) {
     const activeCard = doc.querySelector("[aria-pressed='true'] [id^='jobTitle-'], [data-active='true'] [id^='jobTitle-']");
     if (activeCard?.textContent) {
-      title = cleanText(activeCard.textContent);
+      const raw = cleanText(activeCard.textContent);
+      if (raw && !/\$|\/Hr|\/yr/i.test(raw)) title = raw;
     }
   }
 
@@ -1076,7 +1078,7 @@ export function extractIndeedJobContext(
       .replace(/\s*\|\s*Indeed\.com$/i, "")
       .replace(/\s*-\s*Indeed\.com$/i, "")
       .trim();
-    if (cleaned && !/jobs?|search/i.test(cleaned)) {
+    if (cleaned && !/jobs?|search/i.test(cleaned) && !/\$|\/Hr|\/yr/i.test(cleaned)) {
       title = cleaned;
     }
   }
@@ -1099,16 +1101,6 @@ export function extractIndeedJobContext(
   }
 
   if (!company) {
-    company =
-      queryFirstText(pane, [
-        "[data-testid='inlineHeader-companyName']",
-        "[data-testid='company-info-metadata'] a",
-        "[data-testid='company-info-metadata']",
-      ]) || "";
-    if (!isValidCompanyName(company)) company = "";
-  }
-
-  if (!company) {
     const cmpLink =
       pane.querySelector("a[href*='/cmp/'][aria-label]") ||
       doc.querySelector("a[href*='/cmp/'][aria-label]") ||
@@ -1116,13 +1108,22 @@ export function extractIndeedJobContext(
       doc.querySelector("a[href*='/cmp/']");
     if (cmpLink) {
       const rawLabel = cmpLink.getAttribute("aria-label")?.replace(/\s*\(opens in a new tab\)/i, "").trim();
-      if (rawLabel && isValidCompanyName(rawLabel)) {
+      if (rawLabel && isValidCompanyName(rawLabel) && !/^(snapshot|reviews|salaries|jobs)$/i.test(rawLabel)) {
         company = rawLabel;
       } else {
         const text = cleanText(cmpLink.textContent);
-        if (isValidCompanyName(text)) company = text;
+        if (isValidCompanyName(text) && !/^(snapshot|reviews|salaries|jobs)$/i.test(text)) company = text;
       }
     }
+  }
+
+  if (!company) {
+    company =
+      queryFirstText(pane, [
+        "[data-testid='inlineHeader-companyName']",
+        "[data-testid='company-info-metadata'] a",
+      ]) || "";
+    if (!isValidCompanyName(company)) company = "";
   }
 
   if (!company) {
@@ -1137,8 +1138,14 @@ export function extractIndeedJobContext(
   }
 
   if (!company) {
-    const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
-    for (const s of Array.from(scripts)) {
+    const explicitScripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
+    const scripts =
+      explicitScripts.length > 0
+        ? explicitScripts
+        : Array.from(doc.querySelectorAll("script")).filter((s) =>
+            /application\/ld\+json/i.test(s.getAttribute("type") || "")
+          );
+    for (const s of scripts) {
       try {
         const parsed = JSON.parse(s.textContent || "");
         const items = Array.isArray(parsed) ? parsed : [parsed];
@@ -1162,17 +1169,35 @@ export function extractIndeedJobContext(
     }
   }
 
-  // Location fallback
+  // 4. Location
+  if (!location) {
+    const cmpMeta = pane.querySelector("[data-testid='company-info-metadata']");
+    if (cmpMeta) {
+      const leafElements = Array.from(cmpMeta.querySelectorAll("div, span")).filter(
+        (el) => el.children.length === 0 && !el.closest("a")
+      );
+      for (const el of leafElements) {
+        const txt = cleanText(el.textContent);
+        if (!txt || txt === "·" || txt === "•" || /^\d+\.\d+$/.test(txt)) continue;
+        if (company && (txt.toLowerCase() === company.toLowerCase() || txt.includes(company))) continue;
+        if (/[A-Za-z\s.'-]+,\s*[A-Z]{2}(?:\s+\d{5})?/.test(txt) || /^(?:Remote|Hybrid|[A-Z][a-z]+)$/i.test(txt)) {
+          const std = standardizeLocation(txt);
+          location = std || txt;
+          break;
+        }
+      }
+    }
+  }
+
   if (!location) {
     const locEl =
       pane.querySelector("[data-testid='inlineHeader-companyLocation']") ||
       pane.querySelector("[data-testid='jobsearch-JobInfoHeader-companyLocation']") ||
-      pane.querySelector("[data-testid='company-info-metadata'] .css-146c3p1") ||
       doc.querySelector("[data-testid='inlineHeader-companyLocation']") ||
       doc.querySelector("[data-testid='jobsearch-JobInfoHeader-companyLocation']");
     if (locEl?.textContent) {
       const locText = cleanText(locEl.textContent);
-      if (locText !== "·" && locText !== "•" && locText.length > 1) {
+      if (locText !== "·" && locText !== "•" && locText.length > 1 && locText !== company) {
         const dotIdx = locText.search(/·|•|\bRemote\b/i);
         const cityPart = dotIdx !== -1 ? locText.slice(0, dotIdx).trim() : locText;
         const isRemote = /remote|work from home|wfh/i.test(locText);
@@ -1186,15 +1211,19 @@ export function extractIndeedJobContext(
     const titleWithoutIndeed = doc.title.replace(/\s*-\s*Indeed\.com$/i, "").trim();
     const titleParts = titleWithoutIndeed.split(/\s*-\s*/);
     const lastPart = titleParts[titleParts.length - 1]?.trim();
-    if (lastPart && /,\s*[A-Z]{2}(?:\s+\d{5})?$/i.test(lastPart)) {
-      location = standardizeLocation(lastPart) || lastPart;
+    if (lastPart && lastPart !== title && !/jobs?|search/i.test(lastPart)) {
+      const std = standardizeLocation(lastPart);
+      if (std) location = std;
     }
   }
 
   if (!location) {
-    const candidateEls = Array.from(pane.querySelectorAll("div.css-146c3p1, span.css-146c3p1"));
+    const candidateEls = Array.from(pane.querySelectorAll("div.css-146c3p1, span.css-146c3p1")).filter(
+      (el) => el.children.length === 0 && !el.closest("a")
+    );
     for (const el of candidateEls) {
       const txt = cleanText(el.textContent);
+      if (company && txt.toLowerCase() === company.toLowerCase()) continue;
       if (/[A-Za-z\s.'-]+,\s*[A-Z]{2}(?:\s+\d{5})?/.test(txt) && !/\$|hour|year|full-time|apply/i.test(txt)) {
         const std = standardizeLocation(txt);
         if (std) {
@@ -1205,7 +1234,11 @@ export function extractIndeedJobContext(
     }
   }
 
-  // 4. Salary
+  if (location && company && (location.toLowerCase() === company.toLowerCase() || location === company)) {
+    location = undefined;
+  }
+
+  // 5. Salary
   let salary: string | undefined;
   if (cmpSubtitle) {
     const span = cmpSubtitle.parentElement?.querySelector("span:not([data-testid='jobDetailSubtitle'])");
@@ -1222,40 +1255,32 @@ export function extractIndeedJobContext(
       doc.querySelector("[data-testid='jobDetailSubtitle'] ~ span") ||
       doc.querySelector("span.css-1o18umh") ||
       pane.querySelector("#salaryInfoAndJobType");
-    if (salEl?.textContent) {
+    if (salEl?.textContent && /\$/.test(salEl.textContent)) {
       salary = normalizeSalaryDisplay(salEl.textContent) || cleanText(salEl.textContent);
     }
   }
 
   if (!salary) {
-    const allSpans = Array.from(pane.querySelectorAll("span, div.css-146c3p1"));
+    const allSpans = Array.from(pane.querySelectorAll("div, span")).filter((el) => el.children.length === 0);
     for (const el of allSpans) {
       const text = cleanText(el.textContent);
-      if (/\$\d+/.test(text) && /\b(?:an?\s*(?:hour|yr|year|month)|hr|from\s*\$)\b/i.test(text)) {
+      if (/\$\d+/.test(text) && /\b(?:an?\s*(?:hour|yr|year|month)|hr|from\s*\$|to\s*\$|a\s*year)\b/i.test(text)) {
         salary = normalizeSalaryDisplay(text) || text;
         break;
       }
     }
   }
 
-  if (!salary) {
-    const rawSal =
-      queryFirstText(pane, [
-        "[data-testid='jobsearch-JobInfoHeader-salary']",
-        "span.css-1o18umh",
-        ".css-146c3p1",
-        "#salaryInfoAndJobType",
-      ]);
-    if (rawSal) {
-      salary = normalizeSalaryDisplay(rawSal) || rawSal;
-    }
-  }
-
-  // 5. Logo URL
+  // 6. Logo URL
   let logoUrl: string | undefined;
   const explicitScripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
-  const scripts = explicitScripts.length > 0 ? explicitScripts : Array.from(doc.querySelectorAll('script[type*="ld+json"]'));
-  for (const s of scripts) {
+  const jsonLdScripts =
+    explicitScripts.length > 0
+      ? explicitScripts
+      : Array.from(doc.querySelectorAll("script")).filter((s) =>
+          /application\/ld\+json/i.test(s.getAttribute("type") || "")
+        );
+  for (const s of jsonLdScripts) {
     try {
       const parsed = JSON.parse(s.textContent || "");
       const items = Array.isArray(parsed) ? parsed : [parsed];
@@ -1271,8 +1296,8 @@ export function extractIndeedJobContext(
 
   if (!logoUrl) {
     const logoEl =
-      pane.querySelector("[data-testid='company-logo'], [data-testid='company-logo-shadow']") ||
-      doc.querySelector("[data-testid='company-logo'], [data-testid='company-logo-shadow']");
+      pane.querySelector("[data-testid='company-logo'], [data-testid='company-logo-shadow'], [data-testid='jobsearch-CompanyAvatarImage']") ||
+      doc.querySelector("[data-testid='company-logo'], [data-testid='company-logo-shadow'], [data-testid='jobsearch-CompanyAvatarImage']");
     if (logoEl) {
       const bgMatch = (logoEl.getAttribute("style") || "").match(/background-image:\s*url\(["']?([^"')]+)["']?\)/i);
       if (bgMatch) {
@@ -1293,23 +1318,23 @@ export function extractIndeedJobContext(
   if (!logoUrl) {
     logoUrl =
       queryFirstImageSrc(pane, [
-        "[data-testid='company-logo']",
-        "[data-testid='jobsearch-CompanyAvatarImage']",
         "img[src*='cloudfront.net/s/_squarelogo/']",
         "img[src*='images.indeed.com/']",
       ]) || (pane !== doc ? queryFirstImageSrc(doc, [
-        "[data-testid='company-logo']",
-        "[data-testid='jobsearch-CompanyAvatarImage']",
         "img[src*='cloudfront.net/s/_squarelogo/']",
         "img[src*='images.indeed.com/']",
       ]) : undefined);
   }
 
-  // 6. Description
+  // 7. Description
   const descEl =
+    pane.querySelector(".simple-job-description-html") ||
+    pane.querySelector("[class*='simple-job-description']") ||
     pane.querySelector("[data-testid='jobDetailDescription']") ||
     pane.querySelector("#jobDescriptionText") ||
     pane.querySelector("[data-testid='jobsearch-jobDescriptionText']") ||
+    doc.querySelector(".simple-job-description-html") ||
+    doc.querySelector("[class*='simple-job-description']") ||
     doc.querySelector("[data-testid='jobDetailDescription']") ||
     doc.querySelector("#jobDescriptionText");
 
@@ -1694,8 +1719,8 @@ export function extractJobContextFromDocument(
 }
 
 // Global script listener for Chrome extension messaging
-if (typeof window !== "undefined") {
-  chrome?.runtime?.onMessage?.addListener((request, _sender, sendResponse) => {
+if (typeof window !== "undefined" && typeof chrome !== "undefined" && chrome?.runtime?.onMessage) {
+  chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
     if (request?.type === "EXTRACT_JOB_CONTEXT") {
       const result = extractJobContextFromDocument(document, window.location.href);
       sendResponse({ ok: true, data: result });
