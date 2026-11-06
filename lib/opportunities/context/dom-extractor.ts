@@ -30,8 +30,8 @@ export function extractJobFromSemanticDom(
 
   // 1. Extract Page Title, Canonical, & OpenGraph tags
   const canonicalMatch =
-    html.match(/<link\s+[^>]*rel=["']canonical["'][^>]*href=["']([^"']+)["']/i) ||
-    html.match(/<link\s+[^>]*href=["']([^"']+)["'][^>]*rel=["']canonical["']/i);
+    html.match(/<link\s+[^>]*rel=["']?canonical["']?[^>]*href=["']?([^"'\s>]+)/i) ||
+    html.match(/<link\s+[^>]*href=["']?([^"'\s>]+)["']?[^>]*rel=["']?canonical["']?/i);
   const canonicalUrl = canonicalMatch ? canonicalMatch[1].trim() : "";
 
   const titleTagMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
@@ -266,7 +266,7 @@ export function extractJobFromSemanticDom(
   // 3h. JobLeads company
   if (!company && /jobleads\.com/i.test(url + html)) {
     const jlCompMatch = html.match(/data-testid=["']?job-preview-company-name["']?[^>]*>([^<]+)<\/span>/i) ||
-                        html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([A-Za-z0-9&.,' -]+?)\s+is\s+hiring/i);
+                        html.match(/<meta[^>]+name=["']?description["']?[^>]+content=["']([^"']+?)\s+(?:is\s+hiring|hiring)/i);
     if (jlCompMatch && isValidCompanyName(jlCompMatch[1])) {
       company = jlCompMatch[1].trim();
     }
@@ -501,6 +501,19 @@ export function extractJobFromSemanticDom(
     if (coLogoMatch && !/profile-displayphoto|profile-framedphoto|ghost-person|company-banner|banner/i.test(coLogoMatch[1])) {
       logoUrl = coLogoMatch[1];
     }
+
+    // Modern LinkedIn SDUI embedded JSON stream logo
+    if (!logoUrl && /linkedin\.com/i.test(url + html)) {
+      const a11yIdx = html.search(new RegExp(`Company logo for,\\s*${escCo}`, "i"));
+      if (a11yIdx !== -1) {
+        const slice = html.slice(a11yIdx, a11yIdx + 800);
+        const rootMatch = slice.match(/rootUrl[\\"\s:]+(https?:\/\/[^\\"\s]+)/i);
+        const suffixMatch = slice.match(/suffixUrl[\\"\s:]+([^\\"\s]+)/i);
+        if (rootMatch && suffixMatch) {
+          logoUrl = (rootMatch[1] + suffixMatch[1]).replace(/\\u0026/g, "&");
+        }
+      }
+    }
   }
 
   // 7a. Prefer high-fidelity direct CDN logos (LinkedIn company logo, Glassdoor, Indeed, Workday)
@@ -554,10 +567,22 @@ export function extractJobFromSemanticDom(
 
   // 8b. JobLeads description container
   if (!rawDescHtml && /jobleads\.com/i.test(url + html)) {
-    const jlDesc = html.match(/class=["'][^"']*job-content-scrollable[^"']*["'][^>]*>([\s\S]*?)<\/div>/i) ||
-                   html.match(/data-testid=["']?job-preview-description["']?[^>]*>([\s\S]*?)<\/div>/i) ||
-                   html.match(/class=["'][^"']*job-preview2024[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-    if (jlDesc) rawDescHtml = jlDesc[1];
+    const jlDescStart =
+      html.search(/data-testid=["']?job-preview-description["']?/i) !== -1
+        ? html.search(/data-testid=["']?job-preview-description["']?/i)
+        : html.indexOf("new-job-preview-description-content");
+    if (jlDescStart !== -1) {
+      const ratingWidgetIdx = html.indexOf("job-content-rating-widget", jlDescStart);
+      if (ratingWidgetIdx !== -1 && ratingWidgetIdx - jlDescStart > 100) {
+        rawDescHtml = html.slice(jlDescStart, ratingWidgetIdx);
+      } else {
+        rawDescHtml = html.slice(jlDescStart, jlDescStart + 25000);
+      }
+    } else {
+      const jlDesc = html.match(/class=["'][^"']*job-content-scrollable[^"']*["'][^>]*>([\s\S]*?)<\/div>/i) ||
+                     html.match(/class=["'][^"']*job-preview2024[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+      if (jlDesc) rawDescHtml = jlDesc[1];
+    }
   }
 
   // 8c. Careers / Drupal body container
@@ -576,14 +601,19 @@ export function extractJobFromSemanticDom(
     }
   }
 
-  // 8e. LinkedIn Logged-in Container: Between "About the job" and "About the company" or expandable box
+  // 8e. LinkedIn Logged-in Container: Between "About the job" and next section / ID / expandable box
   if (!rawDescHtml && html.includes("About the job")) {
     const atjIdx = html.indexOf("About the job");
     const atcIdx = html.indexOf("About the company", atjIdx);
+    const jobDetailsEnd = html.search(/(?:id=["']?JobDetails_PremiumApplicantInsights|componentkey=["']?JobDetails_|id=["']?JobDetails_apply)/i);
     if (atjIdx !== -1 && atcIdx !== -1) {
       rawDescHtml = html.slice(atjIdx, atcIdx);
+    } else if (atjIdx !== -1 && jobDetailsEnd !== -1 && jobDetailsEnd > atjIdx) {
+      rawDescHtml = html.slice(atjIdx, jobDetailsEnd);
+    } else if (atjIdx !== -1) {
+      rawDescHtml = html.slice(atjIdx, atjIdx + 20000);
     } else {
-      const expBox = html.match(/data-testid=expandable-text-box[^>]*>([\s\S]*?)<\/span>/i);
+      const expBox = html.match(/data-testid=["']?expandable-text-box["']?[^>]*>([\s\S]*?)<\/span>/i);
       if (expBox) rawDescHtml = expBox[1];
     }
   }
@@ -686,12 +716,18 @@ export function extractJobFromSemanticDom(
       }
     }
   } else if (/jobleads\.com/i.test((url || "") + html)) {
-    const jlLinkMatch =
-      html.match(/data-active=["']?true["']?[\s\S]*?<a[^>]+data-testid=["']?search-job-card-link["']?[^>]+href=["']([^"']+)["']/i) ||
-      html.match(/data-active=["']?true["']?[\s\S]*?<a[^>]+href=["'](\/us\/job\/[^"']+|\/job\/[^"']+|https:\/\/www\.jobleads\.com\/[^\s"'>]+)/i) ||
-      html.match(/class=["'][^"']*job-preview-card[^"']*["'][\s\S]*?<a[^>]+href=["'](\/us\/job\/[^"']+|\/job\/[^"']+|https:\/\/www\.jobleads\.com\/[^\s"'>]+)/i);
-    if (jlLinkMatch) {
-      applyUrl = jlLinkMatch[1].startsWith("http") ? jlLinkMatch[1] : `https://www.jobleads.com${jlLinkMatch[1]}`;
+    if (canonicalUrl && /jobleads\.com\/[a-z]{2}\/job\//i.test(canonicalUrl)) {
+      applyUrl = canonicalUrl;
+    } else if (url && /jobleads\.com\/[a-z]{2}\/job\//i.test(url) && !url.includes("?from=")) {
+      applyUrl = url;
+    } else {
+      const jlLinkMatch =
+        html.match(/data-active=["']?true["']?[\s\S]*?<a[^>]+data-testid=["']?search-job-card-link["']?[^>]+href=["']([^"']+)["']/i) ||
+        html.match(/data-active=["']?true["']?[\s\S]*?<a[^>]+href=["'](\/us\/job\/[^"']+|\/job\/[^"']+|https:\/\/www\.jobleads\.com\/[^\s"'>]+)/i) ||
+        html.match(/class=["'][^"']*job-preview-card[^"']*["'][\s\S]*?<a[^>]+href=["'](\/us\/job\/[^"']+|\/job\/[^"']+|https:\/\/www\.jobleads\.com\/[^\s"'>]+)/i);
+      if (jlLinkMatch && !jlLinkMatch[1].includes("from=")) {
+        applyUrl = jlLinkMatch[1].startsWith("http") ? jlLinkMatch[1] : `https://www.jobleads.com${jlLinkMatch[1]}`;
+      }
     }
   } else if (/monster\.com/i.test((url || "") + html)) {
     if (canonicalUrl && /monster\.com\/job-openings\//i.test(canonicalUrl)) {

@@ -468,4 +468,59 @@ describe("Extension Client-Side Extractor (DOM & JSON-LD)", () => {
     expect(result.location).toBe("Elk Grove, CA");
     expect(result.salary).toBe("$100K-$125K");
   });
+
+  it("extracts LinkedIn hyphenated title and company correctly with symmetric pipe delimiters", () => {
+    const doc = createMockDocument({
+      title: "Software Engineer - New Grad, 2027 | Domino Data Lab | LinkedIn",
+      elements: {
+        "[data-sdui-screen*='JobDetails'] [aria-label^='Company, ' i]": "",
+        "[aria-label^='Company, ' i]": "",
+        "[data-testid='expandable-text-box']": "At Domino, we build solutions that help the largest enterprises. New Grad Pay Range $150,000—$165,000 USD",
+      },
+      attributes: {
+        "[data-sdui-screen*='JobDetails'] [aria-label^='Company, ' i]": {
+          "aria-label": "Company, Domino Data Lab.",
+        },
+        "[aria-label^='Company, ' i]": {
+          "aria-label": "Company, Domino Data Lab.",
+        },
+      },
+    });
+
+    const result = extractJobContextFromDocument(
+      doc,
+      "https://www.linkedin.com/jobs/search/?currentJobId=4464138190"
+    );
+
+    expect(result.title).toBe("Software Engineer - New Grad, 2027");
+    expect(result.company).toBe("Domino Data Lab");
+  });
+
+  it("extracts JobLeads single-pane canonical URL without grabbing similar jobs referral link", () => {
+    const doc = createMockDocument({
+      title: "Software Engineer (Backend / Full Stack) - Austin | JobLeads",
+      elements: {
+        "link[rel='canonical']": "",
+        "a[href*='/job/']": "Similar Job",
+        "[data-testid='job-preview-description']": "<div>Software Engineer (Backend / Full Stack)</div><p>$75,000-$120,000/year</p>",
+      },
+      attributes: {
+        "link[rel='canonical']": {
+          href: "https://www.jobleads.com/us/job/software-engineer-backend-full-stack--austin--e60853f44cd50c0a9d0154d99e0ca9e51",
+        },
+        "a[href*='/job/']": {
+          href: "https://www.jobleads.com/us/job/junior-backend-full-stack-engineer-launch-your-career--austin--e7c3e188aaf79fa4d084dcbcc8613195b?from=%2Fus%2Fjob%2Fsoftware-engineer-backend-full-stack--austin--e60853f44cd50c0a9d0154d99e0ca9e51",
+        },
+      },
+    });
+
+    const result = extractJobContextFromDocument(
+      doc,
+      "https://www.jobleads.com/us/job/software-engineer-backend-full-stack--austin--e60853f44cd50c0a9d0154d99e0ca9e51"
+    );
+
+    expect(result.url).toBe("https://www.jobleads.com/us/job/software-engineer-backend-full-stack--austin--e60853f44cd50c0a9d0154d99e0ca9e51");
+    expect(result.url).not.toContain("?from=");
+    expect(result.url).not.toContain("junior-backend-full-stack-engineer");
+  });
 });

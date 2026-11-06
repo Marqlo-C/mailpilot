@@ -217,6 +217,25 @@ export function cleanTitleAndCompany(
   let title = (rawTitle || "").trim();
   let company = (currentCompany || "").trim();
 
+  // Pattern: "Job Title | Company | LinkedIn" or "Job Title • Company • LinkedIn"
+  // Prioritize symmetric pipe / bullet delimiters before hyphens so internal hyphens in the title
+  // (e.g. "Software Engineer - New Grad, 2027 | Domino Data Lab | LinkedIn") don't split the title prematurely!
+  const pipeTripleMatch = title.match(
+    /^(.+?)\s*([|｜•·])\s*([^|｜•·]+?)\s*\2\s*(?:LinkedIn|Indeed|Glassdoor|ZipRecruiter|JobLeads|Greenhouse|Lever|Ashby|Workday|Monster)/i
+  );
+  if (pipeTripleMatch) {
+    title = pipeTripleMatch[1].trim();
+    const token2 = pipeTripleMatch[3].trim();
+    const isLocationToken =
+      /,\s*[A-Z]{2}(?:\s+\d{5})?$/i.test(token2) ||
+      /JobLeads/i.test(rawTitle) ||
+      !isValidCompanyName(token2);
+    if (!company && !isLocationToken && isValidCompanyName(token2)) {
+      company = token2;
+    }
+    return { title, company };
+  }
+
   // Pattern: "Job Title | Company | LinkedIn" or "Job Title - Company - Indeed"
   const tripleMatch = title.match(
     /^(.+?)\s*[|｜•·-]\s*(.+?)\s*[|｜•·-]\s*(?:LinkedIn|Indeed|Glassdoor|ZipRecruiter|JobLeads|Greenhouse|Lever|Ashby|Workday|Monster)/i

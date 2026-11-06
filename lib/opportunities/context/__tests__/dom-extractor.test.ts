@@ -216,4 +216,33 @@ describe("DOM & Schema.org Extraction on Real HTML Postings", () => {
     expect(dom?.applyUrl).toContain("/job-openings/imaging-support-specialist-nbhp-per-diem-day-fairfield-ca");
     expect(dom?.salary).toBe("$30.18-$36.7/Hr");
   });
+
+  it("extracts LinkedIn split-pane Domino Data Lab with correct company and title", () => {
+    const filename = "Software Engineer - New Grad, 2027 _ Domino Data Lab _ LinkedIn.html";
+    const filePath = path.join(testHtmlDir, filename);
+    if (!fs.existsSync(filePath)) return;
+
+    const html = fs.readFileSync(filePath, "utf-8");
+    const dom = extractJobFromSemanticDom(html, "https://www.linkedin.com/jobs/search/?currentJobId=4464138190");
+
+    expect(dom).not.toBeNull();
+    expect(dom?.title).toBe("Software Engineer - New Grad, 2027");
+    expect(dom?.company).toBe("Domino Data Lab");
+    expect(dom?.logoUrl).toContain("domino_data_lab_logo");
+    expect(dom?.salary).toBe("$150K-$165K");
+  });
+
+  it("extracts JobLeads single-pane canonical URL without grabbing similar jobs referral URL", () => {
+    const filename = "Software Engineer (Backend _ Full Stack) - Austin ｜ JobLeads (11_6_2026 1：32：53 AM).html";
+    const filePath = path.join(testHtmlDir, filename);
+    if (!fs.existsSync(filePath)) return;
+
+    const html = fs.readFileSync(filePath, "utf-8");
+    const dom = extractJobFromSemanticDom(html, "https://www.jobleads.com/us/job/software-engineer-backend-full-stack--austin--e60853f44cd50c0a9d0154d99e0ca9e51");
+
+    expect(dom).not.toBeNull();
+    expect(dom?.applyUrl).toBe("https://www.jobleads.com/us/job/software-engineer-backend-full-stack--austin--e60853f44cd50c0a9d0154d99e0ca9e51");
+    expect(dom?.applyUrl).not.toContain("?from=");
+    expect(dom?.applyUrl).not.toContain("junior-backend-full-stack-engineer");
+  });
 });

@@ -205,9 +205,13 @@ const SITE_SELECTORS: SiteSelectorMap[] = [
       "h1",
     ],
     company: [
+      "[data-sdui-screen*='JobDetails'] [aria-label^='Company, ' i]",
+      "[data-sdui-screen*='JobDetails'] a[href*='/company/']",
+      "[aria-label^='Company, ' i]",
       "[data-testid='company-name']",
       ".job-details-jobs-unified-top-card__company-name",
       ".jobs-unified-top-card__company-name",
+      "a[href*='/company/']",
       "a.topcard__org-name-link",
       ".topcard__flavor--black-link",
       ".topcard__flavor",
@@ -241,6 +245,10 @@ const SITE_SELECTORS: SiteSelectorMap[] = [
       ".topcard__flavor--metadata",
     ],
     logoUrl: [
+      "[data-sdui-screen*='JobDetails'] img[src*='company-logo']",
+      "[data-sdui-screen*='JobDetails'] figure img",
+      "[data-sdui-screen*='JobDetails'] img",
+      "[aria-label^='Company, ' i] img",
       ".jobs-details__topcard-company-url img",
       ".job-details-jobs-unified-top-card__company-logo img",
       ".jobs-unified-top-card__company-logo img",
@@ -629,7 +637,6 @@ const SITE_SELECTORS: SiteSelectorMap[] = [
       "[data-active='true'] a[href*='/job/']",
       "[data-active='true'] [data-testid='search-job-card-link']",
       "[data-testid='job-preview-card'] a[href*='/job/']",
-      "a[href*='/job/']",
     ],
   },
   {
@@ -736,6 +743,10 @@ function getActiveContentRoot(doc: Document): Element {
 
   // 2. Active aggregator split-pane (LinkedIn details container, Indeed ViewjobPaneWrapper, ZipRecruiter right-pane, Glassdoor TwoColumnLayout, Monster BigJobCardId, JobLeads preview, etc.)
   const activeSplitPane = doc.querySelector(
+    '[data-sdui-screen*="JobDetails"], ' +
+    '[data-sdui-screen="com.linkedin.sdui.flagshipnav.jobs.SemanticJobDetails"], ' +
+    '.new-job-preview-description, ' +
+    '[data-testid="job-preview-description"], ' +
     '.jobs-search__job-details--container, ' +
     '.scaffold-layout__detail, ' +
     '[class*="jobs-search__job-details"], ' +
@@ -776,6 +787,9 @@ function queryFirstText(root: Element | Document, selectors: string[]): string {
             el.getAttribute("aria-label") ||
             el.getAttribute("title")
           );
+        }
+        if (text) {
+          text = text.replace(/^Company,\s*/i, "").replace(/\.\s*$/, "").trim();
         }
         if (text && text.length >= 2) return text;
       }
@@ -956,7 +970,12 @@ function queryFirstHref(root: Element | Document, selectors: string[]): string |
       const el = root.querySelector(sel);
       if (el) {
         const href = el.getAttribute("href");
-        if (href && (/^https?:\/\//i.test(href.trim()) || href.trim().startsWith("/"))) {
+        if (
+          href &&
+          (/^https?:\/\//i.test(href.trim()) || href.trim().startsWith("/")) &&
+          !/[?&]from=/i.test(href) &&
+          !/\/(?:similar|recommended|search)\b/i.test(href)
+        ) {
           return href.trim();
         }
       }
@@ -1075,12 +1094,19 @@ export function extractJobContextFromDocument(
     }
   }
 
-  // 3a1. JobLeads split-pane direct listing URL resolution
-  if (matchedSite?.source === "JobLeads" && (!domJobLink || !domJobLink.includes("/job/"))) {
-    const activeCardLink = (targetDoc.querySelector("[data-active='true'] a[href*='/job/'], [data-active='true'] [data-testid='search-job-card-link'], [data-testid='job-preview-card'] a[href*='/job/']") || activeRoot.querySelector("a[href*='/job/']")) as HTMLAnchorElement | null;
-    const href = activeCardLink?.getAttribute("href");
-    if (href) {
-      domJobLink = href.startsWith("http") ? href : `https://www.jobleads.com${href}`;
+  // 3a1. JobLeads direct listing URL resolution
+  if (matchedSite?.source === "JobLeads") {
+    const canonical = targetDoc.querySelector("link[rel='canonical']")?.getAttribute("href");
+    if (canonical && /jobleads\.com\/[a-z]{2}\/job\//i.test(canonical)) {
+      domJobLink = canonical;
+    } else if (currentUrl && /jobleads\.com\/[a-z]{2}\/job\//i.test(currentUrl) && !currentUrl.includes("?from=")) {
+      domJobLink = currentUrl;
+    } else if (!domJobLink || !domJobLink.includes("/job/")) {
+      const activeCardLink = targetDoc.querySelector("[data-active='true'] a[href*='/job/'], [data-active='true'] [data-testid='search-job-card-link'], [data-testid='job-preview-card'] a[href*='/job/']") as HTMLAnchorElement | null;
+      const href = activeCardLink?.getAttribute("href");
+      if (href && !href.includes("from=")) {
+        domJobLink = href.startsWith("http") ? href : `https://www.jobleads.com${href}`;
+      }
     }
   }
 
@@ -1257,6 +1283,12 @@ export function extractJobContextFromDocument(
   } else if (/monster\.com/i.test(currentUrl)) {
     if (canonical && /monster\.com\/job-openings\//i.test(canonical)) {
       resolvedUrl = canonical;
+    }
+  } else if (/jobleads\.com/i.test(currentUrl)) {
+    if (canonical && /jobleads\.com\/[a-z]{2}\/job\//i.test(canonical)) {
+      resolvedUrl = canonical;
+    } else if (resolvedUrl.includes("?from=") && currentUrl && !currentUrl.includes("?from=")) {
+      resolvedUrl = currentUrl;
     }
   }
 

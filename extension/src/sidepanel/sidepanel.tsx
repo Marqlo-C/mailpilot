@@ -239,8 +239,14 @@ export function SidePanelApp() {
               for (const sel of selectors) {
                 try {
                   const el = doc.querySelector(sel);
-                  if (el?.textContent) {
-                    const text = clean(el.textContent);
+                  if (el) {
+                    let text = clean(el.textContent);
+                    if (!text) {
+                      text = clean(el.getAttribute("aria-label") || el.getAttribute("title"));
+                    }
+                    if (text) {
+                      text = text.replace(/^Company,\s*/i, "").replace(/\.\s*$/, "").trim();
+                    }
                     if (text && text.length > 2) return text;
                   }
                 } catch {}
@@ -288,6 +294,10 @@ export function SidePanelApp() {
             }
 
             const domCompany = q([
+              "[data-sdui-screen*='JobDetails'] [aria-label^='Company, ' i]",
+              "[aria-label^='Company, ' i]",
+              "[data-sdui-screen*='JobDetails'] a[href*='/company/']",
+              "a[href*='/company/']",
               "[data-testid='company']",
               "[data-testid='jobHeaderCompanyLogo'][title]",
               "#BigJobCardId [data-testid='company']",
@@ -519,31 +529,42 @@ export function SidePanelApp() {
             if (/jobleads\.com/i.test(href + doc.title)) {
               rawTitle = rawTitle.replace(/\s*-\s*[A-Za-z\s.-]+(?:\s*\|\s*JobLeads)?$/i, "").trim();
             } else {
-              const tripleMatch = rawTitle.match(
-                /^(.+?)\s*[|｜•·-]\s*(.+?)\s*[|｜•·-]\s*(?:LinkedIn|Indeed|Glassdoor|ZipRecruiter|JobLeads|Greenhouse|Lever|Ashby|Workday|Monster)/i
+              const pipeTripleMatch = rawTitle.match(
+                /^(.+?)\s*([|｜•·])\s*([^|｜•·]+?)\s*\2\s*(?:LinkedIn|Indeed|Glassdoor|ZipRecruiter|JobLeads|Greenhouse|Lever|Ashby|Workday|Monster)/i
               );
-              if (tripleMatch) {
-                rawTitle = tripleMatch[1].trim();
-                if (!rawCompany && isValidCo(tripleMatch[2].trim())) rawCompany = tripleMatch[2].trim();
+              if (pipeTripleMatch) {
+                rawTitle = pipeTripleMatch[1].trim();
+                const tok2 = pipeTripleMatch[3].trim();
+                if (!rawCompany && isValidCo(tok2) && !/,\s*[A-Z]{2}(?:\s+\d{5})?$/i.test(tok2)) {
+                  rawCompany = tok2;
+                }
               } else {
-                const pipeMatch = rawTitle.match(/^([^|｜]+?)\s*[|｜]\s*([^|｜]+)$/);
-                if (pipeMatch && !/hiring|jobs? in|careers?/i.test(pipeMatch[1])) {
-                  rawTitle = pipeMatch[1].trim();
-                  if (!rawCompany) {
-                    const compCandidate = pipeMatch[2].replace(/\s*-\s*\d+$/, "").trim();
-                    if (isValidCo(compCandidate)) rawCompany = compCandidate;
-                  }
+                const tripleMatch = rawTitle.match(
+                  /^(.+?)\s*[|｜•·-]\s*(.+?)\s*[|｜•·-]\s*(?:LinkedIn|Indeed|Glassdoor|ZipRecruiter|JobLeads|Greenhouse|Lever|Ashby|Workday|Monster)/i
+                );
+                if (tripleMatch) {
+                  rawTitle = tripleMatch[1].trim();
+                  if (!rawCompany && isValidCo(tripleMatch[2].trim())) rawCompany = tripleMatch[2].trim();
                 } else {
-                  rawTitle = rawTitle
-                    .replace(
-                      /\s*[|｜•·-]\s*(?:LinkedIn|Indeed|Glassdoor|ZipRecruiter|JobLeads|Greenhouse|Lever|Ashby|Workday|Monster|Careers?).*$/i,
-                      ""
-                    )
-                    .trim();
-                  if (rawCompany && rawTitle.toLowerCase().includes(rawCompany.toLowerCase())) {
+                  const pipeMatch = rawTitle.match(/^([^|｜]+?)\s*[|｜]\s*([^|｜]+)$/);
+                  if (pipeMatch && !/hiring|jobs? in|careers?/i.test(pipeMatch[1])) {
+                    rawTitle = pipeMatch[1].trim();
+                    if (!rawCompany) {
+                      const compCandidate = pipeMatch[2].replace(/\s*-\s*\d+$/, "").trim();
+                      if (isValidCo(compCandidate)) rawCompany = compCandidate;
+                    }
+                  } else {
                     rawTitle = rawTitle
-                      .replace(new RegExp(`\\s*[|｜•·-]\\s*${rawCompany}.*$`, "i"), "")
+                      .replace(
+                        /\s*[|｜•·-]\s*(?:LinkedIn|Indeed|Glassdoor|ZipRecruiter|JobLeads|Greenhouse|Lever|Ashby|Workday|Monster|Careers?).*$/i,
+                        ""
+                      )
                       .trim();
+                    if (rawCompany && rawTitle.toLowerCase().includes(rawCompany.toLowerCase())) {
+                      rawTitle = rawTitle
+                        .replace(new RegExp(`\\s*[|｜•·-]\\s*${rawCompany}.*$`, "i"), "")
+                        .trim();
+                    }
                   }
                 }
               }
@@ -604,9 +625,15 @@ export function SidePanelApp() {
                 }
               }
             } else if (/jobleads\.com/i.test(href)) {
-              const activeCard = doc.querySelector("[data-active='true'] a[href*='/job/'], [data-active='true'] [data-testid='search-job-card-link'], [data-testid='job-preview-card'] a[href*='/job/']") as HTMLAnchorElement | null;
-              if (activeCard?.href) {
-                finalUrl = activeCard.href;
+              if (canonical && /jobleads\.com\/[a-z]{2}\/job\//i.test(canonical)) {
+                finalUrl = canonical;
+              } else if (href.includes("/job/") && !href.includes("?from=")) {
+                finalUrl = href;
+              } else {
+                const activeCard = doc.querySelector("[data-active='true'] a[href*='/job/'], [data-active='true'] [data-testid='search-job-card-link'], [data-testid='job-preview-card'] a[href*='/job/']") as HTMLAnchorElement | null;
+                if (activeCard?.href && !activeCard.href.includes("from=")) {
+                  finalUrl = activeCard.href;
+                }
               }
             } else if (/monster\.com/i.test(href)) {
               if (canonical && /monster\.com\/job-openings\//i.test(canonical)) {
