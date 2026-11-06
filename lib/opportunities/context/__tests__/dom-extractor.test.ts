@@ -245,4 +245,22 @@ describe("DOM & Schema.org Extraction on Real HTML Postings", () => {
     expect(dom?.applyUrl).not.toContain("?from=");
     expect(dom?.applyUrl).not.toContain("junior-backend-full-stack-engineer");
   });
+
+  it("extracts Skyeton Glassdoor description without orphaned ** or stray ###", () => {
+    const filename = "Skyeton hiring Software Engineer Job in Fayetteville, NC ｜ Glassdoor (11_5_2026 5：09：33 PM).html";
+    const filePath = path.join(testHtmlDir, filename);
+    if (!fs.existsSync(filePath)) return;
+
+    const html = fs.readFileSync(filePath, "utf-8");
+    const dom = extractJobFromSemanticDom(html, "https://www.glassdoor.com/job-listing/software-engineer-skyeton-JV_IC1138644_KO0,17_KE18,25.htm?jl=1010240683714");
+
+    expect(dom).not.toBeNull();
+    expect(dom?.company).toBe("Skyeton");
+    expect(dom?.title).toBe("Software Engineer");
+    expect(dom?.description).not.toMatch(/(?:^|\n)\*\*\s*(?:\n|$)/);
+    expect(dom?.description).not.toMatch(/(?:^|\n)###\s*(?:\n|$)/);
+    expect(dom?.description).not.toContain("Company Culture**");
+    expect(dom?.description).not.toContain("About the role**");
+    expect(dom?.description).toContain("### About Skyeton, Inc");
+  });
 });
