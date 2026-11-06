@@ -71,5 +71,17 @@ describe("HTML to Structured Markdown", () => {
       const md = htmlToStructuredMarkdown(html);
       expect(md).toBe("First paragraph.\n\nSecond paragraph.");
     });
+
+    it("converts Skyeton HTML cleanly without orphaned ** or stray ###", () => {
+      const fs = require("fs");
+      const path = require("path");
+      const filePath = path.join(process.cwd(), "Test HTML/Skyeton hiring Software Engineer Job in Fayetteville, NC ｜ Glassdoor (11_5_2026 5：09：33 PM).html");
+      const html = fs.readFileSync(filePath, "utf-8");
+      const md = htmlToStructuredMarkdown(html);
+      expect(md).not.toMatch(/(?:^|\n)\*\*\s*(?:\n|$)/);
+      expect(md).not.toMatch(/(?:^|\n)###\s*(?:\n|$)/);
+      expect(md).not.toContain("Company Culture**");
+      expect(md).not.toContain("About the role**");
+    });
   });
 });
