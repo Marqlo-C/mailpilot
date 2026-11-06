@@ -64,6 +64,11 @@ import {
 import { extractJobFromSemanticDom } from "./dom-extractor";
 import { parseStructuredJobSections } from "./section-classifier";
 
+function hasRichHtmlTags(str?: string): boolean {
+  if (!str) return false;
+  return /<(?:p|h[1-6]|ul|ol|li|strong|b|br|div)\b/i.test(str);
+}
+
 /**
  * Dev-only helper to record failed scrape attempts (bot walls, 403s, 429s, timeouts)
  * to a local .scraper-failures.json file for standalone local testing.
@@ -158,7 +163,6 @@ export async function fetchViaScrapingAnt(
 
     // 1. Primary: Schema.org JobPosting JSON-LD
     const jsonLd = extractJsonLdJobPosting(html);
-    const hasRichHtmlTags = (str?: string) => /<(?:p|h[1-6]|ul|ol|li|strong|b|br|div)\b/i.test(str || "");
     const domData = extractJobFromSemanticDom(html, url);
 
     if (jsonLd?.description && (hasRichHtmlTags(jsonLd.rawDescription) || !domData?.description) && isLegitimateJobContent(jsonLd.coreDescription || jsonLd.description)) {
