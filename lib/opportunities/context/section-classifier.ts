@@ -30,7 +30,7 @@ export function isValidCompanyName(candidate: string | null | undefined): boolea
 
   // 1. Reject aggregator and navigation chrome
   if (
-    /^(jobs?|careers?|search|company|apply|sign in|home|navigation|menu|ziprecruiter|indeed|linkedin|glassdoor|jobleads|monster)$/i.test(
+    /^(jobs?|careers?|search|company|apply|sign in|home|navigation|menu|ziprecruiter|indeed|linkedin|glassdoor|jobleads|monster|hiring lab)$/i.test(
       trimmed
     )
   ) {

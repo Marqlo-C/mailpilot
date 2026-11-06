@@ -200,6 +200,151 @@ export function SidePanelApp() {
               return s.replace(/[….]\s*more\s*$/i, "").trim();
             }
 
+            const isIndeed =
+              href.includes("indeed.com") ||
+              doc.title.includes("Indeed") ||
+              doc.querySelector(
+                "[data-testid='vj-job-title'], [data-testid='jobDetailTitle'], #jobsearch-ViewjobPaneWrapper, [data-testid='jobsearch-CompanyAvatarImage']"
+              ) !== null;
+
+            if (isIndeed) {
+              const pane = doc.querySelector("#jobsearch-ViewjobPaneWrapper") || doc;
+              let title = "";
+              const titleEl = pane.querySelector(
+                "[data-testid='vj-job-title'], [data-testid='jobDetailTitle'] h3, [data-testid='jobDetailTitle'], [data-testid='jobsearch-JobInfoHeader-title'], .jobsearch-JobInfoHeader-title"
+              );
+              if (titleEl) title = clean(titleEl.textContent);
+              if (!title && doc.title) {
+                title = doc.title
+                  .replace(/\s*-\s*[A-Za-z\s.-]+,\s*[A-Z]{2}(?:\s+\d{5})?\s*-\s*Indeed\.com$/i, "")
+                  .replace(/\s*\|\s*Indeed\.com$/i, "")
+                  .replace(/\s*-\s*Indeed\.com$/i, "")
+                  .trim();
+              }
+
+              let company = "";
+              let location = "";
+              const cmpSub =
+                pane.querySelector("[data-testid='jobDetailSubtitle']") ||
+                doc.querySelector("[data-testid='jobDetailSubtitle']");
+              if (cmpSub?.textContent) {
+                const subParts = clean(cmpSub.textContent).split(/\s*-\s*/);
+                if (subParts.length >= 2) {
+                  company = subParts[0].trim();
+                  location = subParts.slice(1).join(" - ").trim();
+                } else {
+                  company = clean(cmpSub.textContent);
+                }
+              }
+
+              if (!company) {
+                const coEl = pane.querySelector(
+                  "[data-testid='inlineHeader-companyName'], [data-testid='company-info-metadata'] a, [data-testid='company-info-metadata']"
+                );
+                if (coEl) company = clean(coEl.textContent);
+              }
+
+              if (!company) {
+                const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+                for (const s of Array.from(scripts)) {
+                  try {
+                    const parsed = JSON.parse(s.textContent || "");
+                    const items = Array.isArray(parsed) ? parsed : [parsed];
+                    for (const it of items) {
+                      if (
+                        (it["@type"] === "LocalBusiness" || it["@type"] === "Organization") &&
+                        typeof it.name === "string"
+                      ) {
+                        company = it.name.trim();
+                        break;
+                      }
+                    }
+                  } catch {}
+                  if (company) break;
+                }
+              }
+
+              if (!company && doc.title) {
+                const m = doc.title.match(/^([A-Za-z0-9&.,' -]+?)\s+Jobs\s+in\s+/i);
+                if (m) company = m[1].trim();
+              }
+
+              if (!location) {
+                const locEl = pane.querySelector(
+                  "[data-testid='inlineHeader-companyLocation'], [data-testid='company-info-metadata'] .css-146c3p1"
+                );
+                if (locEl) location = clean(locEl.textContent);
+              }
+
+              let salary = "";
+              if (cmpSub) {
+                const span = cmpSub.parentElement?.querySelector(
+                  "span:not([data-testid='jobDetailSubtitle'])"
+                );
+                if (span?.textContent && /\$/.test(span.textContent)) {
+                  salary = clean(span.textContent);
+                }
+              }
+              if (!salary) {
+                const salEl = pane.querySelector(
+                  "[data-testid='jobsearch-JobInfoHeader-salary'], .css-146c3p1, #salaryInfoAndJobType"
+                );
+                if (salEl && /\$/.test(salEl.textContent || "")) salary = clean(salEl.textContent);
+              }
+
+              let logoUrl: string | undefined;
+              const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+              for (const s of Array.from(scripts)) {
+                try {
+                  const parsed = JSON.parse(s.textContent || "");
+                  const items = Array.isArray(parsed) ? parsed : [parsed];
+                  for (const it of items) {
+                    if (
+                      (it["@type"] === "LocalBusiness" || it["@type"] === "Organization") &&
+                      typeof it.image === "string"
+                    ) {
+                      logoUrl = it.image.trim();
+                      break;
+                    }
+                  }
+                } catch {}
+                if (logoUrl) break;
+              }
+
+              if (!logoUrl) {
+                const img = pane.querySelector(
+                  "[data-testid='company-logo'], [data-testid='jobsearch-CompanyAvatarImage'], img[src*='cloudfront.net/s/_squarelogo/'], img[src*='images.indeed.com/']"
+                ) as HTMLImageElement | null;
+                if (img) logoUrl = img.src || img.getAttribute("src") || undefined;
+              }
+
+              const descEl = pane.querySelector(
+                "[data-testid='jobDetailDescription'], #jobDescriptionText, [data-testid='jobsearch-jobDescriptionText']"
+              );
+              const description = descEl ? clean(descEl.textContent) : "";
+
+              let finalUrl = href;
+              const jkMatch = href.match(/[?&](?:vjk|jk)=([a-zA-Z0-9_-]+)/i);
+              if (jkMatch) {
+                finalUrl = `https://www.indeed.com/viewjob?jk=${jkMatch[1]}`;
+              } else {
+                const canonical = doc.querySelector("link[rel='canonical']")?.getAttribute("href");
+                if (canonical && /indeed\.com/i.test(canonical)) finalUrl = canonical.trim();
+              }
+
+              return {
+                title: title || "Job Opportunity",
+                company: company || "Company",
+                location,
+                salary,
+                logoUrl,
+                url: finalUrl,
+                description,
+                source: "Indeed",
+                extractedAt: new Date().toISOString(),
+              };
+            }
+
             let jsonLdResult: any = null;
             const scripts = Array.from(doc.querySelectorAll("script")).filter((s) =>
               /application\/ld\+json/i.test(s.getAttribute("type") || "")
@@ -777,6 +922,7 @@ export function SidePanelApp() {
         url: url.trim() || undefined,
         location: location.trim() || undefined,
         salary: salary.trim() || undefined,
+        logoUrl: logoUrl.trim() || undefined,
         pageBudget: targetBudget,
         includeSummary: targetSummary,
         opportunityId: opportunityId || undefined,
