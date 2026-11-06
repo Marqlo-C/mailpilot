@@ -170,24 +170,36 @@ export function parseLocation(raw: string | null | undefined): ParsedLocation {
     }
   }
 
-  const city = parts[0]!.replace(/[^a-z0-9\s]/g, "").trim();
+  let cityToken = parts[0]!;
+  let state: string | null = null;
+
+  if (parts.length > 1) {
+    // Check if the last token is a state code or name (supports street addresses like "123 Main St, City, ST")
+    const lastTokenRaw = parts[parts.length - 1]!.replace(/[^a-z]/g, "");
+    const lastTokenUpper = lastTokenRaw.toUpperCase();
+    if (VALID_STATE_CODES.has(lastTokenUpper)) {
+      state = lastTokenUpper;
+      cityToken = parts[parts.length - 2]!;
+    } else if (US_STATES_AND_TERRITORIES[lastTokenRaw]) {
+      state = US_STATES_AND_TERRITORIES[lastTokenRaw]!;
+      cityToken = parts[parts.length - 2]!;
+    } else {
+      // Fallback: check parts[1]
+      const rawState = parts[1]!.replace(/[^a-z]/g, "");
+      const upperState = rawState.toUpperCase();
+      if (VALID_STATE_CODES.has(upperState)) {
+        state = upperState;
+      } else if (US_STATES_AND_TERRITORIES[rawState]) {
+        state = US_STATES_AND_TERRITORIES[rawState]!;
+      }
+    }
+  }
+
+  const city = cityToken.replace(/[^a-z0-9\s]/g, "").trim();
   const formattedCity = city
     .split(/\s+/)
     .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : ""))
     .join(" ");
-
-  let state: string | null = null;
-
-  if (parts.length > 1) {
-    const rawState = parts[1]!.replace(/[^a-z]/g, "");
-    const upperState = rawState.toUpperCase();
-
-    if (VALID_STATE_CODES.has(upperState)) {
-      state = upperState;
-    } else if (US_STATES_AND_TERRITORIES[rawState]) {
-      state = US_STATES_AND_TERRITORIES[rawState]!;
-    }
-  }
 
   return { city: formattedCity, state, isRemote };
 }
@@ -258,7 +270,8 @@ export function standardizeLocation(rawLoc: string | null | undefined): string |
 
   const parsed = parseLocation(loc);
   if (parsed.city && parsed.state) {
-    const prefix = parsed.isRemote && /^(?:remote|hybrid)\b/i.test(loc) ? `${loc.split(/[-–—,/]/)[0].trim()} - ` : "";
+    const isExplicitPrefix = parsed.isRemote && /^(?:remote|hybrid)\s*[-–—:]/i.test(loc);
+    const prefix = isExplicitPrefix ? `${loc.split(/[-–—:]/)[0].trim()} - ` : "";
     return `${prefix}${parsed.city}, ${parsed.state}`;
   }
 

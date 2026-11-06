@@ -39,7 +39,10 @@ export function extractIndeedSemanticDom(
     html.match(/data-testid=["']?jobsearch-JobInfoHeader-title["']?[^>]*>([^<]+)</i) ||
     html.match(/class=["']?jobsearch-JobInfoHeader-title["']?[^>]*>([^<]+)</i);
   if (indPaneMatch) {
-    title = indPaneMatch[1].replace(/&amp;/g, "&").trim();
+    const candidate = indPaneMatch[1].replace(/&amp;/g, "&").trim();
+    if (!/\$|\/Hr|\/yr|\b(?:an?\s*hour|a\s*year|full-time|part-time)\b/i.test(candidate)) {
+      title = candidate;
+    }
   }
 
   if (!title) {
@@ -47,7 +50,10 @@ export function extractIndeedSemanticDom(
       html.match(/aria-pressed=true[^>]*>[\s\S]*?<span[^>]*title=["']([^"']+)["']/i) ||
       html.match(/id=["']?jobTitle-[^"'>\s]+["']?[^>]*>([^<]+)<\/span>/i);
     if (indActiveTitle) {
-      title = (indActiveTitle[1] || indActiveTitle[2] || "").trim();
+      const candidate = (indActiveTitle[1] || indActiveTitle[2] || "").trim();
+      if (!/\$|\/Hr|\/yr|\b(?:an?\s*hour|a\s*year)\b/i.test(candidate)) {
+        title = candidate;
+      }
     }
   }
 
@@ -60,7 +66,7 @@ export function extractIndeedSemanticDom(
       .replace(/\s*\|\s*Indeed\.com$/i, "")
       .replace(/\s*-\s*Indeed\.com$/i, "")
       .trim();
-    if (cleanedTitleTag && !/jobs?|search/i.test(cleanedTitleTag)) {
+    if (cleanedTitleTag && !/jobs?|search/i.test(cleanedTitleTag) && !/\$|\/Hr|\/yr/i.test(cleanedTitleTag)) {
       title = cleanedTitleTag;
     }
   }
@@ -149,23 +155,53 @@ export function extractIndeedSemanticDom(
     const titleWithoutIndeed = titleTag.replace(/\s*-\s*Indeed\.com$/i, "").trim();
     const titleParts = titleWithoutIndeed.split(/\s*-\s*/);
     const lastPart = titleParts[titleParts.length - 1]?.trim();
-    if (lastPart && /,\s*[A-Z]{2}(?:\s+\d{5})?$/i.test(lastPart)) {
-      location = standardizeLocation(lastPart) || lastPart;
+    if (lastPart && lastPart !== title && !/jobs?|search/i.test(lastPart)) {
+      const std = standardizeLocation(lastPart);
+      if (std) location = std;
     }
   }
 
   if (!location) {
-    const indMetaLoc =
+    const metaMatch = html.match(/data-testid=["']?company-info-metadata["']?([\s\S]*?)<\/div>\s*<\/div>/i);
+    if (metaMatch) {
+      // Strip company link so company name never matches as location
+      const cleanedMeta = metaMatch[1].replace(/<a\b[\s\S]*?<\/a>/gi, " ");
+      const isRemote = /remote|work from home|wfh/i.test(cleanedMeta);
+      const stateMatch =
+        cleanedMeta.match(/>([A-Za-z\s.'-]+,\s*[A-Z]{2}(?:\s+\d{5})?)</i) ||
+        cleanedMeta.match(/>([A-Za-z\s.'-]+)</i);
+      if (stateMatch) {
+        const candidate = stateMatch[1].replace(/<[^>]+>/g, " ").trim();
+        if (candidate && candidate !== "·" && !/^\d+\.\d+$/.test(candidate)) {
+          const std = standardizeLocation(candidate);
+          if (std && (!company || (std.toLowerCase() !== company.toLowerCase() && !std.toLowerCase().includes(company.toLowerCase())))) {
+            location = isRemote && !std.includes("Remote") ? `${std} (Remote)` : std;
+          }
+        }
+      }
+    }
+  }
+
+  if (!location) {
+    const locMatch =
+      html.match(/>(Remote\s+in\s+[A-Za-z\s.'-]+,\s*[A-Z]{2})</i) ||
+      html.match(/>([A-Za-z\s.'-]+,\s*[A-Z]{2}(?:\s+\d{5})?)\s*[•·]?\s*(?:Remote)?</i) ||
       html.match(/data-testid=["']?(?:inlineHeader-companyLocation|jobsearch-JobInfoHeader-companyLocation)["']?[^>]*>([\s\S]*?)<\/div>/i) ||
       html.match(/<div[^>]*class=["'][^"']*css-146c3p1[^"']*["'][^>]*>([A-Za-z\s.'-]+,\s*[A-Z]{2}(?:\s+\d{5})?)<\/div>/i);
-    if (indMetaLoc) {
-      const locText = indMetaLoc[1].replace(/<[^>]+>/g, " ").trim();
-      const dotIdx = locText.search(/·|•|\bRemote\b/i);
-      const cityPart = dotIdx !== -1 ? locText.slice(0, dotIdx).trim() : locText;
-      const isRemote = /remote|work from home|wfh/i.test(html.slice(Math.max(0, (indMetaLoc.index ?? 0) - 100), (indMetaLoc.index ?? 0) + 200));
-      const std = standardizeLocation(cityPart);
-      location = std ? (isRemote && !std.includes("Remote") ? `${std} (Remote)` : std) : locText;
+    if (locMatch) {
+      const locText = locMatch[1].replace(/<[^>]+>/g, " ").trim();
+      if (!company || locText.toLowerCase() !== company.toLowerCase()) {
+        const dotIdx = locText.search(/·|•/i);
+        const cityPart = dotIdx !== -1 ? locText.slice(0, dotIdx).trim() : locText;
+        const isRemote = /remote|work from home|wfh/i.test(locMatch[0]);
+        const std = standardizeLocation(cityPart || locText);
+        location = std || locText;
+      }
     }
+  }
+
+  if (location && company && (location.toLowerCase() === company.toLowerCase() || location === company)) {
+    location = undefined;
   }
 
   // 4. Salary
