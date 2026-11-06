@@ -410,7 +410,7 @@ export function normalizeSalaryDisplay(
     }
     if (val >= 1000) {
       const k = val / 1000;
-      return Number.isInteger(k) ? `${k}K` : `${Number(k.toFixed(1))}K`;
+      return Number.isInteger(k) ? `${k}K` : `${Number(k.toFixed(2))}K`;
     }
     return `${val}K`;
   }

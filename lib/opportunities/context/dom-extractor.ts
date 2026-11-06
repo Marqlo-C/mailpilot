@@ -57,11 +57,13 @@ export function extractJobFromSemanticDom(
   // 2. Resolve Job Title
   let title = "";
 
-  // 2a. Active split-pane listing on Indeed (#jobsearch-ViewjobPaneWrapper or active jobTitle)
+  // 2a. Active split-pane listing on Indeed (#jobsearch-ViewjobPaneWrapper, active jobTitle, or CMP header)
   const indPaneMatch = html.match(/id=["']?jobsearch-ViewjobPaneWrapper["']?[\s\S]*?data-testid=["']?vj-job-title["']?[^>]*>([^<]+)<\/h2>/i) ||
-                       html.match(/data-testid=["']?vj-job-title["']?[^>]*>([^<]+)</i);
+                       html.match(/data-testid=["']?vj-job-title["']?[^>]*>([^<]+)</i) ||
+                       html.match(/data-testid=["']?jobDetailTitle["']?[^>]*><h\d[^>]*>([^<]+)<\/h\d>/i) ||
+                       html.match(/data-testid=["']?jobDetailTitle["']?[^>]*>([^<]+)</i);
   if (indPaneMatch) {
-    title = indPaneMatch[1].trim();
+    title = indPaneMatch[1].replace(/&amp;/g, "&").trim();
   }
 
   if (!title) {
@@ -167,12 +169,14 @@ export function extractJobFromSemanticDom(
     }
   }
 
-  // 3b. Indeed active pane employer
+  // 3b. Indeed active pane or CMP employer
   if (!company) {
     const indPaneComp =
       html.match(/id=["']?jobsearch-ViewjobPaneWrapper["']?[\s\S]*?aria-label=["']([A-Za-z0-9&.,' -]+?)\s*\(/i) ||
       html.match(/data-testid=["']?company-info-metadata["']?[\s\S]*?aria-label=["']([A-Za-z0-9&.,' -]+?)\s*\(/i) ||
-      html.match(/data-testid=["']?company-info-metadata["']?[\s\S]*?<a[^>]+>([^<]+)<\/a>/i);
+      html.match(/data-testid=["']?company-info-metadata["']?[\s\S]*?<a[^>]+>([^<]+)<\/a>/i) ||
+      html.match(/data-testid=["']?jobDetailSubtitle["']?[\s\S]*?<span[^>]*>([A-Za-z0-9&.,' -]+?)\s*-\s*[A-Za-z\s.-]+,\s*[A-Z]{2}/i) ||
+      html.match(/<script\b[^>]*type=["']?application\/ld\+json["']?[^>]*>[\s\S]*?"@type"\s*:\s*"LocalBusiness"[\s\S]*?"name"\s*:\s*"([^"]+)"/i);
     if (indPaneComp && isValidCompanyName(indPaneComp[1])) {
       company = indPaneComp[1].trim();
     }
@@ -337,14 +341,26 @@ export function extractJobFromSemanticDom(
     if (jlLocMatch) rawLoc = jlLocMatch[1].replace(/<[^>]+>/g, " ").trim();
   }
 
-  // 4e. Indeed location (split-pane or single-pane)
+  // 4e. Indeed location (split-pane, company page, or single-pane)
+  if (!rawLoc && /indeed\.com/i.test(url + html)) {
+    const indCmpLoc = html.match(/data-testid=["']?jobDetailSubtitle["']?[\s\S]*?<span[^>]*>[A-Za-z0-9&.,' -]+?\s*-\s*([A-Za-z\s.-]+,\s*[A-Z]{2})/i);
+    if (indCmpLoc) {
+      rawLoc = indCmpLoc[1].trim();
+    }
+  }
+
   if (!rawLoc && /indeed\.com/i.test(url + html)) {
     const indLocMatch =
-      html.match(/data-testid=["']?company-info-metadata["']?[\s\S]*?<div[^>]*class=["'][^"']*css-146c3p1[^"']*["'][^>]*>([A-Za-z\s.-]+,\s*[A-Z]{2}(?:\s+\d{5})?)<\/div>/i) ||
-      html.match(/<div[^>]*class=["'][^"']*css-146c3p1[^"']*["'][^>]*>([A-Za-z\s.-]+,\s*[A-Z]{2}(?:\s+\d{5})?)<\/div>/i) ||
+      html.match(/data-testid=["']?company-info-metadata["']?[\s\S]*?<div[^>]*class=["'][^"']*css-146c3p1[^"']*["'][^>]*>(?:[0-9A-Za-z\s.,#-]+,\s*)?([A-Za-z\s.-]+,\s*[A-Z]{2}(?:\s+\d{5})?)<\/div>/i) ||
+      html.match(/<div[^>]*class=["'][^"']*css-146c3p1[^"']*["'][^>]*>(?:[0-9A-Za-z\s.,#-]+,\s*)?([A-Za-z\s.-]+,\s*[A-Z]{2}(?:\s+\d{5})?)<\/div>/i) ||
       html.match(/<div[^>]*class=["'][^"']*css-146c3p1[^"']*["'][^>]*>(Remote\s*(?:in\s+[A-Za-z\s]+)?)<\/div>/i) ||
       html.match(/\bdata-testid\s*=\s*["']?text-location["']?[^>]*>([^<]+)<\/div>/i);
     if (indLocMatch) rawLoc = indLocMatch[1].trim();
+  }
+
+  if (!rawLoc && /indeed\.com/i.test(url + html) && titleTag) {
+    const indTitleLoc = titleTag.match(/^.+?\s*-\s*([A-Za-z\s.-]+,\s*[A-Z]{2}(?:\s+\d{5})?)\s*-\s*Indeed\.com/i);
+    if (indTitleLoc) rawLoc = indTitleLoc[1].trim();
   }
 
   // 4d. Glassdoor / Title tag location: "Job in Oklahoma City, OK"
@@ -431,13 +447,14 @@ export function extractJobFromSemanticDom(
     }
   }
 
-  // 5b1. Indeed Single-Pane Salary
+  // 5b1. Indeed Single-Pane or CMP Subtitle Salary
   if (!salary && /indeed\.com/i.test(url + html)) {
     const indSalMatch =
       html.match(
         /<div[^>]*class=["'][^"']*css-146c3p1[^"']*["'][^>]*>(\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:-|–|to)\s*\$?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?(?:\s*(?:\/|\s*per\s*|\s*an\s*|\s*a\s*)(?:hr|hours?|yr|years?|month|week|annually))?)<\/div>/i
       ) ||
-      html.match(/data-testid=["']?job-detail-salary["']?[^>]*>([\s\S]*?)<\/div>/i);
+      html.match(/data-testid=["']?job-detail-salary["']?[^>]*>([\s\S]*?)<\/div>/i) ||
+      html.match(/data-testid=["']?jobDetailSubtitle["']?[\s\S]*?<span[^>]*class=["'][^"']*e1wnkr790[^"']*["'][^>]*>\s*((?:From\s+)?\$[^<]+)<\/span>/i);
     if (indSalMatch) {
       const cleanSal = indSalMatch[1].replace(/<[^>]+>/g, " ").trim();
       const normalized = normalizeSalaryDisplay(cleanSal);
@@ -512,6 +529,33 @@ export function extractJobFromSemanticDom(
         if (rootMatch && suffixMatch) {
           logoUrl = (rootMatch[1] + suffixMatch[1]).replace(/\\u0026/g, "&");
         }
+      }
+    }
+  }
+
+  // 7a0. Prefer direct CDN logos or structured LocalBusiness images (Indeed CMP, Glassdoor, LinkedIn)
+  if (!logoUrl && /indeed\.com/i.test(url + html)) {
+    const lbMatch = html.match(/<script\b[^>]*type=["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi);
+    if (lbMatch) {
+      for (const s of lbMatch) {
+        const imgM = s.match(/"(?:image|logo)"\s*:\s*"([^"]+)"/i);
+        if (imgM && !imgM[1].includes("svg+xml") && /^https?:\/\//i.test(imgM[1])) {
+          logoUrl = imgM[1];
+          break;
+        }
+      }
+    }
+  }
+
+  // 7a0.1 Indeed company-logo style background-image (DataAnnotation, Partnership HealthPlan)
+  if (!logoUrl) {
+    const bgLogoMatch =
+      html.match(/data-testid=["']?company-logo["']?[\s\S]*?style=["'][^"']*background-image:\s*url\(([^)]+)\)/i) ||
+      html.match(/data-testid=["']?company-logo-shadow["']?[\s\S]*?style=["'][^"']*background-image:\s*url\(([^)]+)\)/i);
+    if (bgLogoMatch) {
+      const rawUrl = bgLogoMatch[1].replace(/['"]/g, "").trim();
+      if (rawUrl && !/profile-displayphoto|ghost-person|company-banner/i.test(rawUrl)) {
+        logoUrl = rawUrl;
       }
     }
   }
@@ -618,12 +662,43 @@ export function extractJobFromSemanticDom(
     }
   }
 
-  // 8f. Indeed Container
-  if (!rawDescHtml) {
-    const indDesc = html.match(
-      /class=["']?[^"'>]*\b(?:jobsearch-jobDescriptionText|simple-job-description-html)\b[^"'>]*["']?[^>]*>([\s\S]*?)<\/div>/i
-    );
-    if (indDesc) rawDescHtml = indDesc[1];
+  // 8f. Indeed Container (CMP, Modern react-native div, or Legacy)
+  if (!rawDescHtml && (html.includes("jobDetailDescription") || html.includes("simple-job-description-html") || html.includes("jobsearch-jobDescriptionText") || /indeed\.com/i.test(url + html))) {
+    // 1. jobDetailDescription (CMP layout)
+    if (html.includes("jobDetailDescription")) {
+      const start = html.indexOf("jobDetailDescription");
+      const end = html.indexOf("job details loaded", start);
+      if (start !== -1 && end !== -1 && end > start) {
+        rawDescHtml = html.slice(start, end);
+      }
+    }
+
+    // 2. simple-job-description-html (modern Indeed div container)
+    if (!rawDescHtml) {
+      const divIdx = html.search(/<div[^>]*simple-job-description-html/i);
+      if (divIdx !== -1) {
+        const endIdx = html.indexOf("jobDescriptionSeen", divIdx) !== -1
+          ? html.indexOf("jobDescriptionSeen", divIdx)
+          : html.indexOf("Explore other jobs", divIdx) !== -1
+          ? html.indexOf("Explore other jobs", divIdx)
+          : html.indexOf("vj-report-job", divIdx);
+        if (endIdx !== -1 && endIdx > divIdx) {
+          rawDescHtml = html.slice(divIdx, endIdx);
+        } else {
+          rawDescHtml = html.slice(divIdx, divIdx + 30000);
+        }
+      }
+    }
+
+    // 3. jobsearch-jobDescriptionText (legacy Indeed)
+    if (!rawDescHtml) {
+      const indDesc = html.match(
+        /id=["']?jobDescriptionText["']?[^>]*>([\s\S]*?)<\/div>/i
+      ) || html.match(
+        /class=["']?[^"'>]*\b(?:jobsearch-jobDescriptionText)\b[^"'>]*["']?[^>]*>([\s\S]*?)<\/div>/i
+      );
+      if (indDesc) rawDescHtml = indDesc[1];
+    }
   }
 
   // 8g. Glassdoor Container

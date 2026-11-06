@@ -523,4 +523,34 @@ describe("Extension Client-Side Extractor (DOM & JSON-LD)", () => {
     expect(result.url).not.toContain("?from=");
     expect(result.url).not.toContain("junior-backend-full-stack-engineer");
   });
+
+  it("extracts Indeed CMP layout metadata and logo for Wells", () => {
+    const doc = createMockDocument({
+      title: "WELLS Jobs in Texas | Indeed.com",
+      elements: {
+        "[data-testid='jobDetailTitle'] h3": "FIBER, PAINT, & REPAIR TECHNICIAN",
+        "[data-testid='jobDetailSubtitle']": "Wells - Hillsboro, TX",
+        "[data-testid='jobDetailSubtitle'] span": "Wells - Hillsboro, TX",
+        "[data-testid='jobDetailSubtitle'] ~ span": "From $19 an hour",
+        "[data-testid='jobDetailDescription']": "ABOUT THE ROLE: This position is responsible for preparing, finishing, and inspecting components.",
+      },
+      jsonLd: JSON.stringify({
+        "@context": "http://schema.org",
+        "@type": "LocalBusiness",
+        name: "WELLS",
+        image: "https://d2q79iu7y748jz.cloudfront.net/s/_squarelogo/96x96/ff583a04b6d9ad5530792a3199e38ebe",
+      }),
+    });
+
+    const result = extractJobContextFromDocument(
+      doc,
+      "https://www.indeed.com/cmp/Wells-3/jobs?jk=123"
+    );
+
+    expect(result.title).toBe("FIBER, PAINT, & REPAIR TECHNICIAN");
+    expect(result.company).toBe("Wells");
+    expect(result.location).toBe("Hillsboro, TX");
+    expect(result.salary).toBe("$19/Hr");
+    expect(result.logoUrl).toBe("https://d2q79iu7y748jz.cloudfront.net/s/_squarelogo/96x96/ff583a04b6d9ad5530792a3199e38ebe");
+  });
 });

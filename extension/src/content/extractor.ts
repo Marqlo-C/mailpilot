@@ -265,6 +265,8 @@ const SITE_SELECTORS: SiteSelectorMap[] = [
     match: (url) => /indeed\.com/i.test(url),
     title: [
       "[data-testid='vj-job-title']",
+      "[data-testid='jobDetailTitle'] h3",
+      "[data-testid='jobDetailTitle']",
       ".jobsearch-JobInfoHeader-title",
       "h1[data-testid='jobsearch-JobInfoHeader-title']",
       "h2.jobTitle",
@@ -287,6 +289,7 @@ const SITE_SELECTORS: SiteSelectorMap[] = [
       ".companyLocation",
     ],
     salary: [
+      "[data-testid='jobDetailSubtitle'] ~ span",
       "#salaryInfoAndJobType",
       "[data-testid='jobsearch-JobInfoHeader-salary']",
       "div.css-146c3p1",
@@ -294,8 +297,9 @@ const SITE_SELECTORS: SiteSelectorMap[] = [
       ".salary-snippet-container",
     ],
     description: [
-      "#jobDescriptionText",
+      "[data-testid='jobDetailDescription']",
       ".simple-job-description-html",
+      "#jobDescriptionText",
       ".react-native-html-content",
       ".jobsearch-jobDescriptionText",
       ".jobDescriptionText",
@@ -307,6 +311,8 @@ const SITE_SELECTORS: SiteSelectorMap[] = [
     ],
     logoUrl: [
       ".jobsearch-CompanyAvatar-image",
+      "[data-testid='company-logo']",
+      "[data-testid='company-logo-shadow']",
       "[data-testid='company-logo'] img",
       "[data-testid='jobsearch-CompanyAvatar-button'] img",
       ".jobsearch-CompanyReview--heading img",
@@ -756,6 +762,8 @@ function getActiveContentRoot(doc: Document): Element {
     '#BigJobCardId, ' +
     '[data-test-id="svx-split-view-job-panel"], ' +
     '#jobsearch-ViewjobPaneWrapper, ' +
+    '[data-testid="viewjob-job-content"], ' +
+    '[data-testid="jobDetailDescription"], ' +
     '[data-testid="job-preview-card"], ' +
     '[class*="job-preview2024"], ' +
     '[data-testid="right-pane"], ' +
@@ -883,7 +891,7 @@ function matchSite(site: SiteSelectorMap, url: string, doc: Document): boolean {
   if (site.source === "Greenhouse" && (doc.querySelector(".application-form-header--title, .company-logo__logo, [data-slot='dialog-content']") || /greenhouse/i.test(doc.title))) {
     return true;
   }
-  if (site.source === "Indeed" && (doc.querySelector("#jobsearch-ViewjobPaneWrapper, [data-testid='vj-job-title']") || /indeed\.com/i.test(doc.title))) {
+  if (site.source === "Indeed" && (doc.querySelector("#jobsearch-ViewjobPaneWrapper, [data-testid='vj-job-title'], [data-testid='jobDetailTitle']") || /indeed\.com/i.test(doc.title))) {
     return true;
   }
   if (site.source === "Glassdoor" && (doc.querySelector("[data-test='employer-name'], [data-test='detailSalary'], [data-test='job-details-header'], [class*='TwoColumnLayout_columnRight']") || /glassdoor/i.test(doc.title))) {
@@ -926,6 +934,25 @@ function extractImageSrc(el: Element): string | undefined {
   }
   if (/profile|avatar|user photo|member photo|my photo|creator/i.test(elAlt + " " + elAria)) {
     return undefined;
+  }
+
+  // Check element or child style background-image (e.g. Indeed data-testid="company-logo")
+  const styleCandidates: string[] = [
+    el.getAttribute("style") || "",
+    el.querySelector?.("[style*='background-image']")?.getAttribute("style") || "",
+  ];
+  for (const st of styleCandidates) {
+    if (st.includes("background-image")) {
+      const bgMatch = st.match(/background-image:\s*url\(([^)]+)\)/i);
+      if (bgMatch) {
+        const cleaned = bgMatch[1].replace(/['"]/g, "").trim();
+        if (cleaned && !/profile-displayphoto|profile-framedphoto|ghost-person|company-banner|banner/i.test(cleaned)) {
+          if (/^https?:\/\//i.test(cleaned) || (cleaned.startsWith("data:image/") && cleaned.length >= 200)) {
+            return cleaned;
+          }
+        }
+      }
+    }
   }
 
   const rawCandidates: (string | null)[] = [
@@ -1066,6 +1093,34 @@ export function extractJobContextFromDocument(
     }
     if (matchedSite.jobLink) {
       domJobLink = queryFirstHref(activeRoot, matchedSite.jobLink) || (isIsolatedRoot ? undefined : queryFirstHref(targetDoc, matchedSite.jobLink));
+    }
+
+    if (matchedSite.source === "Indeed") {
+      const cmpSubtitle = activeRoot.querySelector("[data-testid='jobDetailSubtitle']") || targetDoc.querySelector("[data-testid='jobDetailSubtitle']");
+      if (cmpSubtitle && cmpSubtitle.textContent) {
+        const parts = cmpSubtitle.textContent.split(/\s+-\s+/);
+        if (parts.length >= 2) {
+          domCompany = cleanText(parts[0]);
+          domLocation = standardizeLocation(cleanText(parts[1])) || cleanText(parts[1]);
+        }
+      }
+    }
+  }
+
+  if (!domLogoUrl && matchedSite?.source === "Indeed") {
+    const scripts = targetDoc.querySelectorAll('script[type="application/ld+json"]');
+    for (const s of Array.from(scripts)) {
+      try {
+        const parsed = JSON.parse(s.textContent || "");
+        const items = Array.isArray(parsed) ? parsed : [parsed];
+        for (const item of items) {
+          if ((item["@type"] === "LocalBusiness" || item["@type"] === "Organization") && typeof item.image === "string") {
+            domLogoUrl = item.image.trim();
+            break;
+          }
+        }
+      } catch {}
+      if (domLogoUrl) break;
     }
   }
 
