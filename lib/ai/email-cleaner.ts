@@ -1,4 +1,8 @@
 import { normalizeProfileUrl } from "@/lib/utils/url";
+import {
+  unwrapTrackingUrl,
+  stripTrackingParams,
+} from "@/lib/opportunities/context/url-unwrapper";
 
 export const NON_JOB_NAV_REGEX =
   /(?:unsubscribe|privacy|terms|login|sign-?in|preferences|settings|dashboard|manage-?preferences|opt-?out)/i;
@@ -79,7 +83,12 @@ function markdownHref(href: string, text: string): string {
     return ` ${cleanText} `;
   }
 
-  return cleanText ? ` [${cleanText}](${safeHref}) ` : ` ${safeHref} `;
+  // Strip redirect wrappers and tracking query bloat (utm_*, trackingId, trk, etc.)
+  const unwrapped = unwrapTrackingUrl(safeHref);
+  const stripped = stripTrackingParams(unwrapped || safeHref);
+  const finalHref = stripped || unwrapped || safeHref;
+
+  return cleanText ? ` [${cleanText}](${finalHref}) ` : ` ${finalHref} `;
 }
 
 export function cleanEmailPayload(rawHtmlOrText: string): string {
@@ -122,6 +131,7 @@ export function cleanEmailPayload(rawHtmlOrText: string): string {
   // Strip aggregator digest preambles (e.g. "OCTOBER 13BASED ON YOUR SAVED SEARCHMOST RELEVANT JOBS FOR YOU")
   cleaned = cleaned
     .replace(/(?:^|\n)\s*(?:[A-Za-z]+\s*\d{1,2}\s*)?based\s*on\s*your\s*saved\s*search[^\n]*(?:\n|$)/gi, "\n\n")
+    .replace(/(?:^|\n)\s*avatar\s*(?=\n|$)/gi, "\n")
     .trim();
 
   return cleaned.slice(0, 10000);

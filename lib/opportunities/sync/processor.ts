@@ -18,6 +18,7 @@ import {
   extractSalaryFromText,
   normalizeSalaryDisplay,
   parseSalaryMax,
+  sanitizeCompanyName,
   type CandidateProfileSummary,
 } from "@/lib/ai/classifier";
 import { logCompactSyncCard, logStory, syncLog } from "@/lib/logging";
@@ -26,6 +27,7 @@ import {
   extractCleanSnippet,
   isUnspecifiedPostedAt,
   normalizePostedAt,
+  relativeTimeToIso,
   resolveJobOpportunity,
   sanitizeJobDescription,
   scrapeJobPostingJsonLd,
@@ -400,6 +402,8 @@ export async function processSyncMessage(
       }
     }
 
+    job.company = sanitizeCompanyName(job.company);
+
     if (job.salary) {
       job.salary = normalizeSalaryDisplay(job.salary);
       if (job.salary && typeof job.salaryMax !== "number") {
@@ -408,7 +412,9 @@ export async function processSyncMessage(
     }
 
     if (job.postedAt) {
-      job.postedAt = normalizePostedAt(job.postedAt, null, emailDate);
+      job.postedAt =
+        relativeTimeToIso(job.postedAt, emailDate) ??
+        normalizePostedAt(job.postedAt, null, emailDate);
     }
 
     // 4. Pre-scrub descriptions BEFORE database persistence
@@ -470,19 +476,36 @@ export async function processSyncMessage(
   let usedScrapingAnt = false;
 
   if (thinJobs.length > 0) {
-    for (let i = 0; i < thinJobs.length; i++) {
-      const job = thinJobs[i];
-
-      // In multi-card digests, if multiple jobs share the exact same applyUrl,
-      // skip enriching subsequent jobs with that same URL so Card 1's scraped
-      // company/description doesn't bleed into Cards 2..N.
-      if (enrichedUrls.has(job.applyUrl!)) {
+    // 1. Deduplicate by applyUrl so identical cards in multi-job digests don't bleed into each other
+    const uniqueThinJobs: typeof thinJobs = [];
+    for (const job of thinJobs) {
+      if (!job.applyUrl || enrichedUrls.has(job.applyUrl)) {
         continue;
       }
-      enrichedUrls.add(job.applyUrl!);
+      enrichedUrls.add(job.applyUrl);
+      uniqueThinJobs.push(job);
+    }
 
-      if (i > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+    // 2. Per-domain rate limit tracking: space requests to the exact same domain by at least 1000ms
+    const nextAvailableByDomain = new Map<string, number>();
+    const SAME_DOMAIN_DELAY_MS = 1000;
+    const CONCURRENCY_LIMIT = 3;
+
+    async function enrichJob(job: (typeof thinJobs)[number]) {
+      let domain = "default";
+      try {
+        domain = new URL(job.applyUrl!).hostname.toLowerCase();
+      } catch {
+        domain = "default";
+      }
+
+      // Schedule next available slot for this domain
+      const now = Date.now();
+      const nextSlot = Math.max(now, nextAvailableByDomain.get(domain) ?? 0);
+      nextAvailableByDomain.set(domain, nextSlot + SAME_DOMAIN_DELAY_MS);
+      const waitMs = nextSlot - now;
+      if (waitMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
       }
 
       try {
@@ -539,7 +562,7 @@ export async function processSyncMessage(
             isValidEmployerName(enriched.company) &&
             isGarbageCompany
           ) {
-            job.company = enriched.company;
+            job.company = sanitizeCompanyName(enriched.company);
           }
 
           const isGarbageTitle =
@@ -574,17 +597,22 @@ export async function processSyncMessage(
           }
 
           if (isUnspecifiedPostedAt(job.postedAt)) {
-            const backfilledPostedAt = normalizePostedAt(
-              enriched.datePosted,
-              enriched.description || job.description
-            );
+            const backfilledPostedAt =
+              relativeTimeToIso(enriched.datePosted, emailDate) ??
+              normalizePostedAt(
+                enriched.datePosted,
+                enriched.description || job.description,
+                emailDate
+              );
             if (backfilledPostedAt) {
               job.postedAt = backfilledPostedAt;
             } else {
               job.postedAt = null;
             }
           } else {
-            job.postedAt = normalizePostedAt(job.postedAt, null, emailDate);
+            job.postedAt =
+              relativeTimeToIso(job.postedAt, emailDate) ??
+              normalizePostedAt(job.postedAt, null, emailDate);
           }
 
           // Recalculate matchScore and matchReason with the newly hydrated rich spec
@@ -655,6 +683,19 @@ export async function processSyncMessage(
         console.log(logLine.length > 90 ? `${logLine.slice(0, 87)}...` : logLine);
       }
     }
+
+    // 3. Run bounded concurrency pool (up to 3 concurrent requests)
+    const executing = new Set<Promise<void>>();
+    for (const job of uniqueThinJobs) {
+      const p: Promise<void> = enrichJob(job).finally(() => {
+        executing.delete(p);
+      });
+      executing.add(p);
+      if (executing.size >= CONCURRENCY_LIMIT) {
+        await Promise.race(executing);
+      }
+    }
+    await Promise.all(executing);
   }
 
   const dedupeResult = await persistSyncOpportunity({

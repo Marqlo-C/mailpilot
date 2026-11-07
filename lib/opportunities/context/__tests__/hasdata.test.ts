@@ -28,6 +28,7 @@ describe("fetchViaHasData", () => {
         title: "Senior Engineering Manager",
         employer: {
           name: "Acme Corp",
+          logo: "https://media.glassdoor.com/sqll/12345/acme-corp-squarelogo.png",
         },
         address: {
           city: "Austin",
@@ -79,6 +80,7 @@ describe("fetchViaHasData", () => {
     expect(result.data?.description).toContain("Qualifications:\n• 7+ years engineering leadership experience");
     expect(result.data?.applyUrl).toBe("https://www.glassdoor.com/partner/jobListing.htm?jl=123");
     expect(result.data?.datePosted).toBe("2026-10-10");
+    expect(result.data?.logoUrl).toBe("https://media.glassdoor.com/sqll/12345/acme-corp-squarelogo.png");
 
     vi.unstubAllGlobals();
   });

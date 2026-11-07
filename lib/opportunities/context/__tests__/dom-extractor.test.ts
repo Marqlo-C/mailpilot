@@ -324,4 +324,29 @@ describe("DOM & Schema.org Extraction on Real HTML Postings", () => {
     expect(dom?.logoUrl).toMatch(/^data:image\/jpeg;base64,/);
     expect(dom?.description).toContain("Data Integration Developer is responsible for designing");
   });
+
+  it("extracts LinkedIn guest HTML logo with data-delayed-url and artdeco-entity-image", () => {
+    const html = `
+      <div class="top-card-layout">
+        <div class="topcard__logo-container">
+          <img class="artdeco-entity-image artdeco-entity-image--square-5"
+               data-delayed-url="https://media.licdn.com/dms/image/v2/D560BAQFjY1/company-logo_100_100/company-logo_100_100/0/1719253456789?e=1747872000&amp;v=beta&amp;t=xyz"
+               alt="Nox Metals logo" />
+        </div>
+        <h1 class="top-card-layout__title">Machine Learning Engineer</h1>
+        <a class="topcard__org-name-link">Nox Metals</a>
+        <div class="show-more-less-html__markup">
+          <p>About Nox Metals: We are building the modern metals supply chain for American manufacturing. We are hiring a Machine Learning Engineer to deploy production systems.</p>
+          <p>Responsibilities: Build datasets, features, models, evaluation systems, and production pipelines. Deploy models into customer and internal workflows with software engineers.</p>
+          <p>Qualifications: Strong in applied machine learning, statistics, and software engineering. Comfortable working in Python and SQL. Competitive salary and equity.</p>
+        </div>
+      </div>
+    `;
+    const dom = extractJobFromSemanticDom(html, "https://www.linkedin.com/jobs/view/4123456789");
+    expect(dom).not.toBeNull();
+    expect(dom?.company).toBe("Nox Metals");
+    expect(dom?.logoUrl).toBe(
+      "https://media.licdn.com/dms/image/v2/D560BAQFjY1/company-logo_100_100/company-logo_100_100/0/1719253456789?e=1747872000&v=beta&t=xyz"
+    );
+  });
 });

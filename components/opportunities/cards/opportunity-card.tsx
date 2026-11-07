@@ -186,10 +186,7 @@ export function OpportunityCard({
   const locationRaw = opportunity.location?.trim() ?? "";
   const locationLabel = locationRaw || "Remote / Unspecified";
   const postedRaw =
-    formatRelativeTime(opportunity.postedAt, {
-      addSuffix: false,
-      referenceDate: opportunity.receivedAt,
-    }) ?? "";
+    formatRelativeTime(opportunity.postedAt, { addSuffix: false }) ?? "";
 
   function runLifecycleAction(action: JobCardAction) {
     startTransition(async () => {

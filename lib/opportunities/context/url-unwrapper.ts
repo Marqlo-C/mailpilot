@@ -162,7 +162,52 @@ export function unwrapTrackingUrl(urlString: string, maxDepth: number = 5): stri
     // If not a parseable URL, return normalized
   }
 
-  return /^https?:\/\//i.test(normalized) ? normalized : "";
+  const result = /^https?:\/\//i.test(normalized) ? normalized : "";
+  return result ? stripTrackingParams(result) : "";
+}
+
+const TRACKING_QUERY_PARAM_REGEX =
+  /^(?:utm_[a-z0-9_]+|tracking_?id|ref_?id|reference_?id|trk|trkemail|trkinfo|midtoken|eid|otptoken|comm_alert_id|auth_token|mc_[ce]id|gclid|fbclid|msclkid|dclid|twclid|igshid|emoff|alertaction|original_referer|algo_name|algo_index|algo_type|sc_[a-z0-9_]+|fbs|source_type)$/i;
+
+/**
+ * Strips tracking query parameters (utm_*, trackingId, trk, midToken, gclid, etc.)
+ * from URLs, preserving canonical job routing identifiers (e.g. jk, jl, gh_jid, id).
+ */
+export function stripTrackingParams(urlString: string): string {
+  if (!urlString || typeof urlString !== "string") return "";
+  const trimmed = urlString.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return trimmed;
+
+  try {
+    const url = new URL(trimmed);
+    const keysToDelete: string[] = [];
+
+    url.searchParams.forEach((_value, key) => {
+      if (TRACKING_QUERY_PARAM_REGEX.test(key)) {
+        keysToDelete.push(key);
+      }
+    });
+
+    if (keysToDelete.length === 0) {
+      return trimmed;
+    }
+
+    for (const key of keysToDelete) {
+      url.searchParams.delete(key);
+    }
+
+    if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
+      url.pathname = url.pathname.replace(/\/+$/, "");
+    }
+
+    let result = url.toString();
+    if (result.endsWith("?") || result.endsWith("#")) {
+      result = result.slice(0, -1);
+    }
+    return result;
+  } catch {
+    return trimmed;
+  }
 }
 
 /**

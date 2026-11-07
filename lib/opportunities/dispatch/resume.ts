@@ -66,6 +66,7 @@ export async function buildOpportunityResumePreview(
       salary: true,
       location: true,
       postedAt: true,
+      logoUrl: true,
       tailoredResumePdf: true,
       tailoredResumeData: true,
       tailorConfig: true,
@@ -201,6 +202,12 @@ export async function buildOpportunityResumePreview(
               (!opportunity.company || opportunity.company === "Unknown Company")
                 ? { company: hasDataResult.data.company }
                 : {}),
+              ...(hasDataResult.data.logoUrl &&
+              (!opportunity.logoUrl ||
+                opportunity.logoUrl.includes("favicons") ||
+                opportunity.logoUrl.includes("avatar.vercel.sh"))
+                ? { logoUrl: hasDataResult.data.logoUrl }
+                : {}),
             },
           });
           const reResolved = await resolveOpportunityContext(opportunityId);
@@ -321,6 +328,7 @@ export async function hydrateOpportunitySpec(
       location: true,
       company: true,
       postedAt: true,
+      logoUrl: true,
     },
   });
   if (!opportunity) {
@@ -420,6 +428,12 @@ export async function hydrateOpportunitySpec(
         ...(result.data.company &&
         (!opportunity.company || opportunity.company === "Unknown Company")
           ? { company: result.data.company }
+          : {}),
+        ...(result.data.logoUrl &&
+        (!opportunity.logoUrl ||
+          opportunity.logoUrl.includes("favicons") ||
+          opportunity.logoUrl.includes("avatar.vercel.sh"))
+          ? { logoUrl: result.data.logoUrl }
           : {}),
       },
     });

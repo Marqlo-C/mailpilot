@@ -18,7 +18,13 @@ import type {
 } from "./schema.ssot";
 import { extractCleanSnippet, sanitizeJobDescription } from "./scrubber";
 import { formatDistanceToNow, formatRelativeTime } from "@/lib/utils/format-distance";
-import { normalizeSalaryDisplay, parseSalaryMax } from "@/lib/ai/classifier";
+import {
+  normalizeSalaryDisplay,
+  parseSalaryMax,
+  sanitizeCompanyName,
+} from "@/lib/ai/classifier";
+
+export { sanitizeCompanyName } from "@/lib/ai/classifier";
 
 /**
  * Checks whether a given posted date string is unspecified, placeholder, or empty.
@@ -112,10 +118,22 @@ export function normalizePostedAt(
 ): string | null {
   // 1. Evaluate primary candidate date string
   if (dateStr && !isUnspecifiedPostedAt(dateStr)) {
-    const formatted = formatRelativeTime(dateStr, {
-      addSuffix: false,
-      referenceDate,
-    });
+    // If it's already an ISO string or absolute date, format it relative to now directly
+    const parsed = Date.parse(dateStr);
+    if (
+      !isNaN(parsed) &&
+      (/^\d{4}-\d{2}-\d{2}/.test(dateStr) ||
+        /^[A-Za-z]{3,9}\s+\d{1,2},\s*\d{4}/.test(dateStr))
+    ) {
+      return formatRelativeTime(dateStr, { addSuffix: false });
+    }
+
+    if (referenceDate) {
+      const iso = relativeTimeToIso(dateStr, referenceDate);
+      if (iso) return formatRelativeTime(iso, { addSuffix: false });
+    }
+
+    const formatted = formatRelativeTime(dateStr, { addSuffix: false });
     if (formatted) return formatted;
   }
 
@@ -125,10 +143,11 @@ export function normalizePostedAt(
       /\b(?:reposted|posted)\s*(?:on\s+|:\s*)?(\d+\+?\s*(?:s|sec|m|min|mins|minutes?|h|hr|hrs|hours?|d|days?|w|wk|wks|weeks?|mo|months?|y|years?)(?:\s+ago)?|yesterday|today|just\s+now|just\s+posted)\b/i
     );
     if (match) {
-      return formatRelativeTime(match[1], {
-        addSuffix: false,
-        referenceDate,
-      });
+      if (referenceDate) {
+        const iso = relativeTimeToIso(match[1], referenceDate);
+        if (iso) return formatRelativeTime(iso, { addSuffix: false });
+      }
+      return formatRelativeTime(match[1], { addSuffix: false });
     }
   }
 
@@ -143,7 +162,7 @@ export function resolveJobOpportunity(
   opportunity: Partial<JobOpportunity>,
   inboundRaw?: string | null
 ): NormalizedJobOpportunity {
-  const company = opportunity.company?.trim() || "Unknown Company";
+  const company = sanitizeCompanyName(opportunity.company) || "Unknown Company";
   const rawTitle = opportunity.title?.trim() || "Role";
   const roleTitle =
     rawTitle

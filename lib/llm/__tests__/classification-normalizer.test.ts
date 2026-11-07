@@ -4,6 +4,7 @@ import {
   isValidEmployerName,
   isValidRoleTitle,
   sanitizeRoleTitle,
+  sanitizeCompanyName,
 } from "../classification";
 import { buildProfileAwareClassifierSystemPrompt } from "@/lib/ai/classifier";
 
@@ -381,6 +382,73 @@ Coordinate enterprise workflows at Beta Systems.
       expect(isValidEmployerName("Department of Transportation")).toBe(true);
       expect(isValidEmployerName("St. Jude Children's Research Hospital")).toBe(true);
     });
+  });
+
+  describe("sanitizeCompanyName", () => {
+    it("strips Glassdoor and review star ratings from company names", () => {
+      expect(sanitizeCompanyName("Laser Land 5.0 ★")).toBe("Laser Land");
+      expect(sanitizeCompanyName("Inceed 4.0 ★")).toBe("Inceed");
+      expect(sanitizeCompanyName("Apple 4.2 ★")).toBe("Apple");
+      expect(sanitizeCompanyName("NVIDIA 4.4 ★")).toBe("NVIDIA");
+      expect(sanitizeCompanyName("HII 3.5 ★")).toBe("HII");
+      expect(sanitizeCompanyName("Amazon 3.6 ★")).toBe("Amazon");
+      expect(sanitizeCompanyName("avatar Apple 4.2 ★")).toBe("Apple");
+      expect(sanitizeCompanyName("Acme Corp - 4.5*")).toBe("Acme Corp");
+      expect(sanitizeCompanyName("Datadog 4.8 / 5")).toBe("Datadog");
+      expect(sanitizeCompanyName("Company 4.2 out of 5")).toBe("Company");
+    });
+
+    it("preserves authentic company names containing numbers and punctuation", () => {
+      expect(sanitizeCompanyName("Cultivated Technology Group, Inc")).toBe(
+        "Cultivated Technology Group, Inc"
+      );
+      expect(sanitizeCompanyName("7-Eleven")).toBe("7-Eleven");
+      expect(sanitizeCompanyName("3M")).toBe("3M");
+      expect(sanitizeCompanyName("Studio 54")).toBe("Studio 54");
+      expect(sanitizeCompanyName("23andMe")).toBe("23andMe");
+      expect(sanitizeCompanyName("Level 3 Communications")).toBe("Level 3 Communications");
+    });
+  });
+
+  it("normalizes Glassdoor star ratings out of company names during classification", () => {
+    const raw = {
+      is_job_related: true,
+      email_category: "JOB_BOARD_DIGEST" as const,
+      classificationMethod: "AI" as const,
+      company_name: null,
+      role_title: null,
+      status: "LEAD" as const,
+      action_required: false,
+      action_summary: null,
+      action_url: null,
+      deadline_iso: null,
+      jobs: [
+        {
+          company: "Laser Land 5.0 ★",
+          title: "Laser Tag Game Design Assistant / Playtester",
+          location: "Mission Viejo, CA",
+          salary: "$16 - $17/hr",
+          postedAt: "1d",
+          isAlreadyApplied: false,
+        },
+        {
+          company: "Apple 4.2 ★",
+          title: "Software Development Engineer",
+          location: "Cupertino, CA",
+          salary: "$129K - $195K",
+          postedAt: "3d",
+          isAlreadyApplied: false,
+        },
+      ],
+    };
+
+    const normalized = normalizeClassification(raw, {
+      subject: "Glassdoor Job alert: Software Engineer",
+      emailBody: "Your job listings for October 11, 2026\nLaser Land 5.0 ★\nApple 4.2 ★",
+    });
+
+    expect(normalized.jobs[0].company).toBe("Laser Land");
+    expect(normalized.jobs[1].company).toBe("Apple");
   });
 
   it("prevents date headers and email alert metadata from bleeding into company names during de-biasing", () => {

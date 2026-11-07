@@ -30,6 +30,7 @@ export {
   safeDecodeUrl,
   extractLinkedInJobId,
   transformToLinkedInGuestUrl,
+  stripTrackingParams,
 } from "./url-unwrapper";
 
 export {
@@ -277,32 +278,38 @@ export async function fetchLinkedInGuestPosting(
         const text = structured.coreMarkdown || markupMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
         if (isLegitimateJobContent(text)) {
           const parsedJsonLd = extractJsonLdJobPosting(html);
+          const domData = extractJobFromSemanticDom(html, url);
           return {
             ...(parsedJsonLd ?? {}),
+            ...(domData ?? {}),
             description: structured.fullReconstructedMarkdown || text,
             coreDescription: structured.coreMarkdown || text,
             overviewSnippet: structured.overviewSnippet,
             applyUrl: `https://www.linkedin.com/jobs/view/${jobId}`,
+            logoUrl: parsedJsonLd?.logoUrl || domData?.logoUrl,
           };
         }
       }
 
       // 2. Check JSON-LD in guest response
       const parsedJsonLd = extractJsonLdJobPosting(html);
+      const domData = extractJobFromSemanticDom(html, url);
       if (parsedJsonLd?.description && isLegitimateJobContent(parsedJsonLd.coreDescription || parsedJsonLd.description)) {
         return {
           ...parsedJsonLd,
+          ...(domData ?? {}),
           applyUrl: `https://www.linkedin.com/jobs/view/${jobId}`,
+          logoUrl: parsedJsonLd.logoUrl || domData?.logoUrl,
         };
       }
 
       // 3. Check Semantic DOM in guest response
-      const domData = extractJobFromSemanticDom(html, url);
       if (domData?.description && isLegitimateJobContent(domData.coreDescription || domData.description)) {
         return {
           ...(parsedJsonLd ?? {}),
           ...domData,
           applyUrl: `https://www.linkedin.com/jobs/view/${jobId}`,
+          logoUrl: parsedJsonLd?.logoUrl || domData.logoUrl,
         };
       }
     }
@@ -336,19 +343,22 @@ export async function fetchLinkedInGuestPosting(
     if (res.ok) {
       const html = await res.text();
       const parsedJsonLd = extractJsonLdJobPosting(html);
+      const domData = extractJobFromSemanticDom(html, url);
       if (parsedJsonLd?.description && isLegitimateJobContent(parsedJsonLd.coreDescription || parsedJsonLd.description)) {
         return {
           ...parsedJsonLd,
+          ...(domData ?? {}),
           applyUrl: url,
+          logoUrl: parsedJsonLd.logoUrl || domData?.logoUrl,
         };
       }
 
-      const domData = extractJobFromSemanticDom(html, url);
       if (domData?.description && isLegitimateJobContent(domData.coreDescription || domData.description)) {
         return {
           ...(parsedJsonLd ?? {}),
           ...domData,
           applyUrl: url,
+          logoUrl: parsedJsonLd?.logoUrl || domData.logoUrl,
         };
       }
     }
