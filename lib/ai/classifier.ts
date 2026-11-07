@@ -657,7 +657,7 @@ Category rules:
 - IRRELEVANT: marketing spam or non-job content.
 
 Extraction rules (metadata must be robust):
-- For JOB_BOARD_DIGEST, extract EVERY distinct job listing into "jobs" (up to 15).
+- For JOB_BOARD_DIGEST, extract EVERY distinct job listing into "jobs" (up to 15). Set top-level company_name and role_title to null (or the first featured listing); all individual listings belong in "jobs".
 - For DIRECT_RECRUITER, put exactly one job in "jobs" when a role is discussed.
 - company: hiring company name. Omit employer review ratings and star icons (e.g. for "Apple 4.2 ★" or "Laser Land 5.0 ★", extract "Apple" or "Laser Land"). Never include ratings, stars, or "avatar" in company.
 - companyDomain: inferred hiring-company website (e.g. "hpe.com"). Never use glassdoor/indeed/linkedin as the company domain.

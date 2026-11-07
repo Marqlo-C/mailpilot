@@ -1194,16 +1194,25 @@ export async function persistClassifiedEmail(input: {
     lastAction = `Tier 3 Dedupe: Inserted New Opportunity for ${cleanCompany} (${cleanTitle})`;
   }
 
+  const leadJob = classification.jobs?.[0];
+  const leadCompany = leadJob ? sanitizeCompanyName(leadJob.company) : "";
+  const leadTitle = leadJob?.title?.trim() ?? "";
+  const leadSuffix = leadCompany ? ` (Lead: ${leadCompany}${leadTitle ? ` · ${leadTitle}` : ""})` : "";
+
+  const finalAction =
+    opportunitiesUpserted > 1
+      ? `Digest Ingestion: Saved ${opportunitiesUpserted} opportunities${leadSuffix}`
+      : lastAction ||
+        (opportunitiesUpserted > 0
+          ? `Saved ${opportunitiesUpserted} opportunity record(s)`
+          : "Processed");
+
   return {
     opportunitiesUpserted,
     applicationTouched: classification.email_category === "APPLICATION_STATUS",
     createdCount,
     updatedCount,
-    lastAction:
-      lastAction ||
-      (opportunitiesUpserted > 0
-        ? `Saved ${opportunitiesUpserted} opportunity record(s)`
-        : "Processed"),
+    lastAction: finalAction,
   };
 }
 
