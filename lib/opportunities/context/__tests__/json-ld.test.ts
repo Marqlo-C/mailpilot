@@ -813,6 +813,149 @@ describe("JSON-LD Link Parser", () => {
 
       vi.unstubAllGlobals();
     });
+
+    it("merges salary, salaryMax, and datePosted from DOM when JSON-LD lacks baseSalary (PwC pattern)", async () => {
+      const pwcHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <script type="application/ld+json">
+              {
+                "@context": "https://schema.org",
+                "@type": "JobPosting",
+                "title": "AI Engineer",
+                "hiringOrganization": {
+                  "@type": "Organization",
+                  "name": "PwC"
+                },
+                "jobLocation": {
+                  "@type": "Place",
+                  "address": {
+                    "@type": "PostalAddress",
+                    "addressLocality": "Sacramento",
+                    "addressRegion": "CA"
+                  }
+                },
+                "description": "<p>PwC is hiring an AI Engineer to build enterprise generative AI solutions and LLM workflows. Minimum qualifications include a Bachelor degree in Computer Science, 3+ years of experience with Python, TypeScript, and machine learning pipelines, and demonstrated expertise building scalable architectures in cloud environments.</p>"
+              }
+            </script>
+          </head>
+          <body>
+            <main>
+              <div class="salary-badge">Pay Range: $135,000 - $190,000 / year</div>
+              <time datetime="2026-10-24">October 24, 2026</time>
+              <div class="job-description">
+                <p>PwC is hiring an AI Engineer to build enterprise generative AI solutions and LLM workflows. Minimum qualifications include a Bachelor degree in Computer Science, 3+ years of experience with Python, TypeScript, and machine learning pipelines, and demonstrated expertise building scalable architectures in cloud environments.</p>
+              </div>
+            </main>
+          </body>
+        </html>
+      `;
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(pwcHtml),
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      const result = await scrapeJobPostingJsonLd("https://jobs.pwc.com/job/ai-engineer");
+      expect(result.data).not.toBeNull();
+      expect(result.data?.company).toBe("PwC");
+      expect(result.data?.salary).toBe("$135K-$190K");
+      expect(result.data?.salaryMax).toBe(190000);
+      expect(result.data?.datePosted).toBe("2026-10-24");
+
+      vi.unstubAllGlobals();
+    });
+
+    it("extracts salary directly from JSON-LD description text when baseSalary is omitted", async () => {
+      const htmlWithDescSalary = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <script type="application/ld+json">
+              {
+                "@context": "https://schema.org",
+                "@type": "JobPosting",
+                "title": "Senior Consultant",
+                "hiringOrganization": {
+                  "@type": "Organization",
+                  "name": "Acme Corp"
+                },
+                "description": "<p>Great opportunity. Base Pay: $140,000 - $175,000 per year. Apply now to join our team.</p>"
+              }
+            </script>
+          </head>
+          <body>
+            <div>Fallback text</div>
+          </body>
+        </html>
+      `;
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(htmlWithDescSalary),
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      const result = await scrapeJobPostingJsonLd("https://example.com/job/consultant");
+      expect(result.data).not.toBeNull();
+      expect(result.data?.salary).toBe("$140K-$175K");
+      expect(result.data?.salaryMax).toBe(175000);
+
+      vi.unstubAllGlobals();
+    });
+
+    it("extracts salary and logo from Greenhouse JobPosting with pay transparency at end of description", async () => {
+      const figmaHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <script type="application/ld+json">
+              {
+                "@context": "https://schema.org",
+                "@type": "JobPosting",
+                "title": "Software Engineer - Growth and Monetization",
+                "hiringOrganization": {
+                  "@type": "Organization",
+                  "name": "Figma",
+                  "logo": "https://images.ctfassets.net/figma-logo-highres.png"
+                },
+                "jobLocation": {
+                  "@type": "Place",
+                  "address": {
+                    "addressLocality": "San Francisco",
+                    "addressRegion": "CA"
+                  }
+                },
+                "description": "<p>Overview Figma is growing our team of passionate creatives and builders on a mission to make design accessible to all. We are looking for experienced full-stack engineers to join teams across Figma Growth and Monetization Engineering organization! This group spans several teams including Growth, Billing, Enterprise, and Discovery each focused on solving complex challenges that help millions of users from startups to Fortune 500 companies get the most out of Figma. What you will do at Figma: Design, build, test, and ship high-quality features across the stack, using technologies like TypeScript, React, Ruby, Go, C++, and more. Pay Transparency Disclosure: Job level and actual compensation will be decided based on factors including qualifications. Annual Base Salary Range: $169,000 - $303,000 USD.</p>"
+              }
+            </script>
+          </head>
+          <body>
+            <div id="content">Figma job details</div>
+          </body>
+        </html>
+      `;
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(figmaHtml),
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      const result = await scrapeJobPostingJsonLd("https://job-boards.greenhouse.io/figma/jobs/12345");
+      expect(result.data).not.toBeNull();
+      expect(result.data?.company).toBe("Figma");
+      expect(result.data?.salary).toBe("$169K-$303K");
+      expect(result.data?.salaryMax).toBe(303000);
+      expect(result.data?.logoUrl).toBe("https://images.ctfassets.net/figma-logo-highres.png");
+
+      vi.unstubAllGlobals();
+    });
   });
 
   describe("recordScraperFailure", () => {

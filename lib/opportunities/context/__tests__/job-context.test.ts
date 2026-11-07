@@ -292,13 +292,13 @@ describe("Job Context Domain", () => {
         company: "Acme",
         postedAt: pastDateIso,
       });
-      expect(withIso.postedAt).toMatch(/\d+[dhmsmoy]\s+ago/);
+      expect(withIso.postedAt).toMatch(/^\d+[dhwmsmoy]$/);
 
       const withRelative = resolveJobOpportunity({
         company: "Acme",
-        postedAt: "Just posted",
+        postedAt: "3 days ago",
       });
-      expect(withRelative.postedAt).toBe("Just posted");
+      expect(withRelative.postedAt).toBe("3d");
 
       const withNull = resolveJobOpportunity({
         company: "Acme",
@@ -370,41 +370,60 @@ describe("Job Context Domain", () => {
   });
 
   describe("normalizePostedAt", () => {
-    it("converts ISO date strings into relative distance", () => {
+    it("converts ISO date strings into relative distance without ago", () => {
       const pastDateIso = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
       const normalized = normalizePostedAt(pastDateIso);
-      expect(normalized).toMatch(/\d+[dhmsmoy]\s+ago/);
+      expect(normalized).toBe("2d");
     });
 
-    it("strips leading 'Posted: ' and 'Posted ' prefixes", () => {
-      expect(normalizePostedAt("Posted: 3 days ago")).toBe("3 days ago");
-      expect(normalizePostedAt("Posted 2 weeks ago")).toBe("2 weeks ago");
-      expect(normalizePostedAt("Posted: Today")).toBe("Today");
+    it("normalizes free-text posted dates to short time unit without ago", () => {
+      expect(normalizePostedAt("Posted: 3 days ago")).toBe("3d");
+      expect(normalizePostedAt("Posted 2 weeks ago")).toBe("2w");
+      expect(normalizePostedAt("Posted: Today")).toBe("0d");
     });
 
-    it("normalizes and formats 'Reposted: ' prefixes", () => {
-      expect(normalizePostedAt("Reposted: 4 days ago")).toBe("Reposted 4 days ago");
-      expect(normalizePostedAt("reposted 2 days ago")).toBe("Reposted 2 days ago");
+    it("normalizes reposted dates to short time unit without ago", () => {
+      expect(normalizePostedAt("Reposted: 4 days ago")).toBe("4d");
+      expect(normalizePostedAt("reposted 2 days ago")).toBe("2d");
     });
 
-    it("extracts clean posted/reposted relative dates from fallback spec text", () => {
+    it("extracts clean posted relative dates from fallback spec text", () => {
       const fallbackSpecWithRepost =
         "Acme Corp • San Francisco, CA\nReposted 3 days ago\nWe are looking for a staff engineer.";
-      expect(normalizePostedAt(null, fallbackSpecWithRepost)).toBe("Reposted 3 days ago");
+      expect(normalizePostedAt(null, fallbackSpecWithRepost)).toBe("3d");
 
       const fallbackSpecWithPosted =
         "Engineering Department\nPosted 5 days ago\nMinimum qualifications include...";
-      expect(normalizePostedAt("Posted: Not specified", fallbackSpecWithPosted)).toBe("5 days ago");
+      expect(normalizePostedAt("Posted: Not specified", fallbackSpecWithPosted)).toBe("5d");
 
       const fallbackSpecWithToday =
         "Job Description\nPosted today\nCompetitive benefits and perks.";
-      expect(normalizePostedAt(undefined, fallbackSpecWithToday)).toBe("Today");
+      expect(normalizePostedAt(undefined, fallbackSpecWithToday)).toBe("0d");
     });
 
     it("returns null when no valid date or fallback pattern is found", () => {
       expect(normalizePostedAt(null, null)).toBeNull();
       expect(normalizePostedAt("Not specified", "No dates mentioned here")).toBeNull();
       expect(normalizePostedAt(undefined, "Company was founded 10 years ago in Austin")).toBeNull();
+    });
+
+    it("anchors relative posted dates against referenceDate (e.g. receivedAt)", () => {
+      const fourWeeksAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000);
+      // If email received 4 weeks ago and job was 5d old at that time, total age is ~33d (~4w or 1mo)
+      const normalizedWith5d = normalizePostedAt("5d", null, fourWeeksAgo);
+      expect(normalizedWith5d).toMatch(/^(?:4w|1mo|33d)$/);
+
+      // If email received 4 weeks ago and job was posted "today" at that time, total age is 4w
+      const normalizedWithToday = normalizePostedAt("Posted: Today", null, fourWeeksAgo);
+      expect(normalizedWithToday).toBe("4w");
+
+      // resolveJobOpportunity anchors postedAt against opportunity.receivedAt
+      const resolved = resolveJobOpportunity({
+        company: "Acme",
+        postedAt: "5d",
+        receivedAt: fourWeeksAgo,
+      });
+      expect(resolved.postedAt).toMatch(/^(?:4w|1mo|33d)$/);
     });
   });
 });

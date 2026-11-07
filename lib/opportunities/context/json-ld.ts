@@ -171,6 +171,9 @@ export async function fetchViaScrapingAnt(
           ...jsonLd,
           applyUrl: jsonLd.applyUrl ?? url,
           location: domData?.location || jsonLd.location,
+          salary: jsonLd.salary || domData?.salary,
+          salaryMax: jsonLd.salaryMax || domData?.salaryMax,
+          datePosted: jsonLd.datePosted || domData?.datePosted,
           logoUrl: jsonLd.logoUrl || domData?.logoUrl,
         },
         status: res.status,
@@ -184,6 +187,9 @@ export async function fetchViaScrapingAnt(
         data: {
           ...nuxtData,
           applyUrl: url,
+          salary: nuxtData.salary || domData?.salary,
+          salaryMax: nuxtData.salaryMax || domData?.salaryMax,
+          datePosted: nuxtData.datePosted || domData?.datePosted,
         },
         status: res.status,
       };
@@ -199,6 +205,8 @@ export async function fetchViaScrapingAnt(
           title: jsonLd?.title || domData.title,
           company: jsonLd?.company || domData.company,
           salary: jsonLd?.salary || domData.salary,
+          salaryMax: jsonLd?.salaryMax || domData.salaryMax,
+          datePosted: jsonLd?.datePosted || domData.datePosted,
           logoUrl: jsonLd?.logoUrl || domData.logoUrl,
         },
         status: res.status,
@@ -462,6 +470,9 @@ export async function scrapeJobPostingJsonLd(
             ...parsed,
             applyUrl: parsed.applyUrl ?? url,
             location: domData?.location || parsed.location,
+            salary: parsed.salary || domData?.salary,
+            salaryMax: parsed.salaryMax || domData?.salaryMax,
+            datePosted: parsed.datePosted || domData?.datePosted,
             logoUrl: parsed.logoUrl || domData?.logoUrl,
           },
           telemetry: `Hydrated ${chars.toLocaleString()} chars via JSON-LD`,
@@ -472,7 +483,14 @@ export async function scrapeJobPostingJsonLd(
       const nuxtData = extractNuxtData(html);
       if (nuxtData?.description && isLegitimateJobContent(nuxtData.coreDescription || nuxtData.description)) {
         return {
-          data: { ...nuxtData, applyUrl: url },
+          data: {
+            ...nuxtData,
+            applyUrl: url,
+            salary: nuxtData.salary || domData?.salary,
+            salaryMax: nuxtData.salaryMax || domData?.salaryMax,
+            datePosted: nuxtData.datePosted || domData?.datePosted,
+            logoUrl: nuxtData.logoUrl || domData?.logoUrl,
+          },
           telemetry: `Hydrated ${nuxtData.description.length.toLocaleString()} chars via Nuxt SSR State`,
         };
       }
@@ -487,6 +505,8 @@ export async function scrapeJobPostingJsonLd(
             title: parsed?.title || domData.title,
             company: parsed?.company || domData.company,
             salary: parsed?.salary || domData.salary,
+            salaryMax: parsed?.salaryMax || domData.salaryMax,
+            datePosted: parsed?.datePosted || domData.datePosted,
             logoUrl: parsed?.logoUrl || domData.logoUrl,
           },
           telemetry: `Hydrated ${domData.description.length.toLocaleString()} chars via Direct HTML`,
@@ -507,9 +527,13 @@ export async function scrapeJobPostingJsonLd(
         return {
           data: {
             ...(parsed ?? {}),
+            ...(domData ?? {}),
             description: (structured.fullReconstructedMarkdown || text).slice(0, 4000),
             coreDescription: (structured.coreMarkdown || text).slice(0, 4000),
             overviewSnippet: structured.overviewSnippet,
+            salary: parsed?.salary || domData?.salary,
+            salaryMax: parsed?.salaryMax || domData?.salaryMax,
+            datePosted: parsed?.datePosted || domData?.datePosted,
             applyUrl: url,
           },
           telemetry: `Hydrated ${Math.min(text.length, 4000).toLocaleString()} chars via Direct HTML`,

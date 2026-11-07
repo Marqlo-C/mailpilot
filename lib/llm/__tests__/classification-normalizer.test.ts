@@ -5,6 +5,7 @@ import {
   isValidRoleTitle,
   sanitizeRoleTitle,
 } from "../classification";
+import { buildProfileAwareClassifierSystemPrompt } from "@/lib/ai/classifier";
 
 describe("Classification Normalizer De-biasing & Location Fallback", () => {
   it("resolves the real hiring employer when the model assigned an aggregator company", () => {
@@ -659,5 +660,205 @@ Coordinate enterprise workflows at Beta Systems.
     expect(normalized.jobs[0].description).toBe(
       "Opportunity for Software Engineer at Glassdoor. Located in San Francisco, CA. Compensated at $140K-$180K."
     );
+  });
+
+  describe("Token Diet: Streamlined System Prompt & Deterministic Backfilling", () => {
+    it("system prompt omits derived fields (salaryMax, applicationType, matchScore, matchReason) to save tokens", () => {
+      const prompt = buildProfileAwareClassifierSystemPrompt({
+        educationSummary: "BS Computer Science",
+        skills: ["TypeScript", "React", "Node.js"],
+        experienceSummary: "Senior Engineer at Acme",
+        targetTitles: ["Senior Software Engineer"],
+      });
+
+      // Verifies derived fields are removed from the JSON schema in the prompt
+      expect(prompt).not.toContain('"salaryMax"');
+      expect(prompt).not.toContain('"applicationType"');
+      expect(prompt).not.toContain('"matchScore"');
+      expect(prompt).not.toContain('"matchReason"');
+      expect(prompt).not.not.toContain("Match Score (0-100)");
+
+      // Verifies essential core extraction fields remain
+      expect(prompt).toContain('"company"');
+      expect(prompt).toContain('"title"');
+      expect(prompt).toContain('"location"');
+      expect(prompt).toContain('"salary"');
+      expect(prompt).toContain('"description"');
+      expect(prompt).toContain('"applyUrl"');
+      expect(prompt).toContain('"isAlreadyApplied"');
+    });
+
+    it("deterministically backfills salaryMax, applicationType, matchScore, and matchReason when omitted by the model", () => {
+      const raw = {
+        is_job_related: true,
+        email_category: "JOB_BOARD_DIGEST" as const,
+        classificationMethod: "AI" as const,
+        company_name: "Tech Corp",
+        role_title: "Full Stack Engineer",
+        status: "LEAD" as const,
+        action_required: false,
+        action_summary: null,
+        action_url: null,
+        deadline_iso: null,
+        jobs: [
+          {
+            company: "Tech Corp",
+            companyDomain: "techcorp.io",
+            title: "Full Stack Engineer",
+            location: "Remote",
+            salary: "$140,000 - $180,000",
+            // salaryMax, applicationType, matchScore, matchReason omitted by LLM
+            postedAt: "Just posted",
+            description: "Looking for an engineer experienced with TypeScript and React to build cloud services.",
+            applyUrl: "https://techcorp.io/careers/123",
+            recipientEmail: null,
+            recipientName: null,
+            isAlreadyApplied: false,
+          },
+        ],
+      };
+
+      const normalized = normalizeClassification(raw, {
+        subject: "New Engineering Roles",
+        emailBody: "Here are roles matching your preferences.",
+        candidateProfile: {
+          educationSummary: "BS Computer Science",
+          skills: ["TypeScript", "React", "Node.js"],
+          experienceSummary: "Full Stack Engineer at Previous Co",
+          targetTitles: ["Full Stack Engineer", "Software Engineer"],
+        },
+      });
+
+      const job = normalized.jobs[0];
+      // salaryMax derived deterministically
+      expect(job.salaryMax).toBe(180000);
+      expect(job.salary).toBe("$140K-$180K");
+
+      // applicationType derived deterministically
+      expect(job.applicationType).toBe("EXTERNAL_LINK");
+
+      // matchScore and matchReason computed by evaluateOpportunityMatch
+      expect(job.matchScore).toBeGreaterThanOrEqual(70);
+      expect(job.matchReason).toBeDefined();
+      expect(job.matchReason?.length).toBeGreaterThan(10);
+    });
+
+    it("falls back to heuristic match scoring when candidateProfile is null", () => {
+      const raw = {
+        is_job_related: true,
+        email_category: "JOB_BOARD_DIGEST" as const,
+        classificationMethod: "AI" as const,
+        company_name: "Acme Corp",
+        role_title: "Nurse Practitioner",
+        status: "LEAD" as const,
+        action_required: false,
+        action_summary: null,
+        action_url: null,
+        deadline_iso: null,
+        jobs: [
+          {
+            company: "Acme Health",
+            companyDomain: null,
+            title: "Nurse Practitioner",
+            location: "Denver, CO",
+            salary: "$110k - $130k",
+            postedAt: "Today",
+            description: "Provide primary care in inpatient clinics.",
+            applyUrl: "https://acmehealth.com/jobs/np",
+            recipientEmail: null,
+            recipientName: null,
+            isAlreadyApplied: false,
+          },
+        ],
+      };
+
+      const normalized = normalizeClassification(raw, {
+        subject: "Healthcare Jobs",
+        emailBody: "Jobs",
+        candidateProfile: null,
+      });
+
+      const job = normalized.jobs[0];
+      expect(job.salaryMax).toBe(130000);
+      expect(job.matchScore).toBeGreaterThan(0);
+      expect(job.matchReason).toBeDefined();
+    });
+
+    it("preserves direct logoUrl extracted from job link when present", () => {
+      const raw = {
+        is_job_related: true,
+        email_category: "JOB_BOARD_DIGEST" as const,
+        classificationMethod: "AI" as const,
+        company_name: "Figma",
+        role_title: "Software Engineer",
+        status: "LEAD" as const,
+        action_required: false,
+        action_summary: null,
+        action_url: null,
+        deadline_iso: null,
+        jobs: [
+          {
+            company: "Figma",
+            companyDomain: "figma.com",
+            title: "Software Engineer - Growth and Monetization",
+            location: "San Francisco, CA",
+            salary: "$169K-$303K",
+            logoUrl: "https://images.ctfassets.net/figma-logo.png",
+            postedAt: "Today",
+            description: "Build billing infrastructure.",
+            applyUrl: "https://job-boards.greenhouse.io/figma/jobs/123",
+            recipientEmail: null,
+            recipientName: null,
+            isAlreadyApplied: false,
+          },
+        ],
+      };
+
+      const normalized = normalizeClassification(raw, {
+        subject: "Figma Opportunity",
+        emailBody: "Jobs at Figma",
+        candidateProfile: null,
+      });
+
+      expect(normalized.jobs[0].logoUrl).toBe("https://images.ctfassets.net/figma-logo.png");
+    });
+
+    it("rejects standalone zip code as location and resolves City, ST from description", () => {
+      const raw = {
+        is_job_related: true,
+        email_category: "JOB_BOARD_DIGEST" as const,
+        classificationMethod: "AI" as const,
+        company_name: "Hewlett Packard Enterprise",
+        role_title: "Hardware Engineer",
+        status: "LEAD" as const,
+        action_required: false,
+        action_summary: null,
+        action_url: null,
+        deadline_iso: null,
+        jobs: [
+          {
+            company: "Hewlett Packard Enterprise",
+            companyDomain: "hpe.com",
+            title: "Hardware Design Engineer",
+            location: "95747",
+            salary: "$140k",
+            postedAt: "Today",
+            description: "Join our networking hardware group in Roseville, CA to design high-speed digital boards.",
+            applyUrl: "https://careers.hpe.com/job/123",
+            recipientEmail: null,
+            recipientName: null,
+            isAlreadyApplied: false,
+          },
+        ],
+      };
+
+      const normalized = normalizeClassification(raw, {
+        subject: "HPE Opportunity",
+        emailBody: "Jobs at HPE",
+        candidateProfile: null,
+      });
+
+      expect(normalized.jobs[0].location).toBe("Roseville, CA");
+    });
   });
 });

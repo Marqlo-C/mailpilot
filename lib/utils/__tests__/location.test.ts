@@ -3,6 +3,7 @@ import {
   extractLocationFromText,
   parseLocation,
   isLocationCompatible,
+  standardizeLocation,
 } from "../location";
 
 describe("Location Domain & Text Extractor", () => {
@@ -84,6 +85,20 @@ describe("Location Domain & Text Extractor", () => {
 
     it("allows match when either location is remote", () => {
       expect(isLocationCompatible("Remote", "Sacramento, CA")).toBe(true);
+    });
+  });
+
+  describe("standardizeLocation", () => {
+    it("standardizes city and state with zip code to clean City, ST", () => {
+      expect(standardizeLocation("Roseville, CA 95747")).toBe("Roseville, CA");
+      expect(standardizeLocation("Roseville, CA, 95747")).toBe("Roseville, CA");
+      expect(standardizeLocation("Austin, Texas 78701")).toBe("Austin, TX");
+    });
+
+    it("rejects standalone zip codes as invalid location display values", () => {
+      expect(standardizeLocation("95747")).toBeUndefined();
+      expect(standardizeLocation("Zip: 95747")).toBeUndefined();
+      expect(standardizeLocation("95747-1234")).toBeUndefined();
     });
   });
 });

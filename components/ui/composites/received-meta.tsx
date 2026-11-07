@@ -3,7 +3,7 @@
 import { History } from "lucide-react";
 
 import { LabelTooltip } from "@/components/ui/tooltip";
-import { formatDistanceToNow } from "@/lib/utils/format-distance";
+import { formatRelativeTime } from "@/lib/utils/format-distance";
 import { cn } from "@/lib/utils";
 
 /**
@@ -36,10 +36,7 @@ export function ReceivedMeta({
     );
   }
 
-  const parsed = date instanceof Date ? date : new Date(date);
-  const label = Number.isFinite(parsed.getTime())
-    ? formatDistanceToNow(parsed, { addSuffix: true })
-    : emptyLabel;
+  const label = formatRelativeTime(date, { addSuffix: true }) ?? emptyLabel;
 
   return (
     <LabelTooltip label={`${titlePrefix}: ${label}`} side="top">

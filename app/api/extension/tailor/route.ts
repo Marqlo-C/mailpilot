@@ -5,6 +5,7 @@ import { handleOptionsCors, jsonWithCors } from "@/lib/extension/cors";
 import { prepareOpportunityResume } from "@/lib/opportunities/dispatch/resume";
 import { getCompanyLogoUrl, inferApexDomainFromCompanyName } from "@/lib/utils/company-logo";
 import { parseStructuredJobSections } from "@/lib/opportunities/context/section-classifier";
+import { normalizeSalaryDisplay, parseSalaryMax } from "@/lib/ai/classifier";
 
 const tailorRequestSchema = z.object({
   company: z.string().min(1, "Company name is required"),
@@ -82,6 +83,9 @@ export async function POST(request: Request) {
     const fallbackLogoUrl = getCompanyLogoUrl(company.trim(), apexDomain, url?.trim() || null);
     const logoUrl = (incomingLogoUrl && incomingLogoUrl.trim()) || fallbackLogoUrl;
 
+    const normalizedSalary = salary?.trim() ? normalizeSalaryDisplay(salary.trim()) : null;
+    const salaryMax = normalizedSalary ? parseSalaryMax(normalizedSalary) : null;
+
     // Normalize description via unified structured markdown & section parser
     const structured = parseStructuredJobSections(description);
     const finalDescription = (structured.fullReconstructedMarkdown || description).trim();
@@ -105,7 +109,8 @@ export async function POST(request: Request) {
             description: finalDescription,
             applyUrl: url?.trim() || undefined,
             location: location?.trim() || undefined,
-            salary: salary?.trim() || undefined,
+            salary: normalizedSalary ?? undefined,
+            salaryMax: salaryMax ?? undefined,
             status: "DISCOVERED",
             matchScore: 100,
             matchReason: "Tailored via Mail Pilot + Companion",
@@ -128,7 +133,8 @@ export async function POST(request: Request) {
             description: finalDescription,
             applyUrl: url?.trim() || null,
             location: location?.trim() || null,
-            salary: salary?.trim() || null,
+            salary: normalizedSalary,
+            salaryMax,
             status: "DISCOVERED",
             matchScore: 100,
             matchReason: "Tailored via Mail Pilot + Companion",
@@ -156,7 +162,8 @@ export async function POST(request: Request) {
           description: finalDescription,
           applyUrl: url?.trim() || null,
           location: location?.trim() || null,
-          salary: salary?.trim() || null,
+          salary: normalizedSalary,
+          salaryMax,
           status: "DISCOVERED",
           matchScore: 100,
           matchReason: "Tailored via Mail Pilot + Companion",

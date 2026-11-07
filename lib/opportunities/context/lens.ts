@@ -17,7 +17,7 @@ import type {
   NormalizedJobOpportunity,
 } from "./schema.ssot";
 import { extractCleanSnippet, sanitizeJobDescription } from "./scrubber";
-import { formatDistanceToNow } from "@/lib/utils/format-distance";
+import { formatDistanceToNow, formatRelativeTime } from "@/lib/utils/format-distance";
 import { normalizeSalaryDisplay, parseSalaryMax } from "@/lib/ai/classifier";
 
 /**
@@ -41,85 +41,94 @@ export function isUnspecifiedPostedAt(value: string | null | undefined): boolean
 
 /**
  * Anchors a relative date expression (e.g. "3 weeks ago", "Posted 25 days ago", "yesterday", "today")
- * to an absolute ISO timestamp based on the scrape reference time.
+ * to an absolute ISO timestamp based on the scrape / received reference time.
  * Allows job cards to compute real-time relative distance dynamically.
  */
 export function relativeTimeToIso(
   relativeStr: string | null | undefined,
-  now = new Date()
+  referenceDate: Date | string = new Date()
 ): string | null {
   if (!relativeStr) return null;
   const s = relativeStr.toLowerCase().trim();
+  if (isUnspecifiedPostedAt(s)) return null;
 
-  if (/\b(?:today|just\s+now|just\s+posted)\b/i.test(s)) {
-    return now.toISOString();
+  // If already an ISO string or valid date format
+  const parsed = Date.parse(s);
+  if (
+    !isNaN(parsed) &&
+    (/^\d{4}-\d{2}-\d{2}/.test(s) || /^[A-Za-z]{3,9}\s+\d{1,2},\s*\d{4}/.test(s))
+  ) {
+    return new Date(parsed).toISOString();
+  }
+
+  const ref =
+    referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+  const refTime = isNaN(ref.getTime()) ? Date.now() : ref.getTime();
+
+  if (/\b(?:today|just\s+now|just\s+posted|moments?\s+ago)\b/i.test(s)) {
+    return new Date(refTime).toISOString();
   }
   if (/\byesterday\b/i.test(s)) {
-    const d = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    return d.toISOString();
+    return new Date(refTime - 24 * 60 * 60 * 1000).toISOString();
   }
 
-  const match = s.match(/(\d+)\+?\s+(minute|hour|day|week|month)s?\s+ago/i);
+  const cleaned = s
+    .replace(/^(?:reposted|posted)\s*[:\s-]*\s*/i, "")
+    .replace(/\s*ago\s*$/i, "")
+    .trim();
+
+  const match =
+    cleaned.match(
+      /^(\d+)\+?\s*(s|sec|secs|seconds?|m|min|mins|minutes?|h|hr|hrs|hours?|d|days?|w|wk|wks|weeks?|mo|mos|months?|y|yr|yrs|years?)$/i
+    ) || cleaned.match(/^(\d+)\s*(s|m|h|d|w|mo|y)$/i);
+
   if (!match) return null;
 
   const count = parseInt(match[1], 10);
-  const unit = match[2].toLowerCase();
+  const u = match[2].toLowerCase();
 
   let ms = 0;
-  if (unit === "minute") ms = count * 60 * 1000;
-  else if (unit === "hour") ms = count * 60 * 60 * 1000;
-  else if (unit === "day") ms = count * 24 * 60 * 60 * 1000;
-  else if (unit === "week") ms = count * 7 * 24 * 60 * 60 * 1000;
-  else if (unit === "month") ms = count * 30 * 24 * 60 * 60 * 1000;
+  if (/^s/i.test(u)) ms = count * 1000;
+  else if (/^(?:mo|month)/i.test(u)) ms = count * 30 * 24 * 60 * 60 * 1000;
+  else if (/^m/i.test(u)) ms = count * 60 * 1000;
+  else if (/^h/i.test(u)) ms = count * 60 * 60 * 1000;
+  else if (/^d/i.test(u)) ms = count * 24 * 60 * 60 * 1000;
+  else if (/^w/i.test(u)) ms = count * 7 * 24 * 60 * 60 * 1000;
+  else if (/^y/i.test(u)) ms = count * 365 * 24 * 60 * 60 * 1000;
 
-  return new Date(now.getTime() - ms).toISOString();
+  return new Date(refTime - ms).toISOString();
 }
 
 /**
  * Normalizes a postedAt candidate string or extracts a posted/reposted relative date
  * from fallback spec text.
+ * When referenceDate is provided, anchors relative dates (e.g. "5d", "3 days ago")
+ * to the reference date (e.g. email receivedAt) rather than Date.now().
  */
 export function normalizePostedAt(
   dateStr?: string | null,
-  textFallback?: string | null
+  textFallback?: string | null,
+  referenceDate?: Date | string | null
 ): string | null {
   // 1. Evaluate primary candidate date string
   if (dateStr && !isUnspecifiedPostedAt(dateStr)) {
-    let trimmed = dateStr.trim();
-
-    // Check if ISO date string (YYYY-MM-DD...)
-    const parsedDate = Date.parse(trimmed);
-    if (!isNaN(parsedDate) && /^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
-      return formatDistanceToNow(new Date(parsedDate), { addSuffix: true });
-    }
-
-    // Clean leading "Posted: " or "Posted " if present
-    if (/^posted\s*:\s*/i.test(trimmed)) {
-      trimmed = trimmed.replace(/^posted\s*:\s*/i, "");
-    } else if (/^posted\s+/i.test(trimmed)) {
-      trimmed = trimmed.replace(/^posted\s+/i, "");
-    }
-
-    // Clean leading "Reposted: " if present
-    if (/^reposted\s*:\s*/i.test(trimmed)) {
-      trimmed = trimmed.replace(/^reposted\s*:\s*/i, "Reposted ");
-    }
-
-    if (trimmed && !isUnspecifiedPostedAt(trimmed)) {
-      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
-    }
+    const formatted = formatRelativeTime(dateStr, {
+      addSuffix: false,
+      referenceDate,
+    });
+    if (formatted) return formatted;
   }
 
   // 2. Evaluate fallback spec / header text if dateStr was absent or unspecified
   if (textFallback && typeof textFallback === "string") {
     const match = textFallback.match(
-      /\b(reposted|posted)\s*(?:on\s+|:\s*)?(\d+\+?\s+(?:minutes?|hours?|days?|weeks?|months?)\s+ago|yesterday|today|just\s+now|just\s+posted)\b/i
+      /\b(?:reposted|posted)\s*(?:on\s+|:\s*)?(\d+\+?\s*(?:s|sec|m|min|mins|minutes?|h|hr|hrs|hours?|d|days?|w|wk|wks|weeks?|mo|months?|y|years?)(?:\s+ago)?|yesterday|today|just\s+now|just\s+posted)\b/i
     );
     if (match) {
-      const isReposted = match[1].toLowerCase() === "reposted";
-      const timePart = match[2].trim();
-      const formattedTime = timePart.charAt(0).toUpperCase() + timePart.slice(1);
-      return isReposted ? `Reposted ${timePart}` : formattedTime;
+      return formatRelativeTime(match[1], {
+        addSuffix: false,
+        referenceDate,
+      });
     }
   }
 
@@ -191,7 +200,11 @@ export function resolveJobOpportunity(
     applicationType === "DIRECT_EMAIL" ||
     Boolean(opportunity.recipientEmail?.trim());
 
-  const formattedPostedAt = normalizePostedAt(opportunity.postedAt);
+  const formattedPostedAt = normalizePostedAt(
+    opportunity.postedAt,
+    inboundRaw,
+    opportunity.receivedAt
+  );
 
   const salaryMax =
     typeof opportunity.salaryMax === "number"
