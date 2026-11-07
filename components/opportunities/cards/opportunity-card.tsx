@@ -72,9 +72,10 @@ import {
 } from "@/lib/opportunities/lifecycle";
 import {
   cleanOpportunityDescription,
+  extractSalaryFromText,
   normalizeSalaryDisplay,
 } from "@/lib/ai/classifier";
-import { formatDistanceToNow } from "@/lib/utils/format-distance";
+import { formatRelativeTime } from "@/lib/utils/format-distance";
 import { cn } from "@/lib/utils";
 
 export type OpportunityCardVariant =
@@ -176,20 +177,19 @@ export function OpportunityCard({
     opportunity.dismissedAt,
     retentionDays
   );
+  const displayDescription = cleanOpportunityDescription(opportunity.description);
   const salaryRaw = opportunity.salary?.trim() ?? "";
-  const normalizedSalary = normalizeSalaryDisplay(salaryRaw);
+  const normalizedSalary =
+    normalizeSalaryDisplay(salaryRaw) ??
+    (displayDescription ? extractSalaryFromText(displayDescription) : null);
   const salaryLabel = normalizedSalary || "$TBD";
   const locationRaw = opportunity.location?.trim() ?? "";
   const locationLabel = locationRaw || "Remote / Unspecified";
-  const postedRaw = (() => {
-    const raw = opportunity.postedAt?.trim() ?? "";
-    if (!raw) return "";
-    const parsedDate = Date.parse(raw);
-    if (!isNaN(parsedDate) && /^\d{4}-\d{2}-\d{2}/.test(raw)) {
-      return formatDistanceToNow(new Date(parsedDate), { addSuffix: true });
-    }
-    return raw;
-  })();
+  const postedRaw =
+    formatRelativeTime(opportunity.postedAt, {
+      addSuffix: false,
+      referenceDate: opportunity.receivedAt,
+    }) ?? "";
 
   function runLifecycleAction(action: JobCardAction) {
     startTransition(async () => {
@@ -300,7 +300,6 @@ export function OpportunityCard({
       ? opportunity.applyUrl.trim()
       : null;
 
-  const displayDescription = cleanOpportunityDescription(opportunity.description);
   const companyLogoSrc =
     opportunity.logoUrl ||
     getCompanyLogoUrl(

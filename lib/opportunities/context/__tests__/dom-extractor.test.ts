@@ -136,7 +136,7 @@ describe("DOM & Schema.org Extraction on Real HTML Postings", () => {
     expect(dom?.title).toBe("Imaging Support Specialist - NBHP (Per Diem, Day)");
     expect(dom?.company).toBe("Northbay");
     expect(dom?.location).toBe("Fairfield, CA");
-    expect(dom?.salary).toBe("$30.18-$36.7/Hr");
+    expect(dom?.salary).toBe("$30.2-$36.7/Hr");
     expect(dom?.description).toContain("Northbay Health");
   });
 
@@ -152,7 +152,7 @@ describe("DOM & Schema.org Extraction on Real HTML Postings", () => {
     expect(dom?.title).toBe("Imaging Support Specialist - NBHP (Per Diem, Day)");
     expect(dom?.company).toBe("Northbay");
     expect(dom?.location).toBe("Fairfield, CA");
-    expect(dom?.salary).toBe("$30.18-$36.7/Hr");
+    expect(dom?.salary).toBe("$30.2-$36.7/Hr");
   });
 
   it("extracts Stellantis / AutoNation Drupal career page cleanly", () => {
@@ -194,13 +194,13 @@ describe("DOM & Schema.org Extraction on Real HTML Postings", () => {
     const html = fs.readFileSync(filePath, "utf-8");
     const parsedJsonLd = extractJsonLdJobPosting(html);
     expect(parsedJsonLd).not.toBeNull();
-    expect(parsedJsonLd?.salary).toBe("$22.66 - $24.82 / hour");
+    expect(parsedJsonLd?.salary).toBe("$22.7 - $24.8 / hour");
 
     const dom = extractJobFromSemanticDom(html, "https://www.glassdoor.com/job-listing/1010313350279");
     expect(dom).not.toBeNull();
     expect(dom?.title).toContain("Painter - 2nd Shift");
     expect(dom?.company).toBe("ITW");
-    expect(dom?.salary).toBe("$22.66-$24.82/Hr");
+    expect(dom?.salary).toBe("$22.7-$24.8/Hr");
     expect(dom?.applyUrl).toContain("1010313350279");
   });
 
@@ -230,7 +230,7 @@ describe("DOM & Schema.org Extraction on Real HTML Postings", () => {
     expect(dom).not.toBeNull();
     expect(dom?.applyUrl).not.toContain("monster.com//www.monster.com");
     expect(dom?.applyUrl).toContain("/job-openings/imaging-support-specialist-nbhp-per-diem-day-fairfield-ca");
-    expect(dom?.salary).toBe("$30.18-$36.7/Hr");
+    expect(dom?.salary).toBe("$30.2-$36.7/Hr");
   });
 
   it("extracts LinkedIn split-pane Domino Data Lab with correct company and title", () => {
@@ -320,7 +320,7 @@ describe("DOM & Schema.org Extraction on Real HTML Postings", () => {
     expect(dom?.title).toBe("Data Integration Developer");
     expect(dom?.company).toBe("Partnership HealthPlan of California");
     expect(dom?.location).toBe("Fairfield, CA");
-    expect(dom?.salary).toBe("$106.67K-$138.67K");
+    expect(dom?.salary).toBe("$106.7K-$138.7K");
     expect(dom?.logoUrl).toMatch(/^data:image\/jpeg;base64,/);
     expect(dom?.description).toContain("Data Integration Developer is responsible for designing");
   });

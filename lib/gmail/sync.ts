@@ -459,6 +459,9 @@ async function processMessage(
     account.id,
     settings?.rules
   );
+  const messageDate = message.data.internalDate
+    ? new Date(Number(message.data.internalDate))
+    : new Date();
   const classification = await classifyJobEmail({
     llmProvider,
     localOllamaUrl: settings?.localOllamaUrl,
@@ -470,6 +473,7 @@ async function processMessage(
     allowCloudFallback: accountRules.allowCloudFallback,
     accountId: account.id,
     accountRules,
+    receivedAt: messageDate,
   });
 
   if (
@@ -943,7 +947,10 @@ export async function persistClassifiedEmail(input: {
 
     const companyDomain =
       job.companyDomain ?? inferDomainFromUrl(validApplyUrl) ?? null;
-    const logoUrl = getCompanyLogoUrl(cleanCompany, companyDomain, validApplyUrl);
+    const logoUrl =
+      job.logoUrl && /^https?:\/\//i.test(job.logoUrl)
+        ? job.logoUrl
+        : getCompanyLogoUrl(cleanCompany, companyDomain, validApplyUrl);
     let matchScore =
       typeof job.matchScore === "number" ? job.matchScore : 0;
     // Guard: fractional scores that skipped normalizeClassification.
@@ -1026,12 +1033,15 @@ export async function persistClassifiedEmail(input: {
           : null);
 
       const resolvedLogoUrl =
-        existing.company.toLowerCase() === cleanCompany.toLowerCase() &&
-        existing.logoUrl &&
-        !existing.logoUrl.includes("ui-avatars") &&
-        !existing.logoUrl.includes("unavatar.io")
-          ? existing.logoUrl
-          : logoUrl;
+        job.logoUrl && /^https?:\/\//i.test(job.logoUrl)
+          ? job.logoUrl
+          : existing.company.toLowerCase() === cleanCompany.toLowerCase() &&
+            existing.logoUrl &&
+            !existing.logoUrl.includes("ui-avatars") &&
+            !existing.logoUrl.includes("unavatar.io") &&
+            !existing.logoUrl.includes("google.com/s2/favicons")
+            ? existing.logoUrl
+            : logoUrl;
 
       const resolvedSalary =
         normalizeSalaryDisplay(job.salary) ?? normalizeSalaryDisplay(existing.salary);
@@ -1043,7 +1053,8 @@ export async function persistClassifiedEmail(input: {
             : existing.salaryMax;
 
       const resolvedPostedAt =
-        normalizePostedAt(job.postedAt) ?? normalizePostedAt(existing.postedAt);
+        normalizePostedAt(job.postedAt, null, emailDate) ??
+        normalizePostedAt(existing.postedAt, null, existing.receivedAt);
 
       const jobClassificationMethod =
         job.classificationMethod ?? classificationMethod ?? "AI";
@@ -1099,7 +1110,7 @@ export async function persistClassifiedEmail(input: {
         : initialSalary
           ? parseSalaryMax(initialSalary)
           : null;
-    const initialPostedAt = normalizePostedAt(job.postedAt);
+    const initialPostedAt = normalizePostedAt(job.postedAt, null, emailDate);
     const jobClassificationMethod =
       job.classificationMethod ?? classificationMethod ?? "AI";
 

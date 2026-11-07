@@ -251,6 +251,11 @@ export function standardizeLocation(rawLoc: string | null | undefined): string |
   let loc = rawLoc.replace(/<[^>]+>/g, " ").replace(/[ \t]+/g, " ").trim();
   if (!loc) return undefined;
 
+  // Reject standalone zip codes (e.g. "95747", "Zip: 95747") - zip codes are postal routing numbers, not location display names
+  if (/^(?:zip(?:\s*code)?[:\s]*)?\d{5}(?:-\d{4})?$/i.test(loc)) {
+    return undefined;
+  }
+
   // Strip label prefix (e.g. "locations: ", "locationsSimi" -> "Simi")
   loc = loc
     .replace(/^locations?[:\s]*/i, "")
@@ -261,7 +266,7 @@ export function standardizeLocation(rawLoc: string | null | undefined): string |
   loc = loc.replace(/^[A-Za-z0-9\s'-]+?\s+of\s+/i, "").trim();
 
   // Strip trailing 5-digit zip codes
-  loc = loc.replace(/\s+\d{5}(?:-\d{4})?$/i, "").trim();
+  loc = loc.replace(/,?\s+\d{5}(?:-\d{4})?$/i, "").trim();
 
   // Strip trailing country suffixes if USA (e.g. "San Francisco, CA, US" -> "San Francisco, CA", but not "Remote - US")
   if (!/^(?:remote|hybrid)\b/i.test(loc)) {
@@ -287,6 +292,9 @@ export function standardizeLocation(rawLoc: string | null | undefined): string |
   }
   if (parsed.state) {
     return parsed.state;
+  }
+  if (/^\d{5}(?:-\d{4})?$/.test(loc)) {
+    return undefined;
   }
   return loc || undefined;
 }

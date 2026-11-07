@@ -16,7 +16,7 @@ import {
 } from "./section-classifier";
 import { isLegitimateJobContent } from "./json-ld-parser";
 import { normalizeSalaryDisplay, extractSalaryFromText } from "@/lib/ai/classifier";
-import { standardizeLocation } from "@/lib/utils/location";
+import { standardizeLocation, extractLocationFromText } from "@/lib/utils/location";
 
 /**
  * Dedicated semantic DOM extractor for Indeed postings
@@ -696,7 +696,7 @@ export function extractJobFromSemanticDom(
     if (liLoc) rawLoc = liLoc[1].trim();
   }
 
-  const location = standardizeLocation(rawLoc);
+  let location = standardizeLocation(rawLoc);
 
   // 5. Resolve Salary & Salary Max
   let salary: string | undefined;
@@ -808,11 +808,17 @@ export function extractJobFromSemanticDom(
 
   // 6. Resolve Date Posted
   let datePosted: string | undefined;
-  const domDate = html.match(
-    /(?:posted|reposted|re-posted|published|active)\s*[:\s-]*\s*(today|yesterday|\d+\s*(?:days?|hours?|weeks?|months?)\s*ago)/i
-  );
-  if (domDate) {
-    datePosted = domDate[1].trim();
+  const timeTagMatch = html.match(/<time[^>]+(?:datetime|content)=["']([^"']+)["'][^>]*>/i);
+  if (timeTagMatch && timeTagMatch[1] && /\d/.test(timeTagMatch[1])) {
+    datePosted = timeTagMatch[1].trim();
+  }
+  if (!datePosted) {
+    const domDate = html.match(
+      /(?:posted|reposted|re-posted|published|active|date\s*posted)\s*[:\s-]*\s*(today|yesterday|\d+\s*(?:days?|hours?|weeks?|months?)\s*ago|(?:january|february|march|april|may|june|july|august|september|october|november|december|[a-z]{3})\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4})/i
+    );
+    if (domDate) {
+      datePosted = domDate[1].trim();
+    }
   }
 
   // 7. Resolve Direct Company Logo
@@ -1066,6 +1072,16 @@ export function extractJobFromSemanticDom(
     const extracted = extractSalaryFromText(structured.fullReconstructedMarkdown);
     if (extracted) {
       salary = extracted;
+    }
+  }
+
+  // Fall back to extracting location from the description text if missing or was invalid zip
+  if (!location && structured.fullReconstructedMarkdown) {
+    const descLoc = extractLocationFromText(structured.fullReconstructedMarkdown);
+    if (descLoc.city && descLoc.state) {
+      location = standardizeLocation(`${descLoc.city}, ${descLoc.state}`);
+    } else if (descLoc.isRemote) {
+      location = "Remote";
     }
   }
 

@@ -15,6 +15,7 @@ import {
   sanitizeRoleTitle,
 } from "@/lib/llm/classification";
 import {
+  extractSalaryFromText,
   normalizeSalaryDisplay,
   parseSalaryMax,
   type CandidateProfileSummary,
@@ -215,6 +216,9 @@ export async function processSyncMessage(
         allowCloudFallback: rules.allowCloudFallback,
         accountId: account.id,
         accountRules: rules,
+        receivedAt: message.internalDate
+          ? new Date(Number(message.internalDate))
+          : new Date(),
       });
     } catch (err) {
       syncLog.warn(
@@ -404,7 +408,7 @@ export async function processSyncMessage(
     }
 
     if (job.postedAt) {
-      job.postedAt = normalizePostedAt(job.postedAt);
+      job.postedAt = normalizePostedAt(job.postedAt, null, emailDate);
     }
 
     // 4. Pre-scrub descriptions BEFORE database persistence
@@ -491,6 +495,22 @@ export async function processSyncMessage(
         }
 
         if (enriched) {
+          if (enriched.logoUrl && /^https?:\/\//i.test(enriched.logoUrl)) {
+            job.logoUrl = enriched.logoUrl;
+          }
+          if (!enriched.salary && enriched.description) {
+            const extracted = extractSalaryFromText(enriched.description);
+            if (extracted) {
+              enriched.salary = extracted;
+            }
+          }
+          if (enriched.salary && (!job.salary || !normalizeSalaryDisplay(job.salary))) {
+            job.salary = normalizeSalaryDisplay(enriched.salary);
+          }
+          if (job.salary && typeof job.salaryMax !== "number") {
+            job.salaryMax = parseSalaryMax(job.salary);
+          }
+
           if (
             enriched.description &&
             enriched.description.length > (job.description?.length ?? 0)
@@ -537,12 +557,17 @@ export async function processSyncMessage(
 
           if (
             enriched.location &&
-            (!job.location || /unspecified/i.test(job.location))
+            (!job.location ||
+             /unspecified/i.test(job.location) ||
+             /^\d{5}(?:-\d{4})?$/.test(job.location.trim()))
           ) {
             job.location = enriched.location;
           }
-          if (enriched.salary && (!job.salary || !normalizeSalaryDisplay(job.salary))) {
-            job.salary = normalizeSalaryDisplay(enriched.salary);
+          if ((!job.salary || !normalizeSalaryDisplay(job.salary)) && job.description) {
+            const extracted = extractSalaryFromText(job.description);
+            if (extracted) {
+              job.salary = extracted;
+            }
           }
           if (job.salary && typeof job.salaryMax !== "number") {
             job.salaryMax = parseSalaryMax(job.salary);
@@ -551,7 +576,7 @@ export async function processSyncMessage(
           if (isUnspecifiedPostedAt(job.postedAt)) {
             const backfilledPostedAt = normalizePostedAt(
               enriched.datePosted,
-              enriched.description
+              enriched.description || job.description
             );
             if (backfilledPostedAt) {
               job.postedAt = backfilledPostedAt;
@@ -559,7 +584,7 @@ export async function processSyncMessage(
               job.postedAt = null;
             }
           } else {
-            job.postedAt = normalizePostedAt(job.postedAt);
+            job.postedAt = normalizePostedAt(job.postedAt, null, emailDate);
           }
 
           // Recalculate matchScore and matchReason with the newly hydrated rich spec

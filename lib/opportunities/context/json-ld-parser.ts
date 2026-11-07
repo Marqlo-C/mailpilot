@@ -10,6 +10,7 @@
 
 import type { ScrapedJobPosting } from "./schema.ssot";
 import { parseStructuredJobSections } from "./section-classifier";
+import { extractSalaryFromText, parseSalaryMax } from "@/lib/ai/classifier";
 
 /**
  * Parses Schema.org JobPosting JSON-LD blocks out of HTML content.
@@ -88,7 +89,8 @@ export function extractJsonLdJobPosting(html: string): ScrapedJobPosting | null 
           const formatRate = (n: unknown) => {
             const num = Number(n);
             if (isNaN(num)) return String(n);
-            return Number.isInteger(num) ? String(num) : String(Math.round(num * 100) / 100);
+            const rounded = Math.round(num * 10) / 10;
+            return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
           };
 
           if (typeof salaryObj === "string" && salaryObj.trim()) {
@@ -131,12 +133,27 @@ export function extractJsonLdJobPosting(html: string): ScrapedJobPosting | null 
             coreDescription = structured.coreMarkdown;
             overviewSnippet = structured.overviewSnippet;
             sections = structured.sections;
+
+            // Fallback: extract salary from description text when baseSalary is omitted in JSON-LD
+            if (!salary && description) {
+              const extracted = extractSalaryFromText(description);
+              if (extracted) {
+                salary = extracted;
+                salaryMax = parseSalaryMax(extracted) ?? undefined;
+              }
+            }
           }
 
           const applyUrl =
             typeof item.url === "string" ? item.url : undefined;
           const datePosted =
-            typeof item.datePosted === "string" ? item.datePosted : undefined;
+            typeof item.datePosted === "string"
+              ? item.datePosted
+              : typeof item.dateCreated === "string"
+                ? item.dateCreated
+                : typeof item.dateModified === "string"
+                  ? item.dateModified
+                  : undefined;
 
           return {
             title,

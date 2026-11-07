@@ -26,7 +26,10 @@ import {
 } from "@/lib/ai/classifier";
 import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import { JOB_BOARD_KEYWORDS } from "@/lib/constants/job-sources";
-import { extractLocationFromText, parseLocation } from "@/lib/utils/location";
+import { extractLocationFromText, parseLocation, standardizeLocation } from "@/lib/utils/location";
+import { resolveJobOpportunity, normalizePostedAt } from "@/lib/opportunities/context";
+import { evaluateOpportunityMatch } from "@/lib/matching/evaluator";
+import { extractMatchCandidateLens } from "@/lib/matching/lens";
 
 export { normalizeSalaryDisplay } from "@/lib/ai/classifier";
 import {
@@ -54,6 +57,10 @@ export const extractedJobSchema = z.object({
   company: z.preprocess((v) => (v == null ? "" : v), z.string().min(1)),
   companyDomain: z.preprocess(
     (v) => (v == null ? null : v),
+    z.string().nullable().optional()
+  ),
+  logoUrl: z.preprocess(
+    (v) => (typeof v === "string" && /^https?:\/\//i.test(v.trim()) ? v.trim() : null),
     z.string().nullable().optional()
   ),
   title: z.preprocess((v) => (v == null ? "" : v), z.string().min(1)),
@@ -157,6 +164,7 @@ export type ClassifyOptions = {
   accountId?: string | null;
   accountRules?: Partial<AccountRules> | null;
   cloudModel?: string | null;
+  receivedAt?: Date | string | null;
   /** @deprecated Cloud inference targets explicitly configured model directly */
   openRouterModels?: string[];
 };
@@ -395,6 +403,8 @@ export function normalizeClassification(
     candidateProfile?: CandidateProfileSummary | null;
     routingLines?: string[];
     sourceTier?: "TIER 1 (OLLAMA)" | "TIER 2 (CLOUD)" | "TIER 3 (HEURISTIC)";
+    receivedAt?: Date | string | null;
+    emailDate?: Date | string | null;
   }
 ): JobClassification {
   let emailCategory: EmailCategory = raw.email_category;
@@ -681,14 +691,17 @@ export function normalizeClassification(
       // If no external company is mentioned in the entire card block, retain company as-is (protecting internal hiring digests).
     }
 
-    // Location Fallback
-    let resolvedLocation = job.location ?? null;
-    if (!resolvedLocation || /unspecified/i.test(resolvedLocation)) {
+    // Location Fallback: reject empty, unspecified, or pure postal codes (e.g. "95747")
+    let resolvedLocation = job.location ? standardizeLocation(job.location) ?? null : null;
+    const isZipOnly = job.location ? /^\d{5}(?:-\d{4})?$/.test(job.location.trim()) : false;
+    if (!resolvedLocation || isZipOnly || /unspecified/i.test(resolvedLocation)) {
       const parsed = extractLocationFromText(job.description || context.emailBody);
       if (parsed.city && parsed.state) {
         resolvedLocation = `${parsed.city}, ${parsed.state}`;
       } else if (parsed.city) {
         resolvedLocation = parsed.city;
+      } else if (isZipOnly) {
+        resolvedLocation = null;
       }
     }
 
@@ -774,28 +787,72 @@ export function normalizeClassification(
         .replace(/^www\./i, "")
         .split("/")[0] || null;
 
-    let matchScore = clampScore(job.matchScore);
-    let matchReason =
-      (job.matchReason ?? "").trim() ||
-      "No match rationale returned by the classifier.";
+    const normalizedSalary = job.salary ? normalizeSalaryDisplay(job.salary) : null;
+    const normalizedSalaryMax =
+      typeof job.salaryMax === "number" && !Number.isNaN(job.salaryMax)
+        ? job.salaryMax
+        : normalizedSalary
+          ? parseSalaryMax(normalizedSalary)
+          : null;
 
-    // Fix 0%/missing scores with a light profile-overlap heuristic.
+    const normalizedPostedAt = normalizePostedAt(
+      job.postedAt,
+      null,
+      context.receivedAt ?? context.emailDate
+    );
+
+    const rawDescription = job.description ?? null;
+    let description = cleanOpportunityDescription(rawDescription);
+    if (!description || description.length < 40 || /^job alert/i.test(description)) {
+      description =
+        resolvedCompany && resolvedCompany !== "Unknown Company"
+          ? `Opportunity for ${resolvedTitle} at ${resolvedCompany}.${resolvedLocation ? ` Located in ${resolvedLocation}.` : ""}${normalizedSalary ? ` Compensated at ${normalizedSalary}.` : ""}`
+          : `Opportunity for ${resolvedTitle}.${resolvedLocation ? ` Located in ${resolvedLocation}.` : ""}${normalizedSalary ? ` Compensated at ${normalizedSalary}.` : ""}`;
+    }
+
+    let matchScore = clampScore(job.matchScore);
+    let matchReason = (job.matchReason ?? "").trim();
+
+    // Fix 0%/missing scores with centralized SSOT matching evaluator or profile-overlap heuristic
     if (matchScore === 0) {
-      matchScore = heuristicMatchScore(
-        job.title,
-        resolvedCompany,
-        context.candidateProfile
-      );
-      if (!job.matchReason?.trim()) {
-        matchReason =
-          matchScore >= 75
-            ? "Position aligns with candidate profile criteria and preferences."
-            : "Limited overlap with candidate profile criteria.";
+      if (context.candidateProfile) {
+        const candidateLens = extractMatchCandidateLens(
+          context.candidateProfile,
+          context.candidateProfile.persona
+        );
+        const normalizedOpp = resolveJobOpportunity({
+          company: resolvedCompany,
+          title: resolvedTitle,
+          description,
+          location: resolvedLocation,
+          salary: normalizedSalary,
+          postedAt: normalizedPostedAt,
+          applyUrl: validApplyUrl,
+        });
+        const evaluated = evaluateOpportunityMatch({
+          opportunity: normalizedOpp,
+          candidate: candidateLens,
+          mode: "HEURISTIC",
+        });
+        matchScore = evaluated.score;
+        matchReason = evaluated.reason;
+      } else {
+        matchScore = heuristicMatchScore(
+          resolvedTitle,
+          resolvedCompany,
+          context.candidateProfile
+        );
+        if (!matchReason) {
+          matchReason =
+            matchScore >= 75
+              ? "Position aligns with candidate profile criteria and preferences."
+              : "Limited overlap with candidate profile criteria.";
+        }
       }
     } else {
       // Soft-enforce persona seniority mismatch when the model over-scores.
       const penalty = seniorityMismatchPenalty(
-        job.title,
+        resolvedTitle,
         context.candidateProfile?.persona?.seniorityTier
       );
       if (penalty >= 40 && matchScore >= 50) {
@@ -806,32 +863,11 @@ export function normalizeClassification(
       } else if (penalty >= 20 && matchScore >= 70) {
         matchScore = Math.min(matchScore, 58);
       }
-    }
-
-    const normalizedSalary = job.salary ? normalizeSalaryDisplay(job.salary) : null;
-    const normalizedSalaryMax =
-      typeof job.salaryMax === "number" && !Number.isNaN(job.salaryMax)
-        ? job.salaryMax
-        : normalizedSalary
-          ? parseSalaryMax(normalizedSalary)
-          : null;
-
-    let normalizedPostedAt = job.postedAt?.trim() || null;
-    if (normalizedPostedAt) {
-      const parsedDate = Date.parse(normalizedPostedAt);
-      if (!isNaN(parsedDate) && /^\d{4}-\d{2}-\d{2}/.test(normalizedPostedAt)) {
-        normalizedPostedAt = formatDistanceToNow(new Date(parsedDate), { addSuffix: true });
+      if (!matchReason) {
+        matchReason = "Match score provided by classifier.";
       }
     }
 
-    const rawDescription = job.description ?? null;
-    let description = cleanOpportunityDescription(rawDescription);
-    if (!description || description.length < 40 || /^job alert/i.test(description)) {
-      description =
-        resolvedCompany && resolvedCompany !== "Unknown Company"
-          ? `Opportunity for ${resolvedTitle} at ${resolvedCompany}.${resolvedLocation ? ` Located in ${resolvedLocation}.` : ""}${normalizedSalary ? ` Compensated at ${normalizedSalary}.` : ""}`
-          : `Opportunity for ${resolvedTitle}.${resolvedLocation ? ` Located in ${resolvedLocation}.` : ""}${normalizedSalary ? ` Compensated at ${normalizedSalary}.` : ""}`;
-    }
     const isAlreadyApplied =
       Boolean(job.isAlreadyApplied) ||
       detectAlreadyApplied(rawDescription, resolvedTitle) ||
@@ -842,6 +878,7 @@ export function normalizeClassification(
       title: resolvedTitle,
       company: resolvedCompany,
       companyDomain,
+      logoUrl: job.logoUrl ?? null,
       location: resolvedLocation,
       salary: normalizedSalary,
       salaryMax: normalizedSalaryMax,
@@ -1120,6 +1157,7 @@ export async function classifyJobEmail(
       candidateProfile: options.candidateProfile,
       routingLines: capturedRoutingLines,
       sourceTier: capturedSourceTier,
+      receivedAt: options.receivedAt,
     });
   } catch (error) {
     console.warn(
