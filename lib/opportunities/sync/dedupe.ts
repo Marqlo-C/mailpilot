@@ -89,24 +89,7 @@ export async function persistSyncOpportunity(
     classificationMethod,
   });
 
-  await prisma.emailMessage.updateMany({
-    where: { accountId: account.id, messageId },
-    data: {
-      emailCategory: classification.email_category,
-      rawBody: null,
-    },
-  });
-
-  // Link the source email and persist drafting contact metadata
-  const emailMessageRecord = await prisma.emailMessage.findUnique({
-    where: {
-      accountId_messageId: {
-        accountId: account.id,
-        messageId,
-      },
-    },
-    select: { id: true },
-  });
+  const emailMessageId = result.emailMessageId;
 
   const targetCompany =
     firstJob?.company || classification.company_name || "";
@@ -123,8 +106,8 @@ export async function persistSyncOpportunity(
           : {}),
       },
       data: {
-        ...(emailMessageRecord
-          ? { emailMessageId: emailMessageRecord.id }
+        ...(emailMessageId
+          ? { emailMessageId }
           : {}),
         ...(resolvedRecipientEmail
           ? {
