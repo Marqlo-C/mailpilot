@@ -4,6 +4,7 @@ import { encryptToken } from "@/lib/core/crypto";
 import {
   extractJsonLdJobPosting,
   extractNuxtData,
+  extractRemixData,
   fetchLinkedInGuestPosting,
   fetchViaScrapingAnt,
   isLegitimateJobContent,
@@ -346,6 +347,57 @@ describe("JSON-LD Link Parser", () => {
       expect(extractNuxtData("<html><body>No Nuxt Here</body></html>")).toBeNull();
       expect(extractNuxtData('<script id="__NUXT_DATA__">invalid json</script>')).toBeNull();
       expect(extractNuxtData('<script id="__NUXT_DATA__">[]</script>')).toBeNull();
+    });
+  });
+
+  describe("extractRemixData", () => {
+    it("extracts structured job specifications, salary, and logo from modern Greenhouse Remix SSR state", () => {
+      const remixHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta property="og:title" content="Brand Designer" />
+          <meta property="og:image" content="https://example.com/logo.jpg" />
+        </head>
+        <body>
+          <script>
+            window.__remixContext = {
+              "state": {
+                "loaderData": {
+                  "routes/$url_token_.jobs_.$job_post_id": {
+                    "jobPost": {
+                      "title": "Brand Designer",
+                      "company_name": "Neros Technologies",
+                      "job_post_location": "Torrance, California, United States",
+                      "published_at": "2026-10-27T20:02:40-04:00",
+                      "public_url": "https://job-boards.greenhouse.io/nerostechnologies/jobs/5277764007",
+                      "content": "<p>Who we are: Neros builds defense hardware. Responsibilities: Design across digital channels. Qualifications: 5+ years experience. US Salary Range: $111,000 – $155,000 USD.</p>"
+                    }
+                  }
+                }
+              }
+            };
+          </script>
+        </body>
+        </html>
+      `;
+
+      const result = extractRemixData(remixHtml);
+      expect(result).not.toBeNull();
+      expect(result?.title).toBe("Brand Designer");
+      expect(result?.company).toBe("Neros Technologies");
+      expect(result?.location).toBe("Torrance, California, United States");
+      expect(result?.salary).toBe("$111K-$155K");
+      expect(result?.salaryMax).toBe(155000);
+      expect(result?.logoUrl).toBe("https://example.com/logo.jpg");
+      expect(result?.applyUrl).toBe("https://job-boards.greenhouse.io/nerostechnologies/jobs/5277764007");
+      expect(result?.description).toContain("Design across digital channels");
+    });
+
+    it("returns null when window.__remixContext is missing or invalid", () => {
+      expect(extractRemixData("<html><body>No Remix Here</body></html>")).toBeNull();
+      expect(extractRemixData("<script>window.__remixContext = invalid;</script>")).toBeNull();
+      expect(extractRemixData("<script>window.__remixContext = {};</script>")).toBeNull();
     });
   });
 

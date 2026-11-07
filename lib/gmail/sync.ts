@@ -24,6 +24,7 @@ import { resolveApplicationType } from "@/lib/opportunities/application-method";
 import {
   normalizeSalaryDisplay,
   parseSalaryMax,
+  type CandidateProfileSummary,
 } from "@/lib/ai/classifier";
 import {
   normalizePostedAt,
@@ -115,6 +116,7 @@ async function findMatchingOpportunity(input: {
   location: string | null | undefined;
   applyUrl: string | null | undefined;
   isAlreadyApplied: boolean;
+  cachedSameEmailRows?: JobOpportunity[];
 }): Promise<
   | { kind: "update"; row: JobOpportunity; upgradingPlaceholder: boolean }
   | { kind: "suppress"; row: JobOpportunity }
@@ -128,12 +130,16 @@ async function findMatchingOpportunity(input: {
     location,
     applyUrl,
     isAlreadyApplied,
+    cachedSameEmailRows,
   } = input;
 
   // ── Tier 1: same-email origin ───────────────────────────────────────────
-  const sameEmailRows = await prisma.jobOpportunity.findMany({
-    where: { accountId, emailMessageId },
-  });
+  // Evaluates against in-memory rows when preloaded by caller, dropping N queries to 0
+  const sameEmailRows =
+    cachedSameEmailRows ??
+    (await prisma.jobOpportunity.findMany({
+      where: { accountId, emailMessageId },
+    }));
 
   const tier1 =
     sameEmailRows.find(
@@ -168,6 +174,7 @@ async function findMatchingOpportunity(input: {
       company: { equals: company, mode: "insensitive" },
     },
     orderBy: { receivedAt: "desc" },
+    take: 10,
   });
 
   let upgradingPlaceholder = false;
@@ -321,9 +328,18 @@ export async function processInboxDelta(
         : `Delta found ${messageIds.length} new message(s) to digest — processing subscriptions + classification…`
     );
 
+    // Preload candidate profile and account rules once to eliminate N redundant queries across messages
+    const [candidateProfile, accountRules] = await Promise.all([
+      loadCandidateProfileSummary(account.id),
+      resolveIngestionRules(account.id, account.settings?.rules),
+    ]);
+
     for (const messageId of messageIds) {
       try {
-        await processMessage(gmail, account, messageId);
+        await processMessage(gmail, account, messageId, {
+          candidateProfile,
+          accountRules,
+        });
       } catch (error) {
         syncLog.error(
           { err: error, messageId, emailAddress },
@@ -408,7 +424,11 @@ async function collectAddedMessageIds(
 async function processMessage(
   gmail: gmail_v1.Gmail,
   account: AccountWithSettings,
-  messageId: string
+  messageId: string,
+  context?: {
+    candidateProfile?: CandidateProfileSummary | null;
+    accountRules?: AccountRules;
+  }
 ): Promise<void> {
   const message = await gmail.users.messages.get({
     userId: "me",
@@ -457,12 +477,15 @@ async function processMessage(
   const settings = account.settings;
   const llmProvider = normalizeProvider(settings?.llmProvider);
 
-  const candidateProfile = await loadCandidateProfileSummary(account.id);
+  const candidateProfile =
+    context?.candidateProfile !== undefined
+      ? context.candidateProfile
+      : await loadCandidateProfileSummary(account.id);
 
-  const accountRules = await resolveIngestionRules(
-    account.id,
-    settings?.rules
-  );
+  const accountRules =
+    context?.accountRules !== undefined
+      ? context.accountRules
+      : await resolveIngestionRules(account.id, settings?.rules);
   const messageDate = message.data.internalDate
     ? new Date(Number(message.data.internalDate))
     : new Date();
@@ -908,6 +931,12 @@ export async function persistClassifiedEmail(input: {
   // DIRECT_RECRUITER / JOB_BOARD_DIGEST / applied listings → JobOpportunity rows
   const excludedTitles = rules.excludedTitles ?? [];
   let opportunitiesUpserted = 0;
+
+  // Pre-load existing opportunities for this email once to evaluate Tier 1 dedupe in memory
+  const sameEmailRows = await prisma.jobOpportunity.findMany({
+    where: { accountId: account.id, emailMessageId: emailMessage.id },
+  });
+
   for (const job of classification.jobs) {
     const cleanCompany = sanitizeCompanyName(job.company);
     const cleanTitle = job.title
@@ -982,6 +1011,7 @@ export async function persistClassifiedEmail(input: {
       location: job.location,
       applyUrl: validApplyUrl,
       isAlreadyApplied,
+      cachedSameEmailRows: sameEmailRows,
     });
 
     if (match.kind === "suppress") {
@@ -1065,7 +1095,7 @@ export async function persistClassifiedEmail(input: {
       const jobClassificationMethod =
         job.classificationMethod ?? classificationMethod ?? "AI";
 
-      await prisma.jobOpportunity.update({
+      const updated = await prisma.jobOpportunity.update({
         where: { id: existing.id },
         data: {
           company: cleanCompany,
@@ -1101,6 +1131,14 @@ export async function persistClassifiedEmail(input: {
         },
       });
 
+      // Keep in-memory cache synchronized so subsequent digest roles dedupe in memory
+      const existingIdx = sameEmailRows.findIndex((r) => r.id === updated.id);
+      if (existingIdx >= 0) {
+        sameEmailRows[existingIdx] = updated;
+      } else {
+        sameEmailRows.push(updated);
+      }
+
       opportunitiesUpserted += 1;
       updatedCount += 1;
       lastAction = `Tier 2 Dedupe: Updated Opportunity (${existing.id}) for ${cleanCompany}`;
@@ -1122,7 +1160,7 @@ export async function persistClassifiedEmail(input: {
     const jobClassificationMethod =
       job.classificationMethod ?? classificationMethod ?? "AI";
 
-    await prisma.jobOpportunity.create({
+    const created = await prisma.jobOpportunity.create({
       data: {
         accountId: account.id,
         emailMessageId: emailMessage.id,
@@ -1148,6 +1186,8 @@ export async function persistClassifiedEmail(input: {
         classificationMethod: jobClassificationMethod,
       },
     });
+
+    sameEmailRows.push(created);
 
     opportunitiesUpserted += 1;
     createdCount += 1;
