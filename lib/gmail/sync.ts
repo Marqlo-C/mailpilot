@@ -117,6 +117,7 @@ async function findMatchingOpportunity(input: {
   applyUrl: string | null | undefined;
   isAlreadyApplied: boolean;
   cachedSameEmailRows?: JobOpportunity[];
+  cachedCompanyRows?: JobOpportunity[];
 }): Promise<
   | { kind: "update"; row: JobOpportunity; upgradingPlaceholder: boolean }
   | { kind: "suppress"; row: JobOpportunity }
@@ -131,6 +132,7 @@ async function findMatchingOpportunity(input: {
     applyUrl,
     isAlreadyApplied,
     cachedSameEmailRows,
+    cachedCompanyRows,
   } = input;
 
   // ── Tier 1: same-email origin ───────────────────────────────────────────
@@ -168,14 +170,16 @@ async function findMatchingOpportunity(input: {
     return { kind: "none" };
   }
 
-  const companyRows = await prisma.jobOpportunity.findMany({
-    where: {
-      accountId,
-      company: { equals: company, mode: "insensitive" },
-    },
-    orderBy: { receivedAt: "desc" },
-    take: 10,
-  });
+  const companyRows =
+    cachedCompanyRows ??
+    (await prisma.jobOpportunity.findMany({
+      where: {
+        accountId,
+        company: { equals: company, mode: "insensitive" },
+      },
+      orderBy: { receivedAt: "desc" },
+      take: 10,
+    }));
 
   let upgradingPlaceholder = false;
   let tier2 =
@@ -607,6 +611,7 @@ export async function persistClassifiedEmail(input: {
   createdCount: number;
   updatedCount: number;
   lastAction?: string;
+  emailMessageId?: string;
 }> {
   const {
     gmail,
@@ -932,10 +937,44 @@ export async function persistClassifiedEmail(input: {
   const excludedTitles = rules.excludedTitles ?? [];
   let opportunitiesUpserted = 0;
 
-  // Pre-load existing opportunities for this email once to evaluate Tier 1 dedupe in memory
-  const sameEmailRows = await prisma.jobOpportunity.findMany({
-    where: { accountId: account.id, emailMessageId: emailMessage.id },
-  });
+  const uniqueCompanies = Array.from(
+    new Set(
+      classification.jobs
+        .map((j) => sanitizeCompanyName(j.company))
+        .filter(
+          (c): c is string =>
+            Boolean(c && c.toLowerCase() !== "unknown company")
+        )
+    )
+  );
+
+  // Pre-load existing opportunities for this email (Tier 1) and cross-email companies (Tier 2)
+  // in parallel to evaluate deduplication in memory, eliminating N database round-trips.
+  const [sameEmailRows, preloadedCompanyRows] = await Promise.all([
+    prisma.jobOpportunity.findMany({
+      where: { accountId: account.id, emailMessageId: emailMessage.id },
+    }),
+    uniqueCompanies.length > 0
+      ? prisma.jobOpportunity.findMany({
+          where: {
+            accountId: account.id,
+            company: { in: uniqueCompanies, mode: "insensitive" },
+          },
+          orderBy: { receivedAt: "desc" },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const companyRowsByCompany = new Map<string, JobOpportunity[]>();
+  for (const row of preloadedCompanyRows) {
+    const key = row.company.trim().toLowerCase();
+    const existing = companyRowsByCompany.get(key);
+    if (existing) {
+      existing.push(row);
+    } else {
+      companyRowsByCompany.set(key, [row]);
+    }
+  }
 
   for (const job of classification.jobs) {
     const cleanCompany = sanitizeCompanyName(job.company);
@@ -1001,6 +1040,8 @@ export async function persistClassifiedEmail(input: {
     // Visibility vs threshold is evaluated at read time; do not persist soft-archive.
     const isAlreadyApplied = Boolean(job.isAlreadyApplied);
 
+    const compKey = cleanCompany.toLowerCase();
+
     // Multi-tier dedupe: same-email → company+title+location → create.
     // Shared by webhook delta, Sync Inbox, and historical scan (all call this).
     const match = await findMatchingOpportunity({
@@ -1012,6 +1053,7 @@ export async function persistClassifiedEmail(input: {
       applyUrl: validApplyUrl,
       isAlreadyApplied,
       cachedSameEmailRows: sameEmailRows,
+      cachedCompanyRows: companyRowsByCompany.get(compKey) ?? [],
     });
 
     if (match.kind === "suppress") {
@@ -1139,6 +1181,18 @@ export async function persistClassifiedEmail(input: {
         sameEmailRows.push(updated);
       }
 
+      const rows = companyRowsByCompany.get(compKey);
+      if (rows) {
+        const cIdx = rows.findIndex((r) => r.id === updated.id);
+        if (cIdx >= 0) {
+          rows[cIdx] = updated;
+        } else {
+          rows.push(updated);
+        }
+      } else {
+        companyRowsByCompany.set(compKey, [updated]);
+      }
+
       opportunitiesUpserted += 1;
       updatedCount += 1;
       lastAction = `Tier 2 Dedupe: Updated Opportunity (${existing.id}) for ${cleanCompany}`;
@@ -1188,6 +1242,12 @@ export async function persistClassifiedEmail(input: {
     });
 
     sameEmailRows.push(created);
+    const rows = companyRowsByCompany.get(compKey);
+    if (rows) {
+      rows.push(created);
+    } else {
+      companyRowsByCompany.set(compKey, [created]);
+    }
 
     opportunitiesUpserted += 1;
     createdCount += 1;
@@ -1213,6 +1273,7 @@ export async function persistClassifiedEmail(input: {
     createdCount,
     updatedCount,
     lastAction: finalAction,
+    emailMessageId: emailMessage.id,
   };
 }
 
