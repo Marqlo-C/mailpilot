@@ -1,0 +1,1414 @@
+Delivered-To: marquiseclott@gmail.com
+Received: by 2002:ab0:1e41:0:b0:996:7c09:94dd with SMTP id n1csp3504901uak;
+        Fri, 6 Nov 2026 09:02:09 -0800 (PST)
+X-Received: by 2002:a05:6214:5981:b0:91d:35ff:cb53 with SMTP id 6a1803df08f44-91ea989e170mr40332866d6.37.1793984528756;
+        Fri, 06 Nov 2026 09:02:08 -0800 (PST)
+ARC-Seal: i=1; a=rsa-sha256; t=1793984528; cv=none;
+        d=google.com; s=arc-20260327;
+        b=mByQ2LTU/EVJxNWbLa1DtkXG2mOONNRSpnQGcOg5Hz3npWKjUonvQ0rckGYcFfjiBU
+         CnKKt4NJnbHSdMc1VB2r71/RAEz52SWll9Zy5K2KIXcTj8ihwQ9KD6eXgpWgytuL0X0u
+         VSbJD3iS1omUDiWNCOGhMh8QrXWTpmrmdo8j975XlHdphEPK1pC119DdNJvv1y6tYYs2
+         yiV++KOejBvG4ymaLzGeMcAcqX5R8qHs3ecUy3R00d2Bsm8fire2GDnaWpusaAGNYX9b
+         6DsEN4xxD1dW/BlKknLgn1oxFu1BY1uZTM6hThhTWFtnSN8a3aaDb8qtH0aKgJ+RJZ6+
+         rYUw==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20260327;
+        h=list-unsubscribe-post:list-unsubscribe:feedback-id:mime-version
+         :subject:message-id:to:reply-to:from:date:dkim-signature
+         :dkim-signature;
+        bh=A7j+k8BAc6ZwA4spq1S8915Ncxuk4uOzyuVCTstSaVM=;
+        fh=OavyMhdsbcyuxzLIIaXmdXpTZxsqrvkuJ/uU2FRacUU=;
+        b=ocJSTN5KCYx4eUhY0AFo350dO+So7FOlQN4Oe4t8+pqb8ttX1fn+mdla/ezSl9avV3
+         bqQSEBjwEVFe7589n9mOMbWKu5pWoHuxMFgYwRcaQFpUY8rANZ18qlfM6G2Z6ISWS45U
+         2n9Z1PfFq+a9vnuheYYvI0XRqrRKwA9Jxq6UYUiuIGO/i5dubm1mg1+K8L8ktltPO8YP
+         kZYpQOSx6abop9+YstFpkcZnqfExaB3E4PwstfY2uCiNh8/dTDnge28azaYeomT5GShl
+         masG7t8r9BTPufiL1+DOP/1MrXsraaAVql2+vF9omDnNp8AlQsLjJjxWl4i2ElRbqTwq
+         mpqw==;
+        dara=google.com
+ARC-Authentication-Results: i=1; mx.google.com;
+       dkim=pass header.i=@mg.careerbuilder.com header.s=gears2 header.b=YpIblLIM;
+       dkim=pass header.i=@d.messagegears.io header.s=gears header.b=ZsOgu91p;
+       spf=pass (google.com: domain of 3782298190000101e3202-d26310-14e1c71d580d4b50b94ae992b8211b94@mg.careerbuilder.com designates 135.84.218.200 as permitted sender) smtp.mailfrom=3782298190000101e3202-d26310-14e1c71d580d4b50b94ae992b8211b94@mg.careerbuilder.com;
+       dmarc=pass (p=QUARANTINE sp=QUARANTINE dis=NONE) header.from=careerbuilder.com
+Return-Path: <3782298190000101e3202-d26310-14e1c71d580d4b50b94ae992b8211b94@mg.careerbuilder.com>
+Received: from mta4-200.mg.myperfectresume.com (mta4-200.mg.myperfectresume.com. [135.84.218.200])
+        by mx.google.com with ESMTPS id 6a1803df08f44-91ea6a0ff45si35470156d6.415.2026.11.06.09.02.07
+        for <marquiseclott@gmail.com>
+        (version=TLS1_3 cipher=TLS_AES_256_GCM_SHA384 bits=256/256);
+        Fri, 06 Nov 2026 09:02:08 -0800 (PST)
+Received-SPF: pass (google.com: domain of 3782298190000101e3202-d26310-14e1c71d580d4b50b94ae992b8211b94@mg.careerbuilder.com designates 135.84.218.200 as permitted sender) client-ip=135.84.218.200;
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@mg.careerbuilder.com header.s=gears2 header.b=YpIblLIM;
+       dkim=pass header.i=@d.messagegears.io header.s=gears header.b=ZsOgu91p;
+       spf=pass (google.com: domain of 3782298190000101e3202-d26310-14e1c71d580d4b50b94ae992b8211b94@mg.careerbuilder.com designates 135.84.218.200 as permitted sender) smtp.mailfrom=3782298190000101e3202-d26310-14e1c71d580d4b50b94ae992b8211b94@mg.careerbuilder.com;
+       dmarc=pass (p=QUARANTINE sp=QUARANTINE dis=NONE) header.from=careerbuilder.com
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; s=gears2; d=mg.careerbuilder.com;
+ h=Date:From:Reply-To:To:Message-ID:Subject:MIME-Version:Content-Type:
+ List-Unsubscribe:List-Unsubscribe-Post; i=news@mg.careerbuilder.com;
+ bh=A7j+k8BAc6ZwA4spq1S8915Ncxuk4uOzyuVCTstSaVM=;
+ b=YpIblLIM4OQyl7AE3ZM04qMSMmD6zEWwF9hMZgJfudHExBi7QrowqTLJbGJmzlPMbUyCIStgo4Hb
+   UYI1nFBfBB1Lu8HC8XcwZl+aW/OSoe9DZyw6BA+DeVGdnxm8gZyWdbnz9QfrglEhEkNF4pVveNtX
+   eqzgMkVNWwDStMa6eAfYzIw7xB5NCXHLtO7HRV3NXJuSYS+NL2kjoQUttPl/iSUWomZGev+Xx9Eq
+   ao9aXIy68GpX5CicGKSC2PdWOuj+LwVwi0QiiarJO/g3xE4zyq5Hy3SCFnMMNRJBe6CSpTmtTL4f
+   jgBsHhvCF5y7y6nPx6lMG4mMkQ1y27lUEEayAw==
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; s=gears; d=d.messagegears.io;
+ h=Date:From:Reply-To:To:Message-ID:Subject:MIME-Version:Content-Type:
+ List-Unsubscribe:List-Unsubscribe-Post;
+ bh=A7j+k8BAc6ZwA4spq1S8915Ncxuk4uOzyuVCTstSaVM=;
+ b=ZsOgu91pRX2twokkwFbSRTd5AeY7rGRfG2TqA/FvAxt/F7Bm0Z6Dx9W9J3v5w3xcELdLSFmYngGf
+   YQSizU2UZLwuJJSx8vffCo23a9KRv5iOP4xXXMbEqyYJ+wIhPY4GsuPf5U4191p2T+BsJ2B21eAp
+   RXX1yaobvkZ+tN1fBNs=
+Date: Fri, 6 Nov 2026 09:09:45 -0500 (EST)
+From: CareerBuilder <news@mg.careerbuilder.com>
+Reply-To: clientsupport@careerbuilder.com
+To: marquiseclott@gmail.com
+Message-ID: <379476851.110732027.1793974185229@p2-mta-0305.p2.messagegears.net>
+Subject: New jobs alert for Junior Software Engineer, Davis, California
+MIME-Version: 1.0
+Content-Type: multipart/mixed; 
+	boundary="----=_Part_110732024_188612766.1793974185228"
+X-Complaint-ID: 3782298190000101e3202-d26310-14e1c71d580d4b50b94ae992b8211b94
+Feedback-ID: 45919462:78229819.mg.careerbuilder.com:bold-myperfectresume-group:MessageGears
+X-Original-To: marquiseclott@gmail.com
+List-Unsubscribe: <https://click.mg.careerbuilder.com/list-unsub/uc/3/eyJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6aVpJMzhLSkdnYmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMzZi1hZjljLWM0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTRhZTk5MmI4MjExYjk0IiwibSI6ZmFsc2V9/YYOj2VU4rTYOpCnY7yhPSg>, <mailto:unsub-3782298190000101e3202-d26310-14e1c71d580d4b50b94ae992b8211b94@mg.careerbuilder.com>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+
+------=_Part_110732024_188612766.1793974185228
+Content-Type: multipart/related; 
+	boundary="----=_Part_110732025_1657260770.1793974185228"
+
+------=_Part_110732025_1657260770.1793974185228
+Content-Type: text/html;charset=UTF-8
+Content-Transfer-Encoding: quoted-printable
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.=
+w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html lang=3D"en-US" dir=3D"ltr" xmlns=3D"http://www.w3.org/1999/xhtml" xml=
+ns:o=3D"urn:schemas-microsoft-com:office:office" xmlns:v=3D"urn:schemas-mic=
+rosoft-com:vml">
+  <head>
+    <title>CareerBuilder</title>
+    <meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dutf-8=
+" />
+    <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
+=3D1" />
+    <meta name=3D"x-apple-disable-message-reformatting" />
+    <meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge" />
+    <meta name=3D"format-detection" content=3D"telephone=3Dno, date=3Dno, a=
+ddress=3Dno, email=3Dno" />
+    <link href=3D"https://fonts.googleapis.com/css2?family=3DManrope:ital,w=
+ght@0,400;0,600;0,700;0,800;1,400;1,600;1,700;1,800&display=3Dswap" rel=3D"=
+stylesheet" />
+    <!--[if (gte mso 9)|(IE)]>
+      <style type=3D"text/css">
+      table,td, a, span {border-collapse: collapse !important;}
+      </style>
+      <xml>
+      <o:OfficeDocumentSettings>
+      <o:AllowPNG/>
+      <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+      </xml>
+    <![endif]-->
+   =20
+    <style type=3D"text/css">     =20
+      u + #body a {color:inherit; text-decoration:none; font-size:inherit; =
+font-family:inherit; font-weight:inherit; line-height:inherit;}
+      a[x-apple-data-detectors]{
+      color:inherit !important; text-decoration:none !important; font-size:=
+inherit !important; font-family:inherit !important;=20
+      font-weight:inherit !important; line-height:inherit !important;}
+      * {-webkit-text-size-adjust:none}
+      body {margin:0!important; padding:0!important; -webkit-text-size-adju=
+st:100%!important;
+      -ms-text-size-adjust:100%!important; -webkit-font-smoothing:antialias=
+ed!important;}
+      table {mso-table-lspace:0px; mso-table-rspace:0px;}
+      td, a, span {mso-line-height-rule: exactly;}
+      .ExternalClass * {line-height:100%;}
+      .ExternalClass {width:100%;}
+      table{border-spacing:0;color:#212121; font-family: 'Manrope', Arial, =
+Helvetica, sans-serif;}
+      img {border:0!important; outline:none!important;}
+      .outer{margin:0 auto;width:100%; max-width:600px}
+      .show-mobile{max-height:0px; font-size:0; display:none; overflow:hidd=
+en; mso-hide: all;}
+     =20
+      @media only screen and (max-width:480px){
+      .em-wrapper{width:100%!important;}
+      .em-block{width:100%!important; display:block!important; height:auto!=
+important; text-align:center!important;}
+      .em-img{max-width:100%!important; width:100%!important; display:block=
+; height:auto!important;}
+      .em-height{height:20px!important; font-size:1px!important; line-heigh=
+t:1px!important;}
+      .em-height-30{height:30px!important; font-size:1px!important; line-he=
+ight:1px!important;}
+      .em-side{width:20px!important;}
+      .em-center{text-align:center!important;}
+      .em-left{text-align:left!important;}
+      .heading{font-size:30px!important; line-height:38px!important;}
+      .fs16{font-size:16px!important; line-height:22px!important;}
+      .plr20{padding-left:20px!important;padding-right:20px!important;}
+      .em-hide{display: none !important;}
+      .mb20{margin-bottom:20px!important}
+      .mb5{margin-bottom:5px!important;}
+      .no-border-padding{border:0!important; padding:0!important;}
+      .show-mobile {display: block !important; max-height: none !important;=
+ overflow: visible !important; visibility: visible !important;}
+      .show-desk {display: none !important; max-height: 0px; font-size: 0; =
+overflow: hidden; mso-hide: all;}
+      .cta a{font-size:18px!important; line-height:24px!important; padding:=
+10px;}
+      }
+    </style>
+  </head>
+  <body id=3D"body" style=3D"margin:0px; padding:0px; -webkit-text-size-adj=
+ust:none; -ms-text-size-adjust: none; background-color:#e4e5e6;">
+    <table bgcolor=3D"#e4e5e6" border=3D"0" cellpadding=3D"0" cellspacing=
+=3D"0" style=3D"width:100%">
+      <tbody>
+                <tr><td class=3D"em-height" height=3D"30" style=3D"height:3=
+0px; font-size:0;"></td></tr>
+        <tr>
+          <td align=3D"center" valign=3D"top">
+            <div style=3D"max-width:600px;"><!--[if (gte mso 9)|(IE)]>
+              <table border=3D"0" cellspacing=3D"0" cellpadding=3D"0" role=
+=3D"presentation" align=3D"center" style=3D"width: 600px;">
+              <tr valign=3D"top">
+              <td valign=3D"top" align=3D"center">
+            <![endif]-->
+            <table align=3D"center" class=3D"outer" style=3D"border-spacing=
+:0; margin:0 auto; max-width:600px; width:100%;">
+              <tbody>
+                <tr>
+                  <td style=3D"padding:0" class=3D"plr20">                 =
+  =20
+                    <table style=3D"width:100%;" cellspacing=3D"0" cellpadd=
+ing=3D"0" border=3D"0">
+                      <tbody>
+                        <tr>
+                          <td valign=3D"top">
+                            <table style=3D"width:100%; background-color:#2=
+F4AA0; border-radius:12px 12px 0 0;" cellspacing=3D"0" cellpadding=3D"0" bo=
+rder=3D"0">
+                              <tbody>
+                                <tr>
+                                  <td class=3D"em-side" width=3D"40"></td>
+                                  <td valign=3D"top">
+                                    <table border=3D"0" width=3D"100%" cell=
+padding=3D"0" cellspacing=3D"0">
+                                      <tbody>
+                                        <tr>
+                                          <td style=3D"text-align:center; p=
+adding:30px 0;"><a target=3D"_blank" href=3D"https://click.mg.careerbuilder=
+.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6aVpJMzhLSkdnYmxteWxva200THMrNj=
+ZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMzZi1hZjljLWM0NmY5YzU3NjhmMCIsI=
+nJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTRhZTk5MmI4MjExYjk0IiwibSI6ZmFs=
+c2UsInVpIjoiMCIsInVuIjoiIiwidSI6Imh0dHBzOi8vd3d3LmNhcmVlcmJ1aWxkZXIuY29tL3J=
+lc3VtZS9jLzI0NTA0P21pZD03MzcwJmh0PWVjJnV0bV9tZWRpdW09ZW1haWwmdXRtX3NvdXJjZT=
+1tZy1ta3RnJnV0bV9jYW1wYWlnbj1jcmItbWt0Zy1qb2JzLW5kLWZyZWVtaXVtLXJlZ3MtdjAmd=
+XRtX3Rlcm09ZnJlZW1pdW0mdGFyZz1odHRwczovL3d3dy5jYXJlZXJidWlsZGVyLmNvbSJ9/nMq=
+nWQvHQBuCaA8Fyvu9Aw"><img alt=3D"CareerBuilder" style=3D"border:0; display:=
+inline-block;" width=3D"240" height=3D"30" border=3D"0" src=3D"https://www.=
+careerbuilder.com/images/uploaded/email/cbd/career-builder-white.png" /></a=
+></td>
+                                        </tr>
+                                      </tbody>
+                                    </table>
+                                  </td>
+                                  <td class=3D"em-side" width=3D"40"></td>
+                                </tr>
+                              </tbody>
+                            </table>
+                           =20
+                            <table style=3D"width:100%; background-color:#F=
+FFFFF; border-radius:0 0 12px 12px;" cellspacing=3D"0" cellpadding=3D"0" bo=
+rder=3D"0">
+                              <tbody>
+                                <tr>
+                                  <td class=3D"em-side" width=3D"40"></td>
+                                  <td valign=3D"top">
+                                    <table border=3D"0" width=3D"100%" cell=
+padding=3D"0" cellspacing=3D"0" class=3D"em-wrapper">
+                                      <tbody>
+                                        <tr><td class=3D"em-height-30" styl=
+e=3D"height:40px; font-size:0;" height=3D"40"></td></tr>
+                                        <tr>
+                                          <td class=3D"heading" style=3D"fo=
+nt-family: 'Manrope', Arial, Helvetica, sans-serif; color:#212121; font-siz=
+e:36px; font-weight:800; line-height:44px; text-align:center; padding-botto=
+m:20px;">Your job alerts</td>
+                                        </tr>
+                                        <tr>
+                                          <td style=3D"color:#212121; font-=
+size:16px; font-weight:400; line-height:24px; font-family: 'Manrope', Arial=
+, Helvetica, sans-serif; text-align:center;"> You have new matches for your=
+ job alert: <strong style=3D"font-weight:700;">Junior Software Engineer</st=
+rong>.</td>
+                                        </tr>
+                                        <tr><td height=3D"15" style=3D"heig=
+ht:15px; font-size:0;"></td></tr>
+                                        <tr>
+                                          <td align=3D"center"><a href=3D"h=
+ttps://click.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6a=
+VpJMzhLSkdnYmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMz=
+Zi1hZjljLWM0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTR=
+hZTk5MmI4MjExYjk0IiwibSI6ZmFsc2UsInVpIjoiMSIsInVuIjoiIiwidSI6Imh0dHBzOi8vd3=
+d3LmNhcmVlcmJ1aWxkZXIuY29tL3Byb2ZpbGUvam9iLWFsZXJ0cz9taWQ9NzM3MCZwaWQ9MzkwM=
+WVhMjctZmRjNC00YzNmLWFmOWMtYzQ2ZjljNTc2OGYwJmh0PWVjJnV0bV9tZWRpdW09ZW1haWwm=
+dXRtX3NvdXJjZT1tZy1ta3RnJnV0bV9jYW1wYWlnbj1jcmItbWt0Zy1qb2JzLW5kLWZyZWVtaXV=
+tLXJlZ3MtdjAmdXRtX3Rlcm09ZnJlZW1pdW0ifQ/5u0CC01Ch2XEc3AZDFAaTQ" target=3D"_=
+blank" style=3D"color:#2f4aa0; font-size:16px; font-weight:700; line-height=
+:24px; font-family: 'Manrope', Arial, Helvetica, sans-serif; text-decoratio=
+n:underline;">Update my settings</a></td>
+                                        </tr>
+                                        <tr><td height=3D"30" style=3D"bord=
+er-bottom:1px solid #D7D7D7; height:30px; font-size:0;"></td></tr>
+                                        <tr><td style=3D"height:30px; font-=
+size:0;" height=3D"30">&nbsp;</td></tr>
+                                        <tr>
+                                          <td style=3D"color:#212121; font-=
+size:22px; font-weight:700; line-height:30px; font-family: 'Manrope', Arial=
+, Helvetica, sans-serif; text-align:center;">We found new opportunities for=
+ you</td>
+                                        </tr>
+                                        <tr><td style=3D"height:20px; font-=
+size:0;" height=3D"20">&nbsp;</td></tr>
+                                       =20
+                                        <!-- Job list -->
+                                        <tr>
+                                          <td>
+                                            <table class=3D"job-card" style=
+=3D"width:100%; border-bottom:1px solid #D7D7D7; background-color:#FFFFFF;"=
+ cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                              <tbody>
+                                                <tr>
+                                                  <td class=3D"job-card-inn=
+er" style=3D"padding:20px 0;" valign=3D"top">
+                                                    <table style=3D"width:1=
+00%;" cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                                      <tbody>
+                                                        <tr>
+                                                          <td valign=3D"top=
+" style=3D"width:100%;">
+                                                            <table style=3D=
+"width:100%;" cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                                              <tbody>
+                                                                <tr>
+                                                                  <td><a hr=
+ef=3D"https://click.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy=
+1lbmM6aVpJMzhLSkdnYmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkY=
+zQtNGMzZi1hZjljLWM0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRi=
+NTBiOTRhZTk5MmI4MjExYjk0IiwibSI6ZmFsc2UsInVpIjoiMiIsInVuIjoiIiwidSI6Imh0dHB=
+zOi8vd3d3LmNhcmVlcmJ1aWxkZXIuY29tL2pvYnMvc2VhcmNoP3E9anVuaW9yJTIwc29mdHdhcm=
+UlMjBwcm9ncmFtbWVyJTIwZnVsbHN0YWNrJTJGQWklMjBlbmdpbmVlciUyRkJJJTIwQW5hbHlzd=
+CZ3aGVyZT1TYWNyYW1lbnRvJTJDJTIwQ0EmaWQ9MGQ4OWEyNzItZjkwZi00Y2JlLThmNzktNzA3=
+YjUxY2MzZWMxJnNvdXJjZU5hbWU9ZGlzdHJpYnV0aW9uX2FsZXJ0c19yZWxldmFuY3kmc291cmN=
+lVmFsdWU9MzkwMWVhMjctZmRjNC00YzNmLWFmOWMtYzQ2ZjljNTc2OGYwJm1zdHJfZGlzdD10cn=
+VlJnNpZD1lbWFpbF9maWxlX2QwNGFjNzEzLTUzNDktNGNiYS04ZDY4LWI5YmJhNzQ0NWUxOCZzd=
+HM9MTc5Mzk2ODA0MTU1NT9zaXRlaWQ9am9iYWxlcnQmaXBhdGg9RU1KQSZ1dG1fbWVkaXVtPWVt=
+YWlsJnV0bV9zb3VyY2U9bWctbWt0ZyZ1dG1fY2FtcGFpZ249Y3JiLW1rdGctam9icy1uZC1mcmV=
+lbWl1bS1yZWdzLXYwJnV0bV90ZXJtPWZyZWVtaXVtIn0/iXsK-rG65iaOHZkgG-gMLg" style=
+=3D"font-family: 'Manrope', Arial, Helvetica, sans-serif; color: #212121; f=
+ont-size:18px; font-weight:700; line-height:28px; text-decoration:none;">ju=
+nior software programmer fullstack/Ai engineer/BI Analyst</a></td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:10px; font-size:0;" height=3D"10">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td valig=
+n=3D"top">
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"100%">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td style=3D"font-family: 'Manrope', Arial, Helvetica, sans-serif; color:#21=
+2121; font-size:14px; font-weight:400; line-height:22px; text-align:left;">
+                                                                           =
+ <div style=3D"display:inline-block" class=3D"em-block em-left mb8">
+                                                                           =
+   <span style=3D"vertical-align:middle;"><img src=3D"https://www.careerbui=
+lder.com/images/uploaded/email/mst/imglib/ic-company-grey.png" alt=3D"Icon =
+Company" width=3D"12" height=3D"16" style=3D"display:inline-block; vertical=
+-align:middle; border:none; margin-right:8px;" />SynergisticIT</span>
+                                                                           =
+   <span class=3D"em-hide" style=3D"color:#212121; padding:0 5px; vertical-=
+align:middle;">|</span>
+                                                                           =
+ </div>
+                                                                           =
+ <div style=3D"display:inline-block" class=3D"em-block em-left mb8">
+                                                                           =
+   <span style=3D"vertical-align:middle;"><img src=3D"https://www.careerbui=
+lder.com/images/uploaded/email/mst/imglib/ic-location-grey.png" alt=3D"Icon=
+ Location" width=3D"16" height=3D"16" style=3D"display:inline-block; vertic=
+al-align:middle; border:none; margin-right:4px;" />Sacramento, CA</span>
+                                                                           =
+ </div>
+                                                                          <=
+/td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:10px; font-size:0;" height=3D"10">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td valig=
+n=3D"top">
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"100%">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td style=3D"font-family: 'Manrope', Arial, Helvetica, sans-serif; color:#21=
+2121; font-size:14px; font-weight:400; line-height:22px; text-align:left;">
+                                                                          <=
+span style=3D"vertical-align:middle;">
+                                                                          <=
+img src=3D"https://www.careerbuilder.com/images/uploaded/email/mst/imglib/i=
+c-calendar-grey.png" alt=3D"Icon Clock" width=3D"16" height=3D"16" style=3D=
+"display:inline-block; vertical-align:middle; border:none; margin-right:6px=
+;" />Posted 2 weeks ago</span>
+                                                                          <=
+/td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:20px; font-size:0;" height=3D"20">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td>
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"width:150px;" wid=
+th=3D"150" class=3D"em-wrapper">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td align=3D"center" bgcolor=3D"#2F4AA0" height=3D"38" style=3D"font-family:=
+ 'Manrope', Arial, Helvetica, sans-serif; font-size:16px; color:#FFFFFF; fo=
+nt-weight:700; border-radius:4px" valign=3D"middle"><a href=3D"https://clic=
+k.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6aVpJMzhLSkdn=
+YmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMzZi1hZjljLWM=
+0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTRhZTk5MmI4Mj=
+ExYjk0IiwibSI6ZmFsc2UsInVpIjoiMyIsInVuIjoiIiwidSI6Imh0dHBzOi8vd3d3LmNhcmVlc=
+mJ1aWxkZXIuY29tL2pvYnMvc2VhcmNoP3E9anVuaW9yJTIwc29mdHdhcmUlMjBwcm9ncmFtbWVy=
+JTIwZnVsbHN0YWNrJTJGQWklMjBlbmdpbmVlciUyRkJJJTIwQW5hbHlzdCZ3aGVyZT1TYWNyYW1=
+lbnRvJTJDJTIwQ0EmaWQ9MGQ4OWEyNzItZjkwZi00Y2JlLThmNzktNzA3YjUxY2MzZWMxJnNvdX=
+JjZU5hbWU9ZGlzdHJpYnV0aW9uX2FsZXJ0c19yZWxldmFuY3kmc291cmNlVmFsdWU9MzkwMWVhM=
+jctZmRjNC00YzNmLWFmOWMtYzQ2ZjljNTc2OGYwJm1zdHJfZGlzdD10cnVlJnNpZD1lbWFpbF9m=
+aWxlX2QwNGFjNzEzLTUzNDktNGNiYS04ZDY4LWI5YmJhNzQ0NWUxOCZzdHM9MTc5Mzk2ODA0MTU=
+1NT9zaXRlaWQ9am9iYWxlcnQmaXBhdGg9RU1KQSZ1dG1fbWVkaXVtPWVtYWlsJnV0bV9zb3VyY2=
+U9bWctbWt0ZyZ1dG1fY2FtcGFpZ249Y3JiLW1rdGctam9icy1uZC1mcmVlbWl1bS1yZWdzLXYwJ=
+nV0bV90ZXJtPWZyZWVtaXVtIn0/n61zA0AM6q3ofqMmNO9tMw" style=3D"color:#FFFFFF; =
+text-decoration: none; display: block; line-height:38px;" target=3D"_blank"=
+>Quick Apply</a></td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                              </tbody>
+                                                            </table>
+                                                          </td>
+                                                        </tr>
+                                                      </tbody>
+                                                    </table>
+                                                  </td>
+                                                </tr>
+                                              </tbody>
+                                            </table>
+                                          </td>
+                                        </tr>
+                                        <tr><td style=3D"height:15px; font-=
+size:0;" height=3D"15">&nbsp;</td></tr>
+                                        <!-- Job list -->
+                                        <tr>
+                                          <td>
+                                            <table class=3D"job-card" style=
+=3D"width:100%; border-bottom:1px solid #D7D7D7; background-color:#FFFFFF;"=
+ cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                              <tbody>
+                                                <tr>
+                                                  <td class=3D"job-card-inn=
+er" style=3D"padding:20px 0;" valign=3D"top">
+                                                    <table style=3D"width:1=
+00%;" cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                                      <tbody>
+                                                        <tr>
+                                                          <td valign=3D"top=
+" style=3D"width:100%;">
+                                                            <table style=3D=
+"width:100%;" cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                                              <tbody>
+                                                                <tr>
+                                                                  <td><a hr=
+ef=3D"https://click.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy=
+1lbmM6aVpJMzhLSkdnYmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkY=
+zQtNGMzZi1hZjljLWM0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRi=
+NTBiOTRhZTk5MmI4MjExYjk0IiwibSI6ZmFsc2UsInVpIjoiMiIsInVuIjoiIiwidSI6Imh0dHB=
+zOi8vd3d3LmNhcmVlcmJ1aWxkZXIuY29tL2pvYnMvc2VhcmNoP3E9U29mdHdhcmUlMjBFbmdpbm=
+VlciUyMElJLSUyMEZ1bGwtc3RhY2slMjBEZXZlbG9wZXImd2hlcmU9U2FjcmFtZW50byUyQyUyM=
+ENBJTJDJTIwVW5pdGVkJTIwU3RhdGVzJmlkPWIxZGVhYzNjLWU1MDQtNGUwNS04M2NiLTIzMTBl=
+NWNiNDY0NiZzb3VyY2VOYW1lPWRpc3RyaWJ1dGlvbl9hbGVydHNfcmVsZXZhbmN5JnNvdXJjZVZ=
+hbHVlPTM5MDFlYTI3LWZkYzQtNGMzZi1hZjljLWM0NmY5YzU3NjhmMCZtc3RyX2Rpc3Q9dHJ1ZS=
+ZzaWQ9ZW1haWxfZmlsZV9kMDRhYzcxMy01MzQ5LTRjYmEtOGQ2OC1iOWJiYTc0NDVlMTgmc3RzP=
+TE3OTM5NjgwNDE1NTU_c2l0ZWlkPWpvYmFsZXJ0JmlwYXRoPUVNSkEmdXRtX21lZGl1bT1lbWFp=
+bCZ1dG1fc291cmNlPW1nLW1rdGcmdXRtX2NhbXBhaWduPWNyYi1ta3RnLWpvYnMtbmQtZnJlZW1=
+pdW0tcmVncy12MCZ1dG1fdGVybT1mcmVlbWl1bSJ9/YsyKrmKU4n8X44byEEkWBQ" style=3D"=
+font-family: 'Manrope', Arial, Helvetica, sans-serif; color: #212121; font-=
+size:18px; font-weight:700; line-height:28px; text-decoration:none;">Softwa=
+re Engineer II- Full-stack Developer</a></td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:10px; font-size:0;" height=3D"10">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td valig=
+n=3D"top">
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"100%">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td style=3D"font-family: 'Manrope', Arial, Helvetica, sans-serif; color:#21=
+2121; font-size:14px; font-weight:400; line-height:22px; text-align:left;">
+                                                                           =
+ <div style=3D"display:inline-block" class=3D"em-block em-left mb8">
+                                                                           =
+   <span style=3D"vertical-align:middle;"><img src=3D"https://www.careerbui=
+lder.com/images/uploaded/email/mst/imglib/ic-company-grey.png" alt=3D"Icon =
+Company" width=3D"12" height=3D"16" style=3D"display:inline-block; vertical=
+-align:middle; border:none; margin-right:8px;" />Deloitte Touche Tohmatsu L=
+td</span>
+                                                                           =
+   <span class=3D"em-hide" style=3D"color:#212121; padding:0 5px; vertical-=
+align:middle;">|</span>
+                                                                           =
+ </div>
+                                                                           =
+ <div style=3D"display:inline-block" class=3D"em-block em-left mb8">
+                                                                           =
+   <span style=3D"vertical-align:middle;"><img src=3D"https://www.careerbui=
+lder.com/images/uploaded/email/mst/imglib/ic-location-grey.png" alt=3D"Icon=
+ Location" width=3D"16" height=3D"16" style=3D"display:inline-block; vertic=
+al-align:middle; border:none; margin-right:4px;" />Sacramento, CA</span>
+                                                                           =
+ </div>
+                                                                          <=
+/td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:10px; font-size:0;" height=3D"10">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td valig=
+n=3D"top">
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"100%">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td style=3D"font-family: 'Manrope', Arial, Helvetica, sans-serif; color:#21=
+2121; font-size:14px; font-weight:400; line-height:22px; text-align:left;">
+                                                                          <=
+span style=3D"vertical-align:middle;">
+                                                                          <=
+img src=3D"https://www.careerbuilder.com/images/uploaded/email/mst/imglib/i=
+c-calendar-grey.png" alt=3D"Icon Clock" width=3D"16" height=3D"16" style=3D=
+"display:inline-block; vertical-align:middle; border:none; margin-right:6px=
+;" />Posted 6 days ago</span>
+                                                                          <=
+/td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:20px; font-size:0;" height=3D"20">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td>
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"width:150px;" wid=
+th=3D"150" class=3D"em-wrapper">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td align=3D"center" bgcolor=3D"#2F4AA0" height=3D"38" style=3D"font-family:=
+ 'Manrope', Arial, Helvetica, sans-serif; font-size:16px; color:#FFFFFF; fo=
+nt-weight:700; border-radius:4px" valign=3D"middle"><a href=3D"https://clic=
+k.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6aVpJMzhLSkdn=
+YmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMzZi1hZjljLWM=
+0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTRhZTk5MmI4Mj=
+ExYjk0IiwibSI6ZmFsc2UsInVpIjoiMyIsInVuIjoiIiwidSI6Imh0dHBzOi8vd3d3LmNhcmVlc=
+mJ1aWxkZXIuY29tL2pvYnMvc2VhcmNoP3E9U29mdHdhcmUlMjBFbmdpbmVlciUyMElJLSUyMEZ1=
+bGwtc3RhY2slMjBEZXZlbG9wZXImd2hlcmU9U2FjcmFtZW50byUyQyUyMENBJTJDJTIwVW5pdGV=
+kJTIwU3RhdGVzJmlkPWIxZGVhYzNjLWU1MDQtNGUwNS04M2NiLTIzMTBlNWNiNDY0NiZzb3VyY2=
+VOYW1lPWRpc3RyaWJ1dGlvbl9hbGVydHNfcmVsZXZhbmN5JnNvdXJjZVZhbHVlPTM5MDFlYTI3L=
+WZkYzQtNGMzZi1hZjljLWM0NmY5YzU3NjhmMCZtc3RyX2Rpc3Q9dHJ1ZSZzaWQ9ZW1haWxfZmls=
+ZV9kMDRhYzcxMy01MzQ5LTRjYmEtOGQ2OC1iOWJiYTc0NDVlMTgmc3RzPTE3OTM5NjgwNDE1NTU=
+_c2l0ZWlkPWpvYmFsZXJ0JmlwYXRoPUVNSkEmdXRtX21lZGl1bT1lbWFpbCZ1dG1fc291cmNlPW=
+1nLW1rdGcmdXRtX2NhbXBhaWduPWNyYi1ta3RnLWpvYnMtbmQtZnJlZW1pdW0tcmVncy12MCZ1d=
+G1fdGVybT1mcmVlbWl1bSJ9/p2PvufiAvIgEpULBC_9Qow" style=3D"color:#FFFFFF; tex=
+t-decoration: none; display: block; line-height:38px;" target=3D"_blank">Vi=
+ew Job</a></td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                              </tbody>
+                                                            </table>
+                                                          </td>
+                                                        </tr>
+                                                      </tbody>
+                                                    </table>
+                                                  </td>
+                                                </tr>
+                                              </tbody>
+                                            </table>
+                                          </td>
+                                        </tr>
+                                        <tr><td style=3D"height:15px; font-=
+size:0;" height=3D"15">&nbsp;</td></tr>
+                                        <!-- Job list -->
+                                        <tr>
+                                          <td>
+                                            <table class=3D"job-card" style=
+=3D"width:100%; border-bottom:1px solid #D7D7D7; background-color:#FFFFFF;"=
+ cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                              <tbody>
+                                                <tr>
+                                                  <td class=3D"job-card-inn=
+er" style=3D"padding:20px 0;" valign=3D"top">
+                                                    <table style=3D"width:1=
+00%;" cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                                      <tbody>
+                                                        <tr>
+                                                          <td valign=3D"top=
+" style=3D"width:100%;">
+                                                            <table style=3D=
+"width:100%;" cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                                              <tbody>
+                                                                <tr>
+                                                                  <td><a hr=
+ef=3D"https://click.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy=
+1lbmM6aVpJMzhLSkdnYmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkY=
+zQtNGMzZi1hZjljLWM0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRi=
+NTBiOTRhZTk5MmI4MjExYjk0IiwibSI6ZmFsc2UsInVpIjoiMiIsInVuIjoiIiwidSI6Imh0dHB=
+zOi8vd3d3LmNhcmVlcmJ1aWxkZXIuY29tL2pvYnMvc2VhcmNoP3E9U29mdHdhcmUlMjBFbmdpbm=
+VlciUyMElJLSUyMEZ1bGwtU3RhY2slMjBEZXZlbG9wZXImd2hlcmU9U2FjcmFtZW50byUyQyUyM=
+ENBJTJDJTIwVVMmaWQ9NzFjMTg0OTQtZmJiMC00ZjNhLTk2ODYtZTNlMzc4YTAyNzg3JnNvdXJj=
+ZU5hbWU9ZGlzdHJpYnV0aW9uX2FsZXJ0c19yZWxldmFuY3kmc291cmNlVmFsdWU9MzkwMWVhMjc=
+tZmRjNC00YzNmLWFmOWMtYzQ2ZjljNTc2OGYwJm1zdHJfZGlzdD10cnVlJnNpZD1lbWFpbF9maW=
+xlX2QwNGFjNzEzLTUzNDktNGNiYS04ZDY4LWI5YmJhNzQ0NWUxOCZzdHM9MTc5Mzk2ODA0MTU1N=
+T9zaXRlaWQ9am9iYWxlcnQmaXBhdGg9RU1KQSZ1dG1fbWVkaXVtPWVtYWlsJnV0bV9zb3VyY2U9=
+bWctbWt0ZyZ1dG1fY2FtcGFpZ249Y3JiLW1rdGctam9icy1uZC1mcmVlbWl1bS1yZWdzLXYwJnV=
+0bV90ZXJtPWZyZWVtaXVtIn0/tFsbdE9NKEiBGpKGLkhwpQ" style=3D"font-family: 'Man=
+rope', Arial, Helvetica, sans-serif; color: #212121; font-size:18px; font-w=
+eight:700; line-height:28px; text-decoration:none;">Software Engineer II- F=
+ull-Stack Developer</a></td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:10px; font-size:0;" height=3D"10">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td valig=
+n=3D"top">
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"100%">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td style=3D"font-family: 'Manrope', Arial, Helvetica, sans-serif; color:#21=
+2121; font-size:14px; font-weight:400; line-height:22px; text-align:left;">
+                                                                           =
+ <div style=3D"display:inline-block" class=3D"em-block em-left mb8">
+                                                                           =
+   <span style=3D"vertical-align:middle;"><img src=3D"https://www.careerbui=
+lder.com/images/uploaded/email/mst/imglib/ic-company-grey.png" alt=3D"Icon =
+Company" width=3D"12" height=3D"16" style=3D"display:inline-block; vertical=
+-align:middle; border:none; margin-right:8px;" />Deloitte</span>
+                                                                           =
+   <span class=3D"em-hide" style=3D"color:#212121; padding:0 5px; vertical-=
+align:middle;">|</span>
+                                                                           =
+ </div>
+                                                                           =
+ <div style=3D"display:inline-block" class=3D"em-block em-left mb8">
+                                                                           =
+   <span style=3D"vertical-align:middle;"><img src=3D"https://www.careerbui=
+lder.com/images/uploaded/email/mst/imglib/ic-location-grey.png" alt=3D"Icon=
+ Location" width=3D"16" height=3D"16" style=3D"display:inline-block; vertic=
+al-align:middle; border:none; margin-right:4px;" />Sacramento, CA</span>
+                                                                           =
+ </div>
+                                                                          <=
+/td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:10px; font-size:0;" height=3D"10">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td valig=
+n=3D"top">
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"100%">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td style=3D"font-family: 'Manrope', Arial, Helvetica, sans-serif; color:#21=
+2121; font-size:14px; font-weight:400; line-height:22px; text-align:left;">
+                                                                          <=
+span style=3D"vertical-align:middle;">
+                                                                          <=
+img src=3D"https://www.careerbuilder.com/images/uploaded/email/mst/imglib/i=
+c-calendar-grey.png" alt=3D"Icon Clock" width=3D"16" height=3D"16" style=3D=
+"display:inline-block; vertical-align:middle; border:none; margin-right:6px=
+;" />Posted 6 days ago</span>
+                                                                          <=
+/td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:20px; font-size:0;" height=3D"20">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td>
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"width:150px;" wid=
+th=3D"150" class=3D"em-wrapper">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td align=3D"center" bgcolor=3D"#2F4AA0" height=3D"38" style=3D"font-family:=
+ 'Manrope', Arial, Helvetica, sans-serif; font-size:16px; color:#FFFFFF; fo=
+nt-weight:700; border-radius:4px" valign=3D"middle"><a href=3D"https://clic=
+k.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6aVpJMzhLSkdn=
+YmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMzZi1hZjljLWM=
+0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTRhZTk5MmI4Mj=
+ExYjk0IiwibSI6ZmFsc2UsInVpIjoiMyIsInVuIjoiIiwidSI6Imh0dHBzOi8vd3d3LmNhcmVlc=
+mJ1aWxkZXIuY29tL2pvYnMvc2VhcmNoP3E9U29mdHdhcmUlMjBFbmdpbmVlciUyMElJLSUyMEZ1=
+bGwtU3RhY2slMjBEZXZlbG9wZXImd2hlcmU9U2FjcmFtZW50byUyQyUyMENBJTJDJTIwVVMmaWQ=
+9NzFjMTg0OTQtZmJiMC00ZjNhLTk2ODYtZTNlMzc4YTAyNzg3JnNvdXJjZU5hbWU9ZGlzdHJpYn=
+V0aW9uX2FsZXJ0c19yZWxldmFuY3kmc291cmNlVmFsdWU9MzkwMWVhMjctZmRjNC00YzNmLWFmO=
+WMtYzQ2ZjljNTc2OGYwJm1zdHJfZGlzdD10cnVlJnNpZD1lbWFpbF9maWxlX2QwNGFjNzEzLTUz=
+NDktNGNiYS04ZDY4LWI5YmJhNzQ0NWUxOCZzdHM9MTc5Mzk2ODA0MTU1NT9zaXRlaWQ9am9iYWx=
+lcnQmaXBhdGg9RU1KQSZ1dG1fbWVkaXVtPWVtYWlsJnV0bV9zb3VyY2U9bWctbWt0ZyZ1dG1fY2=
+FtcGFpZ249Y3JiLW1rdGctam9icy1uZC1mcmVlbWl1bS1yZWdzLXYwJnV0bV90ZXJtPWZyZWVta=
+XVtIn0/_Vm6CXO4NHMUlDwmoD22sg" style=3D"color:#FFFFFF; text-decoration: non=
+e; display: block; line-height:38px;" target=3D"_blank">View Job</a></td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                              </tbody>
+                                                            </table>
+                                                          </td>
+                                                        </tr>
+                                                      </tbody>
+                                                    </table>
+                                                  </td>
+                                                </tr>
+                                              </tbody>
+                                            </table>
+                                          </td>
+                                        </tr>
+                                        <tr><td style=3D"height:15px; font-=
+size:0;" height=3D"15">&nbsp;</td></tr>
+                                        <!-- Job list -->
+                                        <tr>
+                                          <td>
+                                            <table class=3D"job-card" style=
+=3D"width:100%; border-bottom:1px solid #D7D7D7; background-color:#FFFFFF;"=
+ cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                              <tbody>
+                                                <tr>
+                                                  <td class=3D"job-card-inn=
+er" style=3D"padding:20px 0;" valign=3D"top">
+                                                    <table style=3D"width:1=
+00%;" cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                                      <tbody>
+                                                        <tr>
+                                                          <td valign=3D"top=
+" style=3D"width:100%;">
+                                                            <table style=3D=
+"width:100%;" cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                                              <tbody>
+                                                                <tr>
+                                                                  <td><a hr=
+ef=3D"https://click.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy=
+1lbmM6aVpJMzhLSkdnYmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkY=
+zQtNGMzZi1hZjljLWM0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRi=
+NTBiOTRhZTk5MmI4MjExYjk0IiwibSI6ZmFsc2UsInVpIjoiMiIsInVuIjoiIiwidSI6Imh0dHB=
+zOi8vd3d3LmNhcmVlcmJ1aWxkZXIuY29tL2pvYnMvc2VhcmNoP3E9U2VuaW9yJTIwU29mdHdhcm=
+UlMjBFbmdpbmVlciUyQyUyMFBheW1lbnRzJndoZXJlPVJvc2V2aWxsZSUyQyUyMENBJTJDJTIwV=
+VMmaWQ9Mjc5MTBlN2UtYzg4Zi00MzJiLTk0YzAtNjJlNmIwNjVhZTY3JnNvdXJjZU5hbWU9ZGlz=
+dHJpYnV0aW9uX2FsZXJ0c19yZWxldmFuY3kmc291cmNlVmFsdWU9MzkwMWVhMjctZmRjNC00YzN=
+mLWFmOWMtYzQ2ZjljNTc2OGYwJm1zdHJfZGlzdD10cnVlJnNpZD1lbWFpbF9maWxlX2QwNGFjNz=
+EzLTUzNDktNGNiYS04ZDY4LWI5YmJhNzQ0NWUxOCZzdHM9MTc5Mzk2ODA0MTU1NT9zaXRlaWQ9a=
+m9iYWxlcnQmaXBhdGg9RU1KQSZ1dG1fbWVkaXVtPWVtYWlsJnV0bV9zb3VyY2U9bWctbWt0ZyZ1=
+dG1fY2FtcGFpZ249Y3JiLW1rdGctam9icy1uZC1mcmVlbWl1bS1yZWdzLXYwJnV0bV90ZXJtPWZ=
+yZWVtaXVtIn0/gp0m9AJ_aHkOkh9A6nRYFA" style=3D"font-family: 'Manrope', Arial=
+, Helvetica, sans-serif; color: #212121; font-size:18px; font-weight:700; l=
+ine-height:28px; text-decoration:none;">Senior Software Engineer, Payments<=
+/a></td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:10px; font-size:0;" height=3D"10">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td valig=
+n=3D"top">
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"100%">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td style=3D"font-family: 'Manrope', Arial, Helvetica, sans-serif; color:#21=
+2121; font-size:14px; font-weight:400; line-height:22px; text-align:left;">
+                                                                           =
+ <div style=3D"display:inline-block" class=3D"em-block em-left mb8">
+                                                                           =
+   <span style=3D"vertical-align:middle;"><img src=3D"https://www.careerbui=
+lder.com/images/uploaded/email/mst/imglib/ic-company-grey.png" alt=3D"Icon =
+Company" width=3D"12" height=3D"16" style=3D"display:inline-block; vertical=
+-align:middle; border:none; margin-right:8px;" />GoodLeap</span>
+                                                                           =
+   <span class=3D"em-hide" style=3D"color:#212121; padding:0 5px; vertical-=
+align:middle;">|</span>
+                                                                           =
+ </div>
+                                                                           =
+ <div style=3D"display:inline-block" class=3D"em-block em-left mb8">
+                                                                           =
+   <span style=3D"vertical-align:middle;"><img src=3D"https://www.careerbui=
+lder.com/images/uploaded/email/mst/imglib/ic-location-grey.png" alt=3D"Icon=
+ Location" width=3D"16" height=3D"16" style=3D"display:inline-block; vertic=
+al-align:middle; border:none; margin-right:4px;" />Roseville, CA</span>
+                                                                           =
+ </div>
+                                                                          <=
+/td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:10px; font-size:0;" height=3D"10">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td valig=
+n=3D"top">
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"100%">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td style=3D"font-family: 'Manrope', Arial, Helvetica, sans-serif; color:#21=
+2121; font-size:14px; font-weight:400; line-height:22px; text-align:left;">
+                                                                          <=
+span style=3D"vertical-align:middle;">
+                                                                          <=
+img src=3D"https://www.careerbuilder.com/images/uploaded/email/mst/imglib/i=
+c-calendar-grey.png" alt=3D"Icon Clock" width=3D"16" height=3D"16" style=3D=
+"display:inline-block; vertical-align:middle; border:none; margin-right:6px=
+;" />Posted 1 week ago</span>
+                                                                          <=
+/td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:20px; font-size:0;" height=3D"20">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td>
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"width:150px;" wid=
+th=3D"150" class=3D"em-wrapper">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td align=3D"center" bgcolor=3D"#2F4AA0" height=3D"38" style=3D"font-family:=
+ 'Manrope', Arial, Helvetica, sans-serif; font-size:16px; color:#FFFFFF; fo=
+nt-weight:700; border-radius:4px" valign=3D"middle"><a href=3D"https://clic=
+k.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6aVpJMzhLSkdn=
+YmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMzZi1hZjljLWM=
+0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTRhZTk5MmI4Mj=
+ExYjk0IiwibSI6ZmFsc2UsInVpIjoiMyIsInVuIjoiIiwidSI6Imh0dHBzOi8vd3d3LmNhcmVlc=
+mJ1aWxkZXIuY29tL2pvYnMvc2VhcmNoP3E9U2VuaW9yJTIwU29mdHdhcmUlMjBFbmdpbmVlciUy=
+QyUyMFBheW1lbnRzJndoZXJlPVJvc2V2aWxsZSUyQyUyMENBJTJDJTIwVVMmaWQ9Mjc5MTBlN2U=
+tYzg4Zi00MzJiLTk0YzAtNjJlNmIwNjVhZTY3JnNvdXJjZU5hbWU9ZGlzdHJpYnV0aW9uX2FsZX=
+J0c19yZWxldmFuY3kmc291cmNlVmFsdWU9MzkwMWVhMjctZmRjNC00YzNmLWFmOWMtYzQ2ZjljN=
+Tc2OGYwJm1zdHJfZGlzdD10cnVlJnNpZD1lbWFpbF9maWxlX2QwNGFjNzEzLTUzNDktNGNiYS04=
+ZDY4LWI5YmJhNzQ0NWUxOCZzdHM9MTc5Mzk2ODA0MTU1NT9zaXRlaWQ9am9iYWxlcnQmaXBhdGg=
+9RU1KQSZ1dG1fbWVkaXVtPWVtYWlsJnV0bV9zb3VyY2U9bWctbWt0ZyZ1dG1fY2FtcGFpZ249Y3=
+JiLW1rdGctam9icy1uZC1mcmVlbWl1bS1yZWdzLXYwJnV0bV90ZXJtPWZyZWVtaXVtIn0/Ci9Rm=
+t3P4a8NL0EP9IE4aw" style=3D"color:#FFFFFF; text-decoration: none; display: =
+block; line-height:38px;" target=3D"_blank">View Job</a></td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                              </tbody>
+                                                            </table>
+                                                          </td>
+                                                        </tr>
+                                                      </tbody>
+                                                    </table>
+                                                  </td>
+                                                </tr>
+                                              </tbody>
+                                            </table>
+                                          </td>
+                                        </tr>
+                                        <tr><td style=3D"height:15px; font-=
+size:0;" height=3D"15">&nbsp;</td></tr>
+                                        <!-- Job list -->
+                                        <tr>
+                                          <td>
+                                            <table class=3D"job-card" style=
+=3D"width:100%; border-bottom:1px solid #D7D7D7; background-color:#FFFFFF;"=
+ cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                              <tbody>
+                                                <tr>
+                                                  <td class=3D"job-card-inn=
+er" style=3D"padding:20px 0;" valign=3D"top">
+                                                    <table style=3D"width:1=
+00%;" cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                                      <tbody>
+                                                        <tr>
+                                                          <td valign=3D"top=
+" style=3D"width:100%;">
+                                                            <table style=3D=
+"width:100%;" cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                                              <tbody>
+                                                                <tr>
+                                                                  <td><a hr=
+ef=3D"https://click.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy=
+1lbmM6aVpJMzhLSkdnYmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkY=
+zQtNGMzZi1hZjljLWM0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRi=
+NTBiOTRhZTk5MmI4MjExYjk0IiwibSI6ZmFsc2UsInVpIjoiMiIsInVuIjoiIiwidSI6Imh0dHB=
+zOi8vd3d3LmNhcmVlcmJ1aWxkZXIuY29tL2pvYnMvc2VhcmNoP3E9U2VuaW9yJTIwU29mdHdhcm=
+UlMjBFbmdpbmVlciUyQyUyMFBheW1lbnRzJndoZXJlPVJvc2V2aWxsZSUyQyUyMENBJTJDJTIwV=
+W5pdGVkJTIwU3RhdGVzJmlkPTUwMTMyZGJkLTQ2ODUtNGYxZi04ZjdlLTk2ODQ3YTE1YWY2YyZz=
+b3VyY2VOYW1lPWRpc3RyaWJ1dGlvbl9hbGVydHNfcmVsZXZhbmN5JnNvdXJjZVZhbHVlPTM5MDF=
+lYTI3LWZkYzQtNGMzZi1hZjljLWM0NmY5YzU3NjhmMCZtc3RyX2Rpc3Q9dHJ1ZSZzaWQ9ZW1haW=
+xfZmlsZV9kMDRhYzcxMy01MzQ5LTRjYmEtOGQ2OC1iOWJiYTc0NDVlMTgmc3RzPTE3OTM5NjgwN=
+DE1NTU_c2l0ZWlkPWpvYmFsZXJ0JmlwYXRoPUVNSkEmdXRtX21lZGl1bT1lbWFpbCZ1dG1fc291=
+cmNlPW1nLW1rdGcmdXRtX2NhbXBhaWduPWNyYi1ta3RnLWpvYnMtbmQtZnJlZW1pdW0tcmVncy1=
+2MCZ1dG1fdGVybT1mcmVlbWl1bSJ9/B4EzqL_LzTfDQnntCqzXpQ" style=3D"font-family:=
+ 'Manrope', Arial, Helvetica, sans-serif; color: #212121; font-size:18px; f=
+ont-weight:700; line-height:28px; text-decoration:none;">Senior Software En=
+gineer, Payments</a></td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:10px; font-size:0;" height=3D"10">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td valig=
+n=3D"top">
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"100%">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td style=3D"font-family: 'Manrope', Arial, Helvetica, sans-serif; color:#21=
+2121; font-size:14px; font-weight:400; line-height:22px; text-align:left;">
+                                                                           =
+ <div style=3D"display:inline-block" class=3D"em-block em-left mb8">
+                                                                           =
+   <span style=3D"vertical-align:middle;"><img src=3D"https://www.careerbui=
+lder.com/images/uploaded/email/mst/imglib/ic-company-grey.png" alt=3D"Icon =
+Company" width=3D"12" height=3D"16" style=3D"display:inline-block; vertical=
+-align:middle; border:none; margin-right:8px;" />GoodLeap LLC.</span>
+                                                                           =
+   <span class=3D"em-hide" style=3D"color:#212121; padding:0 5px; vertical-=
+align:middle;">|</span>
+                                                                           =
+ </div>
+                                                                           =
+ <div style=3D"display:inline-block" class=3D"em-block em-left mb8">
+                                                                           =
+   <span style=3D"vertical-align:middle;"><img src=3D"https://www.careerbui=
+lder.com/images/uploaded/email/mst/imglib/ic-location-grey.png" alt=3D"Icon=
+ Location" width=3D"16" height=3D"16" style=3D"display:inline-block; vertic=
+al-align:middle; border:none; margin-right:4px;" />Roseville, CA</span>
+                                                                           =
+ </div>
+                                                                          <=
+/td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:10px; font-size:0;" height=3D"10">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td valig=
+n=3D"top">
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"100%">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td style=3D"font-family: 'Manrope', Arial, Helvetica, sans-serif; color:#21=
+2121; font-size:14px; font-weight:400; line-height:22px; text-align:left;">
+                                                                          <=
+span style=3D"vertical-align:middle;">
+                                                                          <=
+img src=3D"https://www.careerbuilder.com/images/uploaded/email/mst/imglib/i=
+c-calendar-grey.png" alt=3D"Icon Clock" width=3D"16" height=3D"16" style=3D=
+"display:inline-block; vertical-align:middle; border:none; margin-right:6px=
+;" />Posted 1 week ago</span>
+                                                                          <=
+/td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:20px; font-size:0;" height=3D"20">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td>
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"width:150px;" wid=
+th=3D"150" class=3D"em-wrapper">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td align=3D"center" bgcolor=3D"#2F4AA0" height=3D"38" style=3D"font-family:=
+ 'Manrope', Arial, Helvetica, sans-serif; font-size:16px; color:#FFFFFF; fo=
+nt-weight:700; border-radius:4px" valign=3D"middle"><a href=3D"https://clic=
+k.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6aVpJMzhLSkdn=
+YmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMzZi1hZjljLWM=
+0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTRhZTk5MmI4Mj=
+ExYjk0IiwibSI6ZmFsc2UsInVpIjoiMyIsInVuIjoiIiwidSI6Imh0dHBzOi8vd3d3LmNhcmVlc=
+mJ1aWxkZXIuY29tL2pvYnMvc2VhcmNoP3E9U2VuaW9yJTIwU29mdHdhcmUlMjBFbmdpbmVlciUy=
+QyUyMFBheW1lbnRzJndoZXJlPVJvc2V2aWxsZSUyQyUyMENBJTJDJTIwVW5pdGVkJTIwU3RhdGV=
+zJmlkPTUwMTMyZGJkLTQ2ODUtNGYxZi04ZjdlLTk2ODQ3YTE1YWY2YyZzb3VyY2VOYW1lPWRpc3=
+RyaWJ1dGlvbl9hbGVydHNfcmVsZXZhbmN5JnNvdXJjZVZhbHVlPTM5MDFlYTI3LWZkYzQtNGMzZ=
+i1hZjljLWM0NmY5YzU3NjhmMCZtc3RyX2Rpc3Q9dHJ1ZSZzaWQ9ZW1haWxfZmlsZV9kMDRhYzcx=
+My01MzQ5LTRjYmEtOGQ2OC1iOWJiYTc0NDVlMTgmc3RzPTE3OTM5NjgwNDE1NTU_c2l0ZWlkPWp=
+vYmFsZXJ0JmlwYXRoPUVNSkEmdXRtX21lZGl1bT1lbWFpbCZ1dG1fc291cmNlPW1nLW1rdGcmdX=
+RtX2NhbXBhaWduPWNyYi1ta3RnLWpvYnMtbmQtZnJlZW1pdW0tcmVncy12MCZ1dG1fdGVybT1mc=
+mVlbWl1bSJ9/2hX3h1HllQH_pBHufWZ2RA" style=3D"color:#FFFFFF; text-decoration=
+: none; display: block; line-height:38px;" target=3D"_blank">View Job</a></=
+td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                              </tbody>
+                                                            </table>
+                                                          </td>
+                                                        </tr>
+                                                      </tbody>
+                                                    </table>
+                                                  </td>
+                                                </tr>
+                                              </tbody>
+                                            </table>
+                                          </td>
+                                        </tr>
+                                        <tr><td style=3D"height:15px; font-=
+size:0;" height=3D"15">&nbsp;</td></tr>
+                                        <!-- Job list -->
+                                        <tr>
+                                          <td>
+                                            <table class=3D"job-card" style=
+=3D"width:100%; border-bottom:1px solid #D7D7D7; background-color:#FFFFFF;"=
+ cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                              <tbody>
+                                                <tr>
+                                                  <td class=3D"job-card-inn=
+er" style=3D"padding:20px 0;" valign=3D"top">
+                                                    <table style=3D"width:1=
+00%;" cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                                      <tbody>
+                                                        <tr>
+                                                          <td valign=3D"top=
+" style=3D"width:100%;">
+                                                            <table style=3D=
+"width:100%;" cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+                                                              <tbody>
+                                                                <tr>
+                                                                  <td><a hr=
+ef=3D"https://click.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy=
+1lbmM6aVpJMzhLSkdnYmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkY=
+zQtNGMzZi1hZjljLWM0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRi=
+NTBiOTRhZTk5MmI4MjExYjk0IiwibSI6ZmFsc2UsInVpIjoiMiIsInVuIjoiIiwidSI6Imh0dHB=
+zOi8vd3d3LmNhcmVlcmJ1aWxkZXIuY29tL2pvYnMvc2VhcmNoP3E9U0FQJTIwSW50ZWdyYXRpb2=
+4lMjBFbmdpbmVlciZ3aGVyZT1DYXJtaWNoYWVsJTJDJTIwQ0ElMkMlMjBVUyZpZD0wODJiZTI2Z=
+S05YzI0LTRmMmMtOWJmNC1mNWUyYmMyZGUxNmEmc291cmNlTmFtZT1kaXN0cmlidXRpb25fYWxl=
+cnRzX3JlbGV2YW5jeSZzb3VyY2VWYWx1ZT0zOTAxZWEyNy1mZGM0LTRjM2YtYWY5Yy1jNDZmOWM=
+1NzY4ZjAmbXN0cl9kaXN0PXRydWUmc2lkPWVtYWlsX2ZpbGVfZDA0YWM3MTMtNTM0OS00Y2JhLT=
+hkNjgtYjliYmE3NDQ1ZTE4JnN0cz0xNzkzOTY4MDQxNTU1P3NpdGVpZD1qb2JhbGVydCZpcGF0a=
+D1FTUpBJnV0bV9tZWRpdW09ZW1haWwmdXRtX3NvdXJjZT1tZy1ta3RnJnV0bV9jYW1wYWlnbj1j=
+cmItbWt0Zy1qb2JzLW5kLWZyZWVtaXVtLXJlZ3MtdjAmdXRtX3Rlcm09ZnJlZW1pdW0ifQ/_Tbx=
+fYOw8jUhYO7cP-LHUA" style=3D"font-family: 'Manrope', Arial, Helvetica, sans=
+-serif; color: #212121; font-size:18px; font-weight:700; line-height:28px; =
+text-decoration:none;">SAP Integration Engineer</a></td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:10px; font-size:0;" height=3D"10">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td valig=
+n=3D"top">
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"100%">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td style=3D"font-family: 'Manrope', Arial, Helvetica, sans-serif; color:#21=
+2121; font-size:14px; font-weight:400; line-height:22px; text-align:left;">
+                                                                           =
+ <div style=3D"display:inline-block" class=3D"em-block em-left mb8">
+                                                                           =
+   <span style=3D"vertical-align:middle;"><img src=3D"https://www.careerbui=
+lder.com/images/uploaded/email/mst/imglib/ic-company-grey.png" alt=3D"Icon =
+Company" width=3D"12" height=3D"16" style=3D"display:inline-block; vertical=
+-align:middle; border:none; margin-right:8px;" />Ensisinfo Inc</span>
+                                                                           =
+   <span class=3D"em-hide" style=3D"color:#212121; padding:0 5px; vertical-=
+align:middle;">|</span>
+                                                                           =
+ </div>
+                                                                           =
+ <div style=3D"display:inline-block" class=3D"em-block em-left mb8">
+                                                                           =
+   <span style=3D"vertical-align:middle;"><img src=3D"https://www.careerbui=
+lder.com/images/uploaded/email/mst/imglib/ic-location-grey.png" alt=3D"Icon=
+ Location" width=3D"16" height=3D"16" style=3D"display:inline-block; vertic=
+al-align:middle; border:none; margin-right:4px;" />Carmichael, CA</span>
+                                                                           =
+ </div>
+                                                                          <=
+/td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:10px; font-size:0;" height=3D"10">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td valig=
+n=3D"top">
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"100%">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td style=3D"font-family: 'Manrope', Arial, Helvetica, sans-serif; color:#21=
+2121; font-size:14px; font-weight:400; line-height:22px; text-align:left;">
+                                                                          <=
+span style=3D"vertical-align:middle;">
+                                                                          <=
+img src=3D"https://www.careerbuilder.com/images/uploaded/email/mst/imglib/i=
+c-calendar-grey.png" alt=3D"Icon Clock" width=3D"16" height=3D"16" style=3D=
+"display:inline-block; vertical-align:middle; border:none; margin-right:6px=
+;" />Posted 1 week ago</span>
+                                                                          <=
+/td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                                <tr><td sty=
+le=3D"height:20px; font-size:0;" height=3D"20">&nbsp;</td></tr>
+                                                                <tr>
+                                                                  <td>
+                                                                    <table =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"width:150px;" wid=
+th=3D"150" class=3D"em-wrapper">
+                                                                      <tbod=
+y>
+                                                                        <tr=
+>
+                                                                          <=
+td align=3D"center" bgcolor=3D"#2F4AA0" height=3D"38" style=3D"font-family:=
+ 'Manrope', Arial, Helvetica, sans-serif; font-size:16px; color:#FFFFFF; fo=
+nt-weight:700; border-radius:4px" valign=3D"middle"><a href=3D"https://clic=
+k.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6aVpJMzhLSkdn=
+YmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMzZi1hZjljLWM=
+0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTRhZTk5MmI4Mj=
+ExYjk0IiwibSI6ZmFsc2UsInVpIjoiMyIsInVuIjoiIiwidSI6Imh0dHBzOi8vd3d3LmNhcmVlc=
+mJ1aWxkZXIuY29tL2pvYnMvc2VhcmNoP3E9U0FQJTIwSW50ZWdyYXRpb24lMjBFbmdpbmVlciZ3=
+aGVyZT1DYXJtaWNoYWVsJTJDJTIwQ0ElMkMlMjBVUyZpZD0wODJiZTI2ZS05YzI0LTRmMmMtOWJ=
+mNC1mNWUyYmMyZGUxNmEmc291cmNlTmFtZT1kaXN0cmlidXRpb25fYWxlcnRzX3JlbGV2YW5jeS=
+Zzb3VyY2VWYWx1ZT0zOTAxZWEyNy1mZGM0LTRjM2YtYWY5Yy1jNDZmOWM1NzY4ZjAmbXN0cl9ka=
+XN0PXRydWUmc2lkPWVtYWlsX2ZpbGVfZDA0YWM3MTMtNTM0OS00Y2JhLThkNjgtYjliYmE3NDQ1=
+ZTE4JnN0cz0xNzkzOTY4MDQxNTU1P3NpdGVpZD1qb2JhbGVydCZpcGF0aD1FTUpBJnV0bV9tZWR=
+pdW09ZW1haWwmdXRtX3NvdXJjZT1tZy1ta3RnJnV0bV9jYW1wYWlnbj1jcmItbWt0Zy1qb2JzLW=
+5kLWZyZWVtaXVtLXJlZ3MtdjAmdXRtX3Rlcm09ZnJlZW1pdW0ifQ/ZOGnqO2siiRwxHLS5Op-mA=
+" style=3D"color:#FFFFFF; text-decoration: none; display: block; line-heigh=
+t:38px;" target=3D"_blank">View Job</a></td>
+                                                                        </t=
+r>
+                                                                      </tbo=
+dy>
+                                                                    </table=
+>
+                                                                  </td>
+                                                                </tr>
+                                                              </tbody>
+                                                            </table>
+                                                          </td>
+                                                        </tr>
+                                                      </tbody>
+                                                    </table>
+                                                  </td>
+                                                </tr>
+                                              </tbody>
+                                            </table>
+                                          </td>
+                                        </tr>
+                                        <tr><td style=3D"height:15px; font-=
+size:0;" height=3D"15">&nbsp;</td></tr>
+                                       =20
+                                        <tr><td class=3D"em-height-30" styl=
+e=3D"height:40px; font-size:0;" height=3D"40"></td></tr>
+                                        <tr>
+                                          <td align=3D"center" valign=3D"to=
+p">
+                                            <table align=3D"center" border=
+=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"width:280px;" width=3D"=
+280" class=3D"em-wrapper">
+                                              <tbody>
+                                                <tr>
+                                                  <td align=3D"center" heig=
+ht=3D"48" style=3D"font-family: 'Manrope', Arial, Helvetica, sans-serif; fo=
+nt-size:18px; color:#2F4AA0; font-weight:700; border:2px solid #2F4AA0; bor=
+der-radius:4px" valign=3D"middle"><a href=3D"https://click.mg.careerbuilder=
+.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6aVpJMzhLSkdnYmxteWxva200THMrNj=
+ZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMzZi1hZjljLWM0NmY5YzU3NjhmMCIsI=
+nJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTRhZTk5MmI4MjExYjk0IiwibSI6ZmFs=
+c2UsInVpIjoiNCIsInVuIjoiIiwidSI6Imh0dHBzOi8vd3d3LmNhcmVlcmJ1aWxkZXIuY29tL2p=
+vYi1saXN0aW5ncy9zZWFyY2g_a2V5d29yZHM9SnVuaW9yJTIwU29mdHdhcmUlMjBFbmdpbmVlci=
+Zsb2NhdGlvbj1EYXZpcyUyQyUyMENhbGlmb3JuaWEmc291cmNlTmFtZT1kaXN0cmlidXRpb25fY=
+WxlcnRzX3JlbGV2YW5jeSZzb3VyY2VWYWx1ZT0zOTAxZWEyNy1mZGM0LTRjM2YtYWY5Yy1jNDZm=
+OWM1NzY4ZjAmc2lkPWVtYWlsX2ZpbGVfZDA0YWM3MTMtNTM0OS00Y2JhLThkNjgtYjliYmE3NDQ=
+1ZTE4JnN0cz0xNzkzOTY4MDQ5NTI0JnNpdGVpZD1qb2JhbGVydCZ1dG1fbWVkaXVtPWVtYWlsJn=
+V0bV9zb3VyY2U9bWctbWt0ZyZ1dG1fY2FtcGFpZ249Y3JiLW1rdGctam9icy1uZC1mcmVlbWl1b=
+S1yZWdzLXYwJnV0bV90ZXJtPWZyZWVtaXVtIn0/W757jEu7NZFcbjXsNHmg4A" style=3D"col=
+or:#2F4AA0; text-decoration: none; display: block; line-height:48px;" targe=
+t=3D"_blank">View All Latest Matches</a></td>
+                                                </tr>
+                                              </tbody>
+                                            </table>
+                                          </td>
+                                        </tr>                              =
+         =20
+                                        <tr><td class=3D"em-height-30" styl=
+e=3D"height:40px; font-size:0;" height=3D"40"></td></tr>
+                                      </tbody>
+                                    </table>
+                                  </td>
+                                  <td class=3D"em-side" width=3D"40"></td>
+                                </tr>
+                              </tbody>
+                            </table>     =20
+                           =20
+                            <!--start footer-->
+                    <table border=3D"0" cellpadding=3D"0" cellspacing=3D"0"=
+ width=3D"100%">
+                      <tbody>
+                        <tr>
+                          <td class=3D"em-side" width=3D"40">
+                          </td>
+                          <td valign=3D"top">
+                            <table border=3D"0" cellpadding=3D"0" cellspaci=
+ng=3D"0" width=3D"100%">
+                              <tbody>
+                                <tr><td height=3D"25" style=3D"height:25px;=
+font-size:0;"></td></tr>
+                                <tr>
+                                  <td
+                                  style=3D"color:#212121; font-size:12px; l=
+ine-height:16px; font-weight:400; font-family: 'Proxima Nova', 'Segoe UI', =
+sans-serif;" align=3D"center">
+                                  <a style=3D"color:#212121; font-size:12px=
+; line-height:16px; font-weight:600; font-family: 'Proxima Nova', 'Segoe UI=
+', sans-serif; text-decoration:underline;" target=3D"_blank" href=3D"https:=
+//click.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6aVpJMz=
+hLSkdnYmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMzZi1hZ=
+jljLWM0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTRhZTk5=
+MmI4MjExYjk0IiwibSI6ZmFsc2UsInVpIjoiMTQiLCJ1biI6IiIsInUiOiJodHRwczovL3d3dy5=
+jYXJlZXJidWlsZGVyLmNvbS9pbnNpZGUvcHJpdmFjeS1ub3RpY2UvY29udGFjdC1pbmZvcm1hdG=
+lvbj9waWQ9MzkwMWVhMjctZmRjNC00YzNmLWFmOWMtYzQ2ZjljNTc2OGYwJnV0bV9tZWRpdW09Z=
+W1haWwmaHQ9ZWMmdXRtX3NvdXJjZT1tZy1ta3RnIn0/ILSWUhzKLCGTYH8QlXDtbg">Contact =
+Us</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a style=3D"color:#212121; font-size:12px; l=
+ine-height:16px; font-weight:600; font-family: 'Proxima Nova', 'Segoe UI', =
+sans-serif; text-decoration:underline;" target=3D"_blank" href=3D"https://c=
+lick.mg.careerbuilder.com/c/7/eyJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6aVpJMzhLS=
+kdnYmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMzZi1hZjlj=
+LWM0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTRhZTk5MmI=
+4MjExYjk0IiwibSI6ZmFsc2UsInVpIjoiMTUiLCJ1biI6IiIsInUiOiJodHRwczovL3d3dy5jYX=
+JlZXJidWlsZGVyLmNvbS9pbnNpZGUvdGVybXMtb2YtdXNlP3BpZD0zOTAxZWEyNy1mZGM0LTRjM=
+2YtYWY5Yy1jNDZmOWM1NzY4ZjAmdXRtX21lZGl1bT1lbWFpbCZodD1lYyZ1dG1fc291cmNlPW1n=
+LW1rdGcifQ/gKz8OvfixOOpcxMvQ9dUAQ">Terms of Us</a>&nbsp;&nbsp;|&nbsp;&nbsp;=
+<a style=3D"color:#212121; font-size:12px; line-height:16px; font-weight:60=
+0; font-family: 'Proxima Nova', 'Segoe UI', sans-serif; text-decoration:und=
+erline;" target=3D"_blank" href=3D"https://click.mg.careerbuilder.com/c/7/e=
+yJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6aVpJMzhLSkdnYmxteWxva200THMrNjZVdDlMS0NR=
+ZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMzZi1hZjljLWM0NmY5YzU3NjhmMCIsInJxIjoiMDI=
+tZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTRhZTk5MmI4MjExYjk0IiwibSI6ZmFsc2UsInVpIj=
+oiMTYiLCJ1biI6IiIsInUiOiJodHRwczovL3d3dy5jYXJlZXJidWlsZGVyLmNvbS9pbnNpZGUvc=
+HJpdmFjeT9waWQ9MzkwMWVhMjctZmRjNC00YzNmLWFmOWMtYzQ2ZjljNTc2OGYwJnV0bV9tZWRp=
+dW09ZW1haWwmaHQ9ZWMmdXRtX3NvdXJjZT1tZy1ta3RnIn0/kghpMeF9UU8P_RpMKbhUgQ">Pri=
+vacy Center</a><br /><br />
+                                  This email was sent to: marquiseclott@gma=
+il.com<br /><br />
+                                  If you no longer want to receive emails f=
+rom CareerBuilder, you can <a style=3D"color:#212121; font-size:12px; line-=
+height:16px; font-weight:600; font-family: 'Proxima Nova', 'Segoe UI', sans=
+-serif; text-decoration:underline;" target=3D"_blank" href=3D"https://click=
+.mg.careerbuilder.com/uu/3/eyJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6aVpJMzhLSkdn=
+YmxteWxva200THMrNjZVdDlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMzZi1hZjljLWM=
+0NmY5YzU3NjhmMCIsInJxIjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTRhZTk5MmI4Mj=
+ExYjk0IiwibSI6ZmFsc2V9/YYOj2VU4rTYOpCnY7yhPSg">unsubscribe</a>.<br /><br />
+                                  &copy; 2026 MCB Bermuda Ltd.<br />
+                                  MCB Puerto Rico LLC | City View Plaza II,=
+ Ste 6000,<br />
+                                  48 Road 165, Guaynabo, PR 00968
+                                  </td>
+                                </tr>
+                                <tr><td height=3D"25" style=3D"height:25px;=
+font-size:0;"></td></tr>
+                              </tbody>
+                            </table>
+                          </td>
+                          <td class=3D"em-side" width=3D"40">
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>                              <!--end footer-->
+                            </td>
+                          </tr>                 =20
+                        </tbody>
+                      </table>
+                      <!--[if (gte mso 9)|(IE)]>
+                        </td>
+                        </tr>
+                        </table>
+                      <![endif]-->
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <table width=3D"1" cellpadding=3D"0" cellspacing=3D"0" border=
+=3D"0" role=3D"presentation"><tr><td style=3D"font-size:0; line-height:0; m=
+so-line-height-rule:exactly;"><img src=3D"https://click.mg.careerbuilder.co=
+m/o/4/eyJhaSI6NzgyMjk4MTksImUiOiJtZy1lbmM6aVpJMzhLSkdnYmxteWxva200THMrNjZVd=
+DlMS0NRZUMiLCJyaSI6IjM5MDFlYTI3LWZkYzQtNGMzZi1hZjljLWM0NmY5YzU3NjhmMCIsInJx=
+IjoiMDItZDI2MzEwLTE0ZTFjNzFkNTgwZDRiNTBiOTRhZTk5MmI4MjExYjk0In0/gtbudx-CbcF=
+jpJb2T6VV8w" width=3D"1" height=3D"1" border=3D"0" vspace=3D"0" hspace=3D"0=
+" alt=3D"" /></td></tr></table></body>
+          </html>
+------=_Part_110732025_1657260770.1793974185228--
+
+------=_Part_110732024_188612766.1793974185228--

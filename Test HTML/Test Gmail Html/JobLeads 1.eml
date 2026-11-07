@@ -1,0 +1,2131 @@
+Delivered-To: marquiseclott@gmail.com
+Received: by 2002:ab0:1e41:0:b0:996:7c09:94dd with SMTP id n1csp2247076uak;
+        Thu, 5 Nov 2026 11:24:19 -0800 (PST)
+X-Received: by 2002:a17:906:9f8b:b0:c25:4d9e:bb28 with SMTP id a640c23a62f3a-c4d20151a6dmr330413666b.3.1793906659355;
+        Thu, 05 Nov 2026 11:24:19 -0800 (PST)
+ARC-Seal: i=1; a=rsa-sha256; t=1793906659; cv=none;
+        d=google.com; s=arc-20260327;
+        b=qkowf29NfROApHedt4q2CJ2se/Ex7mfGzxMxBvQ73o66bKCxHJGyYhbpagT51ySe7J
+         llJN93hOe9CflIXr1lPUF1CH+s872lym4AWVlETjXw/y2+PDCKZBGH46PblCkW8mD3Ou
+         ez024RA8cEdXpOXmnbQFx6GhZVdS2qqIVyCQbuVwCCMVYrCLbveTpiRhdCaHR1H4WtTp
+         FDDlWYW3Jvjb2HDLP+fgWqGlSXc8kzN8ByFhSeO6VG1Sc1GDg4q4jSVRUGiU9dCRN6Cu
+         9vupECS/nH5KE5gGlwmFxZfDKUpKFZtHSZz2BNR5y/zvaVJ1H6f6/ksjwvWlRu2gGBlK
+         bocg==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20260327;
+        h=date:mime-version:message-id:reply-to:list-unsubscribe-post
+         :list-unsubscribe:subject:to:from:dkim-signature;
+        bh=/qPp+Ga7OjD1GqCMJJy6km7nhqEzSNgYe8AfHYySw2Y=;
+        fh=k+xgOm9uEncgspGMKr6hb5y0UE6ZHgPfMRyec/YejGU=;
+        b=qgxtphGZCV8vQPF6H2gH7G0LckIYkNjf8jRKLc/d25hBiQKQfibAMcgnAF7oWfS4W2
+         Gv8nJiYPThOoou4iFAIjNSrGongrg6lGsP9f2nJMQClZJelbR5w8/clFX31vt8LqJZSg
+         HUwmecgJaJ44/6A2zhmnru+G3JCEW9+BkOc15eOqBPIzXl/zDapTnI/Ffs+cHri2H9sb
+         J9IhmLURRtMwdagybwRurg2sgFZZC9eaaDundX+4iWD/rUGCUhvEriBq/ozxFtZxWy4b
+         g5vLyDIF/HUf4BT+51lJ5W30L0UH5NKTagIPJh1+1dyQc4tea0TNOQ0jlu8G5U0XpwkW
+         8qhw==;
+        dara=google.com
+ARC-Authentication-Results: i=1; mx.google.com;
+       dkim=pass header.i=@jobleads.com header.s=cpx header.b=IZGDhxf7;
+       spf=pass (google.com: domain of bounces+bwfycxvpc2vjbg90debnbwfpbc5jb20=.73570127.1793906658@bounces.jobleads.com designates 194.6.195.226 as permitted sender) smtp.mailfrom="bounces+bWFycXVpc2VjbG90dEBnbWFpbC5jb20=.73570127.1793906658@bounces.jobleads.com";
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=jobleads.com
+Return-Path: <bounces+bWFycXVpc2VjbG90dEBnbWFpbC5jb20=.73570127.1793906658@bounces.jobleads.com>
+Received: from jobleads-mail.jobleads.de (jobleads-mail.jobleads.de. [194.6.195.226])
+        by mx.google.com with ESMTPS id 4fb4d7f45d1cf-6b55ad480c1si6158415a12.232.2026.11.05.11.24.19
+        for <marquiseclott@gmail.com>
+        (version=TLS1_3 cipher=TLS_AES_256_GCM_SHA384 bits=256/256);
+        Thu, 05 Nov 2026 11:24:19 -0800 (PST)
+Received-SPF: pass (google.com: domain of bounces+bwfycxvpc2vjbg90debnbwfpbc5jb20=.73570127.1793906658@bounces.jobleads.com designates 194.6.195.226 as permitted sender) client-ip=194.6.195.226;
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@jobleads.com header.s=cpx header.b=IZGDhxf7;
+       spf=pass (google.com: domain of bounces+bwfycxvpc2vjbg90debnbwfpbc5jb20=.73570127.1793906658@bounces.jobleads.com designates 194.6.195.226 as permitted sender) smtp.mailfrom="bounces+bWFycXVpc2VjbG90dEBnbWFpbC5jb20=.73570127.1793906658@bounces.jobleads.com";
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=jobleads.com
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=jobleads.com; s=cpx;
+	t=1793906659; bh=MkUPm6rPvYUYslV7dhUB8Jn+aVjjDn1trsw1wakbFaE=;
+	h=From:To:Subject:List-Unsubscribe:List-Unsubscribe-Post:Date;
+	b=IZGDhxf79IzmpTQuxsa/Yl1JU16n9ia2VXKBR3fH4cYtzgthXnhxpeKyGMwEks9zi
+	 25g3eotEfG127fgTnW0L4m121smHhKsGaulfaEl12xceYkQWZbnyO3Ds9qEoUXL0Ds
+	 OJboIoaEZpYyjdyQZgdRCy05X9cznS6FTTcBODLr2fz9pB1nn8gZbqbsi1WnbFTNl+
+	 FVdx1RR+2uS7Y6Jx4qhXpWf3v7dGva1Rhb6NpS7X6DLHibpdjlYPrTx02GGW2AiIEK
+	 E0+HK8iITwP7cdY2HuVLC+lZ2Qip2tVfXcx/2TJJr+IH3mKqLbM5XXv81tvRZ/HLWG
+	 Guq60psOlg6+g==
+Received: from [127.0.0.1] (k8s-worker08.prod.jobleads.ham1.cpx.cloud [10.230.1.22])
+	by jobleads-mail.jobleads.de (Postfix) with ESMTPS id 0300C38156CF
+	for <marquiseclott@gmail.com>; Thu,  5 Nov 2026 20:24:19 +0100 (CET)
+From: JobLeads <mailer@jobleads.com>
+To: Marq Lott <marquiseclott@gmail.com>
+Subject: There are 5 new jobs matching your saved search for November 5:
+ Backend Engineer
+List-Unsubscribe: <https://www.jobleads.com/user/api/v3/notification/unsubscribe?kuuid=f5014a8cc87b6dbbaed169c9111feeac>,
+ <mailto:unsubscribe@jobleads.com?subject=unsubscribe>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+Reply-To: no-reply@jobleads.com
+Message-ID: <27c83223d49c1bdd865d3f46bbefb2b8@jobleads.com>
+MIME-Version: 1.0
+Date: Thu, 05 Nov 2026 20:24:19 +0100
+Content-Type: multipart/alternative; boundary=jSsimxcQ
+
+--jSsimxcQ
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+New jobs for November 5Based on your saved searchMost relevant results base=
+d on your search for <span style=3D"font-weight:500;">'Backend Engineer, Ba=
+ckend Developer, Back End Developer, Junior Software Developer, Graduate So=
+ftware Engineer, Junior Software Engineer, Software Developer, Software Eng=
+ineer, Austin, USA'</span>-----------------------------
+
+Software Engin=
+eer (Backend / Full Stack)
+- Austin, TX
+- in_person
+- USD 75,000 - 12=
+0,000
+- full_time
+View job: https://www.jobleads.com/us/job/software-en=
+gineer-backend-full-stack--austin--e60853f44cd50c0a9d0154d99e0ca9e51?kuuid=
+=3Df5014a8cc87b6dbbaed169c9111feeac&saved_search_email_id=3D01a1163c-65a4-7=
+452-a89d-e9ea05940e8d&view=3Dsearch&utm_source=3Dvdb_is_saved_search&utm_me=
+dium=3Demail&utm_campaign=3Dcampaign%3Dvdb_is_job_alert&utm_content=3Djob_i=
+d%3Dexternal-60853f44cd50c0a9d0154d99e0ca9e51%7Csearch_id%3D01a1163c-65a4-7=
+452-a89d-e9ea05940e8d%7Ccontent%3Djob_card&search_id=3D256c786e-8d44-4965-9=
+cd6-343d3e21c830&vector_distance=3D0.6755791&job_rank=3D1&m=3D9a50f464-2b36=
+-476e-8f8e-5d4bbf2de68f&u=3D73570127&t=3Did_1752225913
+
+Junior Backend =
+& Full-Stack Engineer - Launch Your Career
+- Austin, TX
+- in_person
+-=
+ USD 75,000 - 120,000
+- full_time
+View job: https://www.jobleads.com/us=
+/job/junior-backend-full-stack-engineer-launch-your-career--austin--e7c3e18=
+8aaf79fa4d084dcbcc8613195b?kuuid=3Df5014a8cc87b6dbbaed169c9111feeac&saved_s=
+earch_email_id=3D01a1163c-65a4-7452-a89d-e9ea05940e8d&view=3Dsearch&utm_sou=
+rce=3Dvdb_is_saved_search&utm_medium=3Demail&utm_campaign=3Dcampaign%3Dvdb_=
+is_job_alert&utm_content=3Djob_id%3Dexternal-7c3e188aaf79fa4d084dcbcc861319=
+5b%7Csearch_id%3D01a1163c-65a4-7452-a89d-e9ea05940e8d%7Ccontent%3Djob_card&=
+search_id=3D256c786e-8d44-4965-9cd6-343d3e21c830&vector_distance=3D0.592098=
+24&job_rank=3D2&m=3D9a50f464-2b36-476e-8f8e-5d4bbf2de68f&u=3D73570127&t=3Di=
+d_1752225913
+
+Backend Engineer
+- New York, NY
+- in_person
+- USD 1=
+20,000 - 170,000
+- full_time
+View job: https://www.jobleads.com/us/job/=
+backend-engineer--new-york--ee1f2ac49c0ad84d2248a11939f2e84b7?kuuid=3Df5014=
+a8cc87b6dbbaed169c9111feeac&saved_search_email_id=3D01a1163c-65a4-7452-a89d=
+-e9ea05940e8d&view=3Dsearch&utm_source=3Dvdb_is_saved_search&utm_medium=3De=
+mail&utm_campaign=3Dcampaign%3Dvdb_is_job_alert&utm_content=3Djob_id%3Dexte=
+rnal-e1f2ac49c0ad84d2248a11939f2e84b7%7Csearch_id%3D01a1163c-65a4-7452-a89d=
+-e9ea05940e8d%7Ccontent%3Djob_card&search_id=3D256c786e-8d44-4965-9cd6-343d=
+3e21c830&vector_distance=3D0.569767&job_rank=3D3&m=3D9a50f464-2b36-476e-8f8=
+e-5d4bbf2de68f&u=3D73570127&t=3Did_1752225913
+
+Backend Engineer
+- San=
+ Francisco, CA
+- in_person
+- USD 140,000 - 200,000
+- full_time
+View=
+ job: https://www.jobleads.com/us/job/backend-engineer--san-francisco--ea84=
+e4538279394fb3df104b94ef3e12d?kuuid=3Df5014a8cc87b6dbbaed169c9111feeac&save=
+d_search_email_id=3D01a1163c-65a4-7452-a89d-e9ea05940e8d&view=3Dsearch&utm_=
+source=3Dvdb_is_saved_search&utm_medium=3Demail&utm_campaign=3Dcampaign%3Dv=
+db_is_job_alert&utm_content=3Djob_id%3Dexternal-a84e4538279394fb3df104b94ef=
+3e12d%7Csearch_id%3D01a1163c-65a4-7452-a89d-e9ea05940e8d%7Ccontent%3Djob_ca=
+rd&search_id=3D256c786e-8d44-4965-9cd6-343d3e21c830&vector_distance=3D0.568=
+7561&job_rank=3D4&m=3D9a50f464-2b36-476e-8f8e-5d4bbf2de68f&u=3D73570127&t=
+=3Did_1752225913
+
+Backend Python Developer =E2=80=93 Entry Level
+- Lo=
+s Angeles, CA
+- in_person
+- USD 60,000 - 90,000
+- full_time
+View jo=
+b: https://www.jobleads.com/us/job/backend-python-developer-entry-level--lo=
+s-angeles--e89a215100f2c76f09bcc435c1753987c?kuuid=3Df5014a8cc87b6dbbaed169=
+c9111feeac&saved_search_email_id=3D01a1163c-65a4-7452-a89d-e9ea05940e8d&vie=
+w=3Dsearch&utm_source=3Dvdb_is_saved_search&utm_medium=3Demail&utm_campaign=
+=3Dcampaign%3Dvdb_is_job_alert&utm_content=3Djob_id%3Dexternal-89a215100f2c=
+76f09bcc435c1753987c%7Csearch_id%3D01a1163c-65a4-7452-a89d-e9ea05940e8d%7Cc=
+ontent%3Djob_card&search_id=3D256c786e-8d44-4965-9cd6-343d3e21c830&vector_d=
+istance=3D0.5667&job_rank=3D5&m=3D9a50f464-2b36-476e-8f8e-5d4bbf2de68f&u=3D=
+73570127&t=3Did_1752225913
+-----------------------------
+View all resul=
+ts: https://www.jobleads.com/us/jobs?kuuid=3Df5014a8cc87b6dbbaed169c9111fee=
+ac&saved_search_email_id=3D01a1163c-65a4-7452-a89d-e9ea05940e8d&utm_campaig=
+n=3Dcampaign%3Dvdb_is_job_alert&utm_content=3Dsearch_id%3D01a1163c-65a4-745=
+2-a89d-e9ea05940e8d%7Ccontent%3Dview_all_results_button&utm_medium=3Demail&=
+utm_source=3Dvdb_is_saved_search&view=3Dsearch&m=3D9a50f464-2b36-476e-8f8e-=
+5d4bbf2de68f&u=3D73570127&t=3Did_1752225913
+-----------------------------=
+
+For more resume and job search tips, connect with us!
+https://www.inst=
+agram.com/jobleadscom/
+https://www.youtube.com/channel/UCD-tDcD6v8Fr7ag0B=
+OIRTyA
+https://www.facebook.com/JobLeads/
+https://www.linkedin.com/comp=
+any/jobleads-gmbh/
+------------------------------------------------------=
+-----------------------------------------
+
+Having problems logging in? =
+Click here.
+
+https://www.jobleads.com/forgot-password?utm_source=3D&utm=
+_medium=3Demail-footer&utm_campaign=3Dpassword-reminder
+
+
+Do you have=
+ questions or need help? Please check out our Help Center.
+
+https://sup=
+port.jobleads.com?utm_source=3D&utm_medium=3Demail-footer&utm_campaign=3Dcu=
+stomer-service
+
+You are getting this email because you are registered a=
+s a member of JobLeads. If you do not wish to receive emails anymore, pleas=
+e unsubscribe.
+
+https://www.jobleads.com/manage-email-notifications?kuu=
+id=3D&utm_source=3D&utm_medium=3Demail-footer&utm_campaign=3Doptout
+
+=
+
+------------------------------------------------------------------------=
+-----------------------
+
+(c) JobLeads GmbH | Brandstwiete 4 | 20457 Ham=
+burg, Germany
+Commercial Register: District Court of Hamburg - HRB 101441=
+
+Managing Directors: Christian von Ahlen, Jan Hendrik von Ahlen, Martin S=
+chmidt
+
+--jSsimxcQ
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+
+
+
+
+<!doctype html>
+<html xmlns=3D"http://www.w3.org/1999/xhtml" =
+xmlns:v=3D"urn:schemas-microsoft-com:vml"
+    xmlns:o=3D"urn:schemas-micr=
+osoft-com:office:office">
+
+<head>
+    <!--[if gte mso 15]>
+    <xml=
+>
+        <o:OfficeDocumentSettings>
+            <o:AllowPNG/>
+      =
+      <o:PixelsPerInch>96</o:PixelsPerInch>
+        </o:OfficeDocumentSet=
+tings>
+    </xml>
+    <![endif]-->
+    <meta charset=3D"UTF-8" />
+ =
+   <meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge">
+    <meta =
+name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=3D1.0" />=
+
+    <meta name=3D"format-detection" content=3D"telephone=3Dno" />
+    =
+<title>New jobs for November 5</title>
+
+    <style type=3D"text/css">=
+
+        body, div, a, td, h1, h2, h3, h4, h5, h6, center, span, li {
+ =
+           font-family: Arial, sans-serif;
+            letter-spacing: -0=
+.1px;
+            margin-bottom: 0;
+            margin-top: 0;
+      =
+      margin: 0;
+            margin: 0em;
+            margin-top: 0em;=
+
+            margin-bottom: 0em;
+        }
+
+        p img {
+     =
+       display: inline !important;
+        }
+
+        @media screen {=
+
+            @font-face {
+                font-family: 'Inter';
+     =
+           font-style: normal;
+                font-weight: 300;
+      =
+          font-display: swap;
+                src: local('Inter Light'), =
+local('Inter-Light'), url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3i=
+LTeHuS_nVMrMxCp50SjIa1ZL7.woff2) format('woff2');
+                unicode=
+-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02=
+DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+=
+2212, U+2215, U+FEFF, U+FFFD;
+            }
+            @font-face {
+=
+                font-family: 'Inter';
+                font-style: normal;=
+
+                font-weight: 400;
+                font-display: swap;=
+
+                src: local('Inter'), local('Inter-Regular'), url(https:/=
+/fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2) =
+format('woff2');
+                unicode-range: U+0000-00FF, U+0131, U+01=
+52-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+200=
+0-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+ =
+           }
+            @font-face {
+                font-family: 'Int=
+er';
+                font-style: normal;
+                font-weight: 5=
+00;
+                font-display: swap;
+                src: local('Int=
+er Medium'), local('Inter-Medium'), url(https://fonts.gstatic.com/s/inter/v=
+20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2) format('woff2');
+         =
+       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6=
+, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+21=
+91, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+            }
+            @=
+font-face {
+                font-family: 'Inter';
+                font-=
+style: normal;
+                font-weight: 700;
+                font-d=
+isplay: swap;
+                src: local('Inter Bold'), local('Inter-Bold=
+'), url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50S=
+jIa1ZL7.woff2) format('woff2');
+                unicode-range: U+0000-00F=
+F, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308=
+, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FE=
+FF, U+FFFD;
+            }
+            body, div, a, td, h1, h2, h3, h4,=
+ h5, h6, center, span, li {
+                font-family: 'Inter', Arial, =
+sans-serif !important;
+                letter-spacing: 0px !important;
+=
+                font-weight: normal;
+            }
+        }
+
+     =
+   body {
+            -webkit-text-size-adjust: 100%;
+            -ms-t=
+ext-size-adjust: 100%;
+        }
+
+        h1,
+        h2,
+       =
+ h3,
+        h4,
+        h5,
+        h6 {
+            font-weight: =
+normal;
+        }
+
+        br {
+            height: 18px !important=
+;
+            mso-line-height-rule: exactly;
+            line-height: 1=
+8px !important;
+        }
+
+        table,
+        table td {
+    =
+        border-collapse: collapse;
+            mso-table-lspace: 0pt;
+ =
+           mso-table-rspace: 0pt;
+        }
+
+        img {
+        =
+    border: none;
+            display: block;
+        }
+
+        .o=
+nlymobile table,
+        .onlymobile tr,
+        .onlymobile td,
+    =
+    .onlymobile p,
+        .onlymobile strong,
+        .onlymobile b,=
+
+        .onlymobile em,
+        .onlymobile i,
+        .onlymobile c=
+enter,
+        .onlymobile div,
+        .onlymobile img,
+        .onl=
+ymobile a,
+        .onlymobile h1,
+        .onlymobile h2,
+        .o=
+nlymobile h3,
+        .onlymobile h4,
+        .onlymobile h5,
+       =
+ .onlymobile h6,
+        .onlymobile span,
+        .onlymobile ul,
+  =
+      .onlymobile li,
+        .onlymobile ol,
+        .onlymobile br,=
+
+        .onlymobile {
+            mso-hide: all !important;
+        =
+}
+
+        a[x-apple-data-detectors],
+        span[x-apple-data-detec=
+tors] {
+            color: inherit !important;
+            text-decorat=
+ion: none !important;
+            font-size: inherit !important;
+      =
+      font-family: inherit !important;
+            font-weight: inherit !=
+important;
+            line-height: inherit !important;
+        }
+
+=
+
+        div.prehide,
+        *[class*=3D"hInfo"] {
+            displ=
+ay: none !important;
+            width: 0px !important;
+            hei=
+ght: 1px !important;
+            background-repeat: no-repeat !important;=
+
+        }
+
+        @media only screen and (max-width: 620px) {
+
+=
+            table[class*=3D"mobileOutl"],
+            td[class*=3D"mobile=
+Outl"],
+            img[class*=3D"mobileOutl"] {
+                width:=
+ 100% !important;
+                min-width: 310px !important;
+        =
+    }
+
+            table[class*=3D"width100"],
+            img[class*=
+=3D"width100"],
+            a[class*=3D"width100"] {
+                wi=
+dth: 100% !important;
+                padding: 0 !important;
+          =
+  }
+
+            table[class*=3D"width96"] {
+                width: 9=
+6% !important;
+                padding: 0 !important;
+            }
+=
+
+            td[class*=3D"TDwidth100"] {
+                width: 100% !i=
+mportant;
+                display: block !important;
+            }
+=
+
+            td[class*=3D"TDwidth100NoBorder"] {
+                width:=
+ 100% !important;
+                display: block !important;
+          =
+      border: none !important;
+            }
+
+            td[class*=
+=3D"width80"] {
+                width: 80% !important;
+                =
+table-layout: fixed !important;
+            }
+
+            td[class*=
+=3D"width50"] {
+                width: 50% !important;
+                =
+table-layout: fixed !important;
+            }
+
+            td[class*=
+=3D"width20"] {
+                width: 20% !important;
+                =
+table-layout: fixed !important;
+            }
+
+            td[class*=
+=3D"vSpace2"] {
+                width: 3% !important;
+            }
+=
+
+            td[class*=3D"vSpace5"] {
+                width: 5% !import=
+ant;
+            }
+
+            td[class*=3D"vSpace8"] {
+          =
+      width: 8% !important;
+            }
+
+            td[class*=3D"v=
+Space4"] {
+                width: 4% !important;
+            }
+
+   =
+         td[class=3D"vSpace2"] img,
+            td[class=3D"vSpace5"] img=
+,
+            td[class=3D"vSpace8"] img,
+            td[class=3D"vSpace=
+4"] img {
+                width: 1px !important;
+            }
+
+   =
+         td[class*=3D"vSpace96"] {
+                width: 94% !important;=
+
+            }
+
+            td[class*=3D"vSpace84"] {
+             =
+   width: 84% !important;
+            }
+
+            td[class*=3D"vSp=
+ace48"] {
+                width: 48% !important;
+            }
+
+   =
+         td[class*=3D"vSpace60"] {
+                width: 60% !important;=
+
+            }
+
+            td[class*=3D"vSpace30"] {
+             =
+   width: 30% !important;
+            }
+
+            td[class*=3D"vSp=
+ace62"] {
+                width: 62% !important;
+            }
+
+   =
+         td[class*=3D"vSpace45"] {
+                width: 45% !important;=
+
+            }
+
+            td[class*=3D"vSpace90"] {
+             =
+   width: 90% !important;
+            }
+
+            td[class*=3D"vSp=
+aceAuto"] {
+                width: auto !important;
+            }
+
+=
+            td[class*=3D"centerTD"] {
+                text-align: center =
+!important;
+            }
+
+            td[class*=3D"centerTD"] img {=
+
+                margin: 0 auto !important;
+            }
+
+        =
+    td[class*=3D"resetHeight"],
+            img[class*=3D"resetHeight"],=
+
+            table[class*=3D"resetHeight"] {
+                height: au=
+to !important;
+            }
+
+            td[class*=3D"resetWidth"],=
+
+            img[class*=3D"resetWidth"],
+            table[class*=3D"re=
+setWidth"] {
+                width: auto !important;
+            }
+=
+
+            img[class*=3D"resetImg"] {
+                height: 1px !im=
+portant;
+                width: 1px !important;
+                min-wid=
+th: 0 !important;
+            }
+
+            img[class*=3D"scale100"]=
+ {
+                width: auto !important;
+                min-width: 1=
+00% !important;
+                height: auto !important;
+            }=
+
+
+            img[class*=3D"scale50"] {
+                width: auto !=
+important;
+                width: 50% !important;
+                heigh=
+t: auto !important;
+            }
+
+            img[class*=3D"scale80"=
+] {
+                width: auto !important;
+                min-width: =
+80% !important;
+                height: auto !important;
+              =
+  margin: 0 auto;
+            }
+
+            table[class*=3D"hide"],=
+
+            td[class*=3D"hide"],
+            br[class*=3D"hide"],
+  =
+          div[class*=3D"hide"],
+            span[class*=3D"hide"],
+    =
+        img[class*=3D"hide"] {
+                display: none !important;=
+
+                width: 0px !important;
+                height: 0px !im=
+portant;
+                background-repeat: no-repeat !important;
+     =
+       }
+
+            *[class*=3D"onlymobile"] {
+                disp=
+lay: block !important;
+                max-height: none !important;
+   =
+         }
+
+
+        }
+
+        /* Desktop styles for larger scre=
+ens */
+        @media only screen and (min-width: 621px) {
+            =
+.header-title {
+                font-size: 32px !important;
+           =
+     line-height: 38px !important;
+                color: #100F0E !import=
+ant;
+            }
+
+            /* Job / card title desktop styling *=
+/
+            .card-title {
+                font-size: 24px !important;=
+
+                line-height: 36px !important;
+            }
+        =
+}
+
+    </style>
+
+    <!--[if gte mso 9]>
+    <style>
+        li=
+ {
+            text-indent: -1em; /* Normalise space between bullets and =
+text */
+            display:list-item;
+        }
+    </style>
+    <=
+![endif]-->
+</head>
+
+<body bgcolor=3D"#F5F1EB"
+    style=3D"backgro=
+und-color:#F5F1EB;padding:0;margin:0;-webkit-text-size-adjust:100%;-ms-text=
+-size-adjust:100%;-ms-interpolation-mode: bicubic;">
+
+    <!-- Tracking=
+ Service Pixel start -->
+    <img src=3D"https://jmt.k8s-public.productio=
+n.cloud.jobleads.com/api/v1/pixel?m=3D9a50f464-2b36-476e-8f8e-5d4bbf2de68f&=
+amp;u=3D73570127&amp;t=3Did_1752225913" alt=3D"" />
+    <!-- Tracking Ser=
+vice Pixel end -->
+
+    <table width=3D"100%" border=3D"0" cellspacing=
+=3D"0" cellpadding=3D"0" bgcolor=3D"#F5F1EB"
+        class=3D"background-=
+overide">
+
+<tr>
+  <td width=3D"24" bgcolor=3D"#F5F1EB">&#160;</td>
+=
+  <td>
+    <table width=3D"100%" border=3D"0" cellspacing=3D"0" cellpaddi=
+ng=3D"0" bgcolor=3D"#F5F1EB">
+      <tr>
+        <td valign=3D"top" ali=
+gn=3D"center">
+          <!-- Logo -->
+          <table border=3D"0" ce=
+llspacing=3D"0" cellpadding=3D"0" width=3D"100%">
+            <tr>
+    =
+          <td height=3D"12" style=3D"font-size:12px; line-height:12px;">&nb=
+sp;</td>
+            </tr>
+            <tr>
+              <td style=
+=3D"padding: 0 28px;" align=3D"center" valign=3D"top">
+                <a=
+ href=3D"https://www.jobleads.com/home?kuuid=3Df5014a8cc87b6dbbaed169c9111f=
+eeac&amp;utm_source=3Dvdb_is_saved_search&amp;utm_medium=3Demail&amp;utm_ca=
+mpaign=3Dcampaign%3Dvdb_is_job_alert&amp;utm_content=3Dsearch_id%3D01a1163c=
+-65a4-7452-a89d-e9ea05940e8d%7Ccontent%3Djobleads_logo_header&amp;m=3D9a50f=
+464-2b36-476e-8f8e-5d4bbf2de68f&amp;u=3D73570127&amp;t=3Did_1752225913" tar=
+get=3D"_blank" rel=3D"noopener noreferrer"
+                    style=3D"w=
+idth:145px;height:18px;display:inline-block;text-decoration:none;">
+     =
+             <img src=3D"https://mail-assets.jobleads.de/aurora/jl-logo-col=
+or.png" alt=3D"JobLeads"
+                        shrinktofit=3D"true" bor=
+der=3D"0" width=3D"145" height=3D"18" />
+                </a>
+         =
+     </td>
+            </tr>
+            <tr>
+              <td heigh=
+t=3D"24" style=3D"font-size:24px; line-height:24px;">&nbsp;</td>
+        =
+    </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>=
+
+        <td>
+        <p style=3D"text-align:center;margin:0 0 4px 0;pa=
+dding:0;">
+            <span style=3D"font-size:0; color:#100F0E;">
+   =
+           <span class=3D"header-title" style=3D"display:inline-block;font-=
+family:'Inter','Roboto',Arial,sans-serif;font-size:24px;line-height:30px;fo=
+nt-weight:700;">New jobs for November 5</span>
+            </span>
+    =
+      </p>
+        </td>
+      </tr>
+      <tr>
+        <td>
+    =
+    <p style=3D"text-align:center;margin:0 0 24px 0;padding:0;">
+        =
+    <span style=3D"font-size:0; color:#100F0E;">
+              <span styl=
+e=3D"display:inline-block;font-family:'Inter','Roboto',Arial,sans-serif;fon=
+t-size:16px;line-height:24px;font-weight:400;">Based on your saved search</=
+span>
+            </span>
+          </p>
+        </td>
+      </tr>=
+
+      <tr>
+        <td align=3D"center">
+          <!--[if mso]><tab=
+le width=3D"440" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" align=3D"=
+center"><tr><td width=3D"440"><![endif]-->
+          <table width=3D"100%=
+" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" style=3D"max-width: 440p=
+x;">
+            <tr>
+              <td style=3D"font-family:'Inter','R=
+oboto',Arial,sans-serif; font-size: 14px; line-height: 20px; color: #262D37=
+; text-align: left; font-weight: 400;">Most relevant results based on your =
+search for <span style=3D"font-weight:500;">'Backend Engineer, Backend Deve=
+loper, Back End Developer, Junior Software Developer, Graduate Software Eng=
+ineer, Junior Software Engineer, Software Developer, Software Engineer, Aus=
+tin, USA'</span></td>
+            </tr>
+          </table>
+          =
+<!--[if mso]></td></tr></table><![endif]-->
+        </td>
+      </tr>=
+
+    </table>
+  </td>
+  <td width=3D"24" bgcolor=3D"#F5F1EB">&#160;</=
+td>
+</tr>
+
+<style type=3D"text/css">
+@media only screen and (max-wi=
+dth: 620px) {
+  td[width=3D"24"] {
+    width: 16px !important;
+    mi=
+n-width: 16px !important;
+    max-width: 16px !important;
+  }
+}
+</s=
+tyle>
+
+                <tr>
+  <td width=3D"24" bgcolor=3D"#F5F1EB">&#=
+160;</td>
+  <td>
+    <table width=3D"100%" border=3D"0" cellspacing=3D"=
+0" cellpadding=3D"0" bgcolor=3D"#F5F1EB" style=3D"margin:0; padding:0;">
+=
+      <tr>
+        <td align=3D"center" style=3D"padding-top: 24px; mso-l=
+ine-height-rule: exactly;">
+          <!--[if mso]><table width=3D"440" b=
+order=3D"0" cellspacing=3D"0" cellpadding=3D"0" align=3D"center"><tr><td wi=
+dth=3D"440"><![endif]-->
+          <table width=3D"100%" border=3D"0" cel=
+lspacing=3D"0" cellpadding=3D"0" class=3D"mobileOutl" style=3D"max-width: 4=
+40px; margin:0; padding:0;">
+            <tr>
+              <td align=
+=3D"left">
+                <!--[if !mso]><!-- -->
+                <div =
+style=3D"border-top: 4px solid #F56462; border: 1px solid #E8E4DD; border-t=
+op: 4px solid #F56462; background-color: #ffffff; width: 100%; max-width: 4=
+40px;">
+                <!--<![endif]-->
+                  <table width=
+=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" bgcolor=3D"#ffff=
+ff"
+                        style=3D"background-color: #ffffff;">
+     =
+               <!-- Top section: Title, Company, Location/Chips -->
+     =
+               <tr>
+                      <td valign=3D"top" align=3D"lef=
+t" style=3D"padding: 16px 16px 0 16px;">
+                        <table w=
+idth=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+         =
+                 <!-- Job Title -->
+                          <tr>
+    =
+                        <td style=3D"padding-bottom: 8px;">
+             =
+                 <div style=3D"color: #100F0E; font-family: 'Inter', 'Robot=
+o', Arial, sans-serif; font-size: 20px; font-style: normal; font-weight: 60=
+0; line-height: 28px; mso-line-height-rule: exactly;">
+                  =
+              Software Engineer (Backend / Full Stack)
+                  =
+            </div>
+                            </td>
+                  =
+        </tr>
+
+                          <!-- Company Name -->
+      =
+                    <tr>
+                            <td style=3D"padding=
+-bottom: 12px;">
+                              <div style=3D"color: #2726=
+25; font-family: 'Inter', 'Roboto', Arial, sans-serif; font-size: 16px; fon=
+t-style: normal; font-weight: 400; line-height: 24px; mso-line-height-rule:=
+ exactly; mso-font-family: 'Inter', 'Roboto', Arial, sans-serif;">
+      =
+                          Amoha Recruitment Services LLC
+                =
+              </div>
+                            </td>
+                =
+          </tr>
+
+                          <!-- Location and Chips -->=
+
+                                                    <tr>
+             =
+               <td>
+                              <table width=3D"100%" b=
+order=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+                        =
+                                        <tr>
+                            =
+      <td style=3D"padding-top: 8px;">
+                                  =
+  <table border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+              =
+                        <tr>
+                                        <td =
+valign=3D"top" style=3D"padding-right: 8px;">
+                           =
+               <div style=3D"color: #484745; font-family: 'Inter', 'Roboto'=
+, Arial, sans-serif; font-size: 16px; font-style: normal; font-weight: 400;=
+ line-height: 24px; mso-line-height-rule: exactly;">
+                    =
+                        =E2=80=A2
+                                       =
+   </div>
+                                        </td>
+               =
+                         <td valign=3D"top">
+                            =
+              <div style=3D"color: #484745; font-family: 'Inter', 'Roboto',=
+ Arial, sans-serif; font-size: 16px; font-style: normal; font-weight: 400; =
+line-height: 24px; mso-line-height-rule: exactly; mso-font-family: 'Inter',=
+ 'Roboto', Arial, sans-serif;">
+                                         =
+   Austin, TX | On-site
+                                          </div>=
+
+                                        </td>
+                        =
+              </tr>
+                                    </table>
+      =
+                            </td>
+                                </tr>=
+
+                                                                <tr>
+ =
+                                 <td style=3D"padding-top: 8px;">
+       =
+                             <table border=3D"0" cellspacing=3D"0" cellpadd=
+ing=3D"0">
+                                      <tr>
+                 =
+                       <td valign=3D"top" style=3D"padding-right: 8px;">
+=
+                                          <div style=3D"color: #484745; fon=
+t-family: 'Inter', 'Roboto', Arial, sans-serif; font-size: 16px; font-style=
+: normal; font-weight: 400; line-height: 24px; mso-line-height-rule: exactl=
+y;">
+                                            =E2=80=A2
+            =
+                              </div>
+                                    =
+    </td>
+                                        <td valign=3D"top">
+ =
+                                         <div style=3D"color: #484745; font=
+-family: 'Inter', 'Roboto', Arial, sans-serif; font-size: 16px; font-style:=
+ normal; font-weight: 400; line-height: 24px; mso-line-height-rule: exactly=
+; mso-font-family: 'Inter', 'Roboto', Arial, sans-serif;">
+              =
+                              USD 75,000 - 120,000 | Full-time
+          =
+                                </div>
+                                  =
+      </td>
+                                      </tr>
+               =
+                     </table>
+                                  </td>
+ =
+                               </tr>
+                                    =
+                          </table>
+                            </td>
+  =
+                        </tr>
+                                           =
+       </table>
+                      </td>
+                    </tr>=
+
+
+                    <!-- Benefits Highlight Row (A/B test treatment o=
+nly) -->
+                   =20
+                    <!-- CTA Link -->
+ =
+                   <tr>
+                      <td style=3D"padding: 16px;=
+">
+                        <a href=3D"https://www.jobleads.com/us/job/sof=
+tware-engineer-backend-full-stack--austin--e60853f44cd50c0a9d0154d99e0ca9e5=
+1?kuuid=3Df5014a8cc87b6dbbaed169c9111feeac&amp;view=3Dsearch&amp;saved_sear=
+ch_email_id=3D01a1163c-65a4-7452-a89d-e9ea05940e8d&amp;utm_source=3Dvdb_is_=
+saved_search&amp;utm_medium=3Demail&amp;utm_campaign=3Dcampaign%3Dvdb_is_jo=
+b_alert&amp;utm_content=3Djob_id%3Dexternal-60853f44cd50c0a9d0154d99e0ca9e5=
+1%7Csearch_id%3D01a1163c-65a4-7452-a89d-e9ea05940e8d%7Ccontent%3Djob_card&a=
+mp;search_id=3D256c786e-8d44-4965-9cd6-343d3e21c830&amp;vector_distance=3D0=
+.6755791&amp;job_rank=3D1&amp;m=3D9a50f464-2b36-476e-8f8e-5d4bbf2de68f&amp;=
+u=3D73570127&amp;t=3Did_1752225913" style=3D"color: #B43332; font-family: '=
+Inter', 'Roboto', Arial, sans-serif; font-size: 16px; font-style: normal; f=
+ont-weight: 400; line-height: 24px; text-decoration: underline; mso-line-he=
+ight-rule: exactly; mso-font-family: 'Inter', 'Roboto', Arial, sans-serif;"=
+>
+                          View job
+                        </a>
+   =
+                   </td>
+                    </tr>
+                  </=
+table>
+                <!--[if !mso]><!-- -->
+                </div>
+=
+                <!--<![endif]-->
+              </td>
+            </tr>=
+
+          </table>
+          <!--[if mso]></td></tr></table><![endif]-=
+->
+        </td>
+      </tr>
+    </table>
+  </td>
+  <td width=3D"=
+24" bgcolor=3D"#F5F1EB">&#160;</td>
+</tr>
+                    <tr>
+  =
+<td width=3D"24" bgcolor=3D"#F5F1EB">&#160;</td>
+  <td>
+    <table widt=
+h=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" bgcolor=3D"#F5F=
+1EB" style=3D"margin:0; padding:0;">
+      <tr>
+        <td align=3D"ce=
+nter" style=3D"padding-top: 40px; mso-line-height-rule: exactly;">
+      =
+    <!--[if mso]><table width=3D"440" border=3D"0" cellspacing=3D"0" cellpa=
+dding=3D"0" align=3D"center"><tr><td width=3D"440"><![endif]-->
+         =
+ <table width=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" cla=
+ss=3D"mobileOutl" style=3D"max-width: 440px; margin:0; padding:0;">
+     =
+       <tr>
+              <td align=3D"left">
+                <!--[if !=
+mso]><!-- -->
+                <div style=3D"border-top: 4px solid #F56462=
+; border: 1px solid #E8E4DD; border-top: 4px solid #F56462; background-colo=
+r: #ffffff; width: 100%; max-width: 440px;">
+                <!--<![endif=
+]-->
+                  <table width=3D"100%" border=3D"0" cellspacing=3D"=
+0" cellpadding=3D"0" bgcolor=3D"#ffffff"
+                        style=3D=
+"background-color: #ffffff;">
+                    <!-- Top section: Title=
+, Company, Location/Chips -->
+                    <tr>
+                =
+      <td valign=3D"top" align=3D"left" style=3D"padding: 16px 16px 0 16px;=
+">
+                        <table width=3D"100%" border=3D"0" cellspacing=
+=3D"0" cellpadding=3D"0">
+                          <!-- Job Title -->
+=
+                          <tr>
+                            <td style=3D"p=
+adding-bottom: 8px;">
+                              <div style=3D"color: =
+#100F0E; font-family: 'Inter', 'Roboto', Arial, sans-serif; font-size: 20px=
+; font-style: normal; font-weight: 600; line-height: 28px; mso-line-height-=
+rule: exactly;">
+                                Junior Backend &amp; Ful=
+l-Stack Engineer - Launch Your Career
+                              </div=
+>
+                            </td>
+                          </tr>
+=
+
+                          <!-- Company Name -->
+                      =
+    <tr>
+                            <td style=3D"padding-bottom: 12px;">=
+
+                              <div style=3D"color: #272625; font-family:=
+ 'Inter', 'Roboto', Arial, sans-serif; font-size: 16px; font-style: normal;=
+ font-weight: 400; line-height: 24px; mso-line-height-rule: exactly; mso-fo=
+nt-family: 'Inter', 'Roboto', Arial, sans-serif;">
+                      =
+          Amoha Recruitment Services LLC
+                              </=
+div>
+                            </td>
+                          </tr>=
+
+
+                          <!-- Location and Chips -->
+             =
+                                       <tr>
+                            <=
+td>
+                              <table width=3D"100%" border=3D"0" cell=
+spacing=3D"0" cellpadding=3D"0">
+                                        =
+                        <tr>
+                                  <td style=
+=3D"padding-top: 8px;">
+                                    <table border=
+=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+                             =
+         <tr>
+                                        <td valign=3D"top" =
+style=3D"padding-right: 8px;">
+                                          =
+<div style=3D"color: #484745; font-family: 'Inter', 'Roboto', Arial, sans-s=
+erif; font-size: 16px; font-style: normal; font-weight: 400; line-height: 2=
+4px; mso-line-height-rule: exactly;">
+                                   =
+         =E2=80=A2
+                                          </div>
+   =
+                                     </td>
+                              =
+          <td valign=3D"top">
+                                          <=
+div style=3D"color: #484745; font-family: 'Inter', 'Roboto', Arial, sans-se=
+rif; font-size: 16px; font-style: normal; font-weight: 400; line-height: 24=
+px; mso-line-height-rule: exactly; mso-font-family: 'Inter', 'Roboto', Aria=
+l, sans-serif;">
+                                            Austin, TX |=
+ On-site
+                                          </div>
+             =
+                           </td>
+                                      </=
+tr>
+                                    </table>
+                      =
+            </td>
+                                </tr>
+               =
+                                                 <tr>
+                   =
+               <td style=3D"padding-top: 8px;">
+                         =
+           <table border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+     =
+                                 <tr>
+                                   =
+     <td valign=3D"top" style=3D"padding-right: 8px;">
+                  =
+                        <div style=3D"color: #484745; font-family: 'Inter',=
+ 'Roboto', Arial, sans-serif; font-size: 16px; font-style: normal; font-wei=
+ght: 400; line-height: 24px; mso-line-height-rule: exactly;">
+           =
+                                 =E2=80=A2
+                              =
+            </div>
+                                        </td>
+      =
+                                  <td valign=3D"top">
+                   =
+                       <div style=3D"color: #484745; font-family: 'Inter', =
+'Roboto', Arial, sans-serif; font-size: 16px; font-style: normal; font-weig=
+ht: 400; line-height: 24px; mso-line-height-rule: exactly; mso-font-family:=
+ 'Inter', 'Roboto', Arial, sans-serif;">
+                                =
+            USD 75,000 - 120,000 | Full-time
+                            =
+              </div>
+                                        </td>
+    =
+                                  </tr>
+                                 =
+   </table>
+                                  </td>
+                   =
+             </tr>
+                                                      =
+        </table>
+                            </td>
+                    =
+      </tr>
+                                                  </table>
+=
+                      </td>
+                    </tr>
+
+              =
+      <!-- Benefits Highlight Row (A/B test treatment only) -->
+         =
+          =20
+                    <!-- CTA Link -->
+                    <=
+tr>
+                      <td style=3D"padding: 16px;">
+               =
+         <a href=3D"https://www.jobleads.com/us/job/junior-backend-full-sta=
+ck-engineer-launch-your-career--austin--e7c3e188aaf79fa4d084dcbcc8613195b?k=
+uuid=3Df5014a8cc87b6dbbaed169c9111feeac&amp;view=3Dsearch&amp;saved_search_=
+email_id=3D01a1163c-65a4-7452-a89d-e9ea05940e8d&amp;utm_source=3Dvdb_is_sav=
+ed_search&amp;utm_medium=3Demail&amp;utm_campaign=3Dcampaign%3Dvdb_is_job_a=
+lert&amp;utm_content=3Djob_id%3Dexternal-7c3e188aaf79fa4d084dcbcc8613195b%7=
+Csearch_id%3D01a1163c-65a4-7452-a89d-e9ea05940e8d%7Ccontent%3Djob_card&amp;=
+search_id=3D256c786e-8d44-4965-9cd6-343d3e21c830&amp;vector_distance=3D0.59=
+209824&amp;job_rank=3D2&amp;m=3D9a50f464-2b36-476e-8f8e-5d4bbf2de68f&amp;u=
+=3D73570127&amp;t=3Did_1752225913" style=3D"color: #B43332; font-family: 'I=
+nter', 'Roboto', Arial, sans-serif; font-size: 16px; font-style: normal; fo=
+nt-weight: 400; line-height: 24px; text-decoration: underline; mso-line-hei=
+ght-rule: exactly; mso-font-family: 'Inter', 'Roboto', Arial, sans-serif;">=
+
+                          View job
+                        </a>
+    =
+                  </td>
+                    </tr>
+                  </t=
+able>
+                <!--[if !mso]><!-- -->
+                </div>
+ =
+               <!--<![endif]-->
+              </td>
+            </tr>=
+
+          </table>
+          <!--[if mso]></td></tr></table><![endif]-=
+->
+        </td>
+      </tr>
+    </table>
+  </td>
+  <td width=3D"=
+24" bgcolor=3D"#F5F1EB">&#160;</td>
+</tr>
+                    <tr>
+  =
+<td width=3D"24" bgcolor=3D"#F5F1EB">&#160;</td>
+  <td>
+    <table widt=
+h=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" bgcolor=3D"#F5F=
+1EB" style=3D"margin:0; padding:0;">
+      <tr>
+        <td align=3D"ce=
+nter" style=3D"padding-top: 40px; mso-line-height-rule: exactly;">
+      =
+    <!--[if mso]><table width=3D"440" border=3D"0" cellspacing=3D"0" cellpa=
+dding=3D"0" align=3D"center"><tr><td width=3D"440"><![endif]-->
+         =
+ <table width=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" cla=
+ss=3D"mobileOutl" style=3D"max-width: 440px; margin:0; padding:0;">
+     =
+       <tr>
+              <td align=3D"left">
+                <!--[if !=
+mso]><!-- -->
+                <div style=3D"border-top: 4px solid #F56462=
+; border: 1px solid #E8E4DD; border-top: 4px solid #F56462; background-colo=
+r: #ffffff; width: 100%; max-width: 440px;">
+                <!--<![endif=
+]-->
+                  <table width=3D"100%" border=3D"0" cellspacing=3D"=
+0" cellpadding=3D"0" bgcolor=3D"#ffffff"
+                        style=3D=
+"background-color: #ffffff;">
+                    <!-- Top section: Title=
+, Company, Location/Chips -->
+                    <tr>
+                =
+      <td valign=3D"top" align=3D"left" style=3D"padding: 16px 16px 0 16px;=
+">
+                        <table width=3D"100%" border=3D"0" cellspacing=
+=3D"0" cellpadding=3D"0">
+                          <!-- Job Title -->
+=
+                          <tr>
+                            <td style=3D"p=
+adding-bottom: 8px;">
+                              <div style=3D"color: =
+#100F0E; font-family: 'Inter', 'Roboto', Arial, sans-serif; font-size: 20px=
+; font-style: normal; font-weight: 600; line-height: 28px; mso-line-height-=
+rule: exactly;">
+                                Backend Engineer
+     =
+                         </div>
+                            </td>
+     =
+                     </tr>
+
+                          <!-- Company Name=
+ -->
+                          <tr>
+                            <td sty=
+le=3D"padding-bottom: 12px;">
+                              <div style=3D=
+"color: #272625; font-family: 'Inter', 'Roboto', Arial, sans-serif; font-si=
+ze: 16px; font-style: normal; font-weight: 400; line-height: 24px; mso-line=
+-height-rule: exactly; mso-font-family: 'Inter', 'Roboto', Arial, sans-seri=
+f;">
+                                Evlo AI
+                          =
+    </div>
+                            </td>
+                          =
+</tr>
+
+                          <!-- Location and Chips -->
+        =
+                                            <tr>
+                        =
+    <td>
+                              <table width=3D"100%" border=3D"0"=
+ cellspacing=3D"0" cellpadding=3D"0">
+                                   =
+                             <tr>
+                                  <td s=
+tyle=3D"padding-top: 8px;">
+                                    <table bo=
+rder=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+                         =
+             <tr>
+                                        <td valign=3D"t=
+op" style=3D"padding-right: 8px;">
+                                      =
+    <div style=3D"color: #484745; font-family: 'Inter', 'Roboto', Arial, sa=
+ns-serif; font-size: 16px; font-style: normal; font-weight: 400; line-heigh=
+t: 24px; mso-line-height-rule: exactly;">
+                               =
+             =E2=80=A2
+                                          </div>=
+
+                                        </td>
+                        =
+                <td valign=3D"top">
+                                     =
+     <div style=3D"color: #484745; font-family: 'Inter', 'Roboto', Arial, s=
+ans-serif; font-size: 16px; font-style: normal; font-weight: 400; line-heig=
+ht: 24px; mso-line-height-rule: exactly; mso-font-family: 'Inter', 'Roboto'=
+, Arial, sans-serif;">
+                                            New Yo=
+rk, NY | On-site
+                                          </div>
+     =
+                                   </td>
+                                =
+      </tr>
+                                    </table>
+              =
+                    </td>
+                                </tr>
+       =
+                                                         <tr>
+           =
+                       <td style=3D"padding-top: 8px;">
+                 =
+                   <table border=3D"0" cellspacing=3D"0" cellpadding=3D"0">=
+
+                                      <tr>
+                           =
+             <td valign=3D"top" style=3D"padding-right: 8px;">
+          =
+                                <div style=3D"color: #484745; font-family: =
+'Inter', 'Roboto', Arial, sans-serif; font-size: 16px; font-style: normal; =
+font-weight: 400; line-height: 24px; mso-line-height-rule: exactly;">
+   =
+                                         =E2=80=A2
+                      =
+                    </div>
+                                        </td>=
+
+                                        <td valign=3D"top">
+          =
+                                <div style=3D"color: #484745; font-family: =
+'Inter', 'Roboto', Arial, sans-serif; font-size: 16px; font-style: normal; =
+font-weight: 400; line-height: 24px; mso-line-height-rule: exactly; mso-fon=
+t-family: 'Inter', 'Roboto', Arial, sans-serif;">
+                       =
+                     USD 120,000 - 170,000 | Full-time
+                  =
+                        </div>
+                                        </=
+td>
+                                      </tr>
+                       =
+             </table>
+                                  </td>
+         =
+                       </tr>
+                                            =
+                  </table>
+                            </td>
+          =
+                </tr>
+                                                  <=
+/table>
+                      </td>
+                    </tr>
+
+    =
+                <!-- Benefits Highlight Row (A/B test treatment only) -->=
+
+                   =20
+                    <!-- CTA Link -->
+         =
+           <tr>
+                      <td style=3D"padding: 16px;">
+   =
+                     <a href=3D"https://www.jobleads.com/us/job/backend-eng=
+ineer--new-york--ee1f2ac49c0ad84d2248a11939f2e84b7?kuuid=3Df5014a8cc87b6dbb=
+aed169c9111feeac&amp;view=3Dsearch&amp;saved_search_email_id=3D01a1163c-65a=
+4-7452-a89d-e9ea05940e8d&amp;utm_source=3Dvdb_is_saved_search&amp;utm_mediu=
+m=3Demail&amp;utm_campaign=3Dcampaign%3Dvdb_is_job_alert&amp;utm_content=3D=
+job_id%3Dexternal-e1f2ac49c0ad84d2248a11939f2e84b7%7Csearch_id%3D01a1163c-6=
+5a4-7452-a89d-e9ea05940e8d%7Ccontent%3Djob_card&amp;search_id=3D256c786e-8d=
+44-4965-9cd6-343d3e21c830&amp;vector_distance=3D0.569767&amp;job_rank=3D3&a=
+mp;m=3D9a50f464-2b36-476e-8f8e-5d4bbf2de68f&amp;u=3D73570127&amp;t=3Did_175=
+2225913" style=3D"color: #B43332; font-family: 'Inter', 'Roboto', Arial, sa=
+ns-serif; font-size: 16px; font-style: normal; font-weight: 400; line-heigh=
+t: 24px; text-decoration: underline; mso-line-height-rule: exactly; mso-fon=
+t-family: 'Inter', 'Roboto', Arial, sans-serif;">
+                       =
+   View job
+                        </a>
+                      </td>
+=
+                    </tr>
+                  </table>
+                <!=
+--[if !mso]><!-- -->
+                </div>
+                <!--<![endi=
+f]-->
+              </td>
+            </tr>
+          </table>
+    =
+      <!--[if mso]></td></tr></table><![endif]-->
+        </td>
+      <=
+/tr>
+    </table>
+  </td>
+  <td width=3D"24" bgcolor=3D"#F5F1EB">&#16=
+0;</td>
+</tr>
+                    <tr>
+  <td width=3D"24" bgcolor=3D"=
+#F5F1EB">&#160;</td>
+  <td>
+    <table width=3D"100%" border=3D"0" cell=
+spacing=3D"0" cellpadding=3D"0" bgcolor=3D"#F5F1EB" style=3D"margin:0; padd=
+ing:0;">
+      <tr>
+        <td align=3D"center" style=3D"padding-top: =
+40px; mso-line-height-rule: exactly;">
+          <!--[if mso]><table widt=
+h=3D"440" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" align=3D"center"=
+><tr><td width=3D"440"><![endif]-->
+          <table width=3D"100%" borde=
+r=3D"0" cellspacing=3D"0" cellpadding=3D"0" class=3D"mobileOutl" style=3D"m=
+ax-width: 440px; margin:0; padding:0;">
+            <tr>
+              =
+<td align=3D"left">
+                <!--[if !mso]><!-- -->
+            =
+    <div style=3D"border-top: 4px solid #F56462; border: 1px solid #E8E4DD;=
+ border-top: 4px solid #F56462; background-color: #ffffff; width: 100%; max=
+-width: 440px;">
+                <!--<![endif]-->
+                  <ta=
+ble width=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" bgcolor=
+=3D"#ffffff"
+                        style=3D"background-color: #ffffff;"=
+>
+                    <!-- Top section: Title, Company, Location/Chips --=
+>
+                    <tr>
+                      <td valign=3D"top" ali=
+gn=3D"left" style=3D"padding: 16px 16px 0 16px;">
+                       =
+ <table width=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+=
+                          <!-- Job Title -->
+                          <t=
+r>
+                            <td style=3D"padding-bottom: 8px;">
+    =
+                          <div style=3D"color: #100F0E; font-family: 'Inter=
+', 'Roboto', Arial, sans-serif; font-size: 20px; font-style: normal; font-w=
+eight: 600; line-height: 28px; mso-line-height-rule: exactly;">
+         =
+                       Backend Engineer
+                              </d=
+iv>
+                            </td>
+                          </tr>=
+
+
+                          <!-- Company Name -->
+                   =
+       <tr>
+                            <td style=3D"padding-bottom: 12px=
+;">
+                              <div style=3D"color: #272625; font-fami=
+ly: 'Inter', 'Roboto', Arial, sans-serif; font-size: 16px; font-style: norm=
+al; font-weight: 400; line-height: 24px; mso-line-height-rule: exactly; mso=
+-font-family: 'Inter', 'Roboto', Arial, sans-serif;">
+                   =
+             Evlo AI
+                              </div>
+             =
+               </td>
+                          </tr>
+
+               =
+           <!-- Location and Chips -->
+                                  =
+                  <tr>
+                            <td>
+               =
+               <table width=3D"100%" border=3D"0" cellspacing=3D"0" cellpad=
+ding=3D"0">
+                                                             =
+   <tr>
+                                  <td style=3D"padding-top: 8px;"=
+>
+                                    <table border=3D"0" cellspacing=3D"=
+0" cellpadding=3D"0">
+                                      <tr>
+      =
+                                  <td valign=3D"top" style=3D"padding-right=
+: 8px;">
+                                          <div style=3D"color: #=
+484745; font-family: 'Inter', 'Roboto', Arial, sans-serif; font-size: 16px;=
+ font-style: normal; font-weight: 400; line-height: 24px; mso-line-height-r=
+ule: exactly;">
+                                            =E2=80=A2
+ =
+                                         </div>
+                         =
+               </td>
+                                        <td valign=
+=3D"top">
+                                          <div style=3D"color: =
+#484745; font-family: 'Inter', 'Roboto', Arial, sans-serif; font-size: 16px=
+; font-style: normal; font-weight: 400; line-height: 24px; mso-line-height-=
+rule: exactly; mso-font-family: 'Inter', 'Roboto', Arial, sans-serif;">
+ =
+                                           San Francisco, CA | On-site
+  =
+                                        </div>
+                          =
+              </td>
+                                      </tr>
+       =
+                             </table>
+                                  <=
+/td>
+                                </tr>
+                            =
+                                    <tr>
+                                =
+  <td style=3D"padding-top: 8px;">
+                                    <t=
+able border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+                  =
+                    <tr>
+                                        <td vali=
+gn=3D"top" style=3D"padding-right: 8px;">
+                               =
+           <div style=3D"color: #484745; font-family: 'Inter', 'Roboto', Ar=
+ial, sans-serif; font-size: 16px; font-style: normal; font-weight: 400; lin=
+e-height: 24px; mso-line-height-rule: exactly;">
+                        =
+                    =E2=80=A2
+                                          <=
+/div>
+                                        </td>
+                   =
+                     <td valign=3D"top">
+                                =
+          <div style=3D"color: #484745; font-family: 'Inter', 'Roboto', Ari=
+al, sans-serif; font-size: 16px; font-style: normal; font-weight: 400; line=
+-height: 24px; mso-line-height-rule: exactly; mso-font-family: 'Inter', 'Ro=
+boto', Arial, sans-serif;">
+                                            U=
+SD 140,000 - 200,000 | Full-time
+                                        =
+  </div>
+                                        </td>
+                =
+                      </tr>
+                                    </table>=
+
+                                  </td>
+                              =
+  </tr>
+                                                              </t=
+able>
+                            </td>
+                          </tr>=
+
+                                                  </table>
+           =
+           </td>
+                    </tr>
+
+                    <!-- =
+Benefits Highlight Row (A/B test treatment only) -->
+                    =
+
+                    <!-- CTA Link -->
+                    <tr>
+     =
+                 <td style=3D"padding: 16px;">
+                        <a=
+ href=3D"https://www.jobleads.com/us/job/backend-engineer--san-francisco--e=
+a84e4538279394fb3df104b94ef3e12d?kuuid=3Df5014a8cc87b6dbbaed169c9111feeac&a=
+mp;view=3Dsearch&amp;saved_search_email_id=3D01a1163c-65a4-7452-a89d-e9ea05=
+940e8d&amp;utm_source=3Dvdb_is_saved_search&amp;utm_medium=3Demail&amp;utm_=
+campaign=3Dcampaign%3Dvdb_is_job_alert&amp;utm_content=3Djob_id%3Dexternal-=
+a84e4538279394fb3df104b94ef3e12d%7Csearch_id%3D01a1163c-65a4-7452-a89d-e9ea=
+05940e8d%7Ccontent%3Djob_card&amp;search_id=3D256c786e-8d44-4965-9cd6-343d3=
+e21c830&amp;vector_distance=3D0.5687561&amp;job_rank=3D4&amp;m=3D9a50f464-2=
+b36-476e-8f8e-5d4bbf2de68f&amp;u=3D73570127&amp;t=3Did_1752225913" style=3D=
+"color: #B43332; font-family: 'Inter', 'Roboto', Arial, sans-serif; font-si=
+ze: 16px; font-style: normal; font-weight: 400; line-height: 24px; text-dec=
+oration: underline; mso-line-height-rule: exactly; mso-font-family: 'Inter'=
+, 'Roboto', Arial, sans-serif;">
+                          View job
+   =
+                     </a>
+                      </td>
+                 =
+   </tr>
+                  </table>
+                <!--[if !mso]><!-- =
+-->
+                </div>
+                <!--<![endif]-->
+         =
+     </td>
+            </tr>
+          </table>
+          <!--[if mso=
+]></td></tr></table><![endif]-->
+        </td>
+      </tr>
+    </tabl=
+e>
+  </td>
+  <td width=3D"24" bgcolor=3D"#F5F1EB">&#160;</td>
+</tr>=
+
+                    <tr>
+  <td width=3D"24" bgcolor=3D"#F5F1EB">&#160;=
+</td>
+  <td>
+    <table width=3D"100%" border=3D"0" cellspacing=3D"0" c=
+ellpadding=3D"0" bgcolor=3D"#F5F1EB" style=3D"margin:0; padding:0;">
+    =
+  <tr>
+        <td align=3D"center" style=3D"padding-top: 40px; mso-line-=
+height-rule: exactly;">
+          <!--[if mso]><table width=3D"440" borde=
+r=3D"0" cellspacing=3D"0" cellpadding=3D"0" align=3D"center"><tr><td width=
+=3D"440"><![endif]-->
+          <table width=3D"100%" border=3D"0" cellsp=
+acing=3D"0" cellpadding=3D"0" class=3D"mobileOutl" style=3D"max-width: 440p=
+x; margin:0; padding:0;">
+            <tr>
+              <td align=3D"l=
+eft">
+                <!--[if !mso]><!-- -->
+                <div style=
+=3D"border-top: 4px solid #F56462; border: 1px solid #E8E4DD; border-top: 4=
+px solid #F56462; background-color: #ffffff; width: 100%; max-width: 440px;=
+">
+                <!--<![endif]-->
+                  <table width=3D"1=
+00%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" bgcolor=3D"#ffffff"=
+
+                        style=3D"background-color: #ffffff;">
+        =
+            <!-- Top section: Title, Company, Location/Chips -->
+        =
+            <tr>
+                      <td valign=3D"top" align=3D"left" =
+style=3D"padding: 16px 16px 0 16px;">
+                        <table widt=
+h=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+            =
+              <!-- Job Title -->
+                          <tr>
+       =
+                     <td style=3D"padding-bottom: 8px;">
+                =
+              <div style=3D"color: #100F0E; font-family: 'Inter', 'Roboto',=
+ Arial, sans-serif; font-size: 20px; font-style: normal; font-weight: 600; =
+line-height: 28px; mso-line-height-rule: exactly;">
+                     =
+           Backend Python Developer =E2=80=93 Entry Level
+               =
+               </div>
+                            </td>
+               =
+           </tr>
+
+                          <!-- Company Name -->
+   =
+                       <tr>
+                            <td style=3D"padd=
+ing-bottom: 12px;">
+                              <div style=3D"color: #2=
+72625; font-family: 'Inter', 'Roboto', Arial, sans-serif; font-size: 16px; =
+font-style: normal; font-weight: 400; line-height: 24px; mso-line-height-ru=
+le: exactly; mso-font-family: 'Inter', 'Roboto', Arial, sans-serif;">
+   =
+                             Emonics LLC
+                              </=
+div>
+                            </td>
+                          </tr>=
+
+
+                          <!-- Location and Chips -->
+             =
+                                       <tr>
+                            <=
+td>
+                              <table width=3D"100%" border=3D"0" cell=
+spacing=3D"0" cellpadding=3D"0">
+                                        =
+                        <tr>
+                                  <td style=
+=3D"padding-top: 8px;">
+                                    <table border=
+=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+                             =
+         <tr>
+                                        <td valign=3D"top" =
+style=3D"padding-right: 8px;">
+                                          =
+<div style=3D"color: #484745; font-family: 'Inter', 'Roboto', Arial, sans-s=
+erif; font-size: 16px; font-style: normal; font-weight: 400; line-height: 2=
+4px; mso-line-height-rule: exactly;">
+                                   =
+         =E2=80=A2
+                                          </div>
+   =
+                                     </td>
+                              =
+          <td valign=3D"top">
+                                          <=
+div style=3D"color: #484745; font-family: 'Inter', 'Roboto', Arial, sans-se=
+rif; font-size: 16px; font-style: normal; font-weight: 400; line-height: 24=
+px; mso-line-height-rule: exactly; mso-font-family: 'Inter', 'Roboto', Aria=
+l, sans-serif;">
+                                            Los Angeles,=
+ CA | On-site
+                                          </div>
+        =
+                                </td>
+                                   =
+   </tr>
+                                    </table>
+                 =
+                 </td>
+                                </tr>
+          =
+                                                      <tr>
+              =
+                    <td style=3D"padding-top: 8px;">
+                    =
+                <table border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+=
+                                      <tr>
+                              =
+          <td valign=3D"top" style=3D"padding-right: 8px;">
+             =
+                             <div style=3D"color: #484745; font-family: 'In=
+ter', 'Roboto', Arial, sans-serif; font-size: 16px; font-style: normal; fon=
+t-weight: 400; line-height: 24px; mso-line-height-rule: exactly;">
+      =
+                                      =E2=80=A2
+                         =
+                 </div>
+                                        </td>
+ =
+                                       <td valign=3D"top">
+              =
+                            <div style=3D"color: #484745; font-family: 'Int=
+er', 'Roboto', Arial, sans-serif; font-size: 16px; font-style: normal; font=
+-weight: 400; line-height: 24px; mso-line-height-rule: exactly; mso-font-fa=
+mily: 'Inter', 'Roboto', Arial, sans-serif;">
+                           =
+                 USD 60,000 - 90,000 | Full-time
+                        =
+                  </div>
+                                        </td>
+=
+                                      </tr>
+                             =
+       </table>
+                                  </td>
+               =
+                 </tr>
+                                                  =
+            </table>
+                            </td>
+                =
+          </tr>
+                                                  </table=
+>
+                      </td>
+                    </tr>
+
+          =
+          <!-- Benefits Highlight Row (A/B test treatment only) -->
+     =
+              =20
+                    <!-- CTA Link -->
+                 =
+   <tr>
+                      <td style=3D"padding: 16px;">
+           =
+             <a href=3D"https://www.jobleads.com/us/job/backend-python-deve=
+loper-entry-level--los-angeles--e89a215100f2c76f09bcc435c1753987c?kuuid=3Df=
+5014a8cc87b6dbbaed169c9111feeac&amp;view=3Dsearch&amp;saved_search_email_id=
+=3D01a1163c-65a4-7452-a89d-e9ea05940e8d&amp;utm_source=3Dvdb_is_saved_searc=
+h&amp;utm_medium=3Demail&amp;utm_campaign=3Dcampaign%3Dvdb_is_job_alert&amp=
+;utm_content=3Djob_id%3Dexternal-89a215100f2c76f09bcc435c1753987c%7Csearch_=
+id%3D01a1163c-65a4-7452-a89d-e9ea05940e8d%7Ccontent%3Djob_card&amp;search_i=
+d=3D256c786e-8d44-4965-9cd6-343d3e21c830&amp;vector_distance=3D0.5667&amp;j=
+ob_rank=3D5&amp;m=3D9a50f464-2b36-476e-8f8e-5d4bbf2de68f&amp;u=3D73570127&a=
+mp;t=3Did_1752225913" style=3D"color: #B43332; font-family: 'Inter', 'Robot=
+o', Arial, sans-serif; font-size: 16px; font-style: normal; font-weight: 40=
+0; line-height: 24px; text-decoration: underline; mso-line-height-rule: exa=
+ctly; mso-font-family: 'Inter', 'Roboto', Arial, sans-serif;">
+          =
+                View job
+                        </a>
+                 =
+     </td>
+                    </tr>
+                  </table>
+     =
+           <!--[if !mso]><!-- -->
+                </div>
+              =
+  <!--<![endif]-->
+              </td>
+            </tr>
+          </=
+table>
+          <!--[if mso]></td></tr></table><![endif]-->
+        </=
+td>
+      </tr>
+    </table>
+  </td>
+  <td width=3D"24" bgcolor=3D"=
+#F5F1EB">&#160;</td>
+</tr>
+   =20
+    <tr>
+  <td width=3D"24" bgcolor=
+=3D"#F5F1EB">&#160;</td>
+  <td >
+    <table width=3D"100%" border=3D"0"=
+ cellspacing=3D"0" cellpadding=3D"0" bgcolor=3D"#F5F1EB" style=3D"margin:0;=
+ padding:0;">
+      <tr>
+        <td align=3D"center" style=3D"padding:=
+ 40px 0; mso-padding-top-alt: 0; mso-line-height-rule: exactly;">
+       =
+ <table width=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" cla=
+ss=3D"mobileOutl" style=3D"max-width: 440px; margin:0; padding:0;">
+     =
+       <tr>
+              <td align=3D"left">
+                <a href=
+=3D"https://www.jobleads.com/us/jobs?kuuid=3Df5014a8cc87b6dbbaed169c9111fee=
+ac&amp;saved_search_email_id=3D01a1163c-65a4-7452-a89d-e9ea05940e8d&amp;utm=
+_campaign=3Dcampaign%3Dvdb_is_job_alert&amp;utm_content=3Dsearch_id%3D01a11=
+63c-65a4-7452-a89d-e9ea05940e8d%7Ccontent%3Dview_all_results_button&amp;utm=
+_medium=3Demail&amp;utm_source=3Dvdb_is_saved_search&amp;view=3Dsearch&amp;=
+m=3D9a50f464-2b36-476e-8f8e-5d4bbf2de68f&amp;u=3D73570127&amp;t=3Did_175222=
+5913" style=3D"text-decoration: none; display: block;">
+                 =
+ <div style=3D"width: 100%; color: #B43332; font-family: 'Inter', 'Roboto',=
+ Arial, sans-serif; font-size: 16px; font-weight: 500; line-height: 24px; t=
+ext-align: center; box-sizing: border-box; text-decoration: underline;">
+=
+                    View all results
+                  </div>
+         =
+       </a>
+              </td>
+            </tr>
+          </table>=
+
+        </td>
+      </tr>
+    </table>
+  </td>
+  <td width=3D"24=
+" bgcolor=3D"#F5F1EB">&#160;</td>
+</tr>
+
+<tr>
+  <td width=3D"24" bg=
+color=3D"#100F0E">&#160;</td>
+  <td style=3D"padding-bottom: 0;">
+    <=
+table width=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" bgcol=
+or=3D"#100F0E">
+      <tr>
+        <td align=3D"center">
+          <t=
+able width=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" style=
+=3D"max-width:552px; margin:0 auto;">
+            <tr>
+              <t=
+d>
+                <table width=3D"100%" border=3D"0" cellspacing=3D"0" c=
+ellpadding=3D"0" bgcolor=3D"#100F0E" >
+                  <tr>
+         =
+           <td style=3D"padding: 40px 0; text-align: center;">
+          =
+            <!-- Links -->
+                      <table border=3D"0" cell=
+spacing=3D"0" cellpadding=3D"0" align=3D"center" style=3D"margin: 0 auto 24=
+px auto;">
+                        <tr>
+                          <td s=
+tyle=3D"padding: 0 12px 0 0; border-right: 1px solid #fff; text-align: cent=
+er;">
+                            <a href=3D"https://www.jobleads.com/pri=
+vacy-policy?kuuid=3Df5014a8cc87b6dbbaed169c9111feeac&amp;utm_source=3Dvdb_i=
+s_saved_search&amp;utm_medium=3Demail&amp;utm_campaign=3Dcampaign%3Dvdb_is_=
+job_alert&amp;utm_content=3Dsearch_id%3D01a1163c-65a4-7452-a89d-e9ea05940e8=
+d%7Ccontent%3Dfooter_link_privacy_policy" style=3D"color: #fff; font-family=
+: 'Inter', Arial, sans-serif; font-size: 14px; font-weight: 400; line-heigh=
+t: 20px; text-decoration: underline; text-underline-position: under;" targe=
+t=3D"_blank" rel=3D"noopener noreferrer"> Privacy policy </a>
+           =
+               </td>
+                          <td style=3D"padding: 0 12=
+px; border-right: 1px solid #fff; text-align: center;">
+                 =
+           <a href=3D"https://support.jobleads.com?kuuid=3Df5014a8cc87b6dbb=
+aed169c9111feeac&amp;utm_source=3Dvdb_is_saved_search&amp;utm_medium=3Demai=
+l&amp;utm_campaign=3Dcampaign%3Dvdb_is_job_alert&amp;utm_content=3Dsearch_i=
+d%3D01a1163c-65a4-7452-a89d-e9ea05940e8d%7Ccontent%3Dfooter_link_help_cente=
+r" style=3D"color: #fff; font-family: 'Inter', Arial, sans-serif; font-size=
+: 14px; font-weight: 400; line-height: 20px; text-decoration: underline; te=
+xt-underline-position: under;" target=3D"_blank" rel=3D"noopener noreferrer=
+"> Help Center </a>
+                          </td>
+                   =
+       <td style=3D"padding: 0 0 0 12px; text-align: center;">
+          =
+                  <a href=3D"https://www.jobleads.com/manage-email-notifica=
+tions?kuuid=3Df5014a8cc87b6dbbaed169c9111feeac&amp;utm_source=3Dvdb_is_save=
+d_search&amp;utm_medium=3Demail&amp;utm_campaign=3Dcampaign%3Dvdb_is_job_al=
+ert&amp;utm_content=3Dsearch_id%3D01a1163c-65a4-7452-a89d-e9ea05940e8d%7Cco=
+ntent%3Dfooter_link_unsubscribe" style=3D"color: #fff; font-family: 'Inter'=
+, Arial, sans-serif; font-size: 14px; font-weight: 400; line-height: 20px; =
+text-decoration: underline; text-underline-position: under;" target=3D"_bla=
+nk" rel=3D"noopener noreferrer"> Unsubscribe </a>
+                       =
+   </td>
+                        </tr>
+                      </table>=
+
+                      <!-- Legal/Disclaimer Text -->
+                 =
+     <div style=3D"color: #fff; font-family: 'Inter', Arial, sans-serif; fo=
+nt-size: 12px; font-weight: 400; line-height: 18px; text-align: center; mar=
+gin-top: 24px;">
+                        <p style=3D"margin: 0 0 12px 0;"=
+>
+                          Having problems logging in? <a href=3D"https:=
+//www.jobleads.com/forgot-password?kuuid=3Df5014a8cc87b6dbbaed169c9111feeac=
+&utm_source=3Dvdb_is_saved_search&utm_medium=3Demail&utm_campaign=3Dcampaig=
+n%3Dvdb_is_job_alert&utm_content=3Dsearch_id%3D01a1163c-65a4-7452-a89d-e9ea=
+05940e8d%7Ccontent%3Dfooter_link_lost_password" target=3D"_blank" style=3D"=
+color:#fff;text-decoration:underline;" rel=3D"noopener noreferrer">Click he=
+re</a>.
+                        </p>
+                        <p style=
+=3D"margin: 0 0 12px 0;">
+                          Do you have questions=
+ or need help? Please check out our <a href=3D"https://support.jobleads.com=
+?kuuid=3Df5014a8cc87b6dbbaed169c9111feeac&utm_source=3Dvdb_is_saved_search&=
+utm_medium=3Demail&utm_campaign=3Dcampaign%3Dvdb_is_job_alert&utm_content=
+=3Dsearch_id%3D01a1163c-65a4-7452-a89d-e9ea05940e8d%7Ccontent%3Dfooter_link=
+_help_center" target=3D"_blank" style=3D"color:#fff;text-decoration:underli=
+ne;" rel=3D"noopener noreferrer">Help Center</a>. You have received this em=
+ail because you are registered as a member of JobLeads.
+                 =
+       </p>
+                        <p style=3D"margin: 0 0 12px 0;"> =
+=C2=A9 JobLeads GmbH | Brandstwiete 4 | 20457 Hamburg, Germany<br />Commerc=
+ial Register Entry: District Court of Hamburg - HRB 101441 </p>
+         =
+               <p style=3D"margin: 0;"> Managing Directors: Christian von A=
+hlen, Jan Hendrik von Ahlen, Martin Schmidt </p>
+                      </=
+div>
+                    </td>
+                  </tr>
+              =
+  </table>
+              </td>
+            </tr>
+          </table>=
+
+        </td>
+      </tr>
+    </table>
+  </td>
+  <td width=3D"24=
+" bgcolor=3D"#100F0E">&#160;</td>
+</tr>
+<style type=3D"text/css">
+@me=
+dia only screen and (max-width: 620px) {
+  td[width=3D"24"] {
+    width=
+: 16px !important;
+    min-width: 16px !important;
+    max-width: 16px =
+!important;
+  }
+}
+</style>
+
+<tr>
+    <td width=3D"24" bgcolor=
+=3D"#100F0E">&#160;</td>
+    <td style=3D"padding-bottom: 0;" bgcolor=3D"=
+#100F0E">
+      <table width=3D"100%" border=3D"0" cellspacing=3D"0" cell=
+padding=3D"0" align=3D"center" style=3D"mso-hide:all;">
+        <tr style=
+=3D"mso-hide:all;">
+          <td align=3D"center" style=3D"mso-hide:all;=
+">
+            <div style=3D"font-size:1px;line-height:1px;mso-line-heigh=
+t-rule:exactly;mso-hide:all;"><img
+                            src=3D"htt=
+ps://mail-assets.jobleads.de/gfx/t.gif" width=3D"620" height=3D"1" alt=3D""=
+ border=3D"0"
+                            style=3D"min-width:620px;height=
+:1px;mso-hide:all;" class=3D"resetImg"/></div>
+          </td>
+        =
+</tr>
+      </table>
+    </td>
+    <td width=3D"24" bgcolor=3D"#100F0=
+E">&#160;</td>
+  </tr>
+</table>
+<style type=3D"text/css">
+@media on=
+ly screen and (max-width: 620px) {
+  td[width=3D"24"] {
+    width: 16px=
+ !important;
+    min-width: 16px !important;
+    max-width: 16px !impor=
+tant;
+  }
+}
+</style>
+</body>
+</html>
+
+--jSsimxcQ--
+

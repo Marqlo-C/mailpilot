@@ -1,0 +1,785 @@
+Delivered-To: marquiseclott@gmail.com
+Received: by 2002:ab0:1e41:0:b0:996:7c09:94dd with SMTP id n1csp3223167uak;
+        Fri, 6 Nov 2026 05:44:56 -0800 (PST)
+X-Received: by 2002:a05:7022:294:20b0:19f:527d:96da with SMTP id a92af1059eb24-1b25d38771amr2933216c88.33.1793972695866;
+        Fri, 06 Nov 2026 05:44:55 -0800 (PST)
+ARC-Seal: i=1; a=rsa-sha256; t=1793972695; cv=none;
+        d=google.com; s=arc-20260327;
+        b=aE0m84uK/tTwOd/fVp/vMSZQ3+L1bL4sTnLENHa0lAsQG8vToapBa8KDkBQca7G1J9
+         XpndSvoO6kxuyzgbB+DciJsb+0AW3loYiEV8I7Nj9fGj7BsiXENEgjhw2gO7x/yElvV4
+         AhV5qHppH33vWqyAREj3uesiFJtcnvC3i7ds2BdKu2JkHQ24YjXeqH5pwzSmuK7MHfuz
+         pubC94OW/GvsFkI9N1qw1wzX4sUe0u+W+s3f/QBjyKfF7KhgXdm+jlbUCrWAzdSvlL5l
+         Ut2byI/20I4uh8nHX8fbxd04sMSNph1a3nSV+BAqxv1aPNfCzSwbxXWsI+pKfZwYrz1V
+         eOdg==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20260327;
+        h=list-unsubscribe-post:list-unsubscribe:list-id:subject:reply-to
+         :from:message-id:mime-version:date:to:dkim-signature;
+        bh=aDeblz4Yay9Xfqmh1kroVBAQd6WphtUvYjISpaariBU=;
+        fh=N0T4YyFUJeQLZANLlPoNXtJvQ2zroX1l+M0C6GWRxg0=;
+        b=N3P5yWhH/ykmR/85cRv7rfM02rbF+HRcBIdQ18DtwmHQWCHAi9olj5fTwPU2vCqjr8
+         LzE3cL4Oam3iXWRwBMKHqQgYTaNkdzTLnWOkw71JlecFTROspbO6waIL0H9aniTjDzbz
+         6+3gJv+fCam8eH2hCbKNohYby/3bxSAb0dVQraQLRsht/wzoF5c2rpVlLifIBvncvnFh
+         s1j+C35TfLV61BCRPpOWFVK99qaJKXaI/yH6XOBfxZ+bmVMEI7+JZE4dk5NmghRSuUkg
+         WLdlSQb93suxCnRaefZ8/x+PcWypMFS3WitkP31Vo6jLrFcX6oKEJijIAPZqfU30Ibxe
+         8VjA==;
+        dara=google.com
+ARC-Authentication-Results: i=1; mx.google.com;
+       dkim=pass header.i=@match.indeed.com header.s=scph1024 header.b=Ya36BdQ7;
+       spf=pass (google.com: domain of msprvs1=20770qj-bkils=bounces-294276@bounces.indeed.com designates 156.70.22.249 as permitted sender) smtp.mailfrom="msprvs1=20770Qj-BKiLS=bounces-294276@bounces.indeed.com";
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=match.indeed.com
+Return-Path: <msprvs1=20770Qj-BKiLS=bounces-294276@bounces.indeed.com>
+Received: from mta-70-22-249.indeed.com.sparkpostmail.com (mta-70-22-249.indeed.com.sparkpostmail.com. [156.70.22.249])
+        by mx.google.com with ESMTPS id a92af1059eb24-1b25e4c762bsi4428071c88.64.2026.11.06.05.44.55
+        for <marquiseclott@gmail.com>
+        (version=TLS1_3 cipher=TLS_AES_256_GCM_SHA384 bits=256/256);
+        Fri, 06 Nov 2026 05:44:55 -0800 (PST)
+Received-SPF: pass (google.com: domain of msprvs1=20770qj-bkils=bounces-294276@bounces.indeed.com designates 156.70.22.249 as permitted sender) client-ip=156.70.22.249;
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@match.indeed.com header.s=scph1024 header.b=Ya36BdQ7;
+       spf=pass (google.com: domain of msprvs1=20770qj-bkils=bounces-294276@bounces.indeed.com designates 156.70.22.249 as permitted sender) smtp.mailfrom="msprvs1=20770Qj-BKiLS=bounces-294276@bounces.indeed.com";
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=match.indeed.com
+X-MSFBL: 5t/beIYog8CROADzitUpN7Ol3uyonhErrMzpRu0CARs=|eyJyIjoibWFycXVpc2V
+	jbG90dEBnbWFpbC5jb20iLCJzdWJhY2NvdW50X2lkIjoiMCIsInRlbmFudF9pZCI
+	6InNwYyIsIm1lc3NhZ2VfaWQiOiI2YWVkZDdkOWVkNmE1ZTg5NDQ0OSIsImN1c3R
+	vbWVyX2lkIjoiMjk0Mjc2In0=
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=match.indeed.com;
+	s=scph1024; t=1793972695; i=@match.indeed.com;
+	bh=aDeblz4Yay9Xfqmh1kroVBAQd6WphtUvYjISpaariBU=;
+	h=To:Date:Content-Type:Message-ID:From:Subject:List-Unsubscribe:
+	 List-Unsubscribe-Post:From:To:Cc:Subject:Feedback-Id;
+	b=Ya36BdQ7MA1tUZmLzCY2yv4iJ4KVUqIpWrLAHkFvBMv9vfJQNJqAUjVYwUFCUmcZV
+	 ZAqFXfehlQHOrglPUhDfMIL2YgNOnNy/vwkp4NPcl/ppifrBIg0f1Q10nTd6PAhYh3
+	 lgle4YBppEO2vYVWFQu8gDzkJl3M+5rGtayAzNx4=
+Received: from [10.90.5.207] ([10.90.5.207])
+	by i-0f1d4a0165b52ae90.mta1vrest.sd.prd.sparkpost (ecelerity 5.3.0.76596 r(msys-ecelerity:tags/5.3.0.35)) with REST
+	id 94/4C-24443-7D9DDEA6; Fri, 06 Nov 2026 13:44:55 +0000
+To: <marquiseclott@gmail.com>
+Date: Fri, 06 Nov 2026 13:44:55 +0000
+Content-Type: multipart/alternative; boundary="_----8USu2Rgufq03J9iwluKXaA===_23/4C-24443-7D9DDEA6"
+MIME-Version: 1.0
+Message-ID: <1k6ohlsbilisp80l@indeed.com>
+From: "Indeed" <donotreply@match.indeed.com>
+Reply-To: Indeed <donotreply@match.indeed.com>
+Subject: Full Stack Developer - AI Trainer at DataAnnotation in Georgia and 1 more new job
+List-ID: <match.indeed.com>
+List-Unsubscribe: <mailto:unsubscribe@unsub.spmta.com?subject=unsubscribe%3AuL-ovDIPkMyL9FDx7ZBxNobvE8MiOoIVSciStA-m74Y~%7CeyAicmNwdF90byI6ICJtYXJxdWlzZWNsb3R0QGdtYWlsLmNvbSIsICJsaXN0X2lkIjogIm1hdGNoLmluZGVlZC5jb20iLCAidGVuYW50X2lkIjogInNwYyIsICJjdXN0b21lcl9pZCI6ICIyOTQyNzYiLCAic3ViYWNjb3VudF9pZCI6ICIwIiwgIm1lc3NhZ2VfaWQiOiAiNmFlZGQ3ZDllZDZhNWU4OTQ0NDkiIH0~>,<https://unsubscribe.spmta.com/u/RVx0ggkVOjRcXeFKn4LHzA~~/AAR9hBA~/9tP5gxGTd2rdh_eZzz-KY8wcQFeT8evGq8W4qDwo_YQebJzSfnn-JU38RjZeS6g7oqTqHX0JBvYD8A7OX_EOYg~~>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+
+--_----8USu2Rgufq03J9iwluKXaA===_23/4C-24443-7D9DDEA6
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/plain; charset="UTF-8"
+
+Hi Marq,  Your software development experience and project management skill=
+s could be a great match for this Full Stack Developer - AI Trainer role at=
+ DataAnnotation. If you're interested in a flexible, remote position that p=
+ays competitively, you can apply now or explore more jobs below. =0AJobs ar=
+e based on your preferences, profile, and activity on Indeed &sup1;=0A=0AFu=
+ll Stack Developer - AI Trainer=0ADataAnnotation - Georgia=0A$75 - $150 an =
+hour=0AEasily apply=0AFlexible schedule: choose which projects you take on =
+and when you work, on your own computer, from the comfort of your own home.=
+=0A=0Ahttps://www.indeed.com/pagead/clk/dl=3Ffrom=3Djobi2a_multijob-en-US_e=
+mail&jrtk=3D5-cmh1-1-1k6ohlpfop6hn80c-b3e817349b87e055&mo=3Dr&ad=3D-6NYlbfk=
+N0AOZTkBmBZtmqwgfFRWJp8VXRLXLx12-QergwuATHCpRLzYHnFXMCh6Rs1YGhm_mmVQV9Qx2TX=
+ej-xZ1Yr58WAoXGbsmMQK20MPxB6eyjNXbO6eGRsF8LxSOBovKukEcMrfzAC6Fv1PR7-lJBLYB4=
+k43_2DBVgnPnlt0F6FnHqNMjkPO400kCG6RaFIq7QNfj370nw1tzruy17K8bF2Tky0lPXxjPNV7=
+FcoJY1YlnacN8fjc_Vg4KBvh3-988sEz1iwWSut_7FFhNFwdNDFcZdSqUNKw6-fRAnOrUjRGpNQ=
+HBOC34STB-tkT0V_y9rygMNaxjFy0IMm-qisaEtHJIK3j4yqarRcyCBtTbqtudgnjTyPqgptI3q=
+WLJ4iaCyD0f7S8_nqYYlKuJBBqd60TlDE-QV2RXS5Vl_ECZtgOOmxEFvCD4-rLDHnrQZvUyqbw0=
+dRDJDolev2UuqaXN5wKYfBUoMbti32YM8-5JvgzTp3w8ZWyQfhZBCj7cUAOucj6UiFK9ahmbkx-=
+3JSVmlRh9IO6CD7wc1-VHtB7DS8BDYL04Ih2RiRmkTr7QzTF-dqtDXgFOp_I3IX0axNo7dM0ABI=
+5SQ_SrdgN7E4glATMvbGB9yk0UzKJPf0G_W3GCoiCL2xyMMVH7wjGTqx57ztIwEZC3g27p0UGMw=
+mnKRzShBFgEY7L0qVju64aYjdYhwjvruqQlSkBSEweI5fBwPLsgCVT-C7kzKIjisng58luYYoSm=
+wUDPEbuK3hasw87nJMj-5WQGr82-3OkUB7Bmy_e5vLk4RLKKwrlqO24FF44JHSZrkR5YyWw_IwO=
+U0iJF8c8MrHJdV4bidOlJPaf7QVlLg2MOtdjMwaRNgYKHpP5mqUlcskab-5AnXGVeIcZ5jxBEWP=
+9IplKzQ8kU72ONotWfezIFSnZg84X2HEBToeaY9fHKDMKfBR7RsOKAnsi5j_DE1dFfF09GYfliN=
+cVbj9dqi61mF3j5lmcHhjhNof9aAe3w%3D%3D&rm=3D2&xkcb=3DSoBE6_M2cYrYuxXwdh0Obzk=
+dCdPP&jsa=3D4024&camk=3DC3EPSzFlQw__aORgod1h_A%3D%3D=0A=0AStaff Software En=
+gineer - AI Trainer=0ADataAnnotation - Georgia=0A$75 - $150 an hour=0AEasil=
+y apply=0AFlexible schedule: choose which projects you take on and when you=
+ work, on your own computer, from the comfort of your own home.=0A=0Ahttps:=
+//www.indeed.com/pagead/clk/dl=3Ffrom=3Djobi2a_multijob-en-US_email&jrtk=3D=
+5-cmh1-1-1k6ohlpfop6hn80c-6edd462cf51605c8&mo=3Dr&ad=3D-6NYlbfkN0AOZTkBmBZt=
+mqwgfFRWJp8VXRLXLx12-QergwuATHCpRLzYHnFXMCh6Rs1YGhm_mmVQV9Qx2TXej5h2NCX6J--=
+nAzCYvV7CAgDdh0pWLfSGtcOe6GSjnaTy11WcQO3VCM9Cqmf12u3icLSDbZU5yV7LBuY_MrdDAe=
+afypLB9e-qxHGbhmNPeiqba3a4HHRQA4DuncIYpmkWV3rYZWZmNZOP0qxgoRVfmIz8XHE3oMdYQ=
+HlsRUMU8w8Cx6LPanuDrOKGu6YoOG0lc9_GfnSOZktzwYxrFF4hhpgeFdshhqPfce9FmxfGcVbL=
+bt0wR3OExFfyIc98w40h3Mtoiomw-nUcwG9JpeurLXd3XdG3QSWpwUThIo_czjtTudI9-5QXAqK=
+icbDG7Zvs-UvS-kUziVePvTAQdPg8l5Hkbds1w2p6SUJ_Kh_B5oo_0-aa4A5Qq43pTuNkJAjVsP=
+QXdL7L9cOpBmG72OwzfaQ3JXiann2BDnpcKl3boP61xq2O6xTd_xWgEimeS7699UAmIbSDRvmTY=
+mbCf-KfUhOd0DRJdYeGGYlXxV_siJtmFdskrVVsdSZm-yQ3KVYSiKXsVVdkpImlu-86VeOr8Ho-=
+GC-tBOFyw7WwX2Mbhr1zQI7n2qB-ZvUa2jqSkHQ_nPmOqU0E_AdeIV86xRbNRIazHN1QPcij02O=
+Vz3SIZMLlTaO05S2_s3k9SoX3rA0gpkUGse5SAG5tThF3ljA-9542CrVFvblT5_6EXYgv69gUH0=
+2jyHKYWKOD7-INdz3XUd9tENXwboKSOIogE_KjgAbfiyWKujRgQvFo22DqmdWglPTU8Fy7NbGlh=
+Y2k0NJR6E2uT9TEnyGknuyuRbtWqT3cB2cPh07JWpGLXt3SBWFFJdVOZ_sMhvOZ-y57g53RiCrS=
+cnHVOSVJ9lMn9QIWTLRzaoswxDzl7LoFZVfN_p9vM4WfS0Bpx4EAxgkI6WEY_5Aws0PsFLb4L2_=
+vd61UN_U82VMk_wih1XujEcLfwSSx&rm=3D2&xkcb=3DSoBP6_M2cYrYuwXwdh0DbzkdCdPP&js=
+a=3D4026&camk=3DC3EPSzFlQw__aORgod1h_A%3D%3D=0A=0ASalaries estimated if una=
+vailable. When a job posting doesn't include a salary, we estimate it by lo=
+oking at similar jobs. Estimated salaries are not endorsed by the companies=
+ offering those positions and may vary from actual salaries.=0A=0A=C2=B9 Th=
+is email includes Job Ads that are based on your Indeed Profile, preference=
+s, and activity on Indeed. Indeed may be compensated by these employers, he=
+lping keep Indeed free for jobseekers. Indeed displays Job Ads based on a c=
+ombination of employer bids and relevance, such as search terms, other info=
+rmation provided, and activities conducted on Indeed. For more information,=
+ see the Indeed Terms of Service: https://www.indeed.com/legal=3Fhl=3Den#to=
+s=0A=0A=C2=A9 2026 Indeed, Inc. =0AIndeed Tower 200 West 6th Street, Floor =
+36, Austin, TX 78701 =0APrivacy Policy: https://hrtechprivacy.com/brands/in=
+deed=3Fhl=3Den#privacypolicy =0ATerms: https://www.indeed.com/legal=3Fhl=3D=
+en#tos =0AHelp Center: https://support.indeed.com/hc/en-us=3Fhl=3Den =0AMan=
+age email settings: https://subscriptions.indeed.com=3Ftoken=3DCkCKVaBJXXsL=
+Y5cVSozTeKZz9KWyTdNEvB8zcuQbJvCIw8Krki36Q18W36JMsAf9kGSOgF2EzTHdmvNVE2VsFwg=
+PEiBlFAATk77yUZsaRMyt7zGEoVA61oihKkkNP_oavcdNaBoQMJl9nJKdS0fh2LjZ25CYuw%3D%=
+3D&co=3DUS&hl=3Den&tmtk=3D1k6ohlqut2lre001&from=3Djaf =0AUnsubscribe from t=
+his email: https://subscriptions.indeed.com/optout=3Fco=3DUS&hl=3Den&tk=3D1=
+k6ohlqut2lre001&ctt=3DCiC7KYo0ISl_uVuLqaVUNgEvSG1IFpO2FC_dkzCAV2I9rRIgqtt7S=
+YR_nQSqMxY0LHywWp195RGqiuStDRJIYML6OacaEB3Vy0iKL_EE66NJ33RAqRE%3D&token=3DC=
+kAmgmjCXchuAkdaTy4dUHtlPqDW5g8Fqh7oZYzw1xC0AWGTVA2Ufgu3-Lemq19mLAC8OnmTTYA9=
+Otwciukvnx-4EiCmN7HYs7ewI5JVhUa-xt65jLkjfW_2RjP6iYXtHPw-rhoQeHpg5dPZgX-dc4v=
+PFc8UAQ%3D%3D
+--_----8USu2Rgufq03J9iwluKXaA===_23/4C-24443-7D9DDEA6
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html; charset="UTF-8"
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.=
+w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">=0A<html lang=3D"en" xmlns=3D=
+"http://www.w3.org/1999/xhtml" xml:lang=3D"en" xmlns:v=3D"urn:schemas-micro=
+soft-com:vml" xmlns:o=3D"urn:schemas-microsoft-com:office:office"><head><me=
+ta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dutf-8"/><!--=
+[if !mso]><!-->=0A    <meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3D=
+edge"/>=0A     <!--<![endif]-->=0A<meta name=3D"viewport" content=3D"width=
+=3Ddevice-width, initial-scale=3D1.0"/><!--[if !mso]><!-->=0A    <style typ=
+e=3D"text/css">@import url('https://prod.statics.indeed.com/ds/assets/typog=
+raphy/indeedsans/v1/indeedsans.css');</style>=0A     <!--<![endif]-->=0A<!-=
+-[if !mso]><!-->=0A    <style type=3D"text/css">@import url('https://fonts.=
+googleapis.com/css2=3Ffamily=3DNoto+Sans:wght@400;700&display=3Dswap');</st=
+yle>=0A     <!--<![endif]-->=0A<title></title><style type=3D"text/css">=0A/=
+* iOS BLUE LINKS */=0Aa[x-apple-data-detectors] {=0A  color: inherit !impor=
+tant;=0A  font-size: inherit !important;=0A  font-family: inherit !importan=
+t;=0A  font-weight: inherit !important;=0A  line-height: inherit !important=
+;=0A}=0A/* Samsung blue Links */=0A#MessageViewBody a {=0A  color: inherit;=
+=0A  text-decoration: none;=0A  font-size: inherit;=0A  font-family: inheri=
+t;=0A  font-weight: inherit;=0A  line-height: inherit;=0A}=0A/* Samsung cen=
+ter email */=0A#MessageViewBody {=0A  margin: 0 auto !important;=0A}=0A=0Aa=
+,=0Abody,=0Atable,=0Atd,=0Ath {=0A  -webkit-text-size-adjust: 100%;=0A  -ms=
+-text-size-adjust: 100%;=0A  box-sizing: border-box !important;=0A}=0Atable=
+,=0Atd {=0A  mso-table-lspace: 0;=0A  mso-table-rspace: 0;=0A}=0Aimg {=0A  =
+-ms-interpolation-mode: bicubic;=0A  border: 0;=0A  height: auto;=0A  line-=
+height: 100%;=0A  outline: 0;=0A  text-decoration: none;=0A}=0Abody {=0A  h=
+eight: 100% !important;=0A  margin: 0 !important;=0A  padding: 0 !important=
+;=0A  width: 100% !important;=0A}=0Asup {=0A  *vertical-align: baseline;=0A=
+  *position: relative;=0A  *bottom: .75em;=0A  font-size: 0.65em;=0A  line-=
+height: 0;=0A}=0Ap {=0A  margin-top: 8px;=0A  margin-bottom: 16px;=0A}=0A@m=
+edia only print and (max-width: 600px) {=0A  body {=0A    max-width: 320px;=
+=0A  }=0A}=0A@media all and (max-width: 600px) {=0A  .outerContainer {=0A  =
+  width: 100% !important=0A  }=0A  .shrinkMobile a {=0A   min-width: 100% !=
+important=0A  }=0A  .innerContainer {=0A    padding-left: 0 !important;=0A =
+   padding-right: 0 !important=0A  }=0A  .fullWidth {=0A    width: 100% !im=
+portant;=0A    display: block=0A  }=0A  u~div #full-wrap {=0A    min-width:=
+ 100vw=0A  }=0A  h1.hero-h1 {=0A    font-size: 36px !important;=0A    line-=
+height: 45px !important;=0A    -webkit-text-size-adjust: none !important=0A=
+  }=0A  h1.hero-h1_variable {=0A    font-size: 130% !important;=0A    line-=
+height: 135% !important;=0A    -webkit-text-size-adjust: none !important=0A=
+  }=0A  h2.body-h2 {=0A    font-size: 24px !important;=0A    line-height: 3=
+0px !important;=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h=
+3.body-h3 {=0A    font-size: 20px !important;=0A    line-height: 24px !impo=
+rtant;=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h3.body-h3=
+-link {=0A    font-size: 20px !important;=0A    line-height: 24px !importan=
+t;=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h4.body-h4-lin=
+k {=0A    font-size: 14px !important;=0A    line-height: 18px !important;=
+=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h1.h1-xl {=0A   =
+ font-size: 44px !important;=0A    line-height: 55px !important;=0A    -web=
+kit-text-size-adjust: none !important=0A  }=0A  h1.h1-lg {=0A    font-size:=
+ 36px !important;=0A    line-height: 45px !important;=0A    -webkit-text-si=
+ze-adjust: none !important=0A  }=0A  h1.h1-md {=0A    font-size: 28px !impo=
+rtant;=0A    line-height: 35px !important;=0A    -webkit-text-size-adjust: =
+none !important=0A  }=0A  h1.h1-sm {=0A    font-size: 24px !important;=0A  =
+  line-height: 30px !important;=0A    -webkit-text-size-adjust: none !impor=
+tant=0A  }=0A  h1.h1-xs {=0A    font-size: 20px !important;=0A    line-heig=
+ht: 28px !important;=0A    -webkit-text-size-adjust: none !important=0A  }=
+=0A  h2.h2-xl {=0A    font-size: 28px !important;=0A    line-height: 35px !=
+important;=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h2.h2-=
+lg {=0A    font-size: 24px !important;=0A    line-height: 30px !important;=
+=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h2.h2-md {=0A   =
+ font-size: 20px !important;=0A    line-height: 28px !important;=0A    -web=
+kit-text-size-adjust: none !important=0A  }=0A  h2.h2-sm,=0A  h2.h2-xs {=0A=
+    font-size: 16px !important;=0A    line-height: 24px !important;=0A    -=
+webkit-text-size-adjust: none !important=0A  }=0A  h3.h3-xl,=0A  h3.h3-link=
+-xl {=0A    font-size: 24px !important;=0A    line-height: 30px !important;=
+=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h3.h3-lg,=0A  h3=
+.h3-link-lg {=0A    font-size: 20px !important;=0A    line-height: 28px !i=
+mportant;=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h3.h3-m=
+d,=0A  h3.h3-link-md {=0A    font-size: 16px !important;=0A    line-height:=
+ 24px !important;=0A    -webkit-text-size-adjust: none !important=0A  }=0A =
+ h3.h3-sm,=0A  h3.h3-xs,=0A  h3.h3-link-sm,=0A  h3.h3-link-xs {=0A    font-=
+weight: normal !important;=0A    font-size: 16px !important;=0A    line-hei=
+ght: 24px !important;=0A    -webkit-text-size-adjust: none !important=0A  }=
+=0A  p.body-p-lg {=0A    font-size: 36px !important;=0A    line-height: 43p=
+x !important;=0A    -webkit-text-size-adjust: none !important=0A  }=0A  p.b=
+ody-p-sm {=0A    font-size: 14px !important;=0A    line-height: 22px !impor=
+tant;=0A    -webkit-text-size-adjust: none !important=0A  }=0A  p.body-p-xs=
+ {=0A    font-size: 12px !important;=0A    line-height: 20px !important;=0A=
+    -webkit-text-size-adjust: none !important=0A  }=0A  .ph-0 { padding-lef=
+t: 0px !important; padding-right: 0px !important }=0A  .p-0 { padding: 0px =
+!important }=0A  .pt-0 { padding-top: 0px !important }=0A  .pr-0 { padding-=
+right: 0px !important }=0A  .pb-0 { padding-bottom: 0px !important }=0A  .p=
+l-0 { padding-left: 0px !important }=0A  .pb-4 { padding-bottom: 4px !impor=
+tant }=0A  .pt-4 { padding-top: 4px !important }=0A  .ph-8 { padding-left: =
+8px !important; padding-right: 8px !important }=0A  .pb-8 { padding-bottom:=
+ 8px !important }=0A  .ptb-8 { padding-top: 8px !important; padding-bottom:=
+ 8px !important }=0A  .pt-8 { padding-top: 8px !important }=0A  .pl-8 { pad=
+ding-left: 8px !important }=0A  .pl-10 { padding-left: 10px !important }=0A=
+  .pb-12 { padding-bottom: 12px !important }=0A  .pr-8 { padding-right: 8px=
+ !important }=0A  .ph-15 { padding-left: 15px !important; padding-right: 15=
+px !important }=0A  .pr-15 { padding-right: 15px !important }=0A  .pl-15 { =
+padding-left: 15px !important }=0A  .pb-15 { padding-bottom: 15px !importan=
+t }=0A  .ph-16 { padding-left: 16px !important; padding-right: 16px !import=
+ant }=0A  .pt-16 { padding-top: 16px !important }=0A  .pr-16 { padding-righ=
+t: 16px !important }=0A  .pb-16 { padding-bottom: 16px !important }=0A  .pl=
+-16 { padding-left: 16px !important }=0A  .p-16 { padding-top: 16px !import=
+ant; padding-right: 16px !important; padding-bottom: 16px !important; paddi=
+ng-left: 16px !important }=0A  .pt-20 { padding-top: 20px !important }=0A  =
+.ph-20 { padding-left: 20px !important; padding-right: 20px !important }=
+=0A  .p-20 { padding-top: 20px !important; padding-right: 20px !important; =
+padding-bottom: 20px !important; padding-left: 20px !important }=0A  .pt-24=
+ { padding-top: 24px !important }=0A  .pr-24 { padding-right: 24px !importa=
+nt }=0A  .pb-24 { padding-bottom: 24px !important }=0A  .pl-24 { padding-le=
+ft: 24px !important }=0A  .p-24 { padding-top: 24px !important; padding-rig=
+ht: 24px !important; padding-bottom: 24px !important; padding-left: 24px !i=
+mportant }=0A  .ph-24 { padding-right: 24px !important; padding-left: 24px =
+!important }=0A  .pb-27 { padding-bottom: 27px !important }=0A  .ph-30 { pa=
+dding-left: 30px !important; padding-right: 30px !important }=0A  .pt-30 { =
+padding-top: 30px !important }=0A  .pb-30 { padding-bottom: 30px !important=
+ }=0A  .pt-32 { padding-top: 32px !important }=0A  .pb-32 { padding-bottom:=
+ 32px !important }=0A  .ph-32 { padding-left: 32px !important; padding-righ=
+t: 32px !important }=0A  .pt-36 { padding-top: 36px !important }=0A  .pr-36=
+ { padding-right: 36px !important }=0A  .pb-36 { padding-bottom: 36px !impo=
+rtant }=0A  .pl-36 { padding-left: 36px !important }=0A  .pt-37 { padding-t=
+op: 37px !important }=0A  .pt-38 { padding-top: 38px !important }=0A  .pt-4=
+0 { padding-top: 40px !important }=0A  .pb-40 { padding-bottom: 40px !impor=
+tant }=0A  .show {=0A    display: block !important;=0A    max-height: none =
+!important;=0A    overflow: visible !important;=0A    font-size: inherit !i=
+mportant;=0A    line-height: inherit !important=0A  }=0A  .hide {=0A    dis=
+play: none !important=0A  }=0A  .hide-bg {=0A    background-image: none !im=
+portant=0A  }=0A  .bt-1 { border-top: 1px solid #f6f6f6 !important }=0A  .b=
+t-0 { border-top: 0px solid #fff !important }=0A  .bt-15 { border-top: 15px=
+ solid #fff !important }=0A  .bb-5 { border-bottom: 5px solid #f6f6f6 !impo=
+rtant }=0A  .br-0 { border-right: none !important }=0A  .bgcolor-m { backgr=
+ound-color: #f6f6f6 !important }=0A  .bgcolor-white-m { background-color: #=
+ffffff !important }=0A  .width-100 { width: 100% !important }=0A  .width-70=
+ { width: 70% !important }=0A  .width-50 { width: 50% !important }=0A  .cen=
+ter { margin: 0 auto !important }=0A  .center-align-text { text-align: cent=
+er !important }=0A  .left-align-text { text-align: left !important }=0A  .s=
+tack { display: block !important }=0A  .table { display: table !important }=
+=0A  .cta.stack a { width: 100% !important }=0A  .height-580 { height: 300p=
+x !important; background-position: bottom !important }=0A  .no-border { bor=
+der: none !important; border-radius: 0 !important }=0A  .h24 { height: 24px=
+ !important }=0A  .h16 { height: 16px !important }=0A  .jobCardLabels { mar=
+gin: 0 0 4px !important; width: 100% !important; display: block !important =
+}=0A  .radius8 { border-radius: 8px !important }=0A  .eml_BasicTable_HideOn=
+Mobile { display: none !important }=0A}=0A@media only screen and (min-width=
+: 600px) {=0A  .eml_BasicTable_MobileShow { display: none !important }=0A}=
+=0A</style><!--[if (gt mso 9)|(IE)]>=0A        <style>=0A                ta=
+ble {=0A                    border-collapse: collapse;=0A                  =
+  border-spacing: 0;=0A                }=0A                </style>=0A     =
+   <![endif]-->=0A<!--[if (gt mso 9)|(IE)]>=0A        <xml>=0A            <=
+o:OfficeDocumentSettings>=0A            <o:AllowPNG/>=0A            <o:Pixe=
+lsPerInch>96</o:PixelsPerInch>=0A            </o:OfficeDocumentSettings>=0A=
+        </xml>=0A        <![endif]-->=0A<!--[if gte mso 9]>=0A        <styl=
+e>=0A            li {=0A                text-indent: -1em; /* Normalise spa=
+ce between bullets and text */=0A            }=0A        </style>=0A       =
+ <![endif]-->=0A</head><body style=3D"margin:0;padding:0" lang=3D"en" bgcol=
+or=3D"#F3F2F1"><div style=3D"display:none;max-height:0px;overflow:hidden">H=
+i Marq,  Your software development experience and project management skills=
+ could be a great match for this Full Stack Developer - AI Trainer role at =
+DataAnnotation. If you're interested in a flexible, remote position that pa=
+ys competitively, you can apply now or explore more jobs below.</div><div s=
+tyle=3D"display:none;max-height:0px;overflow:hidden">&#8199;&#847;&shy;&#81=
+99;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;=
+&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#8=
+47;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;=
+&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&sh=
+y;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&=
+#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#81=
+99;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;=
+&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#8=
+47;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;=
+&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&sh=
+y;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&=
+#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#81=
+99;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;=
+&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#8=
+47;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;=
+&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&sh=
+y;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&=
+#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#81=
+99;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;=
+&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#8=
+47;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;=
+&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&sh=
+y;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&=
+#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#81=
+99;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;=
+&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#8=
+47;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;=
+&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&sh=
+y;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&=
+#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#81=
+99;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;=
+&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#8=
+47;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;=
+&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&sh=
+y;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&=
+#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#81=
+99;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;=
+&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#8=
+47;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;=
+&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&sh=
+y;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&=
+#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#81=
+99;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;=
+&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#8=
+47;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;=
+&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&sh=
+y;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&=
+#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;</div><table width=3D"=
+100%" cellPadding=3D"0" cellSpacing=3D"0" role=3D"none"><tr><td style=3D"he=
+ight:16px;line-height:16px;font-size:1px">=C2=A0</td></tr></table><table wi=
+dth=3D"100%" cellPadding=3D"0" cellSpacing=3D"0" role=3D"none" style=3D"bac=
+kground-color:#F3F2F1"><tr><td style=3D"padding:8px" align=3D"center"><div =
+id=3D"responsive_css_ping"></div><style>@media only screen and (max-width:5=
+30px) {=0A                        #responsive_css_ping {=0A                =
+            background-image: url(https://subscriptions.indeed.com/imgping=
+=3Faluidhash=3D5b19487b8173f4bc557a7765cd428f15&alert=3D1k6ohlqut2lre001&tk=
+=3D1k6ohlqut2lre001&aid=3DCkApCCh5wbQUjqHEYHUJ9ephmY-xAYyeko6bt9pO-aXhuRLnN=
+zJr3lVNwdoEgOr6Hip5QIp-5ZhkOSnCHRBdIowREhDIct-CAkT83g3Kk7sTznIIGhBBY8fVWKlw=
+2cuQnzauPVU3&type=3Djafeedresponsive);=0A                        }=0A      =
+              }</style><img alt=3D" " src=3D"https://subscriptions.indeed.c=
+om/imgping=3Faluidhash=3D5b19487b8173f4bc557a7765cd428f15&alert=3D1k6ohlqut=
+2lre001&tk=3D1k6ohlqut2lre001&aid=3DCkApCCh5wbQUjqHEYHUJ9ephmY-xAYyeko6bt9p=
+O-aXhuRLnNzJr3lVNwdoEgOr6Hip5QIp-5ZhkOSnCHRBdIowREhDIct-CAkT83g3Kk7sTznIIGh=
+BBY8fVWKlw2cuQnzauPVU3&type=3Djafeed" height=3D"0" width=3D"1" style=3D"dis=
+play:block"/><h1 style=3D"font-size:0;line-height:0;margin:0;padding:0;over=
+flow:hidden;height:0;width:0;text-indent:-9999px">Hi Marq,  Your software d=
+evelopment experience and project management skills could be a great match =
+for this Full Stack Developer - AI Trainer role at DataAnnotation. If you'r=
+e interested in a flexible, remote position that pays competitively, you ca=
+n apply now or explore more jobs below.</h1><table class=3D"full-wrap" cell=
+Padding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"center" style=3D"min-=
+width:100%" bgcolor=3D"#f3f2f1" width=3D"100%" role=3D"presentation"><tr><t=
+d align=3D"center" valign=3D"top" class=3D"pt-0" style=3D"padding:15px 0 0"=
+><!--[if (gt mso 9)|(IE)]>=0A        <table width=3D"600" cellpadding=3D"0"=
+ cellspacing=3D"0" border=3D"0"=0A                bgcolor=3D"#ffffff" style=
+=3D"width:600px;" role=3D"presentation">=0A                    <tr>=0A     =
+                   <td align=3D"center" valign=3D"top">=0A        <![endif]=
+-->=0A<table class=3D"outerContainer" cellPadding=3D"0" cellSpacing=3D"0" b=
+order=3D"0" align=3D"center" style=3D"max-width:600px" bgcolor=3D"#ffffff" =
+width=3D"100%" role=3D"presentation"><tr><td align=3D"center" valign=3D"top=
+"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" bg=
+color=3D"#ffffff" width=3D"100%" role=3D"presentation"><tr><td align=3D"cen=
+ter" valign=3D"top" class=3D"ph-16" style=3D"padding:20px 15px 15px;border-=
+bottom:0"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"=
+left" width=3D"100%" role=3D"presentation"><tr><td align=3D"center" valign=
+=3D"top" style=3D"padding:0px"><table cellPadding=3D"0" cellSpacing=3D"0" b=
+order=3D"0" align=3D"left" width=3D"100%" role=3D"presentation"><tr><td ali=
+gn=3D"left" valign=3D"middle"><a href=3D"https://www.indeed.com/=3Fco=3DUS&=
+utm_campaign=3Djob_alerts&utm_medium=3Demail&utm_source=3Djobseeker_emails&=
+from=3Djobi2a_multijob-en-US_email&tk=3D1k6ohlqut2lre001"><img src=3D"https=
+://prod.statics.indeed.com/eml/assets/images/logo/indeed_en_color.png" alt=
+=3D"Indeed Logo" width=3D"80" height=3D"23" style=3D"font-family:'Indeed Sa=
+ns', 'Noto Sans', Helvetica, Arial, sans-serif;color:#004fcb;font-size:20px=
+;display:block"/></a></td><td align=3D"right" valign=3D"middle" style=3D"pa=
+dding:0px"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D=
+"right" role=3D"presentation"><tr><td align=3D"center" valign=3D"bottom" st=
+yle=3D"padding:0px" class=3D"hide"><p style=3D"color:#595959;font-family:'I=
+ndeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:14px;font-=
+weight:normal;line-height:21px;margin:0;padding:0;white-space:nowrap"><a hr=
+ef=3D"https://www.indeed.com/" style=3D"color:#004fcb;font-weight:normal;te=
+xt-decoration:underline" class=3D"standard-text-link">Find Jobs</a></p></td=
+><td align=3D"right" valign=3D"bottom" style=3D"padding:0px 0px 0px 16px"><=
+p style=3D"color:#595959;font-family:'Indeed Sans', 'Noto Sans', Helvetica,=
+ Arial, sans-serif;font-size:14px;font-weight:normal;line-height:21px;margi=
+n:0;padding:0;white-space:nowrap"><a href=3D"https://secure.indeed.com/acco=
+unt/login=3Fcontinue=3Dhttps%3A%2F%2Fwww.indeed.com%2F&from=3Djobi2a_multij=
+ob-en-US_email&tk=3D1k6ohlqut2lre001&co=3DUS&hl=3Den" style=3D"color:#004fc=
+b;font-weight:normal;text-decoration:underline" class=3D"standard-text-link=
+">Sign in</a></p></td></tr></table></td></tr></table></td></tr></table></td=
+></tr></table></td></tr></table><!--[if (gt mso 9)|(IE)]>=0A        </td></=
+tr></table>=0A        <![endif]-->=0A</td></tr></table><table class=3D"full=
+-wrap" cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"center" st=
+yle=3D"min-width:100%" bgcolor=3D"#f3f2f1" width=3D"100%" role=3D"presentat=
+ion"><tr><td align=3D"center" valign=3D"top"><!--[if (gt mso 9)|(IE)]>=0A  =
+      <table width=3D"600" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"=
+=0A                bgcolor=3D"#ffffff" style=3D"width:600px;" role=3D"prese=
+ntation">=0A                    <tr>=0A                        <td align=3D=
+"center" valign=3D"top">=0A        <![endif]-->=0A<table class=3D"outerCont=
+ainer" cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"center" st=
+yle=3D"width:600px;max-width:600px" bgcolor=3D"#ffffff" width=3D"100%" role=
+=3D"presentation"><tr><td align=3D"center" valign=3D"top" style=3D"padding:=
+36px 16px 0"><h2 class=3D"h2-md" style=3D"color:#2d2d2d;font-family:'Indeed=
+ Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:20px;font-weigh=
+t:bold;line-height:1.5rem;margin:0;padding:0;text-align:left">Fully remote<=
+/h2></td></tr><tr><td align=3D"center" valign=3D"top" style=3D"padding:16px=
+ 16px 0"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"l=
+eft" style=3D"border-radius:20px" bgcolor=3D"#e8f3fc" width=3D"100%" role=
+=3D"presentation"><tr><td align=3D"left" valign=3D"top" style=3D"padding:16=
+px"><h2 style=3D"color:#2d2d2d;font-family:'Indeed Sans', 'Noto Sans', Helv=
+etica, Arial, sans-serif;font-size:16px;font-weight:bold;line-height:24px;m=
+argin:0;padding:0">Your top pick</h2><p style=3D"color:#595959;font-family:=
+'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:16px;fon=
+t-weight:normal;line-height:24px;margin:8px 0 0;padding:0">Your software de=
+velopment experience and project management skills could be a great match f=
+or this Full Stack Developer - AI Trainer role at DataAnnotation. If you're=
+ interested in a flexible, remote position that pays competitively, you can=
+ apply now or explore more jobs below.</p><table cellPadding=3D"0" cellSpac=
+ing=3D"0" border=3D"0" align=3D"left" width=3D"100%" role=3D"presentation">=
+<tr><td align=3D"left" valign=3D"top" style=3D"padding:8px 0 0"><table clas=
+s=3D"width-100" cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" style=3D"b=
+order:1px solid #e4e2e0;border-radius:20px" bgcolor=3D"#ffffff" width=3D"10=
+0%" role=3D"presentation"><tr><td align=3D"center" valign=3D"top" style=3D"=
+padding:16px"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" width=
+=3D"100%" role=3D"presentation"><tr><td align=3D"left" valign=3D"top" style=
+=3D"padding-bottom:0"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"=
+0" width=3D"100%" role=3D"presentation"><tr><td align=3D"left" valign=3D"to=
+p"><h2 style=3D"color:#2d2d2d;font-family:'Indeed Sans', 'Noto Sans', Helve=
+tica, Arial, sans-serif;font-size:16px;font-weight:bold;line-height:24px;ma=
+rgin:0;padding:0"><a href=3D"https://www.indeed.com/pagead/clk/dl=3Ffrom=3D=
+jobi2a_multijob-en-US_email&jrtk=3D5-cmh1-1-1k6ohlpfop6hn80c-b3e817349b87e0=
+55&mo=3Dr&ad=3D-6NYlbfkN0AOZTkBmBZtmqwgfFRWJp8VXRLXLx12-QergwuATHCpRLzYHnFX=
+MCh6Rs1YGhm_mmVQV9Qx2TXej-xZ1Yr58WAoXGbsmMQK20MPxB6eyjNXbO6eGRsF8LxSOBovKuk=
+EcMrfzAC6Fv1PR7-lJBLYB4k43_2DBVgnPnlt0F6FnHqNMjkPO400kCG6RaFIq7QNfj370nw1tz=
+ruy17K8bF2Tky0lPXxjPNV7FcoJY1YlnacN8fjc_Vg4KBvh3-988sEz1iwWSut_7FFhNFwdNDFc=
+ZdSqUNKw6-fRAnOrUjRGpNQHBOC34STB-tkT0V_y9rygMNaxjFy0IMm-qisaEtHJIK3j4yqarRc=
+yCBtTbqtudgnjTyPqgptI3qWLJ4iaCyD0f7S8_nqYYlKuJBBqd60TlDE-QV2RXS5Vl_ECZtgOOm=
+xEFvCD4-rLDHnrQZvUyqbw0dRDJDolev2UuqaXN5wKYfBUoMbti32YM8-5JvgzTp3w8ZWyQfhZB=
+Cj7cUAOucj6UiFK9ahmbkx-3JSVmlRh9IO6CD7wc1-VHtB7DS8BDYL04Ih2RiRmkTr7QzTF-dqt=
+DXgFOp_I3IX0axNo7dM0ABI5SQ_SrdgN7E4glATMvbGB9yk0UzKJPf0G_W3GCoiCL2xyMMVH7wj=
+GTqx57ztIwEZC3g27p0UGMwmnKRzShBFgEY7L0qVju64aYjdYhwjvruqQlSkBSEweI5fBwPLsgC=
+VT-C7kzKIjisng58luYYoSmwUDPEbuK3hasw87nJMj-5WQGr82-3OkUB7Bmy_e5vLk4RLKKwrlq=
+O24FF44JHSZrkR5YyWw_IwOU0iJF8c8MrHJdV4bidOlJPaf7QVlLg2MOtdjMwaRNgYKHpP5mqUl=
+cskab-5AnXGVeIcZ5jxBEWP9IplKzQ8kU72ONotWfezIFSnZg84X2HEBToeaY9fHKDMKfBR7RsO=
+KAnsi5j_DE1dFfF09GYfliNcVbj9dqi61mF3j5lmcHhjhNof9aAe3w%3D%3D&rm=3D2&xkcb=3D=
+SoBE6_M2cYrYuxXwdh0ObzkdCdPP&jsa=3D4024&camk=3DC3EPSzFlQw__aORgod1h_A%3D%3D=
+" style=3D"color:#2d2d2d;font-weight:bold;text-decoration:underline" class=
+=3D"strong-text-link">Full Stack Developer - AI Trainer</a></h2></td></tr><=
+tr><td align=3D"center" valign=3D"top"><table cellPadding=3D"0" cellSpacing=
+=3D"0" border=3D"0" align=3D"left" width=3D"100%" role=3D"presentation"><tr=
+><td width=3D"44" align=3D"left"><img src=3D"https://d2q79iu7y748jz.cloudfr=
+ont.net/s/_squarelogo/256x256/feb98915d9152828c51a9957d471fdec" width=3D"32=
+" alt=3D" " style=3D"vertical-align:middle"/></td><td><table cellPadding=3D=
+"0" cellSpacing=3D"0" border=3D"0" align=3D"left" width=3D"100%" role=3D"pr=
+esentation"><tr><td align=3D"left" valign=3D"top"><table cellPadding=3D"0" =
+cellSpacing=3D"0" border=3D"0" role=3D"presentation"><tr><td style=3D"paddi=
+ng:0 12px 0 0"><p style=3D"color:#2d2d2d;font-family:'Indeed Sans', 'Noto S=
+ans', Helvetica, Arial, sans-serif;font-size:14px;font-weight:normal;line-h=
+eight:21px;margin:0;padding:0">DataAnnotation</p></td></tr></table></td></t=
+r><tr><td align=3D"left" valign=3D"top"><p style=3D"color:#2d2d2d;font-fami=
+ly:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:14px;=
+font-weight:normal;line-height:21px;margin:0;padding:0">Georgia</p></td></t=
+r></table></td></tr></table></td></tr></table></td></tr><tr><td align=3D"le=
+ft" valign=3D"top" style=3D"padding:4px 0 0"><table cellPadding=3D"0" cellS=
+pacing=3D"0" border=3D"0" align=3D"left" style=3D"border-radius:8px;margin:=
+4px 4px 0 0;display:inline-block" bgcolor=3D"#f3f2f1" role=3D"presentation"=
+><tr><td align=3D"center" valign=3D"top" style=3D"padding:3px 8px 3px 8px">=
+<p style=3D"color:#595959;font-family:'Indeed Sans', 'Noto Sans', Helvetica=
+, Arial, sans-serif;font-size:14px;font-weight:bold;line-height:21px;margin=
+:0;padding:0">$75 - $150 an hour</p></td></tr></table></td></tr><tr><td ali=
+gn=3D"left" valign=3D"top" style=3D"padding:8px 0 0"><table cellPadding=3D"=
+0" cellSpacing=3D"0" border=3D"0" align=3D"left" style=3D"margin:4px 4px 0 =
+0;float:left" role=3D"presentation"><tr><td width=3D"24" valign=3D"middle" =
+align=3D"left"><img src=3D"https://prod.statics.indeed.com/eml/assets/image=
+s/lunchbox-icons/plane_filled_primary_outline.png" alt=3D" " width=3D"20" s=
+tyle=3D"vertical-align:middle"/></td><td><p style=3D"color:#2d2d2d;font-fam=
+ily:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:14px=
+;font-weight:normal;line-height:21px;margin:0;padding:0">Easily apply</p></=
+td></tr></table></td></tr></table></td></tr></table></td></tr></table></td>=
+</tr></table></td></tr><tr><td align=3D"center" valign=3D"top" style=3D"pad=
+ding:16px 16px 0"><table class=3D"width-100" cellPadding=3D"0" cellSpacing=
+=3D"0" border=3D"0" style=3D"border:1px solid #e4e2e0;border-radius:20px" b=
+gcolor=3D"#ffffff" width=3D"100%" role=3D"presentation"><tr><td align=3D"ce=
+nter" valign=3D"top" style=3D"padding:16px"><table cellPadding=3D"0" cellSp=
+acing=3D"0" border=3D"0" width=3D"100%" role=3D"presentation"><tr><td align=
+=3D"left" valign=3D"top" style=3D"padding-bottom:0"><table cellPadding=3D"0=
+" cellSpacing=3D"0" border=3D"0" width=3D"100%" role=3D"presentation"><tr><=
+td align=3D"left" valign=3D"top"><h2 style=3D"color:#2d2d2d;font-family:'In=
+deed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:16px;font-w=
+eight:bold;line-height:24px;margin:0;padding:0"><a href=3D"https://www.inde=
+ed.com/pagead/clk/dl=3Ffrom=3Djobi2a_multijob-en-US_email&jrtk=3D5-cmh1-1-1=
+k6ohlpfop6hn80c-6edd462cf51605c8&mo=3Dr&ad=3D-6NYlbfkN0AOZTkBmBZtmqwgfFRWJp=
+8VXRLXLx12-QergwuATHCpRLzYHnFXMCh6Rs1YGhm_mmVQV9Qx2TXej5h2NCX6J--nAzCYvV7CA=
+gDdh0pWLfSGtcOe6GSjnaTy11WcQO3VCM9Cqmf12u3icLSDbZU5yV7LBuY_MrdDAeafypLB9e-q=
+xHGbhmNPeiqba3a4HHRQA4DuncIYpmkWV3rYZWZmNZOP0qxgoRVfmIz8XHE3oMdYQHlsRUMU8w8=
+Cx6LPanuDrOKGu6YoOG0lc9_GfnSOZktzwYxrFF4hhpgeFdshhqPfce9FmxfGcVbLbt0wR3OExF=
+fyIc98w40h3Mtoiomw-nUcwG9JpeurLXd3XdG3QSWpwUThIo_czjtTudI9-5QXAqKicbDG7Zvs-=
+UvS-kUziVePvTAQdPg8l5Hkbds1w2p6SUJ_Kh_B5oo_0-aa4A5Qq43pTuNkJAjVsPQXdL7L9cOp=
+BmG72OwzfaQ3JXiann2BDnpcKl3boP61xq2O6xTd_xWgEimeS7699UAmIbSDRvmTYmbCf-KfUhO=
+d0DRJdYeGGYlXxV_siJtmFdskrVVsdSZm-yQ3KVYSiKXsVVdkpImlu-86VeOr8Ho-GC-tBOFyw7=
+WwX2Mbhr1zQI7n2qB-ZvUa2jqSkHQ_nPmOqU0E_AdeIV86xRbNRIazHN1QPcij02OVz3SIZMLlT=
+aO05S2_s3k9SoX3rA0gpkUGse5SAG5tThF3ljA-9542CrVFvblT5_6EXYgv69gUH02jyHKYWKOD=
+7-INdz3XUd9tENXwboKSOIogE_KjgAbfiyWKujRgQvFo22DqmdWglPTU8Fy7NbGlhY2k0NJR6E2=
+uT9TEnyGknuyuRbtWqT3cB2cPh07JWpGLXt3SBWFFJdVOZ_sMhvOZ-y57g53RiCrScnHVOSVJ9l=
+Mn9QIWTLRzaoswxDzl7LoFZVfN_p9vM4WfS0Bpx4EAxgkI6WEY_5Aws0PsFLb4L2_vd61UN_U82=
+VMk_wih1XujEcLfwSSx&rm=3D2&xkcb=3DSoBP6_M2cYrYuwXwdh0DbzkdCdPP&jsa=3D4026&c=
+amk=3DC3EPSzFlQw__aORgod1h_A%3D%3D" style=3D"color:#2d2d2d;font-weight:bold=
+;text-decoration:underline" class=3D"strong-text-link">Staff Software Engin=
+eer - AI Trainer</a></h2></td></tr><tr><td align=3D"center" valign=3D"top">=
+<table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" widt=
+h=3D"100%" role=3D"presentation"><tr><td width=3D"44" align=3D"left"><img s=
+rc=3D"https://d2q79iu7y748jz.cloudfront.net/s/_squarelogo/256x256/feb98915d=
+9152828c51a9957d471fdec" width=3D"32" alt=3D" " style=3D"vertical-align:mid=
+dle"/></td><td><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" alig=
+n=3D"left" width=3D"100%" role=3D"presentation"><tr><td align=3D"left" vali=
+gn=3D"top"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" role=3D"=
+presentation"><tr><td style=3D"padding:0 12px 0 0"><p style=3D"color:#2d2d2=
+d;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font=
+-size:14px;font-weight:normal;line-height:21px;margin:0;padding:0">DataAnno=
+tation</p></td></tr></table></td></tr><tr><td align=3D"left" valign=3D"top"=
+><p style=3D"color:#2d2d2d;font-family:'Indeed Sans', 'Noto Sans', Helvetic=
+a, Arial, sans-serif;font-size:14px;font-weight:normal;line-height:21px;mar=
+gin:0;padding:0">Georgia</p></td></tr></table></td></tr></table></td></tr><=
+/table></td></tr><tr><td align=3D"left" valign=3D"top" style=3D"padding:4px=
+ 0 0"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left=
+" style=3D"border-radius:8px;margin:4px 4px 0 0;display:inline-block" bgcol=
+or=3D"#f3f2f1" role=3D"presentation"><tr><td align=3D"center" valign=3D"top=
+" style=3D"padding:3px 8px 3px 8px"><p style=3D"color:#595959;font-family:'=
+Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:14px;font=
+-weight:bold;line-height:21px;margin:0;padding:0">$75 - $150 an hour</p></t=
+d></tr></table></td></tr><tr><td align=3D"left" valign=3D"top" style=3D"pad=
+ding:8px 0 0"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=
+=3D"left" style=3D"margin:4px 4px 0 0;float:left" role=3D"presentation"><tr=
+><td width=3D"24" valign=3D"middle" align=3D"left"><img src=3D"https://prod=
+.statics.indeed.com/eml/assets/images/lunchbox-icons/plane_filled_primary_=
+outline.png" alt=3D" " width=3D"20" style=3D"vertical-align:middle"/></td><=
+td><p style=3D"color:#2d2d2d;font-family:'Indeed Sans', 'Noto Sans', Helvet=
+ica, Arial, sans-serif;font-size:14px;font-weight:normal;line-height:21px;m=
+argin:0;padding:0">Easily apply</p></td></tr></table></td></tr></table></td=
+></tr></table></td></tr><tr><td align=3D"center" valign=3D"top" style=3D"pa=
+dding:40px 16px 0"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" =
+align=3D"center" width=3D"100%" role=3D"presentation"><tr><td align=3D"cent=
+er" style=3D"padding:0"><table class=3D"width-100" cellPadding=3D"0" cellSp=
+acing=3D"0" border=3D"0" align=3D"center" role=3D"presentation"><tr><td ali=
+gn=3D"center" class=3D"stack cta center-align-text" style=3D"border-radius:=
+12px;border:1px solid #004fcb"><a href=3D"https://www.indeed.com/=3Fco=3DUS=
+&utm_campaign=3Djob_alerts&utm_medium=3Demail&utm_source=3Djobseeker_emails=
+&from=3Djobi2a_multijob-en-US_email&tk=3D1k6ohlqut2lre001" class=3D"primary=
+-button" style=3D"background-color:#004fcb;font-size:16px;font-family:'Inde=
+ed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-weight:bold;text-d=
+ecoration:none;padding:12px 16px;color:#ffffff;display:block;border-radius:=
+11px;min-width:200px;width:300px;mso-padding-alt:0;text-underline-color:#25=
+57a7"><!--[if mso]>=0A        <i style=3D"mso-font-width:100%;mso-text-rais=
+e:150%" hidden=3D"">&emsp;&#8203;</i>=0A        <![endif]-->=0A<span style=
+=3D"mso-text-raise:75%">View more jobs<!--[if mso]>=0A        <i style=3D"m=
+so-font-width:100%" hidden=3D"">&emsp;&#8203;</i>=0A        <![endif]-->=0A=
+</span></a></td></tr></table></td></tr></table></td></tr></table><!--[if (g=
+t mso 9)|(IE)]>=0A        </td></tr></table>=0A        <![endif]-->=0A</td>=
+</tr></table><table class=3D"full-wrap" cellPadding=3D"0" cellSpacing=3D"0"=
+ border=3D"0" align=3D"center" style=3D"min-width:100%" bgcolor=3D"#f3f2f1"=
+ width=3D"100%" role=3D"presentation"><tr><td align=3D"center" valign=3D"to=
+p"><!--[if (gt mso 9)|(IE)]>=0A        <table width=3D"600" cellpadding=3D"=
+0" cellspacing=3D"0" border=3D"0"=0A                bgcolor=3D"#ffffff" sty=
+le=3D"width:600px;" role=3D"presentation">=0A                    <tr>=0A   =
+                     <td align=3D"center" valign=3D"top">=0A        <![endi=
+f]-->=0A<table class=3D"outerContainer" cellPadding=3D"0" cellSpacing=3D"0"=
+ border=3D"0" align=3D"center" style=3D"width:600px;max-width:600px" bgcolo=
+r=3D"#ffffff" width=3D"100%" role=3D"presentation"><tr><td align=3D"left" v=
+align=3D"top" style=3D"padding-left:16px;padding-right:16px;padding-top:40p=
+x" class=3D"ph-16"><h2 class=3D"h2-md" style=3D"color:#2d2d2d;font-family:'=
+Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:16px;font=
+-weight:bold;line-height:1.5rem;margin:0;padding:0">No longer looking for a=
+ job=3F</h2></td></tr><tr><td align=3D"left" valign=3D"top" style=3D"paddin=
+g-left:16px;padding-right:16px;padding-top:8px" class=3D"ph-16"><p style=3D=
+"color:#595959;font-family:'Noto Sans', Helvetica, Arial, sans-serif;font-s=
+ize:16px;font-weight:normal;line-height:24px;margin:0;padding:0"><a href=3D=
+"https://match.indeed.com/invitations/pause=3Ftk=3D1k6ohlqut2lre001&info=3D=
+AAAAASzshZPXCabt4BIGvaMXoEuYDxIv1udRt3tk_fABlv09RFJlMwOC4WO2pJNNg6nMj-IcM3S=
+7FbfrcF330RPPvLsqSyggyloQWcFFIDUK1YCBj_TzpQC7oWZksqRmB6fwI5UgFbE7LTrJtmnTqi=
+iXLFXM461t1UD-9PfryDWjzQ1lIJjnXd8bxfjO0zV9R_fwKBhqd08t" style=3D"color:#004=
+fcb;font-weight:bold;text-decoration:none" class=3D"standard-text-link">Pau=
+se these emails<img src=3D"https://prod.statics.indeed.com/eml/assets/image=
+s/lunchbox-icons/arrowright_stroke_primary.png" width=3D"16" style=3D"verti=
+cal-align:middle;padding:0 0 2px 6px" alt=3D" "/></a></p><table cellPadding=
+=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" style=3D"margin-top:48=
+px" width=3D"100%" role=3D"presentation"><tr><td style=3D"padding:0px;borde=
+r-top:1px solid #f3f2f1;line-height:0;width:100%" align=3D"center" valign=
+=3D"top" aria-hidden=3D"true">&nbsp;</td></tr></table></td></tr></table><!-=
+-[if (gt mso 9)|(IE)]>=0A        </td></tr></table>=0A        <![endif]-->=
+=0A</td></tr></table><table class=3D"full-wrap" cellPadding=3D"0" cellSpaci=
+ng=3D"0" border=3D"0" align=3D"center" style=3D"min-width:100%" bgcolor=3D"=
+#f3f2f1" width=3D"100%" role=3D"presentation"><tr><td align=3D"center" vali=
+gn=3D"top"><!--[if (gt mso 9)|(IE)]>=0A        <table width=3D"600" cellpad=
+ding=3D"0" cellspacing=3D"0" border=3D"0"=0A                bgcolor=3D"#fff=
+fff" style=3D"width:600px;" role=3D"presentation">=0A                    <t=
+r>=0A                        <td align=3D"center" valign=3D"top">=0A       =
+ <![endif]-->=0A<table class=3D"outerContainer" cellPadding=3D"0" cellSpaci=
+ng=3D"0" border=3D"0" align=3D"center" style=3D"width:600px;max-width:600px=
+" bgcolor=3D"#ffffff" width=3D"100%" role=3D"presentation"><tr><td align=3D=
+"left" valign=3D"top" style=3D"padding-left:40px;padding-right:40px;padding=
+-top:16px" class=3D"ph-16"><p style=3D"color:#595959;font-family:'Indeed Sa=
+ns', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:12px;font-weight:n=
+ormal;line-height:18px;margin:0;padding:0">This job match email is sponsore=
+d by the employer posting this job on Indeed. Parts of this email may use O=
+penAI and other AI technologies to generate content about the similarities =
+between your resume and the job description. <strong>This message is intend=
+ed only for you. Do not forward this email.</strong></p></td></tr><tr><td a=
+lign=3D"left" valign=3D"top" style=3D"padding-left:40px;padding-right:40px;=
+padding-top:24px;padding-bottom:12px" class=3D"ph-16"><p style=3D"color:#59=
+5959;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;f=
+ont-size:12px;font-weight:normal;line-height:18px;margin:0;padding:0">Repli=
+es to this email are not monitored. To contact our customer service team, p=
+lease visit our <a href=3D"https://support.indeed.com/hc/en-us=3Fhl=3Den" s=
+tyle=3D"color:#004fcb;font-weight:normal;text-decoration:underline" class=
+=3D"standard-text-link">Help Center</a> and submit an inquiry.</p><table ce=
+llPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" style=3D"marg=
+in-top:24px" width=3D"100%" role=3D"presentation"><tr><td style=3D"padding:=
+0px;border-top:1px solid #f3f2f1;line-height:0;width:100%" align=3D"center"=
+ valign=3D"top" aria-hidden=3D"true">&nbsp;</td></tr></table></td></tr></ta=
+ble><!--[if (gt mso 9)|(IE)]>=0A        </td></tr></table>=0A        <![end=
+if]-->=0A</td></tr></table><!--[if !mso]><!-->=0A    <div class=3D"show" st=
+yle=3D"display:none"><table class=3D"full-wrap" cellPadding=3D"0" cellSpaci=
+ng=3D"0" border=3D"0" align=3D"center" style=3D"min-width:100%" bgcolor=3D"=
+#f3f2f1" width=3D"100%" role=3D"presentation"><tr><td align=3D"center" vali=
+gn=3D"top"><!--[if (gt mso 9)|(IE)]>=0A        <table width=3D"600" cellpad=
+ding=3D"0" cellspacing=3D"0" border=3D"0"=0A                bgcolor=3D"#fff=
+fff" style=3D"width:600px;" role=3D"presentation">=0A                    <t=
+r>=0A                        <td align=3D"center" valign=3D"top">=0A       =
+ <![endif]-->=0A<table class=3D"outerContainer" cellPadding=3D"0" cellSpaci=
+ng=3D"0" border=3D"0" align=3D"center" style=3D"width:600px;max-width:600px=
+" bgcolor=3D"#ffffff" width=3D"100%" role=3D"presentation"><tr><td align=3D=
+"center" valign=3D"top" style=3D"padding:32px 56px 0" class=3D"ph-24 pt-16"=
+><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" wid=
+th=3D"100%" role=3D"presentation"><tr><td align=3D"center" valign=3D"top" c=
+lass=3D"pb-12" style=3D"padding-bottom:24px;border-bottom:1px solid #e4e2e0=
+"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" wi=
+dth=3D"100%" role=3D"presentation"><tr><th class=3D"stack fullWidth" style=
+=3D"width:197px;vertical-align:top;font-weight:normal;text-align:left"><tab=
+le cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" width=3D=
+"100%" role=3D"presentation"><tr><td align=3D"left" valign=3D"top" class=3D=
+"pr-0" style=3D"padding-right:24px"><h2 style=3D"color:#2d2d2d;font-family:=
+'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:14px;fon=
+t-weight:bold;line-height:21px;margin:0;padding:0">Access Indeed anywhere</=
+h2></td></tr><tr><td align=3D"left" valign=3D"top" class=3D"pr-0" style=3D"=
+padding:4px 24px 0 0"><p style=3D"color:#595959;font-family:'Indeed Sans', =
+'Noto Sans', Helvetica, Arial, sans-serif;font-size:12px;font-weight:normal=
+;line-height:18px;margin:0;padding:0">Download the free app.</p></td></tr><=
+/table></th><th class=3D"stack fullWidth" style=3D"vertical-align:top;font-=
+weight:normal;text-align:left"><table cellPadding=3D"0" cellSpacing=3D"0" b=
+order=3D"0" align=3D"left" width=3D"100%" role=3D"presentation"><tr><td ali=
+gn=3D"left" valign=3D"top" class=3D"pt-24" style=3D"padding:0"><table cellP=
+adding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" style=3D"display=
+:inline-block" role=3D"presentation"><tr><td class=3D"pr-16 pb-12" align=3D=
+"left" valign=3D"top" style=3D"padding-right:12px"><a href=3D"https://go.on=
+elink.me/3430878774=3Faf_xp=3Dcustom&pid=3Demail&c=3Di2a&af_adset=3Dmulti-j=
+ob"><img src=3D"https://prod.statics.indeed.com/eml/assets/images/badges/Ap=
+p_Store_Badge_en.png" height=3D"40" style=3D"max-height:40px;height:40px" a=
+lt=3D"Download on the App Store"/></a></td></tr></table><table class=3D"pb-=
+12" cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" style=
+=3D"display:inline-block" role=3D"presentation"><tr><td align=3D"left" vali=
+gn=3D"top"><a href=3D"https://go.onelink.me/3430878774=3Faf_xp=3Dcustom&pid=
+=3Demail&c=3Di2a&af_adset=3Dmulti-job"><img src=3D"https://prod.statics.ind=
+eed.com/eml/assets/images/badges/Google_Play_Badge_en.png" height=3D"40" st=
+yle=3D"max-height:40px;height:40px" alt=3D"Get it on Google Play"/></a></td=
+></tr></table></td></tr></table></th></tr></table></td></tr></table></td></=
+tr></table><!--[if (gt mso 9)|(IE)]>=0A        </td></tr></table>=0A       =
+ <![endif]-->=0A</td></tr></table></div>=0A     <!--<![endif]-->=0A<table c=
+lass=3D"full-wrap" cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=
+=3D"center" style=3D"min-width:100%" bgcolor=3D"#f3f2f1" width=3D"100%" rol=
+e=3D"presentation"><tr><td align=3D"center" valign=3D"top"><!--[if (gt mso =
+9)|(IE)]>=0A        <table width=3D"600" cellpadding=3D"0" cellspacing=3D"0=
+" border=3D"0"=0A                bgcolor=3D"#ffffff" style=3D"width:600px;"=
+ role=3D"presentation">=0A                    <tr>=0A                      =
+  <td align=3D"center" valign=3D"top">=0A        <![endif]-->=0A<table clas=
+s=3D"outerContainer" cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=
+=3D"center" style=3D"max-width:600px;width:600px" bgcolor=3D"#ffffff" width=
+=3D"100%" role=3D"presentation"><tr><td align=3D"center" valign=3D"top" sty=
+le=3D"padding:32px 56px" class=3D"p-24"><table cellPadding=3D"0" cellSpacin=
+g=3D"0" border=3D"0" align=3D"left" width=3D"100%" role=3D"presentation"><t=
+r><td align=3D"left" valign=3D"top" style=3D"padding:0px"><table cellPaddin=
+g=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" width=3D"100%" role=
+=3D"presentation"><tr><td align=3D"left" style=3D"padding:0px" class=3D"ful=
+lWidth pb-24"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=
+=3D"left" width=3D"100%" role=3D"presentation"><tr><td align=3D"left" valig=
+n=3D"top" style=3D"padding:0px 0px 12px"><a href=3D"https://www.indeed.com/=
+"><img src=3D"https://prod.statics.indeed.com/eml/assets/images/logo/indeed=
+_en_color.png" alt=3D"Indeed home" width=3D"80" style=3D"font-family:'Indee=
+d Sans', 'Noto Sans', Helvetica, Arial, sans-serif;color:#004fcb;font-size:=
+20px"/></a></td></tr><tr><td align=3D"left" valign=3D"top" style=3D"padding=
+:0px" class=3D"fullWidth pb-16"><p style=3D"color:#595959;font-family:'Inde=
+ed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:12px;font-wei=
+ght:normal;line-height:18px;margin:0;padding:0">&copy; 2026 Indeed, Inc. <b=
+r/>Indeed Tower 200 West 6th Street, Floor 36, Austin, TX 78701</p><p style=
+=3D"color:#595959;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial,=
+ sans-serif;font-size:12px;font-weight:normal;line-height:18px;margin:12px =
+0 0;padding:0">Indeed processes and analyzes your activity in this email.</=
+p></td></tr></table></td><td align=3D"left" style=3D"padding:0px" class=3D"=
+fullWidth left-align-text pt-20 pb-36" valign=3D"top"><table class=3D"fullW=
+idth" cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"right" role=
+=3D"presentation"><tr role=3D"list"><td align=3D"right" valign=3D"top" styl=
+e=3D"padding:0px 8px 0px  0px" class=3D"pl-0" role=3D"listitem"><a href=3D"=
+https://www.facebook.com/Indeed" class=3D"standard-text-link" style=3D"colo=
+r:#004fcb;text-decoration:underline;font-size:12px"><img src=3D"https://pro=
+d.statics.indeed.com/eml/assets/images/icons/Facebook_black_whitebg.png" al=
+t=3D"Indeed's Facebook" width=3D"24"/></a></td><td align=3D"left" valign=3D=
+"bottom" style=3D"padding:0px 8px 0px" class=3D"fullWidth left-align-text" =
+role=3D"listitem"><a href=3D"https://www.instagram.com/indeedworks/" class=
+=3D"standard-text-link" style=3D"color:#004fcb;text-decoration:underline;fo=
+nt-size:12px"><img src=3D"https://prod.statics.indeed.com/eml/assets/images=
+/icons/Instagram_black_whitebg.png" alt=3D"Indeed's Instagram" width=3D"24"=
+/></a></td></tr></table></td></tr></table></td></tr><tr><td align=3D"left" =
+valign=3D"top" class=3D"" style=3D"padding:24px 0px 0px"><table cellPadding=
+=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" role=3D"presentation">=
+<tr role=3D"list"><th align=3D"left" style=3D"padding:0 8px 0 0;border-righ=
+t:1px solid #595959" class=3D"fullWidth br-0" role=3D"listitem"><p style=3D=
+"color:#595959;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sa=
+ns-serif;font-size:16px;font-weight:normal;line-height:18px;margin:0;paddin=
+g:0"><a href=3D"https://www.indeed.com/" class=3D"standard-text-link" style=
+=3D"color:#004fcb;text-decoration:underline;font-size:12px">Indeed</a></p><=
+/th><th align=3D"left" style=3D"padding:0 8px;border-right:1px solid #59595=
+9" class=3D"fullWidth pt-24 br-0 pl-0" role=3D"listitem"><p style=3D"color:=
+#595959;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-seri=
+f;font-size:16px;font-weight:normal;line-height:18px;margin:0;padding:0"><a=
+ href=3D"https://hrtechprivacy.com/brands/indeed=3Fhl=3Den#privacypolicy" c=
+lass=3D"standard-text-link" style=3D"color:#004fcb;text-decoration:underlin=
+e;font-size:12px">Privacy Policy</a></p></th><th align=3D"left" style=3D"pa=
+dding:0 8px;border-right:1px solid #595959" class=3D"fullWidth pt-24 br-0 p=
+l-0" role=3D"listitem"><p style=3D"color:#595959;font-family:'Indeed Sans',=
+ 'Noto Sans', Helvetica, Arial, sans-serif;font-size:16px;font-weight:norma=
+l;line-height:18px;margin:0;padding:0"><a href=3D"https://www.indeed.com/le=
+gal=3Fhl=3Den#tos" class=3D"standard-text-link" style=3D"color:#004fcb;text=
+-decoration:underline;font-size:12px">Terms</a></p></th><th align=3D"left" =
+style=3D"padding:0 8px;border-right:1px solid #595959" class=3D"fullWidth p=
+t-24 br-0 pl-0" role=3D"listitem"><p style=3D"color:#595959;font-family:'In=
+deed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:16px;font-w=
+eight:normal;line-height:18px;margin:0;padding:0"><a href=3D"https://suppor=
+t.indeed.com/hc/en-us=3Fhl=3Den" class=3D"standard-text-link" style=3D"colo=
+r:#004fcb;text-decoration:underline;font-size:12px">Help Center</a></p></th=
+><th align=3D"left" style=3D"padding:0 8px" class=3D"fullWidth pt-24 pl-0" =
+role=3D"listitem"><p style=3D"color:#595959;font-family:'Indeed Sans', 'Not=
+o Sans', Helvetica, Arial, sans-serif;font-size:16px;font-weight:normal;lin=
+e-height:18px;margin:0;padding:0"><a href=3D"https://subscriptions.indeed.c=
+om/optout=3Fco=3DUS&hl=3Den&tk=3D1k6ohlqut2lre001&ctt=3DCiC7KYo0ISl_uVuLqaV=
+UNgEvSG1IFpO2FC_dkzCAV2I9rRIgqtt7SYR_nQSqMxY0LHywWp195RGqiuStDRJIYML6OacaEB=
+3Vy0iKL_EE66NJ33RAqRE%3D&token=3DCkAmgmjCXchuAkdaTy4dUHtlPqDW5g8Fqh7oZYzw1x=
+C0AWGTVA2Ufgu3-Lemq19mLAC8OnmTTYA9Otwciukvnx-4EiCmN7HYs7ewI5JVhUa-xt65jLkjf=
+W_2RjP6iYXtHPw-rhoQeHpg5dPZgX-dc4vPFc8UAQ%3D%3D" class=3D"standard-text-lin=
+k" style=3D"color:#004fcb;text-decoration:underline;font-size:12px">Unsubsc=
+ribe</a></p></th></tr></table></td></tr><tr><td align=3D"left" valign=3D"to=
+p" style=3D"padding:24px 0 0"><p style=3D"color:#595959;font-family:'Indeed=
+ Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:12px;font-weigh=
+t:normal;line-height:18px;margin:0;padding:0"><a href=3D"https://www.indeed=
+.com/legal/ccpa-dns=3Fhl=3Den" class=3D"standard-text-link" style=3D"color=
+:#004fcb;text-decoration:underline;font-size:12px">Your Privacy Choices <im=
+g src=3D"https://dpuk71x9wlmkf.cloudfront.net/mt/20221121161629/ccpa-icons_=
+privacyoptions123x59.png" alt=3D" " width=3D"20" style=3D"width:20px"/></a>=
+</p></td></tr></table></td></tr></table><!--[if (gt mso 9)|(IE)]>=0A       =
+ </td></tr></table>=0A        <![endif]-->=0A</td></tr></table><img alt=3D"=
+ " src=3D"https://subscriptions.indeed.com/imgping=3Faluidhash=3D5b19487b81=
+73f4bc557a7765cd428f15&alert=3D1k6ohlqut2lre001&tk=3D1k6ohlqut2lre001&aid=
+=3DCkApCCh5wbQUjqHEYHUJ9ephmY-xAYyeko6bt9pO-aXhuRLnNzJr3lVNwdoEgOr6Hip5QIp-=
+5ZhkOSnCHRBdIowREhDIct-CAkT83g3Kk7sTznIIGhBBY8fVWKlw2cuQnzauPVU3&type=3Djaf=
+eedfull" height=3D"0" width=3D"1" style=3D"display:block"/></td></tr></tabl=
+e>=0D=0A<img border=3D"0" width=3D"1" height=3D"1" alt=3D"" src=3D"https://=
+engage.indeed.com/q/oLVBuDNV_6zX8RKRSXMJSA~~/AAR9hBA~/5GEb6mMrjr0744FD0CXzn=
+f_47EgjdCh0w4iiyCxod4BEL6yOso03DW-mVLkPbu7Yxgb9dMA4chzKz8FUoMJ7qA~~">=0D=0A=
+</body></html>
+--_----8USu2Rgufq03J9iwluKXaA===_23/4C-24443-7D9DDEA6--
+

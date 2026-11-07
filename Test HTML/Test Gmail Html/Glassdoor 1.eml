@@ -1,0 +1,1731 @@
+Delivered-To: marquiseclott@gmail.com
+Received: by 2002:ab0:200d:0:b0:996:7c09:94dd with SMTP id v13csp381475uak;
+        Fri, 6 Nov 2026 20:04:05 -0800 (PST)
+X-Received: by 2002:a05:622a:4d89:b0:535:f9dd:cb97 with SMTP id d75a77b69052e-54e1486dd3bmr73451081cf.48.1794024245363;
+        Fri, 06 Nov 2026 20:04:05 -0800 (PST)
+ARC-Seal: i=1; a=rsa-sha256; t=1794024245; cv=none;
+        d=google.com; s=arc-20260327;
+        b=ip5edaAJ8qztvE7lqUzoTmccy8pls7KX4W7d/zSucuhnHZgscCi9cyysLkpUChV+Uv
+         VLK0rDW5FMiLJxir0RPlDckR1BItEPuqwCj2oe0SNMCG12U9c0BsbFtd3g6OdNJukT0G
+         8HhQgI81MiJgFRsbbltYg91Xjaev4sFUvSDy9VgULkwXYZG+uzw+jNMSyEPHEXgcGS/Q
+         hLdtqWGKUIMJ1Fl2Y2D5cOkMPKwvrRE+ulNGPaanTsmrxHiM+Afotjiju9sECHHrXXgc
+         Zc3jNYey1WQasmJt/RIRFqe5864WTlpRrt1JicAqykc7f27kl0rR87CJXpQDIUHJyKsE
+         YSZA==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20260327;
+        h=to:list-unsubscribe-post:list-unsubscribe:reply-to:subject
+         :message-id:mime-version:from:date:content-transfer-encoding
+         :dkim-signature:dkim-signature;
+        bh=Lp/Fr7FJytYdWhTD5PrGAbu6NLSSIy7Qd1sdvQeiNzQ=;
+        fh=OavyMhdsbcyuxzLIIaXmdXpTZxsqrvkuJ/uU2FRacUU=;
+        b=COJ9redWtKPzoWzT2sd8Wb70AhyMpCMYA/MplDdps2cFy3Zl/9/kk+6KTM31Sh9Gmc
+         tf/O3YvWSk2mcE7jOrVi0HyU9w+A+T9GzRCy2kWJ1xotWTLb8MlVuZucWH8yeZizz6LF
+         G8lcE6et1MJxkWfM0Vu081bAQ5xwp+P0h6hlJCh6Dk7IBdZ1y6/k9pWwK3eqF49ZA8Fa
+         ZBP2IlaSX6ukPryQ+zuegcd1pFH7H7WdM9xi333PSVw3vhXSfdnEGBcJsWsIQ/HZxQPj
+         ozgcDikfnBWr6aAatV799n7IjUEBKooFWiZgmL/H5RqQUljvdAaQkz/lXYcuyjevAgq3
+         uw1Q==;
+        dara=google.com
+ARC-Authentication-Results: i=1; mx.google.com;
+       dkim=pass header.i=@glassdoor.com header.s=s1 header.b=dx4tZjKq;
+       dkim=pass header.i=@sendgrid.info header.s=smtpapi header.b=Nu2premd;
+       spf=pass (google.com: domain of bounces+361267-c4d3-marquiseclott=gmail.com@mail9.glassdoor.com designates 50.31.57.250 as permitted sender) smtp.mailfrom="bounces+361267-c4d3-marquiseclott=gmail.com@mail9.glassdoor.com";
+       dmarc=pass (p=QUARANTINE sp=QUARANTINE dis=NONE) header.from=glassdoor.com
+Return-Path: <bounces+361267-c4d3-marquiseclott=gmail.com@mail9.glassdoor.com>
+Received: from o1.mail8.glassdoor.com (o1.mail8.glassdoor.com. [50.31.57.250])
+        by mx.google.com with ESMTPS id 6a1803df08f44-91ea6a91abdsi48452086d6.605.2026.11.06.20.04.05
+        for <marquiseclott@gmail.com>
+        (version=TLS1_3 cipher=TLS_AES_128_GCM_SHA256 bits=128/128);
+        Fri, 06 Nov 2026 20:04:05 -0800 (PST)
+Received-SPF: pass (google.com: domain of bounces+361267-c4d3-marquiseclott=gmail.com@mail9.glassdoor.com designates 50.31.57.250 as permitted sender) client-ip=50.31.57.250;
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@glassdoor.com header.s=s1 header.b=dx4tZjKq;
+       dkim=pass header.i=@sendgrid.info header.s=smtpapi header.b=Nu2premd;
+       spf=pass (google.com: domain of bounces+361267-c4d3-marquiseclott=gmail.com@mail9.glassdoor.com designates 50.31.57.250 as permitted sender) smtp.mailfrom="bounces+361267-c4d3-marquiseclott=gmail.com@mail9.glassdoor.com";
+       dmarc=pass (p=QUARANTINE sp=QUARANTINE dis=NONE) header.from=glassdoor.com
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=glassdoor.com;
+	h=content-transfer-encoding:content-type:date:from:mime-version:subject:
+	reply-to:list-unsubscribe:list-unsubscribe-post:to:cc:content-type:date:
+	feedback-id:from:subject:to;
+	s=s1; t=1794024244;
+	bh=Lp/Fr7FJytYdWhTD5PrGAbu6NLSSIy7Qd1sdvQeiNzQ=;
+	b=dx4tZjKq8+IMVhNXQs2A/6wTnTKn+xNN9SyTN7vwPgADWbX7MtaBdnqW0dnpQ1WtW1D0
+	PmRh37eOQ5lQWs6rWiMDZE2I7S6RdvEYiyPOK8GV68IbFi4s5/4i1ebVCpDsAHOwj4Rk49
+	w7D4fFtlLZVaShtsFdADmGSRRnO6qQAK0Gs8uBYSf4DOxclBwEpmylcYwn89blXGu94UOz
+	IXtK53V4nV1Z2gEK9F4Qyg1LMpZc0RG07Z4Rao0lWlB33v6kAAdKllUJ43Uv8VgA/NqnJo
+	MkFTYJqcHbhrxPo7fLwpppFLrZBOR15xmQ6uJvHvMgje7Kr4K3Wx0E02dOZ/6Quw==
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=sendgrid.info;
+	h=content-transfer-encoding:content-type:date:from:mime-version:subject:
+	reply-to:list-unsubscribe:list-unsubscribe-post:to:cc:content-type:date:
+	feedback-id:from:subject:to;
+	s=smtpapi; t=1794024244;
+	bh=Lp/Fr7FJytYdWhTD5PrGAbu6NLSSIy7Qd1sdvQeiNzQ=;
+	b=Nu2premdE9fXXVs1vNrF2chzxAzdkHuJ81vjws6WaQbvMtbQpGxvYWqTeL73vr5+mUuo
+	xneGrOluOgfePadNbWztMLdmM3IeMq4zZq0J5kZRtWiFo2ja4Jh//IJh8/Wg9QMD17gSUC
+	7uwX+K/s5D4p9NR5euup4aelSMhQmb5Aw=
+Received: by recvd-7cc56f6654-984gr with SMTP id recvd-7cc56f6654-984gr-1-6AEEA334-63
+	2026-11-07 04:04:04.699075807 +0000 UTC m=+100613.819223830
+Received: from MzYxMjY3 (unknown)
+	by geopod-ismtpd-64 (SG) with HTTP
+	id aLXUADtCRlaBzkJ0oVErOw
+	Sat, 07 Nov 2026 04:04:04.687 +0000 (UTC)
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html; charset=utf-8
+Date: Sat, 07 Nov 2026 04:04:04 +0000 (UTC)
+From: Glassdoor Jobs <noreply@glassdoor.com>
+Mime-Version: 1.0
+Message-ID: <aLXUADtCRlaBzkJ0oVErOw@geopod-ismtpd-64>
+Subject: Software Developer at TOUCH TECHNOLOGIES and 9 more jobs in
+ California, US for you. Apply Now.
+Reply-To: Glassdoor <noreply@glassdoor.com>
+List-Unsubscribe:
+ <https://partner-api.glassdoor.com/email/oneClickUnsubscribe?key=orbkoigy:ZjvRvrbWxPOFJAIez97lkQ&emailType=JOB_ALERT&emailCategory=JOB_ALERT&encryptedUserId=68AC9EB5E8751CC653CAD69DF91C49E7&JAK=5b3b-mVRxkpucPOLtNHKgg:-IHcxbGemPiP9kjxhOqB14JuZk_xL6HoFicmA_OE6uLF8dS7IS8ijJ6FkjWf5O1C:wpiRf38NfZP8IJyjYIVT9A38plrOD8rNfyt7C0JPJsY&utm_medium=email&utm_source=jobalert&utm_campaign=jobAlertAlert&utm_content=ja-unsubscribe>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+X-SG-EID: 
+ =?us-ascii?Q?u001=2E1yI41bvGak6sXv1vXkF3+zKwknBhVdCiI1tx8Gao1HOV4k+NAxjsJnQdK?=
+ =?us-ascii?Q?duiz3V3B0QZ46xXyQH0Jm8sYJ3=2FJ=2FZcxBLzMtWe?=
+ =?us-ascii?Q?xRqr4EkuYnyUfN=2FJypJfXK5t4fIMY27mnUwkNWf?=
+ =?us-ascii?Q?8EBGdPH1K3AlhPSYzhXHFgw+14xj8yHRE4JIUi5?=
+ =?us-ascii?Q?jHMKAdu1g0lBgrthTftlijRHcQkOE3aYnGAu4ZM?=
+ =?us-ascii?Q?yVGyLGvOa6rAXxZiX2zBMsudmNIVGoQ0fPub6z0?= =?us-ascii?Q?uBQn?=
+X-SG-ID: 
+ =?us-ascii?Q?u001=2ESdBcvi+Evd=2FbQef8eZF3Bq8RN8fwUFn8YVBSkGxHpECS6BsomifdBG3F4?=
+ =?us-ascii?Q?QPOq=2FWQp4Zm3lCwdiJrVN2hKOjRUn+3iJXhZTeY?=
+ =?us-ascii?Q?aN0jpM5Qdrc5OJb+ng+r2aMl9dQj839+LUQlLvz?=
+ =?us-ascii?Q?vWSf8aLLJBemF=2FIvjXg=2FBJRPkuNhvto0i7UVD61?=
+ =?us-ascii?Q?T68Y2ke0IfM=2F1H+agsLzoUSmyrhCGeIHl9pIDVh?=
+ =?us-ascii?Q?kubSzJpo6lFiPMrRwHTPfh7=2F7zyLylBMdQT1GRD?=
+ =?us-ascii?Q?bHQb+D0NPFTG6TK7ZjbUZTV8lw=3D=3D?=
+To: marquiseclott@gmail.com
+X-Entity-ID: u001.yABmz3G3mvvMKNCuNFUpvQ==
+
+<!DOCTYPE html><html dir=3D"ltr" lang=3D"en"><head><link rel=3D"preload" as=
+=3D"image" href=3D"https://www.glassdoor.com/assets/email/brandRefresh/logo=
+.png"><link rel=3D"preload" as=3D"image" href=3D"https://www.glassdoor.com/=
+assets/email/brandRefresh/icons/location-icon.png"><link rel=3D"preload" as=
+=3D"image" href=3D"https://www.glassdoor.com/assets/email/brandRefresh/icon=
+s/trophy.png"><link rel=3D"preload" as=3D"image" href=3D"https://www.glassd=
+oor.com/brand-views?o=3Dbrandview-pixel&amp;p=3DeyJhbGciOiJIUzUxMiJ9.eyJpYX=
+QiOjE3OTQwMjQyNDQsImp0aSI6IjcwOWIwZTY4LWIzMmYtNGY5OC1iMWRkLTgzYmJjNWU4YWQ3O=
+SIsImVtcGlkIjo0ODgsInVpZCI6MzA2Mzg4NDYzLCJhZGF0dHIiOnsiam9iX2xpc3RpbmdfaWQi=
+OiIxMDEwMzEyOTQyOTM3In0sImJ2bmFtZSI6ImpvYi1hbGVydC1lbWFpbC1qb2ItbGlzdGluZyI=
+sInRsZCI6MSwiYnZ0eXBlIjoiQlJBTkQiLCJidmNoYW4iOiJFTUFJTCJ9.pnojl9QZpdozpXHFF=
+oxCPcptfqSHDYczdSB0OfKa49zlx7YBqN14M5vEcNwwkbl5FbBDqFK9esp9QY9xnnGlKQ"><lin=
+k rel=3D"preload" as=3D"image" href=3D"https://www.glassdoor.com/assets/ema=
+il/brandRefresh/icons/easy-apply-icon.png"><link rel=3D"preload" as=3D"imag=
+e" href=3D"https://www.glassdoor.com/brand-views?o=3Dbrandview-pixel&amp;p=
+=3DeyJhbGciOiJIUzUxMiJ9.eyJpYXQiOjE3OTQwMjQyNDQsImp0aSI6ImZmMGE0NThlLTQyYTI=
+tNGNiNS04NTAwLWFhODA0NDQzMzQ0MCIsImVtcGlkIjoyNTg4MDIsInVpZCI6MzA2Mzg4NDYzLC=
+JhZGF0dHIiOnsiam9iX2xpc3RpbmdfaWQiOiIxMDEwMzE0ODg0NzExIn0sImJ2bmFtZSI6ImpvY=
+i1hbGVydC1lbWFpbC1qb2ItbGlzdGluZyIsInRsZCI6MSwiYnZ0eXBlIjoiQlJBTkQiLCJidmNo=
+YW4iOiJFTUFJTCJ9.OBhzDT6NuIacp7uPUsrOhVLIkDca_5sNkCbBq9FYpdgYxjpO_YLw16CDLa=
+d9ZKwN0mXD6t4X_XdDkbt6oBwVGQ"><link rel=3D"preload" as=3D"image" href=3D"ht=
+tps://www.glassdoor.com/brand-views?o=3Dbrandview-pixel&amp;p=3DeyJhbGciOiJ=
+IUzUxMiJ9.eyJpYXQiOjE3OTQwMjQyNDQsImp0aSI6ImFlZjdhMmUzLWMxZmYtNGJmZS05NDI4L=
+TU3ODI0MzVkNWQzNyIsImVtcGlkIjozMDYwNiwidWlkIjozMDYzODg0NjMsImFkYXR0ciI6eyJq=
+b2JfbGlzdGluZ19pZCI6IjEwMTAzMTU2OTU2MzkifSwiYnZuYW1lIjoiam9iLWFsZXJ0LWVtYWl=
+sLWpvYi1saXN0aW5nIiwidGxkIjoxLCJidnR5cGUiOiJCUkFORCIsImJ2Y2hhbiI6IkVNQUlMIn=
+0.ognuywNVfvdmlpiCPud8ydR48zwrmfuxlrJUr4FVTz83K3Id_sV5Vije4bGkBH0987-VtXC--=
+YIcdPXkqnmC4A"><link rel=3D"preload" as=3D"image" href=3D"https://www.glass=
+door.com/brand-views?o=3Dbrandview-pixel&amp;p=3DeyJhbGciOiJIUzUxMiJ9.eyJpY=
+XQiOjE3OTQwMjQyNDQsImp0aSI6IjIwMDNiODEzLTA4YjUtNGQ2NS04MzFiLTdiMTAxMjcwNWU5=
+YSIsImVtcGlkIjoxMDgzNzQ0MywidWlkIjozMDYzODg0NjMsImFkYXR0ciI6eyJqb2JfbGlzdGl=
+uZ19pZCI6IjEwMTAzMTUyMjUyMDkifSwiYnZuYW1lIjoiam9iLWFsZXJ0LWVtYWlsLWpvYi1saX=
+N0aW5nIiwidGxkIjoxLCJidnR5cGUiOiJCUkFORCIsImJ2Y2hhbiI6IkVNQUlMIn0.LQ_9zYhTp=
+1sCvGWpqiqaKeydQSxQZ80RmTWxf9D-C7DKur_BF1DNPO4STgYhBUkGHCApE8fmuJ95upoBJs3A=
+Ww"><link rel=3D"preload" as=3D"image" href=3D"https://www.glassdoor.com/br=
+and-views?o=3Dbrandview-pixel&amp;p=3DeyJhbGciOiJIUzUxMiJ9.eyJpYXQiOjE3OTQw=
+MjQyNDQsImp0aSI6ImY5Y2RhNzEwLWMwMWYtNDA2NC04MWFhLTUyNDQwMGVjNTFhZiIsImVtcGl=
+kIjo0ODgsInVpZCI6MzA2Mzg4NDYzLCJhZGF0dHIiOnsiam9iX2xpc3RpbmdfaWQiOiIxMDEwMz=
+EyOTQyMzU2In0sImJ2bmFtZSI6ImpvYi1hbGVydC1lbWFpbC1qb2ItbGlzdGluZyIsInRsZCI6M=
+SwiYnZ0eXBlIjoiQlJBTkQiLCJidmNoYW4iOiJFTUFJTCJ9.adFV0ddlXU2twQP_egtBzvwekeB=
+hj5yQL4VE6E5vuF5tVsOlaiLM_H3dwAVSvu0-c2_NlpHcliC952A8zSMbSw"><link rel=3D"p=
+reload" as=3D"image" href=3D"https://www.glassdoor.com/brand-views?o=3Dbran=
+dview-pixel&amp;p=3DeyJhbGciOiJIUzUxMiJ9.eyJpYXQiOjE3OTQwMjQyNDQsImp0aSI6Ij=
+VkMGY4YWRhLThiMzItNDY5MC04Zjg4LWNiY2Q2NDc4Y2RhMiIsImVtcGlkIjoxMDkwLCJ1aWQiO=
+jMwNjM4ODQ2MywiYWRhdHRyIjp7ImpvYl9saXN0aW5nX2lkIjoiMTAxMDMxNDgxODAxMSJ9LCJi=
+dm5hbWUiOiJqb2ItYWxlcnQtZW1haWwtam9iLWxpc3RpbmciLCJ0bGQiOjEsImJ2dHlwZSI6IkJ=
+SQU5EIiwiYnZjaGFuIjoiRU1BSUwifQ.ktJd6T06DPSxGcwIHPJK4KRmJX0pGJXKmF27S5MLEmH=
+vDRyWoOHCLODWXq95sxiEB_oMdKkQe0RMAComdUET3g"><link rel=3D"preload" as=3D"im=
+age" href=3D"https://www.glassdoor.com/brand-views?o=3Dbrandview-pixel&amp;=
+p=3DeyJhbGciOiJIUzUxMiJ9.eyJpYXQiOjE3OTQwMjQyNDQsImp0aSI6IjU2Mjk5MjRmLTdmYW=
+ItNDAyOS04N2Y1LWMwNjc2NmYyNmIxNSIsImVtcGlkIjo0NzA3Njg5LCJ1aWQiOjMwNjM4ODQ2M=
+ywiYWRhdHRyIjp7ImpvYl9saXN0aW5nX2lkIjoiMTAxMDMxNTYxMDk3MSJ9LCJidm5hbWUiOiJq=
+b2ItYWxlcnQtZW1haWwtam9iLWxpc3RpbmciLCJ0bGQiOjEsImJ2dHlwZSI6IkJSQU5EIiwiYnZ=
+jaGFuIjoiRU1BSUwifQ.XQdpDPv-_i21mJPChDteoa7TBiAeHGJvywoIPHV0MkHcx5GJ8IMH2-v=
+PqlRagRDnVO4jIW6G_nSZ5AA1v5R0xg"><link rel=3D"preload" as=3D"image" href=3D=
+"https://www.glassdoor.com/assets/email/brandRefresh/job-alert-images/jobMa=
+tch.png"><link rel=3D"preload" as=3D"image" href=3D"https://www.glassdoor.c=
+om/assets/email/brandRefresh/icons/bell-icon.png"><link rel=3D"preload" as=
+=3D"image" href=3D"https://www.glassdoor.com/assets/email/brandRefresh/logo=
+mark.png"><meta content=3D"text/html; charset=3DUTF-8" http-equiv=3D"Conten=
+t-Type"><meta name=3D"x-apple-disable-message-reformatting"><!--$--><style>
+    @font-face {
+      font-family: 'Glassdoor Sans';
+      font-style: normal;
+      font-weight: 300;
+      mso-font-alt: 'sans-serif';
+      src: url(https://www.glassdoor.com/assets/fonts/GlassdoorSans-Light.w=
+off2) format('woff2');
+    }
+
+    * {
+      font-family: 'Glassdoor Sans', sans-serif;
+    }
+  </style><style>
+    @font-face {
+      font-family: 'Glassdoor Sans';
+      font-style: normal;
+      font-weight: 400;
+      mso-font-alt: 'sans-serif';
+      src: url(https://www.glassdoor.com/assets/fonts/GlassdoorSans-Regular=
+.woff2) format('woff2');
+    }
+
+    * {
+      font-family: 'Glassdoor Sans', sans-serif;
+    }
+  </style><style>
+    @font-face {
+      font-family: 'Glassdoor Sans';
+      font-style: normal;
+      font-weight: 600;
+      mso-font-alt: 'sans-serif';
+      src: url(https://www.glassdoor.com/assets/fonts/GlassdoorSans-Semibol=
+d.woff2) format('woff2');
+    }
+
+    * {
+      font-family: 'Glassdoor Sans', sans-serif;
+    }
+  </style><style>
+            .postcard-container {
+              padding-left : 28px;
+              padding-right : 28px;
+            } =20
+       =20
+            @media only screen and (max-width : 748px) {
+                 .banner-text {
+                    font-size : 19px !important;
+                    line-height: 19px !important;
+                    width: auto !important;
+                }
+
+                .download-banner-img {
+                    width: 162px !important;
+                    height: 171px !important;
+                }
+
+                h1 {
+                  font-size : 24px !important;
+                }
+                h2 {
+                  font-size : 14px !important;
+                }
+
+                 .post-card-box {
+                   padding: 0 4px !important;
+                }
+
+                .salary-range {
+                  font-size : 36px !important;
+                }
+
+                 .header-image {
+                  display: none !important;
+                }
+                .header-image-container {
+                  display: none;
+                }
+
+                 .job-card-container {
+                  padding: 12px 4px !important;
+                }
+            }
+       =20
+        </style><style>table.gd-c50a3659bb{max-width:37.5em;margin-bottom:1=
+6px;}
+table.gd-dbe9ce2b4a{max-width:37.5em;border-radius:8px;border:1px solid #DA=
+DEE2;overflow:hidden;}
+table.gd-454fb62d56{max-width:37.5em;min-width:290px;}
+a.gd-4c34fb9b9d{color:inherit;font-family:'Glassdoor Sans', system-ui, 'Seg=
+oe UI', Roboto, sans-serif;text-decoration:none;display:block;}
+td.gd-186dec1ba4{vertical-align:top;width:32px;}
+img.gd-925aa098a0{display:block; border-radius:50%; border:1px solid #DADEE=
+2; object-fit:cover;;}
+td.gd-a4c855f5cb{vertical-align:middle;padding-left:8px;width:100%;}
+span.gd-e6089fa56a{display:block;max-width:100%;white-space:normal;vertical=
+-align:middle;}
+span.gd-8c81e4c746{margin:0;font-size:12px;font-weight:400;line-height:1.33=
+;white-space:normal;word-break:break-word;overflow-wrap:anywhere;display:in=
+line;}
+span.gd-562cbc7b4e{margin:0;padding-left:8px;font-size:12px;font-weight:400=
+;line-height:1.33;white-space:nowrap;display:inline;}
+td.gd-e8b30124a1{vertical-align:middle;}
+p.gd-2de68bc97a{font-size:14px;line-height:1.4;margin:0;font-weight:600;mar=
+gin-top:0;margin-bottom:0;margin-left:0;margin-right:0;}
+p.gd-df98e110e2{font-size:12px;line-height:1.33;margin:0;margin-top:4px;mar=
+gin-bottom:0;margin-left:0;margin-right:0;}
+td.gd-69d3f5fd2b{vertical-align:middle;white-space:nowrap;}
+td.gd-8cf84a8e50{vertical-align:middle;padding-right:4px;line-height:0;}
+img.gd-012de66cfe{display:block;outline:none;border:0;text-decoration:none;=
+width:16px;height:16px;max-width:16px;max-height:16px;}
+td.gd-2b423bee64{vertical-align:middle;text-align:right;white-space:nowrap;=
+}
+p.gd-7e453aeb39{font-size:12px;line-height:16px;margin:0;font-family:'Glass=
+door Sans', system-ui, 'Segoe UI', Roboto, sans-serif;color:#647380;font-we=
+ight:400;text-align:right;white-space:nowrap;margin-top:0;margin-bottom:0;m=
+argin-left:0;margin-right:0;}
+img.gd-9b0994d422{display:block;outline:none;border:0;text-decoration:none;=
+height:1px;width:1px;max-height:1px;max-width:1px;opacity:0;visibility:hidd=
+en;line-height:0;}
+td.gd-9f526846ae{vertical-align:middle;padding-right:8px;}
+td.gd-a84dc8aac3{background-color:#F2F4F5;border-radius:4px;padding:2px 6px=
+;white-space:nowrap;}
+p.gd-47254e592b{font-size:12px;line-height:1.5;color:#00060C;font-family:'G=
+lassdoor Sans', Arial, Helvetica, sans-serif;font-style:normal;font-weight:=
+600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0;marg=
+in-top:0;margin-bottom:0;margin-left:0;margin-right:0;}
+a.gd-67dce5e2b5{color:#067df7;text-decoration-line:none;display:flex;width:=
+fit-content;position:relative;border:none;background:transparent;padding:0;=
+cursor:pointer;outline-offset:4px;transition:filter 250ms;white-space:nowra=
+p;}
+span.gd-8aa32730bf{text-align:center;border-radius:4px;font-family:"Glassdo=
+or Sans", system-ui, "Segoe UI", Roboto, sans-serif;font-size:14px;font-sty=
+le:normal;font-weight:600;line-height:20px;padding:4px 16px;z-index:1;backg=
+round:#ffffff;color:#000c02;border:1px solid #000c02;transition:background-=
+color .2s ease-out,border-color .2s ease-out,color .2s ease-out,outline-col=
+or .2s ease-out;}
+p.gd-cb4d4f3c92{font-size:14px;line-height:24px;margin:0;text-align:center;=
+margin-top:0;margin-bottom:0;margin-left:0;margin-right:0;}
+a.gd-9e638ee4a0{color:#008050;text-decoration-line:none;font-size:14px;font=
+-style:normal;font-weight:400;line-height:22px;}</style></head><body style=
+=3D"background-color:#F9FAFB"><div style=3D"display:none;overflow:hidden;li=
+ne-height:1px;opacity:0;max-height:0;max-width:0" data-skip-in-text=3D"true=
+">Northrop Grumman is hiring<div>&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=
+=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=
+=E2=80=8F=EF=BB=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=
+=BF&nbsp;=E2=80=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF&nbsp;=E2=80=
+=8C=E2=80=8B=E2=80=8D=E2=80=8E=E2=80=8F=EF=BB=BF</div></div><table border=
+=3D"0" width=3D"100%" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentat=
+ion" align=3D"center"><tbody><tr><td style=3D"padding:24px 0;background-col=
+or:#F9FAFB"><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=
+=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"max-width:37.5em;fo=
+nt-family:Glassdoor Sans, sans-serif;background-color:#FFFFFF;font-size:14p=
+x;font-weight:400;line-height:20px"><tbody><tr style=3D"width:100%"><td><ta=
+ble align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspac=
+ing=3D"0" role=3D"presentation" style=3D"max-width:37.5em;padding:0"><tbody=
+><tr style=3D"width:100%"><td><table align=3D"center" width=3D"100%" border=
+=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"m=
+ax-width:640px;padding-left:0;padding-right:0"><tbody><tr style=3D"width:10=
+0%"><td><div><!--[if mso]>
+  <table role=3D"presentation" align=3D"center" cellpadding=3D"0" cellspaci=
+ng=3D"0" border=3D"0"
+         width=3D"640" style=3D"mso-table-lspace:0pt;mso-table-rspace:0pt;b=
+order-collapse:collapse;">
+    <tr>
+      <td width=3D"640" style=3D"mso-line-height-rule:exactly;padding:0;">
+        <v:rect xmlns:v=3D"urn:schemas-microsoft-com:vml" fill=3D"t" stroke=
+=3D"f"
+                style=3D"width:640px;height:104px;">
+          <v:fill type=3D"frame" color=3D"#4CD681"
+                  src=3D"https://www.glassdoor.com/assets/email/brandRefres=
+h/backgrounds/job_alert.png" />
+          <v:textbox inset=3D"0,0,0,0">
+            <table role=3D"presentation" width=3D"100%" cellpadding=3D"0" c=
+ellspacing=3D"0" border=3D"0">
+              <tr>
+                <td style=3D"padding:8px 24px 14px 24px;">
+                 =20
+      <table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" bord=
+er=3D"0"
+             style=3D"border-collapse:collapse;mso-table-lspace:0pt;mso-tab=
+le-rspace:0pt;">
+        <tr>
+          <td bgcolor=3D"#4CD681"
+              style=3D"background-color:#4CD681;padding:4px 8px;border-radi=
+us:4px;">
+            <img src=3D"https://www.glassdoor.com/assets/email/brandRefresh=
+/logo.png" width=3D"101" height=3D"20" alt=3D"Glassdoor"
+                 style=3D"display:block;border:0;outline:none;text-decorati=
+on:none;" />
+          </td>
+        </tr>
+      </table>
+   =20
+                </td>
+              </tr>
+             =20
+        <tr>
+          <td style=3D"padding:0 24px 24px 24px;">
+            <table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0=
+" border=3D"0"
+                   style=3D"border-collapse:collapse;mso-table-lspace:0pt;m=
+so-table-rspace:0pt;">
+              <tr>
+                <td bgcolor=3D"#4CD681"
+                    style=3D"background-color:#4CD681;padding:4px 10px;bord=
+er-radius:4px;">
+                  <p style=3D"margin:0;font-family:'Glassdoor Sans', system=
+-ui, 'Segoe UI', Roboto, sans-serif;font-size:26px;line-height:32px;font-we=
+ight:600;color:#00060C;">
+                    Job alert: Software Engineer
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+     =20
+            </table>
+          </v:textbox>
+        </v:rect>
+      </td>
+    </tr>
+  </table>
+<![endif]--></div><div><!--[if !mso]><!-- --></div><div style=3D"border-top=
+-left-radius:16px;border-top-right-radius:16px;overflow:hidden"><table alig=
+n=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0=
+" role=3D"presentation" style=3D"background-color:#4CD681;background-image:=
+url(https://www.glassdoor.com/assets/email/brandRefresh/backgrounds/job_ale=
+rt.png);background-size:cover;background-repeat:no-repeat;background-positi=
+on:center;padding-top:8px;padding-bottom:24px;padding-left:24px;padding-rig=
+ht:24px;font-family:'Glassdoor Sans', system-ui, 'Segoe UI', Roboto, sans-s=
+erif;width:100%;max-height:104px;height:auto;overflow:hidden;box-sizing:bor=
+der-box"><tbody><tr><td><table align=3D"center" width=3D"100%" border=3D"0"=
+ cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"margin-=
+top:20px;margin-bottom:14px"><tbody style=3D"width:100%"><tr style=3D"width=
+:100%"><td data-id=3D"__react-email-column"><span style=3D"display:inline-b=
+lock;background-color:#4CD681;border-radius:4px;padding:4px 8px"><img alt=
+=3D"Glassdoor" height=3D"20" src=3D"https://www.glassdoor.com/assets/email/=
+brandRefresh/logo.png" style=3D"display:block;outline:none;border:0;text-de=
+coration:none" width=3D"101"></span></td></tr></tbody></table><table align=
+=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0"=
+ role=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width:100%"=
+><td data-id=3D"__react-email-column"><span style=3D"display:inline-block;b=
+ackground-color:#4CD681;border-radius:4px;padding:4px 10px"><p style=3D"fon=
+t-size:26px;line-height:32px;margin:0;font-family:'Glassdoor Sans', system-=
+ui, 'Segoe UI', Roboto, sans-serif;color:#00060C;font-weight:600;margin-top=
+:0;margin-bottom:0;margin-left:0;margin-right:0">Job alert: Software Engine=
+er</p></span></td></tr></tbody></table></td></tr></tbody></table></div><div=
+><!--<![endif]--></div></td></tr></tbody></table></td></tr></tbody></table>=
+<table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cells=
+pacing=3D"0" role=3D"presentation" style=3D"max-width:37.5em;padding:16px 1=
+6px 0 16px"><tbody><tr style=3D"width:100%"><td><table align=3D"left" style=
+=3D"text-align:left"><tbody><tr style=3D"font-size:14px;font-weight:600;lin=
+e-height:22px;text-align:left;padding-left:0;margin:0"><td>Your job listing=
+s for November 6, 2026</td></tr><tr style=3D"font-size:14px;font-weight:400=
+;line-height:20px;text-align:left;padding-left:0;margin:0"><td>Software Eng=
+ineer</td></tr></tbody></table><table align=3D"center" width=3D"100%" borde=
+r=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"=
+color:#727272;font-size:14px;font-weight:400;line-height:20px;margin:4px 0 =
+24px 0"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D=
+"__react-email-column" style=3D"width:16px"><img src=3D"https://www.glassdo=
+or.com/assets/email/brandRefresh/icons/location-icon.png" style=3D"display:=
+block;outline:none;border:none;text-decoration:none;width:16px"></td><td da=
+ta-id=3D"__react-email-column" style=3D"padding-left:4px">California, US</t=
+d></tr></tbody></table><table align=3D"center" width=3D"100%" border=3D"0" =
+cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" class=3D"gd-c50a3=
+659bb"><tbody><tr style=3D"width:100%"><td><table align=3D"center" width=3D=
+"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentatio=
+n"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__re=
+act-email-column" style=3D"width:100%"><table align=3D"center" width=3D"100=
+%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" c=
+lass=3D"gd-dbe9ce2b4a"><tbody><tr style=3D"width:100%"><td><table align=3D"=
+center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" rol=
+e=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td=
+ data-id=3D"__react-email-column" style=3D"width:100%"><table align=3D"cent=
+er" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D=
+"presentation" class=3D"gd-454fb62d56"><tbody><tr style=3D"width:100%"><td>=
+<table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cells=
+pacing=3D"0" role=3D"presentation" style=3D"padding:16px"><tbody style=3D"w=
+idth:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-column" st=
+yle=3D"width:100%"><a href=3D"https://www.glassdoor.com/partner/jobListing.=
+htm?pos=3D101&amp;ao=3D1110586&amp;s=3D224&amp;guid=3D000001a1b3cf20babb370=
+f20fdc6d1b9&amp;src=3DGD_JOB_AD&amp;t=3DJA&amp;vt=3De&amp;uido=3D68AC9EB5E8=
+751CC653CAD69DF91C49E7&amp;cs=3D1_5b352593&amp;cb=3D1794024244422&amp;jobLi=
+stingId=3D1010312942937&amp;cpc=3DBA15C3E50D27FFE8&amp;jrtk=3D5-yul1-0-1k6q=
+2r0uikgr4801-30312bb2c4655c2e---6NYlbfkN0CwZXc5kaVZcDIejlzrQt6xuDzFCT1LgXJr=
+1Wz7yprErhTQszxwcxj8be6ppkxAvdBj_rgZlK1ToMALwBDQcObgZ7GgbKSdKQSc0fKE5Syds59=
+pDw5bzXZv--7q3mwDKaQw8LIFnX2hPxl68KoxCnRppjzrH43v1CEJGVZ0I9g6mbrLKJEvcMMTxm=
+Il5oHvk_DBjcVPrItP0D5yTkXakRZ6OENDvoTFo5aWVNSx02k5QVYxqQCGNypw4gygzrFWYLtAp=
+xjuE3wh4M18OmcmlMPZLXu8LDzvzzlgfzsCMgqy8CdEj83cDaGOwFzVgGPaVh5-ZTwkMnhUP5oU=
+_mdILWM2xk6Ys49KZdDGdAFOfZVtsJnc1M28PcH90oY7aDunMoHEvExMdrDQZ5cj6-n1aJVPrQv=
+lF4OKHJlHwuAvfkJBVpd0A2O45L860Zxrj155-KIDp7oBlD73V7pU0kViyCPBnVhbbx13OJEWYz=
+lcJOBoKOqgeTqiRU1m0bPhbL8LkU_4p5FPQuQcSYi-GLqftU7aADx7gyo0tqpWW_3INryzy1uLe=
+JaVYu3yQ4zygMkEI6u8PWZrdqZri789gxJnUErHh3MvyT7bhvyeNaTQba5yMRYevqyeltV-97YX=
+KoTEez6fJFbRRB2XrLexS0ftQAXlwoYHy97pHtBoLPyspHePAhXbuQNapYTZlNn3cP-oC9uW3qZ=
+hd9GgXN_XmkZHPsqjWntjpD6wfDuWWPw2RdDQzNhExbB_ri7meD44SXtpvAAWELNQwbElorlSF5=
+gM3eH-z6NTucX5Cw6O4VDq3uZM0ztb-xsIHiWiOVGqznDTlI6VQj86n_r8opjzIDAJWSD8tSanC=
+KxOts8w8GO9juKolAsovPrn3PbUZEIUL90st2nRZeHOHZZP1RYa_nZ0mMs0oTMURLGka4MeVQqZ=
+5QRf5TexTFNPW6qeJO0V7ajLcgBRieUPz9DSj3MKfK9UR8qLiF96aEqh-O3Gih65R5SKYbykThq=
+7w-v37ivKtcn3UwAhtCKQbG84-hzCZm21ZvwRB34hjgjLb_54nLZLFKCan4mT_I4brR8aTg8dtD=
+Ty8FwsV5_dvRZBG5ikNvfbipEZ89vss56r4CoIg_h4FlYrGUlFb_-pV-hjNKD7_QL8Cvjvee7Pe=
+6rxMlIQ2O9tOWh3KUPPxhSFfwgwlthj2TlokFBh71EJhN9Ahci-ZsCtU3MuyqygZX_KFG4knmia=
+cjc5sJF8deuS3JYcKsjGv0j__3mcKyS4K-8eW7kwNzVtcfZ5akevgrEisSeQvs3L7oE8runOOuW=
+h1IeIwDOBqEvldMzlnoUZ9B1r30GcUdfqAFqk8jWPnhgCKI_scLFVn8QkF5Rc7ifCNCTMzk7jkT=
+OFPYRotezPizaiBR2cRLXzZqPCpxvHbSh_MNtZoJFLw7AjbS-RT4nqnbezehO0UId4Jbch13-Bp=
+lhOqoA-O_qUhDytv4vDLlFBYEBJJE7lnfnRwLz-SCYbsYBk8xDW6RhAsBsexsmsYkTkLqXbE--M=
+L5edaf-7TJXByZtADuZ83KMgneZXLW7LbOqeTgKStE4I_eNU2eKHSVU8pXmgD0NmS1ALdqizigT=
+caT_FiETOeprnfJCYymZOXQRktKm17vJXBHmOua6QdmnoCANuFe9hE9WT3WzuGS6EJwBn5oePYi=
+-VI3ngM_-Qq6VtK9v0otTf0Xq_D1n9_a7cQlCUIZLGTQW01rL5FlRZbAvSQyiLD12Xf3jJM59jH=
+495Ch2lT-4MrDp782o5TduutNshGGKMU9WNcrGxdKNSVQWluZuY65FkP7RTzFBKKWwV1N7gysqv=
+ig%3D%3D&amp;tgt=3DGD_JOB_VIEW&amp;utm_medium=3Demail&amp;utm_source=3Djoba=
+lert&amp;utm_campaign=3DjobAlertAlert&amp;utm_content=3Dja-jobpos1-age6d-10=
+10312942937&amp;ja=3D332885123" class=3D"gd-4c34fb9b9d"><table align=3D"cen=
+ter" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=
+=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td =
+data-id=3D"__react-email-column"><table role=3D"presentation" width=3D"100%=
+" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><td class=3D"=
+gd-186dec1ba4"><span>
+                 <!--[if mso]>
+               =20
+          <table cellpadding=3D"0" cellspacing=3D"0" border=3D"0" role=3D"p=
+resentation">
+            <tr>
+              <td width=3D"24" height=3D"24">
+                <v:roundrect xmlns:v=3D"urn:schemas-microsoft-com:vml" arcs=
+ize=3D"50%" strokecolor=3D"#DADEE2"
+                  strokeweight=3D"1px" style=3D"height:24px; width:24px; v-=
+text-anchor:middle;">
+                  <v:fill src=3D"https://media.glassdoor.com/sql/488/northr=
+op-grumman-squarelogo-1588102827228.png?utm_medium=3Demail&utm_source=3Djob=
+alert&utm_campaign=3DjobAlertAlert&utm_content=3Dja-jobpos1-age6d-101031294=
+2937" type=3D"frame"/>
+                </v:roundrect>
+              </td>
+            </tr>
+          </table>
+       =20
+               <![endif]-->
+        </span><div>
+      <table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" bord=
+er=3D"0" style=3D"mso-hide:all;">
+        <tbody><tr>
+          <td>
+            <img src=3D"https://media.glassdoor.com/sql/488/northrop-grumma=
+n-squarelogo-1588102827228.png?utm_medium=3Demail&amp;utm_source=3Djobalert=
+&amp;utm_campaign=3DjobAlertAlert&amp;utm_content=3Dja-jobpos1-age6d-101031=
+2942937" width=3D"24" height=3D"24" alt=3D"avatar" class=3D"gd-925aa098a0">
+          </td>
+        </tr>
+      </tbody></table>
+    </div></td><td class=3D"gd-a4c855f5cb"><span class=3D"gd-e6089fa56a"><s=
+pan class=3D"gd-8c81e4c746">Northrop Grumman</span><span class=3D"gd-562cbc=
+7b4e">&nbsp;<!-- -->3.8 =E2=98=85</span></span></td></tr></tbody></table></=
+td></tr></tbody></table><table align=3D"center" width=3D"100%" border=3D"0"=
+ cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"margin-=
+top:4px"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=
+=3D"__react-email-column"><table role=3D"presentation" cellpadding=3D"0" ce=
+llspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8b3=
+0124a1"><p class=3D"gd-2de68bc97a">Staff Software Engineer (CUDA/GPU)</p></=
+td></tr></tbody></table></td></tr></tbody></table><table align=3D"center" w=
+idth=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"pres=
+entation"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=
+=3D"__react-email-column"><table role=3D"presentation" cellpadding=3D"0" ce=
+llspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8b3=
+0124a1"><p class=3D"gd-df98e110e2">Redondo Beach, CA</p></td></tr></tbody><=
+/table></td></tr></tbody></table><table align=3D"center" width=3D"100%" bor=
+der=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><tbody =
+style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-=
+column"><table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" bo=
+rder=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8b30124a1"><p class=
+=3D"gd-df98e110e2">$177K - $266K (Employer est.)</p></td></tr></tbody></tab=
+le></td></tr></tbody></table><table align=3D"center" width=3D"100%" border=
+=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"m=
+argin-top:8px"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td dat=
+a-id=3D"__react-email-column"><table role=3D"presentation" cellpadding=3D"0=
+" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-=
+69d3f5fd2b"><table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0=
+" border=3D"0"><tbody><tr><td style=3D"vertical-align:middle;padding-left:0=
+"><table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" border=
+=3D"0"><tbody><tr><td style=3D"background-color:#F9FAFB;border-radius:4px;p=
+adding:2px 6px;white-space:nowrap"><table role=3D"presentation" cellpadding=
+=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-8cf84a8e50=
+"><img alt=3D"" height=3D"16" src=3D"https://www.glassdoor.com/assets/email=
+/brandRefresh/icons/trophy.png" width=3D"16" class=3D"gd-012de66cfe"></td><=
+td class=3D"gd-e8b30124a1"><p style=3D"font-size:12px;line-height:16px;colo=
+r:#00060C;font-family:'Glassdoor Sans', Arial, Helvetica, sans-serif;font-s=
+tyle:normal;font-weight:600;white-space:nowrap;overflow:hidden;text-overflo=
+w:ellipsis;margin:0;padding:0;margin-top:0;margin-bottom:0;margin-left:0;ma=
+rgin-right:0">Best Place to Work</p></td></tr></tbody></table></td></tr></t=
+body></table></td></tr></tbody></table></td><td style=3D"width:100%"></td><=
+td class=3D"gd-2b423bee64"><p class=3D"gd-7e453aeb39">6d</p></td></tr></tbo=
+dy></table></td></tr></tbody></table></a></td></tr></tbody></table><span><!=
+--[if !mso]><!-- --></span><img alt=3D"" height=3D"1" src=3D"https://www.gl=
+assdoor.com/brand-views?o=3Dbrandview-pixel&amp;p=3DeyJhbGciOiJIUzUxMiJ9.ey=
+JpYXQiOjE3OTQwMjQyNDQsImp0aSI6IjcwOWIwZTY4LWIzMmYtNGY5OC1iMWRkLTgzYmJjNWU4Y=
+WQ3OSIsImVtcGlkIjo0ODgsInVpZCI6MzA2Mzg4NDYzLCJhZGF0dHIiOnsiam9iX2xpc3Rpbmdf=
+aWQiOiIxMDEwMzEyOTQyOTM3In0sImJ2bmFtZSI6ImpvYi1hbGVydC1lbWFpbC1qb2ItbGlzdGl=
+uZyIsInRsZCI6MSwiYnZ0eXBlIjoiQlJBTkQiLCJidmNoYW4iOiJFTUFJTCJ9.pnojl9QZpdozp=
+XHFFoxCPcptfqSHDYczdSB0OfKa49zlx7YBqN14M5vEcNwwkbl5FbBDqFK9esp9QY9xnnGlKQ" =
+width=3D"1" class=3D"gd-9b0994d422"><span><!--<![endif]--></span></td></tr>=
+</tbody></table></td></tr></tbody></table></td></tr></tbody></table></td></=
+tr></tbody></table></td></tr></tbody></table><table align=3D"center" width=
+=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presenta=
+tion" class=3D"gd-c50a3659bb"><tbody><tr style=3D"width:100%"><td><table al=
+ign=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D=
+"0" role=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width:10=
+0%"><td data-id=3D"__react-email-column" style=3D"width:100%"><table align=
+=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0"=
+ role=3D"presentation" class=3D"gd-dbe9ce2b4a"><tbody><tr style=3D"width:10=
+0%"><td><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"=
+0" cellspacing=3D"0" role=3D"presentation"><tbody style=3D"width:100%"><tr =
+style=3D"width:100%"><td data-id=3D"__react-email-column" style=3D"width:10=
+0%"><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" c=
+ellspacing=3D"0" role=3D"presentation" class=3D"gd-454fb62d56"><tbody><tr s=
+tyle=3D"width:100%"><td><table align=3D"center" width=3D"100%" border=3D"0"=
+ cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"padding=
+:16px"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"=
+__react-email-column" style=3D"width:100%"><a href=3D"https://www.glassdoor=
+.com/partner/jobListing.htm?pos=3D102&amp;ao=3D1110586&amp;s=3D224&amp;guid=
+=3D000001a1b3cf20babb370f20fdc6d1b9&amp;src=3DGD_JOB_AD&amp;t=3DJA&amp;vt=
+=3De&amp;uido=3D68AC9EB5E8751CC653CAD69DF91C49E7&amp;ea=3D1&amp;cs=3D1_f2e2=
+b0d2&amp;cb=3D1794024244423&amp;jobListingId=3D1010314884711&amp;cpc=3D3DB5=
+99BF2F4828F0&amp;jrtk=3D5-yul1-0-1k6q2r0uikgr4801-89c7e31bbc730e60---6NYlbf=
+kN0DKYEYS6AaSgPeXyWAkdM8_YPNZv0Ej8KjQCXpwSuT3KPLZr4MlhX4FpSammBY3UvZqZCIOhL=
+L8dKB7id4H8QOKlx7UTb8LQYEIlw8kMPMUPwzYyGQhISuB0vhYM2LTdmn8HwbKuSHDO-ioXW1bH=
+paBiSoTsae1IPn2wovCZn5Pj9ZV_VEf-BHwenJM41fC2p3Wqueyqy5UZuxmEnaXz20OWDmc7i23=
+elkSNTRqyUQ8zwKT4jY4D93wmNbrUbJRWUtWCfP9jsv8aAyU9E1xImo0Upt2EQXzVgN1JIKYD7b=
+C4U3zdEDLxQ2l7mqBa-PmkbghKVJQ7tApMTibwzuuorILh0OKZwCAfP8ZbFVb44Wok_6a0LcL6q=
+NRknZwXteIVLTUynz2NAHrfFNdPQKxOo0YidGKaH8ARtPK2E5N3JKR9le5iOUnxJRjrwQT454ja=
+aJTCuDlu-Zow7ENuwUwFbNczKOk-mdMRvSFSuh5vexWNBRUp8Sp9p2hcmg975E694WLoA1hhxha=
+MU8lfJuTW4oeIw3qW65o1Y50Fqt5-Od5Ms8ONA0pHmJZ3W8grrLqzHRuFXNhuGfp_QaaJsc8gYI=
+GQrBep0sSWKp4zDWkgw7Ju9TXa4WhubDxcGJIbVG69m_lP0uxI9Ut5JODyWJvDVf8vcGeTXKoxN=
+b9FsG7V85pRdRy58i03OuTL77vQGjjtNVq5jYFCVIrHmwaFyUXt2KVWGydVMKbspG9xDYMQIDzu=
+8HGfuMMl26ogtM3jxH7AgtxHA5_SOdtePf5Uf7AfkUEkCmK_K7hUBnEWG8SF0TfIGo2Aaql1BfG=
+o37pjhjGkJViP_0JGlE6MjhBxj07MH8xvcNen0b-L9R6Bey-T3r2Kfr0hzGxOUn4zXozXtjPfGO=
+Y-cLVwr4uHqDI0j1K0NMDEmskkJcIrvPOASW01QvHK3vQPdxM4P4RET2CSr7yhiOFlMMHRySAkB=
+6DMEo5P4Ya&amp;tgt=3DGD_JOB_VIEW&amp;utm_medium=3Demail&amp;utm_source=3Djo=
+balert&amp;utm_campaign=3DjobAlertAlert&amp;utm_content=3Dja-jobpos2-age4d-=
+1010314884711&amp;ja=3D332885123" class=3D"gd-4c34fb9b9d"><table align=3D"c=
+enter" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=
+=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td =
+data-id=3D"__react-email-column"><table role=3D"presentation" width=3D"100%=
+" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><td class=3D"=
+gd-186dec1ba4"><span>
+                 <!--[if mso]>
+               =20
+          <table cellpadding=3D"0" cellspacing=3D"0" border=3D"0" role=3D"p=
+resentation">
+            <tr>
+              <td width=3D"24" height=3D"24">
+                <v:roundrect xmlns:v=3D"urn:schemas-microsoft-com:vml" arcs=
+ize=3D"50%" strokecolor=3D"#DADEE2"
+                  strokeweight=3D"1px" style=3D"height:24px; width:24px; v-=
+text-anchor:middle;">
+                  <v:fill src=3D"https://media.glassdoor.com/sql/258802/apr=
+-consulting-squarelogo-1462287075192.png?utm_medium=3Demail&utm_source=3Djo=
+balert&utm_campaign=3DjobAlertAlert&utm_content=3Dja-jobpos2-age4d-10103148=
+84711" type=3D"frame"/>
+                </v:roundrect>
+              </td>
+            </tr>
+          </table>
+       =20
+               <![endif]-->
+        </span><div>
+      <table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" bord=
+er=3D"0" style=3D"mso-hide:all;">
+        <tbody><tr>
+          <td>
+            <img src=3D"https://media.glassdoor.com/sql/258802/apr-consulti=
+ng-squarelogo-1462287075192.png?utm_medium=3Demail&amp;utm_source=3Djobaler=
+t&amp;utm_campaign=3DjobAlertAlert&amp;utm_content=3Dja-jobpos2-age4d-10103=
+14884711" width=3D"24" height=3D"24" alt=3D"avatar" class=3D"gd-925aa098a0"=
+>
+          </td>
+        </tr>
+      </tbody></table>
+    </div></td><td class=3D"gd-a4c855f5cb"><span class=3D"gd-e6089fa56a"><s=
+pan class=3D"gd-8c81e4c746">APR Consulting</span><span class=3D"gd-562cbc7b=
+4e">&nbsp;<!-- -->3.6 =E2=98=85</span></span></td></tr></tbody></table></td=
+></tr></tbody></table><table align=3D"center" width=3D"100%" border=3D"0" c=
+ellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"margin-to=
+p:4px"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"=
+__react-email-column"><table role=3D"presentation" cellpadding=3D"0" cellsp=
+acing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8b30124=
+a1"><p class=3D"gd-2de68bc97a">Link 16 Embedded Software Engineer with Acti=
+ve Secret Clearance</p></td></tr></tbody></table></td></tr></tbody></table>=
+<table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cells=
+pacing=3D"0" role=3D"presentation"><tbody style=3D"width:100%"><tr style=3D=
+"width:100%"><td data-id=3D"__react-email-column"><table role=3D"presentati=
+on" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody>=
+<tr><td class=3D"gd-e8b30124a1"><p class=3D"gd-df98e110e2">San Diego, CA</p=
+></td></tr></tbody></table></td></tr></tbody></table><table align=3D"center=
+" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"p=
+resentation"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-=
+id=3D"__react-email-column"><table role=3D"presentation" cellpadding=3D"0" =
+cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8=
+b30124a1"><p class=3D"gd-df98e110e2">$119 (Employer est.)</p></td></tr></tb=
+ody></table></td></tr></tbody></table><table align=3D"center" width=3D"100%=
+" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" st=
+yle=3D"margin-top:8px"><tbody style=3D"width:100%"><tr style=3D"width:100%"=
+><td data-id=3D"__react-email-column"><table role=3D"presentation" cellpadd=
+ing=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td clas=
+s=3D"gd-69d3f5fd2b"><table role=3D"presentation" cellpadding=3D"0" cellspac=
+ing=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-9f526846ae"><table role=
+=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><=
+tr><td class=3D"gd-a84dc8aac3"><table role=3D"presentation" cellpadding=3D"=
+0" cellspacing=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-8cf84a8e50"><i=
+mg alt=3D"" height=3D"16" src=3D"https://www.glassdoor.com/assets/email/bra=
+ndRefresh/icons/easy-apply-icon.png" width=3D"16" class=3D"gd-012de66cfe"><=
+/td><td class=3D"gd-e8b30124a1"><p class=3D"gd-47254e592b">Easy Apply</p></=
+td></tr></tbody></table></td></tr></tbody></table></td></tr></tbody></table=
+></td><td style=3D"width:100%"></td><td class=3D"gd-2b423bee64"><p class=3D=
+"gd-7e453aeb39">4d</p></td></tr></tbody></table></td></tr></tbody></table><=
+/a></td></tr></tbody></table><span><!--[if !mso]><!-- --></span><img alt=3D=
+"" height=3D"1" src=3D"https://www.glassdoor.com/brand-views?o=3Dbrandview-=
+pixel&amp;p=3DeyJhbGciOiJIUzUxMiJ9.eyJpYXQiOjE3OTQwMjQyNDQsImp0aSI6ImZmMGE0=
+NThlLTQyYTItNGNiNS04NTAwLWFhODA0NDQzMzQ0MCIsImVtcGlkIjoyNTg4MDIsInVpZCI6MzA=
+2Mzg4NDYzLCJhZGF0dHIiOnsiam9iX2xpc3RpbmdfaWQiOiIxMDEwMzE0ODg0NzExIn0sImJ2bm=
+FtZSI6ImpvYi1hbGVydC1lbWFpbC1qb2ItbGlzdGluZyIsInRsZCI6MSwiYnZ0eXBlIjoiQlJBT=
+kQiLCJidmNoYW4iOiJFTUFJTCJ9.OBhzDT6NuIacp7uPUsrOhVLIkDca_5sNkCbBq9FYpdgYxjp=
+O_YLw16CDLad9ZKwN0mXD6t4X_XdDkbt6oBwVGQ" width=3D"1" class=3D"gd-9b0994d422=
+"><span><!--<![endif]--></span></td></tr></tbody></table></td></tr></tbody>=
+</table></td></tr></tbody></table></td></tr></tbody></table></td></tr></tbo=
+dy></table><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=
+=3D"0" cellspacing=3D"0" role=3D"presentation" class=3D"gd-c50a3659bb"><tbo=
+dy><tr style=3D"width:100%"><td><table align=3D"center" width=3D"100%" bord=
+er=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><tbody s=
+tyle=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-c=
+olumn" style=3D"width:100%"><table align=3D"center" width=3D"100%" border=
+=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" class=3D"g=
+d-dbe9ce2b4a"><tbody><tr style=3D"width:100%"><td><table align=3D"center" w=
+idth=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"pres=
+entation"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=
+=3D"__react-email-column" style=3D"width:100%"><table align=3D"center" widt=
+h=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"present=
+ation" class=3D"gd-454fb62d56"><tbody><tr style=3D"width:100%"><td><table a=
+lign=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=
+=3D"0" role=3D"presentation" style=3D"padding:16px"><tbody style=3D"width:1=
+00%"><tr style=3D"width:100%"><td data-id=3D"__react-email-column" style=3D=
+"width:100%"><a href=3D"https://www.glassdoor.com/partner/jobListing.htm?po=
+s=3D103&amp;ao=3D1110586&amp;s=3D224&amp;guid=3D000001a1b3cf20babb370f20fdc=
+6d1b9&amp;src=3DGD_JOB_AD&amp;t=3DJA&amp;vt=3De&amp;uido=3D68AC9EB5E8751CC6=
+53CAD69DF91C49E7&amp;ea=3D1&amp;cs=3D1_5146284c&amp;cb=3D1794024244423&amp;=
+jobListingId=3D1010315695639&amp;cpc=3D6FC5BA77C9A4CD78&amp;jrtk=3D5-yul1-0=
+-1k6q2r0uikgr4801-4d8a804e074b0ec6---6NYlbfkN0ADTliTSg4K3aDxe8vkHVVj5ml6bx8=
+ND6Ab8oliGx3AtQak9O875La2bFZ7Jqdg5u3qIFDzc1QLt6FXXQ3LL9jGMUfg7-9zNXaetnAph-=
+gQ7IuB1YVZSU7j5afQC2dCrsOR7rFP_g_-VrgOrRBDDCBr5YV9HTbmOEzfv2DuW3n9tBTrQkkON=
+-weQLuNXyJEAWGuUeVBF6suS_7RUcCUea8z_dMhzxYllO4tn7xQQq6jPPJ6NW9U-4xVAUvt-oCQ=
+zGfbiIw3PmWNfHjbGVWMQse9KzzITPC6g1K-YUl2MKFUJySxiyGSQ4AbEkRU0VpR4SKWPrTtO58=
+K_X-tbUtFPevVN-uG33LOnLOBBHWHe_--p-1BMDN3UZwv9iWThrOH1Sh2kR7WeK878s6SuD7lSb=
+gY1PHozLOvhqrqd1zYYSdToN-pm-OT9bOx1jt4H35mS8_6d4c7IEeLADfiR1K3RTrHbGJZQv_x5=
+uF_a3RV4DF3u4gfa-aqWlUbEf0YTAxEFfjhJ_muruj2eqWpZUwvn66MR_3mZK-SjKRMvlKu1s4R=
+M3UIsqUWj3CVosNPM4xHEPTiOYE-98Ae86ei9ksNp-ZAabQ9lowRya48prj9RJZO2QfDAqVMj7M=
+gpbAg7gGqKRUnZfwVZVKgnnFlLGSioS78sNJU3EljkjaR_kyA8p4m5mn3MEebBYFrsgPJUIandi=
+-lBaJyMIK_vSxDf7LBXi1r5jWFe5Cr30xLRHdqAIuiIuutkLvW5fpvuFWxPt2XIdBrA5RcAKpqs=
+lTPbUtTaH5wvqUPf8PxZRFVOq4rEUh5YqfjFfi52HDGXNMI5LG9AjU5IpEt_18pr4anDmmkOzf_=
+c5cWggo29YwgIYIQDJR183__rJDRkpdRVOTZfu43WS9RVL9uKtk9tg%3D%3D&amp;tgt=3DGD_J=
+OB_VIEW&amp;utm_medium=3Demail&amp;utm_source=3Djobalert&amp;utm_campaign=
+=3DjobAlertAlert&amp;utm_content=3Dja-jobpos3-age3d-1010315695639&amp;ja=3D=
+332885123" class=3D"gd-4c34fb9b9d"><table align=3D"center" width=3D"100%" b=
+order=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><tbod=
+y style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-emai=
+l-column"><table role=3D"presentation" width=3D"100%" cellpadding=3D"0" cel=
+lspacing=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-186dec1ba4"><span>
+                 <!--[if mso]>
+               =20
+          <table cellpadding=3D"0" cellspacing=3D"0" border=3D"0" role=3D"p=
+resentation">
+            <tr>
+              <td width=3D"24" height=3D"24">
+                <v:roundrect xmlns:v=3D"urn:schemas-microsoft-com:vml" arcs=
+ize=3D"50%" strokecolor=3D"#DADEE2"
+                  strokeweight=3D"1px" style=3D"height:24px; width:24px; v-=
+text-anchor:middle;">
+                  <v:fill src=3D"https://media.glassdoor.com/sql/30606/matl=
+en-silver-squarelogo-1487603371940.png?utm_medium=3Demail&utm_source=3Djoba=
+lert&utm_campaign=3DjobAlertAlert&utm_content=3Dja-jobpos3-age3d-1010315695=
+639" type=3D"frame"/>
+                </v:roundrect>
+              </td>
+            </tr>
+          </table>
+       =20
+               <![endif]-->
+        </span><div>
+      <table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" bord=
+er=3D"0" style=3D"mso-hide:all;">
+        <tbody><tr>
+          <td>
+            <img src=3D"https://media.glassdoor.com/sql/30606/matlen-silver=
+-squarelogo-1487603371940.png?utm_medium=3Demail&amp;utm_source=3Djobalert&=
+amp;utm_campaign=3DjobAlertAlert&amp;utm_content=3Dja-jobpos3-age3d-1010315=
+695639" width=3D"24" height=3D"24" alt=3D"avatar" class=3D"gd-925aa098a0">
+          </td>
+        </tr>
+      </tbody></table>
+    </div></td><td class=3D"gd-a4c855f5cb"><span class=3D"gd-e6089fa56a"><s=
+pan class=3D"gd-8c81e4c746">Matlen Silver</span><span class=3D"gd-562cbc7b4=
+e">&nbsp;<!-- -->3.3 =E2=98=85</span></span></td></tr></tbody></table></td>=
+</tr></tbody></table><table align=3D"center" width=3D"100%" border=3D"0" ce=
+llpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"margin-top=
+:4px"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"_=
+_react-email-column"><table role=3D"presentation" cellpadding=3D"0" cellspa=
+cing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8b30124a=
+1"><p class=3D"gd-2de68bc97a">Android Developer | San Francisco, CA - hybri=
+d | W2 ONLY, NO C2C</p></td></tr></tbody></table></td></tr></tbody></table>=
+<table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cells=
+pacing=3D"0" role=3D"presentation"><tbody style=3D"width:100%"><tr style=3D=
+"width:100%"><td data-id=3D"__react-email-column"><table role=3D"presentati=
+on" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody>=
+<tr><td class=3D"gd-e8b30124a1"><p class=3D"gd-df98e110e2">San Francisco, C=
+A</p></td></tr></tbody></table></td></tr></tbody></table><table align=3D"ce=
+nter" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=
+=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td =
+data-id=3D"__react-email-column"><table role=3D"presentation" cellpadding=
+=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=
+=3D"gd-e8b30124a1"><p class=3D"gd-df98e110e2">$65 - $70 (Employer est.)</p>=
+</td></tr></tbody></table></td></tr></tbody></table><table align=3D"center"=
+ width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"pr=
+esentation" style=3D"margin-top:8px"><tbody style=3D"width:100%"><tr style=
+=3D"width:100%"><td data-id=3D"__react-email-column"><table role=3D"present=
+ation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbo=
+dy><tr><td class=3D"gd-69d3f5fd2b"><table role=3D"presentation" cellpadding=
+=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-9f526846ae=
+"><table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" border=
+=3D"0"><tbody><tr><td class=3D"gd-a84dc8aac3"><table role=3D"presentation" =
+cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><td class=3D"gd=
+-8cf84a8e50"><img alt=3D"" height=3D"16" src=3D"https://www.glassdoor.com/a=
+ssets/email/brandRefresh/icons/easy-apply-icon.png" width=3D"16" class=3D"g=
+d-012de66cfe"></td><td class=3D"gd-e8b30124a1"><p class=3D"gd-47254e592b">E=
+asy Apply</p></td></tr></tbody></table></td></tr></tbody></table></td></tr>=
+</tbody></table></td><td style=3D"width:100%"></td><td class=3D"gd-2b423bee=
+64"><p class=3D"gd-7e453aeb39">3d</p></td></tr></tbody></table></td></tr></=
+tbody></table></a></td></tr></tbody></table><span><!--[if !mso]><!-- --></s=
+pan><img alt=3D"" height=3D"1" src=3D"https://www.glassdoor.com/brand-views=
+?o=3Dbrandview-pixel&amp;p=3DeyJhbGciOiJIUzUxMiJ9.eyJpYXQiOjE3OTQwMjQyNDQsI=
+mp0aSI6ImFlZjdhMmUzLWMxZmYtNGJmZS05NDI4LTU3ODI0MzVkNWQzNyIsImVtcGlkIjozMDYw=
+NiwidWlkIjozMDYzODg0NjMsImFkYXR0ciI6eyJqb2JfbGlzdGluZ19pZCI6IjEwMTAzMTU2OTU=
+2MzkifSwiYnZuYW1lIjoiam9iLWFsZXJ0LWVtYWlsLWpvYi1saXN0aW5nIiwidGxkIjoxLCJidn=
+R5cGUiOiJCUkFORCIsImJ2Y2hhbiI6IkVNQUlMIn0.ognuywNVfvdmlpiCPud8ydR48zwrmfuxl=
+rJUr4FVTz83K3Id_sV5Vije4bGkBH0987-VtXC--YIcdPXkqnmC4A" width=3D"1" class=3D=
+"gd-9b0994d422"><span><!--<![endif]--></span></td></tr></tbody></table></td=
+></tr></tbody></table></td></tr></tbody></table></td></tr></tbody></table><=
+/td></tr></tbody></table><table align=3D"center" width=3D"100%" border=3D"0=
+" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" class=3D"gd-c50=
+a3659bb"><tbody><tr style=3D"width:100%"><td><table align=3D"center" width=
+=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presenta=
+tion"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"_=
+_react-email-column" style=3D"width:100%"><table align=3D"center" width=3D"=
+100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation=
+" class=3D"gd-dbe9ce2b4a"><tbody><tr style=3D"width:100%"><td><table align=
+=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0"=
+ role=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width:100%"=
+><td data-id=3D"__react-email-column" style=3D"width:100%"><table align=3D"=
+center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" rol=
+e=3D"presentation" class=3D"gd-454fb62d56"><tbody><tr style=3D"width:100%">=
+<td><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" c=
+ellspacing=3D"0" role=3D"presentation" style=3D"padding:16px"><tbody style=
+=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-colum=
+n" style=3D"width:100%"><a href=3D"https://www.glassdoor.com/partner/jobLis=
+ting.htm?pos=3D104&amp;ao=3D1110586&amp;s=3D224&amp;guid=3D000001a1b3cf20ba=
+bb370f20fdc6d1b9&amp;src=3DGD_JOB_AD&amp;t=3DJA&amp;vt=3De&amp;uido=3D68AC9=
+EB5E8751CC653CAD69DF91C49E7&amp;cs=3D1_3cd54286&amp;cb=3D1794024244423&amp;=
+jobListingId=3D1010315225209&amp;cpc=3DBAEB662971763A76&amp;jrtk=3D5-yul1-0=
+-1k6q2r0uikgr4801-6f96f2e731e9c362---6NYlbfkN0DlIGMaoltqsx2RZJfLOteFG3U8UF2=
+e5dTv8D4I0aS0V6etxeAvNCqYzHU7usYN-yirntnvwhQoeC2yciW9rdjWp9mCuxitZzCcftnyB4=
+TuTw4AfGhjwud4Gg76gBLj7o6jGa3XcN_dDOwGYWHSqBYZGvLhAXB7iBOHActYw25X3icJ6HDWs=
+PhfRjyDgAG2X5sNDXcfKdYWhpbHFMVYusIlURbNi_S6QEevTWkpERivwU_qQAJfr-ZV0I3teKRg=
+4sRU1bMkAa-WABIbgIA-5lD23yH5MbIK7kMCeStP3nXNJWGi11n-fcN3NVdce6vJmyMInKxDXS0=
+ByD76DYKn8yV3h3LIuCQsFQ_meZxHJA6khrd1np9WnyS8ZuLUoYoCkl-us36jy7Isi7zWXpz9AZ=
+kZURvgtJLwYnB42ANc4BXEsiM8GmqPxcjIyF8Af0bcCgWeBQkTUbZaUYnpZaL-dHzuWo27xaQ-k=
+-xLNXdU0uSHZWs3yodUpJmYOoV9WgBsApk9Iqkbzc3WwTHFwom2cIeSNg0281xj60Nub2vd4FIJ=
+o9SJcpbjaum32CJozKd9L_qaRnqVl0dFjmBu2zUmeXb2AgEEmnA72NZ4ENYQWvvI242-PGdGbFz=
+NsBullrFnV_fchKqdtJf9kdgVrOqAc3AkQgQaLSDrZf-Ctnp_h4fR5QwJBwCvD7wEegPRARrA4Z=
+fI_S8gHjSFrvb5TIKRyUgC_FPKgbukNO0KY2cVBwVhmljHBeNkFOaH5JQoG6aw2EIuxFXmR7Jhp=
+YfjjIDrjatF-WId-SbySXCoGL0a2BrYRB2TM2JQol6X0XfdVxEAkvzZ63GjQlo6GI5KSwGY_4mZ=
+gSlmnsbgrVv4wz9Viwzma5VMnkwrJRXBb68Tf9ohHhDJSPGXHEki_jSyO3VUcBy2j2fQ_3qt6dy=
+fZLQn7--NIfWtKvGja1LAS4MXoWKV_xLfyPRWSGE85-vB71sV50CaBntiOUuBwfBJKgIb7RXW_n=
+FH77To7lFpL6yEqips2QmYdoNzSBGv7mrrmxoaLMB4YgbQsqqNGajBcn0jQgbbHoJubZKAwoyTj=
+3XY-Qu-2dQ%3D&amp;tgt=3DGD_JOB_VIEW&amp;utm_medium=3Demail&amp;utm_source=
+=3Djobalert&amp;utm_campaign=3DjobAlertAlert&amp;utm_content=3Dja-jobpos4-a=
+ge4d-1010315225209&amp;ja=3D332885123" class=3D"gd-4c34fb9b9d"><table align=
+=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0"=
+ role=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width:100%"=
+><td data-id=3D"__react-email-column"><table role=3D"presentation" width=3D=
+"100%" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><td clas=
+s=3D"gd-186dec1ba4"></td><td class=3D"gd-a4c855f5cb"><span class=3D"gd-e608=
+9fa56a"><span class=3D"gd-8c81e4c746">AfterQuery</span></span></td></tr></t=
+body></table></td></tr></tbody></table><table align=3D"center" width=3D"100=
+%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" s=
+tyle=3D"margin-top:4px"><tbody style=3D"width:100%"><tr style=3D"width:100%=
+"><td data-id=3D"__react-email-column"><table role=3D"presentation" cellpad=
+ding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td cla=
+ss=3D"gd-e8b30124a1"><p class=3D"gd-2de68bc97a">Full Stack Engineer - AI Tr=
+ainer</p></td></tr></tbody></table></td></tr></tbody></table><table align=
+=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0"=
+ role=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width:100%"=
+><td data-id=3D"__react-email-column"><table role=3D"presentation" cellpadd=
+ing=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td clas=
+s=3D"gd-e8b30124a1"><p class=3D"gd-df98e110e2">Oakland, CA</p></td></tr></t=
+body></table></td></tr></tbody></table><table align=3D"center" width=3D"100=
+%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><=
+tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-=
+email-column"><table role=3D"presentation" cellpadding=3D"0" cellspacing=3D=
+"0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8b30124a1"><p c=
+lass=3D"gd-df98e110e2">$70 - $85 (Employer est.)</p></td><td style=3D"text-=
+align:right;vertical-align:middle"><p class=3D"gd-7e453aeb39">4d</p></td></=
+tr></tbody></table></td></tr></tbody></table></a></td></tr></tbody></table>=
+<span><!--[if !mso]><!-- --></span><img alt=3D"" height=3D"1" src=3D"https:=
+//www.glassdoor.com/brand-views?o=3Dbrandview-pixel&amp;p=3DeyJhbGciOiJIUzU=
+xMiJ9.eyJpYXQiOjE3OTQwMjQyNDQsImp0aSI6IjIwMDNiODEzLTA4YjUtNGQ2NS04MzFiLTdiM=
+TAxMjcwNWU5YSIsImVtcGlkIjoxMDgzNzQ0MywidWlkIjozMDYzODg0NjMsImFkYXR0ciI6eyJq=
+b2JfbGlzdGluZ19pZCI6IjEwMTAzMTUyMjUyMDkifSwiYnZuYW1lIjoiam9iLWFsZXJ0LWVtYWl=
+sLWpvYi1saXN0aW5nIiwidGxkIjoxLCJidnR5cGUiOiJCUkFORCIsImJ2Y2hhbiI6IkVNQUlMIn=
+0.LQ_9zYhTp1sCvGWpqiqaKeydQSxQZ80RmTWxf9D-C7DKur_BF1DNPO4STgYhBUkGHCApE8fmu=
+J95upoBJs3AWw" width=3D"1" class=3D"gd-9b0994d422"><span><!--<![endif]--></=
+span></td></tr></tbody></table></td></tr></tbody></table></td></tr></tbody>=
+</table></td></tr></tbody></table></td></tr></tbody></table><table align=3D=
+"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" ro=
+le=3D"presentation" class=3D"gd-c50a3659bb"><tbody><tr style=3D"width:100%"=
+><td><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" =
+cellspacing=3D"0" role=3D"presentation"><tbody style=3D"width:100%"><tr sty=
+le=3D"width:100%"><td data-id=3D"__react-email-column" style=3D"width:100%"=
+><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cell=
+spacing=3D"0" role=3D"presentation" class=3D"gd-dbe9ce2b4a"><tbody><tr styl=
+e=3D"width:100%"><td><table align=3D"center" width=3D"100%" border=3D"0" ce=
+llpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><tbody style=3D"wid=
+th:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-column" styl=
+e=3D"width:100%"><table align=3D"center" width=3D"100%" border=3D"0" cellpa=
+dding=3D"0" cellspacing=3D"0" role=3D"presentation" class=3D"gd-454fb62d56"=
+><tbody><tr style=3D"width:100%"><td><table align=3D"center" width=3D"100%"=
+ border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" sty=
+le=3D"padding:16px"><tbody style=3D"width:100%"><tr style=3D"width:100%"><t=
+d data-id=3D"__react-email-column" style=3D"width:100%"><a href=3D"https://=
+www.glassdoor.com/partner/jobListing.htm?pos=3D105&amp;ao=3D1110586&amp;s=
+=3D224&amp;guid=3D000001a1b3cf20babb370f20fdc6d1b9&amp;src=3DGD_JOB_AD&amp;=
+t=3DJA&amp;vt=3De&amp;uido=3D68AC9EB5E8751CC653CAD69DF91C49E7&amp;cs=3D1_0d=
+b5e19f&amp;cb=3D1794024244424&amp;jobListingId=3D1010312942356&amp;cpc=3D33=
+4ABAF5D42DC775&amp;jrtk=3D5-yul1-0-1k6q2r0uikgr4801-ba217128123a6f8b---6NYl=
+bfkN0CwZXc5kaVZcDIejlzrQt6xuDzFCT1LgXJr1Wz7yprErhTQszxwcxj8JQa4Srorbou7m2mN=
+V1e7PxeZWrQAulUYErndgnxwNZrgthr-_yKcuh-qzzbffdb9UtgkG4siuTfkXxydeMP8gHi1VJ_=
+jYuG_N6Dix4jcvmVZjJhZxckAjqVPRHE7nHcgb2xqyeSaOcxmy756QZx5d-y_Ns8Wnjzq933BkX=
+_ZWTXxBcN-SxIF7iwWT000N_hNsP-A6GLycme5I6trqNLvF5QtNFe201wjI9rIMRAkHFFouMFvd=
+h9ZPutlh11LvpX0f-qlVXmFPKeJ2vuECy-tn6JslT4HMOx-zDDkhYSdePb0EY71q0zVZHvuOrDY=
+Hq5AMU2NtrDune3INv8J0MsYgzsA0Tpj_IOe4Ll9M_JPvnfqtEuhYfe40FS61FHodW5vnXzd-QJ=
+Df4t0kOQgcDMU8_1j1H-PdLfnuhFTHtT34kKn9NqNWf6p69YDVOuZIXQHOOSV-DMdCCTavq8l3e=
+hEQaz_bKryvJg6RWuGZtDSn2WTDsKV8I9qVd6Z5abD2aQx0DLavqrW12aF1TX24J1slptkAGq97=
+axErhse27AQUJWpy3wjj0odPeCVZkyDrwtCEbtBuBOnDP9nuXqwijbfbDovR0wfiHHA8l19GInc=
+h4Go1U41aFfJPEveZ6lV_92cZF6t0x4H38HQrD7HnzXnTTM1jTOWtcCmAaI3j644LSiVGd_ZD7i=
+QUdqNOljeLjjy5o8bFRCMFHfDH0TIwl2qoMhGalPb8gW62H-mJwCk_RUP2t6gJUH55v3-hjJ8aY=
+WQBzEPRwj4ix8x1Jrouh_kkEVoqTVyZx0SpZ6_kY1dDXWYsJgVb3w7I65ppyknxHmuMEIsyx6Cv=
+JxfaVIa8NpNKxa7Xq42GNFO2eEKzCVASdha2YXY81P1n4OBFth-h6bvfnOzKRusofQYeRzJWxAT=
+VXytOYBs1uYCKvTeCoj1H0XDphoG15yMBBTDWd-vO7k9vtYNd6f0e_o7eJtE-T_qUF5ntWKXKcK=
+WJgQb_IRWL32fIBztVQQmshlxjbMiPyc2dKUc3KvAEswlSRMlZ2d-lP1TGOToJFGyYh9LUGghsB=
+A69HL7mKAlAOZADFQu9Hk-JDh9XQHSHyuOkttUoOrB94YuOYen0ohShP-_HeVOyz-XnXVBbtoQo=
+rKgyqAJkEqPU924qzf22pzwGBxG0utgTgQ_7WVAConlRolPxJxhrKOZvGrWritinxRGiDcKP-D0=
+SHZgMkuc7a6kX4Vk7zmgBPdenkESU7ShOhr7_8yrGKCjirmQT0qCQkc1cIeBvja3v59cNZevmpq=
+cgyyEtLEZDdA3KyxDTWYacHhMiXbw8AVmx-y_UZw964OBjq6AYBRS8immYgZGw7nwIEnMGavySA=
+fo_2vgxtLtIFsk1g7NIWkuW5AA5ypBQqs21BXYPT0Qn2V4MbptZXDYy2-e4UjCLGI5BzYbbmttz=
+ukB8HeHqctXFa6UVt_ZXhsh-nnpZsPfJCFYBmXiIl6yidZjXLIHDp_TlIaim57IidRLYaPrxDXR=
+Gf1lHTsUWWkbL15XKCE1eg13moH4k_1cpIJogaUPaaIX0suBi4K9nL0GpSSJ0HEaqoD3KF9qszy=
+7T_wcf09TQIdSiTUfF3VQm3HW0HtIBDApAzAD3bS_mEQ7EQ_Kv7yrnHSVXq0IqOpz5BHRCnQAv7=
+ijxQjG7PP0v8xtj95mMU9b6Jkjwyx4YwjIZhZQ36hsKUrKgO3DhoOTWanA7__DG466QZaOI0deF=
+-jch-oDkH_vGUVdjzmplTARsqtefow%3D&amp;tgt=3DGD_JOB_VIEW&amp;utm_medium=3Dem=
+ail&amp;utm_source=3Djobalert&amp;utm_campaign=3DjobAlertAlert&amp;utm_cont=
+ent=3Dja-jobpos5-age6d-1010312942356&amp;ja=3D332885123" class=3D"gd-4c34fb=
+9b9d"><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0"=
+ cellspacing=3D"0" role=3D"presentation"><tbody style=3D"width:100%"><tr st=
+yle=3D"width:100%"><td data-id=3D"__react-email-column"><table role=3D"pres=
+entation" width=3D"100%" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><=
+tbody><tr><td class=3D"gd-186dec1ba4"><span>
+                 <!--[if mso]>
+               =20
+          <table cellpadding=3D"0" cellspacing=3D"0" border=3D"0" role=3D"p=
+resentation">
+            <tr>
+              <td width=3D"24" height=3D"24">
+                <v:roundrect xmlns:v=3D"urn:schemas-microsoft-com:vml" arcs=
+ize=3D"50%" strokecolor=3D"#DADEE2"
+                  strokeweight=3D"1px" style=3D"height:24px; width:24px; v-=
+text-anchor:middle;">
+                  <v:fill src=3D"https://media.glassdoor.com/sql/488/northr=
+op-grumman-squarelogo-1588102827228.png?utm_medium=3Demail&utm_source=3Djob=
+alert&utm_campaign=3DjobAlertAlert&utm_content=3Dja-jobpos5-age6d-101031294=
+2356" type=3D"frame"/>
+                </v:roundrect>
+              </td>
+            </tr>
+          </table>
+       =20
+               <![endif]-->
+        </span><div>
+      <table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" bord=
+er=3D"0" style=3D"mso-hide:all;">
+        <tbody><tr>
+          <td>
+            <img src=3D"https://media.glassdoor.com/sql/488/northrop-grumma=
+n-squarelogo-1588102827228.png?utm_medium=3Demail&amp;utm_source=3Djobalert=
+&amp;utm_campaign=3DjobAlertAlert&amp;utm_content=3Dja-jobpos5-age6d-101031=
+2942356" width=3D"24" height=3D"24" alt=3D"avatar" class=3D"gd-925aa098a0">
+          </td>
+        </tr>
+      </tbody></table>
+    </div></td><td class=3D"gd-a4c855f5cb"><span class=3D"gd-e6089fa56a"><s=
+pan class=3D"gd-8c81e4c746">Northrop Grumman</span><span class=3D"gd-562cbc=
+7b4e">&nbsp;<!-- -->3.8 =E2=98=85</span></span></td></tr></tbody></table></=
+td></tr></tbody></table><table align=3D"center" width=3D"100%" border=3D"0"=
+ cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"margin-=
+top:4px"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=
+=3D"__react-email-column"><table role=3D"presentation" cellpadding=3D"0" ce=
+llspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8b3=
+0124a1"><p class=3D"gd-2de68bc97a">Principal / Sr. Principal Software Engin=
+eer (C++ and TS Clearance)</p></td></tr></tbody></table></td></tr></tbody><=
+/table><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0=
+" cellspacing=3D"0" role=3D"presentation"><tbody style=3D"width:100%"><tr s=
+tyle=3D"width:100%"><td data-id=3D"__react-email-column"><table role=3D"pre=
+sentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%">=
+<tbody><tr><td class=3D"gd-e8b30124a1"><p class=3D"gd-df98e110e2">Los Angel=
+es, CA</p></td></tr></tbody></table></td></tr></tbody></table><table align=
+=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0"=
+ role=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width:100%"=
+><td data-id=3D"__react-email-column"><table role=3D"presentation" cellpadd=
+ing=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td clas=
+s=3D"gd-e8b30124a1"><p class=3D"gd-df98e110e2">$114K - $213K (Employer est.=
+)</p></td></tr></tbody></table></td></tr></tbody></table><table align=3D"ce=
+nter" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=
+=3D"presentation" style=3D"margin-top:8px"><tbody style=3D"width:100%"><tr =
+style=3D"width:100%"><td data-id=3D"__react-email-column"><table role=3D"pr=
+esentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"=
+><tbody><tr><td class=3D"gd-69d3f5fd2b"><table role=3D"presentation" cellpa=
+dding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><td style=3D"vertical=
+-align:middle;padding-left:0"><table role=3D"presentation" cellpadding=3D"0=
+" cellspacing=3D"0" border=3D"0"><tbody><tr><td style=3D"background-color:#=
+F9FAFB;border-radius:4px;padding:2px 6px;white-space:nowrap"><table role=3D=
+"presentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr>=
+<td class=3D"gd-8cf84a8e50"><img alt=3D"" height=3D"16" src=3D"https://www.=
+glassdoor.com/assets/email/brandRefresh/icons/trophy.png" width=3D"16" clas=
+s=3D"gd-012de66cfe"></td><td class=3D"gd-e8b30124a1"><p style=3D"font-size:=
+12px;line-height:16px;color:#00060C;font-family:'Glassdoor Sans', Arial, He=
+lvetica, sans-serif;font-style:normal;font-weight:600;white-space:nowrap;ov=
+erflow:hidden;text-overflow:ellipsis;margin:0;padding:0;margin-top:0;margin=
+-bottom:0;margin-left:0;margin-right:0">Best Place to Work</p></td></tr></t=
+body></table></td></tr></tbody></table></td></tr></tbody></table></td><td s=
+tyle=3D"width:100%"></td><td class=3D"gd-2b423bee64"><p class=3D"gd-7e453ae=
+b39">6d</p></td></tr></tbody></table></td></tr></tbody></table></a></td></t=
+r></tbody></table><span><!--[if !mso]><!-- --></span><img alt=3D"" height=
+=3D"1" src=3D"https://www.glassdoor.com/brand-views?o=3Dbrandview-pixel&amp=
+;p=3DeyJhbGciOiJIUzUxMiJ9.eyJpYXQiOjE3OTQwMjQyNDQsImp0aSI6ImY5Y2RhNzEwLWMwM=
+WYtNDA2NC04MWFhLTUyNDQwMGVjNTFhZiIsImVtcGlkIjo0ODgsInVpZCI6MzA2Mzg4NDYzLCJh=
+ZGF0dHIiOnsiam9iX2xpc3RpbmdfaWQiOiIxMDEwMzEyOTQyMzU2In0sImJ2bmFtZSI6ImpvYi1=
+hbGVydC1lbWFpbC1qb2ItbGlzdGluZyIsInRsZCI6MSwiYnZ0eXBlIjoiQlJBTkQiLCJidmNoYW=
+4iOiJFTUFJTCJ9.adFV0ddlXU2twQP_egtBzvwekeBhj5yQL4VE6E5vuF5tVsOlaiLM_H3dwAVS=
+vu0-c2_NlpHcliC952A8zSMbSw" width=3D"1" class=3D"gd-9b0994d422"><span><!--<=
+![endif]--></span></td></tr></tbody></table></td></tr></tbody></table></td>=
+</tr></tbody></table></td></tr></tbody></table></td></tr></tbody></table><t=
+able align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspa=
+cing=3D"0" role=3D"presentation" class=3D"gd-c50a3659bb"><tbody><tr style=
+=3D"width:100%"><td><table align=3D"center" width=3D"100%" border=3D"0" cel=
+lpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><tbody style=3D"widt=
+h:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-column" style=
+=3D"width:100%"><table align=3D"center" width=3D"100%" border=3D"0" cellpad=
+ding=3D"0" cellspacing=3D"0" role=3D"presentation" class=3D"gd-dbe9ce2b4a">=
+<tbody><tr style=3D"width:100%"><td><table align=3D"center" width=3D"100%" =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><tbo=
+dy style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-ema=
+il-column" style=3D"width:100%"><table align=3D"center" width=3D"100%" bord=
+er=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" class=3D=
+"gd-454fb62d56"><tbody><tr style=3D"width:100%"><td><table align=3D"center"=
+ width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"pr=
+esentation" style=3D"padding:16px"><tbody style=3D"width:100%"><tr style=3D=
+"width:100%"><td data-id=3D"__react-email-column" style=3D"width:100%"><a h=
+ref=3D"https://www.glassdoor.com/partner/jobListing.htm?pos=3D106&amp;ao=3D=
+1136043&amp;s=3D224&amp;guid=3D000001a1b3cf20babb370f20fdc6d1b9&amp;src=3DG=
+D_JOB_AD&amp;t=3DJA&amp;vt=3De&amp;uido=3D68AC9EB5E8751CC653CAD69DF91C49E7&=
+amp;ea=3D1&amp;cs=3D1_12f22e17&amp;cb=3D1794024244425&amp;jobListingId=3D10=
+10314818011&amp;jrtk=3D5-yul1-0-1k6q2r0uikgr4801-2301c7502548764b&amp;tgt=
+=3DGD_JOB_VIEW&amp;utm_medium=3Demail&amp;utm_source=3Djobalert&amp;utm_cam=
+paign=3DjobAlertAlert&amp;utm_content=3Dja-jobpos6-age4d-1010314818011&amp;=
+ja=3D332885123" class=3D"gd-4c34fb9b9d"><table align=3D"center" width=3D"10=
+0%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation">=
+<tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react=
+-email-column"><table role=3D"presentation" width=3D"100%" cellpadding=3D"0=
+" cellspacing=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-186dec1ba4"><sp=
+an>
+                 <!--[if mso]>
+               =20
+          <table cellpadding=3D"0" cellspacing=3D"0" border=3D"0" role=3D"p=
+resentation">
+            <tr>
+              <td width=3D"24" height=3D"24">
+                <v:roundrect xmlns:v=3D"urn:schemas-microsoft-com:vml" arcs=
+ize=3D"50%" strokecolor=3D"#DADEE2"
+                  strokeweight=3D"1px" style=3D"height:24px; width:24px; v-=
+text-anchor:middle;">
+                  <v:fill src=3D"https://media.glassdoor.com/sql/1090/adobe=
+-squareLogo-1696430095326.png?utm_medium=3Demail&utm_source=3Djobalert&utm_=
+campaign=3DjobAlertAlert&utm_content=3Dja-jobpos6-age4d-1010314818011" type=
+=3D"frame"/>
+                </v:roundrect>
+              </td>
+            </tr>
+          </table>
+       =20
+               <![endif]-->
+        </span><div>
+      <table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" bord=
+er=3D"0" style=3D"mso-hide:all;">
+        <tbody><tr>
+          <td>
+            <img src=3D"https://media.glassdoor.com/sql/1090/adobe-squareLo=
+go-1696430095326.png?utm_medium=3Demail&amp;utm_source=3Djobalert&amp;utm_c=
+ampaign=3DjobAlertAlert&amp;utm_content=3Dja-jobpos6-age4d-1010314818011" w=
+idth=3D"24" height=3D"24" alt=3D"avatar" class=3D"gd-925aa098a0">
+          </td>
+        </tr>
+      </tbody></table>
+    </div></td><td class=3D"gd-a4c855f5cb"><span class=3D"gd-e6089fa56a"><s=
+pan class=3D"gd-8c81e4c746">Adobe</span><span class=3D"gd-562cbc7b4e">&nbsp=
+;<!-- -->4.1 =E2=98=85</span></span></td></tr></tbody></table></td></tr></t=
+body></table><table align=3D"center" width=3D"100%" border=3D"0" cellpaddin=
+g=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"margin-top:4px"><t=
+body style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-e=
+mail-column"><table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"=
+0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8b30124a1"><p cl=
+ass=3D"gd-2de68bc97a">Software Engineer</p></td></tr></tbody></table></td><=
+/tr></tbody></table><table align=3D"center" width=3D"100%" border=3D"0" cel=
+lpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><tbody style=3D"widt=
+h:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-column"><tabl=
+e role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" wi=
+dth=3D"100%"><tbody><tr><td class=3D"gd-e8b30124a1"><p class=3D"gd-df98e110=
+e2">San Jose, CA</p></td></tr></tbody></table></td></tr></tbody></table><ta=
+ble align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspac=
+ing=3D"0" role=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"wi=
+dth:100%"><td data-id=3D"__react-email-column"><table role=3D"presentation"=
+ cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr=
+><td class=3D"gd-e8b30124a1"><p class=3D"gd-df98e110e2">$120K - $190K (Empl=
+oyer est.)</p></td></tr></tbody></table></td></tr></tbody></table><table al=
+ign=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D=
+"0" role=3D"presentation" style=3D"margin-top:8px"><tbody style=3D"width:10=
+0%"><tr style=3D"width:100%"><td data-id=3D"__react-email-column"><table ro=
+le=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=
+=3D"100%"><tbody><tr><td class=3D"gd-69d3f5fd2b"><table role=3D"presentatio=
+n" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><td class=3D=
+"gd-9f526846ae"><table role=3D"presentation" cellpadding=3D"0" cellspacing=
+=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-a84dc8aac3"><table role=3D"p=
+resentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><t=
+d class=3D"gd-8cf84a8e50"><img alt=3D"" height=3D"16" src=3D"https://www.gl=
+assdoor.com/assets/email/brandRefresh/icons/easy-apply-icon.png" width=3D"1=
+6" class=3D"gd-012de66cfe"></td><td class=3D"gd-e8b30124a1"><p class=3D"gd-=
+47254e592b">Easy Apply</p></td></tr></tbody></table></td></tr></tbody></tab=
+le></td><td style=3D"vertical-align:middle;padding-left:8px"><table role=3D=
+"presentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr>=
+<td style=3D"background-color:#F9FAFB;border-radius:4px;padding:2px 6px;whi=
+te-space:nowrap"><table role=3D"presentation" cellpadding=3D"0" cellspacing=
+=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-8cf84a8e50"><img alt=3D"" he=
+ight=3D"16" src=3D"https://www.glassdoor.com/assets/email/brandRefresh/icon=
+s/trophy.png" width=3D"16" class=3D"gd-012de66cfe"></td><td class=3D"gd-e8b=
+30124a1"><p style=3D"font-size:12px;line-height:16px;color:#00060C;font-fam=
+ily:'Glassdoor Sans', Arial, Helvetica, sans-serif;font-style:normal;font-w=
+eight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:=
+0;padding:0;margin-top:0;margin-bottom:0;margin-left:0;margin-right:0">Best=
+ Place to Work</p></td></tr></tbody></table></td></tr></tbody></table></td>=
+</tr></tbody></table></td><td style=3D"width:100%"></td><td class=3D"gd-2b4=
+23bee64"><p class=3D"gd-7e453aeb39">4d</p></td></tr></tbody></table></td></=
+tr></tbody></table></a></td></tr></tbody></table><span><!--[if !mso]><!-- -=
+-></span><img alt=3D"" height=3D"1" src=3D"https://www.glassdoor.com/brand-=
+views?o=3Dbrandview-pixel&amp;p=3DeyJhbGciOiJIUzUxMiJ9.eyJpYXQiOjE3OTQwMjQy=
+NDQsImp0aSI6IjVkMGY4YWRhLThiMzItNDY5MC04Zjg4LWNiY2Q2NDc4Y2RhMiIsImVtcGlkIjo=
+xMDkwLCJ1aWQiOjMwNjM4ODQ2MywiYWRhdHRyIjp7ImpvYl9saXN0aW5nX2lkIjoiMTAxMDMxND=
+gxODAxMSJ9LCJidm5hbWUiOiJqb2ItYWxlcnQtZW1haWwtam9iLWxpc3RpbmciLCJ0bGQiOjEsI=
+mJ2dHlwZSI6IkJSQU5EIiwiYnZjaGFuIjoiRU1BSUwifQ.ktJd6T06DPSxGcwIHPJK4KRmJX0pG=
+JXKmF27S5MLEmHvDRyWoOHCLODWXq95sxiEB_oMdKkQe0RMAComdUET3g" width=3D"1" clas=
+s=3D"gd-9b0994d422"><span><!--<![endif]--></span></td></tr></tbody></table>=
+</td></tr></tbody></table></td></tr></tbody></table></td></tr></tbody></tab=
+le></td></tr></tbody></table><table align=3D"center" width=3D"100%" border=
+=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" class=3D"g=
+d-c50a3659bb"><tbody><tr style=3D"width:100%"><td><table align=3D"center" w=
+idth=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"pres=
+entation"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=
+=3D"__react-email-column" style=3D"width:100%"><table align=3D"center" widt=
+h=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"present=
+ation" class=3D"gd-dbe9ce2b4a"><tbody><tr style=3D"width:100%"><td><table a=
+lign=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=
+=3D"0" role=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width=
+:100%"><td data-id=3D"__react-email-column" style=3D"width:100%"><table ali=
+gn=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"=
+0" role=3D"presentation" class=3D"gd-454fb62d56"><tbody><tr style=3D"width:=
+100%"><td><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=
+=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"padding:16px"><tbod=
+y style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-emai=
+l-column" style=3D"width:100%"><a href=3D"https://www.glassdoor.com/partner=
+/jobListing.htm?pos=3D107&amp;ao=3D1136043&amp;s=3D224&amp;guid=3D000001a1b=
+3cf20babb370f20fdc6d1b9&amp;src=3DGD_JOB_AD&amp;t=3DJA&amp;vt=3De&amp;uido=
+=3D68AC9EB5E8751CC653CAD69DF91C49E7&amp;ea=3D1&amp;cs=3D1_02843faa&amp;cb=
+=3D1794024244424&amp;jobListingId=3D1010316801610&amp;jrtk=3D5-yul1-0-1k6q2=
+r0uikgr4801-11a7d9fba4f9ec9a&amp;tgt=3DGD_JOB_VIEW&amp;utm_medium=3Demail&a=
+mp;utm_source=3Djobalert&amp;utm_campaign=3DjobAlertAlert&amp;utm_content=
+=3Dja-jobpos7-age2d-1010316801610&amp;ja=3D332885123" class=3D"gd-4c34fb9b9=
+d"><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" ce=
+llspacing=3D"0" role=3D"presentation"><tbody style=3D"width:100%"><tr style=
+=3D"width:100%"><td data-id=3D"__react-email-column"><table role=3D"present=
+ation" width=3D"100%" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbo=
+dy><tr><td class=3D"gd-186dec1ba4"></td><td class=3D"gd-a4c855f5cb"><span c=
+lass=3D"gd-e6089fa56a"><span class=3D"gd-8c81e4c746">MiaRec</span></span></=
+td></tr></tbody></table></td></tr></tbody></table><table align=3D"center" w=
+idth=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"pres=
+entation" style=3D"margin-top:4px"><tbody style=3D"width:100%"><tr style=3D=
+"width:100%"><td data-id=3D"__react-email-column"><table role=3D"presentati=
+on" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody>=
+<tr><td class=3D"gd-e8b30124a1"><p class=3D"gd-2de68bc97a">Software Develop=
+er</p></td></tr></tbody></table></td></tr></tbody></table><table align=3D"c=
+enter" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=
+=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td =
+data-id=3D"__react-email-column"><table role=3D"presentation" cellpadding=
+=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=
+=3D"gd-e8b30124a1"><p class=3D"gd-df98e110e2">San Jose, CA</p></td></tr></t=
+body></table></td></tr></tbody></table><table align=3D"center" width=3D"100=
+%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><=
+tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-=
+email-column"><table role=3D"presentation" cellpadding=3D"0" cellspacing=3D=
+"0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8b30124a1"><p c=
+lass=3D"gd-df98e110e2">$95K - $135K (Employer est.)</p></td></tr></tbody></=
+table></td></tr></tbody></table><table align=3D"center" width=3D"100%" bord=
+er=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D=
+"margin-top:8px"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td d=
+ata-id=3D"__react-email-column"><table role=3D"presentation" cellpadding=3D=
+"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"g=
+d-69d3f5fd2b"><table role=3D"presentation" cellpadding=3D"0" cellspacing=3D=
+"0" border=3D"0"><tbody><tr><td class=3D"gd-9f526846ae"><table role=3D"pres=
+entation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><td c=
+lass=3D"gd-a84dc8aac3"><table role=3D"presentation" cellpadding=3D"0" cells=
+pacing=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-8cf84a8e50"><img alt=
+=3D"" height=3D"16" src=3D"https://www.glassdoor.com/assets/email/brandRefr=
+esh/icons/easy-apply-icon.png" width=3D"16" class=3D"gd-012de66cfe"></td><t=
+d class=3D"gd-e8b30124a1"><p class=3D"gd-47254e592b">Easy Apply</p></td></t=
+r></tbody></table></td></tr></tbody></table></td></tr></tbody></table></td>=
+<td style=3D"width:100%"></td><td class=3D"gd-2b423bee64"><p class=3D"gd-7e=
+453aeb39">2d</p></td></tr></tbody></table></td></tr></tbody></table></a></t=
+d></tr></tbody></table></td></tr></tbody></table></td></tr></tbody></table>=
+</td></tr></tbody></table></td></tr></tbody></table></td></tr></tbody></tab=
+le><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" ce=
+llspacing=3D"0" role=3D"presentation" class=3D"gd-c50a3659bb"><tbody><tr st=
+yle=3D"width:100%"><td><table align=3D"center" width=3D"100%" border=3D"0" =
+cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><tbody style=3D"w=
+idth:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-column" st=
+yle=3D"width:100%"><table align=3D"center" width=3D"100%" border=3D"0" cell=
+padding=3D"0" cellspacing=3D"0" role=3D"presentation" class=3D"gd-dbe9ce2b4=
+a"><tbody><tr style=3D"width:100%"><td><table align=3D"center" width=3D"100=
+%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><=
+tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-=
+email-column" style=3D"width:100%"><table align=3D"center" width=3D"100%" b=
+order=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" class=
+=3D"gd-454fb62d56"><tbody><tr style=3D"width:100%"><td><table align=3D"cent=
+er" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D=
+"presentation" style=3D"padding:16px"><tbody style=3D"width:100%"><tr style=
+=3D"width:100%"><td data-id=3D"__react-email-column" style=3D"width:100%"><=
+a href=3D"https://www.glassdoor.com/partner/jobListing.htm?pos=3D108&amp;ao=
+=3D1136043&amp;s=3D224&amp;guid=3D000001a1b3cf20babb370f20fdc6d1b9&amp;src=
+=3DGD_JOB_AD&amp;t=3DJA&amp;vt=3De&amp;uido=3D68AC9EB5E8751CC653CAD69DF91C4=
+9E7&amp;ea=3D1&amp;cs=3D1_d7a16559&amp;cb=3D1794024244424&amp;jobListingId=
+=3D1010316935680&amp;jrtk=3D5-yul1-0-1k6q2r0uikgr4801-3f3e8ee06c5542c6&amp;=
+tgt=3DGD_JOB_VIEW&amp;utm_medium=3Demail&amp;utm_source=3Djobalert&amp;utm_=
+campaign=3DjobAlertAlert&amp;utm_content=3Dja-jobpos8-age2d-1010316935680&a=
+mp;ja=3D332885123" class=3D"gd-4c34fb9b9d"><table align=3D"center" width=3D=
+"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentatio=
+n"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__re=
+act-email-column"><table role=3D"presentation" width=3D"100%" cellpadding=
+=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-186dec1ba4=
+"></td><td class=3D"gd-a4c855f5cb"><span class=3D"gd-e6089fa56a"><span clas=
+s=3D"gd-8c81e4c746">Biztrol Inc.</span></span></td></tr></tbody></table></t=
+d></tr></tbody></table><table align=3D"center" width=3D"100%" border=3D"0" =
+cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"margin-t=
+op:4px"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D=
+"__react-email-column"><table role=3D"presentation" cellpadding=3D"0" cells=
+pacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8b3012=
+4a1"><p class=3D"gd-2de68bc97a">Software Developer</p></td></tr></tbody></t=
+able></td></tr></tbody></table><table align=3D"center" width=3D"100%" borde=
+r=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><tbody st=
+yle=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-co=
+lumn"><table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" bord=
+er=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8b30124a1"><p class=3D"=
+gd-df98e110e2">San Jose, CA</p></td></tr></tbody></table></td></tr></tbody>=
+</table><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"=
+0" cellspacing=3D"0" role=3D"presentation"><tbody style=3D"width:100%"><tr =
+style=3D"width:100%"><td data-id=3D"__react-email-column"><table role=3D"pr=
+esentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"=
+><tbody><tr><td class=3D"gd-e8b30124a1"><p class=3D"gd-df98e110e2">$100K - =
+$135K (Employer est.)</p></td></tr></tbody></table></td></tr></tbody></tabl=
+e><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cel=
+lspacing=3D"0" role=3D"presentation" style=3D"margin-top:8px"><tbody style=
+=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-colum=
+n"><table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" border=
+=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-69d3f5fd2b"><table role=3D=
+"presentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr>=
+<td class=3D"gd-9f526846ae"><table role=3D"presentation" cellpadding=3D"0" =
+cellspacing=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-a84dc8aac3"><tabl=
+e role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><t=
+body><tr><td class=3D"gd-8cf84a8e50"><img alt=3D"" height=3D"16" src=3D"htt=
+ps://www.glassdoor.com/assets/email/brandRefresh/icons/easy-apply-icon.png"=
+ width=3D"16" class=3D"gd-012de66cfe"></td><td class=3D"gd-e8b30124a1"><p c=
+lass=3D"gd-47254e592b">Easy Apply</p></td></tr></tbody></table></td></tr></=
+tbody></table></td></tr></tbody></table></td><td style=3D"width:100%"></td>=
+<td class=3D"gd-2b423bee64"><p class=3D"gd-7e453aeb39">2d</p></td></tr></tb=
+ody></table></td></tr></tbody></table></a></td></tr></tbody></table></td></=
+tr></tbody></table></td></tr></tbody></table></td></tr></tbody></table></td=
+></tr></tbody></table></td></tr></tbody></table><table align=3D"center" wid=
+th=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presen=
+tation" class=3D"gd-c50a3659bb"><tbody><tr style=3D"width:100%"><td><table =
+align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=
+=3D"0" role=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width=
+:100%"><td data-id=3D"__react-email-column" style=3D"width:100%"><table ali=
+gn=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"=
+0" role=3D"presentation" class=3D"gd-dbe9ce2b4a"><tbody><tr style=3D"width:=
+100%"><td><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=
+=3D"0" cellspacing=3D"0" role=3D"presentation"><tbody style=3D"width:100%">=
+<tr style=3D"width:100%"><td data-id=3D"__react-email-column" style=3D"widt=
+h:100%"><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"=
+0" cellspacing=3D"0" role=3D"presentation" class=3D"gd-454fb62d56"><tbody><=
+tr style=3D"width:100%"><td><table align=3D"center" width=3D"100%" border=
+=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"p=
+adding:16px"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-=
+id=3D"__react-email-column" style=3D"width:100%"><a href=3D"https://www.gla=
+ssdoor.com/partner/jobListing.htm?pos=3D109&amp;ao=3D1136043&amp;s=3D224&am=
+p;guid=3D000001a1b3cf20babb370f20fdc6d1b9&amp;src=3DGD_JOB_AD&amp;t=3DJA&am=
+p;vt=3De&amp;uido=3D68AC9EB5E8751CC653CAD69DF91C49E7&amp;ea=3D1&amp;cs=3D1_=
+d8b4ef41&amp;cb=3D1794024244424&amp;jobListingId=3D1010315707939&amp;jrtk=
+=3D5-yul1-0-1k6q2r0uikgr4801-72ddb4af459c9053&amp;tgt=3DGD_JOB_VIEW&amp;utm=
+_medium=3Demail&amp;utm_source=3Djobalert&amp;utm_campaign=3DjobAlertAlert&=
+amp;utm_content=3Dja-jobpos9-age3d-1010315707939&amp;ja=3D332885123" class=
+=3D"gd-4c34fb9b9d"><table align=3D"center" width=3D"100%" border=3D"0" cell=
+padding=3D"0" cellspacing=3D"0" role=3D"presentation"><tbody style=3D"width=
+:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-column"><table=
+ role=3D"presentation" width=3D"100%" cellpadding=3D"0" cellspacing=3D"0" b=
+order=3D"0"><tbody><tr><td class=3D"gd-186dec1ba4"></td><td class=3D"gd-a4c=
+855f5cb"><span class=3D"gd-e6089fa56a"><span class=3D"gd-8c81e4c746">Seamge=
+n</span></span></td></tr></tbody></table></td></tr></tbody></table><table a=
+lign=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=
+=3D"0" role=3D"presentation" style=3D"margin-top:4px"><tbody style=3D"width=
+:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-column"><table=
+ role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" wid=
+th=3D"100%"><tbody><tr><td class=3D"gd-e8b30124a1"><p class=3D"gd-2de68bc97=
+a">Software Developer</p></td></tr></tbody></table></td></tr></tbody></tabl=
+e><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cel=
+lspacing=3D"0" role=3D"presentation"><tbody style=3D"width:100%"><tr style=
+=3D"width:100%"><td data-id=3D"__react-email-column"><table role=3D"present=
+ation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbo=
+dy><tr><td class=3D"gd-e8b30124a1"><p class=3D"gd-df98e110e2">San Diego, CA=
+</p></td></tr></tbody></table></td></tr></tbody></table><table align=3D"cen=
+ter" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=
+=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td =
+data-id=3D"__react-email-column"><table role=3D"presentation" cellpadding=
+=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=
+=3D"gd-e8b30124a1"><p class=3D"gd-df98e110e2">$85K - $125K (Employer est.)<=
+/p></td></tr></tbody></table></td></tr></tbody></table><table align=3D"cent=
+er" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D=
+"presentation" style=3D"margin-top:8px"><tbody style=3D"width:100%"><tr sty=
+le=3D"width:100%"><td data-id=3D"__react-email-column"><table role=3D"prese=
+ntation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><t=
+body><tr><td class=3D"gd-69d3f5fd2b"><table role=3D"presentation" cellpaddi=
+ng=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-9f526846=
+ae"><table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" border=
+=3D"0"><tbody><tr><td class=3D"gd-a84dc8aac3"><table role=3D"presentation" =
+cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><td class=3D"gd=
+-8cf84a8e50"><img alt=3D"" height=3D"16" src=3D"https://www.glassdoor.com/a=
+ssets/email/brandRefresh/icons/easy-apply-icon.png" width=3D"16" class=3D"g=
+d-012de66cfe"></td><td class=3D"gd-e8b30124a1"><p class=3D"gd-47254e592b">E=
+asy Apply</p></td></tr></tbody></table></td></tr></tbody></table></td></tr>=
+</tbody></table></td><td style=3D"width:100%"></td><td class=3D"gd-2b423bee=
+64"><p class=3D"gd-7e453aeb39">3d</p></td></tr></tbody></table></td></tr></=
+tbody></table></a></td></tr></tbody></table></td></tr></tbody></table></td>=
+</tr></tbody></table></td></tr></tbody></table></td></tr></tbody></table></=
+td></tr></tbody></table><table align=3D"center" width=3D"100%" border=3D"0"=
+ cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" class=3D"gd-c50a=
+3659bb"><tbody><tr style=3D"width:100%"><td><table align=3D"center" width=
+=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presenta=
+tion"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"_=
+_react-email-column" style=3D"width:100%"><table align=3D"center" width=3D"=
+100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation=
+" class=3D"gd-dbe9ce2b4a"><tbody><tr style=3D"width:100%"><td><table align=
+=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0"=
+ role=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width:100%"=
+><td data-id=3D"__react-email-column" style=3D"width:100%"><table align=3D"=
+center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" rol=
+e=3D"presentation" class=3D"gd-454fb62d56"><tbody><tr style=3D"width:100%">=
+<td><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" c=
+ellspacing=3D"0" role=3D"presentation" style=3D"padding:16px"><tbody style=
+=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-colum=
+n" style=3D"width:100%"><a href=3D"https://www.glassdoor.com/partner/jobLis=
+ting.htm?pos=3D110&amp;ao=3D1136043&amp;s=3D224&amp;guid=3D000001a1b3cf20ba=
+bb370f20fdc6d1b9&amp;src=3DGD_JOB_AD&amp;t=3DJA&amp;vt=3De&amp;uido=3D68AC9=
+EB5E8751CC653CAD69DF91C49E7&amp;ea=3D1&amp;cs=3D1_fb75b1af&amp;cb=3D1794024=
+244425&amp;jobListingId=3D1010315711141&amp;jrtk=3D5-yul1-0-1k6q2r0uikgr480=
+1-86d0e37adbb010e1&amp;tgt=3DGD_JOB_VIEW&amp;utm_medium=3Demail&amp;utm_sou=
+rce=3Djobalert&amp;utm_campaign=3DjobAlertAlert&amp;utm_content=3Dja-jobpos=
+10-age3d-1010315711141&amp;ja=3D332885123" class=3D"gd-4c34fb9b9d"><table a=
+lign=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=
+=3D"0" role=3D"presentation"><tbody style=3D"width:100%"><tr style=3D"width=
+:100%"><td data-id=3D"__react-email-column"><table role=3D"presentation" wi=
+dth=3D"100%" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><t=
+d class=3D"gd-186dec1ba4"></td><td class=3D"gd-a4c855f5cb"><span class=3D"g=
+d-e6089fa56a"><span class=3D"gd-8c81e4c746">Nightcoders</span></span></td><=
+/tr></tbody></table></td></tr></tbody></table><table align=3D"center" width=
+=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presenta=
+tion" style=3D"margin-top:4px"><tbody style=3D"width:100%"><tr style=3D"wid=
+th:100%"><td data-id=3D"__react-email-column"><table role=3D"presentation" =
+cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr>=
+<td class=3D"gd-e8b30124a1"><p class=3D"gd-2de68bc97a">Software Engineer</p=
+></td></tr></tbody></table></td></tr></tbody></table><table align=3D"center=
+" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"p=
+resentation"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-=
+id=3D"__react-email-column"><table role=3D"presentation" cellpadding=3D"0" =
+cellspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8=
+b30124a1"><p class=3D"gd-df98e110e2">San Diego, CA</p></td></tr></tbody></t=
+able></td></tr></tbody></table><table align=3D"center" width=3D"100%" borde=
+r=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><tbody st=
+yle=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-co=
+lumn"><table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" bord=
+er=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8b30124a1"><p class=3D"=
+gd-df98e110e2">$90K - $130K (Employer est.)</p></td></tr></tbody></table></=
+td></tr></tbody></table><table align=3D"center" width=3D"100%" border=3D"0"=
+ cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"margin-=
+top:8px"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=
+=3D"__react-email-column"><table role=3D"presentation" cellpadding=3D"0" ce=
+llspacing=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-69d3=
+f5fd2b"><table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" bo=
+rder=3D"0"><tbody><tr><td class=3D"gd-9f526846ae"><table role=3D"presentati=
+on" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><td class=
+=3D"gd-a84dc8aac3"><table role=3D"presentation" cellpadding=3D"0" cellspaci=
+ng=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-8cf84a8e50"><img alt=3D"" =
+height=3D"16" src=3D"https://www.glassdoor.com/assets/email/brandRefresh/ic=
+ons/easy-apply-icon.png" width=3D"16" class=3D"gd-012de66cfe"></td><td clas=
+s=3D"gd-e8b30124a1"><p class=3D"gd-47254e592b">Easy Apply</p></td></tr></tb=
+ody></table></td></tr></tbody></table></td></tr></tbody></table></td><td st=
+yle=3D"width:100%"></td><td class=3D"gd-2b423bee64"><p class=3D"gd-7e453aeb=
+39">3d</p></td></tr></tbody></table></td></tr></tbody></table></a></td></tr=
+></tbody></table></td></tr></tbody></table></td></tr></tbody></table></td><=
+/tr></tbody></table></td></tr></tbody></table></td></tr></tbody></table><ta=
+ble align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspac=
+ing=3D"0" role=3D"presentation" class=3D"gd-c50a3659bb"><tbody><tr style=3D=
+"width:100%"><td><table align=3D"center" width=3D"100%" border=3D"0" cellpa=
+dding=3D"0" cellspacing=3D"0" role=3D"presentation"><tbody style=3D"width:1=
+00%"><tr style=3D"width:100%"><td data-id=3D"__react-email-column" style=3D=
+"width:100%"><table align=3D"center" width=3D"100%" border=3D"0" cellpaddin=
+g=3D"0" cellspacing=3D"0" role=3D"presentation" class=3D"gd-dbe9ce2b4a"><tb=
+ody><tr style=3D"width:100%"><td><table align=3D"center" width=3D"100%" bor=
+der=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><tbody =
+style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-=
+column" style=3D"width:100%"><table align=3D"center" width=3D"100%" border=
+=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" class=3D"g=
+d-454fb62d56"><tbody><tr style=3D"width:100%"><td><table align=3D"center" w=
+idth=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"pres=
+entation" style=3D"padding:16px"><tbody style=3D"width:100%"><tr style=3D"w=
+idth:100%"><td data-id=3D"__react-email-column" style=3D"width:100%"><a hre=
+f=3D"https://www.glassdoor.com/partner/jobListing.htm?pos=3D111&amp;ao=3D11=
+36043&amp;s=3D224&amp;guid=3D000001a1b3cf20babb370f20fdc6d1b9&amp;src=3DGD_=
+JOB_AD&amp;t=3DJA&amp;vt=3De&amp;uido=3D68AC9EB5E8751CC653CAD69DF91C49E7&am=
+p;ea=3D1&amp;cs=3D1_2bad647c&amp;cb=3D1794024244425&amp;jobListingId=3D1010=
+314859753&amp;jrtk=3D5-yul1-0-1k6q2r0uikgr4801-fef77bdbde2ecd50&amp;tgt=3DG=
+D_JOB_VIEW&amp;utm_medium=3Demail&amp;utm_source=3Djobalert&amp;utm_campaig=
+n=3DjobAlertAlert&amp;utm_content=3Dja-jobpos11-age4d-1010314859753&amp;ja=
+=3D332885123" class=3D"gd-4c34fb9b9d"><table align=3D"center" width=3D"100%=
+" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><t=
+body style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-e=
+mail-column"><table role=3D"presentation" width=3D"100%" cellpadding=3D"0" =
+cellspacing=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-186dec1ba4"></td>=
+<td class=3D"gd-a4c855f5cb"><span class=3D"gd-e6089fa56a"><span class=3D"gd=
+-8c81e4c746">Internet Soft</span></span></td></tr></tbody></table></td></tr=
+></tbody></table><table align=3D"center" width=3D"100%" border=3D"0" cellpa=
+dding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"margin-top:4px=
+"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__rea=
+ct-email-column"><table role=3D"presentation" cellpadding=3D"0" cellspacing=
+=3D"0" border=3D"0" width=3D"100%"><tbody><tr><td class=3D"gd-e8b30124a1"><=
+p class=3D"gd-2de68bc97a">Software Developer</p></td></tr></tbody></table><=
+/td></tr></tbody></table><table align=3D"center" width=3D"100%" border=3D"0=
+" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation"><tbody style=3D=
+"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-column">=
+<table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"=
+0" width=3D"100%"><tbody><tr><td class=3D"gd-e8b30124a1"><p class=3D"gd-df9=
+8e110e2">San Jose, CA</p></td></tr></tbody></table></td></tr></tbody></tabl=
+e><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cel=
+lspacing=3D"0" role=3D"presentation"><tbody style=3D"width:100%"><tr style=
+=3D"width:100%"><td data-id=3D"__react-email-column"><table role=3D"present=
+ation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" width=3D"100%"><tbo=
+dy><tr><td class=3D"gd-e8b30124a1"><p class=3D"gd-df98e110e2">$85K - $120K =
+(Employer est.)</p></td></tr></tbody></table></td></tr></tbody></table><tab=
+le align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspaci=
+ng=3D"0" role=3D"presentation" style=3D"margin-top:8px"><tbody style=3D"wid=
+th:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-column"><tab=
+le role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" w=
+idth=3D"100%"><tbody><tr><td class=3D"gd-69d3f5fd2b"><table role=3D"present=
+ation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><tr><td clas=
+s=3D"gd-9f526846ae"><table role=3D"presentation" cellpadding=3D"0" cellspac=
+ing=3D"0" border=3D"0"><tbody><tr><td class=3D"gd-a84dc8aac3"><table role=
+=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tbody><=
+tr><td class=3D"gd-8cf84a8e50"><img alt=3D"" height=3D"16" src=3D"https://w=
+ww.glassdoor.com/assets/email/brandRefresh/icons/easy-apply-icon.png" width=
+=3D"16" class=3D"gd-012de66cfe"></td><td class=3D"gd-e8b30124a1"><p class=
+=3D"gd-47254e592b">Easy Apply</p></td></tr></tbody></table></td></tr></tbod=
+y></table></td></tr></tbody></table></td><td style=3D"width:100%"></td><td =
+class=3D"gd-2b423bee64"><p class=3D"gd-7e453aeb39">4d</p></td></tr></tbody>=
+</table></td></tr></tbody></table></a></td></tr></tbody></table></td></tr><=
+/tbody></table></td></tr></tbody></table></td></tr></tbody></table></td></t=
+r></tbody></table></td></tr></tbody></table><table align=3D"center" style=
+=3D"text-align:center;margin-top:12px;margin-bottom:16px"><tbody><tr><td><a=
+ href=3D"https://www.glassdoor.com/Job/california-us-software-engineer-jobs=
+-SRCH_IL.0,13_IS2280_KO14,31.htm?ja=3D332885123&amp;uvk=3Dorbkoigy:ZjvRvrbW=
+xPOFJAIez97lkQ&amp;utm_medium=3Demail&amp;utm_source=3Djobalert&amp;utm_cam=
+paign=3DjobAlertAlert&amp;utm_content=3Dja-ja-alljobs-JACTABOTTOM" class=3D=
+"test-button gd-67dce5e2b5" target=3D"_blank"><span class=3D"special" style=
+=3D"background-color:#4CD681;text-align:center;border-radius:8px;color:#000=
+60C;font-family:'Glassdoor Sans', system-ui, 'Segoe UI', Roboto, sans-serif=
+;font-size:14px;font-style:normal;font-weight:600;line-height:24px;height:2=
+4px;padding:12px 16px;min-width:210px;z-index:1">See more jobs</span></a></=
+td></tr></tbody></table></td></tr></tbody></table><table align=3D"center" w=
+idth=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"pres=
+entation" style=3D"max-width:37.5em;padding:16px"><tbody><tr style=3D"width=
+:100%"><td><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=
+=3D"0" cellspacing=3D"0" role=3D"presentation"><tbody style=3D"width:100%">=
+<tr style=3D"width:100%"><td data-id=3D"__react-email-column" class=3D"gd-e=
+8b30124a1"><p class=3D"test-section-title" style=3D"font-size:18px;line-hei=
+ght:24px;margin-top:0;margin-right:0;margin-bottom:0;margin-left:0;color:#0=
+00000;font-family:'Glassdoor Sans', system-ui, 'Segoe UI', Roboto, sans-ser=
+if;font-weight:600">Want more listings like these?</p><p class=3D"test-sect=
+ion-subtitle" style=3D"font-size:14px;line-height:20px;margin-top:0;margin-=
+right:0;margin-bottom:0;margin-left:0;color:#000000;font-family:'Glassdoor =
+Sans', system-ui, 'Segoe UI', Roboto, sans-serif;font-weight:400">Similar j=
+obs can have different titles.</p><p class=3D"test-section-subtitle" style=
+=3D"font-size:14px;line-height:20px;margin-top:0;margin-right:0;margin-bott=
+om:0;margin-left:0;color:#000000;font-family:'Glassdoor Sans', system-ui, '=
+Segoe UI', Roboto, sans-serif;font-weight:400">Create job alerts for relate=
+d roles.</p></td><td data-id=3D"__react-email-column"><img src=3D"https://w=
+ww.glassdoor.com/assets/email/brandRefresh/job-alert-images/jobMatch.png" s=
+tyle=3D"display:block;outline:none;border:none;text-decoration:none;max-hei=
+ght:99.2px" width=3D"90px"></td></tr></tbody></table><table align=3D"center=
+" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"p=
+resentation" style=3D"max-width:37.5em;border:1px solid #DADEE2;border-radi=
+us:8px;margin:24px 0 24px 0"><tbody><tr style=3D"width:100%"><td><table ali=
+gn=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"=
+0" role=3D"presentation" style=3D"padding:16px;border-bottom:1px solid #DAD=
+EE2"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__=
+react-email-column" style=3D"font-size:14px;font-weight:600;line-height:20p=
+x;width:100%">mobile developer</td><td data-id=3D"__react-email-column"><a =
+href=3D"https://www.glassdoor.com/job-listing/api/rjtRedirect?loc=3DCalifor=
+nia, US&amp;userValidationKey=3Dorbkoigy:ZjvRvrbWxPOFJAIez97lkQ&amp;keyword=
+s=3Dmobile developer&amp;JAK=3DRswBNAER2al9nJcLscxXQA:BP2lHEwUgvjk7csMDu7_l=
+QwECJx10eG6gPPq00_XsFMUA4pKj7Z_y4zu5Uw7-19k:Gq9lbm_dZRrVQiCUCr-COJYvhzq7Cmw=
+D2jR7z_k-ztY&amp;source=3DRELATED_EMAIL_JOB_ALERT&amp;key=3DokiOcPnk:8Et9JF=
+w4uk7yE4VZLsskjw&amp;oneClick=3Dtrue&amp;utm_medium=3Demail&amp;utm_source=
+=3Djobalert&amp;utm_campaign=3DjobAlertAlert&amp;utm_content=3Dja-related-j=
+obs-1" class=3D"test-button gd-67dce5e2b5" target=3D"_blank"><span class=3D=
+"secondary gd-8aa32730bf">Create</span></a></td></tr></tbody></table><table=
+ align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=
+=3D"0" role=3D"presentation" style=3D"padding:16px;border-bottom:1px solid =
+#DADEE2"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=
+=3D"__react-email-column" style=3D"font-size:14px;font-weight:600;line-heig=
+ht:20px;width:100%">mobile engineer</td><td data-id=3D"__react-email-column=
+"><a href=3D"https://www.glassdoor.com/job-listing/api/rjtRedirect?loc=3DCa=
+lifornia, US&amp;userValidationKey=3Dorbkoigy:ZjvRvrbWxPOFJAIez97lkQ&amp;ke=
+ywords=3Dmobile engineer&amp;JAK=3DRswBNAER2al9nJcLscxXQA:BP2lHEwUgvjk7csMD=
+u7_lQwECJx10eG6gPPq00_XsFMUA4pKj7Z_y4zu5Uw7-19k:Gq9lbm_dZRrVQiCUCr-COJYvhzq=
+7CmwD2jR7z_k-ztY&amp;source=3DRELATED_EMAIL_JOB_ALERT&amp;key=3DokiOcPnk:8E=
+t9JFw4uk7yE4VZLsskjw&amp;oneClick=3Dtrue&amp;utm_medium=3Demail&amp;utm_sou=
+rce=3Djobalert&amp;utm_campaign=3DjobAlertAlert&amp;utm_content=3Dja-relate=
+d-jobs-2" class=3D"test-button gd-67dce5e2b5" target=3D"_blank"><span class=
+=3D"secondary gd-8aa32730bf">Create</span></a></td></tr></tbody></table><ta=
+ble align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspac=
+ing=3D"0" role=3D"presentation" style=3D"padding:16px"><tbody style=3D"widt=
+h:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-column" style=
+=3D"font-size:14px;font-weight:600;line-height:20px;width:100%">principal e=
+ngineer</td><td data-id=3D"__react-email-column"><a href=3D"https://www.gla=
+ssdoor.com/job-listing/api/rjtRedirect?loc=3DCalifornia, US&amp;userValidat=
+ionKey=3Dorbkoigy:ZjvRvrbWxPOFJAIez97lkQ&amp;keywords=3Dprincipal engineer&=
+amp;JAK=3DRswBNAER2al9nJcLscxXQA:BP2lHEwUgvjk7csMDu7_lQwECJx10eG6gPPq00_XsF=
+MUA4pKj7Z_y4zu5Uw7-19k:Gq9lbm_dZRrVQiCUCr-COJYvhzq7CmwD2jR7z_k-ztY&amp;sour=
+ce=3DRELATED_EMAIL_JOB_ALERT&amp;key=3DokiOcPnk:8Et9JFw4uk7yE4VZLsskjw&amp;=
+oneClick=3Dtrue&amp;utm_medium=3Demail&amp;utm_source=3Djobalert&amp;utm_ca=
+mpaign=3DjobAlertAlert&amp;utm_content=3Dja-related-jobs-3" class=3D"test-b=
+utton gd-67dce5e2b5" target=3D"_blank"><span class=3D"secondary gd-8aa32730=
+bf">Create</span></a></td></tr></tbody></table></td></tr></tbody></table><t=
+able align=3D"left" style=3D"text-align:left;margin:16px 0 16px 0"><tbody><=
+tr style=3D"font-size:18px;font-weight:600;line-height:24px;margin:0;paddin=
+g:0;width:100%;text-align:left"><td>Looking for something a little differen=
+t?</td></tr><tr style=3D"font-size:14px;font-weight:400;line-height:20px;ma=
+rgin:0;padding:0;width:100%;text-align:left"><td>You can edit your job aler=
+t here.</td></tr></tbody></table><table align=3D"center" width=3D"100%" bor=
+der=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=
+=3D"max-width:37.5em;border:1px solid #DADEE2;border-radius:8px"><tbody><tr=
+ style=3D"width:100%"><td><table align=3D"center" width=3D"100%" border=3D"=
+0" cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"paddi=
+ng:16px"><tbody style=3D"width:100%"><tr style=3D"width:100%"><td data-id=
+=3D"__react-email-column" style=3D"width:100%"><table align=3D"center" widt=
+h=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" role=3D"present=
+ation" style=3D"max-width:37.5em;font-size:14px;font-weight:600;line-height=
+:20px;margin:0"><tbody><tr style=3D"width:100%"><td>Software Engineer</td><=
+/tr></tbody></table><table align=3D"center" width=3D"100%" border=3D"0" cel=
+lpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"color:#7272=
+72;font-size:14px;font-weight:400;line-height:20px;margin:4px 0 0 0"><tbody=
+ style=3D"width:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email=
+-column" style=3D"width:16px"><img src=3D"https://www.glassdoor.com/assets/=
+email/brandRefresh/icons/location-icon.png" style=3D"display:block;outline:=
+none;border:none;text-decoration:none;width:16px"></td><td data-id=3D"__rea=
+ct-email-column" style=3D"padding-left:4px">California, US</td></tr></tbody=
+></table><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D=
+"0" cellspacing=3D"0" role=3D"presentation" style=3D"color:#727272;font-siz=
+e:14px;font-weight:400;line-height:20px;margin:4px 0 0 0"><tbody style=3D"w=
+idth:100%"><tr style=3D"width:100%"><td data-id=3D"__react-email-column" st=
+yle=3D"width:16px"><img src=3D"https://www.glassdoor.com/assets/email/brand=
+Refresh/icons/bell-icon.png" style=3D"display:block;outline:none;border:non=
+e;text-decoration:none;width:16px"></td><td data-id=3D"__react-email-column=
+" style=3D"padding-left:4px">Sent Daily</td></tr></tbody></table></td><td d=
+ata-id=3D"__react-email-column"><a href=3D"https://www.glassdoor.com/member=
+/profile/emailSettings?content=3Djobs&amp;JAK=3DRswBNAER2al9nJcLscxXQA:BP2l=
+HEwUgvjk7csMDu7_lQwECJx10eG6gPPq00_XsFMUA4pKj7Z_y4zu5Uw7-19k:Gq9lbm_dZRrVQi=
+CUCr-COJYvhzq7CmwD2jR7z_k-ztY&amp;key=3DokiOcPnk:8Et9JFw4uk7yE4VZLsskjw&amp=
+;utm_medium=3Demail&amp;utm_source=3Djobalert&amp;utm_campaign=3DjobAlertAl=
+ert&amp;utm_content=3Dja-locbutton#jobAlerts" class=3D"test-button gd-67dce=
+5e2b5" target=3D"_blank"><span class=3D"secondary gd-8aa32730bf">Edit</span=
+></a></td></tr></tbody></table></td></tr></tbody></table></td></tr></tbody>=
+</table><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=3D"=
+0" cellspacing=3D"0" role=3D"presentation" style=3D"max-width:37.5em;paddin=
+g:32px 16px 32px 16px"><tbody><tr style=3D"width:100%"><td><table align=3D"=
+center" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" rol=
+e=3D"presentation" class=3D"test-footer" style=3D"color:#647380;font-family=
+:'Glassdoor Sans', system-ui, 'Segoe UI', Roboto, sans-serif;font-size:14px=
+;font-style:normal;font-weight:400;line-height:22px;text-align:center"><tbo=
+dy><tr><td><table align=3D"center" width=3D"100%" border=3D"0" cellpadding=
+=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"margin:0"><tbody><t=
+r><td><p class=3D"gd-cb4d4f3c92">This message was sent to <a href=3D"mailto=
+:marquiseclott@gmail.com" target=3D"_blank" class=3D"gd-9e638ee4a0">marquis=
+eclott@gmail.com</a></p><p class=3D"gd-cb4d4f3c92"><a href=3D"https://www.g=
+lassdoor.com/about/privacy.htm?JAK=3D5b3b-mVRxkpucPOLtNHKgg:-IHcxbGemPiP9kj=
+xhOqB14JuZk_xL6HoFicmA_OE6uLF8dS7IS8ijJ6FkjWf5O1C:wpiRf38NfZP8IJyjYIVT9A38p=
+lrOD8rNfyt7C0JPJsY&amp;utm_medium=3Demail&amp;utm_source=3Djobalert&amp;utm=
+_campaign=3DjobAlertAlert&amp;utm_content=3Dja-privacy" target=3D"_blank" c=
+lass=3D"gd-9e638ee4a0">Privacy Policy</a> <!-- -->|<!-- --> <a href=3D"http=
+s://www.glassdoor.com/member/account/emailSettings_input.htm?JAK=3D5b3b-mVR=
+xkpucPOLtNHKgg:-IHcxbGemPiP9kjxhOqB14JuZk_xL6HoFicmA_OE6uLF8dS7IS8ijJ6FkjWf=
+5O1C:wpiRf38NfZP8IJyjYIVT9A38plrOD8rNfyt7C0JPJsY&amp;utm_medium=3Demail&amp=
+;utm_source=3Djobalert&amp;utm_campaign=3DjobAlertAlert&amp;utm_content=3Dj=
+a-email-preference" target=3D"_blank" class=3D"gd-9e638ee4a0">Manage Settin=
+gs</a> <!-- -->|<!-- --> <a href=3D"https://www.glassdoor.com/profile/unsub=
+scribeEmail.htm?key=3Dorbkoigy:ZjvRvrbWxPOFJAIez97lkQ&amp;emailType=3DJOB_A=
+LERT&amp;emailCategory=3DJOB_ALERT&amp;encryptedUserId=3D68AC9EB5E8751CC653=
+CAD69DF91C49E7&amp;JAK=3D5b3b-mVRxkpucPOLtNHKgg:-IHcxbGemPiP9kjxhOqB14JuZk_=
+xL6HoFicmA_OE6uLF8dS7IS8ijJ6FkjWf5O1C:wpiRf38NfZP8IJyjYIVT9A38plrOD8rNfyt7C=
+0JPJsY&amp;utm_medium=3Demail&amp;utm_source=3Djobalert&amp;utm_campaign=3D=
+jobAlertAlert&amp;utm_content=3Dja-unsubscribe" target=3D"_blank" class=3D"=
+gd-9e638ee4a0">Unsubscribe</a> </p><p class=3D"gd-cb4d4f3c92">&nbsp;</p></t=
+d></tr></tbody></table><table align=3D"center" width=3D"100%" border=3D"0" =
+cellpadding=3D"0" cellspacing=3D"0" role=3D"presentation" style=3D"text-ali=
+gn:center;margin:0"><tbody><tr><td><a href=3D"https://www.glassdoor.com?utm=
+_medium=3Demail&amp;utm_source=3Djobalert&amp;utm_campaign=3DjobAlertAlert&=
+amp;utm_content=3Dja" target=3D"_blank" class=3D"gd-9e638ee4a0">Glassdoor</=
+a><p class=3D"gd-cb4d4f3c92">200 West 6th Street, Floor 36, Austin, TX 7870=
+1</p><p class=3D"gd-cb4d4f3c92">&nbsp;</p><p class=3D"gd-cb4d4f3c92">Copyri=
+ght<!-- --> =C2=A9 <!-- -->2008-2026, Indeed, Inc. =E2=80=9CGlassdoor,=E2=
+=80=9D =E2=80=9CWorklife Pro,=E2=80=9D =E2=80=9CBowls,=E2=80=9D and logo ar=
+e proprietary trademarks of Indeed, Inc.</p></td></tr></tbody></table><img =
+role=3D"presentation" src=3D"https://www.glassdoor.com/assets/email/brandRe=
+fresh/logomark.png" style=3D"display:block;outline:none;border:none;text-de=
+coration:none;margin:8px auto 0 auto" width=3D"46"></td></tr></tbody></tabl=
+e></td></tr></tbody></table></td></tr></tbody></table></td></tr></tbody></t=
+able><!--/$--><img src=3D"https://mail8.glassdoor.com/wf/open?upn=3Du001.iF=
+-2Bi2aXlXgVromv3o7Cjl37YTLJ4pjI7gYfFuLmAhJqorTTS6avSAdtTlnMfPzkrAneCMbDSDHe=
+AdycBrQNsSqlLI0u63OKii5BzcLjvouXy5ov2ML2O39zi8PuvIB5mBYEqxL30tQBk1XhAtMWk-2=
+F-2FKuHzR0LUFU24EWYhY5a7njPJcMIU20ndCEy-2B0-2Bds7aDjtF6kYe7gQetxuOmYm3GOyiG=
+xuhXa1vdJmdiLpCMu8L-2FOb4ad8cEwBnB9AV5B7TyMMf8K-2FvxQOhyS-2Fzuijv7P-2FsOjYc=
+-2BONG2vQu4NcbTT3ua7YvW-2BhDdstab6qbqxjOwsUd9y5m3Gw97Y5W-2FTK43eePDfSVOhZRC=
+GN8q3-2BJw3xd89ciYRykm14H-2FdqqfVHgIgKSH556k6PTjzUHgBZWAqbPO7G2oq2WAxj6-2F1=
+nudWxiORTNNkKiaDXTigjCt29R8YW-2BR38252WPxC91qv-2FFnQ-3D-3D" alt=3D"" width=
+=3D"1" height=3D"1" border=3D"0" style=3D"height:1px !important;width:1px !=
+important;border-width:0 !important;margin-top:0 !important;margin-bottom:0=
+ !important;margin-right:0 !important;margin-left:0 !important;padding-top:=
+0 !important;padding-bottom:0 !important;padding-right:0 !important;padding=
+-left:0 !important;"/></body></html>
