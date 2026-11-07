@@ -46,6 +46,7 @@ export {
 export {
   extractJsonLdJobPosting,
   extractNuxtData,
+  extractRemixData,
   isLegitimateJobContent,
 } from "./json-ld-parser";
 
@@ -60,6 +61,7 @@ import { unwrapTrackingUrl, extractLinkedInJobId } from "./url-unwrapper";
 import {
   extractJsonLdJobPosting,
   extractNuxtData,
+  extractRemixData,
   isLegitimateJobContent,
 } from "./json-ld-parser";
 import { extractJobFromSemanticDom } from "./dom-extractor";
@@ -370,6 +372,77 @@ export async function fetchLinkedInGuestPosting(
 }
 
 /**
+ * Reads HTML response stream with early exit:
+ * - As soon as Schema.org JobPosting JSON-LD script closes
+ * - Or as soon as Nuxt 3 SSR state script closes
+ * - Or when maxBytes (256KB) is reached
+ * Cancels the underlying stream to avoid downloading megabytes of unused assets.
+ */
+async function readHtmlWithEarlyExit(
+  res: Response,
+  maxBytes = 256 * 1024
+): Promise<string> {
+  if (res.body && typeof res.body.getReader === "function") {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let accumulated = "";
+    let totalBytes = 0;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          totalBytes += value.byteLength;
+          accumulated += decoder.decode(value, { stream: true });
+
+          // Early exit 1: Schema.org JSON-LD JobPosting complete
+          if (accumulated.includes("JobPosting")) {
+            const jpIndex = accumulated.indexOf("JobPosting");
+            const closeScriptIndex = accumulated.indexOf("</script>", jpIndex);
+            if (closeScriptIndex !== -1) {
+              await reader.cancel().catch(() => {});
+              return accumulated.slice(0, closeScriptIndex + 9);
+            }
+          }
+
+          // Early exit 2: Nuxt 3 SSR state complete
+          if (accumulated.includes("__NUXT_DATA__")) {
+            const nuxtIndex = accumulated.indexOf("__NUXT_DATA__");
+            const closeScriptIndex = accumulated.indexOf("</script>", nuxtIndex);
+            if (closeScriptIndex !== -1) {
+              await reader.cancel().catch(() => {});
+              return accumulated.slice(0, closeScriptIndex + 9);
+            }
+          }
+
+          // Early exit 3: Remix SSR state complete (Greenhouse job-boards)
+          if (accumulated.includes("__remixContext")) {
+            const remixIndex = accumulated.indexOf("__remixContext");
+            const closeScriptIndex = accumulated.indexOf("</script>", remixIndex);
+            if (closeScriptIndex !== -1) {
+              await reader.cancel().catch(() => {});
+              return accumulated.slice(0, closeScriptIndex + 9);
+            }
+          }
+
+          // Early exit 4: Exceeded safety ceiling (256KB)
+          if (totalBytes >= maxBytes) {
+            await reader.cancel().catch(() => {});
+            return accumulated;
+          }
+        }
+      }
+      return accumulated;
+    } catch {
+      return accumulated;
+    }
+  }
+
+  return typeof res.text === "function" ? await res.text() : "";
+}
+
+/**
  * Public link parser: fetches public job page and extracts JobPosting metadata.
  * For Glassdoor: fast-fails immediately to 0ms (retaining parsed email digest context).
  * For Indeed: fast-fails immediately to 0ms (retaining parsed email digest context).
@@ -442,7 +515,13 @@ export async function scrapeJobPostingJsonLd(
   try {
     const validatedUrl = await assertSafeHttpsUrl(url);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    // Two-Phase Timeout:
+    // Phase 1 (Connect / TTFB): Fail dead/hanging servers in 1800ms
+    // Phase 2 (Transfer): Stream chunks with early exit up to transfer ceiling
+    const connectTimeoutMs = Math.min(1800, timeoutMs);
+    const transferTimeoutMs = Math.min(3000, timeoutMs);
+    let timer = setTimeout(() => controller.abort(), connectTimeoutMs);
 
     let res: Response;
     try {
@@ -467,7 +546,13 @@ export async function scrapeJobPostingJsonLd(
     }
 
     if (res.ok) {
-      const html = await res.text();
+      timer = setTimeout(() => controller.abort(), transferTimeoutMs);
+      let html = "";
+      try {
+        html = await readHtmlWithEarlyExit(res, 256 * 1024);
+      } finally {
+        clearTimeout(timer);
+      }
 
       // 1. Primary: Schema.org JobPosting JSON-LD
       const parsed = extractJsonLdJobPosting(html);
@@ -505,7 +590,23 @@ export async function scrapeJobPostingJsonLd(
         };
       }
 
-      // 3. Fallback: Semantic DOM Extraction (e.g. Workday rich DOM when JSON-LD is plain text)
+      // 3. Tertiary: Remix SSR state (e.g. Greenhouse job-boards)
+      const remixData = extractRemixData(html);
+      if (remixData?.description && isLegitimateJobContent(remixData.coreDescription || remixData.description)) {
+        return {
+          data: {
+            ...remixData,
+            applyUrl: remixData.applyUrl ?? url,
+            salary: remixData.salary || domData?.salary,
+            salaryMax: remixData.salaryMax || domData?.salaryMax,
+            datePosted: remixData.datePosted || domData?.datePosted,
+            logoUrl: remixData.logoUrl || domData?.logoUrl,
+          },
+          telemetry: `Hydrated ${remixData.description.length.toLocaleString()} chars via Remix SSR State`,
+        };
+      }
+
+      // 4. Fallback: Semantic DOM Extraction (e.g. Workday rich DOM when JSON-LD is plain text)
       if (domData?.description && isLegitimateJobContent(domData.coreDescription || domData.description)) {
         return {
           data: {

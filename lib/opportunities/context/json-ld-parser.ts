@@ -285,6 +285,78 @@ export function extractNuxtData(html: string): ScrapedJobPosting | null {
 }
 
 /**
+ * Extracts structured job specifications from modern Remix SSR state (e.g. Greenhouse job-boards).
+ */
+export function extractRemixData(html: string): ScrapedJobPosting | null {
+  if (!html || !html.includes("window.__remixContext")) return null;
+
+  const match = html.match(
+    /window\.__remixContext\s*=\s*([\s\S]*?);\s*<\/script>/i
+  );
+  if (!match || !match[1]) return null;
+
+  try {
+    const data = JSON.parse(match[1]);
+    const loaderData = data.state?.loaderData || {};
+
+    let jobPost: Record<string, unknown> | null = null;
+    for (const val of Object.values(loaderData)) {
+      if (val && typeof val === "object" && "jobPost" in (val as Record<string, unknown>)) {
+        jobPost = (val as Record<string, unknown>).jobPost as Record<string, unknown>;
+        break;
+      }
+    }
+    if (!jobPost) return null;
+
+    const title = typeof jobPost.title === "string" ? jobPost.title.trim() : undefined;
+    const company = typeof jobPost.company_name === "string" ? jobPost.company_name.trim() : undefined;
+    const location = typeof jobPost.job_post_location === "string" ? jobPost.job_post_location.trim() : undefined;
+    const datePosted = typeof jobPost.published_at === "string" ? jobPost.published_at.trim() : undefined;
+    const applyUrl = typeof jobPost.public_url === "string" ? jobPost.public_url.trim() : undefined;
+
+    // High-resolution logo from OpenGraph meta image
+    const ogImageMatch =
+      html.match(/<meta\s+(?:property|name)=["']og:image["']\s+content=["']([^"']+)["']/i) ||
+      html.match(/<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["']og:image["']/i);
+    const logoUrl =
+      ogImageMatch?.[1] && /^https?:\/\//i.test(ogImageMatch[1])
+        ? ogImageMatch[1]
+        : undefined;
+
+    const rawContent = typeof jobPost.content === "string" ? jobPost.content : "";
+    const cleanContent = rawContent
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const salary = extractSalaryFromText(cleanContent) ?? undefined;
+    const salaryMax = salary ? parseSalaryMax(salary) ?? undefined : undefined;
+
+    const structured = parseStructuredJobSections(cleanContent);
+
+    return {
+      title,
+      company,
+      location,
+      salary,
+      salaryMax,
+      datePosted,
+      applyUrl,
+      logoUrl,
+      description: structured.fullReconstructedMarkdown || cleanContent,
+      coreDescription: structured.coreMarkdown || cleanContent,
+      overviewSnippet: structured.overviewSnippet,
+      sections: structured.sections,
+      rawDescription: rawContent,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Structural/semantic validator for job posting content.
  * Discards auth-walled, login-redirected, or bot-challenge pages without brittle string matches.
  */

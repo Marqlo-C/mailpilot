@@ -44,6 +44,31 @@ import type { parseAccountRules } from "@/lib/validations/rules";
 import { withRateLimitRetry } from "./candidates";
 import { persistSyncOpportunity } from "./dedupe";
 
+/**
+ * Shared per-domain schedule to space requests to the exact same host
+ * across concurrent messages and digest loops, avoiding bursts or 429 rate limits.
+ */
+const nextAvailableByDomain = new Map<string, number>();
+const SAME_DOMAIN_DELAY_MS = 250;
+const LINK_HYDRATION_CONCURRENCY = 3;
+
+function scheduleDomainSlot(
+  domain: string,
+  delayMs: number = SAME_DOMAIN_DELAY_MS
+): number {
+  const now = Date.now();
+  if (nextAvailableByDomain.size > 200) {
+    for (const [d, time] of nextAvailableByDomain.entries()) {
+      if (time < now - 60000) {
+        nextAvailableByDomain.delete(d);
+      }
+    }
+  }
+  const nextSlot = Math.max(now, nextAvailableByDomain.get(domain) ?? 0);
+  nextAvailableByDomain.set(domain, nextSlot + delayMs);
+  return nextSlot - now;
+}
+
 function normalizeProvider(value: string | null | undefined): LlmProvider {
   return value === "LOCAL_OLLAMA" ? "LOCAL_OLLAMA" : "OPENROUTER";
 }
@@ -486,11 +511,7 @@ export async function processSyncMessage(
       uniqueThinJobs.push(job);
     }
 
-    // 2. Per-domain rate limit tracking: space requests to the exact same domain by at least 1000ms
-    const nextAvailableByDomain = new Map<string, number>();
-    const SAME_DOMAIN_DELAY_MS = 1000;
-    const CONCURRENCY_LIMIT = 3;
-
+    // 2. Per-domain rate limit tracking: space requests to the exact same domain by 250ms
     async function enrichJob(job: (typeof thinJobs)[number]) {
       let domain = "default";
       try {
@@ -499,11 +520,8 @@ export async function processSyncMessage(
         domain = "default";
       }
 
-      // Schedule next available slot for this domain
-      const now = Date.now();
-      const nextSlot = Math.max(now, nextAvailableByDomain.get(domain) ?? 0);
-      nextAvailableByDomain.set(domain, nextSlot + SAME_DOMAIN_DELAY_MS);
-      const waitMs = nextSlot - now;
+      // Schedule next available slot for this domain across concurrent workers
+      const waitMs = scheduleDomainSlot(domain, SAME_DOMAIN_DELAY_MS);
       if (waitMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, waitMs));
       }
@@ -691,7 +709,7 @@ export async function processSyncMessage(
         executing.delete(p);
       });
       executing.add(p);
-      if (executing.size >= CONCURRENCY_LIMIT) {
+      if (executing.size >= LINK_HYDRATION_CONCURRENCY) {
         await Promise.race(executing);
       }
     }

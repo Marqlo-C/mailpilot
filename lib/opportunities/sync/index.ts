@@ -100,6 +100,7 @@ export async function runOpportunitySync(
     if (!account || !account.isActive) {
       throw new Error("Account not found or inactive");
     }
+    const activeAccount = account;
 
     if (!account.profile) {
       logStory(
@@ -247,91 +248,129 @@ export async function runOpportunitySync(
 
     let didUseScrapingAnt = false;
     let pendingProcessed = 0;
+    let processedCount = 0;
+    let nextIndex = 0;
+    let isCancelled = false;
 
-    for (let i = 0; i < targetIds.length; i++) {
-      const messageId = targetIds[i];
-      const isPendingSlice = pendingInBatch.has(messageId);
+    // Check cancellation once before kicking off processing
+    const initialCheck = await prisma.account.findUnique({
+      where: { id: accountId },
+      select: { isSyncing: true },
+    });
+    if (!initialCheck?.isSyncing) {
+      isCancelled = true;
+    }
 
-      const currentState = await prisma.account.findUnique({
-        where: { id: accountId },
-        select: { isSyncing: true },
-      });
+    // Bounded concurrency pool: 3 for Cloud LLM (significantly increases throughput safely),
+    // 1 for local Ollama (prevents GPU memory exhaustion and thread contention).
+    const concurrencyLimit = llmProvider === "LOCAL_OLLAMA" ? 1 : 3;
 
-      // If the user clicked Cancel, isSyncing will be false. Abort the loop safely.
-      if (!currentState?.isSyncing) {
-        logStory(
-          syncLog,
-          "Stopped early — sync was cancelled (isSyncing cleared).",
-          { "classified so far": `${i} / ${targetIds.length}` },
-          "warn"
-        );
-        await prisma.account
-          .update({
+    async function worker(): Promise<void> {
+      while (nextIndex < targetIds.length && !isCancelled) {
+        const currentIndex = nextIndex++;
+        if (currentIndex >= targetIds.length) break;
+
+        const messageId = targetIds[currentIndex];
+        const isPendingSlice = pendingInBatch.has(messageId);
+
+        try {
+          const processResult = await processSyncMessage({
+            gmail,
+            account: activeAccount,
+            messageId,
+            index: currentIndex + 1,
+            total: targetIds.length,
+            rules,
+            candidateProfile,
+            ollamaDownForSync,
+          });
+
+          opportunitiesUpserted += processResult.opportunitiesUpserted;
+          createdCount += processResult.createdCount;
+          updatedCount += processResult.updatedCount;
+          skippedCount += processResult.skippedCount;
+          if (processResult.ollamaDownForSync) {
+            ollamaDownForSync = true;
+          }
+          if (processResult.usedScrapingAnt) {
+            didUseScrapingAnt = true;
+          }
+
+          if (processResult.tier === "OLLAMA") {
+            ollamaCount++;
+          } else if (processResult.tier === "CLOUD") {
+            cloudCount++;
+          }
+        } catch (error) {
+          syncLog.error(
+            { err: error, messageId },
+            "Opportunity sync failed for message"
+          );
+          if (isRateLimited(error)) {
+            await sleep(RATE_LIMIT_BASE_MS * 2);
+          }
+        }
+
+        if (isPendingSlice) {
+          pendingProcessed += 1;
+        }
+        processedCount += 1;
+
+        // Atomic progress update + cancellation check in a single database round-trip
+        try {
+          const updatedState = await prisma.account.update({
             where: { id: accountId },
             data: {
-              syncTotal: null,
-              syncKind: null,
-              syncPendingTotal: null,
-              lastSyncPendingProcessed: null,
+              syncHeartbeatAt: new Date(),
+              lastSyncProcessed: processedCount,
+              lastSyncPendingProcessed: pendingProcessed,
             },
-          })
-          .catch(() => {});
-        break;
-      }
+            select: { isSyncing: true },
+          });
 
-      try {
-        const processResult = await processSyncMessage({
-          gmail,
-          account,
-          messageId,
-          index: i + 1,
-          total: targetIds.length,
-          rules,
-          candidateProfile,
-          ollamaDownForSync,
-        });
-
-        opportunitiesUpserted += processResult.opportunitiesUpserted;
-        createdCount += processResult.createdCount;
-        updatedCount += processResult.updatedCount;
-        skippedCount += processResult.skippedCount;
-        ollamaDownForSync = processResult.ollamaDownForSync;
-        if (processResult.usedScrapingAnt) {
-          didUseScrapingAnt = true;
-        }
-
-        if (processResult.tier === "OLLAMA") {
-          ollamaCount++;
-        } else if (processResult.tier === "CLOUD") {
-          cloudCount++;
-        }
-      } catch (error) {
-        syncLog.error(
-          { err: error, messageId },
-          "Opportunity sync failed for message"
-        );
-        if (isRateLimited(error)) {
-          await sleep(RATE_LIMIT_BASE_MS * 2);
+          if (!updatedState.isSyncing) {
+            isCancelled = true;
+            break;
+          }
+        } catch {
+          // If update fails (e.g. account disconnected or cancelled concurrently), safely abort worker
+          isCancelled = true;
+          break;
         }
       }
+    }
 
-      if (isPendingSlice) {
-        pendingProcessed += 1;
-      }
+    const workerCount = Math.min(concurrencyLimit, targetIds.length);
+    if (workerCount > 0 && !isCancelled) {
+      const workers = Array.from({ length: workerCount }, () => worker());
+      await Promise.all(workers);
+    }
 
-      await prisma.account.update({
-        where: { id: accountId },
-        data: {
-          syncHeartbeatAt: new Date(),
-          lastSyncProcessed: i + 1,
-          lastSyncPendingProcessed: pendingProcessed,
-        },
-      });
+    if (isCancelled) {
+      logStory(
+        syncLog,
+        "Stopped early — sync was cancelled (isSyncing cleared).",
+        { "classified so far": `${processedCount} / ${targetIds.length}` },
+        "warn"
+      );
+      await prisma.account
+        .update({
+          where: { id: accountId },
+          data: {
+            syncTotal: null,
+            syncKind: null,
+            syncPendingTotal: null,
+            lastSyncPendingProcessed: null,
+          },
+        })
+        .catch(() => {});
 
-      // Throttled pacing: 350ms delay between emails to avoid burst rate limits
-      if (i < targetIds.length - 1) {
-        await sleep(350);
-      }
+      return {
+        processed: processedCount,
+        opportunitiesUpserted,
+        skipped: combinedCandidateIds.length - targetIds.length,
+        historyExpired,
+      };
     }
 
     // Purge expired dismissed rows (retention compliance)

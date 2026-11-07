@@ -7,4 +7,3 @@
 export * from "./schema.ssot";
 export * from "./lens";
 export * from "./evaluator";
-export * from "./job-matcher";

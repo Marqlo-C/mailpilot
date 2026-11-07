@@ -604,21 +604,18 @@ export function cleanOpportunityDescription(
 }
 
 /**
- * System prompt for profile-aware multi-job extraction + match scoring.
- * Includes candidate Persona for seniority / tenure fit.
+ * System prompt for email classification and multi-job extraction.
+ * Match scoring and seniority evaluation are handled deterministically post-extraction,
+ * keeping the LLM prompt lean and career-agnostic while saving 400-800 tokens per email.
  */
 export function buildProfileAwareClassifierSystemPrompt(
-  profile: CandidateProfileSummary | null | undefined
+  _profile?: CandidateProfileSummary | null | undefined
 ): string {
-  const candidateBlock = formatCandidateProfileSummary(profile);
   const aggregatorList = JOB_BOARD_KEYWORDS.map(
     (k) => k.charAt(0).toUpperCase() + k.slice(1)
   ).join(", ");
 
-  return `You are analyzing an email containing job listings for this candidate.
-
-CANDIDATE PROFILE:
-${candidateBlock}
+  return `You are analyzing an email containing job listings or recruiting communications.
 
 Return ONLY valid JSON (no markdown fences):
 {
