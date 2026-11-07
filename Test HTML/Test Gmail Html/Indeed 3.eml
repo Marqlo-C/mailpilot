@@ -1,0 +1,718 @@
+Delivered-To: marquiseclott@gmail.com
+Received: by 2002:ab0:2046:0:b0:996:7c09:94dd with SMTP id g6csp122755ual;
+        Sun, 1 Nov 2026 22:58:44 -0800 (PST)
+X-Received: by 2002:a05:7022:92b:b0:144:fb42:52 with SMTP id a92af1059eb24-1ac5de4e892mr17676862c88.28.1793602723800;
+        Sun, 01 Nov 2026 22:58:43 -0800 (PST)
+ARC-Seal: i=1; a=rsa-sha256; t=1793602723; cv=none;
+        d=google.com; s=arc-20260327;
+        b=njWItXMqnsutcaAaTSughcMrD/vOZjTD0hQGL/LsSRZ0AkiO8J5NwaRrrAb1dbHzCr
+         0Ao5xcPTE1Y5m7jFVeVfu4BmEfH5+pISia5MfDcXHqvTc9IX7Pqv2lV69p9t09I+FdtO
+         Jly5rKb6PvE47N7ufts/m7/rwplF3ISmGA2Z3qtpWHY+/4AharvYE5e5RjBe/q53tNgo
+         cWd6WT+8cJgPmts0ml/5Jh6cV+juP8ATXsJIgZWz5tKdVhfDrKl7vMFVUVhgxWuNKuVQ
+         I/yI1uamcHaa1oWYg0JJgDi17vF8AKr9X0MLLA/l1rXq/T3wJNWBYV+SyGflZ64SUQiS
+         mSvw==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20260327;
+        h=list-unsubscribe-post:list-unsubscribe:list-id:subject:reply-to
+         :from:message-id:mime-version:date:to:dkim-signature;
+        bh=eskk75K/N5YVw32Dt7O6Sn4ix/PcMxN2yY94ns5ChfI=;
+        fh=N0T4YyFUJeQLZANLlPoNXtJvQ2zroX1l+M0C6GWRxg0=;
+        b=KHUUDSyzjhRFpUvPXqU4fRN60K0tiOXnXO+gRSyATXYZBK2diVNWew6/4uqb8BdJ94
+         XZx1FJGQ9RXEUqmOIVLxJjoNXECw5611Yc024tr6BbXlVexh4XN5NyiIIsR+K4510GXj
+         etVoe+03OKoD84qZ3mkIw0alNq+Hih0znZyppjLNPBdri+ddJCSvSFHFUQlyApTWURl5
+         IUk0++Cd7qv9uPTOyXSokEGjIy8iXHomN2XU89KNvxIuPZ+HUGgteKJOuX9b+g3fi2j5
+         yWmqlzNVJIFrJ4K8w6BVU9ys88cs9UzdookU0/avMjxeaI98vX07VUjO1jVa5ZSLGtcB
+         BoLg==;
+        dara=google.com
+ARC-Authentication-Results: i=1; mx.google.com;
+       dkim=pass header.i=@jobalert.indeed.com header.s=scph0126 header.b=ZWq458XJ;
+       spf=pass (google.com: domain of msprvs1=20766jsoqeino=bounces-294276@bounces.indeed.com designates 156.70.52.255 as permitted sender) smtp.mailfrom="msprvs1=20766JsoQEiNo=bounces-294276@bounces.indeed.com";
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=jobalert.indeed.com
+Return-Path: <msprvs1=20766JsoQEiNo=bounces-294276@bounces.indeed.com>
+Received: from mta-70-52-255.indeed.com.sparkpostmail.com (mta-70-52-255.indeed.com.sparkpostmail.com. [156.70.52.255])
+        by mx.google.com with ESMTPS id a92af1059eb24-1ac143c496dsi28175771c88.9.2026.11.01.22.58.43
+        for <marquiseclott@gmail.com>
+        (version=TLS1_3 cipher=TLS_AES_256_GCM_SHA384 bits=256/256);
+        Sun, 01 Nov 2026 22:58:43 -0800 (PST)
+Received-SPF: pass (google.com: domain of msprvs1=20766jsoqeino=bounces-294276@bounces.indeed.com designates 156.70.52.255 as permitted sender) client-ip=156.70.52.255;
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@jobalert.indeed.com header.s=scph0126 header.b=ZWq458XJ;
+       spf=pass (google.com: domain of msprvs1=20766jsoqeino=bounces-294276@bounces.indeed.com designates 156.70.52.255 as permitted sender) smtp.mailfrom="msprvs1=20766JsoQEiNo=bounces-294276@bounces.indeed.com";
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=jobalert.indeed.com
+X-MSFBL: TuQbZCiRNLcqaGbg0lFJ0xly4M1Gzn6Zpfi5rXyEj8Y=|eyJjdXN0b21lcl9pZCI
+	6IjI5NDI3NiIsInRlbmFudF9pZCI6InNwYyIsIm1lc3NhZ2VfaWQiOiI2YWU1YTM
+	zNGU4NmE1ZGE1NTMzNyIsInN1YmFjY291bnRfaWQiOiIwIiwiciI6Im1hcnF1aXN
+	lY2xvdHRAZ21haWwuY29tIn0=
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=jobalert.indeed.com;
+	s=scph0126; t=1793602723; i=@jobalert.indeed.com;
+	bh=eskk75K/N5YVw32Dt7O6Sn4ix/PcMxN2yY94ns5ChfI=;
+	h=To:Date:Content-Type:Message-ID:From:Subject:List-Unsubscribe:
+	 List-Unsubscribe-Post:From:To:Cc:Subject:Feedback-Id;
+	b=ZWq458XJtOv0DO4mr6TGqDNUWx7bQag83wwbeu1OTdG0gkUF6RLHOuAST+XnVFCAH
+	 +2F7lsISNGIHfOXvFJC0EWTmZvYXit7dbZpfYG7+fRrISmKL7sDNRrAAnrWKVaXVrT
+	 BxQaDLfw0B0rZJ/KrXanR4uOCU/zKxwmddOF2GrA=
+Received: from [10.90.26.172] ([10.90.26.172])
+	by i-0616bc1fe817009fc.mta1vrest.sd.prd.sparkpost (ecelerity 5.3.0.76572 r(msys-ecelerity:tags/5.3.0.32)) with REST
+	id 73/35-48599-3A438EA6; Mon, 02 Nov 2026 06:58:43 +0000
+To: <marquiseclott@gmail.com>
+Date: Mon, 02 Nov 2026 06:58:43 +0000
+Content-Type: multipart/alternative; boundary="_----RGGZ6dLM+ZcT3V3Q0R9X0w===_F2/35-48599-3A438EA6"
+MIME-Version: 1.0
+Message-ID: <1k6dgr7e2j7ck801@indeed.com>
+From: "Indeed" <donotreply@jobalert.indeed.com>
+Reply-To: Indeed <donotreply@jobalert.indeed.com>
+Subject: Program Success Associate at Tuition.io, Inc. 1 more entry level software job in Davis, CA, 95616
+List-ID: <jobalert.69cf3bf14824fd1d9e2d3a39.indeed.com>
+List-Unsubscribe: <mailto:unsubscribe@unsub.spmta.com?subject=unsubscribe%3AdOLzVUP8HYpdrN5Pi2hrs76F5IE_TlshGBCn9Emmcyg~%7CeyAicmNwdF90byI6ICJtYXJxdWlzZWNsb3R0QGdtYWlsLmNvbSIsICJsaXN0X2lkIjogImpvYmFsZXJ0LjY5Y2YzYmYxNDgyNGZkMWQ5ZTJkM2EzOS5pbmRlZWQuY29tIiwgInRlbmFudF9pZCI6ICJzcGMiLCAiY3VzdG9tZXJfaWQiOiAiMjk0Mjc2IiwgInN1YmFjY291bnRfaWQiOiAiMCIsICJtZXNzYWdlX2lkIjogIjZhZTVhMzM0ZTg2YTVkYTU1MzM3IiB9>,<https://unsubscribe.spmta.com/u/hhCuw0pqtmCkdYYMa3qFsg~~/AAR9hBA~/upqdGSrMwcASVMav-mTODgzMXFHyZlPB5Ci3KPv8ZSEze_O_QvXRRUxdCf8YqoEZMFjcaST4nCuG7J29vThLAg~~>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+
+--_----RGGZ6dLM+ZcT3V3Q0R9X0w===_F2/35-48599-3A438EA6
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/plain; charset="UTF-8"
+
+Indeed Job Alert=0A2 new entry level software jobs in Davis, CA, 95616=0A=
+=0AJobs 1-2 of 2 new jobs=0ASee matching results on Indeed: https://www.ind=
+eed.com/jobs=3Fq=3Dentry+level+software&hl=3Den&from=3Dja&l=3DDavis%2C+CA%2=
+C+95616&radius=3D25&alid=3D69cf3bf14824fd1d9e2d3a39&tmtk=3D1k6dgr5sega5h800=
+&utm_campaign=3Djob_alerts&utm_medium=3Demail&utm_source=3Djobseeker_emails=
+&of=3D1&fr=3Dt=0A=0A=0AProgram Success Associate=0ATuition.io, Inc. - Calif=
+ornia=0A$21.64 - $26.44 an hour=0AEasily apply=0AThere may also be opportun=
+ities for weekend shifts of 3 hours on Saturday and/or Sundays. 2+ years of=
+ previous customer service experience in a tech start-up=E2=80=A6=0A6 days =
+ago=0Ahttps://www.indeed.com/rc/clk/dl=3Fjk=3D5506fd8de6daf256&from=3Dja&qd=
+=3DRnZhMybXSk4M3QtTVGXWoUGvdYkahSX9KRBG2bMQv0NGWwESon8JyK90wHQGXURD0p0RIYJV=
+-KGEWYAcYGrT12z3gbFXghUE7z2syx7XtPHgUuPi676KKj46ssf10V22&rd=3DAhaf72ZDihptg=
+qsdvrpp6ZXef5NkBUPQ3HkIyXCDpdM&tk=3D1k6dgr5sega5h800&alid=3D69cf3bf14824fd1=
+d9e2d3a39&bb=3DN_bn0ld2tbxxF3leBsn2EU3oQiG6GZN31BfNY3YIhSmnQgouQUAc7eqel7Dp=
+HM9wRQGpXWzdqh_FbaIrNyitZq5hh9pCscPnB3hiohWt-BrzdMcv6iQpSPmLworlSF6aSaIrIMH=
+KmM0eoEEvrVwD2WSlezAk2jwLVHhrZdEpFm85-f5jiSsib6GLnKQ71zCpGxDyORg-xbI%3D&tmt=
+k=3D1k6dgr5sega5h800=0A=0ABusiness Analyst (Eastern Time Zone work hours re=
+quired)=0AColumbian Financial Group - United States=0A$52,000 - $56,000 a y=
+ear=0AEasily apply=0AServe as liaison between business process user areas, =
+management, and systems groups to define process requirements by analyzing =
+objectives, systems and=E2=80=A6=0A9 days ago=0Ahttps://www.indeed.com/rc/c=
+lk/dl=3Fjk=3De29c168681c258f6&from=3Dja&qd=3DRnZhMybXSk4M3QtTVGXWoUGvdYkahS=
+X9KRBG2bMQv0NGWwESon8JyK90wHQGXURD0p0RIYJV-KGEWYAcYGrT12z3gbFXghUE7z2syx7Xt=
+PHgUuPi676KKj46ssf10V22&rd=3DAhaf72ZDihptgqsdvrpp6ZXef5NkBUPQ3HkIyXCDpdM&tk=
+=3D1k6dgr5sega5h800&alid=3D69cf3bf14824fd1d9e2d3a39&bb=3DSmEXkYEgKaZ99LX4lN=
+nLE4YZT_1zvR70KUowmd2lkYS7_lcHj4AvEmoVdIPnxDs2TMq5NeTx5gfSZeCUxPaELz-ZiK6mX=
+ZDjPbCf7TCriFvK2QszPe3Dw5fK3Zda7BQnEw6Jt79B5092Hi9QIuhNW1z9xaiyHo98wfPaB2wb=
+kYDDUhxnU7Ag1lSoTc7lHg5VSilUvfJqwKU%3D&tmtk=3D1k6dgr5sega5h800=0A=0A=0A=0AD=
+o not share this email=0AThis email contains secure links that are personal=
+ized for you. Please do not share this email or links with others.=0A=0ASal=
+aries estimated if unavailable. When a job posting doesn't include a salary=
+, we estimate it by looking at similar jobs. Estimated salaries are not end=
+orsed by the companies offering those positions and may vary from actual sa=
+laries.=0A=0A=C2=A9 2026 Indeed, Inc. =0AIndeed Tower 200 West 6th Street, =
+Floor 36, Austin, TX 78701 =0APrivacy Policy: https://www.indeed.com/legal=
+=3Fhl=3Den#privacy =0ATerms: https://www.indeed.com/legal=3Fhl=3Den =0AHelp=
+ Center: https://support.indeed.com/hc/en-us =0AManage job alerts: https://=
+subscriptions.indeed.com=3Ftoken=3DCkCjVeF1ly2DhUleZEZHDtqT7rrd6cnLjQCYySdZ=
+H8a2NH1zyLAX21U84LNIhzpxfvnU_pxjf90V3lHkJshwzyQdEiCItBgxFkL7kdqHK3VaHzxOhq2=
+BAJI0G9RWyWqI1ypmCxoQ3rEerJomxMgnSl0zIM_9wQ%3D%3D&co=3DUS&hl=3Den&tmtk=3D1k=
+6dgr5sega5h800&from=3Dja =0AUnsubscribe from this job alert: https://subscr=
+iptions.indeed.com/alerts/cancel=3Ftoken=3DCkCjVeF1ly2DhUleZEZHDtqT7rrd6cnL=
+jQCYySdZH8a2NH1zyLAX21U84LNIhzpxfvnU_pxjf90V3lHkJshwzyQdEiCItBgxFkL7kdqHK3V=
+aHzxOhq2BAJI0G9RWyWqI1ypmCxoQ3rEerJomxMgnSl0zIM_9wQ%3D%3D&co=3DUS&hl=3Den&t=
+mtk=3D1k6dgr5sega5h800&subId=3D69cf3bf14824fd1d9e2d3a39&rgtk=3D1k6dgr5sega5=
+h800&from=3Dja
+--_----RGGZ6dLM+ZcT3V3Q0R9X0w===_F2/35-48599-3A438EA6
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html; charset="UTF-8"
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.=
+w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">=0A<html lang=3D"en" xmlns=3D=
+"http://www.w3.org/1999/xhtml" xml:lang=3D"en" xmlns:v=3D"urn:schemas-micro=
+soft-com:vml" xmlns:o=3D"urn:schemas-microsoft-com:office:office"><head><me=
+ta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dutf-8"/><!--=
+[if !mso]><!-->=0A    <meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3D=
+edge"/>=0A     <!--<![endif]-->=0A<meta name=3D"viewport" content=3D"width=
+=3Ddevice-width, initial-scale=3D1.0"/><!--[if !mso]><!-->=0A    <style typ=
+e=3D"text/css">@import url('https://prod.statics.indeed.com/ds/assets/typog=
+raphy/indeedsans/v1/indeedsans.css');</style>=0A     <!--<![endif]-->=0A<!-=
+-[if !mso]><!-->=0A    <style type=3D"text/css">@import url('https://fonts.=
+googleapis.com/css2=3Ffamily=3DNoto+Sans:wght@400;700&display=3Dswap');</st=
+yle>=0A     <!--<![endif]-->=0A<title></title><style type=3D"text/css">=0A/=
+* iOS BLUE LINKS */=0Aa[x-apple-data-detectors] {=0A  color: inherit !impor=
+tant;=0A  font-size: inherit !important;=0A  font-family: inherit !importan=
+t;=0A  font-weight: inherit !important;=0A  line-height: inherit !important=
+;=0A}=0A/* Samsung blue Links */=0A#MessageViewBody a {=0A  color: inherit;=
+=0A  text-decoration: none;=0A  font-size: inherit;=0A  font-family: inheri=
+t;=0A  font-weight: inherit;=0A  line-height: inherit;=0A}=0A/* Samsung cen=
+ter email */=0A#MessageViewBody {=0A  margin: 0 auto !important;=0A}=0A=0Aa=
+,=0Abody,=0Atable,=0Atd,=0Ath {=0A  -webkit-text-size-adjust: 100%;=0A  -ms=
+-text-size-adjust: 100%;=0A  box-sizing: border-box !important;=0A}=0Atable=
+,=0Atd {=0A  mso-table-lspace: 0;=0A  mso-table-rspace: 0;=0A}=0Aimg {=0A  =
+-ms-interpolation-mode: bicubic;=0A  border: 0;=0A  height: auto;=0A  line-=
+height: 100%;=0A  outline: 0;=0A  text-decoration: none;=0A}=0Abody {=0A  h=
+eight: 100% !important;=0A  margin: 0 !important;=0A  padding: 0 !important=
+;=0A  width: 100% !important;=0A}=0Asup {=0A  *vertical-align: baseline;=0A=
+  *position: relative;=0A  *bottom: .75em;=0A  font-size: 0.65em;=0A  line-=
+height: 0;=0A}=0Ap {=0A  margin-top: 8px;=0A  margin-bottom: 16px;=0A}=0A@m=
+edia only print and (max-width: 600px) {=0A  body {=0A    max-width: 320px;=
+=0A  }=0A}=0A@media all and (max-width: 600px) {=0A  .outerContainer {=0A  =
+  width: 100% !important=0A  }=0A  .shrinkMobile a {=0A   min-width: 100% !=
+important=0A  }=0A  .innerContainer {=0A    padding-left: 0 !important;=0A =
+   padding-right: 0 !important=0A  }=0A  .fullWidth {=0A    width: 100% !im=
+portant;=0A    display: block=0A  }=0A  u~div #full-wrap {=0A    min-width:=
+ 100vw=0A  }=0A  h1.hero-h1 {=0A    font-size: 36px !important;=0A    line-=
+height: 45px !important;=0A    -webkit-text-size-adjust: none !important=0A=
+  }=0A  h1.hero-h1_variable {=0A    font-size: 130% !important;=0A    line-=
+height: 135% !important;=0A    -webkit-text-size-adjust: none !important=0A=
+  }=0A  h2.body-h2 {=0A    font-size: 24px !important;=0A    line-height: 3=
+0px !important;=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h=
+3.body-h3 {=0A    font-size: 20px !important;=0A    line-height: 24px !impo=
+rtant;=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h3.body-h3=
+-link {=0A    font-size: 20px !important;=0A    line-height: 24px !importan=
+t;=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h4.body-h4-lin=
+k {=0A    font-size: 14px !important;=0A    line-height: 18px !important;=
+=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h1.h1-xl {=0A   =
+ font-size: 44px !important;=0A    line-height: 55px !important;=0A    -web=
+kit-text-size-adjust: none !important=0A  }=0A  h1.h1-lg {=0A    font-size:=
+ 36px !important;=0A    line-height: 45px !important;=0A    -webkit-text-si=
+ze-adjust: none !important=0A  }=0A  h1.h1-md {=0A    font-size: 28px !impo=
+rtant;=0A    line-height: 35px !important;=0A    -webkit-text-size-adjust: =
+none !important=0A  }=0A  h1.h1-sm {=0A    font-size: 24px !important;=0A  =
+  line-height: 30px !important;=0A    -webkit-text-size-adjust: none !impor=
+tant=0A  }=0A  h1.h1-xs {=0A    font-size: 20px !important;=0A    line-heig=
+ht: 28px !important;=0A    -webkit-text-size-adjust: none !important=0A  }=
+=0A  h2.h2-xl {=0A    font-size: 28px !important;=0A    line-height: 35px !=
+important;=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h2.h2-=
+lg {=0A    font-size: 24px !important;=0A    line-height: 30px !important;=
+=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h2.h2-md {=0A   =
+ font-size: 20px !important;=0A    line-height: 28px !important;=0A    -web=
+kit-text-size-adjust: none !important=0A  }=0A  h2.h2-sm,=0A  h2.h2-xs {=0A=
+    font-size: 16px !important;=0A    line-height: 24px !important;=0A    -=
+webkit-text-size-adjust: none !important=0A  }=0A  h3.h3-xl,=0A  h3.h3-link=
+-xl {=0A    font-size: 24px !important;=0A    line-height: 30px !important;=
+=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h3.h3-lg,=0A  h3=
+.h3-link-lg {=0A    font-size: 20px !important;=0A    line-height: 28px !i=
+mportant;=0A    -webkit-text-size-adjust: none !important=0A  }=0A  h3.h3-m=
+d,=0A  h3.h3-link-md {=0A    font-size: 16px !important;=0A    line-height:=
+ 24px !important;=0A    -webkit-text-size-adjust: none !important=0A  }=0A =
+ h3.h3-sm,=0A  h3.h3-xs,=0A  h3.h3-link-sm,=0A  h3.h3-link-xs {=0A    font-=
+weight: normal !important;=0A    font-size: 16px !important;=0A    line-hei=
+ght: 24px !important;=0A    -webkit-text-size-adjust: none !important=0A  }=
+=0A  p.body-p-lg {=0A    font-size: 36px !important;=0A    line-height: 43p=
+x !important;=0A    -webkit-text-size-adjust: none !important=0A  }=0A  p.b=
+ody-p-sm {=0A    font-size: 14px !important;=0A    line-height: 22px !impor=
+tant;=0A    -webkit-text-size-adjust: none !important=0A  }=0A  p.body-p-xs=
+ {=0A    font-size: 12px !important;=0A    line-height: 20px !important;=0A=
+    -webkit-text-size-adjust: none !important=0A  }=0A  .ph-0 { padding-lef=
+t: 0px !important; padding-right: 0px !important }=0A  .p-0 { padding: 0px =
+!important }=0A  .pt-0 { padding-top: 0px !important }=0A  .pr-0 { padding-=
+right: 0px !important }=0A  .pb-0 { padding-bottom: 0px !important }=0A  .p=
+l-0 { padding-left: 0px !important }=0A  .pb-4 { padding-bottom: 4px !impor=
+tant }=0A  .pt-4 { padding-top: 4px !important }=0A  .ph-8 { padding-left: =
+8px !important; padding-right: 8px !important }=0A  .pb-8 { padding-bottom:=
+ 8px !important }=0A  .ptb-8 { padding-top: 8px !important; padding-bottom:=
+ 8px !important }=0A  .pt-8 { padding-top: 8px !important }=0A  .pl-8 { pad=
+ding-left: 8px !important }=0A  .pl-10 { padding-left: 10px !important }=0A=
+  .pb-12 { padding-bottom: 12px !important }=0A  .pr-8 { padding-right: 8px=
+ !important }=0A  .ph-15 { padding-left: 15px !important; padding-right: 15=
+px !important }=0A  .pr-15 { padding-right: 15px !important }=0A  .pl-15 { =
+padding-left: 15px !important }=0A  .pb-15 { padding-bottom: 15px !importan=
+t }=0A  .ph-16 { padding-left: 16px !important; padding-right: 16px !import=
+ant }=0A  .pt-16 { padding-top: 16px !important }=0A  .pr-16 { padding-righ=
+t: 16px !important }=0A  .pb-16 { padding-bottom: 16px !important }=0A  .pl=
+-16 { padding-left: 16px !important }=0A  .p-16 { padding-top: 16px !import=
+ant; padding-right: 16px !important; padding-bottom: 16px !important; paddi=
+ng-left: 16px !important }=0A  .pt-20 { padding-top: 20px !important }=0A  =
+.ph-20 { padding-left: 20px !important; padding-right: 20px !important }=
+=0A  .p-20 { padding-top: 20px !important; padding-right: 20px !important; =
+padding-bottom: 20px !important; padding-left: 20px !important }=0A  .pt-24=
+ { padding-top: 24px !important }=0A  .pr-24 { padding-right: 24px !importa=
+nt }=0A  .pb-24 { padding-bottom: 24px !important }=0A  .pl-24 { padding-le=
+ft: 24px !important }=0A  .p-24 { padding-top: 24px !important; padding-rig=
+ht: 24px !important; padding-bottom: 24px !important; padding-left: 24px !i=
+mportant }=0A  .ph-24 { padding-right: 24px !important; padding-left: 24px =
+!important }=0A  .pb-27 { padding-bottom: 27px !important }=0A  .ph-30 { pa=
+dding-left: 30px !important; padding-right: 30px !important }=0A  .pt-30 { =
+padding-top: 30px !important }=0A  .pb-30 { padding-bottom: 30px !important=
+ }=0A  .pt-32 { padding-top: 32px !important }=0A  .pb-32 { padding-bottom:=
+ 32px !important }=0A  .ph-32 { padding-left: 32px !important; padding-righ=
+t: 32px !important }=0A  .pt-36 { padding-top: 36px !important }=0A  .pr-36=
+ { padding-right: 36px !important }=0A  .pb-36 { padding-bottom: 36px !impo=
+rtant }=0A  .pl-36 { padding-left: 36px !important }=0A  .pt-37 { padding-t=
+op: 37px !important }=0A  .pt-38 { padding-top: 38px !important }=0A  .pt-4=
+0 { padding-top: 40px !important }=0A  .pb-40 { padding-bottom: 40px !impor=
+tant }=0A  .show {=0A    display: block !important;=0A    max-height: none =
+!important;=0A    overflow: visible !important;=0A    font-size: inherit !i=
+mportant;=0A    line-height: inherit !important=0A  }=0A  .hide {=0A    dis=
+play: none !important=0A  }=0A  .hide-bg {=0A    background-image: none !im=
+portant=0A  }=0A  .bt-1 { border-top: 1px solid #f6f6f6 !important }=0A  .b=
+t-0 { border-top: 0px solid #fff !important }=0A  .bt-15 { border-top: 15px=
+ solid #fff !important }=0A  .bb-5 { border-bottom: 5px solid #f6f6f6 !impo=
+rtant }=0A  .br-0 { border-right: none !important }=0A  .bgcolor-m { backgr=
+ound-color: #f6f6f6 !important }=0A  .bgcolor-white-m { background-color: #=
+ffffff !important }=0A  .width-100 { width: 100% !important }=0A  .width-70=
+ { width: 70% !important }=0A  .width-50 { width: 50% !important }=0A  .cen=
+ter { margin: 0 auto !important }=0A  .center-align-text { text-align: cent=
+er !important }=0A  .left-align-text { text-align: left !important }=0A  .s=
+tack { display: block !important }=0A  .table { display: table !important }=
+=0A  .cta.stack a { width: 100% !important }=0A  .height-580 { height: 300p=
+x !important; background-position: bottom !important }=0A  .no-border { bor=
+der: none !important; border-radius: 0 !important }=0A  .h24 { height: 24px=
+ !important }=0A  .h16 { height: 16px !important }=0A  .jobCardLabels { mar=
+gin: 0 0 4px !important; width: 100% !important; display: block !important =
+}=0A  .radius8 { border-radius: 8px !important }=0A  .eml_BasicTable_HideOn=
+Mobile { display: none !important }=0A}=0A@media only screen and (min-width=
+: 600px) {=0A  .eml_BasicTable_MobileShow { display: none !important }=0A}=
+=0A</style><!--[if (gt mso 9)|(IE)]>=0A        <style>=0A                ta=
+ble {=0A                    border-collapse: collapse;=0A                  =
+  border-spacing: 0;=0A                }=0A                </style>=0A     =
+   <![endif]-->=0A<!--[if (gt mso 9)|(IE)]>=0A        <xml>=0A            <=
+o:OfficeDocumentSettings>=0A            <o:AllowPNG/>=0A            <o:Pixe=
+lsPerInch>96</o:PixelsPerInch>=0A            </o:OfficeDocumentSettings>=0A=
+        </xml>=0A        <![endif]-->=0A<!--[if gte mso 9]>=0A        <styl=
+e>=0A            li {=0A                text-indent: -1em; /* Normalise spa=
+ce between bullets and text */=0A            }=0A        </style>=0A       =
+ <![endif]-->=0A</head><body style=3D"margin:0;padding:0" lang=3D"en" bgcol=
+or=3D"#F3F2F1"><div style=3D"display:none;max-height:0px;overflow:hidden">$=
+21.64 - $26.44 an hour. *The Role & Responsibilities*=0A=0ATuition.io=E2=80=
+=99s Program Success (Customer Support) department is growing and we are lo=
+oking to add another exceptional associate to the team. This is a diverse, =
+fast-paced customer support/call center style role including the following =
+responsibilities:=0A=0A* This opening is...</div><div style=3D"display:none=
+;max-height:0px;overflow:hidden">&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199=
+;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#=
+847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847=
+;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&s=
+hy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;=
+&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8=
+199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199=
+;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#=
+847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847=
+;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&s=
+hy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;=
+&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8=
+199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199=
+;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#=
+847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847=
+;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&s=
+hy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;=
+&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8=
+199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199=
+;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#=
+847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847=
+;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&s=
+hy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;=
+&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8=
+199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199=
+;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#=
+847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847=
+;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&s=
+hy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;=
+&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8=
+199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199=
+;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#=
+847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847=
+;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&s=
+hy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;=
+&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8=
+199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199=
+;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#=
+847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847=
+;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&s=
+hy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;=
+&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8=
+199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199=
+;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#=
+847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847=
+;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&s=
+hy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;=
+&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8199;&#847;&shy;&#8=
+199;&#847;&shy;&#8199;&#847;&shy;</div><table width=3D"100%" cellPadding=3D=
+"0" cellSpacing=3D"0" role=3D"none"><tr><td style=3D"height:16px;line-heigh=
+t:16px;font-size:1px">=C2=A0</td></tr></table><table width=3D"100%" cellPad=
+ding=3D"0" cellSpacing=3D"0" role=3D"none" style=3D"background-color:#F3F2F=
+1"><tr><td style=3D"padding:8px" align=3D"center"><div id=3D"responsive_css=
+_ping"></div><style>@media only screen and (max-width:530px) {=0A          =
+              #responsive_css_ping {=0A                            backgrou=
+nd-image: url(https://subscriptions.indeed.com/imgping=3Faluidhash=3D5b1948=
+7b8173f4bc557a7765cd428f15&alert=3D69cf3bf14824fd1d9e2d3a39&tk=3D1k6dgr5seg=
+a5h800&type=3Djaresponsive);=0A                        }=0A                =
+    }</style><img alt=3D" " src=3D"https://subscriptions.indeed.com/imgping=
+=3Faluidhash=3D5b19487b8173f4bc557a7765cd428f15&alert=3D69cf3bf14824fd1d9e2=
+d3a39&tk=3D1k6dgr5sega5h800&type=3Dja" height=3D"0" width=3D"1" style=3D"di=
+splay:block"/><h1 style=3D"font-size:0;line-height:0;margin:0;padding:0;ove=
+rflow:hidden;height:0;width:0;text-indent:-9999px">$21.64 - $26.44 an hour.=
+ *The Role & Responsibilities*=0A=0ATuition.io=E2=80=99s Program Success (C=
+ustomer Support) department is growing and we are looking to add another ex=
+ceptional associate to the team. This is a diverse, fast-paced customer sup=
+port/call center style role including the following responsibilities:=0A=0A=
+* This opening is...</h1><table class=3D"full-wrap" cellPadding=3D"0" cellS=
+pacing=3D"0" border=3D"0" align=3D"center" style=3D"min-width:100%" bgcolor=
+=3D"#f3f2f1" width=3D"100%" role=3D"presentation"><tr><td align=3D"center" =
+valign=3D"top" class=3D"pt-0" style=3D"padding:15px 0 0"><!--[if (gt mso 9)=
+|(IE)]>=0A        <table width=3D"600" cellpadding=3D"0" cellspacing=3D"0" =
+border=3D"0"=0A                bgcolor=3D"#ffffff" style=3D"width:600px;" r=
+ole=3D"presentation">=0A                    <tr>=0A                        =
+<td align=3D"center" valign=3D"top">=0A        <![endif]-->=0A<table class=
+=3D"outerContainer" cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=
+=3D"center" style=3D"max-width:600px" bgcolor=3D"#ffffff" width=3D"100%" ro=
+le=3D"presentation"><tr><td align=3D"center" valign=3D"top"><table cellPadd=
+ing=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" bgcolor=3D"#ffffff"=
+ width=3D"100%" role=3D"presentation"><tr><td align=3D"center" valign=3D"to=
+p" class=3D"ph-16" style=3D"padding:20px 15px 28px;border-bottom:0"><table =
+cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" width=3D"10=
+0%" role=3D"presentation"><tr><td align=3D"center" valign=3D"top" style=3D"=
+padding:0px"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=
+=3D"left" width=3D"100%" role=3D"presentation"><tr><td align=3D"left" valig=
+n=3D"middle"><a href=3D"https://clk.indeed.com/hp=3Fco=3DUS&utm_campaign=3D=
+job_alerts&utm_medium=3Demail&utm_source=3Djobseeker_emails&from=3Dja&tk=3D=
+1k6dgr5sega5h800"><img src=3D"https://prod.statics.indeed.com/eml/assets/im=
+ages/logo/indeed_en_color.png" alt=3D"Indeed Logo" width=3D"80" height=3D"2=
+3" style=3D"font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-=
+serif;color:#004fcb;font-size:20px;display:block"/></a></td><td align=3D"ri=
+ght" valign=3D"middle" style=3D"padding:0px"><table cellPadding=3D"0" cellS=
+pacing=3D"0" border=3D"0" align=3D"right" role=3D"presentation"><tr><td ali=
+gn=3D"center" valign=3D"bottom" style=3D"padding:0px" class=3D"hide"><p sty=
+le=3D"color:#595959;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Aria=
+l, sans-serif;font-size:14px;font-weight:normal;line-height:21px;margin:0;p=
+adding:0;white-space:nowrap"><a href=3D"https://cts.indeed.com/v3/H4sIAAAAA=
+AAA_z2MQQ6DIBBF7zLrRjpN1coNuu8FzEDAIELoTEhjvHtx4_K_9_J3ENDgmfNXK1Vr7ZbNWGs6=
+SlHBDSLoHWaiJBu_TUsfiM9-GoepSVoXCh9fkjjfFBexF_1lex6naPPsTsyhbQyDcWUkWlH4dUc=
+4jj-47rNmggAAAA/Y1vu6xRZiIgUCdiKYiYbRBHiQTb542UBIppygNs9HhQ" style=3D"color=
+:#004fcb;font-weight:normal;text-decoration:underline" class=3D"standard-te=
+xt-link">Find Jobs</a></p></td><td align=3D"right" valign=3D"bottom" style=
+=3D"padding:0px 0px 0px 16px"><p style=3D"color:#595959;font-family:'Indeed=
+ Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:14px;font-weigh=
+t:normal;line-height:21px;margin:0;padding:0;white-space:nowrap"><a href=3D=
+"https://cts.indeed.com/v3/H4sIAAAAAAAA_02N3QqCQBCF32VBr0pbK0tBopug6-oBZJx2=
+159dWXeREN-9MSKCuTh8h_PNxDzLmXSuH_I4HhC8xUjpCrGKwHRxCWC8dnFrhNInMNop7bH4DIL=
+tOUgudOM4_m0IhE9ruqIuQzDF4xbKtkDNVqxj-cS-xmtFfxPOd_vskGZUQquguUtrvJBUOevxR1=
+89EhqU0Gu1iBY9gbqk7BpKvEkrYQ8ALffuuOFsnt9J2sEc2gAAAA/m4ByaFZZkaPNPmo0j3LL5X=
+9kVz3SwdoptuRc2d1Wzmc" style=3D"color:#004fcb;font-weight:normal;text-decor=
+ation:underline" class=3D"standard-text-link">Sign in</a></p></td></tr></ta=
+ble></td></tr></table></td></tr></table></td></tr></table></td></tr></table=
+><!--[if (gt mso 9)|(IE)]>=0A        </td></tr></table>=0A        <![endif]=
+-->=0A</td></tr></table><table class=3D"full-wrap" cellPadding=3D"0" cellSp=
+acing=3D"0" border=3D"0" align=3D"center" style=3D"min-width:100%" bgcolor=
+=3D"#f3f2f1" width=3D"100%" role=3D"presentation"><tr><td align=3D"center" =
+valign=3D"top"><!--[if (gt mso 9)|(IE)]>=0A        <table width=3D"600" cel=
+lpadding=3D"0" cellspacing=3D"0" border=3D"0"=0A                bgcolor=3D"=
+#ffffff" style=3D"width:600px;" role=3D"presentation">=0A                  =
+  <tr>=0A                        <td align=3D"center" valign=3D"top">=0A   =
+     <![endif]-->=0A<table class=3D"outerContainer" cellPadding=3D"0" cellS=
+pacing=3D"0" border=3D"0" align=3D"center" style=3D"max-width:600px" bgcolo=
+r=3D"#ffffff" width=3D"100%" role=3D"presentation"><tr><td align=3D"center"=
+ valign=3D"top" class=3D"ph-16" style=3D"padding-top:24px;padding-left:48px=
+;padding-right:48px"><h2 class=3D"h2-md" style=3D"color:#2d2d2d;font-family=
+:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:24px;fo=
+nt-weight:bold;line-height:125%;margin:0;padding:0;text-align:center">2 new=
+ entry level software jobs in Davis, CA, 95616</h2></td></tr><tr><td align=
+=3D"center" valign=3D"top" class=3D"ph-16" style=3D"padding-top:8px;padding=
+-left:48px;padding-right:48px;padding-bottom:24px"><p style=3D"color:#59595=
+9;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font=
+-size:14px;font-weight:normal;line-height:21px;margin:0;padding:0;text-alig=
+n:center">These jobs match your saved job alert =C2=B9</p></td></tr></table=
+><!--[if (gt mso 9)|(IE)]>=0A        </td></tr></table>=0A        <![endif]=
+-->=0A</td></tr></table><table class=3D"full-wrap" cellPadding=3D"0" cellSp=
+acing=3D"0" border=3D"0" align=3D"center" style=3D"min-width:100%" bgcolor=
+=3D"#f3f2f1" width=3D"100%" role=3D"presentation"><tr><td align=3D"center" =
+valign=3D"top"><!--[if (gt mso 9)|(IE)]>=0A        <table width=3D"600" cel=
+lpadding=3D"0" cellspacing=3D"0" border=3D"0"=0A                bgcolor=3D"=
+#ffffff" style=3D"width:600px;" role=3D"presentation">=0A                  =
+  <tr>=0A                        <td align=3D"center" valign=3D"top">=0A   =
+     <![endif]-->=0A<table class=3D"outerContainer" cellPadding=3D"0" cellS=
+pacing=3D"0" border=3D"0" align=3D"center" style=3D"max-width:600px" bgcolo=
+r=3D"#ffffff" width=3D"100%" role=3D"presentation"><tr><td align=3D"center"=
+ valign=3D"top" style=3D"padding:28px 16px 0"><table class=3D"width-100" ce=
+llPadding=3D"0" cellSpacing=3D"0" border=3D"0" style=3D"border:1px solid #e=
+4e2e0;border-radius:20px" bgcolor=3D"#ffffff" width=3D"100%" role=3D"presen=
+tation"><tr><td align=3D"center" valign=3D"top" style=3D"padding:16px"><tab=
+le cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" width=3D"100%" role=3D"=
+presentation"><tr><td align=3D"left" valign=3D"top" style=3D"padding-bottom=
+:0"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" width=3D"100%" =
+role=3D"presentation"><tr><td align=3D"left" valign=3D"top"><h2 style=3D"co=
+lor:#2d2d2d;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-=
+serif;font-size:16px;font-weight:bold;line-height:24px;margin:0;padding:0">=
+<a href=3D"https://www.indeed.com/rc/clk/dl=3Fjk=3D5506fd8de6daf256&from=3D=
+ja&qd=3DRnZhMybXSk4M3QtTVGXWoUGvdYkahSX9KRBG2bMQv0NGWwESon8JyK90wHQGXURD0p0=
+RIYJV-KGEWYAcYGrT12z3gbFXghUE7z2syx7XtPHgUuPi676KKj46ssf10V22&rd=3DAhaf72ZD=
+ihptgqsdvrpp6ZXef5NkBUPQ3HkIyXCDpdM&tk=3D1k6dgr5sega5h800&alid=3D69cf3bf148=
+24fd1d9e2d3a39&bb=3DN_bn0ld2tbxxF3leBsn2EU3oQiG6GZN31BfNY3YIhSmnQgouQUAc7eq=
+el7DpHM9wRQGpXWzdqh_FbaIrNyitZq5hh9pCscPnB3hiohWt-BrzdMcv6iQpSPmLworlSF6aSa=
+IrIMHKmM0eoEEvrVwD2WSlezAk2jwLVHhrZdEpFm85-f5jiSsib6GLnKQ71zCpGxDyORg-xbI%3=
+D&tmtk=3D1k6dgr5sega5h800" style=3D"color:#2d2d2d;font-weight:bold;text-dec=
+oration:underline" class=3D"strong-text-link">Program Success Associate</a>=
+</h2></td></tr><tr><td align=3D"center" valign=3D"top"><table cellPadding=
+=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" width=3D"100%" role=3D=
+"presentation"><tr><td><table cellPadding=3D"0" cellSpacing=3D"0" border=3D=
+"0" align=3D"left" width=3D"100%" role=3D"presentation"><tr><td align=3D"le=
+ft" valign=3D"top"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" =
+role=3D"presentation"><tr><td style=3D"padding:0 12px 0 0"><p style=3D"colo=
+r:#2d2d2d;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-se=
+rif;font-size:14px;font-weight:normal;line-height:21px;margin:0;padding:0">=
+Tuition.io, Inc.</p></td></tr></table></td></tr><tr><td align=3D"left" vali=
+gn=3D"top"><p style=3D"color:#2d2d2d;font-family:'Indeed Sans', 'Noto Sans'=
+, Helvetica, Arial, sans-serif;font-size:14px;font-weight:normal;line-heigh=
+t:21px;margin:0;padding:0">California</p></td></tr></table></td></tr></tabl=
+e></td></tr></table></td></tr><tr><td align=3D"left" valign=3D"top" style=
+=3D"padding:4px 0 0"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0=
+" align=3D"left" style=3D"border-radius:8px;margin:4px 4px 0 0;display:inli=
+ne-block" bgcolor=3D"#f3f2f1" role=3D"presentation"><tr><td align=3D"center=
+" valign=3D"top" style=3D"padding:3px 8px 3px 8px"><p style=3D"color:#59595=
+9;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font=
+-size:14px;font-weight:bold;line-height:21px;margin:0;padding:0">$21.64 - $=
+26.44 an hour</p></td></tr></table></td></tr><tr><td align=3D"left" valign=
+=3D"top" style=3D"padding:8px 0 0"><table cellPadding=3D"0" cellSpacing=3D"=
+0" border=3D"0" align=3D"left" style=3D"margin:4px 4px 0 0;float:left" role=
+=3D"presentation"><tr><td width=3D"24" valign=3D"middle" align=3D"left"><im=
+g src=3D"https://prod.statics.indeed.com/eml/assets/images/lunchbox-icons/p=
+lane_filled_primary_outline.png" alt=3D" " width=3D"20" style=3D"vertical-a=
+lign:middle"/></td><td><p style=3D"color:#2d2d2d;font-family:'Indeed Sans',=
+ 'Noto Sans', Helvetica, Arial, sans-serif;font-size:14px;font-weight:norma=
+l;line-height:21px;margin:0;padding:0">Easily apply</p></td></tr></table></=
+td></tr><tr><td align=3D"left" valign=3D"top" style=3D"padding:0"><p style=
+=3D"color:#767676;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial,=
+ sans-serif;font-size:12px;font-weight:normal;line-height:18px;margin:8px 0=
+ 0;padding:0">6 days ago</p></td></tr></table></td></tr></table></td></tr><=
+tr><td align=3D"center" valign=3D"top" style=3D"padding:16px 16px 0"><table=
+ class=3D"width-100" cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" style=
+=3D"border:1px solid #e4e2e0;border-radius:20px" bgcolor=3D"#ffffff" width=
+=3D"100%" role=3D"presentation"><tr><td align=3D"center" valign=3D"top" sty=
+le=3D"padding:16px"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0"=
+ width=3D"100%" role=3D"presentation"><tr><td align=3D"left" valign=3D"top"=
+ style=3D"padding-bottom:0"><table cellPadding=3D"0" cellSpacing=3D"0" bord=
+er=3D"0" width=3D"100%" role=3D"presentation"><tr><td align=3D"left" valign=
+=3D"top"><h2 style=3D"color:#2d2d2d;font-family:'Indeed Sans', 'Noto Sans',=
+ Helvetica, Arial, sans-serif;font-size:16px;font-weight:bold;line-height:2=
+4px;margin:0;padding:0"><a href=3D"https://www.indeed.com/rc/clk/dl=3Fjk=3D=
+e29c168681c258f6&from=3Dja&qd=3DRnZhMybXSk4M3QtTVGXWoUGvdYkahSX9KRBG2bMQv0N=
+GWwESon8JyK90wHQGXURD0p0RIYJV-KGEWYAcYGrT12z3gbFXghUE7z2syx7XtPHgUuPi676KKj=
+46ssf10V22&rd=3DAhaf72ZDihptgqsdvrpp6ZXef5NkBUPQ3HkIyXCDpdM&tk=3D1k6dgr5seg=
+a5h800&alid=3D69cf3bf14824fd1d9e2d3a39&bb=3DSmEXkYEgKaZ99LX4lNnLE4YZT_1zvR7=
+0KUowmd2lkYS7_lcHj4AvEmoVdIPnxDs2TMq5NeTx5gfSZeCUxPaELz-ZiK6mXZDjPbCf7TCriF=
+vK2QszPe3Dw5fK3Zda7BQnEw6Jt79B5092Hi9QIuhNW1z9xaiyHo98wfPaB2wbkYDDUhxnU7Ag1=
+lSoTc7lHg5VSilUvfJqwKU%3D&tmtk=3D1k6dgr5sega5h800" style=3D"color:#2d2d2d;f=
+ont-weight:bold;text-decoration:underline" class=3D"strong-text-link">Busin=
+ess Analyst (Eastern Time Zone work hours required)</a></h2></td></tr><tr><=
+td align=3D"center" valign=3D"top"><table cellPadding=3D"0" cellSpacing=3D"=
+0" border=3D"0" align=3D"left" width=3D"100%" role=3D"presentation"><tr><td=
+><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" wid=
+th=3D"100%" role=3D"presentation"><tr><td align=3D"left" valign=3D"top"><ta=
+ble cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" role=3D"presentation">=
+<tr><td style=3D"padding:0 12px 0 0"><p style=3D"color:#2d2d2d;font-family:=
+'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:14px;fon=
+t-weight:normal;line-height:21px;margin:0;padding:0">Columbian Financial Gr=
+oup</p></td></tr></table></td></tr><tr><td align=3D"left" valign=3D"top"><p=
+ style=3D"color:#2d2d2d;font-family:'Indeed Sans', 'Noto Sans', Helvetica, =
+Arial, sans-serif;font-size:14px;font-weight:normal;line-height:21px;margin=
+:0;padding:0">United States</p></td></tr></table></td></tr></table></td></t=
+r></table></td></tr><tr><td align=3D"left" valign=3D"top" style=3D"padding:=
+4px 0 0"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"l=
+eft" style=3D"border-radius:8px;margin:4px 4px 0 0;display:inline-block" bg=
+color=3D"#f3f2f1" role=3D"presentation"><tr><td align=3D"center" valign=3D"=
+top" style=3D"padding:3px 8px 3px 8px"><p style=3D"color:#595959;font-famil=
+y:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:14px;f=
+ont-weight:bold;line-height:21px;margin:0;padding:0">$52,000 - $56,000 a ye=
+ar</p></td></tr></table></td></tr><tr><td align=3D"left" valign=3D"top" sty=
+le=3D"padding:8px 0 0"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D=
+"0" align=3D"left" style=3D"margin:4px 4px 0 0;float:left" role=3D"presenta=
+tion"><tr><td width=3D"24" valign=3D"middle" align=3D"left"><img src=3D"htt=
+ps://prod.statics.indeed.com/eml/assets/images/lunchbox-icons/plane_filled_=
+primary_outline.png" alt=3D" " width=3D"20" style=3D"vertical-align:middle"=
+/></td><td><p style=3D"color:#2d2d2d;font-family:'Indeed Sans', 'Noto Sans'=
+, Helvetica, Arial, sans-serif;font-size:14px;font-weight:normal;line-heigh=
+t:21px;margin:0;padding:0">Easily apply</p></td></tr></table></td></tr><tr>=
+<td align=3D"left" valign=3D"top" style=3D"padding:0"><p style=3D"color:#76=
+7676;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;f=
+ont-size:12px;font-weight:normal;line-height:18px;margin:8px 0 0;padding:0"=
+>9 days ago</p></td></tr></table></td></tr></table></td></tr></table><!--[i=
+f (gt mso 9)|(IE)]>=0A        </td></tr></table>=0A        <![endif]-->=0A<=
+/td></tr></table><table class=3D"full-wrap" cellPadding=3D"0" cellSpacing=
+=3D"0" border=3D"0" align=3D"center" style=3D"min-width:100%" bgcolor=3D"#f=
+3f2f1" width=3D"100%" role=3D"presentation"><tr><td align=3D"center" valign=
+=3D"top"><!--[if (gt mso 9)|(IE)]>=0A        <table width=3D"600" cellpaddi=
+ng=3D"0" cellspacing=3D"0" border=3D"0"=0A                bgcolor=3D"#fffff=
+f" style=3D"width:600px;" role=3D"presentation">=0A                    <tr>=
+=0A                        <td align=3D"center" valign=3D"top">=0A        <=
+![endif]-->=0A<table class=3D"outerContainer" cellPadding=3D"0" cellSpacing=
+=3D"0" border=3D"0" align=3D"center" style=3D"max-width:600px" bgcolor=3D"#=
+ffffff" width=3D"100%" role=3D"presentation"><tr><td align=3D"center" valig=
+n=3D"top" style=3D"padding:28px 0 0"><table cellPadding=3D"0" cellSpacing=
+=3D"0" border=3D"0" align=3D"center" width=3D"100%" role=3D"presentation"><=
+tr><td align=3D"center" style=3D"padding:0"><table class=3D"width-100" cell=
+Padding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"center" role=3D"prese=
+ntation"><tr><td align=3D"center" class=3D"stack cta center-align-text" sty=
+le=3D"border-radius:12px;border:1px solid #004fcb"><a href=3D"https://www.i=
+ndeed.com/jobs=3Fq=3Dentry+level+software&hl=3Den&from=3Dja&l=3DDavis%2C+CA=
+%2C+95616&radius=3D25&alid=3D69cf3bf14824fd1d9e2d3a39&tmtk=3D1k6dgr5sega5h8=
+00&utm_campaign=3Djob_alerts&utm_medium=3Demail&utm_source=3Djobseeker_emai=
+ls&of=3D1&fr=3Dt" class=3D"primary-button" style=3D"background-color:#004fc=
+b;font-size:16px;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial, =
+sans-serif;font-weight:bold;text-decoration:none;padding:12px 16px;color:#f=
+fffff;display:block;border-radius:11px;min-width:200px;width:300px;mso-padd=
+ing-alt:0;text-underline-color:#2557a7"><!--[if mso]>=0A        <i style=3D=
+"mso-font-width:100%;mso-text-raise:150%" hidden=3D"">&emsp;&#8203;</i>=0A =
+       <![endif]-->=0A<span style=3D"mso-text-raise:75%">View all jobs<!--[=
+if mso]>=0A        <i style=3D"mso-font-width:100%" hidden=3D"">&emsp;&#820=
+3;</i>=0A        <![endif]-->=0A</span></a></td></tr></table></td></tr></ta=
+ble></td></tr><tr><td align=3D"center" valign=3D"top" style=3D"padding:16px=
+ 0 28px"><p style=3D"color:#595959;font-family:'Indeed Sans', 'Noto Sans', =
+Helvetica, Arial, sans-serif;font-size:16px;font-weight:normal;line-height:=
+24px;margin:0;padding:0;text-align:center">View jobs: <a href=3D"https://ww=
+w.indeed.com/jobs=3Fq=3Dentry+level+software&hl=3Den&from=3Dja&l=3DDavis%2C=
++CA%2C+95616&radius=3D25&alid=3D69cf3bf14824fd1d9e2d3a39&tmtk=3D1k6dgr5sega=
+5h800&utm_campaign=3Djob_alerts&utm_medium=3Demail&utm_source=3Djobseeker_e=
+mails&of=3D1&fr=3Db&fromage=3D1" style=3D"color:#004fcb;font-weight:normal;=
+text-decoration:underline" class=3D"standard-text-link">since yesterday</a>=
+ - <a href=3D"https://www.indeed.com/jobs=3Fq=3Dentry+level+software&hl=3De=
+n&from=3Dja&l=3DDavis%2C+CA%2C+95616&radius=3D25&alid=3D69cf3bf14824fd1d9e2=
+d3a39&tmtk=3D1k6dgr5sega5h800&utm_campaign=3Djob_alerts&utm_medium=3Demail&=
+utm_source=3Djobseeker_emails&of=3D1&fr=3Db&fromage=3D7" style=3D"color:#00=
+4fcb;font-weight:normal;text-decoration:underline" class=3D"standard-text-l=
+ink">for last 7 days</a></p></td></tr></table><!--[if (gt mso 9)|(IE)]>=0A =
+       </td></tr></table>=0A        <![endif]-->=0A</td></tr></table><table=
+ class=3D"full-wrap" cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=
+=3D"center" style=3D"min-width:100%" bgcolor=3D"#f3f2f1" width=3D"100%" rol=
+e=3D"presentation"><tr><td align=3D"center" valign=3D"top"><!--[if (gt mso =
+9)|(IE)]>=0A        <table width=3D"600" cellpadding=3D"0" cellspacing=3D"0=
+" border=3D"0"=0A                bgcolor=3D"#f3f2f1" style=3D"width:600px;"=
+ role=3D"presentation">=0A                    <tr>=0A                      =
+  <td align=3D"center" valign=3D"top">=0A        <![endif]-->=0A<table cell=
+Padding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"center" style=3D"max-=
+width:600px" bgcolor=3D"#f3f2f1" width=3D"100%" role=3D"presentation"><tr><=
+td align=3D"left" valign=3D"top" style=3D"padding-left:40px;padding-right:4=
+0px;padding-top:24px" class=3D"ph-16"><p style=3D"color:#595959;font-family=
+:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:14px;fo=
+nt-weight:normal;line-height:21px;margin:0;padding:0"><a href=3D"https://su=
+bscriptions.indeed.com/update/69cf3bf14824fd1d9e2d3a39=3Ftoken=3DCkCjVeF1ly=
+2DhUleZEZHDtqT7rrd6cnLjQCYySdZH8a2NH1zyLAX21U84LNIhzpxfvnU_pxjf90V3lHkJshwz=
+yQdEiCItBgxFkL7kdqHK3VaHzxOhq2BAJI0G9RWyWqI1ypmCxoQ3rEerJomxMgnSl0zIM_9wQ%3=
+D%3D&co=3DUS&hl=3Den&tmtk=3D1k6dgr5sega5h800&from=3DjaEditAlert" style=3D"c=
+olor:#004fcb;font-weight:normal;text-decoration:underline" class=3D"standar=
+d-text-link">Manage this job alert</a></p></td></tr><tr><td align=3D"left" =
+valign=3D"top" style=3D"padding-left:40px;padding-right:40px;padding-top:32=
+px" class=3D"ph-16"><p style=3D"color:#767676;font-family:'Indeed Sans', 'N=
+oto Sans', Helvetica, Arial, sans-serif;font-size:12px;font-weight:normal;l=
+ine-height:18px;margin:0;padding:0"><strong>Do not share this email</strong=
+><br/><br/>This email contains secure links that are personalized for you. =
+Please do not share this email or links with others.</p></td></tr><tr><td a=
+lign=3D"left" valign=3D"top" style=3D"padding-left:40px;padding-right:40px;=
+padding-top:24px" class=3D"ph-16"><p style=3D"color:#767676;font-family:'In=
+deed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:12px;font-w=
+eight:normal;line-height:18px;margin:0;padding:0">Salaries estimated if una=
+vailable. When a job posting doesn't include a salary, we estimate it by lo=
+oking at similar jobs. Estimated salaries are not endorsed by the companies=
+ offering those positions and may vary from actual salaries.</p></td></tr><=
+tr><td align=3D"left" valign=3D"top" style=3D"padding-left:40px;padding-rig=
+ht:40px;padding-top:24px" class=3D"ph-16"><p style=3D"color:#767676;font-fa=
+mily:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:12p=
+x;font-weight:normal;line-height:18px;margin:0;padding:0">=C2=B9 Displayed =
+here are Job Ads that match the job alert query you saved. Indeed may be co=
+mpensated by these employers, helping keep Indeed free for jobseekers. Inde=
+ed ranks Job Ads based on a combination of employer bids and relevance, suc=
+h as your search terms and other activity on Indeed. For more information, =
+see the <a href=3D"https://www.indeed.com/legal=3Fhl=3Den" style=3D"color:#=
+004fcb;font-weight:normal;text-decoration:underline" class=3D"standard-text=
+-link">Indeed Terms of Service</a></p></td></tr><tr><td align=3D"center" va=
+lign=3D"top" style=3D"padding-left:40px;padding-right:40px;padding-top:24px=
+" class=3D"ph-16"><table width=3D"100%" cellPadding=3D"0" cellSpacing=3D"0"=
+ role=3D"presentation" style=3D"border-collapse:collapse"><tr><td style=3D"=
+padding:0px;border-top:1px solid #e4e2e0;line-height:0;width:100%" align=3D=
+"center" valign=3D"top" aria-hidden=3D"true">&nbsp;</td></tr></table></td><=
+/tr></table><!--[if (gt mso 9)|(IE)]>=0A        </td></tr></table>=0A      =
+  <![endif]-->=0A</td></tr></table><table class=3D"full-wrap" cellPadding=
+=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"center" style=3D"min-width:1=
+00%" bgcolor=3D"#f3f2f1" width=3D"100%" role=3D"presentation"><tr><td align=
+=3D"center" valign=3D"top"><!--[if (gt mso 9)|(IE)]>=0A        <table width=
+=3D"600" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"=0A               =
+ bgcolor=3D"#f3f2f1" style=3D"width:600px;" role=3D"presentation">=0A      =
+              <tr>=0A                        <td align=3D"center" valign=3D=
+"top">=0A        <![endif]-->=0A<table class=3D"outerContainer" cellPadding=
+=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"center" style=3D"max-width:6=
+00px;width:600px" bgcolor=3D"#f3f2f1" width=3D"100%" role=3D"presentation">=
+<tr><td align=3D"center" valign=3D"top" style=3D"padding:32px 56px" class=
+=3D"p-24"><table cellPadding=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"=
+left" width=3D"100%" role=3D"presentation"><tr><td align=3D"left" valign=3D=
+"top" style=3D"padding:0px"><table cellPadding=3D"0" cellSpacing=3D"0" bord=
+er=3D"0" align=3D"left" width=3D"100%" role=3D"presentation"><tr><td align=
+=3D"left" style=3D"padding:0px" class=3D"fullWidth pb-24"><table cellPaddin=
+g=3D"0" cellSpacing=3D"0" border=3D"0" align=3D"left" width=3D"100%" role=
+=3D"presentation"><tr><td align=3D"left" valign=3D"top" style=3D"padding:0p=
+x 0px 12px"><a href=3D"https://www.indeed.com"><img src=3D"https://prod.sta=
+tics.indeed.com/eml/assets/images/logo/indeed_en_color.png" alt=3D"Indeed h=
+ome" width=3D"80" style=3D"font-family:'Indeed Sans', 'Noto Sans', Helvetic=
+a, Arial, sans-serif;color:#004fcb;font-size:20px"/></a></td></tr><tr><td a=
+lign=3D"left" valign=3D"top" style=3D"padding:0px" class=3D"fullWidth pb-16=
+"><p style=3D"color:#595959;font-family:'Indeed Sans', 'Noto Sans', Helveti=
+ca, Arial, sans-serif;font-size:12px;font-weight:normal;line-height:18px;ma=
+rgin:0;padding:0">&copy; 2026 Indeed, Inc. <br/>Indeed Tower 200 West 6th S=
+treet, Floor 36, Austin, TX 78701</p><p style=3D"color:#595959;font-family:=
+'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:12px;fon=
+t-weight:normal;line-height:18px;margin:12px 0 0;padding:0">Indeed processe=
+s and analyzes your activity in this email.</p></td></tr></table></td><td a=
+lign=3D"left" style=3D"padding:0px" class=3D"fullWidth left-align-text pt-2=
+0 pb-36" valign=3D"top"><table class=3D"fullWidth" cellPadding=3D"0" cellSp=
+acing=3D"0" border=3D"0" align=3D"right" role=3D"presentation"><tr role=3D"=
+list"><td align=3D"right" valign=3D"top" style=3D"padding:0px 8px 0px  0px"=
+ class=3D"pl-0" role=3D"listitem"><a href=3D"https://www.facebook.com/Indee=
+d" class=3D"standard-text-link" style=3D"color:#004fcb;text-decoration:unde=
+rline;font-size:12px"><img src=3D"https://prod.statics.indeed.com/eml/asset=
+s/images/icons/Facebook_black_whitebg.png" alt=3D"Indeed's Facebook" width=
+=3D"24"/></a></td><td align=3D"left" valign=3D"bottom" style=3D"padding:0px=
+ 8px 0px" class=3D"fullWidth left-align-text" role=3D"listitem"><a href=3D"=
+https://www.instagram.com/indeedworks/" class=3D"standard-text-link" style=
+=3D"color:#004fcb;text-decoration:underline;font-size:12px"><img src=3D"htt=
+ps://prod.statics.indeed.com/eml/assets/images/icons/Instagram_black_whiteb=
+g.png" alt=3D"Indeed's Instagram" width=3D"24"/></a></td></tr></table></td>=
+</tr></table></td></tr><tr><td align=3D"left" valign=3D"top" class=3D"" sty=
+le=3D"padding:24px 0px 0px"><table cellPadding=3D"0" cellSpacing=3D"0" bord=
+er=3D"0" align=3D"left" role=3D"presentation"><tr role=3D"list"><th align=
+=3D"left" style=3D"padding:0 8px 0 0;border-right:1px solid #595959" class=
+=3D"fullWidth br-0" role=3D"listitem"><p style=3D"color:#595959;font-family=
+:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:16px;fo=
+nt-weight:normal;line-height:18px;margin:0;padding:0"><a href=3D"https://ww=
+w.indeed.com" class=3D"standard-text-link" style=3D"color:#004fcb;text-deco=
+ration:underline;font-size:12px">Indeed</a></p></th><th align=3D"left" styl=
+e=3D"padding:0 8px;border-right:1px solid #595959" class=3D"fullWidth pt-24=
+ br-0 pl-0" role=3D"listitem"><p style=3D"color:#595959;font-family:'Indeed=
+ Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:16px;font-weigh=
+t:normal;line-height:18px;margin:0;padding:0"><a href=3D"https://www.indeed=
+.com/legal=3Fhl=3Den#privacy" class=3D"standard-text-link" style=3D"color:=
+#004fcb;text-decoration:underline;font-size:12px">Privacy Policy</a></p></t=
+h><th align=3D"left" style=3D"padding:0 8px;border-right:1px solid #595959"=
+ class=3D"fullWidth pt-24 br-0 pl-0" role=3D"listitem"><p style=3D"color:#5=
+95959;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif;=
+font-size:16px;font-weight:normal;line-height:18px;margin:0;padding:0"><a h=
+ref=3D"https://www.indeed.com/legal=3Fhl=3Den" class=3D"standard-text-link"=
+ style=3D"color:#004fcb;text-decoration:underline;font-size:12px">Terms</a>=
+</p></th><th align=3D"left" style=3D"padding:0 8px;border-right:1px solid #=
+595959" class=3D"fullWidth pt-24 br-0 pl-0" role=3D"listitem"><p style=3D"c=
+olor:#595959;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans=
+-serif;font-size:16px;font-weight:normal;line-height:18px;margin:0;padding:=
+0"><a href=3D"https://support.indeed.com/hc/en-us" class=3D"standard-text-l=
+ink" style=3D"color:#004fcb;text-decoration:underline;font-size:12px">Help<=
+/a></p></th><th align=3D"left" style=3D"padding:0 8px" class=3D"fullWidth p=
+t-24 pl-0" role=3D"listitem"><p style=3D"color:#595959;font-family:'Indeed =
+Sans', 'Noto Sans', Helvetica, Arial, sans-serif;font-size:16px;font-weight=
+:normal;line-height:18px;margin:0;padding:0"><a href=3D"https://subscriptio=
+ns.indeed.com/alerts/cancel=3Ftoken=3DCkCjVeF1ly2DhUleZEZHDtqT7rrd6cnLjQCYy=
+SdZH8a2NH1zyLAX21U84LNIhzpxfvnU_pxjf90V3lHkJshwzyQdEiCItBgxFkL7kdqHK3VaHzxO=
+hq2BAJI0G9RWyWqI1ypmCxoQ3rEerJomxMgnSl0zIM_9wQ%3D%3D&co=3DUS&hl=3Den&tmtk=
+=3D1k6dgr5sega5h800&subId=3D69cf3bf14824fd1d9e2d3a39&rgtk=3D1k6dgr5sega5h80=
+0&from=3Dja" class=3D"standard-text-link" style=3D"color:#004fcb;text-decor=
+ation:underline;font-size:12px">Unsubscribe</a></p></th></tr></table></td><=
+/tr><tr><td align=3D"left" valign=3D"top" style=3D"padding:24px 0 0"><p sty=
+le=3D"color:#595959;font-family:'Indeed Sans', 'Noto Sans', Helvetica, Aria=
+l, sans-serif;font-size:12px;font-weight:normal;line-height:18px;margin:0;p=
+adding:0"><a href=3D"https://cts.indeed.com/v3/H4sIAAAAAAAA_z3LTQrDIBBA4bvM=
+uom1tEkTCF133wvIOKjEqPhTCSF3r6tu38c7oMAMOueQZsZqrb1xkkj26DdmSQnLEIPopEsvbRd=
+ycIEN5gMEoi8uv2Xbb5zfH9M4TA3RGlw_OvqidKMcC_3rHqilEM1X4N6h9gYpNc1ry3wdpIojou=
+UlP68czvMHjK_QH50AAAA/ztW1SZZ5bzhvG3YOZrIJXh2jbQGoY87GQj2dGtJQ2ks" class=3D=
+"standard-text-link" style=3D"color:#004fcb;text-decoration:underline;font-=
+size:12px">Your Privacy Choices <img src=3D"https://dpuk71x9wlmkf.cloudfron=
+t.net/mt/20221121161629/ccpa-icons_privacyoptions123x59.png" alt=3D" " widt=
+h=3D"20" style=3D"width:20px"/></a></p></td></tr></table></td></tr></table>=
+<!--[if (gt mso 9)|(IE)]>=0A        </td></tr></table>=0A        <![endif]-=
+->=0A</td></tr></table><img alt=3D" " src=3D"https://subscriptions.indeed.c=
+om/imgping=3Faluidhash=3D5b19487b8173f4bc557a7765cd428f15&alert=3D69cf3bf14=
+824fd1d9e2d3a39&tk=3D1k6dgr5sega5h800&type=3Djafull" height=3D"0" width=3D"=
+1" style=3D"display:block"/></td></tr></table>=0D=0A<img border=3D"0" width=
+=3D"1" height=3D"1" alt=3D"" src=3D"https://engage.indeed.com/q/DNTmbxdSS-n=
+_YIvB68HY1Q~~/AAR9hBA~/YkZ6s6Az08qCUUudOPZpI7vDyUhHijGc2CFFWjCDSkHNzArJKgwq=
+X_z6kfgnPQvZJvTjCE3uLPNH0a85HF2sSQ~~">=0D=0A</body></html>
+--_----RGGZ6dLM+ZcT3V3Q0R9X0w===_F2/35-48599-3A438EA6--
+

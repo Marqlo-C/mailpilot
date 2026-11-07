@@ -1071,7 +1071,7 @@ export async function classifyJobEmail(
     return null;
   }
 
-  const sanitizedBody = sanitizeEmailBody(options.body).slice(0, 4000);
+  const sanitizedBody = sanitizeEmailBody(options.body).slice(0, 8000);
   const systemPrompt = buildProfileAwareClassifierSystemPrompt(
     ensureCandidateProfileForScoring(options.candidateProfile ?? null)
   );

@@ -8,7 +8,10 @@ export const NON_JOB_NAV_REGEX =
   /(?:unsubscribe|privacy|terms|login|sign-?in|preferences|settings|dashboard|manage-?preferences|opt-?out)/i;
 
 export const DIGEST_CARD_ACTION_REGEX =
-  /(?=\b(?:View this role|View job|See job|Apply now|Apply on company site|Apply|View details|Job details)\b|\[(?:View this role|View job|See job|Apply now|Apply on company site|Apply|View details|Job details|View)\]\(https?:\/\/)/i;
+  /(?=\b(?:View this role|View job|See job|Apply now|Apply on company site|Apply|Quick Apply|View details|Job details)\b|\[(?:View this role|View job|See job|Apply now|Apply on company site|Apply|Quick Apply|View details|Job details|View)\]\(https?:\/\/)/i;
+
+export const EMAIL_FOOTER_START_REGEX =
+  /(?:\n\s*|\b)(?:You (?:are receiving|have received) this email|This email was (?:intended|sent)|Manage (?:your )?(?:email )?preferences|Update (?:your )?(?:communication )?preferences|Unsubscribe from this email|Unsubscribe from all|To stop receiving these emails|If you no longer wish to receive|(?:Copyright\s+)?(?:©|\(c\)|Â©)\s*\d{4}[^\n]*(?:Indeed|Glassdoor|LinkedIn|CareerBuilder|JobLeads|Corporation|Inc|LLC|GmbH)|(?:Privacy Policy\s*[|•·\n]\s*Terms)|(?:Terms of (?:Use|Service)\s*[|•·\n]\s*Privacy)|(?:\[\s*)?Your Privacy Choices|(?:Explore more jobs like this on Glassdoor)|Create (?:a |an |related )?job alert)[^\n]*/i;
 
 /**
  * Structural segmenter that identifies repeating card action blocks in multi-job digests.
@@ -30,7 +33,7 @@ export function segmentDigestBlocks(text: string): string[] {
 
   // 2. Action links at the bottom of cards (e.g. [View this role](url)\n\n or [Apply now](url)\n\n)
   const afterActionRegex =
-    /(?<=\[(?:View this role|View job|See job|Apply now|Apply on company site|Apply|View details|Job details|View)[^\]]*\]\(https?:\/\/[^\)]+\)[^\n]*)\n+/i;
+    /(?<=\[(?:View this role|View job|See job|Apply now|Apply on company site|Apply|Quick Apply|View details|Job details|View)[^\]]*\]\(https?:\/\/[^\)]+\)[^\n]*)\n+/i;
   if (afterActionRegex.test(text)) {
     const blocks = text
       .split(afterActionRegex)
@@ -56,7 +59,7 @@ export function extractCardApplyUrl(block: string): string | null {
   if (!block) return null;
   const markdownMatch =
     block.match(
-      /\[(?:View this role|View job|See job|Apply now|Apply on company site|Apply|View details|Job details|View)\]\((https?:\/\/[^)\s]+)\)/i
+      /\[(?:View this role|View job|See job|Apply now|Apply on company site|Apply|Quick Apply|View details|Job details|View)\]\((https?:\/\/[^)\s]+)\)/i
     ) || block.match(/\[(?:[^\]]+)\]\((https?:\/\/[^)\s]+)\)/i);
   if (markdownMatch && markdownMatch[1]) {
     const url = markdownMatch[1].trim();
@@ -98,6 +101,18 @@ export function cleanEmailPayload(rawHtmlOrText: string): string {
     .replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, "")
     .replace(/data:image\/[^;]+;base64,[^\s"']+/gi, "");
 
+  // Strip phantom zero-width spaces and preheader padding sequences
+  cleaned = cleaned.replace(
+    /(?:&zwnj;|&zwj;|&#820[345];|&#65279;|[\u200B-\u200F\uFEFF\u00AD]|â€[Œ‹Žï»¿\x80-\x9f])+/gi,
+    ""
+  );
+
+  // Insert explicit delimiters between sibling card tables
+  cleaned = cleaned.replace(
+    /<\/table>\s*(?:<(?:\/tr|\/td|\/tbody)>\s*)*<table/gi,
+    "\n\n---\n\n<table"
+  );
+
   // Insert explicit whitespace at closing block elements before stripping tags
   cleaned = cleaned
     .replace(/<\/(?:div|p|td|tr|th|section|li|h[1-6]|table)>/gi, " \n")
@@ -114,6 +129,12 @@ export function cleanEmailPayload(rawHtmlOrText: string): string {
     (_match, href: string, text: string) => markdownHref(href, text)
   );
 
+  // Delimit card action links explicitly
+  cleaned = cleaned.replace(
+    /(\[(?:View this role|View job|See job|Apply now|Apply on company site|Apply|Quick Apply|View details|Job details|View)\]\(https?:\/\/[^\)]+\)[^\n]*)(?:\n+|$)/gi,
+    "$1\n\n---\n\n"
+  );
+
   // Strip remaining tags with padding
   cleaned = cleaned
     .replace(/<[^>]+>/g, " ")
@@ -123,8 +144,9 @@ export function cleanEmailPayload(rawHtmlOrText: string): string {
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
-    .replace(/<[^>]+>/g, " ")
+    .replace(/(?:&nbsp;|\s)*\d(?:\.\d)?\s*(?:★|☆|â˜…|&starf;|\*)\s*/gi, " ")
     .replace(/https?:\/\/\S*(?:\/pixel|track\/open)\S*/gi, " ")
+    .replace(/(?:\s*\n\s*---\s*)+/g, "\n\n---\n\n")
     .replace(/\n\s*\n+/g, "\n\n")
     .trim();
 
@@ -133,6 +155,12 @@ export function cleanEmailPayload(rawHtmlOrText: string): string {
     .replace(/(?:^|\n)\s*(?:[A-Za-z]+\s*\d{1,2}\s*)?based\s*on\s*your\s*saved\s*search[^\n]*(?:\n|$)/gi, "\n\n")
     .replace(/(?:^|\n)\s*avatar\s*(?=\n|$)/gi, "\n")
     .trim();
+
+  // Deterministic footer stripping to eliminate legal disclaimers, unsubscribe blocks, and spam
+  const footerMatch = cleaned.search(EMAIL_FOOTER_START_REGEX);
+  if (footerMatch !== -1) {
+    cleaned = cleaned.slice(0, footerMatch).trim();
+  }
 
   return cleaned.slice(0, 10000);
 }
