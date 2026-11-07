@@ -469,6 +469,44 @@ export function normalizeSalaryDisplay(
 }
 
 /**
+ * Sanitizes an extracted company / employer name:
+ * - Strips trailing review ratings and star icons (e.g. "Apple 4.2 ★" -> "Apple", "Laser Land 5.0 ★" -> "Laser Land")
+ * - Strips trailing parenthetical ratings or scores (e.g. "Acme (4.5 ★)" -> "Acme", "Acme 4.2/5" -> "Acme")
+ * - Strips leading image labels (e.g. "avatar Apple" -> "Apple", "logo Acme" -> "Acme")
+ * - Cleans up dangling punctuation (dashes, dots, bullets) and normalizes whitespace
+ */
+export function sanitizeCompanyName(name: string | null | undefined): string {
+  if (!name || typeof name !== "string") return "";
+
+  let cleaned = name
+    .replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u00AD]/g, "")
+    .trim();
+
+  if (!cleaned) return "";
+
+  // 1. Strip leading image markers (e.g. "avatar ", "logo ")
+  cleaned = cleaned.replace(/^(?:avatar|logo|company\s*logo|employer\s*logo)[:\s-]+/i, "").trim();
+
+  // 2. Strip trailing ratings with stars or review scores (e.g. "5.0 ★", "4.2 ★", "4.5*", "4.8/5", "4.2 out of 5")
+  cleaned = cleaned
+    .replace(
+      /\s*[-–•|·/]?\s*\(?\s*(?:[1-5](?:\.\d)?\s*)?(?:[★☆⭐⭑⭒*]|&#9733;|&starf;|\/\s*5|\bout\s+of\s+5\b)\s*\)?\s*$/i,
+      ""
+    )
+    .trim();
+
+  // 3. Strip trailing standalone decimal rating score (e.g. "Apple 4.2" -> "Apple", "Inceed 4.0" -> "Inceed")
+  if (/[a-zA-Z&.' -]{2,}\s+[1-5]\.\d\s*$/.test(cleaned)) {
+    cleaned = cleaned.replace(/\s+[1-5]\.\d\s*$/, "").trim();
+  }
+
+  // 4. Strip dangling separator punctuation at end
+  cleaned = cleaned.replace(/\s*[-–•|·/]+\s*$/, "").trim();
+
+  return cleaned;
+}
+
+/**
  * Scans free-form job text or description for explicit salary/compensation figures
  * (e.g. "Pay Range: 32.45 - 43.30", "Starting pay $75,000/year", "Salary: $140K-$175K").
  */
@@ -624,6 +662,7 @@ Category rules:
 Extraction rules (metadata must be robust):
 - For JOB_BOARD_DIGEST, extract EVERY distinct job listing into "jobs" (up to 15).
 - For DIRECT_RECRUITER, put exactly one job in "jobs" when a role is discussed.
+- company: hiring company name. Omit employer review ratings and star icons (e.g. for "Apple 4.2 ★" or "Laser Land 5.0 ★", extract "Apple" or "Laser Land"). Never include ratings, stars, or "avatar" in company.
 - companyDomain: inferred hiring-company website (e.g. "hpe.com"). Never use glassdoor/indeed/linkedin as the company domain.
 - location: city/region/remote text if present, else null.
 - salary: explicit compensation text if present (keep human-readable string with $ amounts, e.g. "$120k - $150k" or "$15 - $20/hr"). For hourly pay, always include "/hr". Omit platform notes like "(Employer est.)" or "DOE". Else null.

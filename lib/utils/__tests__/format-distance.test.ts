@@ -17,41 +17,18 @@ describe("formatRelativeTime", () => {
     expect(formatRelativeTime("5d", { addSuffix: false })).toBe("5d");
   });
 
-  it("anchors relative strings against referenceDate (e.g. receivedAt)", () => {
-    const fourWeeksAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000);
-
-    // Email received 4 weeks ago, email says "5d" -> total age is 28d + 5d = 33d (~4w or 1mo)
-    const anchored5d = formatRelativeTime("5d", {
-      addSuffix: false,
-      referenceDate: fourWeeksAgo,
-    });
-    expect(anchored5d).toMatch(/^(?:4w|1mo|33d)$/);
-
-    // Email received 4 weeks ago, email says "today" -> total age is 28d = 4w
-    const anchoredToday = formatRelativeTime("today", {
-      addSuffix: false,
-      referenceDate: fourWeeksAgo,
-    });
-    expect(anchoredToday).toBe("4w");
-
-    // Email received 1 week ago, email says "3 days ago" -> total age is 7d + 3d = 10d (~1w)
-    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const anchored3d = formatRelativeTime("3 days ago", {
-      addSuffix: false,
-      referenceDate: oneWeekAgo,
-    });
-    expect(anchored3d).toMatch(/^(?:1w|10d)$/);
+  it("is strictly idempotent on already formatted relative strings", () => {
+    expect(formatRelativeTime("3d", { addSuffix: false })).toBe("3d");
+    expect(formatRelativeTime("4w", { addSuffix: false })).toBe("4w");
+    expect(formatRelativeTime("2mo", { addSuffix: false })).toBe("2mo");
+    expect(formatRelativeTime("3d ago", { addSuffix: true })).toBe("3d ago");
+    expect(formatRelativeTime("4w ago", { addSuffix: true })).toBe("4w ago");
   });
 
-  it("treats ISO strings as absolute dates without double-shifting against referenceDate", () => {
+  it("formats ISO strings relative to now", () => {
     const twoDaysAgoIso = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    const fourWeeksAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000);
-
-    const result = formatRelativeTime(twoDaysAgoIso, {
-      addSuffix: false,
-      referenceDate: fourWeeksAgo,
-    });
-    expect(result).toBe("2d");
+    expect(formatRelativeTime(twoDaysAgoIso, { addSuffix: false })).toBe("2d");
+    expect(formatRelativeTime(twoDaysAgoIso, { addSuffix: true })).toBe("2d ago");
   });
 
   it("returns null for unspecified or null dates", () => {

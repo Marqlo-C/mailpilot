@@ -25,7 +25,11 @@ import {
   normalizeSalaryDisplay,
   parseSalaryMax,
 } from "@/lib/ai/classifier";
-import { normalizePostedAt } from "@/lib/opportunities/context";
+import {
+  normalizePostedAt,
+  relativeTimeToIso,
+  sanitizeCompanyName,
+} from "@/lib/opportunities/context";
 import {
   getCompanyLogoUrl,
   inferDomainFromUrl,
@@ -905,7 +909,7 @@ export async function persistClassifiedEmail(input: {
   const excludedTitles = rules.excludedTitles ?? [];
   let opportunitiesUpserted = 0;
   for (const job of classification.jobs) {
-    const cleanCompany = job.company.trim();
+    const cleanCompany = sanitizeCompanyName(job.company);
     const cleanTitle = job.title
       .replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u00AD]/g, "")
       .replace(/\s+/g, " ")
@@ -1053,6 +1057,8 @@ export async function persistClassifiedEmail(input: {
             : existing.salaryMax;
 
       const resolvedPostedAt =
+        relativeTimeToIso(job.postedAt, emailDate) ??
+        relativeTimeToIso(existing.postedAt, existing.receivedAt) ??
         normalizePostedAt(job.postedAt, null, emailDate) ??
         normalizePostedAt(existing.postedAt, null, existing.receivedAt);
 
@@ -1110,7 +1116,9 @@ export async function persistClassifiedEmail(input: {
         : initialSalary
           ? parseSalaryMax(initialSalary)
           : null;
-    const initialPostedAt = normalizePostedAt(job.postedAt, null, emailDate);
+    const initialPostedAt =
+      relativeTimeToIso(job.postedAt, emailDate) ??
+      normalizePostedAt(job.postedAt, null, emailDate);
     const jobClassificationMethod =
       job.classificationMethod ?? classificationMethod ?? "AI";
 

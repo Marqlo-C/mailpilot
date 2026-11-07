@@ -21,17 +21,22 @@ import {
   heuristicMatchScore,
   parseSalaryMax,
   normalizeSalaryDisplay,
+  sanitizeCompanyName,
   seniorityMismatchPenalty,
   type CandidateProfileSummary,
 } from "@/lib/ai/classifier";
 import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import { JOB_BOARD_KEYWORDS } from "@/lib/constants/job-sources";
 import { extractLocationFromText, parseLocation, standardizeLocation } from "@/lib/utils/location";
-import { resolveJobOpportunity, normalizePostedAt } from "@/lib/opportunities/context";
+import {
+  resolveJobOpportunity,
+  normalizePostedAt,
+  relativeTimeToIso,
+} from "@/lib/opportunities/context";
 import { evaluateOpportunityMatch } from "@/lib/matching/evaluator";
 import { extractMatchCandidateLens } from "@/lib/matching/lens";
 
-export { normalizeSalaryDisplay } from "@/lib/ai/classifier";
+export { normalizeSalaryDisplay, sanitizeCompanyName } from "@/lib/ai/classifier";
 import {
   looksLikeDigest,
   shouldClassifyEmail,
@@ -579,7 +584,7 @@ export function normalizeClassification(
     }
 
     // Safe Employer De-Biasing Gate: NEVER de-bias on DIRECT_RECRUITER emails
-    let resolvedCompany = job.company;
+    let resolvedCompany = sanitizeCompanyName(job.company);
     if (!isValidEmployerName(resolvedCompany)) {
       resolvedCompany = "Unknown Company";
     }
@@ -664,12 +669,15 @@ export function normalizeClassification(
         job.description?.match(/([A-Z0-9][A-Za-z0-9&.' -]{1,35})\s+(?:is|are)\s+hiring/i);
 
       let candidateEmployer: string | null = null;
-      if (titleMatch?.[1] && isValidEmployerName(titleMatch[1])) {
-        candidateEmployer = titleMatch[1];
-      } else if (blockEmployer && isValidEmployerName(blockEmployer)) {
-        candidateEmployer = blockEmployer;
-      } else if (descMatch?.[1] && isValidEmployerName(descMatch[1])) {
-        candidateEmployer = descMatch[1];
+      if (titleMatch?.[1]) {
+        const cleaned = sanitizeCompanyName(titleMatch[1]);
+        if (isValidEmployerName(cleaned)) candidateEmployer = cleaned;
+      } else if (blockEmployer) {
+        const cleaned = sanitizeCompanyName(blockEmployer);
+        if (isValidEmployerName(cleaned)) candidateEmployer = cleaned;
+      } else if (descMatch?.[1]) {
+        const cleaned = sanitizeCompanyName(descMatch[1]);
+        if (isValidEmployerName(cleaned)) candidateEmployer = cleaned;
       }
 
       if (candidateEmployer) {
@@ -795,11 +803,16 @@ export function normalizeClassification(
           ? parseSalaryMax(normalizedSalary)
           : null;
 
-    const normalizedPostedAt = normalizePostedAt(
-      job.postedAt,
-      null,
-      context.receivedAt ?? context.emailDate
-    );
+    const normalizedPostedAt =
+      relativeTimeToIso(
+        job.postedAt,
+        context.receivedAt ?? context.emailDate ?? new Date()
+      ) ??
+      normalizePostedAt(
+        job.postedAt,
+        null,
+        context.receivedAt ?? context.emailDate
+      );
 
     const rawDescription = job.description ?? null;
     let description = cleanOpportunityDescription(rawDescription);
@@ -876,7 +889,7 @@ export function normalizeClassification(
     return {
       ...job,
       title: resolvedTitle,
-      company: resolvedCompany,
+      company: sanitizeCompanyName(resolvedCompany),
       companyDomain,
       logoUrl: job.logoUrl ?? null,
       location: resolvedLocation,

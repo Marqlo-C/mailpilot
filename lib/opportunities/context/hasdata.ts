@@ -228,6 +228,23 @@ export async function fetchViaHasData(
           ? job.postedAt.trim()
           : undefined;
 
+    // 7. Company Logo
+    let logoUrl: string | undefined;
+    const rawLogo =
+      job.logoUrl ??
+      job.logo ??
+      job.companyLogo ??
+      (typeof job.company === "object" && job.company !== null && "logo" in job.company
+        ? (job.company as { logo?: unknown }).logo
+        : undefined) ??
+      (typeof job.employer === "object" && job.employer !== null && "logo" in job.employer
+        ? (job.employer as { logo?: unknown }).logo
+        : undefined);
+
+    if (typeof rawLogo === "string" && /^https?:\/\//i.test(rawLogo.trim())) {
+      logoUrl = rawLogo.trim();
+    }
+
     return {
       data: {
         title,
@@ -237,6 +254,7 @@ export async function fetchViaHasData(
         description: cleanDescription || undefined,
         applyUrl,
         datePosted,
+        logoUrl,
       },
       status: res.status,
     };

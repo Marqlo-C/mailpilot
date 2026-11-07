@@ -9,6 +9,7 @@ import {
   isLegitimateJobContent,
   recordScraperFailure,
   scrapeJobPostingJsonLd,
+  stripTrackingParams,
   transformToLinkedInGuestUrl,
   unwrapTrackingUrl,
 } from "../json-ld";
@@ -178,6 +179,39 @@ describe("JSON-LD Link Parser", () => {
     it("leaves clean URLs unchanged", () => {
       const direct = "https://careers.google.com/jobs/results/12345";
       expect(unwrapTrackingUrl(direct)).toBe(direct);
+    });
+  });
+
+  describe("stripTrackingParams", () => {
+    it("strips analytics and tracking parameters from URLs", () => {
+      const dirtyUrl =
+        "https://www.linkedin.com/jobs/view/123456789/?utm_source=job_alert&utm_medium=email&utm_campaign=daily&trackingId=dGhpcy1pcy1hLXZlcnktbG9uZw==&midToken=AQEBAQE...&trk=eml-job-alert-member";
+      expect(stripTrackingParams(dirtyUrl)).toBe(
+        "https://www.linkedin.com/jobs/view/123456789"
+      );
+    });
+
+    it("preserves legitimate job routing IDs while removing tracking params", () => {
+      const indeedUrl =
+        "https://www.indeed.com/viewjob?jk=abcdef123456&utm_source=jobseeker_emails&utm_medium=email&utm_campaign=job_alerts&trkEmail=123";
+      expect(stripTrackingParams(indeedUrl)).toBe(
+        "https://www.indeed.com/viewjob?jk=abcdef123456"
+      );
+
+      const greenhouseUrl =
+        "https://boards.greenhouse.io/stripe/jobs/12345?gh_jid=12345&utm_content=button&gclid=xyz";
+      expect(stripTrackingParams(greenhouseUrl)).toBe(
+        "https://boards.greenhouse.io/stripe/jobs/12345?gh_jid=12345"
+      );
+    });
+
+    it("leaves clean URLs with or without params untouched", () => {
+      expect(stripTrackingParams("https://example.com/jobs/123")).toBe(
+        "https://example.com/jobs/123"
+      );
+      expect(stripTrackingParams("https://example.com/jobs?id=456&category=eng")).toBe(
+        "https://example.com/jobs?id=456&category=eng"
+      );
     });
   });
 
@@ -668,6 +702,7 @@ describe("JSON-LD Link Parser", () => {
         <!DOCTYPE html>
         <html>
           <body>
+            <img class="artdeco-entity-image" data-delayed-url="https://media.licdn.com/dms/image/v2/xyz/company-logo_200_200/company-logo.png" alt="Acme logo" />
             <div class="show-more-less-html__markup">
               <p>About the role: We are looking for an experienced Senior Product Manager to lead our growth initiatives.</p>
               <p>Responsibilities include roadmap strategy, cross-team alignment, feature execution, and tracking core KPIs.</p>
@@ -698,6 +733,7 @@ describe("JSON-LD Link Parser", () => {
       expect(result.data).not.toBeNull();
       expect(result.data?.applyUrl).toBe("https://www.linkedin.com/jobs/view/4123456789");
       expect(result.data?.description).toContain("About the role: We are looking for an experienced Senior Product Manager");
+      expect(result.data?.logoUrl).toBe("https://media.licdn.com/dms/image/v2/xyz/company-logo_200_200/company-logo.png");
       expect(result.telemetry).toContain("via LinkedIn Guest API");
 
       vi.unstubAllGlobals();

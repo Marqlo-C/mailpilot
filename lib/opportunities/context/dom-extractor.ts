@@ -880,16 +880,37 @@ export function extractJobFromSemanticDom(
   if (!logoUrl) {
     const cdnLogoMatch =
       html.match(
-        /<img[^>]*src=["'](https:\/\/media\.licdn\.com\/dms\/image\/[^"']*company-logo[^"']*)["']/i
+        /<img[^>]*(?:src|data-delayed-url|data-ghost-url)=["'](https:\/\/media\.licdn\.com\/dms\/image\/[^"']+)["']/i
       ) ||
       html.match(
-        /<img[^>]*src=["'](https:\/\/(?:media\.glassdoor\.com|images\.indeed\.com)\/[^"']+)["']/i
+        /<img[^>]*(?:src|data-delayed-url|data-ghost-url)=["'](https:\/\/(?:media\.glassdoor\.com|images\.indeed\.com)\/[^"']+)["']/i
       ) ||
       html.match(
-        /<img[^>]*src=["'](https:\/\/[^"']*(?:workdaycdn\.com|myworkdayjobs\.com)[^"']+)["']/i
+        /<img[^>]*(?:src|data-delayed-url|data-ghost-url)=["'](https:\/\/[^"']*(?:workdaycdn\.com|myworkdayjobs\.com)[^"']+)["']/i
       );
-    if (cdnLogoMatch && !/banner|displayphoto/i.test(cdnLogoMatch[1])) {
-      logoUrl = cdnLogoMatch[1];
+    if (
+      cdnLogoMatch &&
+      !/profile-displayphoto|profile-framedphoto|ghost-person|company-banner|banner/i.test(cdnLogoMatch[1])
+    ) {
+      logoUrl = cdnLogoMatch[1].replace(/&amp;/g, "&");
+    }
+  }
+
+  // 7a1. LinkedIn topcard company logo / artdeco entity image (supports lazy-loaded data-delayed-url)
+  if (!logoUrl && /linkedin\.com/i.test(url + html)) {
+    const liLogoMatch =
+      html.match(
+        /<img[^>]*(?:class|data-test-id|data-test)=["'][^"']*(?:artdeco-entity-image|topcard__logo|company-logo)[^"']*["'][^>]*(?:src|data-delayed-url)=["']([^"']+)["']/i
+      ) ||
+      html.match(
+        /<img[^>]*(?:src|data-delayed-url)=["']([^"']+)["'][^>]*(?:class|data-test-id|data-test)=["'][^"']*(?:artdeco-entity-image|topcard__logo|company-logo)[^"']*["']/i
+      );
+    if (
+      liLogoMatch &&
+      /^https?:\/\//i.test(liLogoMatch[1]) &&
+      !/profile-displayphoto|profile-framedphoto|ghost-person|company-banner|banner/i.test(liLogoMatch[1])
+    ) {
+      logoUrl = liLogoMatch[1].replace(/&amp;/g, "&");
     }
   }
 
