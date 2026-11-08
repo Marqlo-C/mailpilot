@@ -85,6 +85,21 @@ function roleParagraph(
   beforeDxa = RESUME_SPACING.roleToRole.dxa,
   afterDxa = RESUME_SPACING.roleTitleToFirstBullet.dxa
 ): string {
+  const parts = title.split(/\s*[|·]\s*/);
+  let titleRuns: string;
+  if (parts.length > 1) {
+    const [role, ...rest] = parts;
+    titleRuns = [
+      run(role, { bold: true, size: RESUME_TYPOGRAPHY.roleTitle.pt * 2 }),
+      ...rest.map(
+        (part) =>
+          `${run(" | ", { size: RESUME_TYPOGRAPHY.roleTitle.pt * 2, color: "9CA3AF" })}${run(part, { size: RESUME_TYPOGRAPHY.roleTitle.pt * 2, color: "4B5563" })}`
+      ),
+    ].join("");
+  } else {
+    titleRuns = run(title, { bold: true, size: RESUME_TYPOGRAPHY.roleTitle.pt * 2 });
+  }
+
   const date = trailing
     ? `<w:r><w:tab/></w:r>${run(trailing, { size: RESUME_TYPOGRAPHY.muted.pt * 2, color: "4B5563" })}`
     : "";
@@ -93,7 +108,7 @@ function roleParagraph(
       <w:tabs><w:tab w:val="right" w:pos="10800"/></w:tabs>
       ${spacing(beforeDxa, afterDxa)}
     </w:pPr>
-    ${run(title, { bold: true, size: RESUME_TYPOGRAPHY.roleTitle.pt * 2 })}${date}
+    ${titleRuns}${date}
   </w:p>`;
 }
 

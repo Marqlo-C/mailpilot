@@ -330,7 +330,7 @@ export function digestTailoredResume(input: {
 
       case "certifications": {
         profile.certifications.forEach((item, index) => {
-          const detail = [item.issuer, item.date].filter(Boolean).join(" · ");
+          const detail = [item.issuer, item.date].filter(Boolean).join(" | ");
           nodes.push(
             node({
               id: `cert:${index}:${opportunityId}`,
@@ -351,7 +351,7 @@ export function digestTailoredResume(input: {
 
       case "awards": {
         profile.awards.forEach((item, index) => {
-          const detail = [item.issuer, item.date].filter(Boolean).join(" · ");
+          const detail = [item.issuer, item.date].filter(Boolean).join(" | ");
           const headline = detail ? `${item.title} — ${detail}` : item.title;
           nodes.push(
             node({
@@ -467,17 +467,22 @@ export function draftToPdfInput(
       (item) =>
         item.type === "experience_bullet" && item.parentId === headerNode.id
     );
-    const parts = headerNode.content.split(" · ");
+    const parts = headerNode.content.split(/\s*[|·]\s*/);
     const role =
       parts[0]?.trim() || asString(headerNode.metadata?.role) || headerNode.content;
     const company =
+      (parts.length > 1 ? parts[1]?.trim() : null) ||
       asString(headerNode.metadata?.company) ||
-      (parts.length > 1 ? parts[1]?.trim() ?? "" : "");
+      role;
+    const location =
+      (parts.length > 2 ? parts[2]?.trim() : null) ||
+      asString(headerNode.metadata?.location) ||
+      null;
     experiences.push({
       id: headerNode.id,
       company: company || role,
       role,
-      location: asString(headerNode.metadata?.location) || null,
+      location,
       category: asString(headerNode.metadata?.category) || "Work",
       startDate: asString(headerNode.metadata?.startDate) || "—",
       endDate: asString(headerNode.metadata?.endDate) || null,
