@@ -817,7 +817,10 @@ export function OpportunitiesView({
               </>
             ) : null}
 
-            <BulkActionSeparator />
+            {/* Only when Archive / Mark Applied precede Dismiss (e.g. Action Required is alone). */}
+            {(variant === "leads" || variant === "applied") && (
+              <BulkActionSeparator />
+            )}
             <button
               type="button"
               disabled={busy}

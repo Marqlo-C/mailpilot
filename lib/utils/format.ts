@@ -24,12 +24,20 @@ export function cleanProjectUrl(url: string | null | undefined): string {
   return cleanDisplayUrl(url);
 }
 
-/** Role line. The workplace is included only when one was captured. */
-export function formatExperienceHeading(
+export interface ExperienceHeadingParts {
+  role: string;
+  company?: string;
+  location?: string;
+}
+
+/**
+ * Extracts structured parts of an experience heading with deduplication.
+ */
+export function getExperienceHeadingParts(
   role?: string | null,
   company?: string | null,
   location?: string | null
-): string {
+): ExperienceHeadingParts {
   const title = role?.trim() ?? "";
   let org = company?.trim() ?? "";
   let place = location?.trim() ?? "";
@@ -38,10 +46,20 @@ export function formatExperienceHeading(
   org = org.replace(/\b([A-Za-z\s]+?)\s+\1\b/g, "$1").trim();
   place = place.replace(/\b([A-Za-z\s]+?)\s+\1\b/g, "$1").trim();
 
-  const parts = [title];
-  if (org && org.toLowerCase() !== title.toLowerCase()) parts.push(org);
-  if (place && place.toLowerCase() !== org.toLowerCase()) parts.push(place);
-  return parts.filter(Boolean).join(" · ");
+  const result: ExperienceHeadingParts = { role: title };
+  if (org && org.toLowerCase() !== title.toLowerCase()) result.company = org;
+  if (place && place.toLowerCase() !== org.toLowerCase()) result.location = place;
+  return result;
+}
+
+/** Role line. The workplace is included only when one was captured. Delimited by " | " for robust ATS parsing. */
+export function formatExperienceHeading(
+  role?: string | null,
+  company?: string | null,
+  location?: string | null
+): string {
+  const { role: r, company: c, location: l } = getExperienceHeadingParts(role, company, location);
+  return [r, c, l].filter(Boolean).join(" | ");
 }
 
 /**

@@ -1417,7 +1417,7 @@ export function OpportunityDraftDialog({
                     htmlFor="attach-resume"
                     className="cursor-pointer text-sm font-medium"
                   >
-                    Attach Auto-Tailored Resume
+                    Attach Tailored Resume
                   </Label>
                 </div>
                 {attachResume && resume ? (

@@ -299,14 +299,39 @@ export function partitionBlocksIntoPages(
   return result;
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function renderEducationHtml(val: string): string {
   const parts = val.split(" — ");
   if (parts.length > 1) {
     const degree = parts[0];
     const school = parts.slice(1).join(" — ");
-    return `<strong class="font-bold">${degree}</strong> — <span>${school}</span>`;
+    return `<strong class="font-bold text-[#111827]">${escapeHtml(degree)}</strong> — <span style="color: #4B5563; font-weight: normal;">${escapeHtml(school)}</span>`;
   }
-  return `<strong class="font-bold">${val}</strong>`;
+  return `<strong class="font-bold text-[#111827]">${escapeHtml(val)}</strong>`;
+}
+
+function renderExperienceHtml(val: string): string {
+  const parts = val.split(/\s*[|·]\s*/);
+  if (parts.length > 1) {
+    const role = parts[0];
+    const rest = parts.slice(1);
+    const restHtml = rest
+      .map(
+        (part) =>
+          `<span style="color: #9CA3AF; font-weight: normal;"> | </span><span style="color: #4B5563; font-weight: normal;">${escapeHtml(part)}</span>`
+      )
+      .join("");
+    return `<strong class="font-bold text-[#111827]">${escapeHtml(role)}</strong>${restHtml}`;
+  }
+  return `<strong class="font-bold text-[#111827]">${escapeHtml(val)}</strong>`;
 }
 
 function EditableLine({
@@ -694,11 +719,14 @@ export function ResumeDraftSheet({
     const role =
       node.type === "experience_header" || node.type === "project_header";
     const isEducation = node.type === "education_item";
+    const isExperience = node.type === "experience_header";
     const trailing = datesFor(node) ?? projectTrailing(node);
     const content =
       isEducation && trailing && node.content.endsWith(` (${trailing})`)
         ? node.content.slice(0, -` (${trailing})`.length).trim()
-        : node.content;
+        : isExperience && node.content.includes(" · ")
+          ? node.content.split(/\s*·\s*/).join(" | ")
+          : node.content;
     return (
       <div
         key={blockId}
@@ -776,11 +804,17 @@ export function ResumeDraftSheet({
               <EditableLine
                 value={content}
                 disabled={disabled}
-                renderHtml={isEducation ? renderEducationHtml : undefined}
+                renderHtml={
+                  isEducation
+                    ? renderEducationHtml
+                    : isExperience
+                      ? renderExperienceHtml
+                      : undefined
+                }
                 onCommit={(next) => onCommit(node.id, next)}
                 className={cn(
                   "min-w-0 whitespace-pre-wrap break-normal outline-none focus:bg-[#f8fafc]",
-                  role && "font-bold",
+                  role && !isExperience && "font-bold",
                   node.type === "header" &&
                     "font-bold leading-tight text-center",
                   node.type !== "header" &&

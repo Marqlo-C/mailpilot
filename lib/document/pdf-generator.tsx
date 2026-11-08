@@ -54,6 +54,7 @@ import {
   formatEducationTitle,
   formatExperienceHeading,
   formatSchoolName,
+  getExperienceHeadingParts,
   parseContactHeaderItems,
   sanitizeResumeContactLine,
 } from "@/lib/utils/format";
@@ -128,10 +129,24 @@ const styles = StyleSheet.create({
   },
   roleTitle: {
     fontFamily: RESUME_FONTS.primary,
-    fontWeight: "bold",
     fontSize: RESUME_TYPOGRAPHY.roleTitle.pt,
     flex: 1,
     marginRight: RESUME_SPACING.roleTitleToTrailingGap.pt,
+  },
+  roleTitleBold: {
+    fontFamily: RESUME_FONTS.primary,
+    fontWeight: "bold",
+    color: "#111827",
+  },
+  roleCompanyLocation: {
+    fontFamily: RESUME_FONTS.primary,
+    fontWeight: "normal",
+    color: "#4B5563",
+  },
+  roleSeparator: {
+    fontFamily: RESUME_FONTS.primary,
+    fontWeight: "normal",
+    color: "#9CA3AF",
   },
   educationRow: {
     flexDirection: "row",
@@ -321,6 +336,7 @@ function ResumeDocument({
             <Text style={styles.heading}>Experience</Text>
             {experiences.map((exp, expIdx) => {
               const isLastExp = expIdx === experiences.length - 1;
+              const headingParts = getExperienceHeadingParts(exp.role, exp.company, exp.location);
               return (
                 <View
                   key={`${exp.company}-${exp.role}`}
@@ -329,7 +345,19 @@ function ResumeDocument({
                 >
                   <View style={styles.roleHeader}>
                     <Text style={styles.roleTitle}>
-                      {formatExperienceHeading(exp.role, exp.company, exp.location) || exp.role}
+                      <Text style={styles.roleTitleBold}>{headingParts.role}</Text>
+                      {headingParts.company ? (
+                        <>
+                          <Text style={styles.roleSeparator}>{" | "}</Text>
+                          <Text style={styles.roleCompanyLocation}>{headingParts.company}</Text>
+                        </>
+                      ) : null}
+                      {headingParts.location ? (
+                        <>
+                          <Text style={styles.roleSeparator}>{" | "}</Text>
+                          <Text style={styles.roleCompanyLocation}>{headingParts.location}</Text>
+                        </>
+                      ) : null}
                     </Text>
                     <Text style={styles.muted}>
                       {exp.startDate} – {exp.endDate ?? "Present"}
