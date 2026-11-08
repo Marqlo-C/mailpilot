@@ -88,6 +88,20 @@ function isNavActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
+/** True when the pointer is on (or heading to) another sidebar nav row. */
+function isSidebarNavRow(target: EventTarget | null): boolean {
+  return target instanceof Element && Boolean(target.closest("[data-nav-href]"));
+}
+
+function pointerNavDestination(
+  relatedTarget: EventTarget | null,
+  clientX: number,
+  clientY: number
+): Element | null {
+  if (relatedTarget instanceof Element) return relatedTarget;
+  return document.elementFromPoint(clientX, clientY);
+}
+
 function tabCount(
   counts: SidebarTabCounts,
   href: string,
@@ -197,15 +211,20 @@ export function SidebarNav({
             data-sidebar-tab-menu={showTabs ? "" : undefined}
             data-nav-href={item.href}
             onPointerEnter={() => {
+              // Always kill a neighbor's close — the 4px row gap used to let
+              // leave→close win before this enter ran (or after, if order flipped).
+              cancelScheduledClose();
               if (!showTabs) {
                 cancelScheduledOpen();
+                // Landed on a non-menu row (active page / Console) — grace dismiss.
+                scheduleClose();
                 return;
               }
               if (isOpen({ kind: "nav", href: item.href })) {
                 cancelScheduledOpen();
                 return;
               }
-              // Telemetry → tabs: open immediately so switching feels even.
+              // Telemetry → same-row tabs: open immediately so switching feels even.
               if (
                 showJobRadarStatus &&
                 isOpen({ kind: "telemetry" })
@@ -214,7 +233,12 @@ export function SidebarNav({
                 openNow({ kind: "nav", href: item.href });
                 return;
               }
-              scheduleOpen({ kind: "nav", href: item.href });
+              // Same short dwell as quick actions — skimming Subscriptions en
+              // route to the Job Radar flyout must not steal the menu.
+              scheduleOpen(
+                { kind: "nav", href: item.href },
+                SIDEBAR_TELEMETRY_OPEN_DELAY_MS
+              );
             }}
             onPointerLeave={(event) => {
               const next = event.relatedTarget;
@@ -222,6 +246,22 @@ export function SidebarNav({
                 next instanceof Node &&
                 event.currentTarget.contains(next)
               ) {
+                return;
+              }
+              const dest = pointerNavDestination(
+                next,
+                event.clientX,
+                event.clientY
+              );
+              // Crossing to another row or an open flyout: abort this row's
+              // pending open (don't steal) and don't arm close — destination owns it.
+              if (
+                dest &&
+                !event.currentTarget.contains(dest) &&
+                (isSidebarNavRow(dest) ||
+                  dest.closest("[data-sidebar-flyout]"))
+              ) {
+                cancelScheduledOpen();
                 return;
               }
               scheduleClose();
