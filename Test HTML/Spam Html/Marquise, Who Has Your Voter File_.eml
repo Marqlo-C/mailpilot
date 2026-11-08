@@ -1,0 +1,929 @@
+Delivered-To: qtrain3@gmail.com
+Received: by 2002:a05:6400:a2d2:b0:2e5:6f92:67dc with SMTP id q18csp2405074ecb;
+        Thu, 15 Oct 2026 16:07:36 -0700 (PDT)
+X-Received: by 2002:a05:620a:890c:b0:93e:c12c:fbbf with SMTP id af79cd13be357-93ec12d0fcemr3044750585a.76.1792105655873;
+        Thu, 15 Oct 2026 16:07:35 -0700 (PDT)
+ARC-Seal: i=1; a=rsa-sha256; t=1792105655; cv=none;
+        d=google.com; s=arc-20260327;
+        b=bn/3wrDYzddseelO+0049v0GEe28Dxzil66GXWoEs+eciiEwEriD3Mot+h0xJpWQzp
+         WPjqafSk/kGi6GyQr20tfPoOpFx+W9PmClmYVXfXdP49l8HIwc+kZ2H0/mZH8L3XjPp+
+         VFJUJ7l0bIBUSJ/qLqvrNl/85/x1srtobU4gwu25zH4yQLQBCLPfFTIm/l6vGMnMrbvp
+         eM9UJ5UkTEoY2z0XnrwZapodHSRJSTZsfgOu1ncuM5u3UgU675n07PTXuKuBsZHZBY41
+         ggCtBmHQyJVHp2yzsgo8iGLtsokk5zEkTePa1csXl2hKQUuyaFcRDB2mYb2OYiEwtj34
+         KWTA==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20260327;
+        h=to:list-id:list-unsubscribe-post:list-unsubscribe
+         :content-transfer-encoding:mime-version:subject:message-id:from:date
+         :dkim-signature:dkim-signature;
+        bh=gtYllG9UAMPwt7IIPa7+k70DsN51FVRKyj9Sh8nUiEU=;
+        fh=b2peYBSwAsvJD5Xi+BCsvhBazqqb60lMwsM8KTlh0/4=;
+        b=nBAOrPJ75cK/qdtlWjzKTcDe68rv5rOaHqSp7McNfphLVRnQl9fZv0QjUMwzjt2f7a
+         K7Mn1HSk+Auey1xoAqPivNHiZOLD5j0atTNZiVk/1BRbWcbCtJCXHibauku5pw9wXRMA
+         tYalR+63oN0YTuPOVqqQtjTSmPbhDILJXZJCiOVOK98VQe8IFrykxc3eJ4Gc5tnlm5Yx
+         TV5R7er6e3x8XSEHgN1ooKx9DfFPPHQgoAlVz/Yqet/w7VZnQLmlItC1YdpGTePv8sT+
+         TinTqV3aF2/r+4l2BWbLPPbclPFjBHtaXQiSZDIxj4AeuXv+w8jmXk9tcnCaSXY9AfVH
+         hu4w==;
+        dara=google.com
+ARC-Authentication-Results: i=1; mx.google.com;
+       dkim=pass header.i=@vote.org header.s=nb header.b=fSEyvaWC;
+       dkim=pass header.i=@sendgrid.info header.s=smtpapi header.b=SkujCDmr;
+       spf=pass (google.com: domain of bounces+52405290-d8ba-qtrain3=gmail.com@em683.vote.org designates 167.89.23.213 as permitted sender) smtp.mailfrom="bounces+52405290-d8ba-qtrain3=gmail.com@em683.vote.org";
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=vote.org
+Return-Path: <bounces+52405290-d8ba-qtrain3=gmail.com@em683.vote.org>
+Received: from o37.email.nationbuilder.com (o37.email.nationbuilder.com. [167.89.23.213])
+        by mx.google.com with ESMTPS id af79cd13be357-93f1a1a9bc9si61179885a.190.2026.10.15.16.07.35
+        for <qtrain3@gmail.com>
+        (version=TLS1_3 cipher=TLS_AES_128_GCM_SHA256 bits=128/128);
+        Thu, 15 Oct 2026 16:07:35 -0700 (PDT)
+Received-SPF: pass (google.com: domain of bounces+52405290-d8ba-qtrain3=gmail.com@em683.vote.org designates 167.89.23.213 as permitted sender) client-ip=167.89.23.213;
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@vote.org header.s=nb header.b=fSEyvaWC;
+       dkim=pass header.i=@sendgrid.info header.s=smtpapi header.b=SkujCDmr;
+       spf=pass (google.com: domain of bounces+52405290-d8ba-qtrain3=gmail.com@em683.vote.org designates 167.89.23.213 as permitted sender) smtp.mailfrom="bounces+52405290-d8ba-qtrain3=gmail.com@em683.vote.org";
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=vote.org
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=vote.org;
+	h=date:from:subject:mime-version:content-type:content-transfer-encoding:
+	list-unsubscribe:list-unsubscribe-post:list-id:to:cc:content-type:date:feedback-id:
+	from:subject:to;
+	s=nb; t=1792105655;
+	bh=gtYllG9UAMPwt7IIPa7+k70DsN51FVRKyj9Sh8nUiEU=;
+	b=fSEyvaWCNZbDnvH4rlIZMqAvCcSSe8JnKltTe9DpOIzP12or9wRmiiteZWKqObv0YZ6p
+	4xsK0fiCxvIbtm3bggKXBanlBiEzHpQ8AkM3qxFNMMomEwSYp3Q+8srrtLXvCONgsqUdgw
+	zrRxFiwSv4Jfo8tXMZ/7187e0cOFB88JA/2YR7kk52dLsMcfTtZpBlyy05tN9zUz7GAGAj
+	fbYV8Dt9414aasWiFVUfzy/HBZz59mj2E4aiQZ1w8FKZOeiP5218uWJTkFeTlp4Urxky65
+	6PL9zSOQUGqxgyehPLHTRCdaLssNA70ZT3oYStJ3CKJ26tSBqbD1luM/6v79wDHQ==
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=sendgrid.info;
+	h=date:from:subject:mime-version:content-type:content-transfer-encoding:
+	list-unsubscribe:list-unsubscribe-post:list-id:to:cc:content-type:date:feedback-id:
+	from:subject:to;
+	s=smtpapi; t=1792105655;
+	bh=gtYllG9UAMPwt7IIPa7+k70DsN51FVRKyj9Sh8nUiEU=;
+	b=SkujCDmrrQameCNb33VzYrhlPECC7JhQEzMcIOuut/AAMvJ2WLAqOjbtlKSXSwbXXV1I
+	5L8vxycLEJbgy/yu+KsWnz1Hzf3NVObKHjUkEIjZ38gKlcqsSCf6kcZYdb4SA++NFM/CZA
+	gqkzBGXpQdkZ10U0Dt6Obb8zMXg6g8Nl8=
+Received: by recvd-c977b4567-nlslg with SMTP id recvd-c977b4567-nlslg-1-6AD15CB7-1E
+	2026-10-15 23:07:35.180652458 +0000 UTC m=+1404444.090513417
+Received: from nationbuilder.com (unknown)
+	by geopod-ismtpd-23 (SG)
+	with ESMTP id pIsYeb5rQa6Mif3c2ikNhg
+	for <sendingthrough@nationbuilder.com>;
+	Thu, 15 Oct 2026 23:07:35.128 +0000 (UTC)
+Date: Thu, 15 Oct 2026 23:07:35 +0000 (UTC)
+From: "John Kitchens, Vote.org" <info@vote.org>
+Message-ID: <6ad15cb7188c4_7f2fd2a1c17015a@ip-10-30-90-133.ec2.internal.mail>
+Subject: Marquise,  Who Has Your Voter File?
+Mime-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="--==_mimepart_6ad15cb78d0a_7f2fd2a1c170027"
+Content-Transfer-Encoding: 7bit
+List-Unsubscribe:
+ <https://active.vote.org/unsubscribe?e=3f4e0d393934ea4302bda96119303738&utm_campaign=the_voice_who_has_your_voter_f>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+List-Id: "Vote.org" <vote.emailnb.com>
+X-SG-EID: 
+ =?us-ascii?Q?u001=2E=2FCfb+pxAy=2FRJNK7ofKSFmWTp8hNERgBIaMXLxYUno4Zeubv1U3cYQnz4P?=
+ =?us-ascii?Q?xo1ifMvPL=2FbWmBWgSqrWfwH83lqZ=2FPCr2GIkjpd?=
+ =?us-ascii?Q?szhv+gj1UlheGbabO45q572NFzAFLbv68kKw5gs?=
+ =?us-ascii?Q?yRBOT51FKOcVHOhiR5RT7IEHuhrM8TfXVVkgofb?=
+ =?us-ascii?Q?xqVCi7RRl8Zo8jN1pfvV+U+ZZDjxAf9PLL6JHtd?=
+ =?us-ascii?Q?7YfIYdRWrmUZHMmbxUSzM5=2FYuWbER62yVTJ+7xD?= =?us-ascii?Q?OaC8?=
+X-SG-ID: 
+ =?us-ascii?Q?u001=2ESdBcvi+Evd=2FbQef8eZF3BkHu1dxEfbZ9WNroEYhc4NOlavWHUoETc=2Fwfs?=
+ =?us-ascii?Q?NJZcUHSPFa=2FNQMPr3bnINfU7uVN16xMfXeRDJft?=
+ =?us-ascii?Q?2WWH3F0rtEGTkbbGuXf5B7IKc3hDrfyPMWJYCIl?=
+ =?us-ascii?Q?dZEAORmEUNTaxe8+i4yv95Dd9miX1WiMjWlWe=2FS?=
+ =?us-ascii?Q?7yvl1+=2FzKf5cZOMhrpy+=2FOzZyPRjyFDikNuxp1R?=
+ =?us-ascii?Q?Q=3D=3D?=
+To: Marquise Lott <qtrain3@gmail.com>
+X-Entity-ID: u001.PUIt4DDx1RiLBrVhHmYFXg==
+
+
+----==_mimepart_6ad15cb78d0a_7f2fd2a1c170027
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+
+
+Who Has Your Voter File?
+
+When you register to vote, you give the government information about yourse=
+lf: your name, address, date of birth and identifying information used to c=
+onfirm who you are. Depending on the state, the record may also include a p=
+hone number, email address, party affiliation or voting history.
+
+That information has become the subject of a national legal fight. Beginnin=
+g in 2025, the U.S. Department of Justice sought unredacted statewide voter=
+-registration lists from states across the country as part of an effort to =
+identify people who may be ineligible to vote. Some states provided the rec=
+ords; others refused, and DOJ sued. On October 9, a federal judge in Washin=
+gton, D.C., vacated the Department=E2=80=99s Voter List Maintenance Policy,=
+ finding that the program exceeded DOJ=E2=80=99s statutory authority and vi=
+olated federal privacy and administrative laws.
+
+So what exactly is in a voter file, who can see it, and why does the federa=
+l government want it?
+
+What Is a Voter File?
+
+Every state maintains an official list of registered voters. These database=
+s allow election officials to determine whether someone is registered, wher=
+e that person should vote, which ballot the voter should receive and whethe=
+r registration information needs to be updated.
+
+The information collected varies by state, but registration records commonl=
+y include a voter=E2=80=99s name, address, date of birth and some form of i=
+dentifying number, such as a driver=E2=80=99s-license number or part of a S=
+ocial Security number. States may also collect telephone numbers, email add=
+resses, party affiliation and other information.
+
+A voter file may also show voting history=E2=80=94meaning whether a person =
+participated in particular elections. It does not show whom the person vote=
+d for. The secret ballot remains secret.
+
+Is Your Voter Information Public?
+
+Some of it is. Voter-registration records are government records, and nearl=
+y every state makes at least some voter information available to certain pe=
+ople or organizations. The rules vary considerably: some lists are broadly =
+available, while others are restricted to candidates, political parties, re=
+searchers, journalists, government agencies or organizations engaged in ele=
+ction-related activity.
+
+But there is an important difference between a public voter list and the co=
+mplete information in a state=E2=80=99s voter-registration database. Sensit=
+ive information=E2=80=94such as Social Security numbers and driver=E2=80=99=
+s-license numbers=E2=80=94is commonly protected from public disclosure. Man=
+y states also shield additional information for voters in address-confident=
+iality programs, including victims of domestic violence, stalking and simil=
+ar crimes.
+
+Why Did the Justice Department Want the Lists?
+
+DOJ said it needed the records to enforce federal election laws, evaluate w=
+hether states were properly maintaining their voter rolls and identify peop=
+le who might be registered despite being ineligible to vote. The key disput=
+e was over the scope of the request: DOJ sought more than the voter lists g=
+enerally available to the public, including unredacted statewide records th=
+at, in some states, contained full dates of birth, driver=E2=80=99s-license=
+ information and partial Social Security numbers.
+
+DOJ also developed a process for comparing voter information with federal c=
+itizenship and immigration records, including the federal SAVE database. Th=
+e Department argued that federal law authorized both collecting the records=
+ and sharing them with the Department of Homeland Security to identify pote=
+ntially ineligible voters. In May, DOJ=E2=80=99s Office of Legal Counsel is=
+sued a formal opinion supporting that interpretation.
+
+Several states disagreed, arguing that federal law did not authorize such b=
+road demands and that providing unredacted records would conflict with stat=
+e and federal privacy protections.
+
+What Did the Court Decide?
+
+On October 9, U.S. District Judge Sparkle Sooknanan vacated DOJ=E2=80=99s V=
+oter List Maintenance Policy.
+
+The ruling did not say that the federal government can never obtain voter-r=
+egistration records or enforce federal election law. Instead, the court con=
+cluded that DOJ had not shown that the statutes it relied upon=E2=80=94incl=
+uding the Civil Rights Act of 1960, the National Voter Registration Act and=
+ the Help America Vote Act=E2=80=94authorized the nationwide program of col=
+lecting and sharing unredacted statewide voter rolls.
+
+The court also found Privacy Act violations, including sharing records with=
+out adequate legal authority and failing to make reasonable efforts to ensu=
+re the accuracy of citizenship information before using it in a process tha=
+t could affect a person=E2=80=99s voter registration. The record included U=
+.S. citizens who had been incorrectly identified and whose registrations we=
+re canceled or questioned.
+
+Because the court resolved the case under federal statutes and administrati=
+ve law, it did not decide the broader constitutional questions about federa=
+l and state authority over voter registration. The order is appealable.
+
+Is the Fight Over?
+
+No. The October 9 ruling set aside the particular DOJ policy challenged in =
+that case, but disputes over voter eligibility, citizenship verification an=
+d federal access to voter records continue. On October 15, DOJ sued Califor=
+nia, asking a federal court to prevent the counting of mail ballots from mo=
+re than 20,000 people the Department says may be noncitizens unless their c=
+itizenship is confirmed. California officials dispute the federal assertion=
+s and have questioned the accuracy of the information.
+
+The legal debate is not over whether voter rolls should be accurate. Federa=
+l law requires states to maintain accurate registration lists. The continui=
+ng questions are who may obtain voter information, what information may be =
+shared, which databases may be used to evaluate eligibility, and what safeg=
+uards must exist before a voter is removed.
+
+What Should Voters Know?
+
+Voter-registration records are partly public and partly confidential, and t=
+he rules vary by state. What is public, what remains confidential and who m=
+ay obtain the information depend largely on state law.
+
+The current litigation raises a broader question=E2=80=94when voters give p=
+ersonal information to the government so they can exercise the right to vot=
+e, who may obtain it, for what purpose, and under what safeguards?
+
+Accurate voter rolls matter, as does the security of the information used t=
+o maintain them=E2=80=94both are part of protecting the integrity of the vo=
+te. =E2=9A=96=EF=B8=8F
+
+ <https://active.vote.org/donate>Join us in empowering more voters this mid=
+term.  <https://active.vote.org/donate>
+
+ <https://www.facebook.com/votedotorg/> <https://x.com/votedotorg?lang=3Den=
+> <https://www.linkedin.com/company/votedotorg/> <https://www.instagram.com=
+/votedotorg/?hl=3Den> <https://active.vote.org/>
+This email was sent to qtrain3@gmail.com <>. You received this email becaus=
+e you have a relationship with Vote.org =E2=80=94 you might have used our t=
+ools to register to vote, to check your status, or to get your absentee bal=
+lot. =C2=B7 Unsubscribe <https://active.vote.org/unsubscribe?utm_campaign=
+=3Dsave_act_matching_grant&utm_medium=3Demail&utm_source=3Dvote>
+
+Vote.org is the largest 501(c)(3) nonprofit, nonpartisan voting registratio=
+n and get-out-the-vote (GOTV) technology platform in the nation. We build b=
+est-in-class, culturally competent programs, cutting-edge voter tools and h=
+igh-profile partnerships to reach and empower voters across the United Stat=
+es of America.
+
+info@vote.org | 1763 Columbia Road NW Ste 175 | PMB 239712 | Washington, DC=
+ 20009
+
+
+
+
+
+----==_mimepart_6ad15cb78d0a_7f2fd2a1c170027
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<!DOCTYPE html>
+<html lang=3D"en" xmlns:v=3D"urn:schemas-microsoft-com:vml">
+ =20
+  <head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3DUTF-8">
+<meta>
+  <meta name=3D"x-apple-disable-message-reformatting">
+  <meta>
+  <meta name=3D"viewport">
+  <meta name=3D"format-detection">
+  <!--[if mso]>
+    <noscript>
+      <xml>
+        <o:OfficeDocumentSettings
+          xmlns:o=3D"urn:schemas-microsoft-com:office:office"
+        >
+          <o:PixelsPerInch>96</o:PixelsPerInch>
+        </o:OfficeDocumentSettings>
+      </xml>
+    </noscript>
+    <style>
+      td,
+      th,
+      div,
+      p,
+      a,
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6 {
+        font-family: 'Segoe UI', sans-serif;
+        mso-line-height-rule: exactly;
+      }
+    </style>
+  <![endif]-->
+  <style>
+    html {
+      height: 100%;
+    }
+    body {
+      margin: 0;
+      width: 100%;
+      padding: 0;
+      word-break: break-word;
+      -webkit-font-smoothing: antialiased;
+      background-color: #ffffff;
+      height: 100%;
+    }
+
+    /* Outlook on MacOS */
+_:-webkit-full-screen, _::-webkit-full-page-media, _:future, :root
+p, :root h1, :root h2, :root h3, :root h4 {
+      margin: 1em 0 1em 0;
+    }
+
+    /* Canvas Styles */
+
+        td.canvas {
+          background-color: #ffffff;
+        }
+
+        td.canvas {
+          padding-top: 30px;
+          padding-bottom: px;
+        }
+
+        td.canvas p, td.canvas li {
+          font-family: Helvetica,Verdana,Arial,sans-serif;
+          font-size: 16px;
+          font-weight: normal;
+          color: #000000;
+        }
+
+        td.canvas p a, td.canvas li a {
+          color: #525252;
+        }
+
+        td.canvas h1 {
+          font-family: Helvetica,Verdana,Arial,sans-serif;
+          font-size: 32px;
+          font-weight: bold;
+          color: #000000;
+        }
+
+        td.canvas h2 {
+          font-family: Helvetica,Verdana,Arial,sans-serif;
+          font-size: 20px;
+          font-weight: bold;
+          color: #000000
+        }
+
+        td.canvas h3 {
+          font-family: Helvetica,Verdana,Arial,sans-serif;
+          font-size: 18px;
+          font-weight: bold;
+          color: #000000;
+        }
+
+        td.canvas h4 {
+          font-family: Helvetica,Verdana,Arial,sans-serif;
+          font-size: 16px;
+          font-weight: bold;
+          color: #000000;
+        }
+
+    td.canvas img {
+      max-width: 100%;
+    }
+
+    /* End of Canvas */
+
+    @media (max-width: 480px) {
+      .two-column {
+        display: flex;
+        flex-direction:column;
+      }
+      .two-column > tbody > tr > td {
+        width: 100% !important;
+        display: block;
+      }
+      .text > tbody > tr > td {
+        padding: 0 1em !important;
+        width: 100% !important;
+      }
+      .image > tbody > tr > td {
+        padding: 0 1em !important;
+        width: 100% !important;
+      }
+
+      .image--full-block > tbody > tr > td {
+        padding: 0 !important;
+        width: 100% !important;
+      }
+      .image--full-block > tbody > tr > td > div > img {
+        width: 100% !important;
+      }
+      .backdrop {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        background-color: inherit !important;
+      }
+        td.canvas p, td.canvas li {
+        font-size: 16px;
+      }
+        td.canvas h1 {
+        font-size: 28px;
+      }
+        td.canvas h2 {
+        font-size: 24px;
+      }
+        td.canvas h3 {
+        font-size: 20px;
+      }
+        td.canvas h4 {
+        font-size: 18px;
+      }
+    }
+    @media (max-width: 660px) {
+      .sm-w-full {
+        width: 100% !important;
+        min-width: 100% !important;
+      }
+      .sm-pt-0 {
+        padding-top: 0 !important;
+      }
+    }
+  </style>
+
+
+  </head>
+<body>
+<div style=3D"display:none;max-height:0px;overflow:hidden;">
+
+</div>
+<div style=3D"display:none;max-height:0px;overflow:hidden;">
+=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=
+=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=
+=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=
+<wbr>=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=
+=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=
+=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=
+=80=8C<wbr>=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=
+=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=
+=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=
+=A0=E2=80=8C<wbr>=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=
+=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=
+=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=
+=8C=C2=A0=E2=80=8C<wbr>=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=
+=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=
+=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=
+=E2=80=8C=C2=A0=E2=80=8C<wbr>=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=
+=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=
+=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=
+=C2=A0=E2=80=8C=C2=A0=E2=80=8C<wbr>=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=
+=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=
+=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=
+=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C<wbr>=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=
+=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=
+=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=
+=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C<wbr>=C2=A0=E2=80=8C=C2=A0=E2=80=
+=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=
+=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=
+=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C<wbr>=C2=A0=E2=80=8C=C2=A0=
+=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=
+=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=
+=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C<wbr>=C2=A0=E2=80=8C=
+=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=
+=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=
+=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C<wbr>=C2=A0=E2=
+=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=
+=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=
+=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C<wbr>=C2=
+=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=
+=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=
+=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C<wb=
+r>=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=
+=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=8C=C2=A0=E2=80=
+=8C=C2=A0
+</wbr></wbr></wbr></wbr></wbr></wbr></wbr></wbr></wbr></wbr></wbr></wbr></w=
+br>
+</div>
+
+  <div lang=3D"en" style=3D"min-height:100%;background-color:#e6e6e6;">
+<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0"
+class=3D"sm-w-full" style=3D"
+        min-width:100%;
+        width:100%;
+        font-family:Helvetica,Verdana,Arial,sans-serif;
+      " width=3D"100%">
+      <tbody>
+<tr>
+<td align=3D"center" class=3D"backdrop"
+style=3D"height:auto;min-height:100%;background-color:#e6e6e6;padding-top:3=
+2px;padding-bottom:32px;">
+<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0"
+class=3D"sm-w-full" style=3D"min-width:664px;width:664px;" width=3D"664">
+            <tbody>
+<tr>
+              <td align=3D"center">
+<table border=3D"0" bgcolor=3D"#ffffff" class=3D"sm-w-full"
+cellpadding=3D"0" cellspacing=3D"0" style=3D"min-width:100%;width:100%;"
+width=3D"100%">
+                  <tbody>
+<tr>
+                    <td class=3D"canvas">
+                     =20
+
+<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" class=3D"image"
+style=3D"margin:0;padding:0;border-spacing:0;overflow:hidden;table-layout:f=
+ixed;min-width:100%;width:100%;"
+width=3D"100%">
+  <tbody style=3D"margin:0;padding:0;">
+    <tr style=3D"margin:0;padding:0;">
+<td style=3D"text-align:right;padding:0
+2em;min-width:596px;width:596px;" width=3D"596">
+        <div style=3D"display:block;">
+            <!--[if mso]>
+<img style=3D"vertical-align:middle;" width=3D"447"
+src=3D"https://assets.nationbuilder.com/vote/mailings/1585/attachments/orig=
+inal/Screenshot_2026-04-04_at_8.18.56%E2%80%AFPM.png?1775348383"
+/>
+            <![endif]-->
+            <!--[if !mso]><!-->
+<img style=3D"vertical-align:middle;" width=3D"75%"
+src=3D"https://assets.nationbuilder.com/vote/mailings/1585/attachments/orig=
+inal/Screenshot_2026-04-04_at_8.18.56%E2%80%AFPM.png?1775348383">
+            <!--<![endif]-->
+</div>
+</td>    </tr>
+  </tbody>
+</table>
+<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0"
+style=3D"margin:0;padding:0;min-width:100%;width:100%;border-spacing:0;"
+width=3D"100%">
+  <tbody style=3D"margin:0;padding:0;">
+    <tr style=3D"margin:0;padding:0;">
+      <td style=3D"padding:0 2em;height:16px;">
+    </td>
+</tr>
+  </tbody>
+</table>
+<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" class=3D"text"
+style=3D"margin:0;padding:0;border-spacing:0;overflow:hidden;min-width:100%=
+;width:100%;table-layout:fixed;background-color:#ffffff;"
+width=3D"100%">
+  <tbody style=3D"margin:0;padding:0;">
+    <!--[if mso]>
+      <tr style=3D"margin:0;padding:0;">
+<td style=3D"padding: 1em 0 0; line-height:
+1px;background-color:#ffffff;"></td>
+      </tr>
+    <![endif]-->
+    <tr style=3D"margin:0;padding:0;">
+<td style=3D"margin:0;background-color:#ffffff;padding:0.05px
+2em;min-width:560px;width:560px;" width=3D"560">
+<h1 style=3D"text-align: center;"><strong>Who Has Your Voter
+File?</strong></h1>
+<p><span style=3D"font-weight: 400;">When you register to vote, you give
+the government information about yourself: your name, address, date of
+birth and identifying information used to confirm who you are.
+Depending on the state, the record may also include a phone number,
+email address, party affiliation or voting history.</span></p>
+<p><span style=3D"font-weight: 400;">That information has become the
+subject of a national legal fight. Beginning in 2025, the U.S.
+Department of Justice sought unredacted statewide voter-registration
+lists from states across the country as part of an effort to identify
+people who may be ineligible to vote. Some states provided the
+records; others refused, and DOJ sued. On October 9, a federal judge
+in Washington, D.C., vacated the Department=E2=80=99s Voter List Maintenanc=
+e
+Policy, finding that the program exceeded DOJ=E2=80=99s statutory authority
+and violated federal privacy and administrative laws.</span></p>
+<p><span style=3D"font-weight: 400;">So what exactly is in a voter file,
+who can see it, and why does the federal government want
+it?</span></p>
+<p><strong>What Is a Voter File?</strong></p>
+<p><span style=3D"font-weight: 400;">Every state maintains an official
+list of registered voters. These databases allow election officials to
+determine whether someone is registered, where that person should
+vote, which ballot the voter should receive and whether registration
+information needs to be updated.</span></p>
+<p><span style=3D"font-weight: 400;">The information collected varies by
+state, but registration records commonly include a voter=E2=80=99s name,
+address, date of birth and some form of identifying number, such as a
+driver=E2=80=99s-license number or part of a Social Security number. States
+may also collect telephone numbers, email addresses, party affiliation
+and other information.</span></p>
+<p><span style=3D"font-weight: 400;">A voter file may also show voting
+history=E2=80=94meaning whether a person participated in particular electio=
+ns.
+It does not show whom the person voted for. The secret ballot remains
+secret.</span></p>
+<p><strong>Is Your Voter Information Public?</strong></p>
+<p><span style=3D"font-weight: 400;">Some of it is. Voter-registration
+records are government records, and nearly every state makes at least
+some voter information available to certain people or organizations.
+The rules vary considerably: some lists are broadly available, while
+others are restricted to candidates, political parties, researchers,
+journalists, government agencies or organizations engaged in
+election-related activity.</span></p>
+<p><span style=3D"font-weight: 400;">But there is an important
+difference between a public voter list and the complete information in
+a state=E2=80=99s voter-registration database. Sensitive information=E2=80=
+=94such as
+Social Security numbers and driver=E2=80=99s-license numbers=E2=80=94is com=
+monly
+protected from public disclosure. Many states also shield additional
+information for voters in address-confidentiality programs, including
+victims of domestic violence, stalking and similar crimes.</span></p>
+<p><strong>Why Did the Justice Department Want the Lists?</strong></p>
+<p><span style=3D"font-weight: 400;">DOJ said it needed the records to
+enforce federal election laws, evaluate whether states were properly
+maintaining their voter rolls and identify people who might be
+registered despite being ineligible to vote. The key dispute was over
+the scope of the request: DOJ sought more than the voter lists
+generally available to the public, including unredacted statewide
+records that, in some states, contained full dates of birth,
+driver=E2=80=99s-license information and partial Social Security
+numbers.</span></p>
+<p><span style=3D"font-weight: 400;">DOJ also developed a process for
+comparing voter information with federal citizenship and immigration
+records, including the federal SAVE database. The Department argued
+that federal law authorized both collecting the records and sharing
+them with the Department of Homeland Security to identify potentially
+ineligible voters. In May, DOJ=E2=80=99s Office of Legal Counsel issued a
+formal opinion supporting that interpretation.</span></p>
+<p><span style=3D"font-weight: 400;">Several states disagreed, arguing
+that federal law did not authorize such broad demands and that
+providing unredacted records would conflict with state and federal
+privacy protections.</span></p>
+<p><strong>What Did the Court Decide?</strong></p>
+<p><span style=3D"font-weight: 400;">On October 9, U.S. District Judge
+Sparkle Sooknanan vacated DOJ=E2=80=99s Voter List Maintenance
+Policy.</span></p>
+<p><span style=3D"font-weight: 400;">The ruling did not say that the
+federal government can never obtain voter-registration records or
+enforce federal election law. Instead, the court concluded that DOJ
+had not shown that the statutes it relied upon=E2=80=94including the Civil
+Rights Act of 1960, the National Voter Registration Act and the Help
+America Vote Act=E2=80=94authorized the nationwide program of collecting an=
+d
+sharing unredacted statewide voter rolls.</span></p>
+<p><span style=3D"font-weight: 400;">The court also found Privacy Act
+violations, including sharing records without adequate legal authority
+and failing to make reasonable efforts to ensure the accuracy of
+citizenship information before using it in a process that could affect
+a person=E2=80=99s voter registration. The record included U.S. citizens wh=
+o
+had been incorrectly identified and whose registrations were canceled
+or questioned.</span></p>
+<p><span style=3D"font-weight: 400;">Because the court resolved the case
+under federal statutes and administrative law, it did not decide the
+broader constitutional questions about federal and state authority
+over voter registration. The order is appealable.</span></p>
+<p><strong>Is the Fight Over?</strong></p>
+<p><span style=3D"font-weight: 400;">No. The October 9 ruling set aside
+the particular DOJ policy challenged in that case, but disputes over
+voter eligibility, citizenship verification and federal access to
+voter records continue. On October 15, DOJ sued California, asking a
+federal court to prevent the counting of mail ballots from more than
+20,000 people the Department says may be noncitizens unless their
+citizenship is confirmed. California officials dispute the federal
+assertions and have questioned the accuracy of the
+information.</span></p>
+<p><span style=3D"font-weight: 400;">The legal debate is not over
+whether voter rolls should be accurate. Federal law requires states to
+maintain accurate registration lists. The continuing questions are who
+may obtain voter information, what information may be shared, which
+databases may be used to evaluate eligibility, and what safeguards
+must exist before a voter is removed.</span></p>
+<p><strong>What Should Voters Know?</strong></p>
+<p><span style=3D"font-weight: 400;">Voter-registration records are
+partly public and partly confidential, and the rules vary by state.
+What is public, what remains confidential and who may obtain the
+information depend largely on state law.</span></p>
+<p><span style=3D"font-weight: 400;">The current litigation raises a
+broader question=E2=80=94when voters give personal information to the
+government so they can exercise the right to vote, who may obtain it,
+for what purpose, and under what safeguards?</span></p>
+<p><span style=3D"font-weight: 400;">Accurate voter rolls matter, as
+does the security of the information used to maintain them=E2=80=94both are
+part of protecting the integrity of the vote. =E2=9A=96=EF=B8=8F</span></p>
+</td>
+    </tr>
+    <!--[if mso 14]>
+      <tr style=3D"margin:0;padding:0;">
+<td style=3D"padding: 1em 0 0; line-height:
+1px;background-color:#ffffff;"></td>
+      </tr>
+    <![endif]-->
+    <!--[if gt mso 15]>
+      <tr style=3D"margin:0;padding:0;">
+        <td style=3D"height:0.1pt;background-color:#ffffff;">
+          &nbsp;
+        </td>
+      </tr>
+    <![endif]-->
+  </tbody>
+</table>
+
+
+
+
+
+
+
+<table align=3D"center" border=3D"0" cellpadding=3D"0" cellspacing=3D"0"
+style=3D"min-width:100%;width:100%;">
+  <tbody style=3D"margin:0;padding:0;">
+    <tr style=3D"margin:0;padding:0;">
+      <td align=3D"center" style=3D"padding:1em 2em;">
+<table
+style=3D"color:#ffffff;font-size:20px;border-radius:4px;border-collapse:ini=
+tial;background-color:#3474A3;">
+          <tbody style=3D"margin:0;padding:0;">
+            <tr>
+<td align=3D"center"
+style=3D"color:#ffffff;font-size:20px;text-align:center;position:relative;p=
+adding:12px
+38px;">
+<a
+style=3D"position:absolute;top:0;left:0;right:0;bottom:0;display:block;"
+target=3D"_blank"
+href=3D"https://active.vote.org/donate?e=3D3f4e0d393934ea4302bda96119303738=
+&amp;utm_source=3Dvote&amp;utm_medium=3Demail&amp;utm_campaign=3Dthe_voice_=
+who_has_your_voter_f&amp;n=3D1"
+title=3D"Join us in empowering more voters this midterm. "></a>
+<a
+style=3D"color:#ffffff;font-size:20px;text-decoration:none;line-height:1;ma=
+rgin:auto;"
+target=3D"_blank"
+href=3D"https://active.vote.org/donate?e=3D3f4e0d393934ea4302bda96119303738=
+&amp;utm_source=3Dvote&amp;utm_medium=3Demail&amp;utm_campaign=3Dthe_voice_=
+who_has_your_voter_f&amp;n=3D2">Join
+us in empowering more voters this midterm. </a>
+</td>
+</tr>          </tbody>
+</table>      </td>
+    </tr>
+  </tbody>
+</table>
+<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" class=3D"text"
+style=3D"margin:0;padding:0;border-spacing:0;overflow:hidden;min-width:100%=
+;width:100%;table-layout:fixed;"
+width=3D"100%">
+  <tbody style=3D"margin:0;padding:0;">
+    <!--[if mso]>
+      <tr style=3D"margin:0;padding:0;">
+          <td style=3D"padding: 1em 0 0; line-height: 1px;"></td>
+      </tr>
+    <![endif]-->
+    <tr style=3D"margin:0;padding:0;">
+<td style=3D"margin:0;padding:0.05px
+2em;min-width:560px;width:560px;" width=3D"560"><p><img style=3D"height:
+auto;"
+src=3D"https://assets.nationbuilder.com/vote/mailings/5281/attachments/orig=
+inal/Screenshot_2026-10-15_at_3.55.29%E2%80%AFPM.png?1792094164"
+alt=3D"" width=3D"846" height=3D"79"></p></td>
+    </tr>
+    <!--[if mso 14]>
+      <tr style=3D"margin:0;padding:0;">
+          <td style=3D"padding: 1em 0 0; line-height: 1px;"></td>
+      </tr>
+    <![endif]-->
+    <!--[if gt mso 15]>
+      <tr style=3D"margin:0;padding:0;">
+        <td style=3D"height:0.1pt;">
+          &nbsp;
+        </td>
+      </tr>
+    <![endif]-->
+  </tbody>
+</table>
+<table align=3D"center" border=3D"0" cellpadding=3D"0" cellspacing=3D"0"
+style=3D"margin:0;text-align:center;background-color:#FFFFFF;min-width:100%=
+;width:100%;border-spacing:0;"
+width=3D"100%">
+  <tbody style=3D"margin:0;padding:0;">
+    <tr style=3D"margin:0;padding:0;">
+<td align=3D"center" style=3D"padding:1em
+2em;min-width:100%;width:100%;border:none;">
+<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0"
+style=3D"margin:0;text-align:center;background-color:#FFFFFF;border-spacing=
+:0;">
+          <tbody style=3D"margin:0;padding:0;">
+            <tr style=3D"margin:0;padding:0;">
+                <td style=3D"padding:2px;border:none;">
+<a
+href=3D"https://active.vote.org/r?u=3DgIERUeyYb36qj9nQvJ6LFw2AUGLtyALmS1bVh=
+b90sRWT8v2lbwCgTtOk5ClblzJV&amp;e=3D3f4e0d393934ea4302bda96119303738&amp;ut=
+m_source=3Dvote&amp;utm_medium=3Demail&amp;utm_campaign=3Dthe_voice_who_has=
+_your_voter_f&amp;n=3D3"
+style=3D"text-decoration:none;">
+<img style=3D"vertical-align: bottom;" width=3D"24"
+height=3D"24"
+src=3D"https://3dna-public-assets.s3.amazonaws.com/Mailings/Facebook_grey.p=
+ng"
+alt=3D"Facebook">
+                  </a>
+                </td>
+                <td style=3D"padding:2px;border:none;">
+<a
+href=3D"https://active.vote.org/r?u=3D-lu_QoPkydlZwKEqtUHhAlodFskKENBhYnR5q=
+AXvmowFtiGVArQ3FZr7zzIIw57O&amp;e=3D3f4e0d393934ea4302bda96119303738&amp;ut=
+m_source=3Dvote&amp;utm_medium=3Demail&amp;utm_campaign=3Dthe_voice_who_has=
+_your_voter_f&amp;n=3D4"
+style=3D"text-decoration:none;">
+<img style=3D"vertical-align: bottom;" width=3D"24"
+height=3D"24"
+src=3D"https://3dna-public-assets.s3.amazonaws.com/Mailings/X_grey.png"
+alt=3D"Twitter">
+                  </a>
+                </td>
+                <td style=3D"padding:2px;border:none;">
+<a
+href=3D"https://active.vote.org/r?u=3D6UupWN0YBYxYkaTgr3RecQ49ZANriR7k-Qdwi=
+1N4tbf2HMlpqz54xV-VlYiGKAOc&amp;e=3D3f4e0d393934ea4302bda96119303738&amp;ut=
+m_source=3Dvote&amp;utm_medium=3Demail&amp;utm_campaign=3Dthe_voice_who_has=
+_your_voter_f&amp;n=3D5"
+style=3D"text-decoration:none;">
+<img style=3D"vertical-align: bottom;" width=3D"24"
+height=3D"24"
+src=3D"https://3dna-public-assets.s3.amazonaws.com/Mailings/LinkedIn_grey.p=
+ng"
+alt=3D"LinkedIn">
+                  </a>
+                </td>
+                <td style=3D"padding:2px;border:none;">
+<a
+href=3D"https://active.vote.org/r?u=3DhQzJlPYmtBsqLufwriNbCJWiSQl6TMy5TEHQB=
+YZwDDDAnQ-97oOn2jlYCxb09ZqU&amp;e=3D3f4e0d393934ea4302bda96119303738&amp;ut=
+m_source=3Dvote&amp;utm_medium=3Demail&amp;utm_campaign=3Dthe_voice_who_has=
+_your_voter_f&amp;n=3D6"
+style=3D"text-decoration:none;">
+<img style=3D"vertical-align: bottom;" width=3D"24"
+height=3D"24"
+src=3D"https://3dna-public-assets.s3.amazonaws.com/Mailings/Instagram_grey.=
+png"
+alt=3D"Instagram">
+                  </a>
+                </td>
+                <td style=3D"padding:2px;border:none;">
+<a
+href=3D"https://active.vote.org/?e=3D3f4e0d393934ea4302bda96119303738&amp;u=
+tm_source=3Dvote&amp;utm_medium=3Demail&amp;utm_campaign=3Dthe_voice_who_ha=
+s_your_voter_f&amp;n=3D7"
+style=3D"text-decoration:none;">
+<img style=3D"vertical-align: bottom;" width=3D"24"
+height=3D"24"
+src=3D"https://3dna-public-assets.s3.amazonaws.com/Mailings/Website_grey.pn=
+g"
+alt=3D"Website">
+                  </a>
+                </td>
+            </tr>
+          </tbody>
+        </table>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0"
+style=3D"margin:0;padding:0;border-spacing:0;overflow:hidden;min-width:100%=
+;width:100%;table-layout:fixed;"
+width=3D"100%">
+  <tbody style=3D"margin:0;padding:0;">
+    <tr style=3D"margin:0;padding:0;">
+<td style=3D"margin:0;padding:1em 2em
+0;text-align:center;font-size:1em;background-color:#1C0D32;">
+<p style=3D"color: #ffffff; font-size: 10px; font-family: Helvetica,
+Arial, sans-serif;"><br><span style=3D"color: #dedef4;"><strong>This
+email was sent to <a style=3D"color: #dedef4;">qtrain3@gmail.com</a>.
+You received this email because you have a relationship with Vote.org
+=E2=80=94 you might have used our tools to register to vote, to check your
+status, or to get your absentee ballot. =C2=B7 <a style=3D"color: #dedef4;"
+href=3D"https://active.vote.org/unsubscribe?e=3D3f4e0d393934ea4302bda961193=
+03738&amp;utm_source=3Dvote&amp;utm_medium=3Demail&amp;utm_campaign=3Dthe_v=
+oice_who_has_your_voter_f&amp;n=3D8">Unsubscribe</a></strong></span></p>
+<p style=3D"color: #ffffff; font-size: 10px; font-family: Helvetica,
+Arial, sans-serif;"><span style=3D"color: #dedef4;">Vote.org is the
+largest 501(c)(3) nonprofit, nonpartisan voting registration and
+get-out-the-vote (GOTV) technology platform in the nation. We build
+best-in-class, culturally competent programs, cutting-edge voter tools
+and high-profile partnerships to reach and empower voters across the
+United States of America.</span></p>
+<p style=3D"color: #ffffff; font-size: 10px; font-family: Helvetica,
+Arial, sans-serif;"><span style=3D"color: #dedef4;">info@vote.org | 1763
+Columbia Road NW Ste 175 | PMB 239712 | Washington, DC
+20009</span></p>
+<p style=3D"color: #ffffff; font-size: 10px; font-family: Helvetica,
+Arial, sans-serif;">=C2=A0</p>
+</td>
+    </tr>
+  </tbody>
+</table>
+
+                    </td>
+                  </tr>
+                </tbody>
+</table>
+              </td>
+            </tr>
+          </tbody>
+</table>
+        </td>
+      </tr>
+    </tbody>
+</table>
+  </div>
+
+
+<img src=3D"https://u52405290.ct.sendgrid.net/wf/open?upn=3Du001.QqkQZCm7bI=
+3oigR6cil-2FHUmHpqY3Pivpq-2BMxlLdUR91a2fr7j9W3XKcCAZv0OoAQ2Iguy3-2BR4f6L4xt=
+6H1dJ4iIgtxjPTBTgFSfRoAABfcyzcHkMjBJUQdl5tBrgiMinlxEPoO1x9Geojv8rfAsFdCCLu-=
+2B0Ius07b27Q8m-2BiibIZuBhGYelcA2fFwtX-2BQUYgxbdp4EEcmzuErmXaU3of9o3mvX4E-2F=
+evQfKPFwVozpKWb-2FKhbN9yJW9KpM-2BkLT0nPKtoxGfQFcMozVRSwDrTSYHUeHhpMRs5cpzu-=
+2FMcjvAqJklel9S4X4t7yaw16-2FkkxPT8ch3Ixt39lSOWVTCD61XzOIx1uZSyLtoeCyP68fJ3b=
+YAA8jWsI6yZ5efvSm4fVdFBYFyFuTDng5xvw2zxw0XQ-3D-3D" alt=3D"" width=3D"1" hei=
+ght=3D"1" border=3D"0" style=3D"height:1px !important;width:1px !important;=
+border-width:0 !important;margin-top:0 !important;margin-bottom:0 !importan=
+t;margin-right:0 !important;margin-left:0 !important;padding-top:0 !importa=
+nt;padding-bottom:0 !important;padding-right:0 !important;padding-left:0 !i=
+mportant;"/></body>
+</html>
+----==_mimepart_6ad15cb78d0a_7f2fd2a1c170027--

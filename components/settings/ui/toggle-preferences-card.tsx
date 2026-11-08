@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ToggleRight } from "lucide-react";
 
 import { AppearanceModeToggle } from "@/components/settings/ui/appearance-mode-toggle";
-import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import {
   NESTED_CARD_TYPOGRAPHY,
   SettingsFeatureCard,
@@ -48,7 +48,7 @@ export function TogglePreferencesCard({
 
   return (
     <SettingsFeatureCard
-      logo={<SettingsFeatureLogo icon={ToggleRight} />}
+      logo={<LogoFrameIcon icon={ToggleRight} />}
       title="Toggle Switches"
       subtitle="Switches for on/off preferences everywhere."
       statusBadge={

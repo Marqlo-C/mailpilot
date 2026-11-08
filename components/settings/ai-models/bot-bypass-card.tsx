@@ -17,7 +17,7 @@ import {
   HasDataControlPanel,
   ScrapingAntControlPanel,
 } from "@/components/settings/scraping";
-import { CompanyLogo } from "@/components/ui/company-logo";
+import { CompanyLogo } from "@/components/ui/logo-frame";
 import {
   SettingsFeatureCard,
   SettingsSectionCard,

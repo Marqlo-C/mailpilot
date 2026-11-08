@@ -11,9 +11,10 @@ import {
 } from "@/lib/llm";
 import { prisma } from "@/lib/core/prisma";
 import {
+  initSyncBatchTelemetry,
   logStory,
-  syncLog,
   logSyncSummaryBanner,
+  syncLog,
 } from "@/lib/logging";
 import { resolveIngestionRules } from "@/lib/gmail/sync";
 import {
@@ -51,6 +52,7 @@ export type OpportunitySyncOptions = {
   maxMessages?: number;
   /** Cap PENDING_AI backlog drained into this run. */
   pendingAiDrainLimit?: number;
+  syncStartedAt?: number;
 };
 
 export type OpportunitySyncResult = {
@@ -59,6 +61,12 @@ export type OpportunitySyncResult = {
   skipped: number;
   /** True when Gmail History API returned expired startHistoryId (404). */
   historyExpired: boolean;
+  durationMs?: number;
+  ollamaCount?: number;
+  cloudCount?: number;
+  createdCount?: number;
+  updatedCount?: number;
+  parsedCount?: number;
 };
 
 function normalizeProvider(value: string | null | undefined): LlmProvider {
@@ -80,7 +88,10 @@ export async function runOpportunitySync(
 ): Promise<OpportunitySyncResult> {
   const forceRescan = options.forceRescan === true;
   const lookbackDays = options.lookbackDays ?? 14;
-  const runStartedAt = new Date();
+  const runStartedAt = options.syncStartedAt
+    ? new Date(options.syncStartedAt)
+    : new Date();
+  initSyncBatchTelemetry({ startTime: runStartedAt.getTime() });
 
   try {
     const account = await prisma.account.findUnique({
@@ -134,6 +145,13 @@ export async function runOpportunitySync(
           )
         : configuredPendingAiDrain;
 
+    if (!account.isSyncing) {
+      await prisma.account.update({
+        where: { id: accountId },
+        data: { isSyncing: true, syncHeartbeatAt: new Date() },
+      });
+    }
+
     logStory(syncLog, "Sync Inbox starting", {
       mailbox: account.email,
       mode: forceRescan ? "force rescan" : "incremental",
@@ -176,6 +194,22 @@ export async function runOpportunitySync(
           ? "All candidates were already known — nothing to classify."
           : "Nothing left to classify — inbox already caught up."
       );
+      try {
+        logSyncSummaryBanner({
+          total: 0,
+          durationMs: Date.now() - runStartedAt.getTime(),
+          ollamaCount: 0,
+          cloudCount: 0,
+          createdCount: 0,
+          updatedCount: 0,
+          skippedCount: combinedCandidateIds.length,
+          parsedCount: 0,
+          opportunitiesTouched: 0,
+          watermark: runStartedAt.toISOString(),
+        });
+      } catch (bannerErr) {
+        console.error("Failed to render sync summary banner:", bannerErr);
+      }
       await prisma.account.update({
         where: { id: accountId },
         data: {
@@ -194,6 +228,12 @@ export async function runOpportunitySync(
         opportunitiesUpserted: 0,
         skipped: combinedCandidateIds.length,
         historyExpired,
+        durationMs: Date.now() - runStartedAt.getTime(),
+        ollamaCount: 0,
+        cloudCount: 0,
+        createdCount: 0,
+        updatedCount: 0,
+        parsedCount: 0,
       };
     }
 
@@ -210,6 +250,7 @@ export async function runOpportunitySync(
     let createdCount = 0;
     let updatedCount = 0;
     let skippedCount = 0;
+    let parsedCount = 0;
     const batchStartTime = Date.now();
 
     const configuredOllamaUrl = account.settings?.localOllamaUrl ?? "";
@@ -238,6 +279,8 @@ export async function runOpportunitySync(
     await prisma.account.update({
       where: { id: accountId },
       data: {
+        isSyncing: true,
+        syncHeartbeatAt: new Date(),
         syncKind: SYNC_KIND_INBOX,
         syncTotal: targetIds.length,
         lastSyncProcessed: 0,
@@ -251,14 +294,22 @@ export async function runOpportunitySync(
     let processedCount = 0;
     let nextIndex = 0;
     let isCancelled = false;
+    let summaryBannerRendered = false;
 
     // Check cancellation once before kicking off processing
     const initialCheck = await prisma.account.findUnique({
       where: { id: accountId },
-      select: { isSyncing: true },
+      select: { isSyncing: true, syncError: true },
     });
     if (!initialCheck?.isSyncing) {
-      isCancelled = true;
+      if (initialCheck?.syncError?.includes("Auto-reset")) {
+        await prisma.account.update({
+          where: { id: accountId },
+          data: { isSyncing: true, syncError: null, syncHeartbeatAt: new Date() },
+        });
+      } else {
+        isCancelled = true;
+      }
     }
 
     // Bounded concurrency pool: 3 for Cloud LLM (significantly increases throughput safely),
@@ -283,12 +334,14 @@ export async function runOpportunitySync(
             rules,
             candidateProfile,
             ollamaDownForSync,
+            syncStartedAt: runStartedAt.getTime(),
           });
 
           opportunitiesUpserted += processResult.opportunitiesUpserted;
           createdCount += processResult.createdCount;
           updatedCount += processResult.updatedCount;
           skippedCount += processResult.skippedCount;
+          parsedCount += processResult.parsedCount ?? 0;
           if (processResult.ollamaDownForSync) {
             ollamaDownForSync = true;
           }
@@ -316,6 +369,32 @@ export async function runOpportunitySync(
         }
         processedCount += 1;
 
+        // Emit summary banner immediately on final message completion in the active worker
+        // stack before committing the final progress count that triggers the poller / router.refresh
+        const isFinalMessage =
+          currentIndex + 1 >= targetIds.length ||
+          processedCount >= targetIds.length;
+
+        if (isFinalMessage && !summaryBannerRendered) {
+          summaryBannerRendered = true;
+          try {
+            logSyncSummaryBanner({
+              total: targetIds.length,
+              durationMs: Date.now() - batchStartTime,
+              ollamaCount,
+              cloudCount,
+              createdCount,
+              updatedCount,
+              skippedCount: (combinedCandidateIds.length - targetIds.length) + skippedCount,
+              parsedCount,
+              opportunitiesTouched: opportunitiesUpserted,
+              watermark: new Date().toISOString(),
+            });
+          } catch (bannerErr) {
+            console.error("Failed to render sync summary banner:", bannerErr);
+          }
+        }
+
         // Atomic progress update + cancellation check in a single database round-trip
         try {
           const updatedState = await prisma.account.update({
@@ -325,17 +404,23 @@ export async function runOpportunitySync(
               lastSyncProcessed: processedCount,
               lastSyncPendingProcessed: pendingProcessed,
             },
-            select: { isSyncing: true },
+            select: { isSyncing: true, syncError: true },
           });
 
           if (!updatedState.isSyncing) {
-            isCancelled = true;
-            break;
+            if (updatedState.syncError?.includes("Auto-reset")) {
+              // Stale heartbeat race from parallel poller — re-claim and continue processing
+              await prisma.account.update({
+                where: { id: accountId },
+                data: { isSyncing: true, syncError: null, syncHeartbeatAt: new Date() },
+              });
+            } else {
+              isCancelled = true;
+              break;
+            }
           }
         } catch {
-          // If update fails (e.g. account disconnected or cancelled concurrently), safely abort worker
-          isCancelled = true;
-          break;
+          // If update blips, do not crash worker loop
         }
       }
     }
@@ -346,13 +431,34 @@ export async function runOpportunitySync(
       await Promise.all(workers);
     }
 
-    if (isCancelled) {
+    const stoppedEarly = isCancelled && processedCount < targetIds.length;
+
+    if (stoppedEarly) {
       logStory(
         syncLog,
         "Stopped early — sync was cancelled (isSyncing cleared).",
         { "classified so far": `${processedCount} / ${targetIds.length}` },
         "warn"
       );
+      if (!summaryBannerRendered) {
+        summaryBannerRendered = true;
+        try {
+          logSyncSummaryBanner({
+            total: processedCount,
+            durationMs: Date.now() - runStartedAt.getTime(),
+            ollamaCount,
+            cloudCount,
+            createdCount,
+            updatedCount,
+            skippedCount: (combinedCandidateIds.length - targetIds.length) + skippedCount,
+            parsedCount,
+            opportunitiesTouched: opportunitiesUpserted,
+            watermark: new Date().toISOString(),
+          });
+        } catch (bannerErr) {
+          console.error("Failed to render sync summary banner:", bannerErr);
+        }
+      }
       await prisma.account
         .update({
           where: { id: accountId },
@@ -370,7 +476,34 @@ export async function runOpportunitySync(
         opportunitiesUpserted,
         skipped: combinedCandidateIds.length - targetIds.length,
         historyExpired,
+        durationMs: Date.now() - runStartedAt.getTime(),
+        ollamaCount,
+        cloudCount,
+        createdCount,
+        updatedCount,
+        parsedCount,
       };
+    }
+
+    // Batch completed normally: render summary banner if not already emitted by worker
+    if (!summaryBannerRendered) {
+      summaryBannerRendered = true;
+      try {
+        logSyncSummaryBanner({
+          total: targetIds.length,
+          durationMs: Date.now() - runStartedAt.getTime(),
+          ollamaCount,
+          cloudCount,
+          createdCount,
+          updatedCount,
+          skippedCount: (combinedCandidateIds.length - targetIds.length) + skippedCount,
+          parsedCount,
+          opportunitiesTouched: opportunitiesUpserted,
+          watermark: new Date().toISOString(),
+        });
+      } catch (bannerErr) {
+        console.error("Failed to render sync summary banner:", bannerErr);
+      }
     }
 
     // Purge expired dismissed rows (retention compliance)
@@ -380,19 +513,26 @@ export async function runOpportunitySync(
       // Non-fatal cleanup error
     }
 
-    await prisma.account.update({
-      where: { id: accountId },
-      data: {
-        lastSyncedAt: runStartedAt,
-        isSyncing: false,
-        syncError: null,
-        syncKind: null,
-        lastSyncProcessed: targetIds.length,
-        syncTotal: null,
-        syncPendingTotal: null,
-        lastSyncPendingProcessed: null,
-      },
-    });
+    try {
+      await prisma.account.update({
+        where: { id: accountId },
+        data: {
+          lastSyncedAt: runStartedAt,
+          isSyncing: false,
+          syncError: null,
+          syncKind: null,
+          lastSyncProcessed: targetIds.length,
+          syncTotal: null,
+          syncPendingTotal: null,
+          lastSyncPendingProcessed: null,
+        },
+      });
+    } catch (updateErr) {
+      syncLog.warn(
+        { err: updateErr },
+        "Failed to stamp lastSyncedAt on account after sync pass"
+      );
+    }
 
     if (didUseScrapingAnt) {
       void refreshScrapingAntUsageAfterSync(accountId);
@@ -405,22 +545,17 @@ export async function runOpportunitySync(
         combinedCandidateIds.length - targetIds.length,
     });
 
-    logSyncSummaryBanner({
-      total: targetIds.length,
-      durationMs: Date.now() - batchStartTime,
-      ollamaCount,
-      cloudCount,
-      createdCount,
-      updatedCount,
-      skippedCount,
-      watermark: new Date().toISOString(),
-    });
-
     return {
       processed: targetIds.length,
       opportunitiesUpserted,
       skipped: combinedCandidateIds.length - targetIds.length,
       historyExpired,
+      durationMs: Date.now() - batchStartTime,
+      ollamaCount,
+      cloudCount,
+      createdCount,
+      updatedCount,
+      parsedCount,
     };
   } catch (error) {
     if (

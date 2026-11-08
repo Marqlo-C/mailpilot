@@ -28,6 +28,7 @@ import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
 import { AppMenuSelect } from "@/components/ui/app-menu";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import {
   SettingsFeatureCard,
   SettingsSectionCard,
@@ -263,17 +264,11 @@ export function CloudProviderCard({
       {/* Level 2 Feature Card: Main Cloud Providers (BYOK) */}
       <SettingsFeatureCard
         logo={
-          <div
-            className={cn(
-              "relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-background/80 p-1 shadow-sm",
-              !allowCloudFallback && "opacity-50"
-            )}
-            aria-hidden="true"
-          >
-            <div className="flex size-full items-center justify-center rounded-[0.6rem] bg-muted/30">
-              <CpuAi className="size-6 text-muted-foreground" />
-            </div>
-          </div>
+          <LogoFrameIcon
+            icon={CpuAi}
+            className={cn(!allowCloudFallback && "opacity-50")}
+            iconClassName="size-6"
+          />
         }
         title="Main Cloud Providers (BYOK)"
         subtitle="Configure primary or failover API keys for OpenRouter, OpenAI, Groq, Anthropic, DeepSeek, or Gemini."

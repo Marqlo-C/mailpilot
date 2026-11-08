@@ -3,7 +3,7 @@
 import { PanelTop } from "lucide-react";
 
 import { AppearanceModeToggle } from "@/components/settings/ui/appearance-mode-toggle";
-import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { useToolbarTheme } from "@/components/ui/toolbar-theme";
 import { SettingsFeatureCard } from "@/components/ui/tactile/nested-settings-card";
 
@@ -13,7 +13,7 @@ export function ToolbarPreferencesCard() {
 
   return (
     <SettingsFeatureCard
-      logo={<SettingsFeatureLogo icon={PanelTop} />}
+      logo={<LogoFrameIcon icon={PanelTop} />}
       title="Filter Toolbar"
       subtitle="Noise filter / match filter, search, and filters on Job Radar and Subscriptions. The wavy slider stays the same in both looks."
       statusBadge={

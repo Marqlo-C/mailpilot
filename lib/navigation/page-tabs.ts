@@ -1,7 +1,24 @@
 /**
  * Tabs each sidebar page can open. Labels here are the ones the tab rails
  * render, so the sidebar menu and the rail stay the same list.
+ * Icons are for the sidebar flyout menu only (rails stay text-only).
  */
+
+import type { LucideIcon } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Cpu,
+  FileText,
+  History,
+  MailCheck,
+  MailX,
+  SlidersHorizontal,
+  Target,
+  UserRound,
+  Users,
+  Zap,
+} from "lucide-react";
 
 const SIDEBAR_PAGE_TAB_KEY = "mailpilot.sidebarPageTab";
 
@@ -13,10 +30,10 @@ export const JOB_RADAR_TAB_LABEL = {
 } as const;
 
 export const JOB_RADAR_PAGE_TABS = [
-  { value: "leads", label: JOB_RADAR_TAB_LABEL.leads },
-  { value: "applied", label: JOB_RADAR_TAB_LABEL.applied },
-  { value: "action", label: JOB_RADAR_TAB_LABEL.action },
-  { value: "history", label: JOB_RADAR_TAB_LABEL.history },
+  { value: "leads", label: JOB_RADAR_TAB_LABEL.leads, icon: Target },
+  { value: "applied", label: JOB_RADAR_TAB_LABEL.applied, icon: CheckCircle2 },
+  { value: "action", label: JOB_RADAR_TAB_LABEL.action, icon: AlertCircle },
+  { value: "history", label: JOB_RADAR_TAB_LABEL.history, icon: History },
 ] as const;
 
 export type JobRadarPageTab = (typeof JOB_RADAR_PAGE_TABS)[number]["value"];
@@ -27,20 +44,20 @@ export const SUBSCRIPTION_TAB_LABEL = {
 } as const;
 
 export const SUBSCRIPTION_PAGE_TABS = [
-  { value: "active", label: SUBSCRIPTION_TAB_LABEL.active },
-  { value: "archive", label: SUBSCRIPTION_TAB_LABEL.archive },
+  { value: "active", label: SUBSCRIPTION_TAB_LABEL.active, icon: MailCheck },
+  { value: "archive", label: SUBSCRIPTION_TAB_LABEL.archive, icon: MailX },
 ] as const;
 
 export type SubscriptionPageTab =
   (typeof SUBSCRIPTION_PAGE_TABS)[number]["value"];
 
 export const SETTINGS_PAGE_TABS = [
-  { value: "accounts", label: "Accounts" },
-  { value: "profile", label: "Profile" },
-  { value: "outbound", label: "Tailoring & Layout" },
-  { value: "automation", label: "Automation" },
-  { value: "ai", label: "AI & Models" },
-  { value: "ui", label: "UI" },
+  { value: "accounts", label: "Accounts", icon: Users },
+  { value: "profile", label: "Profile", icon: UserRound },
+  { value: "outbound", label: "Tailoring & Layout", icon: FileText },
+  { value: "automation", label: "Automation", icon: Zap },
+  { value: "ai", label: "AI & Models", icon: Cpu },
+  { value: "ui", label: "UI", icon: SlidersHorizontal },
 ] as const;
 
 export type SettingsPageTab = (typeof SETTINGS_PAGE_TABS)[number]["value"];
@@ -48,6 +65,7 @@ export type SettingsPageTab = (typeof SETTINGS_PAGE_TABS)[number]["value"];
 export type SidebarPageTab = {
   value: string;
   label: string;
+  icon: LucideIcon;
 };
 
 export function sidebarTabsForHref(href: string): readonly SidebarPageTab[] {

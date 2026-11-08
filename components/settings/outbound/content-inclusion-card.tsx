@@ -1,6 +1,7 @@
 "use client";
 
 import { CheckSquare, ThumbsUp } from "lucide-react";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { SettingsFeatureCard } from "@/components/ui/tactile/nested-settings-card";
 import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import { OutboundStatusPill } from "./status-pill";
@@ -28,22 +29,11 @@ export function ContentInclusionCard({
   return (
     <SettingsFeatureCard
       logo={
-        <div
-          className={cn(
-            "relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-background/80 p-1 shadow-sm",
-            isLocked && "opacity-50"
-          )}
-          aria-hidden="true"
-        >
-          <div className="flex size-full items-center justify-center rounded-[0.6rem] bg-muted/30">
-            <CheckSquare
-              className={cn(
-                "size-5",
-                isLocked ? "text-muted-foreground/60" : "text-muted-foreground"
-              )}
-            />
-          </div>
-        </div>
+        <LogoFrameIcon
+          icon={CheckSquare}
+          className={cn(isLocked && "opacity-50")}
+          iconClassName={isLocked ? "text-muted-foreground/60" : undefined}
+        />
       }
       title="Content Selection"
       subtitle="Choose whether AI selects your most relevant roles and highlights, or follows your manual section blueprint."

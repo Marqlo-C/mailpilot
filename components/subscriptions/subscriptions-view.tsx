@@ -52,7 +52,7 @@ import {
 import { BulkActionsWithClassifying } from "@/components/layout/bulk-actions-with-classifying";
 import { ConfirmActionDialog } from "@/components/ui/composites/confirm-action-dialog";
 import { RowMenuTrigger } from "@/components/ui/composites/row-menu-trigger";
-import { CompanyLogo } from "@/components/ui/company-logo";
+import { CompanyLogo } from "@/components/ui/logo-frame";
 import { DialogIdentityLogoStack } from "@/components/ui/composites/dialog-identity-header";
 import {
   AppMenuContent,

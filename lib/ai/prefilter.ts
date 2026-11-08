@@ -1,17 +1,28 @@
 /**
  * Lightweight job-email prefilter: 3-tier multi-vector signal triage engine.
  * Arbitrates lifecycle signals, vector scores (+H vs +N), and structural reality proof.
- * Vocabulary lives in lib/constants/job-sources.ts.
+ * 
+ * Guarantees asymmetric recall: authentic job opportunities across all industries
+ * and novel recruiter reach-outs are strictly preserved, while non-job noise
+ * (retail promotions, delivery tracking, social media notifications, security/system alerts)
+ * is dropped before hitting the LLM.
+ *
+ * Vocabulary and intent patterns live in lib/constants/job-sources.ts (SSOT).
  */
 
 import {
+  ADMIN_SECURITY_INTENT_PATTERNS,
   APPLICATION_ACTOR_PATTERN,
   APPLICATION_SENT_TO_RE,
   APPLICATION_STATUS_UPDATE_PATTERN,
   APPLICATION_THANKS_PATTERN,
   ATS_DOMAIN_PATTERN,
+  CAREER_LINK_TOPOLOGY_PATTERN,
+  COMMERCE_LINK_TOPOLOGY_PATTERN,
+  COMMERCIAL_SENDER_PATTERN,
   CONFIRMATION_SIGNAL_PATTERNS,
   CORE_HIRING_STEMS,
+  DELIVERY_LOGISTICS_INTENT_PATTERNS,
   DIGEST_SENDER_HINTS,
   HIRING_ANNOUNCEMENT_PATTERN,
   HIRING_STEM_SYNONYMS,
@@ -24,11 +35,23 @@ import {
   OUTREACH_MEETING_PATTERN,
   OUTREACH_PHRASE_PATTERN,
   RECRUITER_TITLE_PATTERN,
+  SOCIAL_ENGAGEMENT_INTENT_PATTERNS,
+  SOCIAL_NOTIFICATION_SENDER_PATTERN,
   SOURCING_HOOK_PATTERN,
   matchesConfirmationSignal,
 } from "@/lib/constants/job-sources";
 
-export { APPLICATION_SENT_TO_RE, DIGEST_SENDER_HINTS };
+export {
+  ADMIN_SECURITY_INTENT_PATTERNS,
+  APPLICATION_SENT_TO_RE,
+  CAREER_LINK_TOPOLOGY_PATTERN,
+  COMMERCE_LINK_TOPOLOGY_PATTERN,
+  COMMERCIAL_SENDER_PATTERN,
+  DELIVERY_LOGISTICS_INTENT_PATTERNS,
+  DIGEST_SENDER_HINTS,
+  SOCIAL_ENGAGEMENT_INTENT_PATTERNS,
+  SOCIAL_NOTIFICATION_SENDER_PATTERN,
+};
 
 /** How many chars of snippet/body to scan for job signals (beyond the old 1k). */
 export const PREFILTER_SCAN_CHARS = 4000;
@@ -41,7 +64,7 @@ const CONFIRMATION_BODY_SCAN_CHARS = 2000;
  * Order matters: longer suffixes first.
  */
 export function lightStem(token: string): string {
-  let w = token.toLowerCase().replace(/[^a-z0-9+#.']/g, "");
+  const w = token.toLowerCase().replace(/[^a-z0-9+#.']/g, "");
   if (w.length < 4) return w;
 
   if (w.endsWith("tion") && w.length > 6) return w.slice(0, -4);
@@ -90,32 +113,48 @@ export const JOB_EMAIL_KEYWORD_PATTERNS: RegExp[] = [
   JOB_BOARD_DOMAIN_PATTERN,
 ];
 
+/**
+ * Expand a stem into its verified synonym family.
+ * Strictly avoids inverted prefix matching so short 3-letter tokens
+ * (e.g. "can", "com", "rec", "app") never falsely expand to core hiring stems.
+ */
 function expandStem(stem: string): Set<string> {
   const out = new Set<string>([stem]);
   for (const [key, vals] of Object.entries(STEM_SYNONYMS)) {
     const keyStem = lightStem(key);
-    const valStems = vals.map((v) => lightStem(v));
-    const related =
-      stem === keyStem ||
-      stem.startsWith(keyStem) ||
-      keyStem.startsWith(stem) ||
-      valStems.some((v) => v === stem || stem.startsWith(v) || v.startsWith(stem));
-    if (!related) continue;
-    out.add(keyStem);
-    for (const v of valStems) out.add(v);
+    const isKeyMatch =
+      stem === keyStem || (keyStem.length >= 4 && stem.startsWith(keyStem));
+    if (!isKeyMatch) {
+      const valStems = vals.map((v) => lightStem(v));
+      const isValMatch = valStems.some(
+        (v) => stem === v || (v.length >= 4 && stem.startsWith(v))
+      );
+      if (!isValMatch) continue;
+      out.add(keyStem);
+      for (const v of valStems) out.add(v);
+    } else {
+      out.add(keyStem);
+      for (const v of vals) out.add(lightStem(v));
+    }
   }
   return out;
 }
 
+/**
+ * Splits text into tokens. Deliberately delimits on dots (.) so domain names
+ * and punctuation boundaries do not fuse tokens.
+ */
 function tokenizeForStemMatch(text: string): string[] {
   return text
     .toLowerCase()
-    .split(/[^a-z0-9+#.]+/)
+    .split(/[^a-z0-9+#]+/)
     .filter((t) => t.length > 2);
 }
 
 /**
  * Stem + synonym expansion match against core job concepts.
+ * Validates prefixes only when both candidate and core have length >= 4,
+ * strictly preventing false sub-token collisions.
  */
 export function matchesStemmedJobConcepts(text: string): boolean {
   if (!text.trim()) return false;
@@ -128,7 +167,8 @@ export function matchesStemmedJobConcepts(text: string): boolean {
       for (const core of CORE_JOB_STEMS) {
         if (
           core.length >= 4 &&
-          (candidate.startsWith(core) || core.startsWith(candidate))
+          candidate.length >= 4 &&
+          candidate.startsWith(core)
         ) {
           return true;
         }
@@ -203,7 +243,7 @@ export const COMMERCIAL_PROMOTION_PATTERNS = [
   /\b(?:coupon|promo|discount)\s+code\b/i,
   /\b(?:bogo|buy\s+one\s+get\s+one)\b/i,
   /\bfree\s+(?:shipping|delivery|gift|sample|chips?|steaks?|meals?|treats?|food)\b/i,
-  /\b(?:flash\s+sale|clearance\s+sale|limited\s+time\s+offer|daily\s+deals?|special\s+offer|exclusive\s+deal)\b/i,
+  /\b(?:flash\s+sale|clearance\s+sale|limited\s+time\s+offer|daily\s+deals?|special\s+offer|exclusive\s+deal|mix\s*&\s*match)\b/i,
   /\b(?:pre-?order|shop\s+now|order\s+now|buy\s+now)\b/i,
   /\b(?:now\s+leasing|leasing\s+up|apartment\s+homes?|rent\s+specials?)\b/i,
   /\b(?:hardware|laptop|pizza|flight|hotel|airline|vacation)\s+(?:sale|deals?|tickets?|packages?)\b/i,
@@ -255,8 +295,9 @@ export const PROMOTIONAL_MARKERS_PATTERN = new RegExp(
       "pizza\\s+deals?",
       "cashback",
       "exclusive\\s+deal",
+      "mix\\s*&\\s*match",
     ].join("|") +
-  ")\\b",
+    ")\\b",
   "i"
 );
 
@@ -265,13 +306,20 @@ export type TriageDecision = {
   reason:
     | "LIFECYCLE_CONFIRMED"
     | "HIGH_HIRING_SIGNAL"
+    | "AMBIGUOUS_RECALL_PASS"
     | "COMMERCIAL_NOISE"
     | "SYSTEM_ALERT"
+    | "SOCIAL_NOISE"
+    | "LOGISTICS_NOISE"
     | "INSUFFICIENT_PROOF";
   hiringScore: number;
   noiseScore: number;
 };
 
+/**
+ * Core multi-vector triage evaluator.
+ * Arbitrates directional signals across hiring vs noise dimensions.
+ */
 export function evaluateEmailTriage(input: {
   subject: string;
   body?: string | null;
@@ -279,14 +327,16 @@ export function evaluateEmailTriage(input: {
   fromEmail?: string | null;
 }): TriageDecision {
   const { subject, body = "", snippet = "", fromEmail = "" } = input;
-  const fullText = `${subject}\n${snippet}\n${body?.slice(0, 2000) ?? ""}`;
+  const fullText = `${subject}\n${snippet}\n${body?.slice(0, PREFILTER_SCAN_CHARS) ?? ""}`;
 
-  // TIER 1: IRONCLAD LIFECYCLE PASS
+  // =========================================================================
+  // TIER 1: IRONCLAD LIFECYCLE PASS (Zero-latency fast path for authentic ops)
+  // =========================================================================
   if (
     matchesConfirmationSignal(subject) ||
     APPLICATION_SENT_TO_RE.test(subject) ||
     hasApplicationConfirmationSignal(subject, snippet || body) ||
-    /\b(?:interview\s+invitation|schedule\s+(?:your\s+)?interview|phone\s+screen|assessment\s+invitation)\b/i.test(
+    /\b(?:interview\s+invitation|schedule\s+(?:your\s+)?interview|phone\s+screen|assessment\s+invitation|offer\s+letter|offer\s+of\s+employment)\b/i.test(
       subject
     )
   ) {
@@ -298,12 +348,21 @@ export function evaluateEmailTriage(input: {
     };
   }
 
-  // TIER 2: VECTOR SCORING
+  // =========================================================================
+  // TIER 2: MULTI-VECTOR SIGNAL EXTRACTION
+  // =========================================================================
   let systemNoiseScore = 0;
   let commercialNoiseScore = 0;
+  let deliveryNoiseScore = 0;
+  let socialNoiseScore = 0;
   let hiringScore = 0;
 
+  // Vector N1: Automated system & security alerts
   for (const pattern of AUTOMATED_SYSTEM_NOTICE_PATTERNS) {
+    if (pattern.test(subject)) systemNoiseScore += 3;
+    else if (pattern.test(fullText)) systemNoiseScore += 1;
+  }
+  for (const pattern of ADMIN_SECURITY_INTENT_PATTERNS) {
     if (pattern.test(subject)) systemNoiseScore += 3;
     else if (pattern.test(fullText)) systemNoiseScore += 1;
   }
@@ -311,6 +370,10 @@ export function evaluateEmailTriage(input: {
     systemNoiseScore += 3;
   }
 
+  // Vector N2: Commercial & promotional marketing
+  if (fromEmail && COMMERCIAL_SENDER_PATTERN.test(fromEmail)) {
+    commercialNoiseScore += 2;
+  }
   for (const pattern of COMMERCIAL_PROMOTION_PATTERNS) {
     if (pattern.test(subject)) commercialNoiseScore += 2;
     else if (pattern.test(fullText)) commercialNoiseScore += 1;
@@ -326,26 +389,63 @@ export function evaluateEmailTriage(input: {
   ) {
     commercialNoiseScore += 1;
   }
+  if (COMMERCE_LINK_TOPOLOGY_PATTERN.test(fullText)) {
+    commercialNoiseScore += 2;
+  }
 
-  const noiseScore = systemNoiseScore + commercialNoiseScore;
+  // Vector N3: Delivery, grocery, package, and fulfillment logistics
+  for (const pattern of DELIVERY_LOGISTICS_INTENT_PATTERNS) {
+    if (pattern.test(subject)) deliveryNoiseScore += 3;
+    else if (pattern.test(fullText)) deliveryNoiseScore += 1;
+  }
 
+  // Vector N4: Social network activity & non-job engagement
+  const isSocialSender = Boolean(
+    fromEmail && SOCIAL_NOTIFICATION_SENDER_PATTERN.test(fromEmail)
+  );
+  if (isSocialSender) {
+    socialNoiseScore += 3;
+  }
+  for (const pattern of SOCIAL_ENGAGEMENT_INTENT_PATTERNS) {
+    if (pattern.test(subject)) socialNoiseScore += 3;
+    else if (pattern.test(fullText)) socialNoiseScore += 1;
+  }
+
+  const noiseScore =
+    systemNoiseScore +
+    commercialNoiseScore +
+    deliveryNoiseScore +
+    socialNoiseScore;
+
+  // Vector H1: Structural candidate reality proof
+  const hasCareerTopology = CAREER_LINK_TOPOLOGY_PATTERN.test(fullText);
+  const hasAtsProof = ATS_DOMAIN_PATTERN.test(fullText);
+  const hasJobBoardProof = !isSocialSender && JOB_BOARD_DOMAIN_PATTERN.test(fullText);
+  const hasRecruiterProof = Boolean(
+    fromEmail &&
+      !/noreply|no-reply|alerts@|notifications@|news@|digest@/i.test(fromEmail) &&
+      (SOURCING_HOOK_PATTERN.test(fullText) ||
+        RECRUITER_TITLE_PATTERN.test(fullText))
+  );
+  const hasCompProof =
+    /\b(?:\$\d{2,3}(?:,\d{3})*|\$\d{2,3}k)\s*(?:-|to)\s*(?:\$\d{2,3}(?:,\d{3})*|\$\d{2,3}k|\d{2,3}k)\b/i.test(
+      fullText
+    );
+
+  if (hasCareerTopology) hiringScore += 3;
+  if (hasAtsProof) hiringScore += 3;
+  if (hasJobBoardProof) hiringScore += 2;
+  if (hasRecruiterProof) hiringScore += 3;
   if (SOURCING_HOOK_PATTERN.test(fullText)) hiringScore += 2;
-  if (ATS_DOMAIN_PATTERN.test(fullText)) hiringScore += 3;
-  if (JOB_BOARD_DOMAIN_PATTERN.test(fullText)) hiringScore += 2;
   if (
+    HIRING_ANNOUNCEMENT_PATTERN.test(subject) ||
     /\b(?:we(?:'re|\s+are)\s+hiring|now\s+hiring|join\s+our\s+team|job\s+opening|career\s+opportunity)\b/i.test(
       subject
     )
   ) {
     hiringScore += 2;
   }
-  if (
-    /\b(?:\$\d{2,3}(?:,\d{3})*|\$\d{2,3}k)\s*(?:-|to)\s*(?:\$\d{2,3}(?:,\d{3})*|\$\d{2,3}k|\d{2,3}k)\b/i.test(
-      fullText
-    )
-  ) {
-    hiringScore += 2;
-  }
+  if (hasCompProof) hiringScore += 2;
   if (
     looksLikeDigest(subject, fromEmail) ||
     /\b(?:top\s+picks?|recommended\s+jobs?|jobs?\s+for\s+you|jobs?\s+similar\s+to|job\s+matches?)\b/i.test(
@@ -358,11 +458,26 @@ export function evaluateEmailTriage(input: {
     hiringScore += 2;
   }
 
+  // =========================================================================
+  // TIER 3: VECTOR ARBITRATION & ASYMMETRIC RECALL GUARANTEE
+  // =========================================================================
+
+  // 1. Pure Noise: Clear non-job traffic with zero hiring signals is dropped
   if (noiseScore >= 2 && hiringScore === 0) {
-    const reason =
-      systemNoiseScore > commercialNoiseScore
-        ? "SYSTEM_ALERT"
-        : "COMMERCIAL_NOISE";
+    let reason: TriageDecision["reason"] = "COMMERCIAL_NOISE";
+    if (
+      socialNoiseScore >=
+      Math.max(systemNoiseScore, commercialNoiseScore, deliveryNoiseScore)
+    ) {
+      reason = "SOCIAL_NOISE";
+    } else if (
+      deliveryNoiseScore >=
+      Math.max(systemNoiseScore, commercialNoiseScore)
+    ) {
+      reason = "LOGISTICS_NOISE";
+    } else if (systemNoiseScore >= commercialNoiseScore) {
+      reason = "SYSTEM_ALERT";
+    }
     return {
       isJobCandidate: false,
       reason,
@@ -371,6 +486,64 @@ export function evaluateEmailTriage(input: {
     };
   }
 
+  // 2. Contested Arbitration: Email contains both noise and hiring cues
+  if (noiseScore >= 2 && hiringScore > 0) {
+    // Social notifications (likes, post reactions) without career URL topology are noise
+    if (socialNoiseScore >= 3 && !hasCareerTopology && !hasAtsProof) {
+      return {
+        isJobCandidate: false,
+        reason: "SOCIAL_NOISE",
+        hiringScore,
+        noiseScore,
+      };
+    }
+
+    // Delivery / grocery / logistics without career URL topology are noise
+    if (deliveryNoiseScore >= 3 && !hasCareerTopology && !hasAtsProof) {
+      return {
+        isJobCandidate: false,
+        reason: "LOGISTICS_NOISE",
+        hiringScore,
+        noiseScore,
+      };
+    }
+
+    // System security / alerts without ATS or career proof are noise
+    if (systemNoiseScore >= 3 && !hasAtsProof && !hasCareerTopology) {
+      return {
+        isJobCandidate: false,
+        reason: "SYSTEM_ALERT",
+        hiringScore,
+        noiseScore,
+      };
+    }
+
+    // Commercial promos require structural career proof to override promotion signals
+    if (
+      commercialNoiseScore >= 2 &&
+      !hasAtsProof &&
+      !hasCareerTopology &&
+      !hasRecruiterProof &&
+      !hasCompProof
+    ) {
+      return {
+        isJobCandidate: false,
+        reason: "COMMERCIAL_NOISE",
+        hiringScore,
+        noiseScore,
+      };
+    }
+
+    // Structural proof exists: authentic career opportunity overrides noise
+    return {
+      isJobCandidate: true,
+      reason: "HIGH_HIRING_SIGNAL",
+      hiringScore,
+      noiseScore,
+    };
+  }
+
+  // 3. High Hiring Signal (uncontested)
   if (hiringScore >= 2 && noiseScore === 0) {
     return {
       isJobCandidate: true,
@@ -380,56 +553,18 @@ export function evaluateEmailTriage(input: {
     };
   }
 
-  // TIER 3: CONTESTED / BORDERLINE ARBITRATION
-  const hasAtsProof = ATS_DOMAIN_PATTERN.test(fullText);
-  const hasRecruiterProof = Boolean(
-    fromEmail &&
-      !/noreply|no-reply|alerts@|notifications@|news@|digest@/i.test(fromEmail) &&
-      SOURCING_HOOK_PATTERN.test(fullText)
-  );
-  const hasCompProof =
-    /\b(?:\$\d{2,3}(?:,\d{3})*|\$\d{2,3}k)\s*(?:-|to)\s*(?:\$\d{2,3}(?:,\d{3})*|\$\d{2,3}k|\d{2,3}k)\b/i.test(
-      fullText
-    );
-  const isDigestWithJobBoard =
-    looksLikeDigest(subject, fromEmail) &&
-    (JOB_BOARD_DOMAIN_PATTERN.test(fullText) ||
-      ATS_DOMAIN_PATTERN.test(fullText));
-
-  // Heavy system alert or commercial noise without structural proof is rejected
-  if (
-    systemNoiseScore >= 3 ||
-    (commercialNoiseScore >= 2 &&
-      !hasAtsProof &&
-      !hasRecruiterProof &&
-      !hasCompProof)
-  ) {
-    const reason =
-      systemNoiseScore >= commercialNoiseScore
-        ? "SYSTEM_ALERT"
-        : "COMMERCIAL_NOISE";
-    return {
-      isJobCandidate: false,
-      reason,
-      hiringScore,
-      noiseScore,
-    };
-  }
-
-  if (
-    hasAtsProof ||
-    hasRecruiterProof ||
-    hasCompProof ||
-    isDigestWithJobBoard
-  ) {
+  // 4. Asymmetric Recall Guarantee: Clean / ambiguous emails with zero noise
+  // pass through to LLM evaluation so novel recruiter reach-outs are never dropped.
+  if (noiseScore === 0) {
     return {
       isJobCandidate: true,
-      reason: "HIGH_HIRING_SIGNAL",
+      reason: hiringScore > 0 ? "HIGH_HIRING_SIGNAL" : "AMBIGUOUS_RECALL_PASS",
       hiringScore,
-      noiseScore,
+      noiseScore: 0,
     };
   }
 
+  // Residual weak noise with insufficient hiring proof
   return {
     isJobCandidate: false,
     reason: "INSUFFICIENT_PROOF",
@@ -450,7 +585,10 @@ export function isPromotionalOrMarketingEmail(
   });
   return (
     !triage.isJobCandidate &&
-    (triage.reason === "COMMERCIAL_NOISE" || triage.reason === "SYSTEM_ALERT")
+    (triage.reason === "COMMERCIAL_NOISE" ||
+      triage.reason === "SYSTEM_ALERT" ||
+      triage.reason === "SOCIAL_NOISE" ||
+      triage.reason === "LOGISTICS_NOISE")
   );
 }
 

@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CompanyLogo } from "@/components/ui/company-logo";
+import { CompanyLogo, LogoFrameIcon } from "@/components/ui/logo-frame";
 import {
   darkRailListClassName,
   darkRailTriggerClassName,
@@ -33,7 +33,6 @@ import {
   lightRailTriggerClassName,
 } from "@/components/ui/tactile/segmented-tabs";
 import { SettingsSectionCard } from "@/components/ui/tactile/nested-settings-card";
-import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 import { cn } from "@/lib/utils";
@@ -1391,7 +1390,7 @@ export function SidePanelApp() {
 
             {/* 1. Master Job Details First-Level Card */}
             <SettingsSectionCard
-              icon={<SettingsFeatureLogo icon={BriefcasePlus} />}
+              icon={<LogoFrameIcon icon={BriefcasePlus} />}
               title="Job Details"
               subtitle="Import job details from your active tab above or enter them below."
               curvedDivider

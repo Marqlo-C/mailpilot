@@ -19,7 +19,7 @@ import {
   formatRevisionStamp,
   ProfileRevisionHistory,
 } from "@/components/profile/profile-revision-history";
-import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { CurvedCardDivider } from "@/components/ui/tactile/nested-settings-card";
 import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import { parseRevisionSummary } from "@/lib/profile/revision-diff";
@@ -142,7 +142,7 @@ export function ProfileRevisionsMenu({
         className="w-[32rem] overflow-hidden rounded-xl border border-border/70 bg-card p-0 shadow-xs"
       >
         <div className="flex items-center gap-2.5 p-3.5">
-          <SettingsFeatureLogo icon={RotateCcwClock} />
+          <LogoFrameIcon icon={RotateCcwClock} />
           <div className="min-w-0 space-y-0.5">
             <p className="text-sm font-semibold tracking-tight text-foreground">
               Version Control

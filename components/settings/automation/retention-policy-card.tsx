@@ -6,7 +6,7 @@ import { History } from "lucide-react";
 import { toast } from "sonner";
 
 import { updateDismissedRetention } from "@/app/actions/settings";
-import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { AppMenuSelect } from "@/components/ui/app-menu";
 import {
   SettingsFeatureCard,
@@ -33,7 +33,7 @@ export function RetentionPolicyCard({
 
   return (
     <SettingsFeatureCard
-      logo={<SettingsFeatureLogo icon={History} />}
+      logo={<LogoFrameIcon icon={History} />}
       title="Dismissed history"
       subtitle="Dismissed jobs in History are permanently deleted after this window."
       statusBadge={

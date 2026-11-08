@@ -11,7 +11,7 @@ import {
   SETTINGS_CARD_CLASSNAME,
 } from "@/components/settings/settings-chrome";
 import { buttonVariants } from "@/components/ui/button";
-import { CompanyLogo } from "@/components/ui/company-logo";
+import { CompanyLogo } from "@/components/ui/logo-frame";
 import {
   SettingsFeatureCard,
   SettingsSectionCard,

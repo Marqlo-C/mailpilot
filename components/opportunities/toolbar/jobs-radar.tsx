@@ -36,7 +36,7 @@ import { OpportunityDraftDialog } from "@/components/opportunities/dialogs/oppor
 import { ViewEmailDialog } from "@/components/dialogs/view-email-dialog";
 import { OpportunitiesView } from "@/components/opportunities/views/opportunities-view";
 import { SyncControls } from "@/components/opportunities/sync-controls";
-import { CompanyLogo } from "@/components/ui/company-logo";
+import { CompanyLogo } from "@/components/ui/logo-frame";
 import { domainFromActionUrl } from "@/components/sender-avatar";
 import { extractRecruiterEmail } from "@/lib/opportunities/application-method";
 import {

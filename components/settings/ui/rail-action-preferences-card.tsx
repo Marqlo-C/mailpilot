@@ -3,7 +3,7 @@
 import { MousePointerClick } from "lucide-react";
 
 import { AppearanceModeToggle } from "@/components/settings/ui/appearance-mode-toggle";
-import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { SyncInboxSample } from "@/components/settings/ui/sync-inbox-sample";
 import { useRailAction } from "@/components/ui/rail-action";
 import {
@@ -17,7 +17,7 @@ export function RailActionPreferencesCard() {
 
   return (
     <SettingsFeatureCard
-      logo={<SettingsFeatureLogo icon={MousePointerClick} />}
+      logo={<LogoFrameIcon icon={MousePointerClick} />}
       title="Action Buttons"
       subtitle="Top level actions — others keep their pizzazz."
       statusBadge={

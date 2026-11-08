@@ -1,6 +1,7 @@
 "use client";
 
 import { BookOpen, ThumbsUp } from "lucide-react";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { SettingsFeatureCard } from "@/components/ui/tactile/nested-settings-card";
 import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import { OutboundStatusPill } from "./status-pill";
@@ -31,22 +32,11 @@ export function PageBudgetingCard({
   return (
     <SettingsFeatureCard
       logo={
-        <div
-          className={cn(
-            "relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-background/80 p-1 shadow-sm",
-            isCardLocked && "opacity-50"
-          )}
-          aria-hidden="true"
-        >
-          <div className="flex size-full items-center justify-center rounded-[0.6rem] bg-muted/30">
-            <BookOpen
-              className={cn(
-                "size-5",
-                isCardLocked ? "text-muted-foreground/60" : "text-muted-foreground"
-              )}
-            />
-          </div>
-        </div>
+        <LogoFrameIcon
+          icon={BookOpen}
+          className={cn(isCardLocked && "opacity-50")}
+          iconClassName={isCardLocked ? "text-muted-foreground/60" : undefined}
+        />
       }
       title="Target Page Length"
       subtitle="Set your resume length dynamically based on your experience, or lock the output to 1 or 2 pages."

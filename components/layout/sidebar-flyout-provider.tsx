@@ -19,7 +19,8 @@ export const SIDEBAR_FLYOUT_CLOSE_DELAY_MS = 180;
  * Collapsed tab menu's bridge covers the status edge. A short dwell lets a
  * pass-through to the tabs keep going, and a pause on the edge opens status.
  */
-export const SIDEBAR_TELEMETRY_OPEN_DELAY_MS = 280;
+/** Dwell on the Job Radar status capsule before opening telemetry. */
+export const SIDEBAR_TELEMETRY_OPEN_DELAY_MS = 180;
 
 export type SidebarFlyoutId =
   | { kind: "nav"; href: string }

@@ -1,0 +1,872 @@
+Delivered-To: qtrain3@gmail.com
+Received: by 2002:a05:6400:6078:b0:2e6:efd4:9abd with SMTP id kk56csp398263ecb;
+        Tue, 3 Nov 2026 16:10:18 -0800 (PST)
+X-Received: by 2002:a05:622a:13cf:b0:533:998c:eb09 with SMTP id d75a77b69052e-542b3c732a8mr256230421cf.2.1793751017891;
+        Tue, 03 Nov 2026 16:10:17 -0800 (PST)
+ARC-Seal: i=1; a=rsa-sha256; t=1793751017; cv=none;
+        d=google.com; s=arc-20260327;
+        b=Z7bI9VCZY7une8VrzybpH2TuXovT9AaSp/hKA3SzVyLzTvqbFIk1M8Vw4qq9qnfOAc
+         AsPbrFVVAoJNYguXT/FwVoSmDTZGKfmmEz93wzBHUpaDGRIzlkDY+bn2zE3eOAmbFQoi
+         mrTqqmpn5FcVG/eNmPp7AD8Rww7J+C7T/n8JQaSOqQXBzyDqSkO2yS0bIMfkIazXIYNZ
+         1RyQF04X02flyoEz3Jd8AkZqkDajNpSQY3ZuPXWN4jeVrss8sEpn/lX1ml2/0+fLY4Kg
+         qpnJ+2ThADwp/8KsbQpewUlpEIfjRESxhowvmLBAu0mHttfKdydAvucYOTQ95LbN55/t
+         hJFg==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20260327;
+        h=feedback-id:message-id:mime-version:list-unsubscribe-post
+         :list-unsubscribe:date:subject:to:from:dkim-signature:dkim-signature;
+        bh=Zr3Nq3KF8j1quqMW1148SS8IMrs+uaVEe228moHtXh4=;
+        fh=ojyezrZf4HTFEuLdY4s/wZ4ZUmaKxdancvW8QjLgBFM=;
+        b=Qgi6tMQYSzAXTQIiGEAQ8xH+lGmtGHf0th1jwQygXhUlRMXhF7Gr+0wx+ecpBcgKfb
+         WRgj3WMVZWmni2vE2fHO7KdZ/V59P+whqadvSPOW0v9gloLiuFNedu10TmNRF4GXhX9N
+         FKZ7vY24VzfZJBWEX+lpEEe4PISFWPL1cACbk4Liqmo8nsVFvoRBoV/pIhwGAcfNjxzn
+         /49wtX726a04mYfDjOFNjZCZvJEstn2aRaj9/2PEUM87vkTDOWbrkVyDsVLY1Z2j1MqN
+         0mZUXWZw2VQ9PNNvdIjFAatvv88w6u37TomCWuzERu3w6Nq7tTVJ/bebPz8SrG0cLkgg
+         2Yvg==;
+        dara=google.com
+ARC-Authentication-Results: i=1; mx.google.com;
+       dkim=pass header.i=@e-offers.dominos.com header.s=11dkim1 header.b=HldVa3r6;
+       dkim=pass header.i=@s11.y.mc.salesforce.com header.s=fbldkim11 header.b=ahUHcoaI;
+       spf=pass (google.com: domain of bounce-heo27wmn4cbu5d5vram47kjysm.110071@bounce.e-offers.dominos.com designates 13.111.205.103 as permitted sender) smtp.mailfrom=bounce-HEO27WMN4CBU5D5VRAM47KJYSM.110071@bounce.e-offers.dominos.com;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=e-offers.dominos.com
+Return-Path: <bounce-HEO27WMN4CBU5D5VRAM47KJYSM.110071@bounce.e-offers.dominos.com>
+Received: from mta3.e-offers.dominos.com (mta3.e-offers.dominos.com. [13.111.205.103])
+        by mx.google.com with ESMTPS id 6a1803df08f44-91e7e8c115asi5282396d6.608.2026.11.03.16.10.17
+        for <qtrain3@gmail.com>
+        (version=TLS1_3 cipher=TLS_AES_256_GCM_SHA384 bits=256/256);
+        Tue, 03 Nov 2026 16:10:17 -0800 (PST)
+Received-SPF: pass (google.com: domain of bounce-heo27wmn4cbu5d5vram47kjysm.110071@bounce.e-offers.dominos.com designates 13.111.205.103 as permitted sender) client-ip=13.111.205.103;
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@e-offers.dominos.com header.s=11dkim1 header.b=HldVa3r6;
+       dkim=pass header.i=@s11.y.mc.salesforce.com header.s=fbldkim11 header.b=ahUHcoaI;
+       spf=pass (google.com: domain of bounce-heo27wmn4cbu5d5vram47kjysm.110071@bounce.e-offers.dominos.com designates 13.111.205.103 as permitted sender) smtp.mailfrom=bounce-HEO27WMN4CBU5D5VRAM47KJYSM.110071@bounce.e-offers.dominos.com;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=e-offers.dominos.com
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; s=11dkim1; d=e-offers.dominos.com;
+ h=From:To:Subject:Date:List-Unsubscribe:List-Unsubscribe-Post:MIME-Version:
+ Message-ID:Content-Type; i=offers@e-offers.dominos.com;
+ bh=Zr3Nq3KF8j1quqMW1148SS8IMrs+uaVEe228moHtXh4=;
+ b=HldVa3r6K++RSq+Wo7cHnj1J5IttPgu93ydYliVh0uwgMSALpBM6IiLSnTtjvKgtw1rq7tRLRxlF
+   8Ima+hCnnnAqjgVww9Tsqgp9ZEvaoe8eiN+EzXI4BSLa2+ZIi9h6FzqRxOqq0AwcpjFdUb1W5wha
+   CAxCbP5uvkjf6hfNh+KDitDsVGqIryRs53lLfgmbX2NTKRCKlH9JpHbfDVveVSRZxUw4pjZ3tM6E
+   Xv65Rtv3+0qkOYmgu1pfu41Hk9Lviqb+QTzrDVYafTFOsPXcRJF0YOy73leL+1gyeq7PtH66nUF0
+   yc0OwaGWVABFUJLoav8Z1UYhhDY5haE119o1vw==
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; s=fbldkim11; d=s11.y.mc.salesforce.com;
+ h=From:To:Subject:Date:List-Unsubscribe:List-Unsubscribe-Post:MIME-Version:
+ Message-ID:Content-Type;
+ bh=Zr3Nq3KF8j1quqMW1148SS8IMrs+uaVEe228moHtXh4=;
+ b=ahUHcoaI64c2ZKTUMCocF+hAWk2lk4q9QDs6g+XG8lVR6P5GAX3U9oMZX5G55kZ6fVxEpcHgR4HN
+   IyfEF3WaoWSIk6PG8Kfo2yF+ok0gscN53K3n1T8yXvkZuIBCL3MAeEJQcUXntchTx4+TBp1sAa26
+   TiI4rUERrYDH9T//Nrp7TSML8OLk/nwKns/eb5Lcmi9Nfn60Z1YrpWG3ewrkNSjVfzZI0p5KUwiM
+   2lntewPtiCa6yrxcfuSm6jy7HxFc5O8mk5iAYD51gXH25SJub4BdEK3+/KdXB78MGhZIRzeMhyAi
+   o6R6Z5gfGMIsRTnqAM1KAxzeUVcIaTdLydJRgg==
+Received: by mta3.e-offers.dominos.com id ht9rui39mjch for <qtrain3@gmail.com>; Wed, 4 Nov 2026 00:10:16 +0000 (envelope-from <bounce-HEO27WMN4CBU5D5VRAM47KJYSM.110071@bounce.e-offers.dominos.com>)
+From: "Domino's Pizza" <offers@e-offers.dominos.com>
+To: <qtrain3@gmail.com>
+Subject: =?UTF-8?B?VGltZSB0byBidWlsZCB5b3VyIE1peCAmIE1hdGNoIPCfmYw=?=
+Date: Tue, 03 Nov 2026 18:10:16 -0600
+List-Unsubscribe: <https://click.e-offers.dominos.com/subscription_center.aspx?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtaWQiOiI1MTQwMTE2MDciLCJzIjoiMTYzMTA3NTU3IiwibGlkIjoiMTciLCJqIjoiNDYwMzkiLCJqYiI6IjMwMDU5IiwiZCI6IjExMDA3MSJ9.EvOawBde7kn4BCddOhUTlg-Kh_yHeniCeSaPbknDOPQ>, <https://www.dominos.com/en/pages/content/opt-out/opt-out>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+MIME-Version: 1.0
+X-SFMC-Stack: 11
+x-job: 514011607_46039
+Message-ID: <cb68366d-951e-4cae-a983-7b59c10abfe9@atl1s11mta1812.xt.local>
+Feedback-ID: 514011607:46039:13.111.205.103:sfmktgcld
+Content-Type: multipart/alternative;
+	boundary="4HoZM8HtFgaZ=_?:"
+
+This is a multi-part message in MIME format.
+
+--4HoZM8HtFgaZ=_?:
+Content-Type: text/plain;
+	charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Domino's
+https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1ndm5xzF6S1Dro00Y0Gz4u8aiX6FJ-OmIWDH4TiatKnbY-BzCTfv3sCtwGoqXH48gJkf6oLIOgjX_4KP9iQYx5AsKiki0-Zzx51Ww
+
+-------------------------------------------------------------------------------
+
+To view the full email please click here
+https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1ndw7dqxBWiZt0UmBKiEB4Ap2T1shy0YCZrYvDMPaDEhuKte1IqTjcqApACrzMjWNWY1ahFCihwsZwYHox2jvQmYZg6Msqea3y7VA
+
+-------------------------------------------------------------------------------
+
+Order Online
+https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1neOropLDuyHHI6Ayb3rhPpjUFGoGxk6SLqUpC5kwIOmKavKuVxy8usI06L3cT_RZTEpU5kYJS8z7bXrV5rC8hkKSBwWoUA6tbsf0
+
+Browse Menu
+https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1neSmXsTNPEc4yvM-OCZ-WeTB8dBKUUNhy9SS6greXEtGMMYYU4SUuA5U82-4XfpK-0945ZQKAmf_mFaAd1rXblDLgny0dH6TIxRQ
+
+Find Coupons
+https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1neotfkLuBufRNARIHC9MPGoXRRXAfnDIbzWHtrD4BClFBMJH_z5BRHPyzvoqK16sZyaHEedOlWfSt2c8V_OLFbghEez4Sn5lBvoo
+
+-------------------------------------------------------------------------------
+
+Outside the U.S. and would like to unsubscribe?
+https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1ne_uzdzCcRRPw-sI6ge6VLUyAQXYWYHCVlrU3HzxTkDs96GOY6HWKypaad7HWw8wMY_slgK3Jj16b5VP4V62-WZgHpPKK6Hxejok
+
+To unsubscribe within the U.S., please click here
+https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nfODtlLg7WhbhW0-oWB9mIYQ93PptxmDlyJ11LZ65-MeB9KoC1o7PeXrrmGsknUq6gv0wGU9tg-xQ2bH2fo_VMIVyR3N5zFTbeP8
+
+This message was sent to
+qtrain3@gmail.com
+
+Questions? Contact Domino's Customer Service
+https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nfdBwW0QD-A6S0VJK0ZqZBZxgBRJAzXUOCwav1ba_Mx8gdldVlzcWXvBjQK3L8AH228AQgkjHiD2B_d84zxptI0nCsE7zbrloPjw
+
+-------------------------------------------------------------------------------
+
+Domino's Pizza LLC
+30 Frank Lloyd Wright Dr.
+Ann Arbor, MI 48106
+
+
+--4HoZM8HtFgaZ=_?:
+Content-Type: text/html;
+	charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+
+<!--
+-->
+
+<!DOCTYPE html>
+<html xml:lang="en" lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+
+  <head>
+    <title>Domino's</title>
+    <!-- Remove the meta tags to force light mode -->
+    <meta name="color-scheme" content="light dark"> 
+    <meta name="supported-color-schemes" content="light dark">
+    <!-- Remove the meta tags to force light mode -->
+    
+    <style type="text/css">
+        /* ======================================= DESKTOP STYLES */
+        * { -webkit-text-size-adjust: none; }
+        body { margin: 0 !important; padding: 0 !important; }
+        body,table,td,p,a { -ms-text-size-adjust: 100% !important; -webkit-text-size-adjust: 100% !important; }
+        table, tr, td { border-spacing: 0 !important; mso-table-lspace: 0px !important; mso-table-rspace: 0pt !important; border-collapse: collapse !important; mso-line-height-rule:exactly !important;}
+        .ExternalClass * { line-height: 100% }
+        .mobile-link a, .mobile-link span { text-decoration:none !important; color: inherit !important; border: none !important; }
+        /* ======================================= CUSTOM DESKTOP STYLES */
+    </style>
+    <style type="text/css">
+      /* CLIENT-SPECIFIC STYLES */
+      body {
+         margin: 0;
+         padding: 0;
+         }
+       table {
+         border-collapse:collapse;
+         mso-table-lspace:0;
+         mso-table-rspace:0; 
+         }
+       h1 {
+         margin:0.67em 0;
+         font-size:2em;
+         }
+       h2 {
+         margin:0.83em 0;
+         font-size:1.5em;
+         }
+       html[dir] h3, h3 {
+         margin:1em 0;
+         font-size:1.17em;
+         }
+      /* iOS BLUE LINKS */
+      
+          #root [x-apple-data-detectors=true],
+           a[x-apple-data-detectors=true]{
+             color: inherit !important;
+             text-decoration: inherit !important;
+           }
+       [x-apple-data-detectors-type="calendar-event"] {
+             color: inherit !important;
+             -webkit-text-decoration-color: inherit !important;
+       }
+       u + .body a {
+         color: inherit;
+         text-decoration: none;
+         font-size: inherit;
+         font-weight: inherit;
+         line-height: inherit;
+         }
+       .body {
+         word-wrap: normal;
+         word-spacing:normal;
+         }
+       div[style*="margin: 16px 0"] {
+         margin: 0!important;
+         }
+      
+      h1, h2, h3, h4, p, a { margin: 0; padding: 0; font-family: Open Sans, Helvetica, Arial, sans-serif; }
+      
+      .lAlign { text-align: left !important; }
+
+      .dm_txt_brown {color: #603913; }
+      .dm_txt_brown_DM {color: #603913; }
+      .dm_txt_white {color: #FFFFFF; }
+      .dm_txt_blue {color: #0090E2; }
+      .dm_txt_red  {color: #FF0000; }
+
+      
+      /* MOBILE STYLES */
+      @media screen and (max-width: 600px) {
+        table.w100p-mobile{
+          margin:0px 10px !important;
+        }
+        h1 {
+            font-size: 40px !important;
+            line-height:45px !important;
+        }
+        h2 {
+
+        }
+        h3 {
+            font-size: 24px !important;
+            line-height:27px !important;
+        }
+        h3 {
+            font-size: 20px !important;
+            line-height:25px !important;
+        }
+        .img-max {
+          width: 100% !important;
+          max-width: 100% !important;
+          height: auto !important;
+        }
+
+        .img-max-mobile {
+          width: 100% !important;
+          max-width: 100% !important;
+          height: auto !important;
+          padding:0px 10px !important;
+        }
+        .img-max-footer-mobile {
+          width: 100% !important;
+          max-width: 284px !important;
+          height: auto !important;
+          text-align:center !important;
+        }
+        .w100p-mobile {padding:0px 5px !important;}
+
+        .w100p { width: 100% !important; }
+      
+        .max-width {
+          max-width: 100% !important;
+        }
+      
+        .mobile-wrapper {
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+      
+        .mobile-padding {
+          padding-left: 5% !important;
+          padding-right: 5% !important;
+        }
+        .mobileHeaderPadding {
+            padding:0px !important;
+        }
+        .mobileHeadText {
+            font-size:12px !important;
+            line-height: 14px !important;
+        }
+        .mobilePadding{
+          padding:0px 10px !important;
+        }
+        .th-block { display:block; width:100% !important; }
+        .th-block-reverse-header { display:table-header-group; width:100% !important; }
+        .th-block-reverse-footer { display:table-footer-group; width:100% !important; }
+        .hidden { display: none !important; }
+        .hidden_secondary { display: none !important; width: 0 !important; height: 0 !important; font-size: 0 !important; line-height: 0 !important; min-height: 0 !important; visibility: hidden !important; mso-hide: all !important; }
+        .show {display: block !important; }
+        .m-top-pad-50 { padding-top: 50px !important }
+        .m-bottom-pad-20  { padding-bottom: 20px !important }
+
+      }
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark ) {
+          
+          /* Shows Dark Mode-Only Content, Like Images */   
+          /* .dm_dark_img { 
+            display:block !important; 
+            width: auto !important; 
+            overflow: visible !important; 
+            float: none !important; 
+            max-height:inherit !important; 
+            max-width:inherit !important; 
+            line-height: auto !important; 
+            margin-top:0px !important; 
+            visibility:inherit !important; 
+          } */
+          
+          /* Hides Light Mode-Only Content, Like Images */   
+          /* .dm_light_img { display:none; display:none !important; } */
+          
+          /* Custom Dark Mode Background Color #fdfcfa */   
+          .dm_bkgd { background-color: #006491 !important; }
+          .dm_wtbkgd { background-color: #fdfcfa !important; }
+          .dm_redCTA { background-color: #e31736 !important; }
+          
+          /* Custom Dark Mode Font Colors */
+          .dm_txt_white { color: #ffffff !important; }
+          .dm_txt_grey { color: #D9D9D9 !important; }
+          .dm_txt_red { color: #e31837 !important; }
+          .dm_txt_blue {color: #0090E2 !important;}  
+          .dm_txt_brown {color: #603913 !important; }
+          .dm_txt_brown_DM {color: #b39475 !important; }
+  
+          /* Custom Dark Mode Text Link Color */   
+          /* .dm_dpz_red_link { color: #E31837 !important; } */
+        }
+    </style>
+    <style>
+        [data-ogsc] .dm_txt_brown {color: #603913 !important; }
+        [data-ogsc] .dm_txt_white { color: #ffffff !important; }
+        [data-ogsc] .dm_crm_bkgd {background-color: #FAF2E9 !important; }
+        [data-ogsc] .dm_promo_bkgd {background-color: #e6d4b8 !important; } 
+    </style>
+    <style>
+      /* STYLES TO KEEP WHITE TEXT WHITE ON GMAIL */
+            u + .body .gmail-blend-screen { background:#000; mix-blend-mode:screen; }
+            u + .body .gmail-blend-difference { background:#000; mix-blend-mode:difference; }
+            u + .body .dm_bkgd_dpz_blue {color:#0090E2 !important; }
+            u + .body .dm_bkgd_dpz_chrome {color:#8f8673 !important; }
+            u + .body .dm_bkgd_dpz_promoChrome {color:#847B68 !important; }
+            u + .body .dm_bkgd_dpz_brown {color:#b39475 !important; }
+            u + .body .dm_crm_bkgd {background-color: #FAF2E9 !important; }
+            u + .body .dm_promo_bkgd {background-color: #e6d4b8 !important; }  
+
+    </style>
+    <!--[if (gte mso 9)|(IE)]>
+    <style>
+      .dm_txt_white {
+       mso-style-textfill-type:gradient;
+        mso-style-textfill-fill-gradientfill-stoplist:"0 \#FFFFFF 0 100000\,100000 \#FFFFFF 0 100000";
+        color: #000000 !important;
+      }
+    </style>
+    <![endif]-->
+    
+    <!--Outlook hack to make content resize better with DPI scaling-->
+    <!--[if gte mso 9]>     <xml>       <o:OfficeDocumentSettings>         <o:AllowPNG/>         <o:PixelsPerInch>96</o:PixelsPerInch>       </o:OfficeDocumentSettings>     </xml>     <![endif]-->
+  </head>
+  
+<script type="application/ld+json">
+[
+   {
+      "@context":"https://schema.org/",
+      "@type":"DiscountOffer",
+      "description":"Mix & Match Deal",
+      "discountCode":"MIXANDMATCH",
+      "availabilityStarts":"",
+      "availabilityEnds":""
+   }
+]
+</script>
+
+
+  <body id="body" class="darkmode body" bgcolor="" style="">
+  <div role="article" aria-roledescription="email" aria-label="Domino's" xml:lang="en" lang="en">
+  <!--hidden preheader with pre-header spacer hack-->
+    <div style="display: none; visibility: hidden; opacity: 0; color: transparent; height: 0; width: 0;font-size:0px;line-height:1px;">Delicious pizza awaits 😋</div>
+    <div style="display: none; max-height: 0px; overflow: hidden;">
+   
+ &#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;
+&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;
+&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;
+    </div>
+    <table role="presentation" border="0" align="center" cellpadding="0" cellspacing="0" width="600">
+      <tr>
+        <td style="width:600px;margin:0px 10px;">
+          <table class="w100p-mobile" role="presentation" align="center" width="600" border="0" cellpadding="0" cellspacing="0" width="" style="width:600px !important;">
+            <tr>
+  <td align="center" valign="top" =>
+    <table class="w100p" role="presentation" align="center" border="0"  cellpadding="0" cellspacing="0" style="width:600px;">
+      <!-- Header Module -->
+      <tr>
+        <td align="center" valign="top" background="https://email.assets.dominos.com/us/email/CI25/FAF2E9_BG.png" bgcolor="#FAF2E9" style="background:#FAF2E9; background-image:linear-gradient(#FAF2E9,#FAF2E9); background-size: cover; padding: 0px 0px 0px 0px; border-radius:5px 5px 20px 20px;" class="dm_crm_bkgd">
+          <table class="w100p" role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" style="width:600px;">
+            <tr>
+              <td>
+                <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nX9GZzA9Z88SEVGin1-_Pr4P5S4MuSepPb0KP9CfaPkf5DBapcxBMmbVDFezyUxzFi_vuZlxhUcQqHNUJc5tHX70-P1tw3IQsIQhe_kpiLZA-O2U"  target="_blank"  style="color: #ffffff; text-decoration: underline;">
+                  <img src="https://email.assets.dominos.com/us/email/CI25/DPZ_Header_v3.png" width="100%" border="0" class="dpz_img" style="display: block; font-family: Arial, Helvetica, sans-serif; color: #006491; font-weight:bold; font-size:18px;" alt="DOMINO'S - ORDER NOW" />
+                </a>
+              </td>
+            </tr>
+            <!--
+            
+            -->
+            <!----> 
+            <tr>
+              <td align="center" valign="top" style="max-width: 600px;">
+                <table align="center" width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+                  <tr>
+                    <td class="mobileHeaderPadding" align="center" valign="middle" style="padding:10px 15px 0px 15px; vertical-align:middle; max-width: 600px !important;">
+                      <table cellpadding="0" cellspacing="0" border="0" role="presentation">
+                        <tr>
+                          <td class="heightAuto padLeft5 padRight5" width="25%" height="25" align="center" valign="middle" style="padding:0 10px 0 10px;">
+                            <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nYHhRsWh8_FFCsuHjvK91XRWGo4pZ6dJikj3IBRLCm_LUpCyqux_r_SrulT_eFj4swOhdBteEYUQHwpVlQ7YaJmhEci2tGP27GakYloN35bmiECE"  target="_blank"  style="color: #ffffff; text-decoration: underline;">
+                              <img src="https://email.assets.dominos.com/us/email/CI25/DPZ_CI25_HeadLogo.png" width="91" border="0" style="display:block; max-width:91px;" class="dpz_img" alt="Domino's Rewards" />
+                            </a>
+                          </td>
+                          <td class="heightAuto padLeft5 padRight5" width="35%" height="34" align="right" valign="middle" style="padding:0 10px 0 10px;">
+                            <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nYVE2I7ptAUfgzvqaRiTMWRAvBhMrrGyA7qX1OE0Y-CDD3r-sL71MdNlA7p_S6Qnu5iISkywUj_cWjS7-MP2Q71bE11M06deORAHRSManOlTb_BQ"  target="_blank"  style="color: #ffffff; text-decoration: underline;">
+                              <img src="https://email.assets.dominos.com/us/email/CI25/DPZ_POINTSBAR_10.png" width="163" border="0" style="display:block; max-width:163px;" class="dpz_img" alt="Domino's Rewards" />
+                            </a>
+                          </td>
+                          <td class="padLeft5 padRight5" width="30%" align="left" valign="middle" style=" vertical-align:middle;">
+                            <table cellpadding="0" cellspacing="0" border="0" role="presentation">
+                              <tr>
+                                <td class="mobileHeadText" align="center" valign="bottom" style="font-family:arial,sans-serif; font-size:13px; line-height:15px; padding-top:4px; color:#603913;">
+                                  <strong class="dm_bkgd_dpz_chrome">Marquise, you have 10<span>&nbsp;</span>points!</strong>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                          <td class="padLeft5 padRight10" width="20%" height="52" align="center" valign="middle" style="padding:0 0px 0 10px;">
+                              <!---->
+                              <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nYjddsZnREYdZfXuHVKh8QlFBbM8Z0jbkgd39_wn4sVPHJMwHJwha7sQGrMG-4zSdgtEfSjNeA4qMq_ZG2XCsFssVr7FPK2RKJjrmaGDU5RP0O2Q"  target="_blank"  style="color: #ffffff; text-decoration: underline;">
+                              <img src="https://email.assets.dominos.com/us/email/CI25/DPZ_HeadCTA_OrderNow.png" width="107" border="0" style="display:block; max-width:107px;" class="dpz_img" alt="Order Now" />
+                                </a>
+                              <!---->
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <!--[if !mso]><!-->
+                  <tr>
+                    <td align="center" style="mso-hide:all; height:1px !important; min-height:1px !important;line-height:1px;font-size:1px;">
+                        <div class="w100" style="display:block;height:10px;line-height:1px;font-size:1px;">&nbsp;</div>
+                    </td>
+                  </tr>
+                  <!--<![endif]-->
+                </table>
+              </td>
+            </tr>
+            <!---->         
+          </table>
+        </td>
+      </tr>
+      <!--[if gte mso]> <tr> <td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> 
+<td align="center" style="padding-left:2px;padding-right:2px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:2px;padding-right:2px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:3px;padding-right:3px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> 
+<td align="center" style="padding-left:3px;padding-right:3px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:4px;padding-right:4px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> </tr> <tr> <td align="center" style="padding-left:5px;padding-right:5px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> 
+<td align="center" style="padding-left:6px;padding-right:6px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:7px;padding-right:7px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:8px;padding-right:8px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> 
+<td align="center" style="padding-left:9px;padding-right:9px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:12px;padding-right:12px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:15px;padding-right:15px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <![endif]-->
+      <!-- END Header Module -->
+    </table>
+  </td>
+</tr>
+            <!-- Module Spacing -->
+            <tr>
+              <td>
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" role="presentation" style="max-width:600px;">
+                  <tr>
+                    <td align="center" style="font-size:10px !important;">
+                      &nbsp;
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <!-- END Module Spacing -->
+            <tr>
+              <td>
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" role="presentation" style="max-width:600px;">
+                  
+
+<tr>
+              <td class="dm_crm_bkgd" align="center" valign="top" bgcolor="#FAF2E9" style="background:#FAF2E9; background-image:linear-gradient(#FAF2E9,#FAF2E9); background-size:cover; padding: 0px; border-radius:30px; max-width:600px;" class="">
+                <table class="w100p" role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="width:600px;">
+                  <tr>
+                    <td align="center" valign="top">
+                      <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nY5JC8XT4A2GjEX_CHFCJHhOBwy7eD66zTQWup3wevKMCLXR2oY7u15_YrBINimBL7a1t871rRvuNSSmEO-3zl84jce8oVk9lFqISMWfk" target="_blank" >
+                        <img src="https://email.assets.dominos.com/us/email/CI25/NAT/MM_HeroImage_Group_02.png" alt="DOMINO'S PIZZA" width="600" border="0" style="display: block;" class="img-max">
+                      </a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="mobileCopy" align="center" valign="top" style="padding: 30px;">
+                        <h2 class="dm_txt_brown dm_bkgd_dpz_chrome" style="font-family:Arial, sans-serif; font-size:32px; line-height:37px; font-weight:400">
+                            Mix Things Up For Dinner Tonight.
+                        </h2>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" valign="top">
+                      <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nZNHvwnLpqN3U_wxyi5hFZ4sn7w6KkCkwdr04EuF_A4gVQ3J_L0Krc5Y-enbdkktVaetX0cOOwxLw9FJITADRfuwKjLlSBVVRxcTiONJq" target="_blank" >
+                        <img src="https://email.assets.dominos.com/us/email/CI25/NAT/MM_Header_2_v1.png" alt="MIX & MATCH DEAL" width="" border="0" style="display: block; max-width:536px;">
+                      </a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" valign="top" style="padding:20px;">
+                      <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nZUjr9PQ8_Br1GHTW7aaH_wn6Dia4Um6Zyo_LQo1kMWgZpnDCXnS8GBx8S4vFtJVvpOzxKNVKr49jW5k7ph9ewdYQ_7XO4bJ_rLSg8iX3" target="_blank" >
+                        <img src="https://email.assets.dominos.com/us/email/CI25/NAT/MM_Price_799.png" alt="$7.99 EACH" width="184" border="0" style="display: block;">
+                      </a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="mobileCopy" align="center" valign="top" style="padding:0px 30px;">
+                      <h3 class="dm_txt_brown dm_bkgd_dpz_chrome" style="font-family:Arial, sans-serif; font-size:18px; line-height:23px; font-weight:400">
+                        Choose any 2 or more medium 2-topping pizzas, breads, chicken, pastas, sandwiches, salads, or desserts.
+                      </h3>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" valign="top" style="padding:30px 0px;">
+                      <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nZkIooK1Z_F56-KLeevWMthB7iPn0hxQjIaIqKPd07HjoJNYy7Z-WfxYBgYHmMeJr5k2tuWEYT2ZWr2bGdA4uJ5TELxFtkTlg7oFqHG0T" target="_blank" >
+                        <img src="https://email.assets.dominos.com/us/email/CI25/NAT/OrderNowCTA_RedButton.png" alt="ORDER NOW" width="252" border="0" style="display: block;">
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <!--[if gte mso]> <tr> <td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> 
+<td align="center" style="padding-left:2px;padding-right:2px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:2px;padding-right:2px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:3px;padding-right:3px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> 
+<td align="center" style="padding-left:3px;padding-right:3px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:4px;padding-right:4px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> </tr> <tr> <td align="center" style="padding-left:5px;padding-right:5px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> 
+<td align="center" style="padding-left:6px;padding-right:6px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:7px;padding-right:7px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:8px;padding-right:8px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> 
+<td align="center" style="padding-left:9px;padding-right:9px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:12px;padding-right:12px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <tr> <td align="center" style="padding-left:15px;padding-right:15px;height:1px;line-height:1px;font-size:1px;"> <div class="w100" style="display:block;height:1px;background-color:#FAF2E9;line-height:1px;font-size:1px;">&nbsp;</div> </td> </tr> <![endif]-->
+            <!-- Hero: End -->
+            <!---->
+            <tr>
+              <td>
+                <table width="600" border="0" cellspacing="0" cellpadding="0" role="presentation" style="max-width:600px;">
+                  <tr>
+                    <td align="center" class="dm_txt_brown_DM" style="padding:20px 100px;font-family:Arial, sans-serif; font-size:12px; line-height:16px;">
+                      PRICES HIGHER IN SOME LOCATIONS. You must ask for this offer while available. Offer is available only at participating stores. Prices, delivery area, and charges may vary by store. Delivery orders are subject to each local store's delivery charge. 2-item minimum. Bone-in Wings, Handmade Pan Pizza and Parmesan Stuffed Crust Pizza will cost extra. In addition, your local store may charge extra for some menu items available with this offer and some crust types, toppings, and sauces. Visit www.dominos.com to see your local store's online menu and the checkout page when placing an online order for order-specific pricing.
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <!---->
+<!-- -- -- -- -- -- -- -- -- Template 1 Hero: End -->
+            <!-- Module Spacing -->
+            <tr>
+                <td>
+                  <table width="100%" border="0" cellspacing="0" cellpadding="0" role="presentation" style="max-width:600px;">
+                    <tr>
+                      <td align="center" style="font-size:10px !important;">
+                        &nbsp;
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+            </tr>
+            <!-- END Module Spacing -->
+
+
+
+<tr>
+              <td align="center" valign="top">
+                <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nZzaviBLUOTWy1wCg_yTzXsgZC_I2Z8JjL7jZvJN5eOg3otzbX0QEHwuzqcSD0arPKevyiWLCMa4q0itTpboE0Zqn339CWGAXmBdPbtQ5" target="_blank" >
+                  <img src="https://email.assets.dominos.com/us/email/CI25/NAT/STJ_Secondary_HeroImage_2026.png" alt="ST. JUDE" width="600" height="350" border="0" style="display: block;" class="img-max">
+                </a>
+              </td>
+            </tr>
+            <!-- Module Spacing -->
+            <tr>
+              <td>
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" role="presentation" style="max-width:600px;">
+                  <tr>
+                    <td align="center" style="font-size:10px !important;">
+                      &nbsp;
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <!-- END Module Spacing -->
+            <!--[if gte mso]><tr><td align="center" style="padding-left:15px;padding-right:15px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:12px;padding-right:12px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:9px;padding-right:9px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:8px;padding-right:8px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:7px;padding-right:7px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:6px;padding-right:6px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:5px;padding-right:5px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:4px;padding-right:4px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr></tr><tr><td align="center" style="padding-left:3px;padding-right:3px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:3px;padding-right:3px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:2px;padding-right:2px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:2px;padding-right:2px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><![endif]-->
+            <tr>
+              <td align="center" valign="top" bgcolor="#0090E2" style="background:#0090E2; background-image:linear-gradient(#0090E2,#0090E2); background-size:cover; border-radius:20px;color:#ffffff; max-width:600px;" class="">
+                <table align="center" width="600" cellpadding="0" cellspacing="0" border="0" role="presentation">
+                  <tr>
+                    <td style="padding:20px;">
+                      <table align="center" width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+                        <tr>
+                          <td class="mobileTitle" align="left" valign="top" style="font-family:Arial, sans-serif; font-size:24px; line-height:29px; font-weight:400; color:#ffffff; padding:5px;">
+                            <div class="gmail-blend-screen"><div class="gmail-blend-difference">
+                              <span class="dm_txt_white">The greatest gift is time.</span>
+                            </div></div>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td align="left" valign="top" style="padding:10px 5px">
+                            <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1naAsM5BmMhA5Q9Nusctl1GwgCBM66Idc-U-fi8OgEpE_P8t3vf3MN3kKEp76RQ0VwNxa8FXKM7RmStBOUcSyubpUPaBDCnYi2I-2dg72n" target="_blank" >
+                              <img src="https://email.assets.dominos.com/us/email/CI25/NAT/STJ_Secondary_Header_2026.png" alt="ORDER NOW AND DONATE." width="536" border="0" style="display: block;">
+                            </a>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td class="mobileTitle" align="left" valign="top" style="font-family:Arial, sans-serif; font-size:20px; line-height:25px; font-weight:bold; color:#ffffff; padding:5px;">
+                            <div class="gmail-blend-screen"><div class="gmail-blend-difference">
+                              <span class="dm_txt_white">In the season of thanks and giving, join Domino's in supporting St. Jude Children's Research Hospital<sup>&reg;</sup>.</span>
+                            </div></div>
+                          </td>
+                        </tr>
+                        <!---->
+                        <tr>
+                          <td align="center" valign="top" style="padding:30px 0px 10px 0px">
+                            <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1naRLM8NnWlXHryt_wKEpnr9xOzlb6drnVFfGku2mFYErhMNYT9yBADS5GWvIiP6tdPCFy3vsnVlD9W7YZ3hVoBwU84Lx9WeDmgDpOFpO2" target="_blank" >
+                              <img src="https://email.assets.dominos.com/us/email/CI25/NAT/Loyalty_Secondary_Stacked_OrderNowCTA.png" alt="ORDER NOW" width="252" border="0" style="display: block;">
+                            </a>
+                          </td>
+                        </tr>
+                        <!---->
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <!--[if gte mso]><tr><td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:2px;padding-right:2px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:2px;padding-right:2px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:3px;padding-right:3px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:3px;padding-right:3px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:4px;padding-right:4px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr></tr><tr><td align="center" style="padding-left:5px;padding-right:5px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:6px;padding-right:6px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:7px;padding-right:7px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:8px;padding-right:8px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:9px;padding-right:9px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:12px;padding-right:12px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:15px;padding-right:15px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><![endif]-->
+            <tr>
+              <td>
+                <table width="600" border="0" cellspacing="0" cellpadding="0" role="presentation" style="max-width:600px;">
+                  <tr>
+                    <td align="center" class="dm_txt_brown_DM" style="padding:20px 100px;font-family:Arial, sans-serif; font-size:12px; line-height:16px;">
+                      100% of donation goes to American Lebanese Syrian Associated Charities, Inc. ("ALSAC"), the fundraising and awareness organization for St. Jude Children's Research Hospital (a 501©3 tax-exempt organization). Donation is not tax-deductible. Donations will be remitted to the charity on a quarterly basis. Donations may not be made to charity in the event it is not in good standing with the IRS, Franchise Tax Board, and/or the state of California. For questions, including the amount donated for this quarterly period, contact customercare@dominoscustomercare.com.
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+
+
+                  
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" role="presentation" style="max-width:600px;">
+                  
+                </table>
+              </td>
+            </tr>
+            <tr>
+                <td>
+                  <table width="100%" border="0" cellspacing="0" cellpadding="0" role="presentation" style="max-width:600px;">
+                    <tr>
+              <td align="center" valign="top" style="padding:10px;">
+                <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1naoQDIEMK2P2vRiiPmlCYrpcIvT-8TB3AkmZmffZe5vN0zN1dDKQgpDGASfo-N_4Ukve31dGSbzT9hsN5b-RLaP5By0Tyq7KDuQRanvVx"  alt="Browse Menu" target="_blank">
+                  <img src="https://email.assets.dominos.com/us/email/CI25/NatTemp/NatFooter_CTA_BM.png" width="280"  border="0" style="display: block;" alt="BROWSE MENU">
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" valign="top" style="padding:10px;">
+                <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1na4h__x9hDVnUvaxeqGEPPmXkKviiBGYlE8NlHmeJe3KnwtZWvx2n8jjmx-UUUvdRClG1MxLDv2KKDmBQO7Y8lZSiEy_b5qrDO4ckt0Sw"  alt="Deals" target="_blank">
+                  <img src="https://email.assets.dominos.com/us/email/CI25/NatTemp/NatFooter_CTA_Deals.png" width="280"  border="0" style="display: block;" alt="DEALS">
+                </a>
+              </td>
+            </tr>
+            <!-- Module Spacing -->
+            <tr>
+              <td>
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" role="presentation" style="max-width:600px;">
+                  <tr>
+                    <td align="center" style="font-size:10px !important;">
+                      &nbsp;
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <!-- END Module Spacing -->
+                    
+                  </table>
+                </td>
+            </tr>
+            <tr>
+              <td>
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" role="presentation" style="max-width:600px;">
+                  <!---->
+<!--[if gte mso]><tr><td align="center" style="padding-left:15px;padding-right:15px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:12px;padding-right:12px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:9px;padding-right:9px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:8px;padding-right:8px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:7px;padding-right:7px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:6px;padding-right:6px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:5px;padding-right:5px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:4px;padding-right:4px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:3px;padding-right:3px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:3px;padding-right:3px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:2px;padding-right:2px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:2px;padding-right:2px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><![endif]-->
+            <tr>
+              <td  align="center" valign="top" bgcolor="#FAF2E9" style="background:#0090E2; background-image:linear-gradient(#0090E2,#0090E2); background-size:cover; padding: 0px; border-radius:30px; max-width:600px;" class="">
+                <table class="w100p" role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="width:600px;">
+                  <tr>
+                      <td class="mobileCopy" align="center" valign="top">
+                        <table class="w100p" role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" style="width:600px;">
+                            <tr>
+                                <td style="padding:30px 50px; display:block; vertical-align:center;" valign="">
+                                    <table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0">
+                                        <tr>
+                                          <td align="left" width="188" style="padding-right:0px;">
+                                              <img src="https://email.assets.dominos.com/us/email/CI25/NatTemp/LSO_v1.png" width="188" border="0" style="display: block;" alt="YOUR LOCAL STORE">
+                                          </td>
+                                          <td align="right" style="" width="300">
+                                            <table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0">
+                                              <tr>
+                                                <td align="center" style="padding-bottom:20px;">
+                                                    <img src="https://email.assets.dominos.com/us/email/CI25/NatTemp/LSO_v2.png" width="237" border="0" style="display: block;" alt="YOUR DOMINO'S STORE">
+                                                </td>
+                                              </tr>
+                                              <tr>
+                                                <td class="mobileTitle" align="left" valign="top" style="font-family:Arial, sans-serif; font-size:28px; line-height:30px; font-weight:400; text-align:center; color:#ffffff; text-transform: capitalize;">
+                                                  <div class="gmail-blend-screen"><div class="gmail-blend-difference">
+                                                    <span class="dm_txt_white">658 G St<br>
+                                                      Davis, CA 95616
+                                                    </span>
+                                                  </div></div>
+                                                </td>
+                                              </tr>
+                                            </table>
+                                          </td>
+                                        </tr>
+                                      </table>
+                                  </td>
+                              </tr>
+                          </table>
+                      </td>
+                  </tr>
+                  <tr>
+                    <td class="mobileTitle" align="center" valign="top" style="padding:0px 30px 30px 30px; font-family:Arial, sans-serif; font-size:23px; line-height:28px; font-weight:400; text-align:center; color:#ffffff;">
+                      <div class="gmail-blend-screen"><div class="gmail-blend-difference">
+                        <span class="dm_txt_white">Not your store? Update your <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nbLa1mvxO_BvF_i5ggP624aj4T3Y4zu7bIY9ElpbdzUvEqeQt8CHe2tpdl4mTVQUPnOgs1hyQZzcKW8GU92ApRyPR3NOGjm8CNjXIwjdR" target="_blank" class="dm_txt_white" style="color:#ffffff; text-decoration:underline;">subscription address.</a>
+                        </span>
+                      </div></div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <!--[if gte mso]><tr><td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:1px;padding-right:1px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:2px;padding-right:2px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:2px;padding-right:2px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:3px;padding-right:3px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:3px;padding-right:3px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:4px;padding-right:4px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr></tr><tr><td align="center" style="padding-left:5px;padding-right:5px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:6px;padding-right:6px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:7px;padding-right:7px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:8px;padding-right:8px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr>
+<td align="center" style="padding-left:9px;padding-right:9px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:12px;padding-right:12px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><tr><td align="center" style="padding-left:15px;padding-right:15px;height:1px;line-height:1px;font-size:1px"><div class="w100" style="display:block;height:1px;background-color:#0090E2;line-height:1px;font-size:1px">&nbsp;</div></td></tr><![endif]-->
+<!---->
+                  
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" role="presentation" style="max-width:600px;">
+                  <tr>
+              <td valign="middle" align="center"  style="padding:20px 0;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="" class="">
+                  <tr>
+                    <td class="mobileSocial" style="display:block; width:300px;">
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="" class="">
+                        <tr>
+                          <td valign="middle" align="center" style="padding: 0 0 0 6px;" >
+                            <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nbZmIkUl2mmaIrD5TsIngk8lpGUNYLubZDGE9BxIXHPiXDy0AvimlwJQyYR_EAXlyye_Ah2CpLwiNDr3wkmwdElcLOkrg3EG0A_g"  title="Facebook" target="_blank"><img src="https://email.assets.dominos.com/us/email/CI25/NatTemp/Nat_FB.png" width="41" height="40" border="0" alt="Facebook" style="font-family: Arial, Helvetica, sans-serif; display:block; font-size:10px;color:#006491;font-weight:bold;text-decoration: none;"></a>
+                          </td>
+                          <td valign="middle" align="center" style="padding:0px 22px 0px 22px;" >
+                            <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nbp_4PUbLc94FiqXoIRbHZWIKIMS3XrJ2Wb-DjjOYn8lv3LjcCZJP--bDl-H4Y46rC7H7xVumXEWSk76ijI0LAGDZkRCe7LKOUo8"  title="Instagram" target="_blank"><img src="https://email.assets.dominos.com/us/email/CI25/NatTemp/Nat_IG.png" width="41" height="40" border="0" alt="Instagram" style="font-family: Arial, Helvetica, sans-serif; display:block; font-size:10px;color:#006491;font-weight:bold;text-decoration: none;"></a>
+                          </td>
+                          <td valign="middle" align="center" >
+                            <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1nb3hz-H8XH_g1h0q-FX0h88sBk1hVL9Vlcg8x2e31y7z7KN2ioWBWP9IeBY6BOMboujwIvGIN50x-_v2xP7IbNR07XFPnJw9Wyko"  title="X" target="_blank"><img src="https://email.assets.dominos.com/us/email/CI25/NatTemp/Nat_X.png" width="41" height="40" border="0" alt="Twitter" style="font-family: Arial, Helvetica, sans-serif; display:block; font-size:10px;color:#006491;font-weight:bold;text-decoration: none;"></a>
+                          </td>
+                          <td valign="middle" align="center" style="padding:0px 6px 0px 22px;" >
+                            <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1ncAyd48zsp33oKtJnSPeWVmeZwlk8x2fLDu5qVW095hU3dlAbn8olkE-r9CkgCeSpya4b7Sveb6NQpdWCagmmyZoZnksafOdFl6c"  title="TikTok" target="_blank"><img src="https://email.assets.dominos.com/us/email/CI25/NatTemp/Nat_TT.png" width="41" height="40" border="0" alt="TikTok" style="font-family: Arial, Helvetica, sans-serif; display:block; font-size:10px;color:#006491;font-weight:bold;text-decoration: none;"></a>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+                  
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" role="presentation" style="max-width:600px;">
+                  <!---->
+            <tr>
+              <td>
+                <!-- Social Icons -->
+                <table width="600" cellpadding="0" cellspacing="0" border="0" align="center" role="presentation">
+                  <tr>
+                    <td align="center" style="padding:30px" bgcolor="" class="padding__footer padding__horizontal--5pc">
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0" align="center" role="presentation">
+                        <tr>
+                          <td class="dm_txt_brown_DM" align="left" style="font-family:Arial, sans-serif; font-size: 12px; line-height:16px; color: #603913; font-weight:normal;">
+                            <strong>Legal Stuff</strong>
+                            <br>
+                            
+                            
+                            Domino's&reg; Rewards is open only to US residents 13+ with a Domino's Profile account who order from participating Domino's locations. Status as of 11/01/2026. Point redemption only valid online toward specific menu items at participating locations. Only one order of $5 or more excluding gratuities and donations per calendar day can earn points. For complete details visit <a href="https://www.dominos.com/my-deals-and-rewards/?utm_source=Rewards&utm_medium=EMAIL&utm_campaign=NAT&utm_agy=HS2&utm_content=SF261103,MNM,SegC,MixAndMatch,46039&storenumber=8538&fcode=F3227" target="_blank" alias="Footer_Loyalty Link" class="dm_txt_brown_DM" style="color:#603913">dominos.com/rewards</a>.
+                            <br>
+                            <br>
+                            
+                            
+                            Any delivery charge is not a tip paid to your driver. Please reward your driver for awesomeness. Drivers carry less than $20. You must select this limited time offer. Minimum purchase required for delivery. Delivery charge and tax may apply. Prices, participation, delivery area and charges may vary. Prices and coupons may vary in Alaska, California, and Hawaii. Store hours may vary. Returned checks, along with the state's maximum allowable returned check fee, may be electronically presented to your bank. &copy;2026 Domino's IP Holder LLC. Domino's&reg;, Domino's Pizza&reg; and the modular logo are registered trademarks of Domino's IP Holder LLC.
+                            
+                            <br>
+                            <br>
+                            Domino's email coupons are linked directly to your nearest Domino's store. If you have moved or would like to receive email coupons from a different store, please visit our <a href="https://www.dominos.com/content/email-and-text-offers?utm_source=OptIn&utm_medium=EMAIL&utm_campaign=NAT&utm_agy=HS2&utm_content=SF261103,MNM,SegC,MixAndMatch,46039&storenumber=8538&fcode=F3227" class="dm_txt_brown_DM" style="color:#603913" alias="Footer_Address Update" target="_blank">Email &amp; Text Offers page</a>. Simply enter the new street address and the same email address you used to subscribe to Domino's emails, then click&nbsp;'SIGN&nbsp;ME&nbsp;UP.'
+                            <br>
+                            <br>
+                            Outside the U.S. and would like to unsubscribe? <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1ncZ6fWlmPVzGYZP1z429W-qTgwtiznRSdTJurGJMoLU_tEVJzCu2eC8Kzn4G83ChVn2y65dTzHFUYpHEQDaMycmrf4m8H4lCIdSQ" class="dm_txt_brown_DM" style="color:#603913"  target="_blank">click&nbsp;here</a>.
+                            <br>
+                            <br>
+                            To unsubscribe within the U.S., please <a href="https://www.dominos.com/content/unsubscribe?utm_source=OptOut&utm_medium=EMAIL&utm_campaign=NAT&utm_agy=HS2&utm_content=SF261103,MNM,SegC,MixAndMatch,46039&storenumber=8538&fcode=F3227" class="dm_txt_brown_DM" style="color:#603913" alias="Footer_Unsub" target="_blank">click&nbsp;here</a>.
+                            <br>
+                            <br>
+                            This message was sent to <a href="mailto:qtrain3@gmail.com" class="dm_txt_brown_DM" style="color:#603913; text-decoration:none;">qtrain3@gmail.com</a>
+                            <br>
+                            <br>
+                            <a rel="nofollow" class="dm_txt_brown_DM" style="color:#603913 text-decoration:none;">
+                              Domino's Pizza LLC<br>
+                              30 Frank Lloyd Wright Dr.<br>
+                              Ann Arbor, MI 48106
+                            </a>
+                            <br>
+                            <br>
+                            Questions? Contact Domino's <a class="dm_txt_brown_DM" style="color:#603913"  href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1ncu-BUh3MQTcZH8lzilZsKlKdvTzFV13Js7hEIk_s8af0AZ974FHpuE8jKG-Y_2ly89VAqbD_9mQ6wFA2xnpob0aKAOnQaWkeg-8">Customer Service</a>.
+                            
+                            <br>
+                            <br>
+                            <a href="https://click.e-offers.dominos.com/u/?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1ndPyJ-fUwFIVmJ9tMv8etaSJmv0c2WkTqpAxNODaTEXzhfjtHCQQZsAdMdhntwVd0zFPUIHatgJF5HLjJzXHUi-ENaur3AwEptXo"  target="_blank" class="dm_txt_brown_DM" style="color:#603913">View in browser</a>
+                            
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+                  
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </div>
+  
+    <div style="font-size:0px; line-height:0px;">
+      <img src="https://click.e-offers.dominos.com/open.aspx?qs=ABp7ImQiOjUwNTAsInQiOjMwMzQsInMiOjExfQALAAAAAAZ9Gg1ndaIMdl33kh8lRb3GZ5q8UrBBlBqr1X_qzBAB_24uRuK_F_DPwiWW20LXbnMxgjM9gRwAQXTGhNFiXHSGTtwt&d=110071&bmt=0" width="1" height="1" alt="">
+    </div>
+</body>
+</html>
+
+--4HoZM8HtFgaZ=_?:--
+

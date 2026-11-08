@@ -59,12 +59,14 @@ describe("Salary Normalization & Sanitization", () => {
   describe("Hourly Wages & Rate Inference", () => {
     it("normalizes explicit hourly rates to $X-$Y/Hr or $X/Hr", () => {
       expect(normalizeSalaryDisplay("$15-$20 per hour")).toBe("$15-$20/Hr");
-      expect(normalizeSalaryDisplay("$30.18 to $36.70 per hours")).toBe("$30.2-$36.7/Hr");
+      expect(normalizeSalaryDisplay("$30.18 to $36.70 per hours")).toBe("$30.18-$36.70/Hr");
       expect(normalizeSalaryDisplay("15-$20/h")).toBe("$15-$20/Hr");
       expect(normalizeSalaryDisplay("From $38 an hour")).toBe("$38/Hr");
       expect(normalizeSalaryDisplay("$45/hr")).toBe("$45/Hr");
       expect(normalizeSalaryDisplay("$21.00/hour")).toBe("$21/Hr");
-      expect(normalizeSalaryDisplay("$21.50/hour")).toBe("$21.5/Hr");
+      expect(normalizeSalaryDisplay("$21.50/hour")).toBe("$21.50/Hr");
+      expect(normalizeSalaryDisplay("$23.40/hour")).toBe("$23.40/Hr");
+      expect(normalizeSalaryDisplay("$23.4/hour")).toBe("$23.40/Hr");
     });
 
     it("infers hourly rate when explicit keywords are omitted for low numbers (<= 350)", () => {
@@ -104,11 +106,11 @@ describe("Salary Normalization & Sanitization", () => {
     it("extracts phrase-based hourly rates like wages starting at $21.00/hour", () => {
       expect(extractSalaryFromText("Great opportunities with wages starting at $21.00/hour.")).toBe("$21/Hr");
       expect(extractSalaryFromText("Earn up to $35.00/hour working flexible shifts.")).toBe("$35/Hr");
-      expect(extractSalaryFromText("Starting at $24.50 / hr with medical coverage.")).toBe("$24.5/Hr");
+      expect(extractSalaryFromText("Starting at $24.50 / hr with medical coverage.")).toBe("$24.50/Hr");
     });
 
     it("extracts labeled salary and hourly wages", () => {
-      expect(extractSalaryFromText("Pay Range: $32.45 - $43.30/hr")).toBe("$32.5-$43.3/Hr");
+      expect(extractSalaryFromText("Pay Range: $32.45 - $43.30/hr")).toBe("$32.45-$43.30/Hr");
       expect(extractSalaryFromText("Salary: $120,000 - $150,000 per year")).toBe("$120K-$150K");
       expect(extractSalaryFromText("Annual Base Salary Range: $169,000 - $303,000 USD")).toBe("$169K-$303K");
     });

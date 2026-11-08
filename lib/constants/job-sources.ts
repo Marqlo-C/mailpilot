@@ -430,3 +430,65 @@ export function buildJobSearchQuery(options: JobSearchQueryOptions = {}): string
 export function buildHistoricalJobSearchQuery(days: number): string {
   return buildJobSearchQuery({ days });
 }
+
+/**
+ * Social notification mailbox senders (e.g. LinkedIn / social activity vs actual job alerts)
+ */
+export const SOCIAL_NOTIFICATION_SENDER_PATTERN =
+  /(?:notifications-noreply|messages-noreply|updates-noreply|invitations)@(?:linkedin\.com|facebookmail\.com|twitter\.com|x\.com)/i;
+
+/**
+ * Structural patterns indicating third-party social networking engagement rather than job opportunities.
+ */
+export const SOCIAL_ENGAGEMENT_INTENT_PATTERNS = [
+  /\b(?:reacted\s+to|commented\s+on|shared)\s+(?:a\s+|your\s+)?post\b/i,
+  /\b👤\s*someone\s+at\s+.*you\s+may\s+know\b/i,
+  /\bsomeone\s+you\s+may\s+know\b/i,
+  /\bdo\s+you\s+know\s+[A-Z][a-z]+\b/i,
+  /\b(?:congratulate|say\s+congrats\s+to)\s+[A-Z][a-z]+\b/i,
+  /\bcelebrate\s+.*(?:work\s+anniversary|new\s+position|promotion)\b/i,
+  /\bendorse\s+[A-Z][a-z]+\s+for\b/i,
+  /\b(?:who|people|\d+)\s+viewed\s+your\s+profile\b/i,
+  /\b(?:join|start)\s+the\s+conversation\b/i,
+  /\baccept\s+(?:their|my)\s+invitation\b/i,
+  /\bconnect\s+with\s+[A-Z][a-z]+\b/i,
+] as const;
+
+/**
+ * Physical product fulfillment, grocery, package, and delivery logistics patterns.
+ */
+export const DELIVERY_LOGISTICS_INTENT_PATTERNS = [
+  /\bDelivered:\s+.*\+\d+\s+items\b/i,
+  /\bDelivered:\s+Bar[‑-]/i,
+  /\byour\s+delivery\s+should\s+arrive\b/i,
+  /\b(?:order\s+(?:placed|confirmed|shipped|updates?)|tracking\s+number|track\s+(?:your\s+)?package|out\s+for\s+delivery|package\s+(?:arriving|delivered)|ready\s+for\s+pickup)\b/i,
+  /\b(?:your\s+driver\s+is\s+arriving|delivery\s+is\s+on\s+the\s+way)\b/i,
+] as const;
+
+/**
+ * Operational security OTPs, storage quotas, and administrative account alerts.
+ */
+export const ADMIN_SECURITY_INTENT_PATTERNS = [
+  /\b(?:verification\s+code|security\s+code|one-time\s+passcode|\botp\b|password\s+reset)\b/i,
+  /\b(?:storage\s+is\s+full|account\s+will\s+be\s+deleted|library\s+card\s+has\s+expired)\b/i,
+  /\b(?:terms\s+of\s+service\s+update|privacy\s+policy\s+update|mailing\s+address\s+change)\b/i,
+  /\b(?:voter\s+file|voter\s+registration|ballot\s+status|who\s+has\s+your\s+voter)\b/i,
+  /\b(?:summary\s+of\s+failures\s+for|google\s+apps\s+script:\s+auto)\b/i,
+] as const;
+
+/**
+ * Structural link topology patterns identifying career/job applicant endpoints vs commercial commerce endpoints.
+ */
+export const CAREER_LINK_TOPOLOGY_PATTERN =
+  /\bhttps?:\/\/[^\s"'<>]+(?:\/(?:job|jobs|careers?|positions?|apply|requisitions?|viewjob|job-posting|posting)\b|\?(?:[^"'\s<>]*&(?:amp;)?)?(?:jobId|job_id|jobListingId|gh_jid|reqId|req_id|requisitionId)=\w+)/i;
+
+export const COMMERCE_LINK_TOPOLOGY_PATTERN =
+  /\bhttps?:\/\/[^\s"'<>]+(?:\/(?:cart|checkout|shopping-cart|basket|order-status|track-package|tracking|my-orders|promotions|deals)\b|\?(?:[^"'\s<>]*&(?:amp;)?)?(?:promo_code|discount_code|coupon|deal_id)=\w+)/i;
+
+/**
+ * Common commercial promotional mailbox senders
+ */
+export const COMMERCIAL_SENDER_PATTERN =
+  /(?:offers|deals|promotions|promo|coupons?|marketing|sales|specials|rewards)@/i;
+
+

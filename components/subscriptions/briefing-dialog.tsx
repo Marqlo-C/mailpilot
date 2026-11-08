@@ -7,7 +7,7 @@ import type { DateRange } from "react-day-picker";
 
 import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
 import { Calendar } from "@/components/ui/calendar";
-import { CompanyLogo } from "@/components/ui/company-logo";
+import { CompanyLogo } from "@/components/ui/logo-frame";
 import { DialogIdentityLogoStack } from "@/components/ui/composites/dialog-identity-header";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { faviconUrlForDomain, getCleanDomain } from "@/lib/utils/domain";

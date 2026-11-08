@@ -416,8 +416,8 @@ export function normalizeSalaryDisplay(
   }
 
   function formatRate(n: number): string {
-    const rounded = Math.round(n * 10) / 10;
-    return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1);
+    const rounded = Math.round(n * 100) / 100;
+    return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(2);
   }
 
   if (isHourly) {
