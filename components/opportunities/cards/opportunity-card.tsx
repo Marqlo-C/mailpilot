@@ -48,7 +48,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
 import { RowMenuTrigger } from "@/components/ui/composites/row-menu-trigger";
-import { CompanyLogo } from "@/components/ui/company-logo";
+import { CompanyLogo } from "@/components/ui/logo-frame";
 import { ReceivedMeta } from "@/components/ui/composites/received-meta";
 import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/styles/score-percent";
 import {
@@ -394,7 +394,7 @@ export function OpportunityCard({
       </div>
 
       {/* Header: logo + role with clearance below corner pills */}
-      <div className="flex items-start gap-3.5 px-6 pt-9 pb-3 sm:px-7">
+      <div className="flex items-center gap-2.5 px-6 pt-9 pb-3 sm:px-7">
         <CompanyLogo
           src={companyLogoSrc}
           name={opportunity.company}
@@ -404,14 +404,14 @@ export function OpportunityCard({
           className={cn("min-w-0 flex-1", isSelected && "text-muted-foreground")}
         >
           <div className="flex h-4 items-center gap-1.5">
-            <h4 className="truncate text-xs font-semibold uppercase leading-none tracking-wide text-muted-foreground">
+            <h4 className="truncate text-[11px] font-semibold uppercase leading-none tracking-wide text-muted-foreground">
               {opportunity.company}
             </h4>
             {statusTag}
           </div>
           <h3
             className={cn(
-              "mt-1 truncate text-base font-semibold leading-snug",
+              "mt-0.5 truncate text-base font-semibold leading-snug",
               isSelected ? "text-muted-foreground" : "text-foreground"
             )}
           >

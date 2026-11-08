@@ -6,7 +6,7 @@ import { Plus, ShieldBan, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { addExcludedTitle, removeExcludedTitle } from "@/app/actions/settings";
-import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import {
   SettingsFeatureCard,
   SettingsStatusPill,
@@ -67,7 +67,7 @@ export function ExcludedTitlesCard({
 
   return (
     <SettingsFeatureCard
-      logo={<SettingsFeatureLogo icon={ShieldBan} />}
+      logo={<LogoFrameIcon icon={ShieldBan} />}
       title="Roles to hide"
       subtitle="Titles you marked “Less like this.” Matching listings are soft-hidden on Job Radar."
       statusBadge={

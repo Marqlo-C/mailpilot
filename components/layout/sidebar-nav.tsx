@@ -135,6 +135,7 @@ export function SidebarNav({
     scheduleOpen,
     scheduleClose,
     cancelScheduledOpen,
+    cancelScheduledClose,
     closeNow,
   } = useSidebarFlyout();
   const telemetryTimerRef = useRef<number | null>(null);
@@ -153,17 +154,20 @@ export function SidebarNav({
     }, SIDEBAR_TELEMETRY_OPEN_DELAY_MS);
   }
 
+  useEffect(() => () => cancelTelemetryOpen(), []);
+
   function resumeTabFlyout(next: EventTarget | null, from: Element) {
     const row = from.closest("[data-sidebar-tab-menu]");
     if (!row || !(next instanceof Node) || !row.contains(next)) return;
     const href = row.getAttribute("data-nav-href");
     if (!href) return;
+    // Snap back to tabs when leaving telemetry onto the Job Radar row.
+    if (isOpen({ kind: "telemetry" })) {
+      openNow({ kind: "nav", href });
+      return;
+    }
     scheduleOpen({ kind: "nav", href });
   }
-
-  useEffect(() => {
-    return () => cancelTelemetryOpen();
-  }, []);
 
   useEffect(() => {
     if (flyout?.kind !== "nav") return;
@@ -193,13 +197,21 @@ export function SidebarNav({
             data-sidebar-tab-menu={showTabs ? "" : undefined}
             data-nav-href={item.href}
             onPointerEnter={() => {
-              cancelTelemetryOpen();
               if (!showTabs) {
                 cancelScheduledOpen();
                 return;
               }
               if (isOpen({ kind: "nav", href: item.href })) {
                 cancelScheduledOpen();
+                return;
+              }
+              // Telemetry → tabs: open immediately so switching feels even.
+              if (
+                showJobRadarStatus &&
+                isOpen({ kind: "telemetry" })
+              ) {
+                cancelScheduledOpen();
+                openNow({ kind: "nav", href: item.href });
                 return;
               }
               scheduleOpen({ kind: "nav", href: item.href });
@@ -311,19 +323,29 @@ export function SidebarNav({
                 <div
                   data-telemetry-edge=""
                   className={cn(
-                    "absolute inset-y-0",
-                    collapsed
-                      ? "-right-[14px] z-[140] w-3"
-                      : "-right-2 z-10 w-8"
+                    // Small target on the colored capsule only. z above the
+                    // tab-flyout bridge (z-130) so menu → mark can hit it.
+                    "absolute top-1.5 bottom-1.5 z-[140]",
+                    collapsed ? "-right-[14px] w-3" : "-right-[11px] w-2.5"
                   )}
-                  onPointerEnter={() => {
-                    if (collapsed && isOpen({ kind: "nav", href: item.href })) {
-                      scheduleTelemetryOpen();
+                  onPointerEnter={(event) => {
+                    const from = event.relatedTarget;
+                    const fromJobsButton =
+                      from instanceof Element &&
+                      Boolean(from.closest("[data-nav-href='/jobs']")) &&
+                      !from.closest("[data-sidebar-flyout]");
+
+                    // Row button → tab menu: ignore this band so tabs stay open.
+                    if (
+                      fromJobsButton &&
+                      isOpen({ kind: "nav", href: item.href })
+                    ) {
                       return;
                     }
-                    cancelTelemetryOpen();
+
                     cancelScheduledOpen();
-                    openNow({ kind: "telemetry" });
+                    cancelScheduledClose();
+                    scheduleTelemetryOpen();
                   }}
                   onPointerLeave={(event) => {
                     cancelTelemetryOpen();
@@ -340,6 +362,14 @@ export function SidebarNav({
                     ) {
                       return;
                     }
+                    // Crossing onward into the tab menu — leave tabs alone.
+                    if (
+                      next instanceof Element &&
+                      next.closest("[data-sidebar-flyout='nav-tabs']")
+                    ) {
+                      return;
+                    }
+                    if (!isOpen({ kind: "telemetry" })) return;
                     scheduleClose();
                     resumeTabFlyout(next, event.currentTarget);
                   }}
@@ -458,10 +488,30 @@ function TabFlyout({
   collapsed: boolean;
   onPick: () => void;
 }) {
+  const { cancelScheduledClose } = useSidebarFlyout();
+
+  function keepOpenIfMovingToTelemetry(
+    event: ReactPointerEvent<HTMLDivElement>
+  ) {
+    const next = event.relatedTarget;
+    const onEdge =
+      (next instanceof Element && next.closest("[data-telemetry-edge]")) ||
+      document
+        .elementFromPoint(event.clientX, event.clientY)
+        ?.closest("[data-telemetry-edge]");
+    // Hold the tab menu open while the status-capsule dwell runs.
+    if (onEdge) cancelScheduledClose();
+  }
+
   return (
-    <SidebarFlyout collapsed={collapsed}>
+    <SidebarFlyout
+      collapsed={collapsed}
+      marker="nav-tabs"
+      onPointerLeave={keepOpenIfMovingToTelemetry}
+    >
       {tabs.map((tab) => {
         const count = tabCount(tabCounts, href, tab.value);
+        const Icon = tab.icon;
         return (
           <Link
             key={tab.value}
@@ -472,7 +522,10 @@ function TabFlyout({
             }}
             className="flex h-9 items-center justify-between gap-3 whitespace-nowrap rounded-xl px-3 text-[13px] font-medium tracking-normal text-[#e4f7f3]/60 transition-colors duration-150 hover:bg-white/10 hover:text-[#e4f7f3]"
           >
-            <span>{tab.label}</span>
+            <span className="flex min-w-0 items-center gap-2">
+              <Icon className="size-3.5 shrink-0 opacity-80" aria-hidden />
+              <span className="truncate">{tab.label}</span>
+            </span>
             {count != null ? <TabCountBadge count={count} /> : null}
           </Link>
         );

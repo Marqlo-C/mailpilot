@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { updateRule } from "@/app/actions/settings";
 import { SETTINGS_ROW_CLASSNAME } from "@/components/settings/settings-chrome";
-import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -55,7 +55,7 @@ export function LifecycleRulesCard({
 
   return (
     <SettingsFeatureCard
-      logo={<SettingsFeatureLogo icon={MailWarning} />}
+      logo={<LogoFrameIcon icon={MailWarning} />}
       title="Rejection mail"
       subtitle="Choose what happens when MailPilot detects a job rejection email."
       statusBadge={

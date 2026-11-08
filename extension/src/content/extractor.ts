@@ -126,7 +126,8 @@ function findJsonLdJobPosting(doc: Document | Element): Partial<ExtractedJobCont
           const formatRate = (n: unknown) => {
             const num = Number(n);
             if (isNaN(num)) return String(n);
-            return Number.isInteger(num) ? String(num) : String(Math.round(num * 100) / 100);
+            const rounded = Math.round(num * 100) / 100;
+            return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
           };
           const salObj = (jobObj.baseSalary || jobObj.estimatedSalary) as Record<string, unknown> | undefined;
           if (typeof salObj === "string" && salObj) {

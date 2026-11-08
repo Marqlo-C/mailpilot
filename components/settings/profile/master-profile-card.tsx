@@ -37,6 +37,7 @@ import { PersonaViewer } from "@/components/profile/persona-viewer";
 import { ProfileRevisionsMenu } from "@/components/profile/profile-revisions-menu";
 import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
 import { Badge } from "@/components/ui/badge";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { explainCandidatePersona } from "@/lib/ai/persona";
 import type { MasterProfileInput } from "@/lib/validations/profile";
 import { groupSkillSections, skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
@@ -107,23 +108,6 @@ function ContactChannel({
         <p className="truncate text-[11px] text-muted-foreground" title={value}>
           {value}
         </p>
-      </div>
-    </div>
-  );
-}
-
-function FeatureLogo({
-  icon: Icon,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <div
-      className="relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-background/80 p-1 shadow-xs"
-      aria-hidden="true"
-    >
-      <div className="flex size-full items-center justify-center rounded-[0.6rem] bg-muted/30">
-        <Icon className="size-5 text-muted-foreground" />
       </div>
     </div>
   );
@@ -441,7 +425,7 @@ export function MasterProfileCard({
             {/* 1. Persona & Career Synthesis */}
             {personaInfo && (
               <SettingsFeatureCard
-                logo={<FeatureLogo icon={Brain} />}
+                logo={<LogoFrameIcon icon={Brain} />}
                 title="Persona & Career Synthesis"
                 subtitle="Seniority tier, target title family, career trajectory, and tone positioning."
                 statusBadge={
@@ -464,7 +448,7 @@ export function MasterProfileCard({
 
             {/* 2. Contact & Linked Accounts */}
             <SettingsFeatureCard
-              logo={<FeatureLogo icon={Link2} />}
+              logo={<LogoFrameIcon icon={Link2} />}
               title="Contact & Linked Accounts"
               subtitle="Direct contact channels, professional summary, and external portfolio links."
               statusBadge={
@@ -541,7 +525,7 @@ export function MasterProfileCard({
 
             {/* 3. Skills & Core Competencies */}
             <SettingsFeatureCard
-              logo={<FeatureLogo icon={Cpu} />}
+              logo={<LogoFrameIcon icon={Cpu} />}
               title="Skills & Core Competencies"
               subtitle="Categorized skill taxonomy, domains, and granular proficiency levels."
               statusBadge={
@@ -617,7 +601,7 @@ export function MasterProfileCard({
 
             {/* 4. Work Experience & History (Expanded by default) */}
             <SettingsFeatureCard
-              logo={<FeatureLogo icon={Briefcase} />}
+              logo={<LogoFrameIcon icon={Briefcase} />}
               title="Work Experience & History"
               subtitle="Chronological employment roles with quantifiable achievement bullets."
               statusBadge={
@@ -721,7 +705,7 @@ export function MasterProfileCard({
 
             {/* 5. Activities & Leadership */}
             <SettingsFeatureCard
-              logo={<FeatureLogo icon={Users} />}
+              logo={<LogoFrameIcon icon={Users} />}
               title="Activities & Leadership"
               subtitle="Campus leadership, extracurricular positions, volunteer initiatives, and community impact."
               statusBadge={
@@ -786,7 +770,7 @@ export function MasterProfileCard({
 
             {/* 6. Projects & Practical Work */}
             <SettingsFeatureCard
-              logo={<FeatureLogo icon={FolderGit2} />}
+              logo={<LogoFrameIcon icon={FolderGit2} />}
               title="Projects & Practical Work"
               subtitle="Key practical initiatives, technical deliverables, descriptions, and technology stacks."
               statusBadge={
@@ -1047,7 +1031,7 @@ export function MasterProfileCard({
 
             {/* 7. Education & Academics */}
             <SettingsFeatureCard
-              logo={<FeatureLogo icon={GraduationCap} />}
+              logo={<LogoFrameIcon icon={GraduationCap} />}
               title="Education & Academics"
               subtitle="Academic institutions, degrees, relevant coursework, and honors."
               statusBadge={
@@ -1125,7 +1109,7 @@ export function MasterProfileCard({
 
             {/* 8. Certifications & Licenses */}
             <SettingsFeatureCard
-              logo={<FeatureLogo icon={Award} />}
+              logo={<LogoFrameIcon icon={Award} />}
               title="Certifications & Licenses"
               subtitle="Professional certifications, active licenses, and credential authorities."
               statusBadge={
@@ -1181,7 +1165,7 @@ export function MasterProfileCard({
 
             {/* 9. Honors & Awards */}
             <SettingsFeatureCard
-              logo={<FeatureLogo icon={Trophy} />}
+              logo={<LogoFrameIcon icon={Trophy} />}
               title="Honors & Awards"
               subtitle="Distinctions, competitive scholarships, and industry recognitions."
               statusBadge={
@@ -1229,7 +1213,7 @@ export function MasterProfileCard({
 
             {/* 10. Interests & Activities */}
             <SettingsFeatureCard
-              logo={<FeatureLogo icon={Heart} />}
+              logo={<LogoFrameIcon icon={Heart} />}
               title="Interests & Activities"
               subtitle="Personal pursuits, creative hobbies, and community engagement."
               statusBadge={

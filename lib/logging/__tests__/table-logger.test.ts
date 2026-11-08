@@ -118,7 +118,7 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
       const errRow = errCalls.find((c) => typeof c === "string" && c.startsWith("│ Error   :"));
       expect(errRow).toBeDefined();
       expect(errRow).not.toContain("\n");
-      expect((errRow as string).length).toBe(66);
+      expect((errRow as string).length).toBe(100);
       expect(errRow).toContain("Key limit exceeded");
     });
 
@@ -166,7 +166,7 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
       expect(calls.some((c) => typeof c === "string" && c.includes("SKIPPED: Non-Job / Marketing or Newsletter"))).toBe(true);
     });
 
-    it("renders compact 66-col card for job emails without rationale bloat", () => {
+    it("renders compact 100-col card for job emails without rationale bloat", () => {
       process.env.LOG_ASCII_TABLES = "1";
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -195,7 +195,7 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
       expect(calls.some((c) => typeof c === "string" && c.includes("[SYNC 01/10]"))).toBe(true);
       expect(calls.some((c) => typeof c === "string" && c.includes("Company : Warp"))).toBe(true);
       expect(calls.some((c) => typeof c === "string" && c.includes("Match Fit: 88% (HIGH) [AI]"))).toBe(true);
-      // Verify strict 66-column boundaries for all box lines
+      // Verify strict 100-column boundaries for all box lines
       const boxLines = calls
         .map((c) => (typeof c === "string" ? c.trim() : ""))
         .filter(
@@ -207,7 +207,7 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
         );
       expect(boxLines.length).toBe(9);
       for (const line of boxLines) {
-        expect(line.length).toBe(66);
+        expect(line.length).toBe(100);
       }
 
       // Verify no paragraph text or rationale narrative was printed
@@ -216,6 +216,49 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
           expect(call).not.toContain("Reason  :");
           expect(call).not.toContain("Candidate fit evaluated");
         }
+      }
+    });
+
+    it("wraps long Saved actions into two lines with line 2 indented past Saved :", () => {
+      process.env.LOG_ASCII_TABLES = "1";
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+      logCompactSyncCard({
+        index: 10,
+        total: 10,
+        subject: "KPG99 INC Python Developer: starting at $50/hour",
+        messageId: "1a145c7a98765432",
+        isJob: true,
+        routing: ["Tier 1: LOCAL_OLLAMA"],
+        company: "KPG99 INC",
+        role: "Python Developer",
+        location: "Los Angeles, CA",
+        salary: "$50/Hr",
+        status: "LEAD",
+        matchScore: 51,
+        matchTier: "MID",
+        matchSource: "AI",
+        databaseAction: "Digest Ingestion: Saved 6 opportunities (Lead: KPG99 INC Python Developer in Los Angeles, CA with match score 51%)",
+      });
+
+      expect(consoleSpy).toHaveBeenCalled();
+      const calls = consoleSpy.mock.calls.map((c) => c[0]);
+      expect(calls.some((c) => typeof c === "string" && c.includes("Saved   : Digest Ingestion:"))).toBe(true);
+      // Verify second line is indented with 10 spaces
+      expect(calls.some((c) => typeof c === "string" && c.startsWith("│           ") && c.endsWith("│"))).toBe(true);
+
+      const boxLines = calls
+        .map((c) => (typeof c === "string" ? c.trim() : ""))
+        .filter(
+          (c) =>
+            c.startsWith("┌") ||
+            c.startsWith("│") ||
+            c.startsWith("├") ||
+            c.startsWith("└")
+        );
+      expect(boxLines.length).toBe(10);
+      for (const line of boxLines) {
+        expect(line.length).toBe(100);
       }
     });
 
@@ -260,7 +303,7 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
         );
       expect(boxLines.length).toBe(9);
       for (const line of boxLines) {
-        expect(line.length).toBe(66);
+        expect(line.length).toBe(100);
       }
     });
 
@@ -382,6 +425,8 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
       expect(consoleSpy).toHaveBeenCalled();
       const calls = consoleSpy.mock.calls.map((c) => c[0]);
       expect(calls.some((c) => typeof c === "string" && c.includes("[SYNC COMPLETE] 15 Messages Processed in 3.5s"))).toBe(true);
+      expect(calls.some((c) => typeof c === "string" && c.includes("Opportunities: 7 Touched (4 Added, 3 Deduped)"))).toBe(true);
+      expect(calls.some((c) => typeof c === "string" && c.includes("Avg Pace : 0.5s / opportunity (0.2s / message)"))).toBe(true);
       expect(calls.some((c) => typeof c === "string" && c.includes("Providers: 5 Ollama │ 5 Cloud BYOK"))).toBe(true);
       expect(calls.some((c) => typeof c === "string" && c.includes("4 Created │ 3 Updated │ 8 Skipped"))).toBe(true);
       const bannerLines = calls
@@ -390,10 +435,32 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
           (c) =>
             c.startsWith("┌") || c.startsWith("│") || c.startsWith("└")
         );
-      expect(bannerLines.length).toBe(6);
+      expect(bannerLines.length).toBe(8);
       for (const line of bannerLines) {
-        expect(line.length).toBe(66);
+        expect(line.length).toBe(100);
       }
+    });
+
+    it("renders formatted summary banner with parsedCount when link parsing occurred", () => {
+      process.env.LOG_ASCII_TABLES = "1";
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+      logSyncSummaryBanner({
+        total: 10,
+        durationMs: 56000,
+        ollamaCount: 10,
+        cloudCount: 0,
+        createdCount: 15,
+        updatedCount: 5,
+        skippedCount: 2,
+        parsedCount: 4,
+        opportunitiesTouched: 20,
+        watermark: "2026-11-08T04:45:00.000Z",
+      });
+
+      const calls = consoleSpy.mock.calls.map((c) => c[0]);
+      expect(calls.some((c) => typeof c === "string" && c.includes("Opportunities: 20 Touched (15 Added, 5 Deduped, 4 Parsed)"))).toBe(true);
+      expect(calls.some((c) => typeof c === "string" && c.includes("Avg Pace : 2.8s / opportunity (5.6s / message)"))).toBe(true);
     });
 
     it("emits single-line JSON in production mode", () => {
@@ -415,6 +482,82 @@ describe("Compact 66-Col ASCII Terminal Telemetry", () => {
       const logged = JSON.parse(infoSpy.mock.calls[0][0]);
       expect(logged.event).toBe("sync_summary");
       expect(logged.skippedCount).toBe(8);
+    });
+
+    it("auto-renders summary banner when final card completes in dev mode", () => {
+      process.env.LOG_ASCII_TABLES = "1";
+      const originalVitest = process.env.VITEST;
+      delete process.env.VITEST;
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+      try {
+        logCompactSyncCard({
+          index: 1,
+          total: 2,
+          subject: "Skip me",
+          messageId: "msg-1",
+          isJob: false,
+          routing: ["Tier 1: LOCAL_OLLAMA"],
+          skipReason: "Confirmed Non-Job / IRRELEVANT",
+        });
+
+        logCompactSyncCard({
+          index: 2,
+          total: 2,
+          subject: "Lead job",
+          messageId: "msg-2",
+          isJob: true,
+          routing: ["Tier 1: LOCAL_OLLAMA"],
+          company: "Acme",
+          role: "Engineer",
+          status: "LEAD",
+          databaseAction: "Digest Ingestion: 5 opportunities processed (5 Added, 0 Deduped)",
+        });
+
+        const calls = consoleSpy.mock.calls.map((c) => c[0]);
+        expect(calls.some((c) => typeof c === "string" && c.includes("[SYNC 01/02]"))).toBe(true);
+        expect(calls.some((c) => typeof c === "string" && c.includes("[SYNC 02/02]"))).toBe(true);
+        expect(calls.some((c) => typeof c === "string" && c.includes("[SYNC COMPLETE] 2 Messages Processed in"))).toBe(true);
+        expect(calls.some((c) => typeof c === "string" && c.includes("Opportunities: 5 Touched (5 Added, 0 Deduped)"))).toBe(true);
+      } finally {
+        process.env.VITEST = originalVitest;
+      }
+    });
+
+    it("measures duration starting from syncStartedAt across cards", () => {
+      process.env.LOG_ASCII_TABLES = "1";
+      const originalVitest = process.env.VITEST;
+      delete process.env.VITEST;
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+      try {
+        const syncStartedAt = Date.now() - 25000;
+        logCompactSyncCard({
+          index: 1,
+          total: 1,
+          subject: "Test job",
+          messageId: "msg-1",
+          isJob: true,
+          routing: ["Tier 1: LOCAL_OLLAMA"],
+          company: "Acme",
+          role: "Engineer",
+          status: "LEAD",
+          databaseAction: "Created new opportunity record",
+          syncStartedAt,
+        });
+
+        const calls = consoleSpy.mock.calls.map((c) => c[0]);
+        const summaryCall = calls.find(
+          (c) => typeof c === "string" && c.includes("[SYNC COMPLETE] 1 Messages Processed in")
+        );
+        expect(summaryCall).toBeDefined();
+        const durationSec = parseFloat(summaryCall!.match(/Processed in ([\d.]+)s/)![1]);
+        expect(durationSec).toBeGreaterThanOrEqual(25);
+      } finally {
+        process.env.VITEST = originalVitest;
+      }
     });
   });
 });

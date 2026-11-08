@@ -1,6 +1,7 @@
 "use client";
 
 import { CircleGauge, FlaskConical, ThumbsUp } from "lucide-react";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { SettingsFeatureCard } from "@/components/ui/tactile/nested-settings-card";
 import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import { OutboundStatusPill } from "./status-pill";
@@ -26,22 +27,11 @@ export function MetricSynthesisCard({
   return (
     <SettingsFeatureCard
       logo={
-        <div
-          className={cn(
-            "relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-background/80 p-1 shadow-sm",
-            isLocked && "opacity-50"
-          )}
-          aria-hidden="true"
-        >
-          <div className="flex size-full items-center justify-center rounded-[0.6rem] bg-muted/30">
-            <CircleGauge
-              className={cn(
-                "size-5",
-                isLocked ? "text-muted-foreground/60" : "text-muted-foreground"
-              )}
-            />
-          </div>
-        </div>
+        <LogoFrameIcon
+          icon={CircleGauge}
+          className={cn(isLocked && "opacity-50")}
+          iconClassName={isLocked ? "text-muted-foreground/60" : undefined}
+        />
       }
       title="Impact Metrics"
       subtitle="Decide whether AI adds realistic metric estimates when your original bullets don't include numbers."

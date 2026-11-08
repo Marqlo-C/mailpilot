@@ -7,6 +7,7 @@ import {
   LayoutList,
   RotateCcw,
 } from "lucide-react";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { SettingsFeatureCard } from "@/components/ui/tactile/nested-settings-card";
 import { selectCheckboxClassName } from "@/components/ui/styles/select-checkbox";
 import {
@@ -276,22 +277,11 @@ export function CanonicalSectionLayoutCard({
   return (
     <SettingsFeatureCard
       logo={
-        <div
-          className={cn(
-            "relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-background/80 p-1 shadow-sm",
-            isLocked && "opacity-50"
-          )}
-          aria-hidden="true"
-        >
-          <div className="flex size-full items-center justify-center rounded-[0.6rem] bg-muted/30">
-            <LayoutList
-              className={cn(
-                "size-5",
-                isLocked ? "text-muted-foreground/60" : "text-muted-foreground"
-              )}
-            />
-          </div>
-        </div>
+        <LogoFrameIcon
+          icon={LayoutList}
+          className={cn(isLocked && "opacity-50")}
+          iconClassName={isLocked ? "text-muted-foreground/60" : undefined}
+        />
       }
       title="Section Order & Selection"
       subtitle={

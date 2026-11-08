@@ -2,7 +2,7 @@
 
 import { Inbox } from "lucide-react";
 
-import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import {
   SettingsFeatureCard,
   SettingsStatusPill,
@@ -43,7 +43,7 @@ export function SyncThroughputCard({
 }: SyncThroughputCardProps) {
   return (
     <SettingsFeatureCard
-      logo={<SettingsFeatureLogo icon={Inbox} />}
+      logo={<LogoFrameIcon icon={Inbox} />}
       title="Sync Inbox size"
       subtitle="Control how many job emails each Sync Inbox run pulls and reviews."
       statusBadge={

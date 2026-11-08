@@ -3,7 +3,7 @@
 import { Gauge } from "lucide-react";
 
 import { SETTINGS_ROW_CLASSNAME } from "@/components/settings/settings-chrome";
-import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import {
   SettingsFeatureCard,
   SettingsStatusPill,
@@ -40,7 +40,7 @@ export function MatchSendLimitsCard({
 }: MatchSendLimitsCardProps) {
   return (
     <SettingsFeatureCard
-      logo={<SettingsFeatureLogo icon={Gauge} />}
+      logo={<LogoFrameIcon icon={Gauge} />}
       title="Match filter & send limits"
       subtitle="Hide weak leads and cap how many applications MailPilot can send per day."
       statusBadge={

@@ -96,6 +96,7 @@ export async function GET(request: Request) {
           forceRescan: false,
           // Hard Hobby ceiling; account syncMaxMessages only raises manual Sync Inbox.
           maxMessages: CRON_SYNC_MAX_MESSAGES,
+          syncStartedAt: runStartedAt.getTime(),
         });
 
         try {

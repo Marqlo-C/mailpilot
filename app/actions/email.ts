@@ -12,7 +12,12 @@ import {
 import { SYNC_LOCK_STALE_MS } from "@/lib/core/constants";
 import { getAuthenticatedAccountId } from "@/lib/auth";
 import { getActiveAccount } from "@/lib/data";
-import { logStory, syncLockLog, syncLog } from "@/lib/logging";
+import {
+  initSyncBatchTelemetry,
+  logStory,
+  syncLockLog,
+  syncLog,
+} from "@/lib/logging";
 import { purgeExpiredDismissed } from "@/lib/opportunities/cleanup";
 import {
   runOpportunitySync,
@@ -132,6 +137,9 @@ export async function syncInboxOpportunities(
     );
   }
 
+  const runStartedAt = new Date();
+  initSyncBatchTelemetry({ startTime: runStartedAt.getTime() });
+
   await prisma.account.update({
     where: { id: account.id },
     data: {
@@ -142,7 +150,7 @@ export async function syncInboxOpportunities(
       syncTotal: null,
       syncPendingTotal: null,
       lastSyncPendingProcessed: null,
-      syncHeartbeatAt: new Date(),
+      syncHeartbeatAt: runStartedAt,
     },
   });
 
@@ -152,7 +160,6 @@ export async function syncInboxOpportunities(
   after(async () => {
     // Snapshot before any digestion so mid-run arrivals stay inside the next
     // incremental window (plus INCREMENTAL_OVERLAP_SECONDS in opportunity-sync).
-    const runStartedAt = new Date();
     let errorMessage: string | null = null;
     let processed = 0;
 
@@ -168,6 +175,7 @@ export async function syncInboxOpportunities(
       const result = await runOpportunitySync(syncAccountId, {
         forceRescan,
         lookbackDays,
+        syncStartedAt: runStartedAt.getTime(),
       });
       processed = result.processed;
 
@@ -349,6 +357,9 @@ export async function drainPendingAiQueue(
     );
   }
 
+  const runStartedAt = new Date();
+  initSyncBatchTelemetry({ startTime: runStartedAt.getTime() });
+
   await prisma.account.update({
     where: { id: account.id },
     data: {
@@ -359,7 +370,7 @@ export async function drainPendingAiQueue(
       syncTotal: null,
       syncPendingTotal: null,
       lastSyncPendingProcessed: null,
-      syncHeartbeatAt: new Date(),
+      syncHeartbeatAt: runStartedAt,
     },
   });
 
@@ -370,7 +381,9 @@ export async function drainPendingAiQueue(
     let processed = 0;
 
     try {
-      const result = await runPendingAiQueueDrain(drainAccountId);
+      const result = await runPendingAiQueueDrain(drainAccountId, {
+        syncStartedAt: runStartedAt.getTime(),
+      });
       processed = result.processed;
       revalidatePath("/");
       revalidatePath("/jobs");

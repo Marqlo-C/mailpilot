@@ -1,0 +1,1964 @@
+Delivered-To: qtrain3@gmail.com
+Received: by 2002:ab4:a221:0:b0:2e7:2e2:949 with SMTP id dg1csp1359338ecb;
+        Sat, 7 Nov 2026 17:14:00 -0800 (PST)
+X-Received: by 2002:a05:6000:40de:b0:490:421f:1555 with SMTP id ffacd0b85a97d-495844a3069mr856920f8f.22.1794100440509;
+        Sat, 07 Nov 2026 17:14:00 -0800 (PST)
+ARC-Seal: i=1; a=rsa-sha256; t=1794100440; cv=none;
+        d=google.com; s=arc-20260327;
+        b=s1PdmGTlrl9PsctzZiLVloK30NlmuywFFNhDU0VA+Q6uMpttnCOcQnrwJeJLpNpiam
+         553Xz+wKIo2CsvpJU5X7ACyAsJjuonBVxnfqoOFAheIWdETvLT0w8ok6nn1KUc5zhG2f
+         nzCfKSR07ZfwDXzVBaTGnyJTQlIdNg6VG66Fbg50CbTDpce5sd0awomGl061VijSBBwc
+         o/SUqDKplxaAFntcxzveEK35h5MPQGB2oI1B4tDNFUiYeAR3fkXnh7HtqquTlagbw3y9
+         l4hoVXn+v0FX7O7dQ1FGubnGhxXU/iVGW6ib99Ab4N5NdoDBkqicZ2opdsOZYslZgzak
+         wrWQ==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20260327;
+        h=feedback-id:date:message-id:list-unsubscribe-post:list-unsubscribe
+         :content-transfer-encoding:mime-version:subject:to:from
+         :dkim-signature:dkim-signature;
+        bh=IpVNiWb22c82Wa1Pno3ZqIX+JONTxDwSCg3BA4R29ZY=;
+        fh=GqBIBOyAkeDvy7OrcAI14t4M60TjYixy6HTF41PAOmo=;
+        b=TwV5NnHnghUvtCbqNomwElagpMHdnqKwnLm5v6XHpTXcVlyyKka3ezsWytIHzZpTCk
+         il8b1yM3LwLwl+0jLC8bKBxLpeYHRIkRp/sfVH/OpF5YWPi+y9PhiFif05B9psjlYJUW
+         2pF8hH77jWChsa6xICMHRS/HuanBqF8+b3RGtv8JWDEif14+jXSIk/i+ctHA5ftwQixq
+         YXOH+QZKsykkBbniyd3HoihNl8oRLbvaXSmGy3Pb4VdBQ7T9b2hlJmqtemjGtuBZTKqi
+         MICgmhOpoZLvZhFdjqMzUWtdYKUkBdksFK5agEUOIlX+XxGkUYVkOSUFMHaVd+NybN8g
+         ex3w==;
+        dara=google.com
+ARC-Authentication-Results: i=1; mx.google.com;
+       dkim=pass header.i=@us-news.comms.adidas.com header.s=4sclxvxe66w46nilgssa6hqdm7m3a64s header.b=NlLHBlup;
+       dkim=pass header.i=@amazonses.com header.s=shh3fegwg5fppqsuzphvschd53n6ihuv header.b="M/7RnJyH";
+       spf=pass (google.com: domain of 010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000@bounce.us-news.comms.adidas.com designates 76.223.151.88 as permitted sender) smtp.mailfrom=010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000@bounce.us-news.comms.adidas.com;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=us-news.comms.adidas.com
+Return-Path: <010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000@bounce.us-news.comms.adidas.com>
+Received: from c151-88.smtp-out.eu-west-1.amazonses.com (c151-88.smtp-out.eu-west-1.amazonses.com. [76.223.151.88])
+        by mx.google.com with ESMTPS id ffacd0b85a97d-49597d09fcfsi897722f8f.272.2026.11.07.17.14.00
+        for <qtrain3@gmail.com>
+        (version=TLS1_3 cipher=TLS_AES_128_GCM_SHA256 bits=128/128);
+        Sat, 07 Nov 2026 17:14:00 -0800 (PST)
+Received-SPF: pass (google.com: domain of 010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000@bounce.us-news.comms.adidas.com designates 76.223.151.88 as permitted sender) client-ip=76.223.151.88;
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@us-news.comms.adidas.com header.s=4sclxvxe66w46nilgssa6hqdm7m3a64s header.b=NlLHBlup;
+       dkim=pass header.i=@amazonses.com header.s=shh3fegwg5fppqsuzphvschd53n6ihuv header.b="M/7RnJyH";
+       spf=pass (google.com: domain of 010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000@bounce.us-news.comms.adidas.com designates 76.223.151.88 as permitted sender) smtp.mailfrom=010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000@bounce.us-news.comms.adidas.com;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=us-news.comms.adidas.com
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=4sclxvxe66w46nilgssa6hqdm7m3a64s; d=us-news.comms.adidas.com;
+	t=1794100440;
+	h=From:To:Subject:MIME-Version:Content-Type:Content-Transfer-Encoding:List-Unsubscribe:List-Unsubscribe-Post:Message-ID:Date;
+	bh=3PNjsJwQ3yXlDwYWLhHqR6sFNZ0j9p7uuhGDNaXhDs4=;
+	b=NlLHBluphkIpGaTGvpQtK2ijchockCkraLDzRi0CNZEva3paR4THSliNkM7hC7rZ
+	c+rco9lURrGLS68WT4r84PG/1lua8sdTWaycBIsSnfHEn/O0VSbOpUal79bme+pCfdg
+	G6GC++++X3VgOnb8jlXkfrYwMLuU4pk6UAUzJtUM/s04CgkMhCrMmwuarWU2aVRJaZP
+	4VJIJ2MQO8jlPW1PUlBO0LuM/TZDDVnXryYwKKIu+PXMupIU8mR/ZmbU1Z9wZa/SX8i
+	2U4akAA//lCibEqKcsU7KnR0S5pPI76yuu/TVuQO03PhzfDcEY+xHtfio7sq1gsiRKu
+	PE8WSa+0QA==
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=shh3fegwg5fppqsuzphvschd53n6ihuv; d=amazonses.com; t=1794100440;
+	h=From:To:Subject:MIME-Version:Content-Type:Content-Transfer-Encoding:List-Unsubscribe:List-Unsubscribe-Post:Message-ID:Date:Feedback-ID;
+	bh=3PNjsJwQ3yXlDwYWLhHqR6sFNZ0j9p7uuhGDNaXhDs4=;
+	b=M/7RnJyHGOVrMM6EhKdn5C1hDL7YQtW8XB/5ZqOysyfv+gfnhKcSpE+/1cUWP4va
+	mm7686/sOFT2jJVfQzdRiN6M/HzTDJENiov6HM7wd3vm6dx3YVmMjksa7BJQjBf//+E
+	3wUuOQKrJ0bpGXtObXQOz884ebicuBtwKBobFY5c=
+From: adidas <adidas@us-news.comms.adidas.com>
+To: qtrain3@gmail.com
+Subject: Extra 30% off is now live
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: quoted-printable
+List-Unsubscribe: <https://acquisitionpublic.adidas.com/acq-api/consumer/marketing-email/optout?token=X+Qs+RyNYvnwawDKAT5Xsf3DfoOQbS7Axg0WYnN94Tae9h8Nu0HaKO8CNZeDnlggtQscC5eBfsiTgjzMxGnxrjbesnl36uLX6JQqHi6S2NW0dod4lZuiTKGQw3oBOAU++KVOjVGDH4WjtxUmx2B4edGCU1bd5k4KSDEGkhkwV/U=8675d6c1f02343b1467089797b6b45e08c9c792ded826ef8&locale=EN_US&country=US&origin=aws>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+Message-ID: <010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000@eu-west-1.amazonses.com>
+Date: Sun, 8 Nov 2026 01:14:00 +0000
+Feedback-ID: ::1.eu-west-1.GOdGJK7HySWBvbfhHnSwIkcxzHaLm0dBAMqDosg/FGY=:AmazonSES
+X-SES-Outgoing: 2026.11.08-76.223.151.88
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.=
+w3.org/TR/html4/loose.dtd">
+<html lang=3D"en">
+    <head>
+        <meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3DU=
+TF-8">
+        <!-- So that mobile webkit will display zoomed in -->
+        <meta name=3D"viewport" content=3D"initial-scale=3D1.0">
+        <!-- disable auto telephone linking in iOS -->
+        <meta name=3D"format-detection" content=3D"telephone=3Dno">
+        <!-- General Setup -->
+        <meta name=3D"x-apple-disable-message-reformatting">
+        <meta name=3D"ROBOTS" content=3D"NOINDEX, NOFOLLOW">
+        <meta name=3D"referrer" content=3D"no-referrer">
+        <style>
+            /* <!-- MI styling starts--> */
+            .ReadMsgBody {width: 100%;}
+            .ExternalClass p, .ExternalClass span, .ExternalClass font, .Ex=
+ternalClass td {line-height: 100%;}
+            body {width:100% !important; -webkit-text-size-adjust:100%; -ms=
+-text-size-adjust:100%; margin:0; padding:0;}
+            /* Font fix to apply small values */
+            p{margin:0 auto; text-align:center;}
+            .appleLinks a {color: #000000 !important; text-decoration: none=
+ !important;}
+            .createBrk{display: none;}
+            /* General settings END */
+            @media only screen and (min-width: 768px) {
+                /* For desktop: */
+                img {max-width: 100%!important;}
+            }
+            @media only screen and (min-width: 640px) {
+                /* For desktop: */
+                img {max-width: 600px;}
+            }
+            .table-bg {
+                background-color: #ffffff; /* default background */
+            }
+        </style>
+        <style>
+            @font-face {
+                font-family: AdihausDIN;
+                src:
+                    local('Arial'),
+                    local('Helvetica'),
+                    local('Calibri'),
+                    local('Sans Serif');
+                font-weight: 400;
+                font-style: normal;
+                font-display: swap;
+                mso-font-alt: Arial
+            }
+            @font-face {
+                font-family: AdihausDIN;
+                src:
+                    local('Arial'),
+                    local('Helvetica'),
+                    local('Calibri'),
+                    local('Sans Serif');
+                font-weight: 700;
+                font-style: normal;
+                font-display: swap;
+                mso-font-alt: Arial
+            }
+            @font-face {
+                font-family: AdineuePRO;
+                src:
+                    local('Arial'),
+                    local('Helvetica'),
+                    local('Calibri'),
+                    local('Sans Serif');
+                font-weight: 400;
+                font-style: normal;
+                font-display: swap;
+                mso-font-alt: Arial
+                }
+            @font-face {
+                font-family: AdineuePRO;
+                src:
+                    local('Arial'),
+                    local('Helvetica'),
+                    local('Calibri'),
+                    local('Sans Serif');
+                font-weight: 600;
+                font-style: normal;
+                font-display: swap;
+                mso-font-alt: Arial
+            }
+            @media screen and (max-width:640px) {
+                .net-footer-logo-v2 {padding-right: 27px !important;}
+                .mobile-footer-padding-block {padding: 27px 20px !important=
+;}
+                .mobile-footer-padding-block-wave2 {padding: 27px 27px !imp=
+ortant;}
+                .mobile-privacy-transactional {width: 50% !important; displ=
+ay: inline-block !important; padding-bottom: 13px !important;}
+                .mobile-footer-padding-privacy-block {padding: 27px 20px 13=
+px 20px !important;}
+                .mobile-footer-padding-privacy-block-wave2 {padding: 27px 2=
+7px 13px 27px !important;}
+                .pd-l-40{padding: 0px 20px 0px 0px !important;}
+            }
+            @media screen and (max-width:639px) {
+                .container {width: 100% !important}
+                .resizeImg {width: 100%}
+                .resizeImg80 {width: 80% !important}
+                div.hideDesktop { display: block !important; margin: 0; pad=
+ding: 0; overflow: visible !important; width: auto !important; height: auto=
+ !important; max-height: inherit !important }
+                img.hideDesktop { display: block !important; margin: 0; pad=
+ding: 0; overflow: visible !important; width: 100% !important; height: auto=
+ !important; max-height: inherit !important }
+                tr.show-mobile {display: block !important}
+                .show-mobile { display: block !important; width: auto !impo=
+rtant; max-height: inherit !important; overflow: visible !important; float:=
+ none !important }
+                .reset-height {height: auto !important}
+                .autoheight {height: auto !important}
+                .text {width: 100% !important; height: auto !important}
+                .responsive-banner-image {width: 100% !important}
+                .hideMobile {display: none !important}
+                .templateColumns {width: 320px !important}
+                .templateColumns100 {width: 100% !important}
+                .templateColumnContainer {display: block !important; width:=
+ 100% !important}
+                table.mobile-center-table {text-align: center !important; m=
+argin: auto !important}
+                img.reszeImg80_3_2d {width: 80% !important}
+                .resetheight {height: auto !important}
+                .hideMobile {display: none !important}
+                .preheader {text-align: center !important}
+                .showMobile {display: block !important}
+                table.showMobile {display: table !important; width: 100% !i=
+mportant; height: 100% !important}
+                .pm-xy-14{padding:14px 14px 14px 14px !important;}
+                .pm-y-12{padding: 0px 12px 0px 12px!important;}
+                .pm-xy-mixed{padding:15px 20px 27px 20px !important;}
+            }
+            @media screen and (max-width:480px) {
+                .responsive-banner-image {width: 100% !important}
+                .hideDesktop {display: block !important}
+                .hideMobile {display: none !important;}
+                .pm-xy-14{padding:14px 14px 14px 14px !important;}
+                .pm-y-12{padding: 0px 12px 0px 12px!important;}
+                .pm-xy-mixed{padding:15px 20px 27px 20px !important;}
+            }
+            @media screen and (max-width:414px) {
+                .responsive-banner-image {width: 100% !important}
+                .net-footer-logo-v2 {padding-right: 27px !important}
+                .net-footer-logo-v2 img {max-width: 40px !important;}
+                .pm-xy-14{padding:14px 14px 14px 14px !important;}
+                .pm-y-12{padding: 0px 12px 0px 12px!important;}
+                .pm-xy-mixed{padding:15px 20px 27px 20px !important;}
+            }
+            @media screen and (max-width:320px) {
+                .net-footer-logo-v2 {padding-right: 27px !important}
+                .net-footer-logo-v2 img {max-width: 32px !important}
+                .pm-xy-14{padding:14px 14px 14px 14px !important;}
+                .pm-y-12{padding: 0px 12px 0px 12px!important;}
+                .pm-xy-mixed{padding:15px 20px 27px 20px !important;}
+            }
+        </style>
+        <!-- For Yahoo Android App  -->
+        <style>
+            @font-face {
+                font-family: AdihausDIN;
+                src:
+                    local('Arial'),
+                    local('Helvetica');
+                font-weight: 400;
+                font-style: normal;
+                font-display: swap;
+                mso-font-alt: Arial
+            }
+            @font-face {
+                font-family: AdihausDIN;
+                src:
+                    local('Arial'),
+                    local('Helvetica');
+                font-weight: 700;
+                font-style: normal;
+                font-display: swap;
+                mso-font-alt: Arial
+            }
+            @font-face {
+                font-family: AdineuePRO;
+                src:
+                    local('Arial'),
+                    local('Helvetica');
+                font-weight: 400;
+                font-style: normal;
+                font-display: swap;
+                mso-font-alt: Arial
+                }
+            @font-face {
+                font-family: AdineuePRO;
+                src:
+                    local('Arial'),
+                    local('Helvetica');
+                font-weight: 600;
+                font-style: normal;
+                font-display: swap;
+                mso-font-alt: Arial
+            }
+            @media screen and (max-width:640px) {
+                .net-footer-logo-v2 { padding-right: 27px !important; }=20
+                .mobile-footer-padding-block { padding: 27px 20px !importan=
+t; }=20
+                .mobile-footer-padding-block-wave2 { padding: 27px 27px !im=
+portant; }=20
+                .mobile-privacy-transactional { width: 50% !important; disp=
+lay: inline-block !important; padding-bottom: 13px !important; }=20
+                .mobile-footer-padding-privacy-block { padding: 27px 20px 1=
+3px 20px !important; }=20
+                .mobile-footer-padding-privacy-block-wave2 { padding: 27px =
+27px 13px 27px !important; }
+                .pd-l-40{padding: 0px 20px 0px 0px !important;}
+            }
+            @media screen and (max-width:639px) {
+                .container { width: 100% !important }=20
+                .resizeImg { width: 100% }=20
+                .resizeImg80 { width: 80% !important }=20
+                div.hideDesktop { display: block !important; margin: 0; pad=
+ding: 0; overflow: visible !important; width: auto !important; height: auto=
+ !important; max-height: inherit !important }=20
+                img.hideDesktop { display: block !important; margin: 0; pad=
+ding: 0; overflow: visible !important; width: 100% !important; height: auto=
+ !important; max-height: inherit !important }=20
+                tr.show-mobile { display: block !important }=20
+                .show-mobile { display: block !important; width: auto !impo=
+rtant; max-height: inherit !important; overflow: visible !important; float:=
+ none !important }=20
+                .reset-height { height: auto !important }=20
+                .autoheight { height: auto !important } .text { width: 100%=
+ !important; height: auto !important }=20
+                .responsive-banner-image { width: 100% !important }=20
+                .hideMobile { display: none !important }=20
+                .templateColumns { width: 320px !important }=20
+                .templateColumns100 { width: 100% !important }=20
+                .templateColumnContainer { display: block !important; width=
+: 100% !important }=20
+                table.mobile-center-table { text-align: center !important; =
+margin: auto !important }=20
+                img.reszeImg80_3_2d { width: 80% !important } .resetheight =
+{ height: auto !important }=20
+                .hideMobile { display: none !important }=20
+                .showMobile { display: block !important }=20
+                table.showMobile { display: table !important; width: 100% !=
+important; height: 100% !important }
+                .pxy-14{padding:14px 14px 14px 14px !important;}
+                .py-12{padding: 0px 12px 0px 12px!important;}
+                .pxy-mixed{padding:15px 20px 27px 20px !important;}
+            }
+            @media screen and (max-width:480px) {
+                .responsive-banner-image { width: 100% !important }=20
+                .hideDesktop { display: block !important }=20
+                .hideMobile { display: none !important; }
+                .pm-xy-14{padding:14px 14px 14px 14px !important;}
+                .pm-y-12{padding: 0px 12px 0px 12px!important;}
+                .pm-xy-mixed{padding:15px 20px 27px 20px !important;}
+            }
+            @media screen and (max-width:414px) {
+                .responsive-banner-image { width: 100% !important }=20
+                .net-footer-logo-v2 { padding-right: 27px !important }=20
+                .net-footer-logo-v2 img { max-width: 40px !important; }
+                .pm-xy-14{padding:14px 14px 14px 14px !important;}
+                .pm-y-12{padding: 0px 12px 0px 12px!important;}
+                .pm-xy-mixed{padding:15px 20px 27px 20px !important;}
+            }
+            @media screen and (max-width:320px) {
+                .net-footer-logo-v2 {padding-right: 27px !important}
+                .net-footer-logo-v2 img {max-width: 32px !important}
+                .pm-xy-14{padding:14px 14px 14px 14px !important;}
+                .pm-y-12{padding: 0px 12px 0px 12px!important;}
+                .pm-xy-mixed{padding:15px 20px 27px 20px !important;}
+            }
+        </style>  =20
+        <!--[if gte mso 9]>
+        <style type=3D"text/css">
+        .mso-font-fix-arial { font-family: Arial, sans-serif;}
+        .mso-font-fix-georgia { font-family: Georgia, sans-serif;}
+        .mso-font-fix-tahoma { font-family: Tahoma, sans-serif;}
+        .mso-font-fix-times_new_roman { font-family: 'Times New Roman', san=
+s-serif;}
+        .mso-font-fix-trebuchet_ms { font-family: 'Trebuchet MS', sans-seri=
+f;}
+        .mso-font-fix-verdana { font-family: Verdana, sans-serif;}
+        </style>
+        <![endif]-->
+        <!--[if mso 16]><xml>
+        <o:OfficeDocumentSettings>
+        <o:AllowPNG/>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+        </o:OfficeDocumentSettings>
+        </xml><![endif]--> =20
+        <title>adidas</title>
+    </head>
+    <body style=3D"margin:0; padding: 0; background-color:#ffffff" bgcolor=
+=3D"#ffffff" leftmargin=3D"0" topmargin=3D"0" marginwidth=3D"0" marginheigh=
+t=3D"0">
+=09=09<table border=3D"0" width=3D"100%" cellpadding=3D"0" cellspacing=3D"0=
+" align=3D"center" style=3D"margin:0; padding: 0; background-color:#ffffff =
+!important" bgcolor=3D"#ffffff">
+            <tr>
+                <td align=3D"center" valign=3D"top">
+                   =20
+                       =20
+
+
+<div>
+<!--Preheader STATIC CB START-->
+<div style=3D"font-size:0px;line-height:1px;mso-line-height-rule:exactly;di=
+splay:none;max-width:0px;max-height:0px;opacity:0;overflow:hidden;mso-hide:=
+all;">
+=09Start your holiday shopping early.
+</div>
+<!--[if mso]>
+    <table width=3D"640" cellspacing=3D"0" cellpadding=3D"0" class=3D"conta=
+iner" style=3D"background-color: #ffffff;">
+    <tr>
+    <td>
+<![endif]-->
+<table width=3D"640" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" class=
+=3D"container table-bg">
+    <tr>
+        <td align=3D"center" valign=3D"center">
+            <table width=3D"640" class=3D"container" style=3D"height:27px; =
+" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+                <tr>
+                    <td name=3D"preheader-gear-text" id=3D"preheader-gear-t=
+ext" align=3D"left" class=3D"hideMobile" valign=3D"center" style=3D"font-fa=
+mily: Noto Sans; font-size: 14px;font-weight: 400;line-height:22px;padding-=
+top:4px; padding-bottom:3px;">
+                        <a name=3D"preheader-gear-link" id=3D"preheader-gea=
+r-link" style=3D"color:  #767677; text-decoration: underline;white-space:no=
+wrap;" target=3D"_blank" alias=3D"preheadersnippetlink0" _label=3D"preheade=
+rsnippetlink0" href=3D"https://click.comms.adidas.com/CL0/https:%2F%2Fdv.ad=
+idas.com%2Fc%2F441c5e4c-b87a-4f47-987d-1216920c5e80%3Fcm_mmc=3DAdiEmail_SNL=
+-_-None-_-20261108_08112026_DaVinciPersonalization_23897_US_November-_-Mark=
+eting-_-CTA-_-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-Other%26cm_mmc1=3D=
+US%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter-Non=
+e-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reengagem=
+ent_window=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-eCom-=
+Email-SNL-None-None-US-Static_Newsletter-None-2611%26af_adset=3D20261108_08=
+112026_DaVinciPersonalization_23897_US_November%26af_ad=3DCTA%26af_channel=
+=3DStatic_Newsletter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguL=
+pn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xC=
+olyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQ=
+JkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAja=
+Fo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15=
+Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrA=
+oj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_ci=
+d=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a23340ea/1/0102=
+01a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000/OZklG_VVvlVC7i65xf=
+nKBxAjRBxco_mf5qLjkbaNlrE=3D452">
+                            Start your holiday shopping early.
+                        </a>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+<!--[if mso]>
+    </td>
+    </tr>
+    </table
+<![endif]-->
+<!--Preheader STATIC CB END-->
+</div>
+<!--Logo start-->
+<table width=3D"640" cellspacing=3D"0" cellpadding=3D"0" class=3D"container=
+">
+    <tr>
+        <td align=3D"center" valign=3D"top" bgcolor=3D"#FFFFFF">
+            <table width=3D"640" class=3D"container" bgcolor=3D"#FFFFFF" bo=
+rder=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+                <tr>
+                    <td align=3D"center" valign=3D"top">
+                        <table align=3D"center" width=3D"100%" border=3D"0"=
+ cellspacing=3D"0" cellpadding=3D"0" style=3D"padding:24px 0 24px 0">
+                            <tr align=3D"center">
+                                <td align=3D"center" valign=3D"center" styl=
+e=3D"display: inline;">                         =20
+                                    <a name=3D"header-adidas-logo-link" id=
+=3D"header-adidas-logo-link" target=3D"_blank" alias=3D"HeaderAdidasLogo0" =
+style=3D"text-decoration:none;" _label=3D"AdidasLogo" href=3D"https://click=
+.comms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2Fc%2F6c089f0c-3dfb-4b67-ac=
+88-510d1ce44147%3Fcm_mmc=3DAdiEmail_SNL-_-None-_-20261108_08112026_DaVinciP=
+ersonalization_23897_US_November-_-Marketing-_-HeaderAdidasLogo0-_-None-_-d=
+v-eCom-_-cn-Static_Newsletter-_-pc-Other%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-=
+NAM-eCom-Email-SNL-None-None-US-Static_Newsletter-None-2611%26cm_mmca3=3DW7=
+9OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reengagement_window=3D30d%26is_=
+retargeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-eCom-Email-SNL-None-None-US=
+-Static_Newsletter-None-2611%26af_adset=3D20261108_08112026_DaVinciPersonal=
+ization_23897_US_November%26af_ad=3DHeaderAdidasLogo0%26af_channel=3DStatic=
+_Newsletter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWY=
+pXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYP=
+Ri4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJ=
+y6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzN=
+fErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7J=
+mygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3H=
+KVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_cid=3D66f64=
+c42049b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a23340ea/1/010201a1b8b82=
+c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000/UWH0OuFtgIdV0_2StjkTYbkdn3g=
+lwIXGWv5MFPUazbM=3D452">
+                                        <img width=3D"38" height=3D"24" nam=
+e=3D"header-adidas-logo-image" id=3D"header-adidas-logo-image" class=3D"hid=
+e-in-dark-mode" style=3D"width:38px !important;height:24px !important;" alt=
+=3D"Adidas" src=3D"https://image.staging.link.adidas.com/lib/fe6515707c6200=
+7e7715/m/96/d6daa093-30d6-4681-a62d-1fb174c2d28b.png" border=3D"0">
+                                    </a>&nbsp; =20
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+<!--Logo end--><!-- MI_Abandon_Cart_Banner start-->
+<table width=3D"640" class=3D"container" border=3D"0" cellspacing=3D"0" cel=
+lpadding=3D"0">
+    <tr>
+        <td align=3D"center" valign=3D"center" style=3D"background-color:#f=
+fffff;" bgcolor=3D"#000000">
+            <table width=3D"640" class=3D"container" border=3D"0" cellspaci=
+ng=3D"0" cellpadding=3D"0" align=3D"center" valign=3D"center">
+                <tr>
+                    <td align=3D"center" valign=3D"center">
+                        <table width=3D"640" class=3D"container" style=3D"b=
+ackground-color:#ffffff; height:auto;" bgcolor=3D"#ffffff" border=3D"0" cel=
+lspacing=3D"0" cellpadding=3D"0" align=3D"center" valign=3D"center">
+                            <tr align=3D"center">
+                                <td align=3D"center" valign=3D"center" styl=
+e=3D"mso-padding-alt: 5px 0 2px 0; padding-top:5px; padding-bottom: 2px;">
+                                    <!-- Deep link implementation Start SFM=
+C99726  -->
+                                        <div>
+                                            <a style=3D"display: block" hre=
+f=3D"https://click.comms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2Fc%2F86e=
+9c1d6-e45b-4841-9539-153425ddc24a%3Fmi_u=3DW79OAAEQ53JCZSPE%26mi_ecmp=3Deyo=
+xy6evl4%26mi_geneStore=3D9990080643%26P_POS_CLS_PCAT_QUA=3DOriginals%26P_PO=
+S_SCS_PEF_MCLU_SEG=3D%26url=3Dhttps%25253A%25252F%25252Fmi.adidas.com%25252=
+Fp%25252Frp%25252F32225d5ff4dd9c47%25252Furl%26url_sig=3D8oqP6F8w0eLe1S%26c=
+m_mmc=3DAdiEmail_SNL-_-None-_-20261108_08112026_DaVinciPersonalization_2389=
+7_US_November-_-Marketing-_--_-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-O=
+ther%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Stat=
+ic_Newsletter-None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6ev=
+l4%26af_reengagement_window=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=
+=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter-None-2611%26af_=
+adset=3D20261108_08112026_DaVinciPersonalization_23897_US_November%26af_ad=
+=3D%26af_channel=3DStatic_Newsletter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv=
+3.eJzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGo=
+KY_u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdK=
+tMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFj=
+QnPRGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHig=
+wpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldN=
+kDm434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966=
+e10b8046%26mi_cid=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec7=
+1a23340ea/1/010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000/Aa=
+FxyjH7PEU67Ey9GjUIjk1HK3xf5q9c_AInD_A_cdM=3D452">
+                                                <img alt=3D"Display images =
+to show real-time content" width=3D"640" max-width=3D"640" style=3D"border:=
+ 0; display: block;" border=3D"0" src=3D"https://mi.adidas.com/p/rp/32225d5=
+ff4dd9c47.png?mi_u=3DW79OAAEQ53JCZSPE&mi_ecmp=3Deyoxy6evl4&mi_geneStore=3D9=
+990080643&P_POS_CLS_PCAT_QUA=3DOriginals&P_POS_SCS_PEF_MCLU_SEG=3D">
+                                            </a>
+                                        </div>
+                                    <!-- Deep link implementation END SFMC9=
+9726  -->
+                                </td>
+                            </tr>
+                        </table>=20
+                    </td>
+                </tr>
+            </table>=20
+        </td>
+    </tr>
+</table>
+<!-- MI_Abandon_Cart_Banner end--><!-- Start ContentBlock: 5jk1vgek84 -->
+
+<!-- Main Story v2 Start -->
+<table width=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+    <tr>
+        <td align=3D"center" valign=3D"center" style=3D"background-color:#f=
+fffff; padding-bottom:16px;" bgcolor=3D"#000000">
+            <table width=3D"640" class=3D"container" style=3D"background-co=
+lor:#ffffff;height:auto;width:640px;" bgcolor=3D"#ffffff" border=3D"0" cell=
+spacing=3D"0" cellpadding=3D"0">
+                <tr>
+                    <td align=3D"center" valign=3D"center">
+                       =20
+                        <!--Main Layout-->
+                        <table align=3D"center" width=3D"640" class=3D"cont=
+ainer" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+                         =20
+                          <!-- row start -->
+                          <tr>
+                            <td>
+                              <table width=3D"100%" border=3D"0" cellspacin=
+g=3D"0" cellpadding=3D"0">
+                                <tr>
+                                 =20
+                                  <!-- slice start: slice -->
+                                  <td align=3D"left" valign=3D"top">
+                                   =20
+                                   =20
+                                    <a target=3D"_blank" alias=3D"HeroImage=
+Desktop" href=3D"https://click.comms.adidas.com/CL0/https:%2F%2Fdv.adidas.c=
+om%2Fc%2Fb180b5a7-bb29-4ed3-9283-e44314f3ced7%3Fcm_mmc=3DAdiEmail_SNL-_-Non=
+e-_-20261108_08112026_DaVinciPersonalization_23897_US_November-_-Marketing-=
+_--_-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-Other%26cm_mmc1=3DUS%26cm_m=
+mc2=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter-None-2611%26=
+cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reengagement_windo=
+w=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-eCom-Email-SNL=
+-None-None-US-Static_Newsletter-None-2611%26af_adset=3D20261108_08112026_Da=
+VinciPersonalization_23897_US_November%26af_ad=3D%26af_channel=3DStatic_New=
+sletter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo6=
+1N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4W=
+AUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5=
+_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErM=
+HGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJ=
+ZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMY=
+Oxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_cid=3D66f64c420=
+49b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a23340ea/1/010201a1b8b82c49-=
+f0f75591-481c-4471-b79f-d70044f7ac86-000000/Th6QVSrT5a5zi4TTRDJgQehXU51EX9Y=
+ra04k14YgbOQ=3D452">
+                                      <img style=3D"display: block;" width=
+=3D"100%" border=3D"0" src=3D"https://image.link.adidas.com/lib/fe5c15707c6=
+3077e7013/m/1/4fd29bf2-6f28-4fdd-b810-baf7e44f65a2.jpg" alt=3D"30% OFF HOLI=
+DAY SAVINGS " title=3D"30% OFF HOLIDAY SAVINGS ">
+                                    </a>
+                                   =20
+                                   =20
+                                  </td>
+                                  <!-- cell end: slice -->
+                                 =20
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                          <!-- row end -->
+                         =20
+                        </table>
+                        <!--Main layout end-->
+                       =20
+                        <!--Main headline and ctas-->
+                        <table class=3D"container" align=3D"center" width=
+=3D"640" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" >
+                           =20
+                            <!-- Title-->
+                            <tr align=3D"center">
+                                <td align=3D"center" valign=3D"center">
+                                    <table cellpadding=3D"0" cellspacing=3D=
+"0" width=3D"100%" role=3D"presentation" style=3D"min-width: 100%;">
+                                        <tr>
+                                            <td>
+                                               =20
+                                                <table style=3D"margin-top:=
+40px;" width=3D"100%" height=3D"auto" cellspacing=3D"0" cellpadding=3D"0" b=
+gcolor=3D"" align=3D"left">
+                                                    <tr>
+                                                        <td width=3D"100%" =
+align=3D"center" class=3D"container">
+                                                            <table class=3D=
+"pm-y-12  pd-l-40" width=3D"100%" cellspacing=3D"0" cellpadding=3D"0" borde=
+r=3D"0" align=3D"center">
+                                                                <tr class=
+=3D"pm-xy-14" style=3D"font-size:38px; line-height:38px; font-family:'adine=
+uePRO','Noto Sans', sans-serif; font-weight:400; color:#111111; text-decora=
+tion:none; letter-spacing:1px;">
+                                                                    <td val=
+ign=3D"center" align=3D"left" style=3D"text-align:left;">
+                                                                        <sp=
+an style=3D"text-align:left;">30% OFF HOLIDAY SAVINGS </span>
+                                                                    </td>
+                                                                </tr>
+                                                            </table>=20
+                                                        </td>
+                                                    </tr>
+                                                </table>                  =
+=20
+                                               =20
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                            <!-- End Title-->=20
+                           =20
+                           =20
+                            <!-- Text main_story_body_copy-->=20
+                            <tr>
+                                <td>
+                                    <table style=3D"margin-top:40px;backgro=
+und-color:#ffffff;" width=3D"100%" height=3D"auto" cellspacing=3D"0" cellpa=
+dding=3D"0" bgcolor=3D"" align=3D"left">
+                                        <tr>
+                                            <td style=3D"width:100%;">     =
+     =20
+                                                <table class=3D"pm-y-12" st=
+yle=3D"width:100%;" cellspacing=3D"0" cellpadding=3D"0" border=3D"0" align=
+=3D"left">                 =20
+                                                    <tr class=3D"pm-xy-14" =
+style=3D"font-size:16px; line-height:22px; font-family:AdihausDIN,Noto Sans=
+, sans-serif;font-weight:400; color:#111111; letter-spacing:0px">
+                                                        <td valign=3D"cente=
+r" align=3D"left" > =20
+                                                            <span>Get an ex=
+tra 30% off tons of full price and sale styles with code COZY. Get started =
+on gifting early with savings on top sellers, trending items, and more. Exc=
+lusions apply.*</span>
+                                                        </td>
+                                                    </tr>
+                                               </table>
+                                            </td>
+                                        </tr>
+                                   =09</table>
+                                </td>
+                            </tr>
+                            <!-- End Text main_story_body_copy--> =20
+                           =20
+                           =20
+                               =20
+                                <!--CTA 1-->
+                                <tr align=3D"center">
+                                    <td align=3D"center" valign=3D"center">
+                                      <table cellpadding=3D"0" cellspacing=
+=3D"0" width=3D"100%" role=3D"presentation" >
+                                      =09<tr>
+                                               <td>
+                                              <!-- CTA desktop-->
+                                                  <table class=3D"hideMobil=
+e" style=3D"width:100%;" width=3D"100%" height=3D"auto" cellspacing=3D"0" c=
+ellpadding=3D"0" align=3D"center">
+                                                      <tr>
+                                                          <td>
+                                                              <table class=
+=3D"hideMobile" style=3D"width:640px; padding-top:40px;" width=3D"640" heig=
+ht=3D"auto" cellspacing=3D"0" cellpadding=3D"0" align=3D"center">
+                                                                  <tr>
+                                                                      <td>
+                                                                          <=
+a target=3D"_blank" _urltype=3D"11" _label=3D"CTA" style=3D"text-decoration=
+-line:none;text-decoration:none;" alias=3D"CTADesktop" href=3D"https://clic=
+k.comms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2Fc%2Fb58f8f12-1458-4566-9=
+5f2-b0b3fa564d32%3Fcm_mmc=3DAdiEmail_SNL-_-None-_-20261108_08112026_DaVinci=
+Personalization_23897_US_November-_-Marketing-_--_-None-_-dv-eCom-_-cn-Stat=
+ic_Newsletter-_-pc-Other%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-S=
+NL-None-None-US-Static_Newsletter-None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%2=
+6cm_mmca4=3Deyoxy6evl4%26af_reengagement_window=3D30d%26is_retargeting=3Dtr=
+ue%26pid=3DAWS%26c=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newslett=
+er-None-2611%26af_adset=3D20261108_08112026_DaVinciPersonalization_23897_US=
+_November%26af_ad=3D%26af_channel=3DStatic_Newsletter%26campaign_id=3Deyoxy=
+6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbj=
+mDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYT=
+EOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzV=
+oiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAW=
+G9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGc=
+HFOshVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26=
+cp_cid=3D3b2ee966e10b8046%26mi_cid=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8=
+880-7000-a94f-ec71a23340ea/1/010201a1b8b82c49-f0f75591-481c-4471-b79f-d7004=
+4f7ac86-000000/nqa-CULBlwqJe2DWwei28vVgEVimH39w4BH5B8r4-PY=3D452">
+                                                                           =
+   <table class=3D"hideMobile" style=3D"float:left;" height=3D"auto" cellsp=
+acing=3D"0" cellpadding=3D"0" bgcolor=3D"#111111" align=3D"left">
+                                                                           =
+       <tr class=3D"hideMobile">
+                                                                           =
+           <td width=3D"100%" style=3D"border:#000000 0px solid; margin:0px=
+ 0px 40px 0px;width:100%;" align=3D"left">
+                                                                           =
+               <table style=3D"width: 100%; padding:14px 20px 14px 20px;" c=
+ellspacing=3D"0" cellpadding=3D"0" border=3D"0" align=3D"center">
+                                                                           =
+                   <tr>
+                                                                           =
+                       <td name=3D"--desktop-text" style=3D"" valign=3D"mid=
+dle" align=3D"left">
+                                                                           =
+                           <a name=3D"--desktop-textLink" target=3D"_blank"=
+ _urltype=3D"11" _label=3D"CTA" alias=3D"CTADesktop" style=3D"font-size:14p=
+x; line-height: 22px; font-family: AdihausDIN,Noto Sans, sans-serif; font-w=
+eight: 700; color:#ffffff; text-align: left; text-transform: uppercase; let=
+ter-spacing:2px;text-decoration-line:none;text-decoration:none;" href=3D"ht=
+tps://click.comms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2Fc%2Fb58f8f12-1=
+458-4566-95f2-b0b3fa564d32%3Fcm_mmc=3DAdiEmail_SNL-_-None-_-20261108_081120=
+26_DaVinciPersonalization_23897_US_November-_-Marketing-_--_-None-_-dv-eCom=
+-_-cn-Static_Newsletter-_-pc-Other%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-eC=
+om-Email-SNL-None-None-US-Static_Newsletter-None-2611%26cm_mmca3=3DW79OAAEQ=
+53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reengagement_window=3D30d%26is_retarg=
+eting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Stati=
+c_Newsletter-None-2611%26af_adset=3D20261108_08112026_DaVinciPersonalizatio=
+n_23897_US_November%26af_ad=3D%26af_channel=3DStatic_Newsletter%26campaign_=
+id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7AriX=
+PMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPp=
+QQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGC=
+KEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBT=
+IehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBr=
+JugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5=
+Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_cid=3D66f64c42049b7249%26mi_mid=3D=
+01a1bb3e-8880-7000-a94f-ec71a23340ea/2/010201a1b8b82c49-f0f75591-481c-4471-=
+b79f-d70044f7ac86-000000/GdF2WcoI3WbQ2ryYILRQ0cHiNyF3M_gFfbl3VBMrkJU=3D452"=
+>
+                                                                           =
+                             <font style=3D"font-size:14px; line-height: 22=
+px; font-family: AdihausDIN,Noto Sans, sans-serif; font-weight: 700; color:=
+#ffffff; text-align: left;  text-transform: uppercase; letter-spacing:2px;t=
+ext-decoration-line:none;text-decoration:none;">
+                                                                           =
+                              SHOP MEN
+                                                                           =
+                             </font>
+                                                                           =
+                           </a>
+                                                                           =
+                       </td>
+                               =20
+                                                                           =
+                       <td style=3D"font-size: 0px; mso-line-height-alt: 0;=
+padding-left:15px; text-decoration:none;" valign=3D"middle" align=3D"right"=
+>
+                                                                           =
+                           <a target=3D"_blank" _urltype=3D"11" _label=3D"C=
+TA" alias=3D"CTADesktop" href=3D"https://click.comms.adidas.com/CL0/https:%=
+2F%2Fdv.adidas.com%2Fc%2Fb58f8f12-1458-4566-95f2-b0b3fa564d32%3Fcm_mmc=3DAd=
+iEmail_SNL-_-None-_-20261108_08112026_DaVinciPersonalization_23897_US_Novem=
+ber-_-Marketing-_--_-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-Other%26cm_=
+mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newslet=
+ter-None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_re=
+engagement_window=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NA=
+M-eCom-Email-SNL-None-None-US-Static_Newsletter-None-2611%26af_adset=3D2026=
+1108_08112026_DaVinciPersonalization_23897_US_November%26af_ad=3D%26af_chan=
+nel=3DStatic_Newsletter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuL=
+guLpn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO=
+4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjk=
+xTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XE=
+AjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXC=
+c15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikL=
+nrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi=
+_cid=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a23340ea/3/0=
+10201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000/ui9ivcng1H_y2Vm=
+UQjvjXBkwsPuV6ydXrd0wPyG3JHU=3D452">
+                                                                           =
+                               <img style=3D"display: block;" src=3D"http:/=
+/image.link.adidas.com/lib/fe6515707c62007e7715/m/3/b0c011a2-d468-414b-a8a2=
+-8595b3ec7b34.jpg" alt=3D"arrow" border=3D"0" align=3D"absmiddle">
+                                                                           =
+                           </a>
+                                                                           =
+                       </td>
+                               =20
+                                                                           =
+                   </tr>
+                                                                           =
+               </table>
+                                                                           =
+           </td>
+                                                                           =
+       </tr>
+                                                                           =
+   </table>
+                                                                          <=
+/a>
+                                                                      </td>
+                                                                  </tr>
+                                                              </table>
+                                                          </td>
+                                                      </tr>
+                                                  </table>
+                                              <!-- End CTA desktop-->
+                                              <!-- CTA mobile-->
+                                                  <!--[if !mso]><!-->
+                                                  <table class=3D"show-mobi=
+le" style=3D"width:100%;" width=3D"100%" height=3D"auto" cellspacing=3D"0" =
+cellpadding=3D"0" align=3D"center">
+                                                      <tr>
+                                                          <td>
+                                                              <a target=3D"=
+_blank" _label=3D"CTA" style=3D"text-decoration-line:none;text-decoration:n=
+one;" alias=3D"CTAMobile" href=3D"https://click.comms.adidas.com/CL0/https:=
+%2F%2Fdv.adidas.com%2Fc%2Fb58f8f12-1458-4566-95f2-b0b3fa564d32%3Fcm_mmc=3DA=
+diEmail_SNL-_-None-_-20261108_08112026_DaVinciPersonalization_23897_US_Nove=
+mber-_-Marketing-_--_-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-Other%26cm=
+_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsle=
+tter-None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_r=
+eengagement_window=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-N=
+AM-eCom-Email-SNL-None-None-US-Static_Newsletter-None-2611%26af_adset=3D202=
+61108_08112026_DaVinciPersonalization_23897_US_November%26af_ad=3D%26af_cha=
+nnel=3DStatic_Newsletter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFu=
+LguLpn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYl=
+O4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDj=
+kxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7X=
+EAjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcX=
+Cc15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83Iik=
+LnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26m=
+i_cid=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a23340ea/4/=
+010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000/wGLKt8GQjkQp04=
+a_4n7up2M6whhRAeThsLfDyMZFHhE=3D452">
+                                                                  <table cl=
+ass=3D"show-mobile" style=3D"display:none;margin-top:40px; border:#000000  =
+0px solid;margin-left:12px;margin-right:12px;" width=3D"" height=3D"auto" c=
+ellspacing=3D"0" cellpadding=3D"0" bgcolor=3D"#111111" align=3D"left">
+                                                                      <tr c=
+lass=3D"show-mobile" style=3D"display:none;">
+                                                                          <=
+td style=3D"padding: 14px 20px 14px 20px; margin: 0px 0px 40px 0px; width:5=
+90px;" align=3D"left">
+                                                                           =
+   <table style=3D"width: 100%;" width=3D"100%" cellspacing=3D"0" cellpaddi=
+ng=3D"0" border=3D"0" align=3D"left">
+                                                                           =
+       <tr>
+                                                                           =
+           <td name=3D"--mobile-text" style=3D"padding-right: 0px;width:460=
+px" width=3D"460" valign=3D"middle" align=3D"left">
+                                                                           =
+               <a name=3D"--mobile-textLink" target=3D"_blank" _label=3D"CT=
+A" style=3D"font-size:14px; line-height: 22px; font-family: AdihausDIN,Noto=
+ Sans, sans-serif; font-weight: 700; color:#ffffff; text-align: left;  text=
+-transform: uppercase; letter-spacing:2px;text-decoration-line:none;text-de=
+coration:none;" alias=3D"CTAMobile" href=3D"https://click.comms.adidas.com/=
+CL0/https:%2F%2Fdv.adidas.com%2Fc%2Fb58f8f12-1458-4566-95f2-b0b3fa564d32%3F=
+cm_mmc=3DAdiEmail_SNL-_-None-_-20261108_08112026_DaVinciPersonalization_238=
+97_US_November-_-Marketing-_--_-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-=
+Other%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Sta=
+tic_Newsletter-None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6e=
+vl4%26af_reengagement_window=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=
+=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter-None-2611%26af_=
+adset=3D20261108_08112026_DaVinciPersonalization_23897_US_November%26af_ad=
+=3D%26af_channel=3DStatic_Newsletter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv=
+3.eJzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGo=
+KY_u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdK=
+tMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFj=
+QnPRGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHig=
+wpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldN=
+kDm434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966=
+e10b8046%26mi_cid=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec7=
+1a23340ea/5/010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000/3t=
+RjmS_X4ybBYansOrgmN-P0ZjVgR0nMlRl71nVY-k0=3D452">
+                                                                           =
+                     <font style=3D"font-size:14px; line-height: 22px; font=
+-family: AdihausDIN,Noto Sans, sans-serif; font-weight: 700; color:#ffffff;=
+ text-align: left;  text-transform: uppercase; letter-spacing:2px;text-deco=
+ration-line:none;text-decoration:none;">
+                                                                           =
+                      SHOP MEN
+                                                                           =
+                     </font>
+                                                                           =
+               </a>
+                                                                           =
+           </td>
+                               =20
+                                                                           =
+           <td style=3D"font-size: 0px; mso-line-height-alt: 0;width:115px"=
+ width=3D"115" valign=3D"middle" align=3D"right">
+                                                                           =
+               <a target=3D"_blank" _label=3D"CTA" alias=3D"CTAMobile" href=
+=3D"https://click.comms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2Fc%2Fb58f=
+8f12-1458-4566-95f2-b0b3fa564d32%3Fcm_mmc=3DAdiEmail_SNL-_-None-_-20261108_=
+08112026_DaVinciPersonalization_23897_US_November-_-Marketing-_--_-None-_-d=
+v-eCom-_-cn-Static_Newsletter-_-pc-Other%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-=
+NAM-eCom-Email-SNL-None-None-US-Static_Newsletter-None-2611%26cm_mmca3=3DW7=
+9OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reengagement_window=3D30d%26is_=
+retargeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-eCom-Email-SNL-None-None-US=
+-Static_Newsletter-None-2611%26af_adset=3D20261108_08112026_DaVinciPersonal=
+ization_23897_US_November%26af_ad=3D%26af_channel=3DStatic_Newsletter%26cam=
+paign_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8Qtw=
+S7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVx=
+CwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-=
+ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDru=
+R9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwox=
+c7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACM=
+AUVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_cid=3D66f64c42049b7249%26mi_=
+mid=3D01a1bb3e-8880-7000-a94f-ec71a23340ea/6/010201a1b8b82c49-f0f75591-481c=
+-4471-b79f-d70044f7ac86-000000/42_Z5IVgln4k6ws9Ilmaxv9LAmnito8jveozcKucqo0=
+=3D452">
+                                                                           =
+                   <img style=3D"display: block;padding-left:15px;" src=3D"=
+http://image.link.adidas.com/lib/fe6515707c62007e7715/m/3/b0c011a2-d468-414=
+b-a8a2-8595b3ec7b34.jpg" alt=3D"arrow" border=3D"0" align=3D"absmiddle">
+                                                                           =
+               </a>
+                                                                           =
+           </td>
+                               =20
+                                                                           =
+       </tr>
+                                                                           =
+   </table>
+                                                                          <=
+/td>
+                                                                      </tr>
+                                                                  </table>
+                                                              </a>
+                                                          </td>
+                                                      </tr>
+                                                  </table>
+                                                  <!--<![endif]-->
+                                              <!-- END CTA mobile -->
+                                =09=09=09=09</td>
+                                        </tr>
+                                      </table>
+                                    </td>       =20
+                            =09</tr>
+                            =09
+                                                    =09   =20
+                        =09
+                               =20
+                        =09<!--CTA 2-->
+                        =09<tr align=3D"center">
+                                <td align=3D"center" valign=3D"center">
+                                  <table cellpadding=3D"0" cellspacing=3D"0=
+" width=3D"100%" role=3D"presentation" >
+                                  =09<tr>
+                                           <td>
+                                          <!-- CTA desktop-->
+                                              <table class=3D"hideMobile" s=
+tyle=3D"width:100%;" width=3D"100%" height=3D"auto" cellspacing=3D"0" cellp=
+adding=3D"0" align=3D"center">
+                                                  <tr>
+                                                      <td>
+                                                          <table class=3D"h=
+ideMobile" style=3D"width:640px; padding-top:16px;" width=3D"640" height=3D=
+"auto" cellspacing=3D"0" cellpadding=3D"0" align=3D"center">
+                                                              <tr>
+                                                                  <td>
+                                                                      <a ta=
+rget=3D"_blank" _urltype=3D"11" _label=3D"CTA" style=3D"text-decoration-lin=
+e:none;text-decoration:none;" alias=3D"CTADesktop" href=3D"https://click.co=
+mms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2Fc%2F474a4794-3b17-4da6-9948-=
+e372f09590cc%3Fcm_mmc=3DAdiEmail_SNL-_-None-_-20261108_08112026_DaVinciPers=
+onalization_23897_US_November-_-Marketing-_--_-None-_-dv-eCom-_-cn-Static_N=
+ewsletter-_-pc-Other%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-N=
+one-None-US-Static_Newsletter-None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_=
+mmca4=3Deyoxy6evl4%26af_reengagement_window=3D30d%26is_retargeting=3Dtrue%2=
+6pid=3DAWS%26c=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter-N=
+one-2611%26af_adset=3D20261108_08112026_DaVinciPersonalization_23897_US_Nov=
+ember%26af_ad=3D%26af_channel=3DStatic_Newsletter%26campaign_id=3Deyoxy6evl=
+4%26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5=
+_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5=
+KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8=
+CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9Br=
+FYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOs=
+hVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_c=
+id=3D3b2ee966e10b8046%26mi_cid=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8880-=
+7000-a94f-ec71a23340ea/1/010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7a=
+c86-000000/TMT9frbhAPW2Mr-IjvX1prcuv9NnKwdW55yTulzulXE=3D452">
+                                                                          <=
+table class=3D"hideMobile" style=3D"float:left;" height=3D"auto" cellspacin=
+g=3D"0" cellpadding=3D"0" bgcolor=3D"#111111" align=3D"left">
+                                                                           =
+   <tr class=3D"hideMobile">
+                                                                           =
+       <td width=3D"100%" style=3D"border:#000000 0px solid; margin:0px 0px=
+ 40px 0px;width:100%;" align=3D"left">
+                                                                           =
+           <table style=3D"width: 100%; padding:14px 20px 14px 20px;" cells=
+pacing=3D"0" cellpadding=3D"0" border=3D"0" align=3D"center">
+                                                                           =
+               <tr>
+                                                                           =
+                   <td name=3D"--desktop-text" style=3D"" valign=3D"middle"=
+ align=3D"left">
+                                                                           =
+                       <a name=3D"--desktop-textLink" target=3D"_blank" _ur=
+ltype=3D"11" _label=3D"CTA" alias=3D"CTADesktop" style=3D"font-size:14px; l=
+ine-height: 22px; font-family: AdihausDIN,Noto Sans, sans-serif; font-weigh=
+t: 700; color:#ffffff; text-align: left; text-transform: uppercase; letter-=
+spacing:2px;text-decoration-line:none;text-decoration:none;" href=3D"https:=
+//click.comms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2Fc%2F474a4794-3b17-=
+4da6-9948-e372f09590cc%3Fcm_mmc=3DAdiEmail_SNL-_-None-_-20261108_08112026_D=
+aVinciPersonalization_23897_US_November-_-Marketing-_--_-None-_-dv-eCom-_-c=
+n-Static_Newsletter-_-pc-Other%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-E=
+mail-SNL-None-None-US-Static_Newsletter-None-2611%26cm_mmca3=3DW79OAAEQ53JC=
+ZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reengagement_window=3D30d%26is_retargetin=
+g=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Ne=
+wsletter-None-2611%26af_adset=3D20261108_08112026_DaVinciPersonalization_23=
+897_US_November%26af_ad=3D%26af_channel=3DStatic_Newsletter%26campaign_id=
+=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7AriXPM=
+XlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQ=
+YNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKE=
+diZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBTIe=
+hMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJu=
+gFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=
+=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_cid=3D66f64c42049b7249%26mi_mid=3D0=
+1a1bb3e-8880-7000-a94f-ec71a23340ea/2/010201a1b8b82c49-f0f75591-481c-4471-b=
+79f-d70044f7ac86-000000/O7jA2cp3KDZzHTlZCfT4uYpJ6IE9-efIQCrEhqv7iws=3D452">
+                                                                           =
+                         <font style=3D"font-size:14px; line-height: 22px; =
+font-family: AdihausDIN,Noto Sans, sans-serif; font-weight: 700; color:#fff=
+fff; text-align: left;  text-transform: uppercase; letter-spacing:2px;text-=
+decoration-line:none;text-decoration:none;">
+                                                                           =
+                          SHOP WOMEN
+                                                                           =
+                         </font>
+                                                                           =
+                       </a>
+                                                                           =
+                   </td>
+                           =20
+                                                                           =
+                   <td style=3D"font-size: 0px; mso-line-height-alt: 0;padd=
+ing-left:15px; text-decoration:none;" valign=3D"middle" align=3D"right">
+                                                                           =
+                       <a target=3D"_blank" _urltype=3D"11" _label=3D"CTA" =
+alias=3D"CTADesktop" href=3D"https://click.comms.adidas.com/CL0/https:%2F%2=
+Fdv.adidas.com%2Fc%2F474a4794-3b17-4da6-9948-e372f09590cc%3Fcm_mmc=3DAdiEma=
+il_SNL-_-None-_-20261108_08112026_DaVinciPersonalization_23897_US_November-=
+_-Marketing-_--_-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-Other%26cm_mmc1=
+=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter-=
+None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reenga=
+gement_window=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-eC=
+om-Email-SNL-None-None-US-Static_Newsletter-None-2611%26af_adset=3D20261108=
+_08112026_DaVinciPersonalization_23897_US_November%26af_ad=3D%26af_channel=
+=3DStatic_Newsletter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguL=
+pn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xC=
+olyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQ=
+JkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAja=
+Fo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15=
+Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrA=
+oj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_ci=
+d=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a23340ea/3/0102=
+01a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000/OlQkzQ9dW2mBGtohQ6=
+f3VC8AUa-GZUqGKVixKV3KVDc=3D452">
+                                                                           =
+                           <img style=3D"display: block;" src=3D"http://ima=
+ge.link.adidas.com/lib/fe6515707c62007e7715/m/3/b0c011a2-d468-414b-a8a2-859=
+5b3ec7b34.jpg" alt=3D"arrow" border=3D"0" align=3D"absmiddle">
+                                                                           =
+                       </a>
+                                                                           =
+                   </td>
+                           =20
+                                                                           =
+               </tr>
+                                                                           =
+           </table>
+                                                                           =
+       </td>
+                                                                           =
+   </tr>
+                                                                          <=
+/table>
+                                                                      </a>
+                                                                  </td>
+                                                              </tr>
+                                                          </table>
+                                                      </td>
+                                                  </tr>
+                                              </table>
+                                          <!-- End CTA desktop-->
+                                          <!-- CTA mobile-->
+                                              <!--[if !mso]><!-->
+                                              <table class=3D"show-mobile" =
+style=3D"width:100%;" width=3D"100%" height=3D"auto" cellspacing=3D"0" cell=
+padding=3D"0" align=3D"center">
+                                                  <tr>
+                                                      <td>
+                                                          <a target=3D"_bla=
+nk" _label=3D"CTA" style=3D"text-decoration-line:none;text-decoration:none;=
+" alias=3D"CTAMobile" href=3D"https://click.comms.adidas.com/CL0/https:%2F%=
+2Fdv.adidas.com%2Fc%2F474a4794-3b17-4da6-9948-e372f09590cc%3Fcm_mmc=3DAdiEm=
+ail_SNL-_-None-_-20261108_08112026_DaVinciPersonalization_23897_US_November=
+-_-Marketing-_--_-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-Other%26cm_mmc=
+1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter=
+-None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reeng=
+agement_window=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-e=
+Com-Email-SNL-None-None-US-Static_Newsletter-None-2611%26af_adset=3D2026110=
+8_08112026_DaVinciPersonalization_23897_US_November%26af_ad=3D%26af_channel=
+=3DStatic_Newsletter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguL=
+pn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xC=
+olyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQ=
+JkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAja=
+Fo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15=
+Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrA=
+oj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_ci=
+d=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a23340ea/4/0102=
+01a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000/KGIGuLRMs2A8X3Uv7v=
+5iulwxmEsqtHWQsXMKd58Jx0c=3D452">
+                                                              <table class=
+=3D"show-mobile" style=3D"display:none;margin-top:16px; border:#000000  0px=
+ solid;margin-left:12px;margin-right:12px;" width=3D"" height=3D"auto" cell=
+spacing=3D"0" cellpadding=3D"0" bgcolor=3D"#111111" align=3D"left">
+                                                                  <tr class=
+=3D"show-mobile" style=3D"display:none;">
+                                                                      <td s=
+tyle=3D"padding: 14px 20px 14px 20px; margin: 0px 0px 40px 0px; width:590px=
+;" align=3D"left">
+                                                                          <=
+table style=3D"width: 100%;" width=3D"100%" cellspacing=3D"0" cellpadding=
+=3D"0" border=3D"0" align=3D"left">
+                                                                           =
+   <tr>
+                                                                           =
+       <td name=3D"--mobile-text" style=3D"padding-right: 0px;width:460px" =
+width=3D"460" valign=3D"middle" align=3D"left">
+                                                                           =
+           <a name=3D"--mobile-textLink" target=3D"_blank" _label=3D"CTA" s=
+tyle=3D"font-size:14px; line-height: 22px; font-family: AdihausDIN,Noto San=
+s, sans-serif; font-weight: 700; color:#ffffff; text-align: left;  text-tra=
+nsform: uppercase; letter-spacing:2px;text-decoration-line:none;text-decora=
+tion:none;" alias=3D"CTAMobile" href=3D"https://click.comms.adidas.com/CL0/=
+https:%2F%2Fdv.adidas.com%2Fc%2F474a4794-3b17-4da6-9948-e372f09590cc%3Fcm_m=
+mc=3DAdiEmail_SNL-_-None-_-20261108_08112026_DaVinciPersonalization_23897_U=
+S_November-_-Marketing-_--_-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-Othe=
+r%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_=
+Newsletter-None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%=
+26af_reengagement_window=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=3Dad=
+idas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter-None-2611%26af_adset=
+=3D20261108_08112026_DaVinciPersonalization_23897_US_November%26af_ad=3D%26=
+af_channel=3DStatic_Newsletter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzj=
+YuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6Q=
+FWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMG=
+MxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGS=
+oAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1=
+Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434=
+Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10b80=
+46%26mi_cid=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a2334=
+0ea/5/010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000/dNeP15pi=
+C5cMrGdbn-h_DP_1fR9TWO3Gef2RWPnsNXc=3D452">
+                                                                           =
+                 <font style=3D"font-size:14px; line-height: 22px; font-fam=
+ily: AdihausDIN,Noto Sans, sans-serif; font-weight: 700; color:#ffffff; tex=
+t-align: left;  text-transform: uppercase; letter-spacing:2px;text-decorati=
+on-line:none;text-decoration:none;">
+                                                                           =
+                  SHOP WOMEN
+                                                                           =
+                 </font>
+                                                                           =
+           </a>
+                                                                           =
+       </td>
+                           =20
+                                                                           =
+       <td style=3D"font-size: 0px; mso-line-height-alt: 0;width:115px" wid=
+th=3D"115" valign=3D"middle" align=3D"right">
+                                                                           =
+           <a target=3D"_blank" _label=3D"CTA" alias=3D"CTAMobile" href=3D"=
+https://click.comms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2Fc%2F474a4794=
+-3b17-4da6-9948-e372f09590cc%3Fcm_mmc=3DAdiEmail_SNL-_-None-_-20261108_0811=
+2026_DaVinciPersonalization_23897_US_November-_-Marketing-_--_-None-_-dv-eC=
+om-_-cn-Static_Newsletter-_-pc-Other%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-=
+eCom-Email-SNL-None-None-US-Static_Newsletter-None-2611%26cm_mmca3=3DW79OAA=
+EQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reengagement_window=3D30d%26is_reta=
+rgeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Sta=
+tic_Newsletter-None-2611%26af_adset=3D20261108_08112026_DaVinciPersonalizat=
+ion_23897_US_November%26af_ad=3D%26af_channel=3DStatic_Newsletter%26campaig=
+n_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7Ar=
+iXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhz=
+PpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZ=
+GCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9IT=
+BTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yu=
+BrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJ=
+V5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_cid=3D66f64c42049b7249%26mi_mid=
+=3D01a1bb3e-8880-7000-a94f-ec71a23340ea/6/010201a1b8b82c49-f0f75591-481c-44=
+71-b79f-d70044f7ac86-000000/0p7xYujva7iweqWTzwqp03zTc3ljF241TEDktC5TpjU=3D4=
+52">
+                                                                           =
+               <img style=3D"display: block;padding-left:15px;" src=3D"http=
+://image.link.adidas.com/lib/fe6515707c62007e7715/m/3/b0c011a2-d468-414b-a8=
+a2-8595b3ec7b34.jpg" alt=3D"arrow" border=3D"0" align=3D"absmiddle">
+                                                                           =
+           </a>
+                                                                           =
+       </td>
+                           =20
+                                                                           =
+   </tr>
+                                                                          <=
+/table>
+                                                                      </td>
+                                                                  </tr>
+                                                              </table>
+                                                          </a>
+                                                      </td>
+                                                  </tr>
+                                              </table>
+                                              <!--<![endif]-->
+                                          <!-- END CTA mobile -->
+                            =09=09=09=09</td>
+                                    </tr>
+                                  </table>
+                                </td>       =20
+                        =09</tr>
+                           =20
+                             =20
+                           =20
+                               =20
+                            <!--CTA 3-->
+                            <tr align=3D"center">
+                                <td align=3D"center" valign=3D"center">
+                                  <table cellpadding=3D"0" cellspacing=3D"0=
+" width=3D"100%" role=3D"presentation" >
+                                  =09<tr>
+                                           <td>
+                                          <!-- CTA desktop-->
+                                              <table class=3D"hideMobile" s=
+tyle=3D"width:100%;" width=3D"100%" height=3D"auto" cellspacing=3D"0" cellp=
+adding=3D"0" align=3D"center">
+                                                  <tr>
+                                                      <td>
+                                                          <table class=3D"h=
+ideMobile" style=3D"width:640px; padding-top:16px;" width=3D"640" height=3D=
+"auto" cellspacing=3D"0" cellpadding=3D"0" align=3D"center">
+                                                              <tr>
+                                                                  <td>
+                                                                      <a ta=
+rget=3D"_blank" _urltype=3D"11" _label=3D"CTA" alias=3D"CTADesktop" style=
+=3D"text-decoration-line:none;text-decoration:none;" href=3D"https://click.=
+comms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2Fc%2Ff40c471d-db7b-4cfb-8ff=
+f-b522699a8eea%3Fcm_mmc=3DAdiEmail_SNL-_-None-_-20261108_08112026_DaVinciPe=
+rsonalization_23897_US_November-_-Marketing-_--_-None-_-dv-eCom-_-cn-Static=
+_Newsletter-_-pc-Other%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL=
+-None-None-US-Static_Newsletter-None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26c=
+m_mmca4=3Deyoxy6evl4%26af_reengagement_window=3D30d%26is_retargeting=3Dtrue=
+%26pid=3DAWS%26c=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter=
+-None-2611%26af_adset=3D20261108_08112026_DaVinciPersonalization_23897_US_N=
+ovember%26af_ad=3D%26af_channel=3DStatic_Newsletter%26campaign_id=3Deyoxy6e=
+vl4%26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmD=
+B5_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEO=
+V5KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoi=
+I8CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9=
+BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHF=
+OshVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp=
+_cid=3D3b2ee966e10b8046%26mi_cid=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-888=
+0-7000-a94f-ec71a23340ea/1/010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f=
+7ac86-000000/I6W0vZu-h0bV-_iTBbV47UaeFRinDlz6vZjUFZoVskU=3D452">
+                                                                          <=
+table class=3D"hideMobile" style=3D"float:left;" height=3D"auto" cellspacin=
+g=3D"0" cellpadding=3D"0" bgcolor=3D"#111111" align=3D"left">
+                                                                           =
+   <tr class=3D"hideMobile">
+                                                                           =
+       <td width=3D"100%" style=3D"border:#000000 0px solid; margin:0px 0px=
+ 40px 0px;width:100%;" align=3D"left">
+                                                                           =
+           <table style=3D"width: 100%; padding:14px 20px 14px 20px;" cells=
+pacing=3D"0" cellpadding=3D"0" border=3D"0" align=3D"center">
+                                                                           =
+               <tr>
+                                                                           =
+                   <td name=3D"--desktop-text" style=3D"" valign=3D"middle"=
+ align=3D"left">
+                                                                           =
+                       <a name=3D"--desktop-textLink" target=3D"_blank" _ur=
+ltype=3D"11" _label=3D"CTA" alias=3D"CTADesktop" style=3D"font-size:14px; l=
+ine-height: 22px; font-family: AdihausDIN,Noto Sans, sans-serif; font-weigh=
+t: 700; color:#ffffff; text-align: left; text-transform: uppercase; letter-=
+spacing:2px;text-decoration-line:none;text-decoration:none;" href=3D"https:=
+//click.comms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2Fc%2Ff40c471d-db7b-=
+4cfb-8fff-b522699a8eea%3Fcm_mmc=3DAdiEmail_SNL-_-None-_-20261108_08112026_D=
+aVinciPersonalization_23897_US_November-_-Marketing-_--_-None-_-dv-eCom-_-c=
+n-Static_Newsletter-_-pc-Other%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-E=
+mail-SNL-None-None-US-Static_Newsletter-None-2611%26cm_mmca3=3DW79OAAEQ53JC=
+ZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reengagement_window=3D30d%26is_retargetin=
+g=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Ne=
+wsletter-None-2611%26af_adset=3D20261108_08112026_DaVinciPersonalization_23=
+897_US_November%26af_ad=3D%26af_channel=3DStatic_Newsletter%26campaign_id=
+=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7AriXPM=
+XlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQ=
+YNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKE=
+diZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBTIe=
+hMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJu=
+gFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=
+=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_cid=3D66f64c42049b7249%26mi_mid=3D0=
+1a1bb3e-8880-7000-a94f-ec71a23340ea/2/010201a1b8b82c49-f0f75591-481c-4471-b=
+79f-d70044f7ac86-000000/mQMTxvaO770vk8gF5OP13mconQJayLtINZTVGsFkh4w=3D452">
+                                                                           =
+                         <font style=3D"font-size:14px; line-height: 22px; =
+font-family: AdihausDIN,Noto Sans, sans-serif; font-weight: 700; color:#fff=
+fff; text-align: left;  text-transform: uppercase; letter-spacing:2px;text-=
+decoration-line:none;text-decoration:none;">
+                                                                           =
+                          SHOP KIDS=20
+                                                                           =
+                         </font>                                           =
+                                =20
+                                                                           =
+                       </a>
+                                                                           =
+                   </td>
+                           =20
+                                                                           =
+                   <td style=3D"font-size: 0px; mso-line-height-alt: 0;padd=
+ing-left:15px; text-decoration:none;" valign=3D"middle" align=3D"right">
+                                                                           =
+                       <a target=3D"_blank" _urltype=3D"11" _label=3D"CTA" =
+alias=3D"CTADesktop" href=3D"https://click.comms.adidas.com/CL0/https:%2F%2=
+Fdv.adidas.com%2Fc%2Ff40c471d-db7b-4cfb-8fff-b522699a8eea%3Fcm_mmc=3DAdiEma=
+il_SNL-_-None-_-20261108_08112026_DaVinciPersonalization_23897_US_November-=
+_-Marketing-_--_-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-Other%26cm_mmc1=
+=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter-=
+None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reenga=
+gement_window=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-eC=
+om-Email-SNL-None-None-US-Static_Newsletter-None-2611%26af_adset=3D20261108=
+_08112026_DaVinciPersonalization_23897_US_November%26af_ad=3D%26af_channel=
+=3DStatic_Newsletter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguL=
+pn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xC=
+olyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQ=
+JkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAja=
+Fo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15=
+Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrA=
+oj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_ci=
+d=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a23340ea/3/0102=
+01a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000/vuvSnt0JX4DQ2b6trc=
+emjUXTasiMoGA51TxZeBATQuY=3D452">
+                                                                           =
+                           <img style=3D"display: block;" src=3D"http://ima=
+ge.link.adidas.com/lib/fe6515707c62007e7715/m/3/b0c011a2-d468-414b-a8a2-859=
+5b3ec7b34.jpg" alt=3D"arrow" border=3D"0" align=3D"absmiddle">
+                                                                           =
+                       </a>
+                                                                           =
+                   </td>
+                           =20
+                                                                           =
+               </tr>
+                                                                           =
+           </table>
+                                                                           =
+       </td>
+                                                                           =
+   </tr>
+                                                                          <=
+/table>
+                                                                      </a>
+                                                                  </td>
+                                                              </tr>
+                                                          </table>
+                                                      </td>
+                                                  </tr>
+                                              </table>
+                                          <!-- End CTA desktop-->
+                                          <!-- CTA mobile-->
+                                              <!--[if !mso]><!-->
+                                              <table class=3D"show-mobile" =
+style=3D"width:100%;" width=3D"100%" height=3D"auto" cellspacing=3D"0" cell=
+padding=3D"0" align=3D"center">
+                                                  <tr>
+                                                      <td>
+                                                          <a target=3D"_bla=
+nk" _label=3D"CTA" alias=3D"CTAMobile" style=3D"text-decoration-line:none;t=
+ext-decoration:none;" href=3D"https://click.comms.adidas.com/CL0/https:%2F%=
+2Fdv.adidas.com%2Fc%2Ff40c471d-db7b-4cfb-8fff-b522699a8eea%3Fcm_mmc=3DAdiEm=
+ail_SNL-_-None-_-20261108_08112026_DaVinciPersonalization_23897_US_November=
+-_-Marketing-_--_-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-Other%26cm_mmc=
+1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter=
+-None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reeng=
+agement_window=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-e=
+Com-Email-SNL-None-None-US-Static_Newsletter-None-2611%26af_adset=3D2026110=
+8_08112026_DaVinciPersonalization_23897_US_November%26af_ad=3D%26af_channel=
+=3DStatic_Newsletter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguL=
+pn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xC=
+olyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQ=
+JkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAja=
+Fo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15=
+Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrA=
+oj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_ci=
+d=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a23340ea/4/0102=
+01a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000/2gHpPW-MkQoX9_oRPS=
+OKddvUY9cdnMTdtt7rRHTnMXE=3D452">
+                                                              <table class=
+=3D"show-mobile" style=3D"display:none;margin-top:16px; border:#000000  0px=
+ solid;margin-left:12px;margin-right:12px;" width=3D"" height=3D"auto" cell=
+spacing=3D"0" cellpadding=3D"0" bgcolor=3D"#111111" align=3D"left">
+                                                                  <tr class=
+=3D"show-mobile" style=3D"display:none;">
+                                                                      <td s=
+tyle=3D"padding: 14px 20px 14px 20px; margin: 0px 0px 40px 0px; width:590px=
+;" align=3D"left">
+                                                                          <=
+table style=3D"width: 100%;" width=3D"100%" cellspacing=3D"0" cellpadding=
+=3D"0" border=3D"0" align=3D"left">
+                                                                           =
+   <tr>
+                                                                           =
+       <td style=3D"padding-right: 0px;width:460px" width=3D"460" valign=3D=
+"middle" align=3D"left">
+                                                                           =
+           <a target=3D"_blank" _label=3D"CTA" alias=3D"CTAMobile" style=3D=
+"font-size:14px; line-height: 22px; font-family: AdihausDIN,Noto Sans, sans=
+-serif; font-weight: 700; color:#ffffff; text-align: left;  text-transform:=
+ uppercase; letter-spacing:2px;text-decoration-line:none;text-decoration:no=
+ne;" href=3D"https://click.comms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2=
+Fc%2Ff40c471d-db7b-4cfb-8fff-b522699a8eea%3Fcm_mmc=3DAdiEmail_SNL-_-None-_-=
+20261108_08112026_DaVinciPersonalization_23897_US_November-_-Marketing-_--_=
+-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-Other%26cm_mmc1=3DUS%26cm_mmc2=
+=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter-None-2611%26cm_=
+mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reengagement_window=
+=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-eCom-Email-SNL-=
+None-None-US-Static_Newsletter-None-2611%26af_adset=3D20261108_08112026_DaV=
+inciPersonalization_23897_US_November%26af_ad=3D%26af_channel=3DStatic_News=
+letter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo61=
+N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4WA=
+UYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5_=
+cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErMH=
+GecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJZ=
+H72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMYO=
+xio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_cid=3D66f64c4204=
+9b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a23340ea/5/010201a1b8b82c49-f=
+0f75591-481c-4471-b79f-d70044f7ac86-000000/N2lvY4VCcf54Yae1qSm4bn08YRwiIKks=
+5V0Mk1kzgPY=3D452">
+                                                                           =
+                 <font style=3D"font-size:14px; line-height: 22px; font-fam=
+ily: AdihausDIN,Noto Sans, sans-serif; font-weight: 700; color:#ffffff; tex=
+t-align: left;  text-transform: uppercase; letter-spacing:2px;text-decorati=
+on-line:none;text-decoration:none;">
+                                                                           =
+                  SHOP KIDS=20
+                                                                           =
+                 </font>
+                                                                           =
+           </a>
+                                                                           =
+       </td>
+                           =20
+                                                                           =
+       <td style=3D"font-size: 0px; mso-line-height-alt: 0;width:115px" wid=
+th=3D"115" valign=3D"middle" align=3D"right">
+                                                                           =
+           <a target=3D"_blank" _label=3D"CTA" alias=3D"CTAMobile" href=3D"=
+https://click.comms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2Fc%2Ff40c471d=
+-db7b-4cfb-8fff-b522699a8eea%3Fcm_mmc=3DAdiEmail_SNL-_-None-_-20261108_0811=
+2026_DaVinciPersonalization_23897_US_November-_-Marketing-_--_-None-_-dv-eC=
+om-_-cn-Static_Newsletter-_-pc-Other%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-=
+eCom-Email-SNL-None-None-US-Static_Newsletter-None-2611%26cm_mmca3=3DW79OAA=
+EQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reengagement_window=3D30d%26is_reta=
+rgeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Sta=
+tic_Newsletter-None-2611%26af_adset=3D20261108_08112026_DaVinciPersonalizat=
+ion_23897_US_November%26af_ad=3D%26af_channel=3DStatic_Newsletter%26campaig=
+n_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7Ar=
+iXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhz=
+PpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZ=
+GCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9IT=
+BTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yu=
+BrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJ=
+V5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_cid=3D66f64c42049b7249%26mi_mid=
+=3D01a1bb3e-8880-7000-a94f-ec71a23340ea/6/010201a1b8b82c49-f0f75591-481c-44=
+71-b79f-d70044f7ac86-000000/28Z9nUEhfcg_m603--FVqPW5TW6V6vwSnL8CksgzgL0=3D4=
+52">
+                                                                           =
+               <img style=3D"display: block;padding-left:15px;" src=3D"http=
+://image.link.adidas.com/lib/fe6515707c62007e7715/m/3/b0c011a2-d468-414b-a8=
+a2-8595b3ec7b34.jpg" alt=3D"arrow" border=3D"0" align=3D"absmiddle">
+                                                                           =
+           </a>
+                                                                           =
+       </td>
+                           =20
+                                                                           =
+   </tr>
+                                                                          <=
+/table>
+                                                                      </td>
+                                                                  </tr>
+                                                              </table>
+                                                          </a>
+                                                      </td>
+                                                  </tr>
+                                              </table>
+                                              <!--<![endif]-->
+                                          <!-- END CTA mobile -->
+                        =09=09=09=09=09</td>
+                                    </tr>
+                                  </table>
+                                </td>       =20
+                        =09</tr>
+                           =20
+                             =20
+                           =20
+                        </table>=20
+                        <!--Main headline and ctas end-->
+                        <!--(Storytelling ONLY) v0 Start -->
+                       =20
+                        <!--(Storytelling ONLY) v0 End -->
+                        <!--Product recos WITH padding in HTML table-->
+                       =20
+                        <!--Product recos With Padding in HTML Table END-->
+                       <!--Product recos With Padding in Studio Images-->
+                      =20
+                        <!--Product recos With Padding in Studio Images END=
+-->
+                       =20
+                        <!--bottom layout end-->
+                        <table class=3D"container" align=3D"center" width=
+=3D"640" border=3D"0" cellspacing=3D"0" cellpadding=3D"0" >
+                           =20
+                           =20
+                            =20
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+<!-- Main Story v2 End -->
+
+<!-- End ContentBlock: 5jk1vgek84 --><!-- Footer Links starts here! -->
+<table width=3D"100%" height=3D"100%" border=3D"0" cellspacing=3D"0" cellpa=
+dding=3D"0">
+    <tr>
+        <td align=3D"center" valign=3D"top">
+ <div>
+    =20
+
+
+            <!--[if mso]>
+    <table width=3D"640" cellspacing=3D"0" cellpadding=3D"0" class=3D"conta=
+iner" style=3D"background-color: #ffffff;">
+    <tr>
+    <td>
+<![endif]-->
+            <table border=3D"0" width=3D"640" cellpadding=3D"0" cellspacing=
+=3D"0" class=3D"container table-bg">
+                <tr>
+                    <td align=3D"left" valign=3D"top" class=3D"mobile-foote=
+r-padding-privacy-block" style=3D"padding:40px 20px;">
+                        <table border=3D"0" cellpadding=3D"0" cellspacing=
+=3D"0" width=3D"auto">
+                            <tr>
+                                <th align=3D"left" valign=3D"top" style=3D"=
+font-weight:normal; margin:0; vertical-align:top;" class=3D"mobile-privacy-=
+transactional desktop-nowrap-property">
+                                    <table border=3D"0" cellpadding=3D"0" c=
+ellspacing=3D"0">
+                                        <tr>
+                                            <td name=3D"footer-my-account-t=
+ext" id=3D"footer-my-account-text" align=3D"left" valign=3D"top" style=3D"f=
+ont-family:AdihausDIN, Noto Sans, sans-serif; font-size:14px;Line-height: 2=
+2px; padding-right:15px;">
+                                                <a name=3D"footer-my-accoun=
+t-link" id=3D"footer-my-account-link" _label=3D"FooterAdidas0" target=3D"_b=
+lank" alias=3D"FooterAccount0" style=3D"color:#000000;text-decoration:none;=
+" href=3D"https://click.comms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2Fc%=
+2F91b470c6-9b88-46c0-98a7-a2b91492bf40%3Fcm_mmc=3DAdiEmail_SNL-_-None-_-202=
+61108_08112026_DaVinciPersonalization_23897_US_November-_-Marketing-_-Foote=
+rAccount0-_-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-Other%26cm_mmc1=3DUS=
+%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter-None-=
+2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reengagemen=
+t_window=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-eCom-Em=
+ail-SNL-None-None-US-Static_Newsletter-None-2611%26af_adset=3D20261108_0811=
+2026_DaVinciPersonalization_23897_US_November%26af_ad=3DFooterAccount0%26af=
+_channel=3DStatic_Newsletter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYu=
+IIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFW=
+CRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMx=
+xpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoA=
+dU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx=
+1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q8=
+3IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046=
+%26mi_cid=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a23340e=
+a/1/010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000/EhiizqKyNY=
+811mAG5tVaL58LigZITQkEc45U07R0GNE=3D452">
+                                                My Account
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </th>
+                                <th align=3D"left" valign=3D"top" style=3D"=
+font-weight:normal; margin:0; vertical-align:top;" class=3D"mobile-privacy-=
+transactional desktop-nowrap-property">
+                                    <table border=3D"0" cellpadding=3D"0" c=
+ellspacing=3D"0">
+                                        <tr>
+                                            <td name=3D"footer-privacy-stat=
+ement-text" id=3D"footer-privacy-statement-text" align=3D"left" valign=3D"t=
+op" c=3D"" style=3D"font-family:AdihausDIN, Noto Sans, sans-serif; font-siz=
+e:14px;Line-height: 22px; padding-right:15px;">
+                                                <a name=3D"footer-privacy-s=
+tatement-link" id=3D"footer-privacy-statement-link" _label=3D"FooterPrivacy=
+Policy0" alias=3D"FooterPrivacyPolicy0" target=3D"_blank" style=3D"color:#0=
+00000;text-decoration:none;" href=3D"https://click.comms.adidas.com/CL0/htt=
+ps:%2F%2Fdv.adidas.com%2Fc%2F1dadb74b-7256-4bff-89d4-4dd68a936406%3Fcm_mmc=
+=3DAdiEmail_SNL-_-None-_-20261108_08112026_DaVinciPersonalization_23897_US_=
+November-_-Marketing-_-FooterPrivacyPolicy0-_-None-_-dv-eCom-_-cn-Static_Ne=
+wsletter-_-pc-Other%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-No=
+ne-None-US-Static_Newsletter-None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_m=
+mca4=3Deyoxy6evl4%26af_reengagement_window=3D30d%26is_retargeting=3Dtrue%26=
+pid=3DAWS%26c=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter-No=
+ne-2611%26af_adset=3D20261108_08112026_DaVinciPersonalization_23897_US_Nove=
+mber%26af_ad=3DFooterPrivacyPolicy0%26af_channel=3DStatic_Newsletter%26camp=
+aign_id=3Deyoxy6evl4%26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS=
+7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxC=
+whzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-I=
+CKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR=
+9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc=
+7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMA=
+UVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10b8046%26mi_cid=3D66f64c42049b7249%26mi_m=
+id=3D01a1bb3e-8880-7000-a94f-ec71a23340ea/1/010201a1b8b82c49-f0f75591-481c-=
+4471-b79f-d70044f7ac86-000000/9hsqfAKRKhfHkW15ADxh5QqbcJSaCMnJD-rkLTDdsbk=
+=3D452">
+                                                Privacy Statement
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </th>
+                                <th align=3D"left" valign=3D"top" style=3D"=
+font-weight:normal; margin:0; vertical-align:top;" class=3D"mobile-privacy-=
+transactional desktop-nowrap-property">
+                                    <table border=3D"0" cellpadding=3D"0" c=
+ellspacing=3D"0">
+                                        <tr>
+                                            <td name=3D"footer-support-text=
+" id=3D"footer-support-text" align=3D"left" valign=3D"top" style=3D"font-fa=
+mily:AdihausDIN, Noto Sans, sans-serif; font-size:14px;Line-height: 22px; p=
+adding-right:15px;">
+                                                <a name=3D"footer-support-l=
+ink" id=3D"footer-support-link" _label=3D"FooterHelp0" alias=3D"FooterHelp0=
+" target=3D"_blank" style=3D"color:#000000;text-decoration:none;" href=3D"h=
+ttps://click.comms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2Fc%2F4c5a639a-=
+8430-4965-a633-3be419586094%3Fhaid=3Dhow-do-i-contact-adidas%26cm_mmc=3DAdi=
+Email_SNL-_-None-_-20261108_08112026_DaVinciPersonalization_23897_US_Novemb=
+er-_-Marketing-_-FooterHelp0-_-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-O=
+ther%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Stat=
+ic_Newsletter-None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6ev=
+l4%26af_reengagement_window=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=
+=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter-None-2611%26af_=
+adset=3D20261108_08112026_DaVinciPersonalization_23897_US_November%26af_ad=
+=3DFooterHelp0%26af_channel=3DStatic_Newsletter%26campaign_id=3Deyoxy6evl4%=
+26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3=
+U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KC=
+TChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK=
+1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFY=
+Q60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshV=
+g4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=
+=3D3b2ee966e10b8046%26mi_cid=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8880-70=
+00-a94f-ec71a23340ea/1/010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac8=
+6-000000/r7fYPmjt8YBlcC5zRxaJTVLOMzDQDAuMYhuisCK3Wyw=3D452">
+                                                Support
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </th>
+                                <th align=3D"left" valign=3D"top" style=3D"=
+font-weight:normal; margin:0; vertical-align:top;" class=3D"mobile-privacy-=
+transactional desktop-nowrap-property">
+                                    <table border=3D"0" cellpadding=3D"0" c=
+ellspacing=3D"0">
+                                        <tr>
+                                            <td name=3D"footer-unsubscribe-=
+text" id=3D"footer-unsubscribe-text" align=3D"left" valign=3D"top" style=3D=
+"font-family:AdihausDIN, Noto Sans, sans-serif; font-size:14px;Line-height:=
+ 22px; padding-right:15px;">
+                                                <a name=3D"footer-unsubscri=
+be-link" id=3D"footer-unsubscribe-link" style=3D"color:#000000;text-decorat=
+ion:none;" title=3D"Unsubscribe" _label=3D"FooterUnsubscribe0" alias=3D"Foo=
+terUnsubscribe0" _type=3D"optout" target=3D"_blank" href=3D"https://click.c=
+omms.adidas.com/CL0/https:%2F%2Fdv.adidas.com%2Funsubscribe%2Feed08bf4-b97a=
+-4976-8a06-d6e7e36c1227%3Ftkn=3DX%2BQs%2BRyNYvnwawDKAT5Xsf3DfoOQbS7Axg0WYnN=
+94Tae9h8Nu0HaKO8CNZeDnlggtQscC5eBfsiTgjzMxGnxrjbesnl36uLX6JQqHi6S2NW0dod4lZ=
+uiTKGQw3oBOAU%2B%2BKVOjVGDH4WjtxUmx2B4edGCU1bd5k4KSDEGkhkwV%2FU=3D8675d6c1f=
+02343b1467089797b6b45e08c9c792ded826ef8%26lid=3DEN_US%26country=3DUS%26orig=
+in=3Daws%26cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHF=
+GbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiR=
+JYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5g=
+AzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZL=
+WAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdN=
+VGcHFOshVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D=
+%26cp_cid=3D3b2ee966e10b8046%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a23340e=
+a%26cm_mmc=3DAdiEmail_SNL-_-None-_-20261108_08112026_DaVinciPersonalization=
+_23897_US_November-_-Marketing-_-FooterUnsubscribe0-_-None-_-dv-eCom-_-cn-S=
+tatic_Newsletter-_-pc-Other%26cm_mmc1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Emai=
+l-SNL-None-None-US-Static_Newsletter-None-2611%26cm_mmca3=3DW79OAAEQ53JCZSP=
+E%26cm_mmca4=3Deyoxy6evl4%26af_reengagement_window=3D30d%26is_retargeting=
+=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_New=
+sletter-None-2611%26af_adset=3D20261108_08112026_DaVinciPersonalization_238=
+97_US_November%26af_ad=3DFooterUnsubscribe0%26af_channel=3DStatic_Newslette=
+r%26campaign_id=3Deyoxy6evl4/1/010201a1b8b82c49-f0f75591-481c-4471-b79f-d70=
+044f7ac86-000000/nOKlc7PgkAsuoR4r2-EDMk36EiR1BPSiipxkkhVG7bQ=3D452">
+=09                                                Unsubscribe
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </th>
+                                <th align=3D"left" valign=3D"top" style=3D"=
+font-weight:normal; margin:0; vertical-align:top;" class=3D"mobile-privacy-=
+transactional desktop-nowrap-property">
+                                    <table border=3D"0" cellpadding=3D"0" c=
+ellspacing=3D"0">
+                                        <tr>
+                                            <td name=3D"footer-adidas-websi=
+te-text" id=3D"footer-adidas-website-text" align=3D"left" valign=3D"top" st=
+yle=3D"font-family:AdihausDIN, Noto Sans, sans-serif; font-size:14px;Line-h=
+eight: 22px; padding-right:15px;">
+                                                <a name=3D"footer-adidas-we=
+bsite-link" id=3D"footer-adidas-website-link" _label=3D"FooterAdidas0" alia=
+s=3D"FooterAdidas0" target=3D"_blank" style=3D"color:#000000;text-decoratio=
+n:none;" href=3D"https://click.comms.adidas.com/CL0/https:%2F%2Fdv.adidas.c=
+om%2Fc%2F02ec4b44-79be-4952-a02e-d8496e41f934%3Fcm_mmc=3DAdiEmail_SNL-_-Non=
+e-_-20261108_08112026_DaVinciPersonalization_23897_US_November-_-Marketing-=
+_-FooterAdidas0-_-None-_-dv-eCom-_-cn-Static_Newsletter-_-pc-Other%26cm_mmc=
+1=3DUS%26cm_mmc2=3Dadidas-NAM-eCom-Email-SNL-None-None-US-Static_Newsletter=
+-None-2611%26cm_mmca3=3DW79OAAEQ53JCZSPE%26cm_mmca4=3Deyoxy6evl4%26af_reeng=
+agement_window=3D30d%26is_retargeting=3Dtrue%26pid=3DAWS%26c=3Dadidas-NAM-e=
+Com-Email-SNL-None-None-US-Static_Newsletter-None-2611%26af_adset=3D2026110=
+8_08112026_DaVinciPersonalization_23897_US_November%26af_ad=3DFooterAdidas0=
+%26af_channel=3DStatic_Newsletter%26campaign_id=3Deyoxy6evl4%26cp_tp=3Dv3.e=
+JzjYuIIFuLguLpn53U2AWYpXo61N7mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_=
+u6QFWCRYlO4xColyLJTRYPRi4WAUYAwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMk=
+IMGMxxpDjkxTQJkYFRg0mJy6O5_cFJL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnP=
+RGSoAdU7XEAjaFo0xGHBzNfErMHGecgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpB=
+iD1Lx1IcXCc15Bi5uhOB7JmygJZH72jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm=
+434Q83IikLnrAoj5JBnI3HKVMYOxio3jYzenACMAUVJV5Q=3D=3D%26cp_cid=3D3b2ee966e10=
+b8046%26mi_cid=3D66f64c42049b7249%26mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a2=
+3340ea/1/010201a1b8b82c49-f0f75591-481c-4471-b79f-d70044f7ac86-000000/YMm_A=
+j5kZgVdLN94WXDl_83eLa9oXPOf497r2p9hjPQ=3D452">
+                                                adidas.com/us
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </th>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+            <!--[if mso]>
+    </td>
+    </tr>
+    </table
+<![endif]-->
+</div>
+        </td>
+    </tr>
+</table>
+<!-- Footer Links ends here! --><table width=3D"100%" height=3D"100%" borde=
+r=3D"0" cellspacing=3D"0" cellpadding=3D"0">=20
+    <tr>
+        <td style=3D"padding:0px 0px 0px 0px;">
+           =20
+                <table width=3D"100%" height=3D"100%" border=3D"0" cellspac=
+ing=3D"0" cellpadding=3D"0">
+                    <tr>
+                        <td align=3D"center" valign=3D"top">
+                            <div>
+                            <!--[if mso]>
+    <table width=3D"640" cellspacing=3D"0" cellpadding=3D"0" class=3D"conta=
+iner" style=3D"background-color: #ffffff;">
+    <tr>
+    <td>
+<![endif]-->
+                            <table border=3D"0" width=3D"640" cellpadding=
+=3D"0" cellspacing=3D"0" class=3D"container table-bg">
+                               =20
+                                    <tr>
+                                        <td align=3D"left" valign=3D"top" s=
+tyle=3D"padding:0px 20px 0px 20px;">
+                                            <table border=3D"0" cellpadding=
+=3D"0" cellspacing=3D"0">
+                                                <tr>
+                                                    <td dir=3D"ltr" align=
+=3D"left" id=3D"footer-disclaimer-menu-address-text" name=3D"footer-disclai=
+mer-menu-address-text" valign=3D"top" style=3D"font-family:AdihausDIN, Noto=
+ Sans, sans-serif; font-size:14px; line-height:22px; color:#000000;">      =
+        =20
+                                                       =20
+<!-- Creative disclaimer v0 Start -->
+<span>
+        *Limited time offer valid November 6, 2026 12:01am PST through Nove=
+mber 11, 2026 11:59pm PST at adidas.com/us. Receive 30% off full price and =
+sale products* with promo code COZY at checkout online. Offer is only valid=
+ while supplies last. *Some exclusions may apply, including but not limited=
+ to: Gazelle, Samba, Campus, SL 72, Spezial, 4D, select Ultraboost, select =
+Y-3,Pharrell x adidas, Disney, Human Made, limited edition Originals, selec=
+t NMD, select Stan Smith, select Superstar, select adizero, products on Fin=
+al Sale, Gift Cards and purchases on the Confirmed App. Offer cannot be com=
+bined with other offers. Offer is not valid on prior purchases. Offer canno=
+t be redeemed for cash. Valid on domestic U.S orders only. adidas reserves =
+the right to change terms and conditions, substitute offer of equal or grea=
+ter value and end offer at any time without notice. Void where prohibited o=
+r restricted by law.
+    </span>
+    <br />
+    <br />
+<!-- Creative disclaimer v0 End -->
+
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                               =20
+                            </table>
+                            <!--[if mso]>
+    </td>
+    </tr>
+    </table
+<![endif]-->
+</div>
+                        </td>
+                    </tr>
+                </table>
+            =20
+        </td>
+    </tr>
+</table><!--Standard Disclaimer start-->
+<div>
+<!--[if mso]>
+    <table width=3D"640" cellspacing=3D"0" cellpadding=3D"0" class=3D"conta=
+iner" style=3D"background-color: #ffffff;">
+    <tr>
+    <td>
+<![endif]-->
+<table width=3D"640"border=3D"0" cellspacing=3D"0" cellpadding=3D"0" class=
+=3D"container table-bg">=20
+    <tr>
+        <td style=3D"padding:0px 0px 0px 0px;">
+            <table width=3D"100%" border=3D"0" cellspacing=3D"0" cellpaddin=
+g=3D"0">
+                <tr>
+                    <td align=3D"center" valign=3D"top">
+                        <table border=3D"0" width=3D"640" cellpadding=3D"0"=
+ cellspacing=3D"0" class=3D"container">
+                            <tr>
+                                <td align=3D"left" valign=3D"top" class=3D"=
+mobile-padding-20" style=3D"padding:0px 20px 0px 20px;">
+                                    <table border=3D"0" cellpadding=3D"0" c=
+ellspacing=3D"0">
+                                        <tr>
+                                            <td dir=3D"ltr" align=3D"left" =
+id=3D"footer-disclaimer-menu-address-text" name=3D"footer-disclaimer-menu-a=
+ddress-text" valign=3D"top" style=3D"font-family:AdihausDIN, Noto Sans, san=
+s-serif; font-size:14px; line-height:22px; color:#000000;">              =
+=20
+                                                =C2=A9 2026 adidas America,=
+ Inc. adidas and the 3-Stripes mark are registered trademarks of adidas Ame=
+rica 5055 N. Greeley Avenue Portland, OR 97217
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+<!--[if mso]>
+    </td>
+    </tr>
+    </table
+<![endif]-->
+</div>
+<!--Standard Disclaimer end-->
+                    =20
+                    <!-- Open Pixel start -->
+            =09=09<table border=3D"0" width=3D"100%" cellpadding=3D"0" cell=
+spacing=3D"0" align=3D"center">
+            =09=09    <tr>
+            =09=09        <td>
+                        =09=09<div style=3D"display:none; width:0px; max-he=
+ight:0px; overflow:hidden;">
+                        =09=09    <!-- Place Da Vinci Open Pixel Here -->
+                                    <img src=3D"https://dv.adidas.com/o/9bb=
+6976d-ef9d-4d38-a681-69929b2463ba?cp_tp=3Dv3.eJzjYuIIFuLguLpn53U2AWYpXo61N7=
+mF2Dle8QtwS7AriXPMXlYHFGbjmDB5_3U2JZiE1mtGoKY_u6QFWCRYlO4xColyLJTRYPRi4WAUY=
+AwCkxFcCVxCwhzPpQQYNZiRJYTEOV5KCTChqY5PiAdKtMkIMGMxxpDjkxTQJkYFRg0mJy6O5_cF=
+JL6wKexn8-ICKZGCKEdiZ5gAzVoiI8CK1UmvpQTYNFjQnPRGSoAdU7XEAjaFo0xGHBzNfErMHGe=
+cgKwGYSDruR9ITBTIehMMZLWAWG9BrFYQ60OwFSvHigwpBiD1Lx1IcXCc15Bi5uhOB7JmygJZH7=
+2jODiuGwoxc7yuBrJugFgdNVGcHFOshVg4HvUyApldNkDm434Q83IikLnrAoj5JBnI3HKVMYOxi=
+o3jYzenACMAUVJV5Q=3D=3D&cp_cid=3D3b2ee966e10b8046&mi_cid=3D66f64c42049b7249=
+&mi_mid=3D01a1bb3e-8880-7000-a94f-ec71a23340ea" width=3D"1" height=3D"1">
+                                </div>
+            =09=09        </td>
+            =09=09    </tr>
+            =09=09</table>
+            =09=09<!-- Open Pixel end -->
+                   =20
+                </td>
+            </tr>
+        </table>
+        =20
+    <img alt=3D"" src=3D"http://click.comms.adidas.com/CI0/010201a1b8b82c49=
+-f0f75591-481c-4471-b79f-d70044f7ac86-000000/SiPe3I7a3ms9x_RdZN4GWR3iyPqQpN=
+qJjRncY5I2kvQ=3D452" style=3D"display: none; width: 1px; height: 1px;">
+</body>
+</html>

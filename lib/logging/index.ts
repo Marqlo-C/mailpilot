@@ -166,6 +166,10 @@ export function logEngineExecutionTable(params: EngineExecutionLogParams): void 
     hardCapMs = 0,
   } = params;
 
+  if (phase === "START" && !globalForTelemetry.__mailpilot_active_batch_tracker) {
+    initSyncBatchTelemetry({ startTime: Date.now() });
+  }
+
   if (!isAsciiTableLoggingEnabled()) {
     console.info(
       JSON.stringify({
@@ -184,7 +188,7 @@ export function logEngineExecutionTable(params: EngineExecutionLogParams): void 
   }
 
   const title = engineType === "LOCAL_OLLAMA" ? "OLLAMA ENGINE" : "CLOUD ENGINE";
-  const header = `┌─ ${title} [${truncate(model, 34)}] `.padEnd(65, "─") + "┐";
+  const header = `┌─ ${title} [${truncate(model, 40)}] `.padEnd(99, "─") + "┐";
   const durSec = (durationMs / 1000).toFixed(1);
   const chunkRate =
     durationMs > 0 && chunks > 0 ? (chunks / (durationMs / 1000)).toFixed(1) : "0.0";
@@ -193,47 +197,35 @@ export function logEngineExecutionTable(params: EngineExecutionLogParams): void 
 
   if (phase === "START" && engineType === "LOCAL_OLLAMA") {
     console.log(`\n${header}`);
-    console.log(
-      `│ Payload : ${promptChars.toLocaleString()} chars (idle ${idleSec}s / cap ${hardSec}s)`.padEnd(
-        65
-      ) + "│"
-    );
-    console.log(`└`.padEnd(65, "─") + "┘");
+    const line = `Payload : ${promptChars.toLocaleString()} chars (idle ${idleSec}s / cap ${hardSec}s)`.padEnd(96);
+    console.log(`│ ${line} │`);
+    console.log(`└${"─".repeat(98)}┘`);
   } else if (phase === "COMPLETE") {
     console.log(`\n${header}`);
     if (chunks > 0) {
-      console.log(
-        `│ Stream  : ${chunks} chunks │ ${outputChars.toLocaleString()} chars │ ${durSec}s (${chunkRate} chunks/s)`.padEnd(
-          65
-        ) + "│"
-      );
+      const line = `Stream  : ${chunks} chunks │ ${outputChars.toLocaleString()} chars │ ${durSec}s (${chunkRate} chunks/s)`.padEnd(96);
+      console.log(`│ ${line} │`);
     } else {
-      console.log(
-        `│ Result  : 200 OK │ Latency: ${durSec}s │ Output: ${outputChars.toLocaleString()} chars`.padEnd(
-          65
-        ) + "│"
-      );
+      const line = `Result  : 200 OK │ Latency: ${durSec}s │ Output: ${outputChars.toLocaleString()} chars`.padEnd(96);
+      console.log(`│ ${line} │`);
     }
-    console.log(`└`.padEnd(65, "─") + "┘");
+    console.log(`└${"─".repeat(98)}┘`);
   } else if (phase === "RATE_LIMIT") {
     console.log(`\n${header}`);
-    console.log(`│ Warning : HTTP 429 Rate Limit`.padEnd(65) + "│");
-    console.log(
-      `│ Action  : ${truncate(rotationNote || "Rotating model", 52)}`.padEnd(
-        65
-      ) + "│"
-    );
-    console.log(`└`.padEnd(65, "─") + "┘");
+    const line1 = "Warning : HTTP 429 Rate Limit".padEnd(96);
+    const line2 = `Action  : ${truncate(rotationNote || "Rotating model", 86)}`.padEnd(96);
+    console.log(`│ ${line1} │`);
+    console.log(`│ ${line2} │`);
+    console.log(`└${"─".repeat(98)}┘`);
   } else if (phase === "ERROR") {
     console.log(`\n${header}`);
     const cleanError = (errorDetail || "Unknown error")
       .replace(/\r?\n/g, " ")
       .replace(/\s+/g, " ")
       .trim();
-    console.log(
-      `│ Error   : ${truncate(cleanError, 52)}`.padEnd(65) + "│"
-    );
-    console.log(`└`.padEnd(65, "─") + "┘");
+    const line = `Error   : ${truncate(cleanError, 86)}`.padEnd(96);
+    console.log(`│ ${line} │`);
+    console.log(`└${"─".repeat(98)}┘`);
   }
 }
 
@@ -257,13 +249,125 @@ export type CompactSyncLogEntry = {
   matchSource?: string;
   databaseAction?: string;
   skipReason?: string;
+  syncStartedAt?: number;
 };
+
+type ActiveBatchTracker = {
+  startTime: number;
+  ollamaCount: number;
+  cloudCount: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  touchedCount: number;
+};
+
+const globalForTelemetry = globalThis as unknown as {
+  __mailpilot_active_batch_tracker?: ActiveBatchTracker | null;
+  __mailpilot_last_banner_time?: number;
+  __mailpilot_last_banner_total?: number;
+};
+
+export function initSyncBatchTelemetry(options?: {
+  startTime?: number;
+}): void {
+  globalForTelemetry.__mailpilot_active_batch_tracker = {
+    startTime: options?.startTime ?? Date.now(),
+    ollamaCount: 0,
+    cloudCount: 0,
+    createdCount: 0,
+    updatedCount: 0,
+    skippedCount: 0,
+    touchedCount: 0,
+  };
+}
 
 export function logCompactSyncCard(entry: CompactSyncLogEntry): void {
   const padIdx = String(entry.index).padStart(2, "0");
   const padTot = String(entry.total).padStart(2, "0");
-  const shortSub = truncate(entry.subject, 50);
+  const shortSub = truncate(entry.subject, 70);
   const shortId = entry.messageId.slice(0, 8);
+
+  let tracker = globalForTelemetry.__mailpilot_active_batch_tracker;
+  const effectiveStartTime =
+    entry.syncStartedAt ?? tracker?.startTime ?? Date.now();
+
+  if (!tracker) {
+    tracker = {
+      startTime: effectiveStartTime,
+      ollamaCount: 0,
+      cloudCount: 0,
+      createdCount: 0,
+      updatedCount: 0,
+      skippedCount: 0,
+      touchedCount: 0,
+    };
+    globalForTelemetry.__mailpilot_active_batch_tracker = tracker;
+  } else if (entry.index === 1) {
+    const earliestStart = Math.min(effectiveStartTime, tracker.startTime);
+    tracker.startTime = earliestStart;
+    tracker.ollamaCount = 0;
+    tracker.cloudCount = 0;
+    tracker.createdCount = 0;
+    tracker.updatedCount = 0;
+    tracker.skippedCount = 0;
+    tracker.touchedCount = 0;
+  } else if (entry.syncStartedAt && entry.syncStartedAt < tracker.startTime) {
+    tracker.startTime = entry.syncStartedAt;
+  }
+
+  if (entry.routing.some((r) => r.includes("Tier 2: CLOUD"))) {
+    tracker.cloudCount += 1;
+  } else if (entry.routing.some((r) => r.includes("Tier 1: LOCAL_OLLAMA"))) {
+    tracker.ollamaCount += 1;
+  }
+
+  if (!entry.isJob) {
+    tracker.skippedCount += 1;
+  } else {
+    const action = (entry.databaseAction || "").trim();
+    const digestMatch = action.match(
+      /(\d+)\s+opportunities processed\s*\((?:(\d+)\s+Added)?(?:.*?(\d+)\s+Deduped)?\)/i
+    );
+    if (digestMatch) {
+      const totalDigest = parseInt(digestMatch[1] || "1", 10);
+      const addedDigest = parseInt(digestMatch[2] || "0", 10);
+      const dedupedDigest = parseInt(digestMatch[3] || "0", 10);
+      tracker.touchedCount += totalDigest;
+      tracker.createdCount += addedDigest;
+      tracker.updatedCount += dedupedDigest;
+    } else if (/created|inserted/i.test(action)) {
+      tracker.touchedCount += 1;
+      tracker.createdCount += 1;
+    } else if (/updated|deduped/i.test(action)) {
+      tracker.touchedCount += 1;
+      tracker.updatedCount += 1;
+    } else {
+      tracker.touchedCount += 1;
+    }
+  }
+
+  const maybeEmitAutoSummary = () => {
+    if (entry.index === entry.total && !process.env.VITEST && tracker) {
+      const start = Math.min(
+        entry.syncStartedAt ?? tracker.startTime,
+        tracker.startTime
+      );
+      const durationMs = Math.max(100, Date.now() - start);
+      logSyncSummaryBanner({
+        total: entry.total,
+        durationMs,
+        ollamaCount: tracker.ollamaCount,
+        cloudCount: tracker.cloudCount,
+        createdCount: tracker.createdCount,
+        updatedCount: tracker.updatedCount,
+        skippedCount: tracker.skippedCount,
+        opportunitiesTouched: tracker.touchedCount,
+        watermark: new Date().toISOString(),
+      });
+      globalForTelemetry.__mailpilot_active_batch_tracker = null;
+    }
+  };
 
   // Non-job email: print clean single-line skip notice
   if (!entry.isJob) {
@@ -276,6 +380,7 @@ export function logCompactSyncCard(entry: CompactSyncLogEntry): void {
           reason: entry.skipReason || "IRRELEVANT",
         })
       );
+      maybeEmitAutoSummary();
       return;
     }
     console.log(`\n[SYNC ${padIdx}/${padTot}] "${shortSub}" (${shortId}...)`);
@@ -288,6 +393,7 @@ export function logCompactSyncCard(entry: CompactSyncLogEntry): void {
         `  └─ SKIPPED: ${entry.skipReason || "Non-Job / Marketing or Newsletter"}`
       );
     }
+    maybeEmitAutoSummary();
     return;
   }
 
@@ -305,12 +411,13 @@ export function logCompactSyncCard(entry: CompactSyncLogEntry): void {
         action: entry.databaseAction,
       })
     );
+    maybeEmitAutoSummary();
     return;
   }
 
-  // Development: 66-column compact card
+  // Development: 100-column compact card
   console.log(`\n[SYNC ${padIdx}/${padTot}] "${shortSub}" (${shortId}...)`);
-  console.log(`┌${"─".repeat(64)}┐`);
+  console.log(`┌${"─".repeat(98)}┐`);
 
   // Format routing cleanly for pure 2-tier pipeline
   const formattedRouting: string[] = [];
@@ -323,36 +430,61 @@ export function logCompactSyncCard(entry: CompactSyncLogEntry): void {
   }
 
   for (const route of formattedRouting) {
-    console.log(`│ Triage: ${truncate(route, 54)}`.padEnd(65) + "│");
+    const line = `Triage: ${truncate(route, 88)}`.padEnd(96);
+    console.log(`│ ${line} │`);
   }
 
-  console.log(`├${"─".repeat(31)}┬${"─".repeat(32)}┤`);
+  console.log(`├${"─".repeat(48)}┬${"─".repeat(49)}┤`);
 
-  const leftCol1 = truncate(`Company : ${entry.company || "Unknown"}`, 29).padEnd(29);
-  const rightCol1 = truncate(`Location : ${entry.location || "Remote"}`, 30).padEnd(30);
+  const leftCol1 = truncate(`Company : ${entry.company || "Unknown"}`, 46).padEnd(46);
+  const rightCol1 = truncate(`Location : ${entry.location || "Remote"}`, 47).padEnd(47);
   console.log(`│ ${leftCol1} │ ${rightCol1} │`);
 
-  const leftCol2 = truncate(`Role    : ${entry.role || "Role"}`, 29).padEnd(29);
-  const rightCol2 = truncate(`Salary   : ${entry.salary || "$TBD"}`, 30).padEnd(30);
+  const leftCol2 = truncate(`Role    : ${entry.role || "Role"}`, 46).padEnd(46);
+  const rightCol2 = truncate(`Salary   : ${entry.salary || "$TBD"}`, 47).padEnd(47);
   console.log(`│ ${leftCol2} │ ${rightCol2} │`);
 
   const fitStr =
     entry.matchScore !== undefined
       ? `${entry.matchScore}% (${entry.matchTier || "MID"}) [${entry.matchSource || "AI"}]`
       : "N/A";
-  const leftCol3 = truncate(`Status  : ${entry.status || "LEAD"}`, 29).padEnd(29);
-  const rightCol3 = truncate(`Match Fit: ${fitStr}`, 30).padEnd(30);
+  const leftCol3 = truncate(`Status  : ${entry.status || "LEAD"}`, 46).padEnd(46);
+  const rightCol3 = truncate(`Match Fit: ${fitStr}`, 47).padEnd(47);
   console.log(`│ ${leftCol3} │ ${rightCol3} │`);
 
-  console.log(`├${"─".repeat(31)}┴${"─".repeat(32)}┤`);
-  console.log(`│ Saved   : ${truncate(entry.databaseAction || "Processed", 52)}`.padEnd(65) + "│");
-  console.log(`└${"─".repeat(64)}┘`);
+  console.log(`├${"─".repeat(48)}┴${"─".repeat(49)}┤`);
+
+  // Multi-line word-wrapped "Saved :" with second line indented past "Saved   : "
+  const fullAction = (entry.databaseAction || "Processed").trim();
+  const maxLine1Chars = 86; // 96 total inner width - 10 chars label
+  const maxLine2Chars = 86;
+
+  if (fullAction.length <= maxLine1Chars) {
+    const line = `Saved   : ${fullAction}`.padEnd(96);
+    console.log(`│ ${line} │`);
+  } else {
+    let splitIdx = fullAction.lastIndexOf(" ", maxLine1Chars);
+    if (splitIdx === -1 || splitIdx < 45) {
+      splitIdx = maxLine1Chars;
+    }
+    const line1Text = fullAction.slice(0, splitIdx).trim();
+    const remaining = fullAction.slice(splitIdx).trim();
+    const line2Text = truncate(remaining, maxLine2Chars);
+
+    const line1 = `Saved   : ${line1Text}`.padEnd(96);
+    const line2 = `          ${line2Text}`.padEnd(96);
+    console.log(`│ ${line1} │`);
+    console.log(`│ ${line2} │`);
+  }
+
+  console.log(`└${"─".repeat(98)}┘`);
+  maybeEmitAutoSummary();
 }
 
 // ---------------------------------------------------------------------------
 // 3. BATCH SUMMARY BANNER
 // ---------------------------------------------------------------------------
-export function logSyncSummaryBanner(stats: {
+export type SyncSummaryStats = {
   total: number;
   durationMs: number;
   ollamaCount: number;
@@ -361,8 +493,36 @@ export function logSyncSummaryBanner(stats: {
   updatedCount: number;
   skippedCount: number;
   watermark: string;
-}): void {
+  opportunitiesTouched?: number;
+  parsedCount?: number;
+};
+
+export function logSyncSummaryBanner(stats: SyncSummaryStats): void {
+  const now = Date.now();
+  const lastTime = globalForTelemetry.__mailpilot_last_banner_time ?? 0;
+  const lastTotal = globalForTelemetry.__mailpilot_last_banner_total ?? 0;
+  if (now - lastTime < 1000 && stats.total === lastTotal && !process.env.VITEST) {
+    return;
+  }
+  globalForTelemetry.__mailpilot_last_banner_time = now;
+  globalForTelemetry.__mailpilot_last_banner_total = stats.total;
+
   const durationSec = (stats.durationMs / 1000).toFixed(1);
+  const touchedCount =
+    stats.opportunitiesTouched ?? stats.createdCount + stats.updatedCount;
+  const avgPerOppSec =
+    touchedCount > 0
+      ? (stats.durationMs / 1000 / touchedCount).toFixed(1)
+      : "0.0";
+  const avgPerMsgSec =
+    stats.total > 0
+      ? (stats.durationMs / 1000 / stats.total).toFixed(1)
+      : "0.0";
+
+  const parsedSuffix =
+    typeof stats.parsedCount === "number" && stats.parsedCount > 0
+      ? `, ${stats.parsedCount} Parsed`
+      : "";
 
   if (!isAsciiTableLoggingEnabled()) {
     console.info(
@@ -370,25 +530,30 @@ export function logSyncSummaryBanner(stats: {
         scope: "Sync",
         event: "sync_summary",
         ...stats,
+        opportunitiesTouched: touchedCount,
+        avgPacePerOpportunitySec: Number(avgPerOppSec),
+        avgPacePerMessageSec: Number(avgPerMsgSec),
       })
     );
     return;
   }
 
-  console.log(`\n┌${"─".repeat(64)}┐`);
+  console.log(`\n┌${"─".repeat(98)}┐`);
   console.log(
-    `│ [SYNC COMPLETE] ${stats.total} Messages Processed in ${durationSec}s`.padEnd(65) + "│"
+    `│ ${`[SYNC COMPLETE] ${stats.total} Messages Processed in ${durationSec}s`.padEnd(96)} │`
   );
   console.log(
-    `│ Providers: ${stats.ollamaCount} Ollama │ ${stats.cloudCount} Cloud BYOK`.padEnd(
-      65
-    ) + "│"
+    `│ ${`Opportunities: ${touchedCount} Touched (${stats.createdCount} Added, ${stats.updatedCount} Deduped${parsedSuffix})`.padEnd(96)} │`
   );
   console.log(
-    `│ Database : ${stats.createdCount} Created │ ${stats.updatedCount} Updated │ ${stats.skippedCount} Skipped`.padEnd(
-      65
-    ) + "│"
+    `│ ${`Avg Pace : ${avgPerOppSec}s / opportunity (${avgPerMsgSec}s / message)`.padEnd(96)} │`
   );
-  console.log(`│ Watermark: ${stats.watermark}`.padEnd(65) + "│");
-  console.log(`└${"─".repeat(64)}┘\n`);
+  console.log(
+    `│ ${`Providers: ${stats.ollamaCount} Ollama │ ${stats.cloudCount} Cloud BYOK`.padEnd(96)} │`
+  );
+  console.log(
+    `│ ${`Database : ${stats.createdCount} Created │ ${stats.updatedCount} Updated │ ${stats.skippedCount} Skipped`.padEnd(96)} │`
+  );
+  console.log(`│ ${`Watermark: ${stats.watermark}`.padEnd(96)} │`);
+  console.log(`└${"─".repeat(98)}┘\n`);
 }

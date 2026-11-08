@@ -192,4 +192,144 @@ describe("cleanEmailPayload Anchor Pre-filtering", () => {
       expect(cleanOpportunityDescription("")).toBeNull();
     });
   });
+
+  describe("Real-World Spam EML File Ingestion & Filtering", () => {
+    const fs = require("fs");
+    const path = require("path");
+
+    function decodeMimeHeader(val: string): string {
+      return val.replace(
+        /=\?([^?]+)\?([BQ])\?([^?]+)\?=/gi,
+        (_: string, _charset: string, encoding: string, text: string) => {
+          if (encoding.toUpperCase() === "B") {
+            try {
+              return Buffer.from(text, "base64").toString("utf-8");
+            } catch {
+              return text;
+            }
+          } else if (encoding.toUpperCase() === "Q") {
+            try {
+              const raw = text
+                .replace(/_/g, " ")
+                .replace(/=([0-9A-F]{2})/gi, (_: string, hex: string) =>
+                  String.fromCharCode(parseInt(hex, 16))
+                );
+              return decodeURIComponent(escape(raw));
+            } catch {
+              return text;
+            }
+          }
+          return text;
+        }
+      );
+    }
+
+    function parseSimpleEml(filePath: string) {
+      const raw = fs.readFileSync(filePath, "utf-8");
+      const headerEnd = raw.search(/\r?\n\r?\n/);
+      const headerSection = headerEnd !== -1 ? raw.slice(0, headerEnd) : raw;
+      const bodySection = headerEnd !== -1 ? raw.slice(headerEnd) : "";
+
+      const subjectMatch = headerSection.match(/^Subject:\s*([^\r\n]+)/im);
+      const rawSubject = subjectMatch ? subjectMatch[1].trim() : "";
+      const subject = decodeMimeHeader(rawSubject);
+
+      const fromMatch = headerSection.match(/^From:\s*([^\r\n]+)/im);
+      const rawFrom = fromMatch ? fromMatch[1].trim() : "";
+      const decodedFrom = decodeMimeHeader(rawFrom);
+      const fromEmail =
+        decodedFrom.match(/<([^>]+)>/)?.[1] ?? decodedFrom.trim();
+
+      return { subject, fromEmail, body: bodySection };
+    }
+
+    const spamDir = path.resolve(process.cwd(), "Test HTML/Spam Html");
+    const spamFiles: string[] = fs.existsSync(spamDir)
+      ? fs.readdirSync(spamDir).filter((f: string) => f.endsWith(".eml"))
+      : [];
+
+    it.each(spamFiles.map((f: string) => [f]))(
+      "correctly drops non-job spam email: %s",
+      (fileName: string) => {
+        const fullPath = path.join(spamDir, fileName);
+        const { subject, fromEmail, body } = parseSimpleEml(fullPath);
+
+        const isPromo = isPromotionalOrMarketingEmail(subject, body, fromEmail);
+        const shouldClassify = shouldClassifyEmail({
+          subject,
+          body,
+          fromEmail,
+        });
+
+        expect(
+          isPromo,
+          `Expected ${fileName} to be recognized as promotional/noise`
+        ).toBe(true);
+        expect(
+          shouldClassify,
+          `Expected ${fileName} to be rejected by shouldClassifyEmail`
+        ).toBe(false);
+      }
+    );
+
+    const jobDir = path.resolve(process.cwd(), "Test HTML/Test Gmail Html");
+    const jobFiles: string[] = fs.existsSync(jobDir)
+      ? fs.readdirSync(jobDir).filter((f: string) => f.endsWith(".eml"))
+      : [];
+
+    it.each(jobFiles.map((f: string) => [f]))(
+      "guarantees 100% recall for authentic job emails: %s",
+      (fileName: string) => {
+        const fullPath = path.join(jobDir, fileName);
+        const { subject, fromEmail, body } = parseSimpleEml(fullPath);
+
+        const shouldClassify = shouldClassifyEmail({
+          subject,
+          body,
+          fromEmail,
+        });
+
+        expect(
+          shouldClassify,
+          `Expected authentic job email ${fileName} to pass pre-filter`
+        ).toBe(true);
+      }
+    );
+
+    it("preserves cold recruiter outreach across diverse non-tech disciplines (Career Agnostic)", () => {
+      const disciplines = [
+        {
+          discipline: "Healthcare / Nursing",
+          subject: "Clinical Nurse Specialist Opportunity at St. Jude",
+          fromEmail: "sarah.connor@talent-stjude.org",
+          body: "Hello, I came across your healthcare profile and was impressed by your ICU experience. We have an opening for a Clinical Nurse Specialist.",
+        },
+        {
+          discipline: "Accounting / Audit",
+          subject: "Senior Auditor Role - Ernst & Young",
+          fromEmail: "m.adams@ey-careers.com",
+          body: "Saw your profile and thought your forensic auditing background would be a great fit for our Risk Advisory team.",
+        },
+        {
+          discipline: "Architecture / Construction",
+          subject: "Project Architect - Commercial Developments",
+          fromEmail: "recruiting@foster-partners-hiring.com",
+          body: "We have an open position for a licensed architect to lead large-scale civic projects. Would love to schedule a quick intro chat.",
+        },
+        {
+          discipline: "Legal",
+          subject: "Associate Corporate Counsel Opening",
+          fromEmail: "talent@baker-mckenzie-law.com",
+          body: "I am a legal recruiter reaching out regarding an in-house counsel opportunity with one of our major clients.",
+        },
+      ];
+
+      for (const d of disciplines) {
+        expect(
+          shouldClassifyEmail(d),
+          `Expected ${d.discipline} outreach to pass through to LLM`
+        ).toBe(true);
+      }
+    });
+  });
 });

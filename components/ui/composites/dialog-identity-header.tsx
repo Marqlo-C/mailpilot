@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import {
   CompanyLogo,
   type CompanyLogoProps,
-} from "@/components/ui/company-logo";
+} from "@/components/ui/logo-frame";
 import {
   DialogDescription,
   DialogHeader,

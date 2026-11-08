@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Waves } from "lucide-react";
 
 import { AppearanceModeToggle } from "@/components/settings/ui/appearance-mode-toggle";
-import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { SettingsFeatureCard } from "@/components/ui/tactile/nested-settings-card";
 import { WavyMeter } from "@/components/ui/tactile/wavy-meter";
 import {
@@ -44,7 +44,7 @@ export function MeterPreferencesCard({
 
   return (
     <SettingsFeatureCard
-      logo={<SettingsFeatureLogo icon={Waves} />}
+      logo={<LogoFrameIcon icon={Waves} />}
       title="Usage Meters"
       subtitle="Credit and usage meters for your connected APIs."
       statusBadge={

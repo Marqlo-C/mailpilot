@@ -340,7 +340,7 @@ describe("Extension Client-Side Extractor (DOM & JSON-LD)", () => {
     expect(result.title).toBe("Imaging Support Specialist - NBHP (Per Diem, Day)");
     expect(result.company).toBe("Northbay");
     expect(result.location).toBe("Fairfield, CA");
-    expect(result.salary).toBe("$30.2-$36.7/Hr");
+    expect(result.salary).toBe("$30.18-$36.70/Hr");
     expect(result.source).toBe("Monster");
     expect(result.url).toBe("https://www.monster.com/job-openings/imaging-support-specialist-fairfield-ca--123");
   });
@@ -443,7 +443,7 @@ describe("Extension Client-Side Extractor (DOM & JSON-LD)", () => {
 
     expect(result.title).toBe("Painter - 2nd Shift");
     expect(result.company).toBe("ITW");
-    expect(result.salary).toBe("$22.7-$24.8/Hr");
+    expect(result.salary).toBe("$22.66-$24.82/Hr");
     expect(result.url).toBe("https://www.glassdoor.com/job-listing/painter-2nd-shift-itw-JV_IC123.htm?jl=1010313350279");
   });
 

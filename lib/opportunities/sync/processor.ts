@@ -21,7 +21,12 @@ import {
   sanitizeCompanyName,
   type CandidateProfileSummary,
 } from "@/lib/ai/classifier";
-import { logCompactSyncCard, logStory, syncLog } from "@/lib/logging";
+import {
+  initSyncBatchTelemetry,
+  logCompactSyncCard,
+  logStory,
+  syncLog,
+} from "@/lib/logging";
 import {
   buildSynthesizedJobOverview,
   extractCleanSnippet,
@@ -92,6 +97,7 @@ export type ProcessSyncMessageInput = {
   rules: ReturnType<typeof parseAccountRules>;
   candidateProfile: CandidateProfileSummary | null;
   ollamaDownForSync: boolean;
+  syncStartedAt?: number;
 };
 
 export type ProcessSyncMessageResult = {
@@ -102,6 +108,7 @@ export type ProcessSyncMessageResult = {
   tier: "OLLAMA" | "CLOUD" | "NONE";
   ollamaDownForSync: boolean;
   usedScrapingAnt?: boolean;
+  parsedCount?: number;
 };
 
 export async function processSyncMessage(
@@ -115,7 +122,13 @@ export async function processSyncMessage(
     total,
     rules,
     candidateProfile,
+    syncStartedAt,
   } = params;
+
+  const effectiveSyncStartedAt = syncStartedAt ?? Date.now();
+  if (index === 1) {
+    initSyncBatchTelemetry({ startTime: effectiveSyncStartedAt });
+  }
 
   let ollamaDownForSync = params.ollamaDownForSync;
   const accountId = account.id;
@@ -158,6 +171,7 @@ export async function processSyncMessage(
         isJob: false,
         routing: [],
         skipReason: "Message not found in Gmail (404)",
+        syncStartedAt: effectiveSyncStartedAt,
       });
 
       return {
@@ -207,6 +221,7 @@ export async function processSyncMessage(
       isJob: false,
       routing: [],
       skipReason: "Non-Job / Marketing or Newsletter",
+      syncStartedAt: effectiveSyncStartedAt,
     });
 
     return {
@@ -362,6 +377,7 @@ export async function processSyncMessage(
       isJob: false,
       routing: routingLines,
       skipReason,
+      syncStartedAt: effectiveSyncStartedAt,
     });
 
     // Keep heartbeat fresh so background sync lock never becomes stale during skips/parking
@@ -499,6 +515,7 @@ export async function processSyncMessage(
 
   const enrichedUrls = new Set<string>();
   let usedScrapingAnt = false;
+  let parsedCount = 0;
 
   if (thinJobs.length > 0) {
     // 1. Deduplicate by applyUrl so identical cards in multi-job digests don't bleed into each other
@@ -689,6 +706,15 @@ export async function processSyncMessage(
           outcome = "Deferred (Indeed On-Demand)";
         }
 
+        if (
+          enriched?.description &&
+          enriched.description.length >= 300 &&
+          !outcome.includes("Deferred") &&
+          !outcome.includes("Skipped")
+        ) {
+          parsedCount += 1;
+        }
+
         const logLine = `  ├─ [LinkParser] ${targetLabel} -> ${outcome}`;
         console.log(logLine.length > 90 ? `${logLine.slice(0, 87)}...` : logLine);
       } catch {
@@ -733,6 +759,7 @@ export async function processSyncMessage(
     classificationMethod: "AI",
     index,
     total,
+    syncStartedAt: effectiveSyncStartedAt,
   });
 
   return {
@@ -743,5 +770,6 @@ export async function processSyncMessage(
     tier,
     ollamaDownForSync,
     usedScrapingAnt,
+    parsedCount,
   };
 }

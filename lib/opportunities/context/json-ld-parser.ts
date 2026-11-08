@@ -89,8 +89,8 @@ export function extractJsonLdJobPosting(html: string): ScrapedJobPosting | null 
           const formatRate = (n: unknown) => {
             const num = Number(n);
             if (isNaN(num)) return String(n);
-            const rounded = Math.round(num * 10) / 10;
-            return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+            const rounded = Math.round(num * 100) / 100;
+            return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
           };
 
           if (typeof salaryObj === "string" && salaryObj.trim()) {

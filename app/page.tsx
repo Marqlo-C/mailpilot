@@ -4,7 +4,7 @@ import { ClipboardList, MailCheck, Radar, Send } from "lucide-react";
 
 import { COLORED_WORDMARK_SRC, Wordmark } from "@/components/brand/logo";
 import { ScanInboxDialog } from "@/components/scan-inbox-dialog";
-import { CompanyLogo } from "@/components/ui/company-logo";
+import { CompanyLogo } from "@/components/ui/logo-frame";
 import {
   Card,
   CardContent,

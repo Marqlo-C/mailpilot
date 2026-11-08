@@ -16,7 +16,7 @@ import {
   type LlmProvider,
 } from "@/lib/llm";
 import { prisma } from "@/lib/core/prisma";
-import { logStory, syncLog } from "@/lib/logging";
+import { initSyncBatchTelemetry, logStory, syncLog } from "@/lib/logging";
 import { resolveIngestionRules } from "@/lib/gmail/sync";
 import { parseAccountRules } from "@/lib/validations/rules";
 import { isRateLimited, sleep, RATE_LIMIT_BASE_MS } from "./candidates";
@@ -41,8 +41,11 @@ export type PendingAiDrainResult = {
  * Does not run delta/search and does not advance `lastSyncedAt`.
  */
 export async function runPendingAiQueueDrain(
-  accountId: string
+  accountId: string,
+  options?: { syncStartedAt?: number }
 ): Promise<PendingAiDrainResult> {
+  const drainStartedAt = options?.syncStartedAt ?? Date.now();
+  initSyncBatchTelemetry({ startTime: drainStartedAt });
   try {
     const account = await prisma.account.findUnique({
       where: { id: accountId },
@@ -168,6 +171,7 @@ export async function runPendingAiQueueDrain(
           rules,
           candidateProfile,
           ollamaDownForSync,
+          syncStartedAt: drainStartedAt,
         });
         opportunitiesUpserted += processResult.opportunitiesUpserted;
         ollamaDownForSync = processResult.ollamaDownForSync;

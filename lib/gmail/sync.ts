@@ -1195,7 +1195,7 @@ export async function persistClassifiedEmail(input: {
 
       opportunitiesUpserted += 1;
       updatedCount += 1;
-      lastAction = `Tier 2 Dedupe: Updated Opportunity (${existing.id}) for ${cleanCompany}`;
+      lastAction = `Tier 2 Dedupe: Updated existing record (${existing.id.slice(-8)})`;
       continue;
     }
 
@@ -1251,17 +1251,12 @@ export async function persistClassifiedEmail(input: {
 
     opportunitiesUpserted += 1;
     createdCount += 1;
-    lastAction = `Tier 3 Dedupe: Inserted New Opportunity for ${cleanCompany} (${cleanTitle})`;
+    lastAction = `Tier 3 Dedupe: Inserted new opportunity record`;
   }
-
-  const leadJob = classification.jobs?.[0];
-  const leadCompany = leadJob ? sanitizeCompanyName(leadJob.company) : "";
-  const leadTitle = leadJob?.title?.trim() ?? "";
-  const leadSuffix = leadCompany ? ` (Lead: ${leadCompany}${leadTitle ? ` · ${leadTitle}` : ""})` : "";
 
   const finalAction =
     opportunitiesUpserted > 1
-      ? `Digest Ingestion: Saved ${opportunitiesUpserted} opportunities${leadSuffix}`
+      ? `Digest Ingestion: ${opportunitiesUpserted} opportunities processed (${createdCount} Added, ${updatedCount} Deduped)`
       : lastAction ||
         (opportunitiesUpserted > 0
           ? `Saved ${opportunitiesUpserted} opportunity record(s)`

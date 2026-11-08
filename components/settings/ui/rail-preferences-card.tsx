@@ -3,7 +3,7 @@
 import { SlidersHorizontal } from "lucide-react";
 
 import { AppearanceModeToggle } from "@/components/settings/ui/appearance-mode-toggle";
-import { SettingsFeatureLogo } from "@/components/settings/ui/feature-logo";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { SettingsFeatureCard } from "@/components/ui/tactile/nested-settings-card";
 import { useTabRail } from "@/components/ui/tactile/segmented-tabs";
 
@@ -13,7 +13,7 @@ export function RailPreferencesCard() {
 
   return (
     <SettingsFeatureCard
-      logo={<SettingsFeatureLogo icon={SlidersHorizontal} />}
+      logo={<LogoFrameIcon icon={SlidersHorizontal} />}
       title="Tab Rail"
       subtitle="Navigation bars at the top of Job Radar, Subscriptions, and Settings."
       statusBadge={

@@ -24,6 +24,7 @@ export type PersistSyncOpportunityParams = {
   classificationMethod: "AI" | "HEURISTIC" | "HYBRID";
   index: number;
   total: number;
+  syncStartedAt?: number;
 };
 
 export type PersistSyncOpportunityResult = {
@@ -158,6 +159,7 @@ export async function persistSyncOpportunity(
     matchTier,
     matchSource,
     databaseAction: dedupeOutcomeText,
+    syncStartedAt: params.syncStartedAt,
   });
 
   return {

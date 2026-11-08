@@ -1,6 +1,6 @@
 "use client";
 
-import { CompanyLogo } from "@/components/ui/company-logo";
+import { CompanyLogo } from "@/components/ui/logo-frame";
 import { SettingsFeatureCard } from "@/components/ui/tactile/nested-settings-card";
 import type { ConnectionStatus } from "./connected-model-picker";
 import { StepGettingStarted } from "./step-getting-started";
