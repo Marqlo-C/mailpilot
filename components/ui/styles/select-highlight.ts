@@ -23,7 +23,7 @@ const GROUP_STROKE_END =
  * Pair with {@link SELECT_HIGHLIGHT_FILL_CLASSNAME}.
  */
 export const SELECT_HIGHLIGHT_CLASSNAME =
-  "border border-[#9BC6D8]/95 shadow-md";
+  "border border-[#9BC6D8]/95 shadow-lg";
 
 /** Soft row rule between cards inside a selected group. */
 export const SELECT_HIGHLIGHT_GROUP_DIVIDER_CLASSNAME =
