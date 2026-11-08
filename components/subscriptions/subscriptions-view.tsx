@@ -1831,11 +1831,11 @@ const SUBSCRIPTION_ROW_HEIGHT_PX = 66;
 const SUBSCRIPTION_ROW_HEIGHT_CLASS = "h-[66px]";
 
 /**
- * Mobile card shell — `border-2` matches Job Radar / selection highlight so
- * multiselect only recolors the edge (no wider/shorter jump).
+ * Mobile card shell — 1px border matches Job Radar / settings / selection
+ * highlight so multiselect only recolors the edge (no size jump).
  */
 const SUBSCRIPTION_CARD_SHELL_CLASS =
-  "rounded-xl border-2 bg-card p-4 shadow-md";
+  "rounded-xl border bg-card p-4 shadow-md";
 
 /** Job Radar card hover — border lift + shadow (mobile cards). */
 const SUBSCRIPTION_CARD_SURFACE_CLASS = cn(
