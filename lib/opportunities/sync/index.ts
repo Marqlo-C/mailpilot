@@ -223,6 +223,30 @@ export async function runOpportunitySync(
           lastSyncPendingProcessed: null,
         },
       });
+
+      try {
+        const settings = await prisma.accountSettings.findUnique({
+          where: { accountId },
+          select: { rules: true },
+        });
+        const currentRules = parseAccountRules(settings?.rules);
+        const rulesPayload = JSON.parse(
+          JSON.stringify({ ...currentRules, lastSyncCreatedCount: 0 })
+        );
+        await prisma.accountSettings.upsert({
+          where: { accountId },
+          create: {
+            accountId,
+            rules: rulesPayload,
+          },
+          update: {
+            rules: rulesPayload,
+          },
+        });
+      } catch {
+        // Non-fatal settings update
+      }
+
       return {
         processed: 0,
         opportunitiesUpserted: 0,
@@ -514,6 +538,32 @@ export async function runOpportunitySync(
     }
 
     try {
+      const settings = await prisma.accountSettings.findUnique({
+        where: { accountId },
+        select: { rules: true },
+      });
+      const currentRules = parseAccountRules(settings?.rules);
+      const rulesPayload = JSON.parse(
+        JSON.stringify({ ...currentRules, lastSyncCreatedCount: createdCount })
+      );
+      await prisma.accountSettings.upsert({
+        where: { accountId },
+        create: {
+          accountId,
+          rules: rulesPayload,
+        },
+        update: {
+          rules: rulesPayload,
+        },
+      });
+    } catch (rulesErr) {
+      syncLog.warn(
+        { err: rulesErr },
+        "Failed to stamp lastSyncCreatedCount on account settings"
+      );
+    }
+
+    try {
       await prisma.account.update({
         where: { id: accountId },
         data: {
@@ -521,7 +571,7 @@ export async function runOpportunitySync(
           isSyncing: false,
           syncError: null,
           syncKind: null,
-          lastSyncProcessed: targetIds.length,
+          lastSyncProcessed: createdCount,
           syncTotal: null,
           syncPendingTotal: null,
           lastSyncPendingProcessed: null,

@@ -162,6 +162,7 @@ export async function syncInboxOpportunities(
     // incremental window (plus INCREMENTAL_OVERLAP_SECONDS in opportunity-sync).
     let errorMessage: string | null = null;
     let processed = 0;
+    let createdCount = 0;
 
     logStory(syncLog, "Step 0 — Snapshot run start time (not written yet)", {
       runStartedAt: runStartedAt.toISOString(),
@@ -178,6 +179,7 @@ export async function syncInboxOpportunities(
         syncStartedAt: runStartedAt.getTime(),
       });
       processed = result.processed;
+      createdCount = result.createdCount ?? 0;
 
       try {
         const purge = await purgeExpiredDismissed(syncAccountId);
@@ -222,7 +224,7 @@ export async function syncInboxOpportunities(
             ...(stampedLastSyncedAt ? { lastSyncedAt: runStartedAt } : {}),
             syncError: errorMessage,
             syncKind: null,
-            lastSyncProcessed: errorMessage ? null : processed,
+            lastSyncProcessed: errorMessage ? null : createdCount,
             syncTotal: null,
             syncPendingTotal: null,
             lastSyncPendingProcessed: null,
@@ -379,12 +381,14 @@ export async function drainPendingAiQueue(
   after(async () => {
     let errorMessage: string | null = null;
     let processed = 0;
+    let createdCount = 0;
 
     try {
       const result = await runPendingAiQueueDrain(drainAccountId, {
         syncStartedAt: runStartedAt.getTime(),
       });
       processed = result.processed;
+      createdCount = result.createdCount ?? 0;
       revalidatePath("/");
       revalidatePath("/jobs");
       revalidatePath("/subscriptions");
@@ -408,7 +412,7 @@ export async function drainPendingAiQueue(
             // Do not advance lastSyncedAt — this path never runs delta/search.
             syncError: errorMessage,
             syncKind: null,
-            lastSyncProcessed: errorMessage ? null : processed,
+            lastSyncProcessed: errorMessage ? null : createdCount,
             syncTotal: null,
             syncPendingTotal: null,
             lastSyncPendingProcessed: null,

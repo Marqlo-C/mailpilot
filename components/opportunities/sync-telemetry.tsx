@@ -107,7 +107,7 @@ export function SyncTelemetry({
         return;
       }
 
-      toast.success(result.data?.message ?? "Ace is reviewing queued emails");
+      // Status lives in the bottom classifying flyout — no duplicate toast.
       router.refresh();
     });
   }

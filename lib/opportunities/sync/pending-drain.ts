@@ -34,6 +34,8 @@ function normalizeProvider(value: string | null | undefined): LlmProvider {
 export type PendingAiDrainResult = {
   processed: number;
   opportunitiesUpserted: number;
+  createdCount: number;
+  updatedCount: number;
 };
 
 /**
@@ -103,7 +105,36 @@ export async function runPendingAiQueueDrain(
           lastSyncPendingProcessed: null,
         },
       });
-      return { processed: 0, opportunitiesUpserted: 0 };
+
+      try {
+        const settings = await prisma.accountSettings.findUnique({
+          where: { accountId },
+          select: { rules: true },
+        });
+        const currentRules = parseAccountRules(settings?.rules);
+        const rulesPayload = JSON.parse(
+          JSON.stringify({ ...currentRules, lastSyncCreatedCount: 0 })
+        );
+        await prisma.accountSettings.upsert({
+          where: { accountId },
+          create: {
+            accountId,
+            rules: rulesPayload,
+          },
+          update: {
+            rules: rulesPayload,
+          },
+        });
+      } catch {
+        // Non-fatal settings update
+      }
+
+      return {
+        processed: 0,
+        opportunitiesUpserted: 0,
+        createdCount: 0,
+        updatedCount: 0,
+      };
     }
 
     const gmail = await getGmailClientForAccount(account);
@@ -143,6 +174,8 @@ export async function runPendingAiQueueDrain(
     });
 
     let opportunitiesUpserted = 0;
+    let createdCount = 0;
+    let updatedCount = 0;
 
     for (let i = 0; i < targetIds.length; i++) {
       const messageId = targetIds[i];
@@ -174,6 +207,8 @@ export async function runPendingAiQueueDrain(
           syncStartedAt: drainStartedAt,
         });
         opportunitiesUpserted += processResult.opportunitiesUpserted;
+        createdCount += processResult.createdCount;
+        updatedCount += processResult.updatedCount;
         ollamaDownForSync = processResult.ollamaDownForSync;
       } catch (error) {
         syncLog.error(
@@ -205,21 +240,47 @@ export async function runPendingAiQueueDrain(
         isSyncing: false,
         syncError: null,
         syncKind: null,
-        lastSyncProcessed: targetIds.length,
+        lastSyncProcessed: createdCount,
         syncTotal: null,
         syncPendingTotal: null,
         lastSyncPendingProcessed: null,
       },
     });
 
+    try {
+      const settings = await prisma.accountSettings.findUnique({
+        where: { accountId },
+        select: { rules: true },
+      });
+      const currentRules = parseAccountRules(settings?.rules);
+      const rulesPayload = JSON.parse(
+        JSON.stringify({ ...currentRules, lastSyncCreatedCount: createdCount })
+      );
+      await prisma.accountSettings.upsert({
+        where: { accountId },
+        create: {
+          accountId,
+          rules: rulesPayload,
+        },
+        update: {
+          rules: rulesPayload,
+        },
+      });
+    } catch {
+      // Non-fatal settings update
+    }
+
     logStory(syncLog, "Ace queue drain finished", {
       "messages attempted": targetIds.length,
       "opportunities touched": opportunitiesUpserted,
+      "opportunities created": createdCount,
     });
 
     return {
       processed: targetIds.length,
       opportunitiesUpserted,
+      createdCount,
+      updatedCount,
     };
   } catch (error) {
     if (
