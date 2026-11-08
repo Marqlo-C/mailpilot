@@ -315,7 +315,7 @@ export function OpportunityCard({
         belowThreshold && !userArchived && "opacity-90",
         isSelected
           ? cn(SELECT_HIGHLIGHT_CLASSNAME, SELECT_HIGHLIGHT_FILL_CLASSNAME)
-          : "border border-border/80 shadow-md hover:border-border hover:shadow-lg"
+          : "border border-border/80 shadow-lg hover:border-border hover:shadow-xl"
       )}
     >
       {showInsertBefore ? (

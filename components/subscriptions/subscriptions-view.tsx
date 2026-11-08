@@ -2203,7 +2203,7 @@ function ActiveDesktopTable({
       className={cn(
         // No layout border — toggling border↔border-0 shifted size. Resting
         // edge is a ring (box-shadow); clear it when selection paints flush.
-        "relative hidden w-full overflow-hidden rounded-xl border-0 bg-card shadow-md transition-[box-shadow] duration-200 hover:shadow-lg md:block",
+        "relative hidden w-full overflow-hidden rounded-xl border-0 bg-card shadow-lg transition-[box-shadow] duration-200 hover:shadow-xl md:block",
         selectionTouchesShell ? "ring-0" : "ring-1 ring-border/80"
       )}
     >
