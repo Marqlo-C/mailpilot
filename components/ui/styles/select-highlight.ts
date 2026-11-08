@@ -7,23 +7,23 @@ export const SELECT_HIGHLIGHT_FILL_CLASSNAME =
  * fill (CSS borders often leave a 1px corner/edge gap on rounded cards).
  * Hex #9BC6D8 at ~95% (F2) — slightly bluer than the old #9FCFD2 teal.
  */
-const GROUP_STROKE_FULL = "shadow-[inset_0_0_0_2px_#9BC6D8F2]";
+const GROUP_STROKE_FULL = "shadow-[inset_0_0_0_1px_#9BC6D8F2]";
 const GROUP_STROKE_SIDES =
-  "shadow-[inset_2px_0_0_0_#9BC6D8F2,inset_-2px_0_0_0_#9BC6D8F2]";
+  "shadow-[inset_1px_0_0_0_#9BC6D8F2,inset_-1px_0_0_0_#9BC6D8F2]";
 const GROUP_STROKE_START =
-  "shadow-[inset_0_2px_0_0_#9BC6D8F2,inset_2px_0_0_0_#9BC6D8F2,inset_-2px_0_0_0_#9BC6D8F2]";
+  "shadow-[inset_0_1px_0_0_#9BC6D8F2,inset_1px_0_0_0_#9BC6D8F2,inset_-1px_0_0_0_#9BC6D8F2]";
 const GROUP_STROKE_END =
-  "shadow-[inset_0_-2px_0_0_#9BC6D8F2,inset_2px_0_0_0_#9BC6D8F2,inset_-2px_0_0_0_#9BC6D8F2]";
+  "shadow-[inset_0_-1px_0_0_#9BC6D8F2,inset_1px_0_0_0_#9BC6D8F2,inset_-1px_0_0_0_#9BC6D8F2]";
 
 /**
  * Standalone selected-card outline (Job Radar) — same #9BC6D8 stroke as
- * subscription group selection. Uses a real `border-2` (not inset shadow) so
+ * subscription group selection. Uses a real 1px `border` (not inset shadow) so
  * the stroke sits flush on `rounded-2xl` and doesn’t fight corner chrome.
- * Pair with matching `border-2` on the resting card to avoid size shift.
+ * Pair with matching resting `border` to avoid size shift.
  * Pair with {@link SELECT_HIGHLIGHT_FILL_CLASSNAME}.
  */
 export const SELECT_HIGHLIGHT_CLASSNAME =
-  "border-2 border-[#9BC6D8]/95 shadow-md";
+  "border border-[#9BC6D8]/95 shadow-md";
 
 /** Soft row rule between cards inside a selected group. */
 export const SELECT_HIGHLIGHT_GROUP_DIVIDER_CLASSNAME =
@@ -148,8 +148,8 @@ export function selectHighlightGroupClassName(
 }
 
 /**
- * Mobile subscription cards — real `border-2` highlight (Job Radar style).
- * Pair with a resting `border-2` shell so selection only recolors edges;
+ * Mobile subscription cards — real 1px border highlight (Job Radar style).
+ * Pair with a resting `border` shell so selection only recolors edges;
  * inset-shadow strokes were overriding `shadow-md` and shifting the box.
  */
 export function selectHighlightCardGroupClassName(
@@ -159,7 +159,7 @@ export function selectHighlightCardGroupClassName(
   const parts = [
     SELECT_HIGHLIGHT_FILL_CLASSNAME,
     SELECT_HIGHLIGHT_ROW_LAYOUT_CLASSNAME,
-    "border-2",
+    "border",
   ];
   if (edges.isGroupStart && edges.isGroupEnd) {
     parts.push("rounded-xl border-[#9BC6D8]/95");
