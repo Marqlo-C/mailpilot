@@ -126,7 +126,7 @@ export async function GET(request: Request) {
             isSyncing: false,
             syncError: null,
             syncKind: null,
-            lastSyncProcessed: syncResult.opportunitiesUpserted,
+            lastSyncProcessed: syncResult.createdCount ?? 0,
             syncTotal: null,
             syncPendingTotal: null,
             lastSyncPendingProcessed: null,

@@ -39,6 +39,7 @@ type SyncStatusContextValue = {
   totalToProcess: number | null;
   lastSyncPendingProcessed: number | null;
   syncPendingTotal: number | null;
+  opportunitiesAdded: number | null;
   justFinished: boolean;
   showForceReset: boolean;
   markSyncStarted: (kind?: SyncKind) => void;
@@ -80,6 +81,7 @@ export function SyncStatusProvider({
     number | null
   >(null);
   const [syncPendingTotal, setSyncPendingTotal] = useState<number | null>(null);
+  const [opportunitiesAdded, setOpportunitiesAdded] = useState<number | null>(null);
   const [justFinished, setJustFinished] = useState(false);
   const [showForceReset, setShowForceReset] = useState(false);
   const disposePollRef = useRef<(() => void) | null>(null);
@@ -88,23 +90,50 @@ export function SyncStatusProvider({
   const pendingCountRef = useRef(initialPendingClassificationCount);
   pendingCountRef.current = pendingCount;
 
-  const clearProgress = useCallback(() => {
+  const clearProgress = useCallback((options?: { preserveOpportunities?: boolean }) => {
     setLastSyncProcessed(null);
     setTotalToProcess(null);
     setLastSyncPendingProcessed(null);
     setSyncPendingTotal(null);
+    if (!options?.preserveOpportunities) {
+      setOpportunitiesAdded(null);
+    }
     setSyncKind(null);
   }, []);
 
+  const prevAccountIdRef = useRef(accountId);
+  const prevInitialIsSyncingRef = useRef(initialIsSyncing);
+
   useEffect(() => {
-    setIsSyncing(initialIsSyncing);
-    setPendingCount(initialPendingClassificationCount);
-    wasSyncingRef.current = initialIsSyncing;
-    if (!initialIsSyncing) {
-      setShowForceReset(false);
-      clearProgress();
+    const accountChanged = prevAccountIdRef.current !== accountId;
+    const initialSyncingChanged =
+      prevInitialIsSyncingRef.current !== initialIsSyncing;
+    prevAccountIdRef.current = accountId;
+    prevInitialIsSyncingRef.current = initialIsSyncing;
+
+    if (accountChanged) {
+      setIsSyncing(initialIsSyncing);
+      wasSyncingRef.current = initialIsSyncing;
+      if (!initialIsSyncing) {
+        setShowForceReset(false);
+        clearProgress();
+      }
+    } else if (initialSyncingChanged) {
+      if (initialIsSyncing) {
+        setIsSyncing(true);
+        wasSyncingRef.current = true;
+      } else if (!justFinished) {
+        setIsSyncing(false);
+        wasSyncingRef.current = false;
+        setShowForceReset(false);
+        clearProgress();
+      }
     }
-  }, [accountId, initialIsSyncing, initialPendingClassificationCount, clearProgress]);
+  }, [accountId, initialIsSyncing, justFinished, clearProgress]);
+
+  useEffect(() => {
+    setPendingCount(initialPendingClassificationCount);
+  }, [initialPendingClassificationCount]);
 
   const markSyncStarted = useCallback((kind: SyncKind = "inbox") => {
     wasSyncingRef.current = true;
@@ -115,6 +144,7 @@ export function SyncStatusProvider({
     setSyncKind(kind);
     setLastSyncProcessed(0);
     setLastSyncPendingProcessed(0);
+    setOpportunitiesAdded(null);
     // Do not seed totals from backlog COUNT — wait for server batch sizes.
     setTotalToProcess(null);
     setSyncPendingTotal(null);
@@ -183,6 +213,7 @@ export function SyncStatusProvider({
             syncKind?: string | null;
             syncPendingTotal?: number | null;
             lastSyncPendingProcessed?: number | null;
+            opportunitiesAdded?: number | null;
           };
 
           if (typeof data.pendingClassificationCount === "number") {
@@ -224,6 +255,13 @@ export function SyncStatusProvider({
             setShowForceReset(false);
             // Keep kind briefly so the complete toast matches the run type.
             setSyncKind(syncKindRef.current);
+            const added =
+              typeof data.opportunitiesAdded === "number"
+                ? data.opportunitiesAdded
+                : typeof data.lastSyncProcessed === "number"
+                  ? data.lastSyncProcessed
+                  : 0;
+            setOpportunitiesAdded(added);
             setJustFinished(true);
             setLastSyncProcessed(null);
             setTotalToProcess(null);
@@ -261,7 +299,8 @@ export function SyncStatusProvider({
       setJustFinished(false);
       syncKindRef.current = null;
       setSyncKind(null);
-    }, 3500);
+      setOpportunitiesAdded(null);
+    }, 4200);
     return () => clearTimeout(timer);
   }, [justFinished]);
 
@@ -305,6 +344,7 @@ export function SyncStatusProvider({
       totalToProcess,
       lastSyncPendingProcessed,
       syncPendingTotal,
+      opportunitiesAdded,
       justFinished,
       showForceReset,
       markSyncStarted,
@@ -321,6 +361,7 @@ export function SyncStatusProvider({
       totalToProcess,
       lastSyncPendingProcessed,
       syncPendingTotal,
+      opportunitiesAdded,
       justFinished,
       showForceReset,
       markSyncStarted,

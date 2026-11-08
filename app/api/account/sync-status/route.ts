@@ -5,6 +5,7 @@ import { getActiveAccount } from "@/lib/data";
 import { syncLockLog } from "@/lib/logging";
 import { parseSyncKind } from "@/lib/opportunities/sync/kinds";
 import { prisma } from "@/lib/core/prisma";
+import { parseAccountRules } from "@/lib/validations/rules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ export async function GET() {
           syncKind: null,
           syncPendingTotal: null,
           lastSyncPendingProcessed: null,
+          opportunitiesAdded: null,
         },
         { status: 401 }
       );
@@ -49,6 +51,11 @@ export async function GET() {
           lastSyncPendingProcessed: true,
           updatedAt: true,
           syncHeartbeatAt: true,
+          settings: {
+            select: {
+              rules: true,
+            },
+          },
         },
       }),
       prisma.emailMessage.count({
@@ -70,6 +77,7 @@ export async function GET() {
         syncKind: null,
         syncPendingTotal: null,
         lastSyncPendingProcessed: null,
+        opportunitiesAdded: null,
       });
     }
 
@@ -110,9 +118,20 @@ export async function GET() {
           syncKind: null,
           syncPendingTotal: null,
           lastSyncPendingProcessed: null,
+          opportunitiesAdded: null,
         });
       }
     }
+
+    const rules = parseAccountRules(account.settings?.rules);
+    const opportunitiesAdded =
+      account.isSyncing
+        ? null
+        : typeof rules.lastSyncCreatedCount === "number"
+          ? rules.lastSyncCreatedCount
+          : typeof account.lastSyncProcessed === "number"
+            ? account.lastSyncProcessed
+            : 0;
 
     return NextResponse.json({
       isSyncing: account.isSyncing,
@@ -125,6 +144,7 @@ export async function GET() {
       syncKind: parseSyncKind(account.syncKind),
       syncPendingTotal: account.syncPendingTotal ?? null,
       lastSyncPendingProcessed: account.lastSyncPendingProcessed ?? null,
+      opportunitiesAdded,
     });
   } catch (error) {
     console.error("GET /api/account/sync-status failed", error);
@@ -137,6 +157,7 @@ export async function GET() {
       syncKind: null,
       syncPendingTotal: null,
       lastSyncPendingProcessed: null,
+      opportunitiesAdded: null,
     });
   }
 }

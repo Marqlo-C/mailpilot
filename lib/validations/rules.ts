@@ -228,6 +228,8 @@ export const accountRulesSchema = z.object({
       })
     )
     .default({}),
+  /** Total new opportunities created/added during the most recent sync pass. */
+  lastSyncCreatedCount: z.number().int().nonnegative().nullable().optional(),
 });
 
 export type ScrapingAntUsage = z.infer<
