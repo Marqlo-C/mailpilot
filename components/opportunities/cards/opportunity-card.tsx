@@ -564,14 +564,14 @@ export function OpportunityCard({
                   <span title="Full spec heuristic evaluation" className="mr-1.5 inline-flex h-[1lh] items-center align-bottom">
                     <Sparkles
                       aria-label="Full spec heuristic evaluation"
-                      className="h-4 w-4 text-blue-500"
+                      className="h-3 w-3 text-blue-500"
                     />
                   </span>
                 ) : (
                   <span title="Slim title & leveling evaluation" className="mr-1.5 inline-flex h-[1lh] items-center align-bottom">
                     <Sparkle
                       aria-label="Slim title & leveling evaluation"
-                      className="h-4 w-4 text-muted-foreground/80"
+                      className="h-3 w-3 text-muted-foreground/80"
                     />
                   </span>
                 )}
