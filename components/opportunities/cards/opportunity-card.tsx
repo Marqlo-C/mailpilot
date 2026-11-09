@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useMemo,
   useState,
   useTransition,
   type CSSProperties,
@@ -19,6 +20,7 @@ import {
   Mail,
   MapPin,
   RotateCcw,
+  RotateCw,
   Send,
   Sparkle,
   Sparkles,
@@ -29,7 +31,11 @@ import {
   Zap,
 } from "lucide-react";
 
-import { deleteDismissedPermanently } from "@/app/actions/opportunities";
+import {
+  deleteDismissedPermanently,
+  reprocessOpportunityEmailAction,
+} from "@/app/actions/opportunities";
+import { toast } from "sonner";
 import { WavyDashedFrame } from "@/components/ui/tactile/wavy-dashed-frame";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import {
@@ -69,6 +75,7 @@ import {
   SECONDARY_ACTION_BTN_MUTED_CLASSNAME,
 } from "@/components/ui/styles/secondary-action-btn";
 import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
+import { isKnownJobDomain } from "@/lib/constants/job-sources";
 import { canDraftDirectEmail } from "@/lib/opportunities/application-method";
 import {
   daysRemainingUntilPurge,
@@ -244,6 +251,34 @@ export function OpportunityCard({
       ? "Restore to Applied"
       : "Restore to Active";
 
+  const isDev = process.env.NODE_ENV === "development";
+  const [isReprocessing, setIsReprocessing] = useState(false);
+
+  const handleReprocess = async () => {
+    if (isReprocessing) return;
+    setIsReprocessing(true);
+    const toastId = toast.loading("Sending email back through sync flow...");
+    try {
+      const res = await reprocessOpportunityEmailAction(opportunity.id);
+      if (res.ok) {
+        toast.success(
+          `Re-synced email (${res.data?.opportunitiesUpserted ?? 0} opportunities updated)`,
+          { id: toastId }
+        );
+        router.refresh();
+      } else {
+        toast.error(res.error || "Failed to re-sync email", { id: toastId });
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to re-sync email",
+        { id: toastId }
+      );
+    } finally {
+      setIsReprocessing(false);
+    }
+  };
+
   const classifyLabel = isDirectEmail
     ? "Email Lead"
     : isQuickApply
@@ -301,11 +336,35 @@ export function OpportunityCard({
       ? opportunity.applyUrl.trim()
       : null;
 
+  const hasRichDescription = useMemo(() => {
+    const desc = opportunity.description?.trim() || "";
+    if (desc.length >= 300) return true;
+    return /(?:requirements|qualifications|must\s+have|what\s+you(?:'ll|\s+will)\s+bring|what\s+we(?:'re|\s+are)\s+looking\s+for|preferred\s+skills|minimum\s+qualifications)/i.test(
+      desc
+    );
+  }, [opportunity.description]);
+
+  const isAggregator = (val?: string | null): boolean => {
+    if (!val) return false;
+    const lower = val.toLowerCase();
+    return lower.includes("jobleads") || isKnownJobDomain(lower);
+  };
+
+  const rawLogo =
+    opportunity.logoUrl && !isAggregator(opportunity.logoUrl)
+      ? opportunity.logoUrl
+      : null;
+
+  const safeDomain =
+    opportunity.companyDomain && !isAggregator(opportunity.companyDomain)
+      ? opportunity.companyDomain
+      : null;
+
   const companyLogoSrc =
-    opportunity.logoUrl ||
+    rawLogo ||
     getCompanyLogoUrl(
       opportunity.company,
-      opportunity.companyDomain,
+      safeDomain,
       opportunity.applyUrl
     );
 
@@ -501,17 +560,17 @@ export function OpportunityCard({
               className="w-full rounded-lg bg-muted/20 p-2.5 dark:bg-muted/10"
             >
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                {opportunity.classificationMethod === "HEURISTIC" ? (
-                  <span title="Deterministic spec evaluation" className="mr-1.5 inline-flex h-[1lh] items-center align-bottom">
+                {hasRichDescription ? (
+                  <span title="Full spec heuristic evaluation" className="mr-1.5 inline-flex h-[1lh] items-center align-bottom">
                     <Sparkles
-                      aria-label="Deterministic spec evaluation"
+                      aria-label="Full spec heuristic evaluation"
                       className="h-4 w-4 text-blue-500"
                     />
                   </span>
                 ) : (
-                  <span title="AI triage analysis" className="mr-1.5 inline-flex h-[1lh] items-center align-bottom">
+                  <span title="Slim title & leveling evaluation" className="mr-1.5 inline-flex h-[1lh] items-center align-bottom">
                     <Sparkle
-                      aria-label="AI triage analysis"
+                      aria-label="Slim title & leveling evaluation"
                       className="h-4 w-4 text-muted-foreground/80"
                     />
                   </span>
@@ -765,6 +824,21 @@ export function OpportunityCard({
                     </AppMenuItem>
                   </>
                 ) : null}
+                {isDev && opportunity.emailMessageId ? (
+                  <>
+                    <AppMenuSeparator />
+                    <AppMenuItem
+                      disabled={actionsLocked || isReprocessing}
+                      onClick={handleReprocess}
+                      className="text-cyan-600 focus:bg-cyan-50 focus:text-cyan-600 dark:text-cyan-400 dark:focus:bg-cyan-950/50 dark:focus:text-cyan-400"
+                    >
+                      <RotateCw
+                        className={cn("mr-2 h-4 w-4", isReprocessing && "animate-spin")}
+                      />
+                      Re-sync Email (Dev)
+                    </AppMenuItem>
+                  </>
+                ) : null}
               </AppMenuContent>
             </DropdownMenu>
           ) : null}
@@ -814,6 +888,21 @@ export function OpportunityCard({
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete
                   </AppMenuItem>
+                ) : null}
+                {isDev && opportunity.emailMessageId ? (
+                  <>
+                    <AppMenuSeparator />
+                    <AppMenuItem
+                      disabled={actionsLocked || isReprocessing}
+                      onClick={handleReprocess}
+                      className="text-cyan-600 focus:bg-cyan-50 focus:text-cyan-600 dark:text-cyan-400 dark:focus:bg-cyan-950/50 dark:focus:text-cyan-400"
+                    >
+                      <RotateCw
+                        className={cn("mr-2 h-4 w-4", isReprocessing && "animate-spin")}
+                      />
+                      Re-sync Email (Dev)
+                    </AppMenuItem>
+                  </>
                 ) : null}
               </AppMenuContent>
             </DropdownMenu>

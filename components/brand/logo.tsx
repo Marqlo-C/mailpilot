@@ -167,7 +167,7 @@ export function NavLogo({
       <span className="hidden items-center gap-[7.5px] lg:inline-flex">
         {planeTile}
 
-        <span className="flex h-8 shrink-0 items-center whitespace-nowrap text-[1.35rem] font-bold leading-none tracking-tight text-white [font-family:'Duplet_Rounded',sans-serif]">
+        <span className="flex h-8 shrink-0 items-center whitespace-nowrap font-brand text-[1.35rem] font-bold leading-none tracking-tight text-white">
           Mail Pilot
         </span>
       </span>

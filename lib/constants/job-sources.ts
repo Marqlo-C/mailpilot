@@ -395,7 +395,9 @@ export const KNOWN_JOB_DOMAINS_SET = new Set<string>([
 ]);
 
 export function isKnownJobDomain(hostnameOrUrl: string): boolean {
+  if (!hostnameOrUrl) return false;
   const lower = hostnameOrUrl.toLowerCase();
+  if (lower.includes("jobleads")) return true;
   return Array.from(KNOWN_JOB_DOMAINS_SET).some((domain) =>
     lower.includes(domain)
   );

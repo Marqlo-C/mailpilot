@@ -49,21 +49,46 @@ export function getCompanyLogoUrl(
     return null;
   }
 
+  // Never return an aggregator/job board logo for an opportunity card
+  if (
+    isKnownJobDomain(cleanName) ||
+    /^(?:jobleads|linkedin|indeed|glassdoor|ziprecruiter|monster|careerbuilder|dice)(?:\s+gmbh|\s+inc|\s+llc)?$/i.test(
+      cleanName
+    )
+  ) {
+    return null;
+  }
+
   // 1. Explicit domain
   const explicitDomain = (companyDomain ?? "").trim().toLowerCase().replace(/^www\./, "");
-  if (explicitDomain && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(explicitDomain)) {
+  if (
+    explicitDomain &&
+    !isKnownJobDomain(explicitDomain) &&
+    !explicitDomain.includes("jobleads") &&
+    /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(explicitDomain)
+  ) {
     return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(explicitDomain)}&sz=128`;
   }
 
   // 2. Direct apply URL host domain (if not a job board aggregator)
   const urlDomain = inferDomainFromUrl(applyUrl);
-  if (urlDomain && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(urlDomain)) {
+  if (
+    urlDomain &&
+    !isKnownJobDomain(urlDomain) &&
+    !urlDomain.includes("jobleads") &&
+    /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(urlDomain)
+  ) {
     return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(urlDomain)}&sz=128`;
   }
 
   // 3. Inferred apex domain from company name (e.g. "Walmart Global Tech" -> "walmart.com")
   const inferredDomain = inferApexDomainFromCompanyName(cleanName);
-  if (inferredDomain && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(inferredDomain)) {
+  if (
+    inferredDomain &&
+    !isKnownJobDomain(inferredDomain) &&
+    !inferredDomain.includes("jobleads") &&
+    /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(inferredDomain)
+  ) {
     return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(inferredDomain)}&sz=128`;
   }
 
@@ -84,6 +109,14 @@ export function getCompanyLogoFallbackUrl(
 ): string | null {
   const cleanName = (companyName || "").trim();
   if (!cleanName || /^unknown(?:\s+company)?$/i.test(cleanName)) {
+    return null;
+  }
+  if (
+    isKnownJobDomain(cleanName) ||
+    /^(?:jobleads|linkedin|indeed|glassdoor|ziprecruiter|monster|careerbuilder|dice)(?:\s+gmbh|\s+inc|\s+llc)?$/i.test(
+      cleanName
+    )
+  ) {
     return null;
   }
   const safeSlug = cleanName.toLowerCase().replace(/[^a-z0-9]/g, "");

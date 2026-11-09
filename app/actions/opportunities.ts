@@ -26,10 +26,14 @@ import {
   type OpportunityResumeState,
 } from "@/lib/opportunities/dispatch";
 import {
+  getGmailClientForAccount,
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
 } from "@/lib/gmail/google";
+import { resolveIngestionRules } from "@/lib/gmail/sync";
+import { loadCandidateProfileSummary } from "@/lib/llm";
+import { processSyncMessage } from "@/lib/opportunities/sync/processor";
 import { prisma } from "@/lib/core/prisma";
 import {
   projectInputSchema,
@@ -969,3 +973,94 @@ export async function deleteDismissedPermanently(
   revalidatePath("/jobs");
   return { ok: true, data: { count: result.count } };
 }
+
+/**
+ * Development-only utility to re-process an opportunity's source email message
+ * back through the full sync, extraction, debiasing, and deduplication pipeline.
+ */
+export async function reprocessOpportunityEmailAction(
+  opportunityId: string
+): Promise<
+  ActionResult<{
+    messageId: string;
+    createdCount: number;
+    updatedCount: number;
+    opportunitiesUpserted: number;
+  }>
+> {
+  if (process.env.NODE_ENV === "production") {
+    return {
+      ok: false,
+      error: "Re-processing opportunities is only permitted in development mode.",
+    };
+  }
+
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    include: {
+      account: {
+        include: { settings: true },
+      },
+      emailMessage: true,
+    },
+  });
+
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+
+  if (!opportunity.account || !opportunity.account.isActive) {
+    return { ok: false, error: "Account not found or inactive" };
+  }
+
+  const messageId = opportunity.emailMessage?.messageId;
+  if (!messageId) {
+    return {
+      ok: false,
+      error: "Original Gmail message ID not found for this opportunity",
+    };
+  }
+
+  try {
+    const account = opportunity.account;
+    const gmail = await getGmailClientForAccount(account);
+    const rules = await resolveIngestionRules(account.id, account.settings?.rules);
+    const candidateProfile = await loadCandidateProfileSummary(account.id);
+
+    const result = await processSyncMessage({
+      gmail,
+      account,
+      messageId,
+      index: 1,
+      total: 1,
+      rules,
+      candidateProfile,
+      syncStartedAt: Date.now(),
+      ollamaDownForSync: false,
+    });
+
+    revalidatePath("/");
+    revalidatePath("/jobs");
+
+    return {
+      ok: true,
+      data: {
+        messageId,
+        createdCount: result.createdCount,
+        updatedCount: result.updatedCount,
+        opportunitiesUpserted: result.opportunitiesUpserted,
+      },
+    };
+  } catch (error) {
+    if (
+      error instanceof InsufficientScopeError ||
+      isInsufficientScopeError(error)
+    ) {
+      return { ok: false, error: REAUTH_REQUIRED_MESSAGE };
+    }
+    const message =
+      error instanceof Error ? error.message : "Sync re-process failed";
+    return { ok: false, error: message };
+  }
+}
+

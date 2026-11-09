@@ -18,21 +18,27 @@
   font-display: block;
 }
 
-/* Brand wordmark face (sidebar MailPilot+ accent, digests). */
+/* Brand wordmark face (sidebar Mail Pilot accent, digests).
+ * `block` avoids FOUT/reflow — swap was resizing the sidebar wordmark on load. */
 @font-face {
-  font-family: 'Duplet Rounded';
-  src: url('/fonts/DupletRounded-Semibold-BF6606345a87ef5.woff2') format('woff2');
+  font-family: "Duplet Rounded";
+  src: url("/fonts/DupletRounded-Semibold-BF6606345a87ef5.woff2") format("woff2");
   font-weight: 600;
   font-style: normal;
-  font-display: swap;
+  font-display: block;
 }
 
 @font-face {
-  font-family: 'Duplet Rounded';
-  src: url('/fonts/DupletRounded-Bold-BF6606345a47d2e.woff2') format('woff2');
+  font-family: "Duplet Rounded";
+  src: url("/fonts/DupletRounded-Bold-BF6606345a47d2e.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
-  font-display: swap;
+  font-display: block;
+}
+
+/* SSOT for Duplet wordmark / brand accents — matches @font-face family name. */
+.font-brand {
+  font-family: "Duplet Rounded", ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {

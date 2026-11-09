@@ -10,10 +10,16 @@ import {
 } from "@/lib/llm";
 import {
   type JobClassification,
+  extractMessageHtml,
   isValidEmployerName,
   isValidRoleTitle,
   sanitizeRoleTitle,
 } from "@/lib/llm/classification";
+import {
+  isJobLeadsEmail,
+  parseJobLeadsDigest,
+  recoverJobLeadsCompany,
+} from "./jobleads";
 import {
   extractSalaryFromText,
   normalizeSalaryDisplay,
@@ -190,10 +196,12 @@ export async function processSyncMessage(
   const subject = getHeader(headers, "Subject") ?? "";
   const from = getHeader(headers, "From");
   const sender = from ? parseFromHeader(from) : null;
-  const fullRawBody = extractMessageBody(message.payload);
+  const isJobLeads = isJobLeadsEmail(sender?.email, sender?.name, from);
+  const fullRawBody = extractMessageBody(message.payload, isJobLeads);
+  const rawHtml = isJobLeads ? extractMessageHtml(message.payload) : null;
   const cleanedText = cleanEmailPayload(
-    fullRawBody.trim().length > 0
-      ? fullRawBody
+    (rawHtml || fullRawBody).trim().length > 0
+      ? (rawHtml || fullRawBody)
       : message.snippet ?? subject
   );
 
@@ -239,12 +247,26 @@ export async function processSyncMessage(
 
   let classification: JobClassification | null = null;
 
+  // Direct Deterministic Parser for JobLeads: bypass LLM completely to prevent aggregator hallucinations
+  if (isJobLeads && rawHtml) {
+    const jobleadsResult = parseJobLeadsDigest(rawHtml, {
+      subject,
+      receivedAt: message.internalDate
+        ? new Date(Number(message.internalDate))
+        : new Date(),
+    });
+    if (jobleadsResult && jobleadsResult.jobs.length > 0) {
+      classification = jobleadsResult;
+    }
+  }
+
   const shouldFastFailLocalOllama =
+    !classification &&
     llmProvider === "LOCAL_OLLAMA" &&
     !rules.allowCloudFallback &&
     (ollamaDownForSync || isOllamaCircuitTripped(configuredOllamaUrl));
 
-  if (!shouldFastFailLocalOllama) {
+  if (!classification && !shouldFastFailLocalOllama) {
     try {
       classification = await classifyEmail({
         llmProvider,
@@ -265,7 +287,7 @@ export async function processSyncMessage(
     } catch (err) {
       syncLog.warn(
         { err, messageId },
-        "AI classification failed — parking as PENDING_AI"
+        "AI classification failed — checking fallback options"
       );
       classification = null;
     }
@@ -305,6 +327,8 @@ export async function processSyncMessage(
     tier = "OLLAMA";
   } else if (classification?.sourceTier === "TIER 2 (CLOUD)") {
     tier = "CLOUD";
+  } else if (classification?.classificationMethod === "HEURISTIC") {
+    tier = "NONE";
   } else if (classification) {
     tier = llmProvider === "LOCAL_OLLAMA" ? "OLLAMA" : "CLOUD";
   }
@@ -423,9 +447,13 @@ export async function processSyncMessage(
       companyNoSpace.includes("basedonyour") ||
       companyNoSpace.includes("savedsearch") ||
       companyNoSpace.includes("jobalert") ||
-      companyNoSpace.includes("toppicks")
+      companyNoSpace.includes("toppicks") ||
+      companyNoSpace === "jobleads" ||
+      companyNoSpace === "jobleadsgmbh"
     ) {
-      job.company = sender?.name || "JobLeads";
+      const recovered =
+        rawHtml && job.title ? recoverJobLeadsCompany(job.title, rawHtml) : null;
+      job.company = recovered || "Unknown Company";
     }
 
     if (job.title) {
@@ -471,7 +499,7 @@ export async function processSyncMessage(
     job.description = scrubbed || buildSynthesizedJobOverview(fallbackContext);
   }
 
-  // Evaluate inbound jobs that already carry a rich specification (>= 300 chars)
+  // Evaluate inbound jobs (both rich specs and minimal leads via deterministic matching)
   if (candidateProfile) {
     const candidateLens = extractMatchCandidateLens(
       candidateProfile,
@@ -479,11 +507,10 @@ export async function processSyncMessage(
     );
     for (const job of classification.jobs) {
       if (
-        job.description &&
-        job.description.length >= 300 &&
-        (!job.matchScore ||
-          job.matchScore === 0 ||
-          /company are not directly related/i.test(job.matchReason || ""))
+        !job.matchScore ||
+        job.matchScore === 0 ||
+        /company are not directly related/i.test(job.matchReason || "") ||
+        /digest recommendation/i.test(job.matchReason || "")
       ) {
         const normalized = resolveJobOpportunity({
           company: job.company,
@@ -501,7 +528,13 @@ export async function processSyncMessage(
         });
         job.matchScore = evaluated.score;
         job.matchReason = evaluated.reason;
-        job.classificationMethod = "HEURISTIC";
+      }
+    }
+  } else {
+    for (const job of classification.jobs) {
+      if (!job.matchScore || job.matchScore === 0) {
+        job.matchScore = 75;
+        job.matchReason = "Lead identified from inbox.";
       }
     }
   }
@@ -683,8 +716,8 @@ export async function processSyncMessage(
         ).slice(0, 28);
 
         let outcome = telemetry;
-        if (outcome.includes("409") || outcome.includes("concurrency")) {
-          outcome = "Skipped (ScrapingAnt: HTTP 409)";
+        if (outcome.includes("409") || outcome.includes("423") || outcome.includes("concurrency") || outcome.includes("Concurrency")) {
+          outcome = "Skipped (ScrapingAnt: Concurrency Limit)";
         } else if (outcome.includes("ScrapingAnt (BYOK Key)")) {
           const chars = Math.min(enriched?.description?.length ?? 0, 4000);
           outcome = `ScrapingAnt (${(chars / 1000).toFixed(1)}k)`;
@@ -756,7 +789,7 @@ export async function processSyncMessage(
       routingLines: classification.routingLines ?? routingLines,
     },
     rules,
-    classificationMethod: "AI",
+    classificationMethod: (classification.classificationMethod as "AI" | "HEURISTIC" | "HYBRID") ?? "AI",
     index,
     total,
     syncStartedAt: effectiveSyncStartedAt,

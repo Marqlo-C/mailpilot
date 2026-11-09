@@ -167,7 +167,7 @@ export function unwrapTrackingUrl(urlString: string, maxDepth: number = 5): stri
 }
 
 const TRACKING_QUERY_PARAM_REGEX =
-  /^(?:utm_[a-z0-9_]+|tracking_?id|ref_?id|reference_?id|trk|trkemail|trkinfo|midtoken|eid|otptoken|comm_alert_id|auth_token|mc_[ce]id|gclid|fbclid|msclkid|dclid|twclid|igshid|emoff|alertaction|original_referer|algo_name|algo_index|algo_type|sc_[a-z0-9_]+|fbs|source_type)$/i;
+  /^(?:utm_[a-z0-9_]+|tracking_?id|ref_?id|reference_?id|trk|trkemail|trkinfo|midtoken|eid|otptoken|comm_alert_id|auth_token|mc_[ce]id|gclid|fbclid|msclkid|dclid|twclid|igshid|emoff|alertaction|original_referer|algo_name|algo_index|algo_type|sc_[a-z0-9_]+|fbs|source_type|kuuid|saved_search_email_id|search_id|vector_distance|job_rank)$/i;
 
 /**
  * Strips tracking query parameters (utm_*, trackingId, trk, midToken, gclid, etc.)

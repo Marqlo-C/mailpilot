@@ -1,5 +1,3 @@
-import type { ApplicationMethod } from "@/lib/validations/profile";
-
 export type ApplicationType =
   | "DIRECT_EMAIL"
   | "EXTERNAL_LINK"
@@ -43,31 +41,6 @@ export function resolveApplicationType(input: {
   }
 
   return "EXTERNAL_LINK";
-}
-
-/** @deprecated Prefer resolveApplicationType — kept for JobApplication bridge. */
-export function resolveApplicationMethod(input: {
-  actionUrl?: string | null;
-  actionSummary?: string | null;
-  recipientEmail?: string | null;
-}): ApplicationMethod {
-  const type = resolveApplicationType({
-    applyUrl: input.actionUrl,
-    recipientEmail:
-      input.recipientEmail ??
-      input.actionUrl?.match(/mailto:([^?&\s]+)/i)?.[1] ??
-      input.actionSummary?.match(/[\w.+-]+@[\w-]+\.[\w.-]+/)?.[0] ??
-      null,
-  });
-  if (type === "DIRECT_EMAIL") return "DIRECT_EMAIL";
-  if (type === "QUICK_APPLY") return "PORTAL_QUICK_APPLY";
-  return "EXTERNAL_LINK";
-}
-
-export function dispatchTypeFromMethod(
-  method: ApplicationMethod
-): "EMAIL" | "PORTAL" {
-  return method === "DIRECT_EMAIL" ? "EMAIL" : "PORTAL";
 }
 
 export function canDraftDirectEmail(recipientEmail: string | null | undefined): boolean {
