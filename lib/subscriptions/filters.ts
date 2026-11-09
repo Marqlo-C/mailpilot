@@ -57,6 +57,15 @@ export function subscriptionClutterScore(sub: ClutterInput): number {
   return Math.min(100, volume + recency);
 }
 
+/**
+ * Score used for list pills, filter, and sort — always live from volume +
+ * recency (same formula as {@link subscriptionClutterScore}). Persisted
+ * `clutterScore` on the row is snapshot metadata only; the list ignores it.
+ */
+export function effectiveSubscriptionClutterScore(sub: ClutterInput): number {
+  return subscriptionClutterScore(sub);
+}
+
 /** Reverse of Job Radar match bands: high ≥80, mid ≥60, else low. */
 export type ClutterScoreTier = "high" | "mid" | "low";
 
@@ -105,7 +114,8 @@ export function compareSubscriptionsBySort(
       return a.senderEmail.localeCompare(b.senderEmail);
     case "clutter_desc": {
       const diff =
-        subscriptionClutterScore(b) - subscriptionClutterScore(a);
+        effectiveSubscriptionClutterScore(b) -
+        effectiveSubscriptionClutterScore(a);
       return diff !== 0
         ? diff
         : a.senderEmail.localeCompare(b.senderEmail);

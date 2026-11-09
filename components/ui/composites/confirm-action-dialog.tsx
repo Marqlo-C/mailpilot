@@ -62,7 +62,7 @@ export function ConfirmActionDialog({
       open={open}
       onOpenChange={onOpenChange}
       pending={pending}
-      size="lg"
+      size="sm"
       identity={{
         title,
         primary,

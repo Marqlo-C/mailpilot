@@ -27,8 +27,8 @@ type PreviewLoadChromeProps = {
 };
 
 /**
- * Shared subject / date meta + pulse skeleton used by View Last Email
- * and View Snap preview.
+ * Shared subject / date meta + pulse skeleton for Gmail message preview
+ * (Latest Message / original email) and View Snap.
  */
 export function PreviewLoadChrome({
   loading,
