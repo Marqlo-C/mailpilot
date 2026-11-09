@@ -20,7 +20,6 @@ import {
 import { toast } from "sonner";
 
 import {
-  sendSingleApplication,
   updateApplicationStatus,
 } from "@/app/actions/dispatch";
 import {
@@ -38,7 +37,6 @@ import { OpportunitiesView } from "@/components/opportunities/views/opportunitie
 import { SyncControls } from "@/components/opportunities/sync-controls";
 import { CompanyLogo } from "@/components/ui/logo-frame";
 import { domainFromActionUrl } from "@/components/sender-avatar";
-import { extractRecruiterEmail } from "@/lib/opportunities/application-method";
 import {
   JOB_RADAR_PAGE_TABS,
   JOB_RADAR_TAB_LABEL,
@@ -333,10 +331,6 @@ export function JobsRadar({
     [jobs]
   );
 
-  const sortedLeads = useMemo(
-    () => sortJobApplications(leads, sort),
-    [leads, sort]
-  );
   const sortedApplied = useMemo(
     () => sortJobApplications(applied, sort),
     [applied, sort]
@@ -350,7 +344,7 @@ export function JobsRadar({
     [history, sort]
   );
 
-  const leadCount = discoveredLeadCount + leads.length;
+  const leadCount = discoveredLeadCount;
   const appliedCount = opportunityApplied.length + applied.length;
   const actionCount = opportunityAction.length + actionRequired.length;
   const historyCount = opportunityHistory.length + history.length;
@@ -556,138 +550,6 @@ export function JobsRadar({
             <div className="space-y-4">
               {showOpportunityDeck && deckVariant === "leads" ? (
                 opportunityBody
-              ) : null}
-
-              {sortedLeads.length > 0 ? (
-                <div className="grid gap-3 md:grid-cols-2">
-                  {sortedLeads.map((job) => {
-                    const canEmail = Boolean(
-                      extractRecruiterEmail({
-                        actionSummary: job.actionSummary,
-                        actionUrl: job.actionUrl,
-                        applyUrl: job.applyUrl,
-                      })
-                    );
-                    const isPortal =
-                      job.dispatchType === "PORTAL" ||
-                      job.applicationMethod === "PORTAL_QUICK_APPLY" ||
-                      job.applicationMethod === "EXTERNAL_LINK" ||
-                      !canEmail;
-
-                    return (
-                      <Card key={job.id}>
-                        <CardHeader className="pb-3">
-                          <div className="flex items-start gap-3">
-                            <CompanyLogo
-                              src={jobApplicationLogoSrc(job.actionUrl)}
-                              name={job.companyName ?? "Company"}
-                              size="lg"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <CardTitle className="text-base">
-                                {job.companyName ?? "Unknown company"}
-                              </CardTitle>
-                              <CardDescription>
-                                {job.roleTitle ?? "Role not specified"}
-                              </CardDescription>
-                            </div>
-                            <div className="flex flex-col items-end gap-1">
-                              {typeof job.matchScore === "number" && (
-                                <Badge
-                                  variant={
-                                    job.matchScore >= threshold
-                                      ? "default"
-                                      : "secondary"
-                                  }
-                                >
-                                  {job.matchScore}%
-                                </Badge>
-                              )}
-                              <Badge variant="outline">
-                                {isPortal
-                                  ? job.applicationMethod === "EXTERNAL_LINK"
-                                    ? "External link"
-                                    : "Portal"
-                                  : "Email Lead"}
-                              </Badge>
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardFooter className="flex flex-wrap gap-2">
-                          {isPortal ? (
-                            <>
-                              {(job.applyUrl || job.actionUrl) && (
-                                <Button asChild size="sm" variant="outline">
-                                  <a
-                                    href={job.applyUrl || job.actionUrl || "#"}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    <ExternalLink className="h-4 w-4" />
-                                    Open link
-                                  </a>
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                onClick={() => setPortalJob(job)}
-                              >
-                                ATS Quick-Fill
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={pending}
-                                onClick={() => setDraftJob(job)}
-                              >
-                                <Mail className="h-4 w-4" />
-                                Review & Edit Draft
-                              </Button>
-                              <Button
-                                size="sm"
-                                disabled={pending}
-                                onClick={() => {
-                                  startTransition(async () => {
-                                    const result = await sendSingleApplication(
-                                      job.id,
-                                      false
-                                    );
-                                    if (!result.ok) {
-                                      toast.error(result.error);
-                                      return;
-                                    }
-                                    toast.success("Application sent");
-                                    router.refresh();
-                                  });
-                                }}
-                              >
-                                <Send className="h-4 w-4" />
-                                Send
-                              </Button>
-                            </>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={pending}
-                            onClick={() => {
-                              startTransition(async () => {
-                                await updateApplicationStatus(job.id, "ARCHIVED");
-                                router.refresh();
-                              });
-                            }}
-                          >
-                            <Archive className="h-4 w-4" />
-                            Archive
-                          </Button>
-                        </CardFooter>
-                      </Card>
-                    );
-                  })}
-                </div>
               ) : null}
             </div>
           )}

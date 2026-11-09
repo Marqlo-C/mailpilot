@@ -1197,10 +1197,18 @@ export function extractMessageBody(
       body?: { data?: string | null } | null;
       parts?: unknown[];
     }> | null;
-  } | null | undefined
+  } | null | undefined,
+  preferHtml = false
 ): string {
   if (!payload) {
     return "";
+  }
+
+  if (preferHtml) {
+    const html = findPartByMime(payload, "text/html");
+    if (html) {
+      return decodeBase64Url(html);
+    }
   }
 
   const plain = findPartByMime(payload, "text/plain");
@@ -1218,6 +1226,24 @@ export function extractMessageBody(
   }
 
   return "";
+}
+
+export function extractMessageHtml(
+  payload: {
+    mimeType?: string | null;
+    body?: { data?: string | null } | null;
+    parts?: Array<{
+      mimeType?: string | null;
+      body?: { data?: string | null } | null;
+      parts?: unknown[];
+    }> | null;
+  } | null | undefined
+): string | null {
+  if (!payload) {
+    return null;
+  }
+  const html = findPartByMime(payload, "text/html");
+  return html ? decodeBase64Url(html) : null;
 }
 
 function findPartByMime(

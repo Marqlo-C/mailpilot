@@ -40,6 +40,7 @@ import { refreshScrapingAntUsageAfterSync } from "@/lib/scraping/scrapingant";
 
 export * from "./candidates";
 export * from "./dedupe";
+export * from "./jobleads";
 export * from "./kinds";
 export * from "./limits";
 export * from "./pending-drain";

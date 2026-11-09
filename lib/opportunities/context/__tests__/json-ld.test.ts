@@ -2,6 +2,7 @@ import fs from "fs";
 import { afterEach, beforeAll, beforeEach, describe, it, expect, vi } from "vitest";
 import { encryptToken } from "@/lib/core/crypto";
 import {
+  clearBotWalledDomainsForTesting,
   extractJsonLdJobPosting,
   extractNuxtData,
   extractRemixData,
@@ -23,6 +24,9 @@ describe("JSON-LD Link Parser", () => {
   beforeAll(() => {
     process.env.TOKEN_ENCRYPTION_KEY =
       "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  });
+  beforeEach(() => {
+    clearBotWalledDomainsForTesting();
   });
   it("extracts structured JobPosting from valid application/ld+json script", () => {
     const html = `
@@ -479,6 +483,108 @@ describe("JSON-LD Link Parser", () => {
       expect(result.status).toBe(409);
 
       vi.unstubAllGlobals();
+    }, 15000);
+
+    it("serializes concurrent calls so they never execute fetch in parallel", async () => {
+      let activeRequests = 0;
+      let maxActiveRequests = 0;
+
+      const mockFetch = vi.fn().mockImplementation(async () => {
+        activeRequests++;
+        maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+        await new Promise((r) => setTimeout(r, 10));
+        activeRequests--;
+        return {
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve("<html><body></body></html>"),
+        };
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      await Promise.all([
+        fetchViaScrapingAnt("https://example.com/job/1", "key"),
+        fetchViaScrapingAnt("https://example.com/job/2", "key"),
+        fetchViaScrapingAnt("https://example.com/job/3", "key"),
+      ]);
+
+      expect(maxActiveRequests).toBe(1);
+      vi.unstubAllGlobals();
+    }, 15000);
+
+    it("extracts plain-text JSON-LD description without HTML tags via ScrapingAnt (Enexus/IBM pattern)", async () => {
+      const sampleHtml = `
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "JobPosting",
+          "title": "Backend .Net Developer",
+          "hiringOrganization": { "@type": "Organization", "name": "Enexus Global Inc." },
+          "description": "About the role: We are looking for an experienced .Net Developer to join our core backend engineering team in Austin. Responsibilities include building scalable microservices in C# and ASP.NET Core, optimizing SQL Server database queries, and designing reliable event streams. Qualifications: 4+ years of professional development experience, strong knowledge of Azure cloud platforms, and hands-on unit testing expertise."
+        }
+        </script>
+      `;
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(sampleHtml),
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      const result = await fetchViaScrapingAnt(
+        "https://www.jobleads.com/us/job/backend-net-developer",
+        "test_ant_key_123"
+      );
+
+      expect(result.data).not.toBeNull();
+      expect(result.data?.company).toBe("Enexus Global Inc.");
+      expect(result.data?.description).toContain("experienced .Net Developer");
+      expect(result.status).toBe(200);
+
+      vi.unstubAllGlobals();
+    });
+
+    it("prefers rich semantic DOM markdown over flat JSON-LD via ScrapingAnt (Workday pattern)", async () => {
+      const workdayHtml = `
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "JobPosting",
+          "title": "Senior Cloud Engineer",
+          "description": "Flat plain text without tags describing duties and requirements for the cloud engineering role across multiple enterprise systems and platforms."
+        }
+        </script>
+        <div data-automation-id="jobPostingDescription">
+          <h3>About the Role</h3>
+          <p><strong>Lead cloud operations across multiple AWS regions and oversee enterprise infrastructure.</strong></p>
+          <h3>Key Responsibilities</h3>
+          <ul>
+            <li>Design and maintain Kubernetes clusters with Terraform across development and production environments</li>
+            <li>Implement automated disaster recovery drills and cloud governance standards</li>
+          </ul>
+          <h3>Qualifications</h3>
+          <p>Bachelor degree in Computer Science and 5+ years of distributed systems experience in production environments.</p>
+        </div>
+      `;
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(workdayHtml),
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      const result = await fetchViaScrapingAnt(
+        "https://example.myworkdayjobs.com/job/senior-cloud-engineer",
+        "test_ant_key_123"
+      );
+
+      expect(result.data).not.toBeNull();
+      expect(result.data?.description).toContain("### About the Role");
+      expect(result.data?.description).toContain("**Lead cloud operations");
+
+      vi.unstubAllGlobals();
     });
   });
 
@@ -687,6 +793,63 @@ describe("JSON-LD Link Parser", () => {
       vi.unstubAllGlobals();
     });
 
+    it("fast-paths directly to ScrapingAnt on subsequent links when domain was previously bot-walled", async () => {
+      const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const antHtml = `
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "JobPosting",
+          "title": "Fast Path Engineer",
+          "description": "About the role: Successfully skipped the 1.8s direct fetch timeout because the domain was remembered as bot-walled. Responsibilities include building fast pipelines, scaling infrastructure, and monitoring latency. Qualifications: Experience with distributed systems and microservices architecture."
+        }
+        </script>
+      `;
+
+      let directFetchAttempted = false;
+
+      const mockFetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes("api.scrapingant.com")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            text: () => Promise.resolve(antHtml),
+          });
+        }
+        directFetchAttempted = true;
+        return Promise.resolve({
+          ok: false,
+          status: 403,
+        });
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      // Link 1: hits direct fetch, gets 403, marks domain as bot-walled
+      await scrapeJobPostingJsonLd(
+        "https://botwalled.com/jobs/1",
+        { encryptedScrapingAntApiKey: encryptToken("my_scrapingant_key") } as any
+      );
+      expect(directFetchAttempted).toBe(true);
+
+      // Reset spy flag
+      directFetchAttempted = false;
+
+      // Link 2 on same domain: fast-paths directly to ScrapingAnt without calling direct fetch
+      const result2 = await scrapeJobPostingJsonLd(
+        "https://botwalled.com/jobs/2",
+        { encryptedScrapingAntApiKey: encryptToken("my_scrapingant_key") } as any
+      );
+
+      expect(directFetchAttempted).toBe(false);
+      expect(result2.data?.title).toBe("Fast Path Engineer");
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Fast-path via ScrapingAnt (Known Bot Wall: botwalled.com)")
+      );
+
+      consoleLogSpy.mockRestore();
+      vi.unstubAllGlobals();
+    });
+
     it("reports Skipped (ScrapingAnt timeout or bot wall) when ScrapingAnt fails with BYOK key", async () => {
       const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -747,7 +910,7 @@ describe("JSON-LD Link Parser", () => {
 
       consoleLogSpy.mockRestore();
       vi.unstubAllGlobals();
-    });
+    }, 15000);
 
     it("hydrates LinkedIn job postings via the public jobs-guest endpoint and preserves canonical applyUrl", async () => {
       const linkedInHtml = `

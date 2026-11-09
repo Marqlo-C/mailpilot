@@ -71,6 +71,16 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Sidebar "Mail Pilot" wordmark — preload so Duplet is ready before paint. */}
+        <link
+          rel="preload"
+          href="/fonts/DupletRounded-Bold-BF6606345a47d2e.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}
       >

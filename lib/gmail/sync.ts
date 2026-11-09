@@ -11,11 +11,14 @@ import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
 import {
   classifyJobEmail,
   extractMessageBody,
+  extractMessageHtml,
   loadCandidateProfileSummary,
   sanitizeEmailBody,
   shouldClassifyEmail,
+  type JobClassification,
   type LlmProvider,
 } from "@/lib/llm";
+import { isJobLeadsEmail, parseJobLeadsDigest } from "@/lib/opportunities/sync/jobleads";
 import {
   ensurePersistentProfileForAccount,
   mergeRulesWithPermanentSettings,
@@ -35,6 +38,7 @@ import {
   getCompanyLogoUrl,
   inferDomainFromUrl,
 } from "@/lib/utils/company-logo";
+import { isKnownJobDomain } from "@/lib/constants/job-sources";
 import {
   genericRoleTitle,
   isGenericTitle,
@@ -83,7 +87,19 @@ function applyUrlsMatch(
   if (!a?.trim() || !b?.trim()) return false;
   const na = a.trim().replace(/\/+$/, "");
   const nb = b.trim().replace(/\/+$/, "");
-  return na.length > 0 && na === nb;
+  if (na === nb) return true;
+  try {
+    const urlA = new URL(na);
+    const urlB = new URL(nb);
+    if (
+      urlA.hostname.replace(/^www\./, "") ===
+        urlB.hostname.replace(/^www\./, "") &&
+      urlA.pathname.replace(/\/+$/, "") === urlB.pathname.replace(/\/+$/, "")
+    ) {
+      return true;
+    }
+  } catch {}
+  return false;
 }
 
 function isSuppressedOpportunity(row: JobOpportunity): boolean {
@@ -143,6 +159,22 @@ async function findMatchingOpportunity(input: {
       where: { accountId, emailMessageId },
     }));
 
+  const isPlaceholderOrAggregator = (comp: string, domain?: string | null): boolean => {
+    const c = comp.trim().toLowerCase();
+    if (
+      c === "unknown company" ||
+      c.includes("jobleads") ||
+      isKnownJobDomain(c) ||
+      isGenericTitle(comp, title)
+    ) {
+      return true;
+    }
+    if (domain && (domain.toLowerCase().includes("jobleads") || isKnownJobDomain(domain))) {
+      return true;
+    }
+    return false;
+  };
+
   const tier1 =
     sameEmailRows.find(
       (row) =>
@@ -152,16 +184,25 @@ async function findMatchingOpportunity(input: {
           row.title.toLowerCase() === "role")
     ) ??
     sameEmailRows.find(
+      (row) => applyUrlsMatch(applyUrl, row.applyUrl)
+    ) ??
+    sameEmailRows.find(
       (row) =>
-        row.company.trim().toLowerCase() === company.trim().toLowerCase() &&
+        (row.company.trim().toLowerCase() === company.trim().toLowerCase() ||
+          isPlaceholderOrAggregator(row.company, row.companyDomain)) &&
         opportunityTitlesMatch(title, row.title) &&
         isLocationCompatible(location, row.location)
+    ) ??
+    sameEmailRows.find(
+      (row) =>
+        isPlaceholderOrAggregator(row.company, row.companyDomain) &&
+        opportunityTitlesMatch(title, row.title)
     );
 
   if (tier1) {
-    if (isSuppressedOpportunity(tier1)) {
-      return { kind: "suppress", row: tier1 };
-    }
+    // For Tier 1 (same email origin): update in place so company name, logo, domain,
+    // salary, etc. are healed. The update mutation explicitly preserves lifecycle status
+    // (APPLIED, DISMISSED, REVIEW_READY) without resurrecting dismissed records.
     return { kind: "update", row: tier1, upgradingPlaceholder: false };
   }
 
@@ -459,13 +500,15 @@ async function processMessage(
     });
   }
 
-  const fullRawBody = extractMessageBody(message.data.payload);
+  const sender = from ? parseFromHeader(from) : null;
+  const isJobLeads = isJobLeadsEmail(sender?.email, sender?.name, from);
+  const fullRawBody = extractMessageBody(message.data.payload, isJobLeads);
+  const rawHtml = isJobLeads ? extractMessageHtml(message.data.payload) : null;
   const cleanedText = cleanEmailPayload(
-    fullRawBody.trim().length > 0
-      ? fullRawBody
+    (rawHtml || fullRawBody).trim().length > 0
+      ? (rawHtml || fullRawBody)
       : message.data.snippet ?? subject
   );
-  const sender = from ? parseFromHeader(from) : null;
 
   if (
     !shouldClassifyEmail({
@@ -493,19 +536,36 @@ async function processMessage(
   const messageDate = message.data.internalDate
     ? new Date(Number(message.data.internalDate))
     : new Date();
-  const classification = await classifyJobEmail({
-    llmProvider,
-    localOllamaUrl: settings?.localOllamaUrl,
-    ollamaModel: settings?.ollamaModel,
-    subject,
-    body: cleanedText,
-    fromEmail: sender?.email ?? null,
-    candidateProfile,
-    allowCloudFallback: accountRules.allowCloudFallback,
-    accountId: account.id,
-    accountRules,
-    receivedAt: messageDate,
-  });
+
+  let classification: JobClassification | null = null;
+
+  // Direct Deterministic Parser for JobLeads: bypass LLM completely to prevent aggregator hallucinations
+  if (isJobLeads && rawHtml) {
+    classification = parseJobLeadsDigest(rawHtml, {
+      subject,
+      receivedAt: messageDate,
+    });
+  }
+
+  if (!classification) {
+    try {
+      classification = await classifyJobEmail({
+        llmProvider,
+        localOllamaUrl: settings?.localOllamaUrl,
+        ollamaModel: settings?.ollamaModel,
+        subject,
+        body: cleanedText,
+        fromEmail: sender?.email ?? null,
+        candidateProfile,
+        allowCloudFallback: accountRules.allowCloudFallback,
+        accountId: account.id,
+        accountRules,
+        receivedAt: messageDate,
+      });
+    } catch {
+      classification = null;
+    }
+  }
 
   if (
     !classification ||
@@ -667,13 +727,15 @@ export async function persistClassifiedEmail(input: {
   // APPLICATION_STATUS → JobApplication lifecycle, unless we already have
   // JobOpportunity listings (avoids Applied-tab duplicates).
   if (classification.email_category === "APPLICATION_STATUS") {
-    const mappedStatus = mapClassificationStatus(classification.status);
+    let mappedStatus = mapClassificationStatus(classification.status);
 
     // Enrich company/title/location from confirmation body when possible.
     const parsedApp = parseApplicationEmail(subject, body);
     if (parsedApp) {
       classification.company_name = parsedApp.company;
       classification.role_title = parsedApp.title;
+      // An application confirmation was definitively detected via email body/subject
+      mappedStatus = "APPLIED";
       if (classification.jobs.length > 0) {
         const job0 = classification.jobs[0];
         job0.company = parsedApp.company;
@@ -704,7 +766,7 @@ export async function persistClassifiedEmail(input: {
             genericRoleTitle(
               classification.company_name?.trim() || "Unknown Company"
             ),
-          location: null,
+          location: parsedApp?.location ?? null,
           salary: null,
           salaryMax: null,
           postedAt: null,
@@ -1017,10 +1079,24 @@ export async function persistClassifiedEmail(input: {
         ? job.applyUrl.trim()
         : null;
 
-    const companyDomain =
-      job.companyDomain ?? inferDomainFromUrl(validApplyUrl) ?? null;
+    const isAggregatorRef = (val?: string | null): boolean => {
+      if (!val) return false;
+      const lower = val.toLowerCase();
+      return lower.includes("jobleads") || isKnownJobDomain(lower);
+    };
+
+    let companyDomain = job.companyDomain;
+    if (isAggregatorRef(companyDomain)) {
+      companyDomain = null;
+    }
+    if (!companyDomain) {
+      const inferred = inferDomainFromUrl(validApplyUrl);
+      if (inferred && !isAggregatorRef(inferred)) {
+        companyDomain = inferred;
+      }
+    }
     const logoUrl =
-      job.logoUrl && /^https?:\/\//i.test(job.logoUrl)
+      job.logoUrl && /^https?:\/\//i.test(job.logoUrl) && !isAggregatorRef(job.logoUrl)
         ? job.logoUrl
         : getCompanyLogoUrl(cleanCompany, companyDomain, validApplyUrl);
     let matchScore =
@@ -1108,11 +1184,24 @@ export async function persistClassifiedEmail(input: {
             })
           : null);
 
+      const existingHasAggregatorDomain = isAggregatorRef(existing.companyDomain);
+      const existingHasAggregatorLogo = isAggregatorRef(existing.logoUrl);
+
+      const resolvedCompanyDomain =
+        existing.company.toLowerCase() === cleanCompany.toLowerCase() &&
+        existing.companyDomain &&
+        !existingHasAggregatorDomain
+          ? existing.companyDomain
+          : companyDomain && !isAggregatorRef(companyDomain)
+            ? companyDomain
+            : null;
+
       const resolvedLogoUrl =
-        job.logoUrl && /^https?:\/\//i.test(job.logoUrl)
+        job.logoUrl && /^https?:\/\//i.test(job.logoUrl) && !isAggregatorRef(job.logoUrl)
           ? job.logoUrl
           : existing.company.toLowerCase() === cleanCompany.toLowerCase() &&
             existing.logoUrl &&
+            !existingHasAggregatorLogo &&
             !existing.logoUrl.includes("ui-avatars") &&
             !existing.logoUrl.includes("unavatar.io") &&
             !existing.logoUrl.includes("google.com/s2/favicons")
@@ -1154,7 +1243,7 @@ export async function persistClassifiedEmail(input: {
           applicationType,
           recipientEmail: recipientEmail ?? existing.recipientEmail,
           recipientName: resolvedRecipientName ?? existing.recipientName,
-          companyDomain: existing.companyDomain ?? companyDomain,
+          companyDomain: resolvedCompanyDomain,
           logoUrl: resolvedLogoUrl,
           matchScore,
           matchReason: matchReason ?? existing.matchReason,
@@ -1280,15 +1369,15 @@ export function mapClassificationStatus(
     case "INTERVIEW":
     case "OFFER":
     case "REJECTION":
-    case "LEAD":
     case "APPLIED":
     case "ARCHIVED":
       return status;
     case "RECEIVED":
-      return "APPLIED";
+    case "LEAD":
     case "OTHER":
     default:
-      return "LEAD";
+      // In APPLICATION_STATUS context, receipts/confirmations belong strictly in APPLIED.
+      return "APPLIED";
   }
 }
 
