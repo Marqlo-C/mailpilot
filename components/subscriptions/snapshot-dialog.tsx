@@ -10,6 +10,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { CompanyLogo } from "@/components/ui/logo-frame";
 import { DialogIdentityLogoStack } from "@/components/ui/composites/dialog-identity-header";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
+import { NESTED_CARD_TYPOGRAPHY } from "@/components/ui/tactile/nested-settings-card";
 import { faviconUrlForDomain, getCleanDomain } from "@/lib/utils/domain";
 import {
   inclusiveDaySpan,
@@ -18,16 +19,16 @@ import {
 } from "@/lib/subscriptions/digest-constants";
 import { cn } from "@/lib/utils";
 
-export type BriefingSender = {
+export type SnapshotSender = {
   id: string;
   senderName: string | null;
   senderEmail: string;
 };
 
-type BriefingDialogProps = {
+type SnapshotDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  senders: BriefingSender[];
+  senders: SnapshotSender[];
   pending: boolean;
   onGenerate: (range: { startDate: string; endDate: string }) => void;
 };
@@ -75,18 +76,19 @@ function formatRangeLabel(from: Date, to: Date): string {
 const DAY_PICKER_MAX_NIGHTS = MAX_BRIEFING_DAYS - 1;
 
 const PRESETS: { label: string; days: number }[] = [
+  { label: "30 days", days: 30 },
   { label: "7 days", days: 7 },
   { label: "3 days", days: 3 },
   { label: "Today", days: 1 },
 ];
 
-export function BriefingDialog({
+export function SnapshotDialog({
   open,
   onOpenChange,
   senders,
   pending,
   onGenerate,
-}: BriefingDialogProps) {
+}: SnapshotDialogProps) {
   const today = useMemo(() => startOfLocalDay(), []);
   const [range, setRange] = useState<DateRange | undefined>(defaultRange);
   const [month, setMonth] = useState<Date>(today);
@@ -233,6 +235,20 @@ export function BriefingDialog({
           </div>
         ) : null}
 
+        <p
+          className={cn(
+            NESTED_CARD_TYPOGRAPHY[1].subtitle,
+            // Nudge in from the calendar card’s rounded-2xl corners below.
+            "px-2"
+          )}
+        >
+          A snapshot gathers emails from{" "}
+          {senders.length === 1 ? "this sender" : "these senders"} into one
+          easy-to-read summary and sends it to your inbox. After it arrives,
+          we&apos;ll move the originals to Trash in Gmail so your inbox stays
+          tidy.
+        </p>
+
         <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 px-3.5 py-2.5">
             <div className="flex items-center gap-2 text-xs font-medium text-foreground/80">
@@ -265,7 +281,7 @@ export function BriefingDialog({
             </div>
           </div>
 
-          <div className="flex justify-center px-2 py-3 sm:px-3">
+          <div className="px-3 py-4 sm:px-5">
             <Calendar
               mode="range"
               selected={range}
@@ -273,7 +289,8 @@ export function BriefingDialog({
               month={month}
               onMonthChange={setMonth}
               disabled={{ after: today }}
-              numberOfMonths={1}
+              numberOfMonths={2}
+              showOutsideDays={false}
               max={DAY_PICKER_MAX_NIGHTS}
               resetOnSelect
             />
@@ -300,11 +317,6 @@ export function BriefingDialog({
             )}
           </div>
         </div>
-
-        <p className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-          Original emails in this range will be moved to Gmail Trash after the
-          snapshot is delivered.
-        </p>
       </div>
     </ActionDialogShell>
   );

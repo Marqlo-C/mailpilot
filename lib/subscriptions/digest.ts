@@ -10,6 +10,7 @@ import { extractMessageBody, sanitizeEmailBody } from "@/lib/llm";
 import { prisma } from "@/lib/core/prisma";
 import { MAX_BRIEFING_DAYS } from "@/lib/subscriptions/digest-constants";
 import { subscriptionClutterScore } from "@/lib/subscriptions/filters";
+import { dateFromGmailInternalDate } from "@/lib/subscriptions/last-received";
 
 const BRAND_FONT_FILE =
   "fonts/DupletRounded-Bold-BF6606345a47d2e.woff2";
@@ -680,6 +681,30 @@ async function estimateCount(
   return listed.data.resultSizeEstimate ?? 0;
 }
 
+/**
+ * Newest remaining (non-trash/spam) message from this sender.
+ * Used after a snapshot trashes a range so lastReceivedAt can move backward.
+ */
+async function newestRemainingReceivedAt(
+  gmail: gmail_v1.Gmail,
+  senderEmail: string
+): Promise<Date | null> {
+  const listed = await gmail.users.messages.list({
+    userId: "me",
+    q: `${gmailFromClause(senderEmail)} -in:trash -in:spam`,
+    maxResults: 1,
+  });
+  const id = listed.data.messages?.[0]?.id;
+  if (!id) return null;
+  const message = await gmail.users.messages.get({
+    userId: "me",
+    id,
+    format: "metadata",
+    metadataHeaders: [],
+  });
+  return dateFromGmailInternalDate(message.data.internalDate);
+}
+
 async function fetchDigestCard(
   gmail: gmail_v1.Gmail,
   id: string
@@ -785,15 +810,29 @@ async function syncSenderStatsAfterTrash(
       // Keep localRemaining.
     }
 
+    // Snapshot may have trashed the message that set lastReceivedAt — recompute
+    // from whatever is still in the mailbox (or clear if none remain).
+    let lastReceivedAt: Date | null = sub.lastReceivedAt;
+    if (remainingTotal === 0) {
+      lastReceivedAt = null;
+    } else {
+      try {
+        lastReceivedAt = await newestRemainingReceivedAt(gmail, email);
+      } catch {
+        // Keep prior stamp if Gmail lookup fails.
+      }
+    }
+
     const clutterScore = subscriptionClutterScore({
       emailCount: remainingTotal,
-      lastReceivedAt: sub.lastReceivedAt,
+      lastReceivedAt,
     });
 
     await prisma.subscription.update({
       where: { id: sub.id },
       data: {
         emailCount: remainingTotal,
+        lastReceivedAt,
         clutterScore,
       },
     });

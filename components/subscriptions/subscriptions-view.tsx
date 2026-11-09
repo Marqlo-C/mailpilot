@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
   useTransition,
-  type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
 import type { Subscription, SubscriptionHistory } from "@prisma/client";
@@ -27,7 +26,7 @@ import { toast } from "sonner";
 import { SyncControls } from "@/components/opportunities/sync-controls";
 import { SnapshotIcon } from "@/components/icons/snapshot-icon";
 import { WavyDashedLine } from "@/components/ui/tactile/wavy-dashed-line";
-import { BriefingDialog } from "@/components/subscriptions/briefing-dialog";
+import { SnapshotDialog } from "@/components/subscriptions/snapshot-dialog";
 import { EmailPreviewDialog } from "@/components/subscriptions/email-preview-dialog";
 import {
   formatPreviewDisplayDate,
@@ -69,7 +68,10 @@ import {
   TabCountBadge,
   useTabRailClasses,
 } from "@/components/ui/tactile/segmented-tabs";
-import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/styles/score-percent";
+import {
+  META_CHIP_ICON_CLASSNAME,
+  MetaChip,
+} from "@/components/ui/tactile/meta-chip";
 import { selectCheckboxClassName } from "@/components/ui/styles/select-checkbox";
 import { useLastClickedId } from "@/hooks/use-last-clicked-id";
 import {
@@ -87,13 +89,7 @@ import {
   SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME,
 } from "@/components/ui/styles/secondary-action-btn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  LabelTooltip,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { LabelTooltip } from "@/components/ui/tooltip";
 import { useCardListGestures } from "@/hooks/use-card-list-gestures";
 import { usePagination } from "@/hooks/use-pagination";
 import {
@@ -113,6 +109,7 @@ import { constrainBriefingPreviewHtml } from "@/lib/subscriptions/digest-constan
 import {
   clutterScoreTier,
   compareSubscriptionsBySort,
+  effectiveSubscriptionClutterScore,
   inferSubscriptionCategory,
   matchesSubscriptionSearch,
   subscriptionClutterScore,
@@ -408,10 +405,7 @@ export function SubscriptionsView({
 
   const filteredActive = useMemo(() => {
     const filtered = active.filter((sub) => {
-      const clutter =
-        typeof sub.clutterScore === "number" && sub.clutterScore > 0
-          ? sub.clutterScore
-          : subscriptionClutterScore(sub);
+      const clutter = effectiveSubscriptionClutterScore(sub);
       if (clutter < clutterThreshold) return false;
       if (!matchesSubscriptionSearch(sub, searchQuery)) return false;
       if (
@@ -1326,7 +1320,7 @@ export function SubscriptionsView({
         </BulkActionsWithClassifying>
       ) : null}
 
-      <BriefingDialog
+      <SnapshotDialog
         open={briefingOpen}
         onOpenChange={setBriefingOpen}
         senders={briefingTargets}
@@ -1349,7 +1343,7 @@ export function SubscriptionsView({
           if (!open) setViewingBriefing(null);
         }}
         pending={deletePending}
-        size="xl"
+        size="lg"
         identity={(() => {
           if (!viewingBriefing) {
             return {
@@ -1456,7 +1450,7 @@ export function SubscriptionsView({
           if (!open) closeUnsubscribeDialog();
         }}
         pending={pending}
-        size="md"
+        size="sm"
         identity={{
           title: "Unsubscribing from:",
           primary: batchConfirmOpen
@@ -1605,121 +1599,6 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   );
 }
 
-function IconStatBadge({
-  icon,
-  value,
-  valueClassName,
-  className,
-  width,
-  truncateValue = false,
-  title,
-  selected = false,
-  /** Job-card style: one gray fill + tiny `|` instead of a hard icon rail. */
-  pipeDivider = false,
-}: {
-  icon?: ReactNode;
-  value: string;
-  valueClassName?: string;
-  className?: string;
-  /** Fixed width so the same badge type aligns across rows. */
-  width?: string;
-  /** Ellipsis overflow when the value exceeds the pill width (Last received). */
-  truncateValue?: boolean;
-  title?: string;
-  /** Let row/card select fill show through opaque pill surfaces. */
-  selected?: boolean;
-  pipeDivider?: boolean;
-}) {
-  const badge = pipeDivider ? (
-    <div
-      className={cn(
-        // Same shell as the split-rail pills (h-6 / rounded-md / w-5 rail) —
-        // `|` is absolutely centered on the old border so width is unchanged.
-        "inline-flex h-6 shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/40 text-muted-foreground",
-        selected ? "bg-muted/50" : "bg-muted/60",
-        width ? null : "min-w-[44px]",
-        className
-      )}
-      style={width ? { width } : undefined}
-    >
-      {icon ? (
-        <div className="flex w-5 shrink-0 items-center justify-center text-muted-foreground/70">
-          {icon}
-        </div>
-      ) : null}
-      <div
-        className={cn(
-          "relative flex min-w-0 flex-1 items-center justify-center px-1",
-          SCORE_PERCENT_CLASSNAME,
-          "text-[11px] tracking-normal text-muted-foreground",
-          valueClassName,
-          selected && "text-muted-foreground"
-        )}
-      >
-        {icon ? (
-          <span
-            className="pointer-events-none absolute top-1/2 left-0 z-10 -translate-y-1/2 text-[10px] font-normal leading-none text-border/80"
-            aria-hidden
-          >
-            |
-          </span>
-        ) : null}
-        <span
-          className={cn(truncateValue && "w-full min-w-0 truncate text-center")}
-        >
-          {value}
-        </span>
-      </div>
-    </div>
-  ) : (
-    <div
-      className={cn(
-        "inline-flex h-6 shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/40",
-        width ? null : "min-w-[44px]",
-        className
-      )}
-      style={width ? { width } : undefined}
-    >
-      {icon ? (
-        <div
-          className={cn(
-            "flex w-5 shrink-0 items-center justify-center border-r border-border/40 text-muted-foreground/75",
-            selected ? "bg-muted/50" : "bg-muted/40"
-          )}
-        >
-          {icon}
-        </div>
-      ) : null}
-      <div
-        className={cn(
-          "flex min-w-0 flex-1 items-center justify-center px-1",
-          SCORE_PERCENT_CLASSNAME,
-          "text-[11px]",
-          valueClassName ?? "bg-card text-foreground",
-          selected && SELECT_MUTED_PILL_VALUE_CLASSNAME
-        )}
-      >
-        <span
-          className={cn(truncateValue && "w-full min-w-0 truncate text-center")}
-        >
-          {value}
-        </span>
-      </div>
-    </div>
-  );
-
-  if (!title) return badge;
-
-  return (
-    <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>{badge}</TooltipTrigger>
-        <TooltipContent side="top">{title}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-}
-
 function formatLastReceivedValue(
   date: Date | string | null | undefined
 ): string {
@@ -1763,7 +1642,7 @@ function ClutterStatBadge({
 }) {
   const tier = clutterScoreTier(score);
   return (
-    <IconStatBadge
+    <MetaChip
       title="Noise level"
       value={`${score}%`}
       valueClassName={
@@ -1787,14 +1666,15 @@ function EmailsStatBadge({
   selected?: boolean;
 }) {
   return (
-    <IconStatBadge
+    <MetaChip
       title="Email volume"
-      icon={<Mail className="size-3" aria-hidden />}
+      icon={<Mail className={META_CHIP_ICON_CLASSNAME.sm} aria-hidden />}
+      iconSize="sm"
       value={String(count)}
       valueClassName="font-medium"
       width={width}
       selected={selected}
-      pipeDivider
+      divider="pipe"
     />
   );
 }
@@ -1810,15 +1690,16 @@ function LastReceivedStatBadge({
 }) {
   const value = formatLastReceivedValue(date);
   return (
-    <IconStatBadge
+    <MetaChip
       title="Last received"
-      icon={<History className="size-3" aria-hidden />}
+      icon={<History className={META_CHIP_ICON_CLASSNAME.sm} aria-hidden />}
+      iconSize="sm"
       value={value}
       valueClassName="font-normal"
       width={width ?? "6.25ch"}
       truncateValue
       selected={selected}
-      pipeDivider
+      divider="pipe"
     />
   );
 }
@@ -1962,14 +1843,14 @@ function SubscriptionRowActions({
             }
           />
         </DropdownMenuTrigger>
-        <AppMenuContent align="end" className="w-56">
+        <AppMenuContent align="end">
           <AppMenuItem
             className="cursor-pointer gap-2"
             disabled={disabled}
             onClick={() => onViewLastEmail(sub)}
           >
             <Mail className="size-4 text-muted-foreground" />
-            <span>View last received email</span>
+            <span>Inbox Message</span>
           </AppMenuItem>
         </AppMenuContent>
       </DropdownMenu>
@@ -2148,10 +2029,7 @@ function SubscriptionDesktopRow({
 }
 
 function clutterForSub(sub: Subscription): number {
-  if (typeof sub.clutterScore === "number" && sub.clutterScore > 0) {
-    return sub.clutterScore;
-  }
-  return subscriptionClutterScore(sub);
+  return effectiveSubscriptionClutterScore(sub);
 }
 
 function ActiveDesktopTable({

@@ -253,18 +253,28 @@ html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button[aria-pressed="true"]
 }
 
 /*
- * Draft review modal widths — always capped to the main column
- * (sidebar → right edge). !important beats ActionDialogShell size tokens.
+ * ActionDialogShell md / lg / xl — always capped to the main column
+ * (sidebar → right edge). !important beats DialogContent max-w defaults.
  *
- * Email-only: a notch over the old max-w-2xl; grows as the sidebar compresses.
- * With resume: nearly fill the column in either sidebar state.
+ * md: midway between sm (~32rem) and lg (~61.6rem).
+ * lg: email-draft / wide preview (grows as the sidebar compresses).
+ * xl: resume-draft (fills the main column).
+ * Legacy `.mp-draft-modal-width*` aliases kept for any stray className use.
  */
-.mp-draft-modal-width {
+.mp-dialog-size-md {
   max-width: min(
-    calc(44rem + (256px - min(var(--app-sidebar-width, 0px), 256px)) * 0.45),
+    46.8rem,
     calc(100vw - var(--app-sidebar-width, 0px) - 2rem)
   ) !important;
 }
+.mp-dialog-size-lg,
+.mp-draft-modal-width {
+  max-width: min(
+    calc(61.6rem + (256px - min(var(--app-sidebar-width, 0px), 256px)) * 0.45),
+    calc(100vw - var(--app-sidebar-width, 0px) - 2rem)
+  ) !important;
+}
+.mp-dialog-size-xl,
 .mp-draft-modal-width-resume {
   width: calc(100vw - var(--app-sidebar-width, 0px) - 2rem) !important;
   max-width: calc(100vw - var(--app-sidebar-width, 0px) - 2rem) !important;

@@ -50,6 +50,10 @@ import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shel
 import { RowMenuTrigger } from "@/components/ui/composites/row-menu-trigger";
 import { CompanyLogo } from "@/components/ui/logo-frame";
 import { ReceivedMeta } from "@/components/ui/composites/received-meta";
+import {
+  META_CHIP_ICON_CLASSNAME,
+  MetaChip,
+} from "@/components/ui/tactile/meta-chip";
 import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/styles/score-percent";
 import {
   PRIMARY_ACTION_BTN_CLASSNAME,
@@ -428,33 +432,35 @@ export function OpportunityCard({
         )}
       >
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <LabelTooltip
-            label={`Location: ${locationRaw || "Not specified"}`}
-            side="top"
-          >
-            <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/40 bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-foreground/80">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-              <span className="max-w-[200px] truncate">{locationLabel}</span>
-            </span>
-          </LabelTooltip>
-          <LabelTooltip
-            label={`Salary: ${salaryRaw || "Not specified"}`}
-            side="top"
-          >
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium",
-                isSelected
-                  ? "border-border/40 bg-muted/50 text-muted-foreground"
-                  : salaryRaw && !/^\$?\s*tbd\b/i.test(salaryRaw)
-                    ? "border-emerald-200/60 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-400"
-                    : "border-border/30 bg-muted/40 text-muted-foreground"
-              )}
-            >
-              <Banknote className="h-3.5 w-3.5 shrink-0 opacity-80" />
-              <span>{salaryLabel}</span>
-            </span>
-          </LabelTooltip>
+          <MetaChip
+            title={`Location: ${locationRaw || "Not specified"}`}
+            icon={
+              <MapPin className={META_CHIP_ICON_CLASSNAME.md} aria-hidden />
+            }
+            iconSize="md"
+            value={locationLabel}
+            divider="pipe"
+            truncateValue
+            selected={isSelected}
+            className="max-w-[220px]"
+            valueClassName="font-medium text-foreground/80"
+          />
+          <MetaChip
+            title={`Salary: ${salaryRaw || "Not specified"}`}
+            icon={
+              <Banknote className={META_CHIP_ICON_CLASSNAME.md} aria-hidden />
+            }
+            iconSize="md"
+            value={salaryLabel}
+            divider="pipe"
+            selected={isSelected}
+            tone={
+              salaryRaw && !/^\$?\s*tbd\b/i.test(salaryRaw)
+                ? "success"
+                : "default"
+            }
+            valueClassName="font-medium"
+          />
         </div>
 
         <div className="flex shrink-0 items-center gap-3 whitespace-nowrap text-muted-foreground">
@@ -714,7 +720,7 @@ export function OpportunityCard({
                     onClick={onViewOriginalEmail}
                   >
                     <Mail className="mr-2 h-4 w-4" />
-                    Original Email
+                    Inbox Message
                   </AppMenuItem>
                 ) : null}
                 {(variant === "applied" || variant === "action") &&
@@ -819,7 +825,7 @@ export function OpportunityCard({
         <ActionDialogShell
           open={descriptionOpen}
           onOpenChange={setDescriptionOpen}
-          size="lg"
+          size="sm"
           showCancel={false}
           identity={{
             title: "Viewing job description for:",

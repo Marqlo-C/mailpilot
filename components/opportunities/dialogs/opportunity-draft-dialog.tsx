@@ -47,10 +47,6 @@ import { useSidebarCollapse } from "@/components/layout/sidebar-collapse-provide
 import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
 import { ResumeDraftSheet } from "@/components/opportunities/drawer/resume-draft-sheet";
 import { Button } from "@/components/ui/button";
-import {
-  APP_DRAFT_MODAL_WIDTH_CLASS,
-  APP_DRAFT_MODAL_WIDTH_WITH_RESUME_CLASS,
-} from "@/lib/app-content-center";
 import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 import { getDevOllamaModelOverride } from "@/components/settings/ai-models";
 import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
@@ -761,13 +757,8 @@ export function OpportunityDraftDialog({
       open={open}
       onOpenChange={handleDialogOpenChange}
       pending={pending}
-      size="xl"
-      contentClassName={cn(
-        "h-[88vh] max-h-[900px] w-full transition-all duration-300 ease-in-out",
-        attachResume
-          ? APP_DRAFT_MODAL_WIDTH_WITH_RESUME_CLASS
-          : APP_DRAFT_MODAL_WIDTH_CLASS
-      )}
+      size={attachResume ? "xl" : "lg"}
+      contentClassName="h-[88vh] max-h-[900px] w-full transition-all duration-300 ease-in-out"
       bodyClassName="flex flex-col overflow-hidden p-0"
       identity={{
         title: "Responding to:",

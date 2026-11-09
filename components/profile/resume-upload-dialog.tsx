@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useTransition, type ReactElement } from "react";
+import {
+  cloneElement,
+  useState,
+  useTransition,
+  type MouseEvent,
+  type ReactElement,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   CloudUpload,
@@ -30,15 +36,9 @@ import type { MasterProfileInput } from "@/lib/validations/profile";
 import { flattenSkillItems } from "@/lib/profile/skill-groups";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
@@ -59,7 +59,9 @@ type ResumeUploadDialogProps = {
   /** Marks the trigger so a saved dark plate can paint before hydration. */
   railAction?: boolean;
   /** Replaces the default button. Must be a single element that can hold a ref. */
-  trigger?: ReactElement;
+  trigger?: ReactElement<{
+    onClick?: (event: MouseEvent<HTMLElement>) => void;
+  }>;
   /** When true (or in development), displays developer test-run controls */
   isDev?: boolean;
 };
@@ -240,35 +242,104 @@ export function ResumeUploadDialog({
     });
   }
 
+  const canParse =
+    Boolean(selectedFile) || Boolean(useCachedResume && cachedResume);
+
+  const triggerNode = trigger ? (
+    cloneElement(trigger, {
+      onClick: (event: MouseEvent<HTMLElement>) => {
+        trigger.props.onClick?.(event);
+        if (!event.defaultPrevented) handleOpenChange(true);
+      },
+    })
+  ) : (
+    <Button
+      type="button"
+      variant={triggerVariant}
+      size="sm"
+      className={cn(
+        "gap-2 [&_svg]:size-3.5 [&_svg]:shrink-0",
+        triggerClassName
+      )}
+      data-mp-rail-action={railAction ? "" : undefined}
+      onClick={() => handleOpenChange(true)}
+    >
+      {editMode ? null : <CloudUpload className="size-3.5 shrink-0" />}
+      {triggerLabel}
+    </Button>
+  );
+
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        {trigger ?? (
-          <Button
-            type="button"
-            variant={triggerVariant}
-            size="sm"
-            className={cn("gap-2 [&_svg]:size-3.5 [&_svg]:shrink-0", triggerClassName)}
-            data-mp-rail-action={railAction ? "" : undefined}
-          >
-            {editMode ? null : <CloudUpload className="size-3.5 shrink-0" />}
-            {triggerLabel}
-          </Button>
-        )}
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {editMode ? "Edit Master Profile" : "Master Resume Profile"}
-          </DialogTitle>
-          <DialogDescription>
+    <>
+      {triggerNode}
+      <ActionDialogShell
+        open={open}
+        onOpenChange={handleOpenChange}
+        pending={pending}
+        size="md"
+        identity={{
+          title: editMode
+            ? "Editing master profile:"
+            : "Importing resume for:",
+          primary: "Master Profile",
+          emphasize: "primary",
+          logo: (
+            <LogoFrameIcon
+              icon={editMode ? FileText : CloudUpload}
+              size="lg"
+            />
+          ),
+        }}
+        primaryAction={
+          editMode ? (
+            <button
+              type="button"
+              disabled={!draft || pending}
+              onClick={onSave}
+              className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+            >
+              {pending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : null}
+              <span>Save Master Profile</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!canParse || pending}
+              onClick={handleSubmit}
+              className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+            >
+              <span>
+                {pending
+                  ? "Processing…"
+                  : forceReinfer
+                    ? "Test Run Ingestion"
+                    : "Parse & Ingest Profile"}
+              </span>
+            </button>
+          )
+        }
+        secondaryAction={
+          editMode && canParse ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9"
+              disabled={pending}
+              onClick={handleSubmit}
+            >
+              {forceReinfer ? "Test Run Ingestion" : "Parse & Ingest"}
+            </Button>
+          ) : undefined
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-xs leading-normal text-muted-foreground">
             {editMode
               ? "Review the structured profile for accuracy, then save or re-upload a source file."
               : "Stage a resume and optional GitHub handle, then ingest in the background — you can keep navigating."}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
+          </p>
           {!selectedFile && !useCachedResume ? (
             <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border px-6 py-10 text-center transition hover:bg-muted/50">
               <FileText className="mb-1 h-8 w-8 text-muted-foreground" />
@@ -462,33 +533,9 @@ export function ResumeUploadDialog({
             </div>
           ) : null}
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleOpenChange(false)}
-              disabled={pending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={
-                (!selectedFile && !(useCachedResume && cachedResume)) ||
-                pending
-              }
-              onClick={handleSubmit}
-            >
-              {pending
-                ? "Processing…"
-                : forceReinfer
-                  ? "Test Run Ingestion"
-                  : "Parse & Ingest Profile"}
-            </Button>
-          </div>
         </div>
 
-        {draft && (
+        {draft ? (
           <Tabs defaultValue="contact" className="mt-2">
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="contact">Contact & Skills</TabsTrigger>
@@ -505,7 +552,7 @@ export function ResumeUploadDialog({
                 {[draft.phone, draft.location].filter(Boolean).join(" · ") ||
                   "—"}
               </p>
-              {draft.summary && <p>{draft.summary}</p>}
+              {draft.summary ? <p>{draft.summary}</p> : null}
               <div className="flex flex-wrap gap-1.5">
                 {flattenSkillItems(draft.skills).map((skill) => (
                   <Badge key={skill} variant="secondary">
@@ -518,7 +565,11 @@ export function ResumeUploadDialog({
               {draft.experiences.map((exp) => (
                 <div key={`${exp.company}-${exp.role}`} className="space-y-2">
                   <p className="font-medium">
-                    {formatExperienceHeading(exp.role, exp.company, exp.location)}
+                    {formatExperienceHeading(
+                      exp.role,
+                      exp.company,
+                      exp.location
+                    )}
                   </p>
                   <ul className="space-y-1 text-sm text-muted-foreground">
                     {exp.bullets.map((b) => (
@@ -549,11 +600,11 @@ export function ResumeUploadDialog({
                     })
                   )
                   .map((p) => (
-                  <div key={p.name}>
-                    <p className="font-medium">{p.name}</p>
-                    <p className="text-muted-foreground">{p.description}</p>
-                  </div>
-                ))
+                    <div key={p.name}>
+                      <p className="font-medium">{p.name}</p>
+                      <p className="text-muted-foreground">{p.description}</p>
+                    </div>
+                  ))
               )}
             </TabsContent>
             <TabsContent value="education" className="space-y-3 text-sm">
@@ -569,7 +620,9 @@ export function ResumeUploadDialog({
                     ) : null}
                     <p className="text-muted-foreground">
                       {formatSchoolName(ed.institution, ed.subSchool)}
-                      {formatEducationDates(ed) ? ` · ${formatEducationDates(ed)}` : ""}
+                      {formatEducationDates(ed)
+                        ? ` · ${formatEducationDates(ed)}`
+                        : ""}
                     </p>
                     {educationProgressLabel(ed) ? (
                       <Badge variant="outline" className="mt-1 font-normal">
@@ -581,17 +634,8 @@ export function ResumeUploadDialog({
               )}
             </TabsContent>
           </Tabs>
-        )}
-
-        {editMode && (
-          <DialogFooter>
-            <Button type="button" disabled={!draft || pending} onClick={onSave}>
-              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Save Master Profile
-            </Button>
-          </DialogFooter>
-        )}
-      </DialogContent>
-    </Dialog>
+        ) : null}
+      </ActionDialogShell>
+    </>
   );
 }

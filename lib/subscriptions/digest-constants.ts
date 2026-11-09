@@ -1,6 +1,6 @@
 /** Client-safe briefing/digest constants (no Node / googleapis imports). */
 
-export const MAX_BRIEFING_DAYS = 10;
+export const MAX_BRIEFING_DAYS = 30;
 
 export type DateRangeValue = {
   from: Date | undefined;

@@ -13,10 +13,18 @@ import {
 } from "@/components/ui/composites/dialog-identity-header";
 import { cn } from "@/lib/utils";
 
+/**
+ * Dialog width scale (main-column aware for md/lg/xl — see `app/globals.css`):
+ * - sm  ≈ 32rem (confirms / compact flows)
+ * - md  ≈ midway between sm and lg (import resume, etc.)
+ * - lg  = email-draft width (grows with sidebar collapse)
+ * - xl  = resume-draft width (fills the main column)
+ */
 const SIZE_CLASS = {
-  md: "sm:max-w-md",
-  lg: "sm:max-w-lg",
-  xl: "sm:max-w-3xl",
+  sm: "sm:max-w-lg",
+  md: "mp-dialog-size-md",
+  lg: "mp-dialog-size-lg",
+  xl: "mp-dialog-size-xl",
 } as const;
 
 export type ActionDialogShellProps = {
@@ -59,7 +67,7 @@ export function ActionDialogShell({
   open,
   onOpenChange,
   pending = false,
-  size = "md",
+  size = "sm",
   identity,
   children,
   showCancel = true,

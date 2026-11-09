@@ -18,13 +18,11 @@ export const APP_CONTENT_COLUMN_INNER =
   "calc(100vw - var(--app-sidebar-width, 0px) - 2rem)";
 
 /**
- * Draft modal width classes (see `app/globals.css`).
- * Email-only stays compact (grows a bit when the sidebar collapses);
- * resume mode nearly fills {@link APP_CONTENT_COLUMN_INNER}.
+ * @deprecated Prefer ActionDialogShell `size="lg"` / `size="xl"`.
+ * Kept as aliases of `.mp-dialog-size-lg` / `.mp-dialog-size-xl`.
  */
-export const APP_DRAFT_MODAL_WIDTH_CLASS = "mp-draft-modal-width";
-export const APP_DRAFT_MODAL_WIDTH_WITH_RESUME_CLASS =
-  "mp-draft-modal-width-resume";
+export const APP_DRAFT_MODAL_WIDTH_CLASS = "mp-dialog-size-lg";
+export const APP_DRAFT_MODAL_WIDTH_WITH_RESUME_CLASS = "mp-dialog-size-xl";
 
 /**
  * Global class (see `app/globals.css`) that sets `left` to

@@ -20,15 +20,9 @@ import { ExportMasterProfileButton } from "@/components/profile/export-master-pr
 import { AppMenuSelect } from "@/components/ui/app-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
+import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -205,31 +199,102 @@ export function ManualProfileEditor({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5 px-3 text-xs font-medium [&_svg]:!size-3.5"
-        >
-          <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
-          <span>{triggerLabel}</span>
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="flex max-h-[92vh] max-w-3xl flex-col overflow-hidden p-0">
-        <div className="border-b border-border px-6 py-4">
-          <DialogHeader>
-            <DialogTitle>Edit Master Profile</DialogTitle>
-            <DialogDescription>
-              Manually adjust contact info, skills, work history, projects,
-              education, certifications, honors, and interests without
-              re-uploading a resume.
-            </DialogDescription>
-          </DialogHeader>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 gap-1.5 px-3 text-xs font-medium [&_svg]:!size-3.5"
+        onClick={() => handleOpenChange(true)}
+      >
+        <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
+        <span>{triggerLabel}</span>
+      </Button>
+      <ActionDialogShell
+        open={open}
+        onOpenChange={handleOpenChange}
+        pending={pending}
+        size="lg"
+        identity={{
+          title: "Editing master profile:",
+          primary: form.fullName.trim() || "Master Profile",
+          emphasize: "primary",
+          logo: <LogoFrameIcon icon={Pencil} size="lg" />,
+        }}
+        showCancel
+        cancelLabel="Cancel"
+        onCancel={
+          confirmReset
+            ? () => setConfirmReset(false)
+            : undefined
+        }
+        secondaryAction={
+          confirmReset ? undefined : (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 text-destructive"
+                disabled={pending || !profile}
+                onClick={() => setConfirmReset(true)}
+              >
+                Clear profile
+              </Button>
+              {profile ? (
+                <ExportMasterProfileButton
+                  accountId={accountId}
+                  variant="outline"
+                />
+              ) : null}
+            </>
+          )
+        }
+        primaryAction={
+          confirmReset ? (
+            <Button
+              type="button"
+              variant="destructive"
+              className="h-9"
+              disabled={pending}
+              onClick={clearProfile}
+            >
+              {pending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : null}
+              Clear profile
+            </Button>
+          ) : (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={submit}
+              className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+            >
+              {pending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : null}
+              <span>Save profile</span>
+            </button>
+          )
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-xs leading-normal text-muted-foreground">
+            Manually adjust contact info, skills, work history, projects,
+            education, certifications, honors, and interests without
+            re-uploading a resume.
+          </p>
+          {confirmReset ? (
+            <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              This will reset your profile. A backup revision is saved so you
+              can restore your data from History at any time.
+            </p>
+          ) : null}
+          {error ? (
+            <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
           <Tabs defaultValue="personal" className="w-full">
             <TabsList className="grid w-full grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-5">
               <TabsTrigger value="personal">Personal & Contact</TabsTrigger>
@@ -1093,64 +1158,8 @@ export function ManualProfileEditor({
             </TabsContent>
           </Tabs>
         </div>
-
-        <DialogFooter className="border-t border-border px-6 py-4 sm:justify-between">
-          {confirmReset ? (
-            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-left text-sm text-muted-foreground">
-                This will reset your profile. A backup revision is saved so you
-                can restore your data from History at any time.
-              </p>
-              <div className="flex shrink-0 justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() => setConfirmReset(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={pending}
-                  onClick={clearProfile}
-                >
-                  {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Clear profile
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <Button
-                type="button"
-                variant="ghost"
-                className="text-destructive"
-                disabled={pending || !profile}
-                onClick={() => setConfirmReset(true)}
-              >
-                Clear profile
-              </Button>
-              <div className="flex items-center gap-3">
-                {profile ? (
-                  <ExportMasterProfileButton accountId={accountId} variant="outline" />
-                ) : null}
-                {error ? (
-                  <p className="max-w-sm text-left text-sm text-destructive">
-                    {error}
-                  </p>
-                ) : null}
-                <Button type="button" disabled={pending} onClick={submit}>
-                  {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Save profile
-                </Button>
-              </div>
-            </>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </ActionDialogShell>
+    </>
   );
 }
 
