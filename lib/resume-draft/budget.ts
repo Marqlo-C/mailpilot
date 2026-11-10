@@ -1,7 +1,7 @@
 import type {
   ElasticBudgetParams,
   ElasticBudgetResult,
-} from "./schema.ssot";
+} from "@/lib/validations/resume-draft.schema";
 import {
   estimateFixedSectionsHeight,
   calculateAvailableContentPoints,

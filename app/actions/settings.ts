@@ -32,7 +32,7 @@ import {
 import {
   updateCustomLlmKeyInputSchema,
   type UpdateCustomLlmKeyInput,
-} from "@/lib/validations/settings";
+} from "@/lib/validations/settings.schema";
 
 export type { ActionResult, ApiKeyStatus, OllamaStatus, UpdateCustomLlmKeyInput };
 

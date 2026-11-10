@@ -4,7 +4,7 @@ import type {
   CandidatePersona,
   PersonaBreakdown,
   PersonaFactLens,
-} from "./schema.ssot";
+} from "@/lib/validations/persona.schema";
 import {
   buildTimelineContext,
   composeToneGuidance,

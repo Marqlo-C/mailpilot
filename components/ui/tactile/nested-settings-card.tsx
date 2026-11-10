@@ -9,7 +9,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { SETTINGS_SECTION_ICON_CLASSNAME } from "@/lib/navigation/settings-chrome";
+import { SETTINGS_SECTION_ICON_CLASSNAME } from "@/lib/utils/navigation/settings-chrome";
 import { ENTRY_CHIP_CLASSNAME } from "@/components/ui/tactile/entry-chip";
 import { formatStatusPillTitle } from "@/lib/utils/format";
 import { SLIDABLE_BADGE_ROW_LEADING_OFFSET_PX } from "./slidable-badge-row";

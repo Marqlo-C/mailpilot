@@ -1,9 +1,9 @@
 import type {
   MasterProfileInput,
   WorkExperienceInput,
-} from "@/lib/validations/profile";
-import type { CandidatePersona } from "@/lib/persona/schema.ssot";
-import type { AccountRules } from "@/lib/validations/rules";
+} from "@/lib/validations/profile.schema";
+import type { CandidatePersona } from "@/lib/validations/persona.schema";
+import type { AccountRules } from "@/lib/validations/rules.schema";
 import {
   CAREER_SWITCHER_SECTION_ORDER,
   DEFAULT_SECTION_ORDER,
@@ -13,7 +13,7 @@ import {
   type ResumeOrderingMode,
   type ResumePageBudget,
   type ResumeSectionKey,
-} from "./schema.ssot";
+} from "@/lib/validations/resume-draft.schema";
 import { normalizeProjectName } from "@/lib/utils/format";
 
 /**

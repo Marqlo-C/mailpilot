@@ -9,8 +9,8 @@ import {
   readEducationStatus,
   type MasterProfileInput,
   type MasterProfileUpdateInput,
-} from "@/lib/validations/profile";
-import { parseAccountRules } from "@/lib/validations/rules";
+} from "@/lib/validations/profile.schema";
+import { parseAccountRules } from "@/lib/validations/rules.schema";
 import { decryptPhoneAtRest } from "@/lib/core/crypto";
 import { revisionRecordedAt } from "@/lib/profile/revision-diff";
 import { normalizeProjectName } from "@/lib/utils/format";

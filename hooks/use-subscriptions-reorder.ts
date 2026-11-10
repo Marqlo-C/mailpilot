@@ -2,7 +2,7 @@
 
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { SubscriptionSortOption } from "@/lib/subscriptions/filters";
-import { mergeFilteredOrderIntoCustom } from "@/lib/dnd/reorder";
+import { mergeFilteredOrderIntoCustom } from "@/lib/utils/dnd/reorder";
 import {
   persistCustomOrder,
   readCustomOrder,

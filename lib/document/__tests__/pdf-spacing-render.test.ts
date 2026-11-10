@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
 import { generateTailoredResumePdf } from "@/lib/document/pdf-generator";
-import type { MasterProfileInput } from "@/lib/validations/profile";
+import type { MasterProfileInput } from "@/lib/validations/profile.schema";
 
 describe("PDF Spacing & Education Layout Verification", () => {
   it("renders sample PDF with standardized 8pt/10pt spacing and right-aligned education dates", async () => {

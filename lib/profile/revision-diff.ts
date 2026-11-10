@@ -1,7 +1,7 @@
 import type {
   MasterProfileInput,
   MasterProfileUpdateInput,
-} from "@/lib/validations/profile";
+} from "@/lib/validations/profile.schema";
 
 export interface ProfileDiffChange {
   section: string;

@@ -5,7 +5,7 @@ import { getActiveAccount } from "@/lib/data";
 import { syncLockLog } from "@/lib/logging";
 import { parseSyncKind } from "@/lib/opportunities/sync/kinds";
 import { prisma } from "@/lib/core/prisma";
-import { parseAccountRules } from "@/lib/validations/rules";
+import { parseAccountRules } from "@/lib/validations/rules.schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

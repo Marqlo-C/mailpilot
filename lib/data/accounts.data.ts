@@ -13,12 +13,12 @@ import {
   persistProfileScopedRules,
 } from "@/lib/profile/persistent-profile";
 import { prisma } from "@/lib/core/prisma";
-import { resolveMatchThreshold } from "@/lib/validations/profile";
+import { resolveMatchThreshold } from "@/lib/validations/profile.schema";
 import {
   accountRulesSchema,
   parseAccountRules,
   type AccountRules,
-} from "@/lib/validations/rules";
+} from "@/lib/validations/rules.schema";
 import { decryptToken } from "@/lib/core/crypto";
 
 export type AccountSummary = Pick<

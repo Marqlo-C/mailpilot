@@ -4,6 +4,6 @@
  * ============================================================================
  */
 
-export * from "./schema.ssot";
+export * from "@/lib/validations/matching.schema";
 export * from "./lens";
 export * from "./evaluator";

@@ -562,3 +562,8 @@ export const masterProfileSchema = masterProfileInputSchema.extend({
 });
 
 export type MasterProfileUpdateInput = z.infer<typeof masterProfileSchema>;
+
+export const profileHistoryQuerySchema = z.object({
+  accountId: z.string().trim().min(1, "accountId is required"),
+});
+export type ProfileHistoryQuery = z.infer<typeof profileHistoryQuerySchema>;

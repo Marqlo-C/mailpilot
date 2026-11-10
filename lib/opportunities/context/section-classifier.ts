@@ -15,7 +15,7 @@ import type {
   JobSectionCategory,
   ParsedJobSection,
   StructuredJobDescription,
-} from "./schema.ssot";
+} from "./context.schema";
 import { htmlToStructuredMarkdown } from "./html-markdown";
 import { US_STATES_AND_TERRITORIES, VALID_STATE_CODES } from "@/lib/utils/location";
 

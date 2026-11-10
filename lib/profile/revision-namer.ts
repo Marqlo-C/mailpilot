@@ -2,7 +2,7 @@ import { describeProfileRevision } from "./revision-diff";
 import type {
   MasterProfileInput,
   MasterProfileUpdateInput,
-} from "@/lib/validations/profile";
+} from "@/lib/validations/profile.schema";
 
 type NamedProfile = MasterProfileInput | MasterProfileUpdateInput;
 

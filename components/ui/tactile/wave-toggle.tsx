@@ -12,7 +12,7 @@ import {
   readWaveTogglePreference,
   WAVE_TOGGLE_CHANGE_EVENT,
   type WaveToggleVariant,
-} from "@/lib/ui/wave-toggle-preference";
+} from "@/lib/utils/ui/wave-toggle-preference";
 
 export type { WaveToggleVariant };
 

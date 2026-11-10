@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { callLLMWithFallback } from "@/lib/llm";
+import { callLLMWithFallback } from "@/lib/ai";
 import { extractCompetencyTokens } from "./distiller";
 import {
   matrixRankSchema,
@@ -7,7 +7,7 @@ import {
   type JobTargetContext,
   type MatrixRankResult,
   type TailorOptions,
-} from "./schema.ssot";
+} from "@/lib/validations/tailor.schema";
 
 /**
  * Lean, career-agnostic system prompt dedicated solely to relevance evaluation.

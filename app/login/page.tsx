@@ -1,7 +1,9 @@
 import { BRANDING } from "@/lib/constants/branding";
-import { GoogleSignInButton } from "./google-sign-in-button";
-import { LoginBackgroundVideo } from "./login-background-video";
-import { LoginTrustFooter } from "./login-trust-footer";
+import {
+  GoogleSignInButton,
+  LoginBackgroundVideo,
+  LoginTrustFooter,
+} from "@/components/features/login";
 
 export default async function LoginPage({
   searchParams,

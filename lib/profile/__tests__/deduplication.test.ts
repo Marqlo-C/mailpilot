@@ -28,7 +28,7 @@ import {
   resolveGranularDate,
 } from "@/lib/utils/date";
 import { consolidateProfiles } from "@/lib/profile/profile-consolidation";
-import { getEmptyMasterProfileData } from "@/lib/validations/profile";
+import { getEmptyMasterProfileData } from "@/lib/validations/profile.schema";
 
 describe("Universal Deduplication & Typology Engine", () => {
   describe("1. 8-Dimension Universal Typology Classifier (100% Career Agnostic)", () => {

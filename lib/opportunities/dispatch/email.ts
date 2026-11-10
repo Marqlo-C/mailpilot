@@ -17,11 +17,11 @@ import type {
   MasterProfileInput,
   ProjectInput,
   WorkExperienceInput,
-} from "@/lib/validations/profile";
+} from "@/lib/validations/profile.schema";
 import {
   DEFAULT_RESUME_PREFERENCES,
   parseAccountRules,
-} from "@/lib/validations/rules";
+} from "@/lib/validations/rules.schema";
 import {
   buildMimeMessage,
   encodeRaw,

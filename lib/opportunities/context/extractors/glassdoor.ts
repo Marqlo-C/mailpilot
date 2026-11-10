@@ -1,4 +1,4 @@
-import type { ScrapedJobPosting } from "../schema.ssot";
+import type { ScrapedJobPosting } from "../context.schema";
 import { parseStructuredJobSections, cleanTitleAndCompany } from "../section-classifier";
 import { isLegitimateJobContent } from "../json-ld-parser";
 import { normalizeSalaryDisplay, extractSalaryFromText } from "@/lib/ai/classifier";

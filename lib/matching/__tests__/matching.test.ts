@@ -8,7 +8,7 @@ import { resolveJobOpportunity } from "@/lib/opportunities/context";
 import {
   getEmptyMasterProfileData,
   type MasterProfileInput,
-} from "@/lib/validations/profile";
+} from "@/lib/validations/profile.schema";
 import type { CandidatePersona } from "@/lib/persona";
 
 describe("Matching Domain", () => {

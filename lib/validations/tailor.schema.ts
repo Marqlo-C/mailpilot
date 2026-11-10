@@ -3,12 +3,14 @@ import type {
   MasterProfileInput,
   ProjectInput,
   WorkExperienceInput,
-} from "@/lib/validations/profile";
-import type { AccountRules } from "@/lib/validations/rules";
-import type { LlmProvider } from "@/lib/llm";
+} from "@/lib/validations/profile.schema";
+import type { AccountRules } from "@/lib/validations/rules.schema";
+import type { LlmProvider } from "@/lib/ai";
 import type { CandidatePersona } from "./persona.schema";
 import type { PersonaDbClient } from "@/lib/persona";
 import type { StrategyRationale } from "./resume-draft.schema";
+
+export type { StrategyRationale };
 
 /**
  * Standardized job target interface passed into the ranking and tailoring engine.

@@ -13,7 +13,7 @@ import {
   RESUME_FONTS,
   RESUME_SPACING,
   RESUME_TYPOGRAPHY,
-} from "@/lib/resume-draft/layout.ssot";
+} from "@/lib/resume-draft/layout.schema";
 import { skillCategoryLabel } from "@/lib/profile/skill-groups";
 
 const SECTION_LABEL: Record<ResumeDraftNode["section"], string | null> = {

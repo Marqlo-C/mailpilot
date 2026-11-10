@@ -1,5 +1,5 @@
-import type { WorkExperienceInput, ProjectInput } from "@/lib/validations/profile";
-import { RESUME_PAGE_GEOMETRY, RESUME_SPACING, RESUME_TYPOGRAPHY } from "./layout.ssot";
+import type { WorkExperienceInput, ProjectInput } from "@/lib/validations/profile.schema";
+import { RESUME_PAGE_GEOMETRY, RESUME_SPACING, RESUME_TYPOGRAPHY } from "./layout.schema";
 import {
   measureBulletHeightPoints,
   measureSummaryHeightPoints,

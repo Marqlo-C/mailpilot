@@ -7,17 +7,17 @@ import {
   parseAccountRules,
   type ScrapingAntUsage,
   type HasDataUsage,
-} from "@/lib/validations/rules";
+} from "@/lib/validations/rules.schema";
 import {
   type CloudLlmProvider,
   PROVIDER_ENDPOINTS,
-} from "@/lib/llm/provider.ssot";
+} from "@/lib/ai/provider.schema";
 import {
   encryptAccountKey,
   maskApiKey,
   maskScrapingAntApiKey,
   maskHasDataApiKey,
-} from "@/lib/llm/vault";
+} from "@/lib/ai/vault";
 import { encryptToken } from "@/lib/core/crypto";
 import {
   fetchScrapingAntUsageFromApi,
@@ -30,7 +30,7 @@ import {
 import {
   updateCustomLlmKeyInputSchema,
   type UpdateCustomLlmKeyInput,
-} from "@/lib/validations/settings";
+} from "@/lib/validations/settings.schema";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }

@@ -2,30 +2,33 @@
 
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 
-import { SYNC_HEARTBEAT_STALE_MS } from "@/lib/core/constants";
 import {
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
 } from "@/lib/gmail/google";
 import { scanHistoricalEmails } from "@/lib/gmail/historical-scan";
-import { syncLockLog } from "@/lib/logging";
-import { prisma } from "@/lib/core/prisma";
 import { checkRateLimit } from "@/lib/core/ratelimit";
 import {
   SCAN_DAY_OPTIONS,
   type ScanDays,
 } from "@/lib/gmail/scan-types";
+import { scanInputSchema, type ScanInput } from "@/lib/validations/sync.schema";
+import {
+  getAccountScanTarget,
+  markAccountSyncStarted,
+  finalizeAccountSync,
+  readAccountSyncStatus,
+  type AccountSyncStatusData,
+} from "@/lib/services/sync-orchestration.service";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
 
-import { scanInputSchema, type ScanInput } from "@/lib/validations/sync";
-
 export type { ScanInput };
+export type AccountSyncStatus = AccountSyncStatusData;
 
 /**
  * Starts a historical inbox scan in the background and returns immediately.
@@ -43,10 +46,7 @@ export async function triggerHistoricalScan(
     };
   }
 
-  const account = await prisma.account.findUnique({
-    where: { id: parsed.data.accountId },
-    select: { id: true, isActive: true, isSyncing: true },
-  });
+  const account = await getAccountScanTarget(parsed.data.accountId);
 
   if (!account || !account.isActive) {
     return { ok: false, error: "Account not found or inactive" };
@@ -67,14 +67,7 @@ export async function triggerHistoricalScan(
     };
   }
 
-  await prisma.account.update({
-    where: { id: account.id },
-    data: {
-      isSyncing: true,
-      syncError: null,
-      syncHeartbeatAt: new Date(),
-    },
-  });
+  await markAccountSyncStarted(account.id);
 
   const scanAccountId = account.id;
   const scanDays = parsed.data.days as ScanDays;
@@ -101,15 +94,9 @@ export async function triggerHistoricalScan(
       }
     } finally {
       try {
-        await prisma.account.update({
-          where: { id: scanAccountId },
-          data: {
-            isSyncing: false,
-            lastSyncedAt: new Date(),
-            syncError: errorMessage,
-            lastSyncProcessed: errorMessage ? null : jobsFound,
-            syncTotal: null,
-          },
+        await finalizeAccountSync(scanAccountId, {
+          errorMessage,
+          jobsFound,
         });
       } catch (finalizeError) {
         console.error(
@@ -126,16 +113,9 @@ export async function triggerHistoricalScan(
   };
 }
 
-export type AccountSyncStatus = {
-  isSyncing: boolean;
-  lastSyncedAt: string | null;
-  syncError: string | null;
-  lastSyncProcessed: number | null;
-  syncTotal: number | null;
-  pendingClassificationCount: number;
-};
-
-/** Lightweight poll target for GlobalSyncTracker. */
+/**
+ * Lightweight poll target for GlobalSyncTracker.
+ */
 export async function getAccountSyncStatus(
   accountId: string
 ): Promise<ActionResult<AccountSyncStatus>> {
@@ -143,78 +123,5 @@ export async function getAccountSyncStatus(
     return { ok: false, error: "accountId is required" };
   }
 
-  try {
-    const account = await prisma.account.findUnique({
-      where: { id: accountId },
-      select: {
-        id: true,
-        isSyncing: true,
-        lastSyncedAt: true,
-        syncError: true,
-        lastSyncProcessed: true,
-        syncTotal: true,
-        updatedAt: true,
-        syncHeartbeatAt: true,
-      },
-    });
-
-    if (!account) {
-      return { ok: false, error: "Account not found" };
-    }
-
-    let isCurrentlySyncing = account.isSyncing;
-    let syncErrorMessage = account.syncError;
-
-    if (isCurrentlySyncing) {
-      const heartbeatAgeMs =
-        Date.now() -
-        (account.syncHeartbeatAt?.getTime() ?? account.updatedAt.getTime());
-
-      if (heartbeatAgeMs > SYNC_HEARTBEAT_STALE_MS) {
-        syncLockLog.warn(
-          { heartbeatAgeSec: Math.round(heartbeatAgeMs / 1000) },
-          "Clearing stale sync lock (heartbeat silent too long)"
-        );
-
-        syncErrorMessage =
-          "Background sync interrupted. Auto-reset complete.";
-
-        await prisma.account.update({
-          where: { id: account.id },
-          data: {
-            isSyncing: false,
-            syncError: syncErrorMessage,
-            syncTotal: null,
-          },
-        });
-
-        isCurrentlySyncing = false;
-      }
-    }
-
-    const pendingClassificationCount = await prisma.emailMessage.count({
-      where: {
-        accountId: account.id,
-        emailCategory: "PENDING_AI",
-      },
-    });
-
-    return {
-      ok: true,
-      data: {
-        isSyncing: isCurrentlySyncing,
-        lastSyncedAt: account.lastSyncedAt?.toISOString() ?? null,
-        syncError: syncErrorMessage,
-        lastSyncProcessed: account.lastSyncProcessed,
-        syncTotal: account.syncTotal ?? null,
-        pendingClassificationCount,
-      },
-    };
-  } catch (error) {
-    console.error("getAccountSyncStatus failed", error);
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Failed to read sync status",
-    };
-  }
+  return readAccountSyncStatus(accountId);
 }

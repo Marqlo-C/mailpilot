@@ -8,8 +8,8 @@ import {
 import {
   parseAccountRules,
   type ScrapingAntUsage,
-} from "@/lib/validations/rules";
-import { resolveDecryptedScrapingAntKey } from "@/lib/llm/vault";
+} from "@/lib/validations/rules.schema";
+import { resolveDecryptedScrapingAntKey } from "@/lib/ai/vault";
 
 /**
  * Default cache duration for ScrapingAnt usage to save API quota: 4 hours.

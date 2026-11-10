@@ -5,7 +5,7 @@ import type {
   LinkedAccountsInput,
   MasterProfileInput,
   MasterProfileUpdateInput,
-} from "@/lib/validations/profile";
+} from "@/lib/validations/profile.schema";
 import type { DevCachedResumeMetadata } from "@/lib/profile/dev-resume-cache";
 import {
   type ActionResult,

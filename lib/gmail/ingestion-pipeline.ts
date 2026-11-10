@@ -1,7 +1,7 @@
 import type { gmail_v1 } from "googleapis";
 import type { JobOpportunity } from "@prisma/client";
 import { rethrowIfInsufficientScope } from "@/lib/gmail/google";
-import { type classifyJobEmail } from "@/lib/llm";
+import { type classifyJobEmail } from "@/lib/ai";
 import { ensurePersistentProfileForAccount } from "@/lib/profile/persistent-profile";
 import { resolveApplicationType } from "@/lib/opportunities/application-method";
 import {
@@ -30,7 +30,7 @@ import { isLocationCompatible } from "@/lib/utils/location";
 import {
   parseAccountRules,
   titleMatchesExcluded,
-} from "@/lib/validations/rules";
+} from "@/lib/validations/rules.schema";
 import type { SenderInfo } from "./subscription-pipeline";
 
 export type { SenderInfo };

@@ -23,7 +23,7 @@ import { checkRateLimit, getClientIp } from "@/lib/core/ratelimit";
 import {
   DEFAULT_ACCOUNT_RULES,
   parseAccountRules,
-} from "@/lib/validations/rules";
+} from "@/lib/validations/rules.schema";
 
 export const runtime = "nodejs";
 

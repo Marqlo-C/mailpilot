@@ -14,15 +14,15 @@ import {
   type ResumeExportConfig,
   type SkillGroup,
   type TailoredResumeDraft,
-} from "./schema.ssot";
+} from "@/lib/validations/resume-draft.schema";
 import {
   readEducationStatus,
   type MasterProfileInput,
   type ProjectInput,
   type WorkExperienceInput,
-} from "@/lib/validations/profile";
-import type { AccountRules } from "@/lib/validations/rules";
-import type { CandidatePersona } from "@/lib/persona/schema.ssot";
+} from "@/lib/validations/profile.schema";
+import type { AccountRules } from "@/lib/validations/rules.schema";
+import type { CandidatePersona } from "@/lib/validations/persona.schema";
 import {
   resolveResumeDraftLens,
   sortExperiencesReverseChronological,

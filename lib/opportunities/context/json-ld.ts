@@ -10,9 +10,9 @@
 
 import fs from "fs";
 import path from "path";
-import { resolveDecryptedScrapingAntKey } from "@/lib/llm/vault";
+import { resolveDecryptedScrapingAntKey } from "@/lib/ai/vault";
 import { assertSafeHttpsUrl } from "@/lib/core/ssrf";
-import type { AccountRules } from "@/lib/validations/rules";
+import type { AccountRules } from "@/lib/validations/rules.schema";
 
 // Re-export decoupled types and SSOT contracts
 export type {
@@ -22,7 +22,7 @@ export type {
   JobSectionCategory,
   ParsedJobSection,
   StructuredJobDescription,
-} from "./schema.ssot";
+} from "./context.schema";
 
 // Re-export submodules for complete backward compatibility
 export {
@@ -56,7 +56,7 @@ import type {
   ScrapedJobPosting,
   ScrapedJobPostingResult,
   ScraperFailureEntry,
-} from "./schema.ssot";
+} from "./context.schema";
 import { unwrapTrackingUrl, extractLinkedInJobId } from "./url-unwrapper";
 import {
   extractJsonLdJobPosting,

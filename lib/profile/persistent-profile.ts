@@ -7,13 +7,13 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "@/lib/core/prisma";
-import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile";
+import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile.schema";
 import {
   accountRulesSchema,
   DEFAULT_ACCOUNT_RULES,
   parseAccountRules,
   type AccountRules,
-} from "@/lib/validations/rules";
+} from "@/lib/validations/rules.schema";
 
 export type PersistentProfileWithSettings = PersistentProfile & {
   permanentSettings: PermanentSettings | null;

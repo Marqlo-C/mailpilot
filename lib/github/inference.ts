@@ -1,8 +1,8 @@
-import { callLLMWithFallback } from "@/lib/llm";
+import { callLLMWithFallback } from "@/lib/ai";
 import {
   type AnalyzeRepoParams,
   determineRepoScale,
-} from "./schema.ssot";
+} from "./github.schema";
 import { extractSemanticMarkdownDigest } from "./prefilter";
 import { groupDependenciesByDomain } from "./manifests";
 import { deduceArchitecturalTopology } from "./topology";

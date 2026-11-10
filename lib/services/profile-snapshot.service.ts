@@ -33,8 +33,8 @@ import {
   type LinkedAccountsInput,
   type MasterProfileInput,
   type MasterProfileUpdateInput,
-} from "@/lib/validations/profile";
-import { parseAccountRules } from "@/lib/validations/rules";
+} from "@/lib/validations/profile.schema";
+import { parseAccountRules } from "@/lib/validations/rules.schema";
 import { captureProfileRevision } from "./profile-diff.service";
 
 export type ActionResult<T = undefined> =

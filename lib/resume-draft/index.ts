@@ -7,10 +7,10 @@
  * ============================================================================
  */
 
-export * from "./schema.ssot";
+export * from "@/lib/validations/resume-draft.schema";
 export * from "./lens";
 export * from "./budget";
-export * from "./layout.ssot";
+export * from "./layout.schema";
 export * from "./physics";
 export * from "./typography";
 export * from "./node-ops";

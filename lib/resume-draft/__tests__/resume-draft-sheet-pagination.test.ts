@@ -8,7 +8,7 @@ import {
   PAGE_HEIGHT,
   PAGE_GAP,
   type DraftBlock,
-} from "@/components/opportunities/drawer/resume-draft-sheet";
+} from "@/components/features/opportunities/drawer/resume-draft-sheet";
 import type { TailoredResumeDraft } from "@/lib/resume-draft";
 
 describe("ResumeDraftSheet Multi-Page Pagination & Seam Logic", () => {

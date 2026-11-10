@@ -11,7 +11,7 @@ vi.mock("next/cache", () => ({
 import { deduplicateProjectCollection } from "@/lib/profile/deduplication";
 import { prisma } from "@/lib/core/prisma";
 import { getMasterProfile, updateMasterProfile } from "@/app/actions/profile";
-import type { ProjectInput } from "@/lib/validations/profile";
+import type { ProjectInput } from "@/lib/validations/profile.schema";
 
 describe("Candidate Resume 3x Reconciliation Audit", () => {
   const resumeProjects: ProjectInput[] = [

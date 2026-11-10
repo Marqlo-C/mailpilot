@@ -8,7 +8,7 @@
  * ============================================================================
  */
 
-import type { ScrapedJobPosting } from "./schema.ssot";
+import type { ScrapedJobPosting } from "./context.schema";
 import { parseStructuredJobSections } from "./section-classifier";
 import { extractSalaryFromText, parseSalaryMax } from "@/lib/ai/classifier";
 

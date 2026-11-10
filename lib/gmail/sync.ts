@@ -17,7 +17,7 @@ import {
   shouldClassifyEmail,
   type JobClassification,
   type LlmProvider,
-} from "@/lib/llm";
+} from "@/lib/ai";
 import { isJobLeadsEmail, parseJobLeadsDigest } from "@/lib/opportunities/sync/jobleads";
 import {
   ensurePersistentProfileForAccount,
@@ -56,7 +56,7 @@ import {
   parseAccountRules,
   titleMatchesExcluded,
   type AccountRules,
-} from "@/lib/validations/rules";
+} from "@/lib/validations/rules.schema";
 import {
   extractCleanSnippet,
   sanitizeJobDescription,

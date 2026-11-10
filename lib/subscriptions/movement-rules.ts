@@ -15,7 +15,7 @@
  * Tabs: active | archive (Unsubscribed)
  */
 
-import type { CardListGestureRules } from "@/lib/dnd/types";
+import type { CardListGestureRules } from "@/lib/utils/dnd/types";
 
 export type SubscriptionTab = "active" | "archive";
 

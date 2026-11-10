@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { clearAuthCookies } from "@/lib/auth";
+import { clearAuthCookies } from "@/lib/core/auth";
 
 /**
  * Ends the MailPilot browser session: deletes auth cookies and sends the

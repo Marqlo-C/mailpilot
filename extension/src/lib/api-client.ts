@@ -9,18 +9,36 @@ import type {
 const STORAGE_KEY_ENV = "mailpilot_env";
 const STORAGE_KEY_CUSTOM_URL = "mailpilot_custom_url";
 
+const TARGET_HOST = (() => {
+  if (typeof process === "undefined" || !process.env) return undefined;
+  const raw = process.env.TARGET_HOST || process.env.NEXT_PUBLIC_APP_URL;
+  if (!raw) return undefined;
+  return raw.replace(/^https?:\/\//, "").split("/")[0];
+})();
+
+const DEFAULT_PROD_URL = (() => {
+  if (typeof process !== "undefined" && process.env) {
+    if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
+    if (process.env.TARGET_HOST) {
+      const host = process.env.TARGET_HOST.replace(/^https?:\/\//, "").split("/")[0];
+      return `https://${host}`;
+    }
+  }
+  return "https://mailpilot-prod.vercel.app";
+})();
+
 const KNOWN_PROD_HOSTNAMES = [
   "mailpilot-prod.vercel.app",
   "mailpilot-theta-lake.vercel.app",
-  "mailpilot-marquiseclott-1600s-projects.vercel.app",
   "mailpilot.vercel.app",
+  ...(TARGET_HOST ? [TARGET_HOST] : []),
 ];
 
 export async function getEnvironment(): Promise<{ env: Environment; url: string }> {
   return new Promise((resolve) => {
     chrome.storage.local.get([STORAGE_KEY_ENV, STORAGE_KEY_CUSTOM_URL], (res) => {
       const env = (res[STORAGE_KEY_ENV] as Environment) || "prod";
-      let url = "https://mailpilot-prod.vercel.app";
+      let url = DEFAULT_PROD_URL;
       if (env === "dev") {
         url = "http://localhost:3000";
       } else if (env === "custom" && typeof res[STORAGE_KEY_CUSTOM_URL] === "string") {

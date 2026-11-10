@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import type { ResumeDraftNode, TailoredResumeDraft } from "./schema.ssot";
+import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/validations/resume-draft.schema";
 
 /**
  * Helper to construct a ResumeDraftNode with selected default true.

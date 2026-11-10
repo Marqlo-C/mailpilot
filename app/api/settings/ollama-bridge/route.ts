@@ -3,29 +3,18 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import crypto from "crypto";
 
-import { probeOllamaTagsWithRetry } from "@/lib/llm";
+import { probeOllamaTagsWithRetry } from "@/lib/ai";
 import { prisma } from "@/lib/core/prisma";
 import {
   accountRulesSchema,
   parseAccountRules,
-} from "@/lib/validations/rules";
+} from "@/lib/validations/rules.schema";
+import { bridgeBodySchema } from "@/lib/validations/settings.schema";
 import { decryptToken } from "@/lib/core/crypto";
 
 /** Strictly validate Cloudflare Quick Tunnel hostnames (SSRF guard). */
 const CLOUDFLARE_TUNNEL_REGEX =
   /^https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com\/?$/;
-
-const bridgeBodySchema = z.object({
-  email: z.string().email(),
-  ollamaUrl: z.string().url().optional(),
-  action: z.enum(["disconnect"]).optional(),
-  bridgeSecret: z.string().min(1, "bridgeSecret is required"),
-  /**
-   * Model tags from the bridge CLI probing localhost Ollama.
-   * Trusted when bridgeSecret matches — avoids relying on Vercel→Cloudflare.
-   */
-  models: z.array(z.string().min(1)).optional(),
-});
 
 export const dynamic = "force-dynamic";
 

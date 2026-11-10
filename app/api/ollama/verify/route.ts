@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 
-import { getAuthenticatedAccountId } from "@/lib/auth";
+import { getAuthenticatedAccountId } from "@/lib/core/auth";
 import { prisma } from "@/lib/core/prisma";
-import { accountRulesSchema, parseAccountRules } from "@/lib/validations/rules";
+import { accountRulesSchema, parseAccountRules } from "@/lib/validations/rules.schema";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;

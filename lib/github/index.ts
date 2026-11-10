@@ -19,7 +19,7 @@ export {
   TIER_1_BUDGET,
   TIER_2_BUDGET,
   TIER_3_BUDGET,
-} from "./schema.ssot";
+} from "./github.schema";
 
 // Canonical Tool Deduplication & Micro-Exclusion Noise Denylist
 export {

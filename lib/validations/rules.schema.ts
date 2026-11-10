@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CLOUD_LLM_PROVIDERS } from "@/lib/llm/provider.ssot";
+import { CLOUD_LLM_PROVIDERS } from "@/lib/ai/provider.schema";
 
 export const DISMISSED_RETENTION_OPTIONS = [7, 14, 30] as const;
 

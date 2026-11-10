@@ -4,7 +4,7 @@
  * ============================================================================
  */
 
-export * from "./schema.ssot";
+export * from "@/lib/validations/persona.schema";
 export {
   extractPersonaFacts,
   type ProfileWithPersonaCache,

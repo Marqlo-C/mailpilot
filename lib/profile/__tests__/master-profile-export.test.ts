@@ -6,7 +6,7 @@ vi.mock("pdf-parse", () => ({
 
 import { generateTailoredResumePdf } from "@/lib/document/pdf-generator";
 import { buildResumeContactLine } from "@/lib/utils/format";
-import type { MasterProfileInput } from "@/lib/validations/profile";
+import type { MasterProfileInput } from "@/lib/validations/profile.schema";
 import type { ProfileWithPersonaCache } from "@/lib/persona";
 
 // Mock prisma and master-profile loader for testing the server action

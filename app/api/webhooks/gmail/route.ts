@@ -4,24 +4,12 @@ import { after } from "next/server";
 import { z } from "zod";
 
 import { processInboxDelta } from "@/lib/gmail/sync";
+import {
+  pubSubBodySchema,
+  gmailNotificationSchema,
+} from "@/lib/validations/gmail-webhook.schema";
 
 export const runtime = "nodejs";
-
-const pubSubBodySchema = z.object({
-  message: z
-    .object({
-      data: z.string().optional(),
-      messageId: z.string().optional(),
-      publishTime: z.string().optional(),
-    })
-    .optional(),
-  subscription: z.string().optional(),
-});
-
-const gmailNotificationSchema = z.object({
-  emailAddress: z.string().email(),
-  historyId: z.union([z.string(), z.number()]).transform(String),
-});
 
 function isValidWebhookToken(provided: string | null): boolean {
   const expected = process.env.GMAIL_WEBHOOK_SECRET;

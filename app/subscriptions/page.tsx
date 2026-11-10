@@ -1,4 +1,4 @@
-import { SubscriptionsView } from "@/components/subscriptions/subscriptions-view";
+import { SubscriptionsView } from "@/components/features/subscriptions/subscriptions-view";
 import {
   getActiveAccount,
   getLatestBriefingForAccount,
@@ -6,8 +6,8 @@ import {
   getSubscriptionsForAccount,
 } from "@/lib/data";
 import { refreshStaleSubscriptionDates } from "@/lib/subscriptions/last-received";
-import { SUBSCRIPTION_PAGE_TABS } from "@/lib/navigation/page-tabs";
-import { readServerActivePageTab } from "@/lib/navigation/page-tabs-server";
+import { SUBSCRIPTION_PAGE_TABS } from "@/lib/utils/navigation/page-tabs";
+import { readServerActivePageTab } from "@/lib/utils/navigation/page-tabs-server";
 
 export default async function SubscriptionsPage() {
   const active = await getActiveAccount();

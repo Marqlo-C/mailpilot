@@ -15,7 +15,7 @@ import type {
   ClassificationMethod,
   ContextRichness,
   NormalizedJobOpportunity,
-} from "./schema.ssot";
+} from "./context.schema";
 import { extractCleanSnippet, sanitizeJobDescription } from "./scrubber";
 import { formatDistanceToNow, formatRelativeTime } from "@/lib/utils/format-distance";
 import {

@@ -6,7 +6,7 @@
  * ============================================================================
  */
 
-export * from "./schema.ssot";
+export * from "./context.schema";
 export * from "./scrubber";
 export * from "./lens";
 export * from "./json-ld";

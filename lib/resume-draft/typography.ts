@@ -76,7 +76,7 @@ export function measureTextWrappedLines(
   return lines;
 }
 
-import { RESUME_SPACING, RESUME_TYPOGRAPHY } from "./layout.ssot";
+import { RESUME_SPACING, RESUME_TYPOGRAPHY } from "./layout.schema";
 
 /**
  * Bullet Usable Width:

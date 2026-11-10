@@ -13,7 +13,7 @@ import type {
   MatchResult,
   MatchTier,
   SeniorityFit,
-} from "./schema.ssot";
+} from "@/lib/validations/matching.schema";
 
 const SENIOR_ROLE_REGEX = /\b(senior|sr\.?|lead|staff|principal|director|head|vp|vice\s+president|executive|chief)\b/i;
 const JUNIOR_ROLE_REGEX = /\b(intern|junior|jr|entry|associate|trainee)\b/i;

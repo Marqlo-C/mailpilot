@@ -1,7 +1,7 @@
-import { getExtensionAccountId } from "@/lib/extension/auth";
-import { handleOptionsCors, jsonWithCors } from "@/lib/extension/cors";
+import { getExtensionAccountId } from "@/lib/utils/extension/auth";
+import { handleOptionsCors, jsonWithCors } from "@/lib/utils/extension/cors";
 import { compileResumeDocument } from "@/lib/opportunities/dispatch/resume";
-import { exportSchema } from "@/lib/validations/extension";
+import { exportSchema } from "@/lib/validations/extension.schema";
 
 export async function OPTIONS(request: Request) {
   return handleOptionsCors(request);

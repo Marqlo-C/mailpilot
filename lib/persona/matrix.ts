@@ -4,7 +4,7 @@ import type {
   LeadershipScope,
   PersonaFactLens,
   SeniorityTier,
-} from "./schema.ssot";
+} from "@/lib/validations/persona.schema";
 
 const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
 

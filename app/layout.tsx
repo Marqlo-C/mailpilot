@@ -12,7 +12,7 @@ import {
   listAccounts,
   type SidebarTabCounts,
 } from "@/lib/data";
-import { readServerUiPreferences } from "@/lib/ui/ui-preferences-server";
+import { readServerUiPreferences } from "@/lib/utils/ui/ui-preferences-server";
 import { AppToaster } from "@/components/ui/app-toaster";
 
 import "./globals.css";

@@ -35,7 +35,7 @@ import {
   DND_PAGE_FLIP_DELAY_MS,
   DND_SELECT_LONG_PRESS_MS,
   pageFlipDirFromPointer,
-} from "@/lib/dnd/constants";
+} from "@/lib/utils/dnd/constants";
 import {
   autoScrollSpeedForPointer,
   captureReorderRects,
@@ -52,13 +52,13 @@ import {
   offsetFrozenGeometryByScroll,
   type FrozenItemRect,
   type SelectionDragGeometry,
-} from "@/lib/dnd/interactive";
+} from "@/lib/utils/dnd/interactive";
 import {
   captureDragGrabGeometry,
   type DragGrabGeometry,
-} from "@/lib/dnd/drag-smooth";
-import { previewReorderFullIds, reorderIds } from "@/lib/dnd/reorder";
-import type { CardListGestureRules } from "@/lib/dnd/types";
+} from "@/lib/utils/dnd/drag-smooth";
+import { previewReorderFullIds, reorderIds } from "@/lib/utils/dnd/reorder";
+import type { CardListGestureRules } from "@/lib/utils/dnd/types";
 
 export type { CardListGestureRules };
 export type { DragGrabGeometry };

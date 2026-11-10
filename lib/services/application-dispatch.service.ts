@@ -18,10 +18,10 @@ import {
   extractRecruiterEmail,
 } from "@/lib/opportunities/application-method";
 import { cleanRecruiterFirstName } from "@/lib/gmail/email-utils";
-import type { LlmProvider } from "@/lib/llm";
-import type { OpportunityStatus } from "@/lib/validations/profile";
-import { tailoredDataSchema } from "@/lib/validations/profile";
-import { parseAccountRules } from "@/lib/validations/rules";
+import type { LlmProvider } from "@/lib/ai";
+import type { OpportunityStatus, ApplicationStatus } from "@/lib/validations/profile.schema";
+import { tailoredDataSchema } from "@/lib/validations/profile.schema";
+import { parseAccountRules } from "@/lib/validations/rules.schema";
 import { countSendsToday, getDailySendLimit } from "@/lib/opportunities/dispatch";
 
 const NO_RECRUITER_EMAIL_ERROR =
@@ -519,4 +519,160 @@ export async function updatePreparedDraft(
       } as Prisma.InputJsonValue,
     },
   });
+}
+
+export async function getApplicationForDispatch(applicationId: string) {
+  return prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+}
+
+export async function markApplicationApplied(applicationId: string): Promise<boolean> {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+    select: { id: true },
+  });
+  if (!application) return false;
+
+  const now = new Date();
+  await prisma.jobApplication.update({
+    where: { id: applicationId },
+    data: {
+      status: "APPLIED",
+      dispatchStatus: "MANUAL_APPLIED",
+      dispatchType: "PORTAL",
+      applicationMethod: "PORTAL_QUICK_APPLY",
+      opportunityStatus: "SENT",
+      appliedAt: now,
+    },
+  });
+  return true;
+}
+
+export async function updateApplicationLifecycleStatus(
+  applicationId: string,
+  status: ApplicationStatus
+): Promise<boolean> {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+    select: { id: true, actionRequired: true },
+  });
+  if (!application) return false;
+
+  await prisma.jobApplication.update({
+    where: { id: applicationId },
+    data: {
+      status,
+      isArchived: status === "ARCHIVED",
+      actionRequired:
+        status === "OA" || status === "INTERVIEW"
+          ? true
+          : application.actionRequired,
+    },
+  });
+  return true;
+}
+
+export async function generateApplicationPdfPayload(
+  applicationId: string,
+  includeSummary = true
+): Promise<
+  | { ok: true; base64: string; filename: string }
+  | { ok: false; error: string }
+> {
+  const application = await prisma.jobApplication.findUnique({
+    where: { id: applicationId },
+  });
+  if (!application) {
+    return { ok: false, error: "Application not found" };
+  }
+  if (!application.accountId) {
+    return {
+      ok: false,
+      error: "Gmail account is unlinked. Reconnect to download tailored PDFs.",
+    };
+  }
+
+  const { loadMasterProfileForDraft } = await import("@/lib/profile/master-profile");
+  const profileResult = await loadMasterProfileForDraft(application.accountId);
+  if (!profileResult) {
+    return { ok: false, error: "No master profile found" };
+  }
+
+  const { storedResumeDraftSchema } = await import("@/lib/validations/resume-draft.schema");
+  const { renderDraftPdf } = await import("@/lib/opportunities/dispatch/composer");
+  const { tailorResumeForJob } = await import("@/lib/tailor");
+
+  const opportunity = await prisma.jobOpportunity.findFirst({
+    where: {
+      accountId: application.accountId,
+      OR: [
+        { id: application.id },
+        ...(application.messageId ? [{ emailMessage: { messageId: application.messageId } }] : []),
+        ...(application.companyName && application.roleTitle
+          ? [{ company: application.companyName, title: application.roleTitle }]
+          : []),
+      ],
+    },
+    select: {
+      id: true,
+      tailoredResumePdf: true,
+      tailoredResumeData: true,
+    },
+  });
+
+  if (opportunity?.tailoredResumeData) {
+    const stored = storedResumeDraftSchema.safeParse(opportunity.tailoredResumeData);
+    if (stored.success && stored.data.draft) {
+      const pdf = await renderDraftPdf(profileResult, stored.data.draft);
+      return {
+        ok: true,
+        base64: pdf.toString("base64"),
+        filename: stored.data.filename ?? `${profileResult.fullName.replace(/\s+/g, "_")}_Resume.pdf`,
+      };
+    }
+  }
+
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId: application.accountId },
+  });
+  const rules = parseAccountRules(settings?.rules);
+  const tailored = await tailorResumeForJob(
+    [
+      application.roleTitle ?? "",
+      application.companyName ?? "",
+      application.actionSummary ?? "",
+    ].filter(Boolean),
+    profileResult,
+    {
+      llmProvider:
+        settings?.llmProvider === "LOCAL_OLLAMA"
+          ? "LOCAL_OLLAMA"
+          : "OPENROUTER",
+      localOllamaUrl: settings?.localOllamaUrl,
+      ollamaModel: settings?.ollamaModel,
+      allowCloudFallback: rules.allowCloudFallback,
+      companyName: application.companyName,
+      roleTitle: application.roleTitle,
+      jobText: application.actionSummary ?? undefined,
+      includeSummary,
+    }
+  );
+
+  const pdf = await generateTailoredResumePdf(
+    profileResult,
+    tailored.selectedExperience.length > 0
+      ? tailored.selectedExperience
+      : profileResult.experiences,
+    tailored.selectedProjects,
+    tailored.tailoredSummary,
+    tailored.tailoredSkills,
+    includeSummary
+  );
+
+  return {
+    ok: true,
+    base64: pdf.toString("base64"),
+    filename: `${profileResult.fullName.replace(/\s+/g, "_")}_Resume.pdf`,
+  };
 }

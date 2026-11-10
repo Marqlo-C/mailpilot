@@ -3,7 +3,7 @@ import type {
   DistinctionAnchor,
   LeadershipScope,
   SeniorityTier,
-} from "./schema.ssot";
+} from "@/lib/validations/persona.schema";
 
 /**
  * Human-facing tenure phrases for prompts / timelineContext / toneGuidance.

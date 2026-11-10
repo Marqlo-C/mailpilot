@@ -19,7 +19,7 @@ import {
   persistRailAction,
   readRailAction,
   type RailActionVariant,
-} from "@/lib/ui/rail-action-preference";
+} from "@/lib/utils/ui/rail-action-preference";
 
 const RailActionContext = createContext<{
   variant: RailActionVariant;

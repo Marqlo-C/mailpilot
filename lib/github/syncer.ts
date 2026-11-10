@@ -8,7 +8,7 @@ import {
   type ProjectItem,
   type RepoCacheEntry,
   type StructuralMarkers,
-} from "./schema.ssot";
+} from "./github.schema";
 import { normalizeGitHubUsername, adaptRepoToProjectItem } from "./lens";
 import {
   ROOT_MANIFESTS,

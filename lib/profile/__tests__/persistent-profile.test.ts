@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mergeRulesWithPermanentSettings } from "@/lib/profile/persistent-profile";
-import { DEFAULT_ACCOUNT_RULES, type AccountRules } from "@/lib/validations/rules";
+import { DEFAULT_ACCOUNT_RULES, type AccountRules } from "@/lib/validations/rules.schema";
 
 describe("mergeRulesWithPermanentSettings", () => {
   it("returns base account rules unchanged when permanent is null or undefined", () => {

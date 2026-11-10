@@ -9,14 +9,14 @@
  * ============================================================================
  */
 
-import type { MasterProfileInput } from "@/lib/validations/profile";
+import type { MasterProfileInput } from "@/lib/validations/profile.schema";
 import type { CandidatePersona } from "@/lib/persona";
 import type {
   CandidateProfileSummary,
   CandidatePersonaSummary,
 } from "@/lib/ai/classifier";
 import { flattenSkillItems, skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
-import type { MatchCandidateLens } from "./schema.ssot";
+import type { MatchCandidateLens } from "@/lib/validations/matching.schema";
 
 /**
  * Extracts normalized candidate matching facts from profile input and synthesized persona.

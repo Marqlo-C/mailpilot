@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { callLLMWithFallback } from "@/lib/llm";
-import type { TailorOptions } from "./schema.ssot";
+import { callLLMWithFallback } from "@/lib/ai";
+import type { TailorOptions } from "@/lib/validations/tailor.schema";
 
 export function buildReframeSystemPrompt(
   optionsOrInventMetrics:

@@ -14,11 +14,11 @@ import {
   isOllamaCircuitTripped,
   loadCandidateProfileSummary,
   type LlmProvider,
-} from "@/lib/llm";
+} from "@/lib/ai";
 import { prisma } from "@/lib/core/prisma";
 import { initSyncBatchTelemetry, logStory, syncLog } from "@/lib/logging";
 import { resolveIngestionRules } from "@/lib/gmail/sync";
-import { parseAccountRules } from "@/lib/validations/rules";
+import { parseAccountRules } from "@/lib/validations/rules.schema";
 import { isRateLimited, sleep, RATE_LIMIT_BASE_MS } from "./candidates";
 import { SYNC_KIND_QUEUED } from "./kinds";
 import {

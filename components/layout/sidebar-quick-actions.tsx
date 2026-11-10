@@ -27,7 +27,7 @@ import {
   SIDEBAR_TELEMETRY_OPEN_DELAY_MS,
   useSidebarFlyout,
 } from "@/components/layout/sidebar-flyout-provider";
-import { downloadMasterProfile } from "@/components/profile/export-master-profile-button";
+import { downloadMasterProfile } from "@/components/features/profile/export-master-profile-button";
 import { tabRailInactiveTextClassName } from "@/components/ui/tactile/segmented-tabs";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";

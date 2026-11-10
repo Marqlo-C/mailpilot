@@ -1,15 +1,15 @@
-import { JobsRadar } from "@/components/opportunities/toolbar/jobs-radar";
-import { SyncControls } from "@/components/opportunities/sync-controls";
+import { JobsRadar } from "@/components/features/opportunities/toolbar/jobs-radar";
+import { SyncControls } from "@/components/features/opportunities/sync-controls";
 import { getMasterProfile } from "@/app/actions/profile";
 import {
   getActiveAccount,
   getJobOpportunitiesForAccount,
   getJobsForAccount,
 } from "@/lib/data";
-import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile";
-import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
-import { JOB_RADAR_PAGE_TABS } from "@/lib/navigation/page-tabs";
-import { readServerActivePageTab } from "@/lib/navigation/page-tabs-server";
+import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile.schema";
+import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules.schema";
+import { JOB_RADAR_PAGE_TABS } from "@/lib/utils/navigation/page-tabs";
+import { readServerActivePageTab } from "@/lib/utils/navigation/page-tabs-server";
 
 export default async function JobsPage({
   searchParams,

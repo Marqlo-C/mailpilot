@@ -14,7 +14,7 @@ import {
   extractMessageBody,
   loadCandidateProfileSummary,
   type LlmProvider,
-} from "@/lib/llm";
+} from "@/lib/ai";
 import { prisma } from "@/lib/core/prisma";
 import {
   advanceSubscriptionLastReceived,

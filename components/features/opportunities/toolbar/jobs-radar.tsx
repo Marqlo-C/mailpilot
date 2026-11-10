@@ -1,0 +1,810 @@
+"use client";
+
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import { useRouter } from "next/navigation";
+import type { JobApplication, JobOpportunity } from "@prisma/client";
+import {
+  Archive,
+  ExternalLink,
+  Mail,
+  Send,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import {
+  updateApplicationStatus,
+} from "@/app/actions/dispatch";
+import {
+  getOpportunityMessageIdAction,
+  markOpportunityExternalApplied,
+  sendOpportunityApplication,
+  unmarkApplied,
+} from "@/app/actions/opportunities";
+import { updateMatchThreshold } from "@/app/actions/profile";
+import { AtsHandoffDrawer } from "@/components/features/opportunities/drawer/ats-handoff-drawer";
+import { DraftReviewDialog } from "@/components/features/opportunities/dialogs/draft-review-dialog";
+import { OpportunityDraftDialog } from "@/components/features/opportunities/dialogs/opportunity-draft-dialog";
+import { ViewEmailDialog } from "@/components/ui/composites/view-email-dialog";
+import { OpportunitiesView } from "@/components/features/opportunities/views/opportunities-view";
+import { SyncControls } from "@/components/features/opportunities/sync-controls";
+import { CompanyLogo } from "@/components/ui/logo-frame";
+import { domainFromActionUrl } from "@/components/ui/sender-avatar";
+import {
+  JOB_RADAR_PAGE_TABS,
+  JOB_RADAR_TAB_LABEL,
+  clearSidebarPageTab,
+  peekSidebarPageTab,
+  persistActivePageTab,
+  readActivePageTab,
+} from "@/lib/utils/navigation/page-tabs";
+import { faviconUrlForDomain } from "@/lib/utils/domain";
+import {
+  isInHistory,
+  isUserArchived,
+  meetsMatchThreshold,
+} from "@/lib/opportunities/lifecycle";
+import {
+  TAB_SORT_CONFIG,
+  sortActionRequired,
+  sortJobApplications,
+  sortOpportunities,
+  tabKeyFromValue,
+} from "@/lib/opportunities/sorting";
+import type { MasterProfileInput } from "@/lib/validations/profile.schema";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  CommandDeckFrame,
+  tabRailRowClassName,
+  useTabRailClasses,
+  TabCountBadge,
+} from "@/components/ui/tactile/segmented-tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  LabelTooltip,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+
+type JobsRadarProps = {
+  accountId: string;
+  jobs: JobApplication[];
+  opportunities: JobOpportunity[];
+  profile: MasterProfileInput | null;
+  matchThreshold: number;
+  retentionDays?: number;
+  initialTab?: string;
+  initialOpportunityId?: string;
+};
+
+const tabDescriptions: Record<string, string> = {
+  leads:
+    "Sourced opportunities and recruiter outreach matching your profile preferences.",
+  applied: "Submitted applications and confirmation tracking records.",
+  action:
+    "Upcoming assessment links, interview requests, and urgent recruiter actions.",
+  history: "Archived and dismissed opportunities stored for reference.",
+};
+
+function daysAgo(date: Date | string | null | undefined): string {
+  if (!date) return "—";
+  const ms = Date.now() - new Date(date).getTime();
+  const days = Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+  if (days === 0) return "today";
+  return `${days}d ago`;
+}
+
+function formatCountdown(deadlineAt: Date | null): string {
+  if (!deadlineAt) return "No deadline";
+  const ms = deadlineAt.getTime() - Date.now();
+  if (ms <= 0) return "Past due";
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  if (hours < 24) return `${hours}h left`;
+  return `${Math.floor(hours / 24)}d left`;
+}
+
+function jobApplicationLogoSrc(
+  actionUrl: string | null | undefined
+): string | null {
+  const domain = domainFromActionUrl(actionUrl);
+  return domain ? faviconUrlForDomain(domain) : null;
+}
+
+export function JobsRadar({
+  accountId,
+  jobs,
+  opportunities,
+  profile,
+  matchThreshold,
+  retentionDays = 30,
+  initialTab,
+  initialOpportunityId,
+}: JobsRadarProps) {
+  const router = useRouter();
+  const {
+    listClassName: segmentedTabsListClassName,
+    triggerClassName: segmentedTabsTriggerClassName,
+  } = useTabRailClasses();
+  const [pending, startTransition] = useTransition();
+  const [portalJob, setPortalJob] = useState<JobApplication | null>(null);
+  const [draftJob, setDraftJob] = useState<JobApplication | null>(null);
+  const [draftOpportunity, setDraftOpportunity] =
+    useState<JobOpportunity | null>(null);
+  const [threshold, setThreshold] = useState(matchThreshold);
+  const [activeTab, setActiveTab] = useState<string>(() => initialTab ?? "leads");
+  const [sort, setSort] = useState(
+    () => TAB_SORT_CONFIG[tabKeyFromValue(initialTab ?? "leads")].defaultSort
+  );
+  const [dragDropZone, setDragDropZone] = useState<string | null>(null);
+  const suppressTabChangeRef = useRef(false);
+
+  const [viewEmailMessageId, setViewEmailMessageId] = useState<string | null>(
+    null
+  );
+  const [viewEmailSubject, setViewEmailSubject] = useState<string | null>(null);
+  const [viewEmailFrom, setViewEmailFrom] = useState<string | null>(null);
+
+  const handleViewOriginalEmail = useCallback(async (opp: JobOpportunity) => {
+    try {
+      const res = await getOpportunityMessageIdAction(opp.id);
+      if (res.ok && res.data) {
+        setViewEmailMessageId(res.data.messageId);
+        setViewEmailSubject(res.data.subject);
+        setViewEmailFrom(res.data.from);
+      } else {
+        toast.error(res.ok ? "Message not found" : res.error);
+      }
+    } catch {
+      toast.error("Failed to load email message");
+    }
+  }, []);
+
+  useEffect(() => {
+    setThreshold(matchThreshold);
+  }, [matchThreshold]);
+
+  function handleTabChange(nextTab: string) {
+    if (suppressTabChangeRef.current) return;
+    setActiveTab(nextTab);
+    persistActivePageTab("/jobs", nextTab, accountId);
+    const nextConfig = TAB_SORT_CONFIG[tabKeyFromValue(nextTab)];
+    const allowed = nextConfig.options.map((o) => o.value);
+    if (!allowed.includes(sort)) {
+      setSort(nextConfig.defaultSort);
+    }
+  }
+
+  useLayoutEffect(() => {
+    const pending = peekSidebarPageTab(
+      "/jobs",
+      JOB_RADAR_PAGE_TABS.map((item) => item.value)
+    );
+    if (pending) {
+      setActiveTab(pending);
+      setSort(TAB_SORT_CONFIG[tabKeyFromValue(pending)].defaultSort);
+      persistActivePageTab("/jobs", pending, accountId);
+      const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
+      return () => window.clearTimeout(clearId);
+    }
+
+    const saved = readActivePageTab(
+      "/jobs",
+      JOB_RADAR_PAGE_TABS.map((item) => item.value),
+      accountId
+    );
+    if (saved && saved !== activeTab) {
+      setActiveTab(saved);
+      const nextConfig = TAB_SORT_CONFIG[tabKeyFromValue(saved)];
+      const allowed = nextConfig.options.map((o) => o.value);
+      if (!allowed.includes(sort)) {
+        setSort(nextConfig.defaultSort);
+      }
+    }
+  }, [accountId, activeTab, sort]);
+
+  const handleDragZoneChange = useCallback((zoneId: string | null) => {
+    setDragDropZone(zoneId);
+  }, []);
+
+  function commitThreshold(value: number) {
+    const next = Math.min(100, Math.max(0, Math.round(value)));
+    setThreshold(next);
+    startTransition(async () => {
+      const result = await updateMatchThreshold(accountId, next);
+      if (!result.ok) {
+        toast.error(result.error);
+        setThreshold(matchThreshold);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  // Leads: discoveries not user-archived, filtered by live threshold (0% = all).
+  const opportunityLeadsAll = useMemo(() => {
+    return opportunities.filter(
+      (o) =>
+        o.status === "DISCOVERED" &&
+        !isUserArchived(o) &&
+        meetsMatchThreshold(o.matchScore, threshold)
+    );
+  }, [opportunities, threshold]);
+
+  const opportunityAction = useMemo(
+    () =>
+      opportunities.filter(
+        (o) => o.status === "REVIEW_READY" && !isUserArchived(o)
+      ),
+    [opportunities]
+  );
+  const opportunityApplied = useMemo(
+    () =>
+      opportunities.filter(
+        (o) => o.status === "APPLIED" && !isUserArchived(o)
+      ),
+    [opportunities]
+  );
+  // History: dismissed + user-archived (below-threshold soft-hides stay in leads).
+  const opportunityHistory = useMemo(
+    () => opportunities.filter((o) => isInHistory(o)),
+    [opportunities]
+  );
+
+  const sortedOpportunityLeads = useMemo(
+    () => sortOpportunities(opportunityLeadsAll, sort),
+    [opportunityLeadsAll, sort]
+  );
+  const sortedOpportunityApplied = useMemo(
+    () => sortOpportunities(opportunityApplied, sort),
+    [opportunityApplied, sort]
+  );
+  const sortedOpportunityAction = useMemo(
+    () => sortOpportunities(opportunityAction, sort),
+    [opportunityAction, sort]
+  );
+  const sortedOpportunityHistory = useMemo(
+    () => sortOpportunities(opportunityHistory, sort),
+    [opportunityHistory, sort]
+  );
+  const archivedLeadCount = useMemo(
+    () =>
+      opportunities.filter(
+        (o) =>
+          o.status === "DISCOVERED" &&
+          !isUserArchived(o) &&
+          !meetsMatchThreshold(o.matchScore, threshold)
+      ).length,
+    [opportunities, threshold]
+  );
+  const hasOpportunityLeads = useMemo(
+    () =>
+      opportunities.some(
+        (o) => o.status === "DISCOVERED" && !isUserArchived(o)
+      ),
+    [opportunities]
+  );
+  const discoveredLeadCount = useMemo(
+    () =>
+      opportunities.filter(
+        (o) => o.status === "DISCOVERED" && !isUserArchived(o)
+      ).length,
+    [opportunities]
+  );
+
+  const leads = useMemo(
+    () => jobs.filter((j) => j.status === "LEAD" && !j.isArchived),
+    [jobs]
+  );
+  const applied = useMemo(
+    () => jobs.filter((j) => j.status === "APPLIED"),
+    [jobs]
+  );
+  const actionRequired = useMemo(
+    () =>
+      jobs.filter(
+        (j) =>
+          (j.status === "OA" || j.status === "INTERVIEW") && !j.isTrashed
+      ),
+    [jobs]
+  );
+  const history = useMemo(
+    () =>
+      jobs.filter((j) =>
+        ["REJECTION", "OFFER", "ARCHIVED"].includes(j.status)
+      ),
+    [jobs]
+  );
+
+  const sortedApplied = useMemo(
+    () => sortJobApplications(applied, sort),
+    [applied, sort]
+  );
+  const sortedActionRequired = useMemo(
+    () => sortActionRequired(actionRequired, sort),
+    [actionRequired, sort]
+  );
+  const sortedHistory = useMemo(
+    () => sortJobApplications(history, sort),
+    [history, sort]
+  );
+
+  const leadCount = discoveredLeadCount;
+  const appliedCount = opportunityApplied.length + applied.length;
+  const actionCount = opportunityAction.length + actionRequired.length;
+  const historyCount = opportunityHistory.length + history.length;
+
+  function handleOpportunitySend(opp: JobOpportunity) {
+    startTransition(async () => {
+      const result = await sendOpportunityApplication(opp.id, false);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Application sent");
+      router.refresh();
+    });
+  }
+
+  const deckVariant: "leads" | "applied" | "action" | "history" =
+    activeTab === "applied"
+      ? "applied"
+      : activeTab === "action"
+        ? "action"
+        : activeTab === "history"
+          ? "history"
+          : "leads";
+  const deckOpportunities =
+    deckVariant === "applied"
+      ? sortedOpportunityApplied
+      : deckVariant === "action"
+        ? sortedOpportunityAction
+        : deckVariant === "history"
+          ? sortedOpportunityHistory
+          : sortedOpportunityLeads;
+  const showOpportunityDeck = deckOpportunities.length > 0;
+  const deckEmptyText =
+    deckVariant === "applied"
+      ? "No applied opportunities."
+      : deckVariant === "action"
+        ? "No drafts awaiting review."
+        : deckVariant === "history"
+          ? "No archived opportunities."
+          : "No matching opportunities.";
+
+  return (
+    <>
+    <OpportunitiesView
+      key={deckVariant}
+      accountId={accountId}
+      opportunities={deckOpportunities}
+      matchThreshold={threshold}
+      retentionDays={retentionDays}
+      variant={deckVariant}
+      pending={pending}
+      emptyText={deckEmptyText}
+      showThresholdControl={deckVariant === "leads"}
+      onThresholdChange={deckVariant === "leads" ? setThreshold : undefined}
+      onThresholdCommit={deckVariant === "leads" ? commitThreshold : undefined}
+      hiddenCount={deckVariant === "leads" ? archivedLeadCount : 0}
+      sortOption={sort}
+      onSortOptionChange={setSort}
+      suppressTabChangeRef={suppressTabChangeRef}
+      onDragZoneChange={handleDragZoneChange}
+      onReviewDraft={
+        deckVariant === "leads" || deckVariant === "action"
+          ? (opp) => setDraftOpportunity(opp)
+          : undefined
+      }
+      onSendNow={
+        deckVariant === "leads" || deckVariant === "action"
+          ? handleOpportunitySend
+          : undefined
+      }
+      onViewOriginalEmail={handleViewOriginalEmail}
+      onMarkApplied={
+        deckVariant === "leads"
+          ? (opp) => {
+              startTransition(async () => {
+                await markOpportunityExternalApplied(opp.id);
+                toast.success("Marked as applied");
+                router.refresh();
+              });
+            }
+          : undefined
+      }
+      onUnmarkApplied={
+        deckVariant === "applied"
+          ? (opp) => {
+              startTransition(async () => {
+                await unmarkApplied(opp.id);
+                toast.success("Moved back to leads");
+                router.refresh();
+              });
+            }
+          : undefined
+      }
+    >
+    {(toolbar, opportunityBody) => (
+    <div>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <CommandDeckFrame
+          toolbar={showOpportunityDeck ? toolbar : null}
+          rail={
+        <div className={cn(tabRailRowClassName, "mb-0")}>
+          <div className="flex items-center gap-1.5">
+            <TabsList className={segmentedTabsListClassName} data-mp-tab-rail="">
+              {/*
+                Tip wraps a span — not TabsTrigger. Tooltip asChild would
+                overwrite data-state and kill the teal active edge indicator.
+              */}
+              <LabelTooltip
+                label={tabDescriptions.leads}
+                side="bottom"
+                contentClassName="text-left"
+              >
+                <span className="inline-flex">
+                  <TabsTrigger
+                    value="leads"
+                    data-dnd-drop-zone="leads"
+                    className={cn(
+                      segmentedTabsTriggerClassName,
+                      dragDropZone === "leads" &&
+                        "ring-2 ring-[#1ab5af]/70 ring-offset-2 ring-offset-background"
+                    )}
+                  >
+                    <span>{JOB_RADAR_TAB_LABEL.leads}</span>
+                    <TabCountBadge count={leadCount} />
+                  </TabsTrigger>
+                </span>
+              </LabelTooltip>
+              <LabelTooltip
+                label={tabDescriptions.applied}
+                side="bottom"
+                contentClassName="text-left"
+              >
+                <span className="inline-flex">
+                  <TabsTrigger
+                    value="applied"
+                    data-dnd-drop-zone="applied"
+                    className={cn(
+                      segmentedTabsTriggerClassName,
+                      dragDropZone === "applied" &&
+                        "ring-2 ring-[#1ab5af]/70 ring-offset-2 ring-offset-background"
+                    )}
+                  >
+                    <span>{JOB_RADAR_TAB_LABEL.applied}</span>
+                    <TabCountBadge count={appliedCount} />
+                  </TabsTrigger>
+                </span>
+              </LabelTooltip>
+              <LabelTooltip
+                label={tabDescriptions.action}
+                side="bottom"
+                contentClassName="text-left"
+              >
+                <span className="inline-flex">
+                  <TabsTrigger
+                    value="action"
+                    data-dnd-drop-zone="action_required"
+                    className={cn(
+                      segmentedTabsTriggerClassName,
+                      dragDropZone === "action_required" &&
+                        "ring-2 ring-[#955823]/70 ring-offset-2 ring-offset-background dark:ring-[#eba970]/70"
+                    )}
+                  >
+                    <span>{JOB_RADAR_TAB_LABEL.action}</span>
+                    <TabCountBadge count={actionCount} />
+                  </TabsTrigger>
+                </span>
+              </LabelTooltip>
+              <LabelTooltip
+                label={tabDescriptions.history}
+                side="bottom"
+                contentClassName="text-left"
+              >
+                <span className="inline-flex">
+                  <TabsTrigger
+                    value="history"
+                    data-dnd-drop-zone="history"
+                    className={cn(
+                      segmentedTabsTriggerClassName,
+                      dragDropZone === "history" &&
+                        "ring-2 ring-[#c21f10]/70 ring-offset-2 ring-offset-background"
+                    )}
+                  >
+                    <span>{JOB_RADAR_TAB_LABEL.history}</span>
+                    <TabCountBadge count={historyCount} />
+                  </TabsTrigger>
+                </span>
+              </LabelTooltip>
+            </TabsList>
+          </div>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <SyncControls accountId={accountId} />
+          </div>
+        </div>
+          }
+        >
+
+        <TabsContent value="leads" className="relative z-0 mt-0 space-y-3">
+          {leadCount === 0 && !hasOpportunityLeads ? (
+            <EmptyState text="No leads in the queue yet." />
+          ) : (
+            <div className="space-y-4">
+              {showOpportunityDeck && deckVariant === "leads" ? (
+                opportunityBody
+              ) : null}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="applied" className="relative z-0 mt-0 space-y-4">
+          {appliedCount === 0 ? (
+            <EmptyState text="No active applications waiting for a response." />
+          ) : (
+            <>
+              {showOpportunityDeck && deckVariant === "applied" ? (
+                opportunityBody
+              ) : null}
+              {sortedApplied.length > 0 ? (
+                <ul className="space-y-2">
+                  {sortedApplied.map((job) => (
+                    <li
+                      key={job.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <CompanyLogo
+                          src={jobApplicationLogoSrc(job.actionUrl)}
+                          name={job.companyName ?? "Company"}
+                          size="lg"
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">
+                            {job.companyName ?? "Company"}
+                          </p>
+                          <p className="truncate text-sm text-muted-foreground">
+                            {job.roleTitle ?? "Role"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">
+                          Applied {daysAgo(job.appliedAt ?? job.emailDate)}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={pending}
+                          onClick={() => {
+                            startTransition(async () => {
+                              await updateApplicationStatus(job.id, "LEAD");
+                              toast.success("Moved back to leads");
+                              router.refresh();
+                            });
+                          }}
+                        >
+                          Unmark
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="action" className="relative z-0 mt-0 space-y-4">
+          {actionCount === 0 ? (
+            <EmptyState text="Nothing needs your attention right now." />
+          ) : (
+            <>
+              {showOpportunityDeck && deckVariant === "action" ? (
+                opportunityBody
+              ) : null}
+              {sortedActionRequired.length > 0 ? (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {sortedActionRequired.map((job) => (
+                    <Card key={job.id} className="border-primary/30">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start gap-3">
+                          <CompanyLogo
+                            src={jobApplicationLogoSrc(job.actionUrl)}
+                            name={job.companyName ?? "Company"}
+                            size="lg"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <CardTitle className="text-base">
+                              {job.companyName ?? "Company"}
+                            </CardTitle>
+                            <CardDescription>
+                              {job.roleTitle ?? "Role"}
+                            </CardDescription>
+                          </div>
+                          <Badge>{job.status}</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-sm">
+                        <p className="font-medium text-primary">
+                          {formatCountdown(
+                            job.deadlineAt ? new Date(job.deadlineAt) : null
+                          )}
+                        </p>
+                        {job.actionSummary && (
+                          <p className="text-muted-foreground">
+                            {job.actionSummary}
+                          </p>
+                        )}
+                      </CardContent>
+                      <CardFooter className="flex flex-wrap gap-2">
+                        {job.actionUrl ? (
+                          <Button asChild size="sm">
+                            <a
+                              href={job.actionUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              {job.status === "OA"
+                                ? "Take Assessment"
+                                : "Open link"}
+                            </a>
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="outline" disabled>
+                            No action link
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={pending}
+                          onClick={() => {
+                            startTransition(async () => {
+                              await updateApplicationStatus(job.id, "ARCHIVED");
+                              router.refresh();
+                            });
+                          }}
+                        >
+                          <Archive className="h-4 w-4" />
+                          Dismiss
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="history" className="relative z-0 mt-0 space-y-4">
+          {historyCount === 0 ? (
+            <EmptyState text="No history yet." />
+          ) : (
+            <>
+              {showOpportunityDeck && deckVariant === "history" ? (
+                opportunityBody
+              ) : null}
+              {sortedHistory.length > 0 ? (
+                <ul className="space-y-2">
+                  {sortedHistory.map((job) => (
+                    <li
+                      key={job.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <CompanyLogo
+                          src={jobApplicationLogoSrc(job.actionUrl)}
+                          name={job.companyName ?? "Company"}
+                          size="lg"
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">
+                            {job.companyName ?? "Company"}
+                          </p>
+                          <p className="truncate text-sm text-muted-foreground">
+                            {job.roleTitle ?? "Role"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={
+                            job.status === "OFFER"
+                              ? "default"
+                              : job.status === "REJECTION"
+                                ? "destructive"
+                                : "outline"
+                          }
+                        >
+                          {job.status}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={pending}
+                          onClick={() => {
+                            startTransition(async () => {
+                              await updateApplicationStatus(job.id, "LEAD");
+                              toast.success("Restored to leads");
+                              router.refresh();
+                            });
+                          }}
+                        >
+                          Restore
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
+          )}
+        </TabsContent>
+        </CommandDeckFrame>
+      </Tabs>
+    </div>
+    )}
+    </OpportunitiesView>
+
+      <AtsHandoffDrawer
+        open={Boolean(portalJob)}
+        onOpenChange={(open) => !open && setPortalJob(null)}
+        application={portalJob}
+        profile={profile}
+      />
+      <DraftReviewDialog
+        open={Boolean(draftJob)}
+        onOpenChange={(open) => !open && setDraftJob(null)}
+        application={draftJob}
+        onCompleted={() => router.refresh()}
+      />
+      <OpportunityDraftDialog
+        open={Boolean(draftOpportunity)}
+        onOpenChange={(open) => !open && setDraftOpportunity(null)}
+        opportunity={draftOpportunity}
+        onCompleted={() => router.refresh()}
+      />
+      <ViewEmailDialog
+        open={Boolean(viewEmailMessageId)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewEmailMessageId(null);
+            setViewEmailSubject(null);
+            setViewEmailFrom(null);
+          }
+        }}
+        messageId={viewEmailMessageId}
+        initialSubject={viewEmailSubject}
+        initialFrom={viewEmailFrom}
+      />
+    </>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
+      {text}
+    </div>
+  );
+}

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { skillsSchema } from "@/lib/validations/profile";
+import { skillsSchema } from "@/lib/validations/profile.schema";
 
 /**
  * ============================================================================

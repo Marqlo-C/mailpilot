@@ -4,7 +4,7 @@
  */
 export const BRANDING = {
   developerGithubUrl:
-    process.env.NEXT_PUBLIC_DEVELOPER_GITHUB_URL || "https://github.com/marqlo-c",
+    process.env.NEXT_PUBLIC_DEVELOPER_GITHUB_URL || "https://github.com",
   repositoryUrl:
-    process.env.NEXT_PUBLIC_REPOSITORY_URL || "https://github.com/Marqlo-C/mailpilot",
+    process.env.NEXT_PUBLIC_REPOSITORY_URL || "https://github.com/mailpilot/mailpilot",
 } as const;

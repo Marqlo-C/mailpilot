@@ -15,7 +15,7 @@
  * Tabs: leads | applied | action_required | history
  */
 
-import type { CardListGestureRules } from "@/lib/dnd/types";
+import type { CardListGestureRules } from "@/lib/utils/dnd/types";
 import type { JobsTabKey } from "@/lib/opportunities/sorting";
 
 /** Map OpportunityCard / view variant → movement tab key. */

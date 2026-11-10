@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock @/lib/auth
-vi.mock("@/lib/auth", () => ({
+// Mock @/lib/core/auth
+vi.mock("@/lib/core/auth", () => ({
   getAuthenticatedAccountId: vi.fn(),
 }));
 
@@ -18,7 +18,7 @@ vi.mock("@/lib/core/prisma", () => ({
   },
 }));
 
-import { getAuthenticatedAccountId } from "@/lib/auth";
+import { getAuthenticatedAccountId } from "@/lib/core/auth";
 import { prisma } from "@/lib/core/prisma";
 import { POST } from "../route";
 

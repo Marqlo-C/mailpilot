@@ -1,9 +1,9 @@
-import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
-import type { AccountRules } from "@/lib/validations/rules";
+import { callLLMWithFallback, type LlmProvider } from "@/lib/ai";
+import type { AccountRules } from "@/lib/validations/rules.schema";
 import {
   refineLineSchema,
   type RefineLinePayload,
-} from "./schema.ssot";
+} from "@/lib/validations/resume-draft.schema";
 
 export { refineLineSchema };
 export type { RefineLinePayload };
