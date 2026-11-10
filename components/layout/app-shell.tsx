@@ -28,6 +28,7 @@ import { ToolbarThemeProvider } from "@/components/ui/toolbar-theme";
 import { SyncTelemetry } from "@/components/opportunities/sync-telemetry";
 import { cn } from "@/lib/utils";
 import type { AccountSummary, SidebarTabCounts } from "@/lib/data";
+import type { ServerUiPreferences } from "@/lib/ui/ui-preferences-server";
 
 /** Mobile top bar. Desktop pages no longer share this band. */
 const SHELL_TOP_BAND_CLASS = "flex h-[4.25rem] shrink-0 items-center";
@@ -54,6 +55,7 @@ type AppShellProps = {
   activeEmail: string | null;
   initialIsSyncing?: boolean;
   initialPendingClassificationCount?: number;
+  initialUiPreferences?: ServerUiPreferences;
   tabCounts: SidebarTabCounts;
   children: React.ReactNode;
 };
@@ -72,6 +74,7 @@ function AppShellInner({
   activeEmail,
   initialIsSyncing = false,
   initialPendingClassificationCount = 0,
+  initialUiPreferences,
   tabCounts,
   children,
 }: AppShellProps) {
@@ -113,9 +116,18 @@ function AppShellInner({
       initialPendingClassificationCount={initialPendingClassificationCount}
     >
     <BulkActionsOpenProvider>
-    <TabRailProvider accountId={activeAccountId}>
-    <RailActionProvider accountId={activeAccountId}>
-    <ToolbarThemeProvider accountId={activeAccountId}>
+    <TabRailProvider
+      accountId={activeAccountId}
+      initialVariant={initialUiPreferences?.tabRail}
+    >
+    <RailActionProvider
+      accountId={activeAccountId}
+      initialVariant={initialUiPreferences?.railAction}
+    >
+    <ToolbarThemeProvider
+      accountId={activeAccountId}
+      initialVariant={initialUiPreferences?.toolbar}
+    >
     <SidebarFlyoutProvider>
     <div className="min-h-screen md:flex md:h-dvh md:min-h-0 md:overflow-hidden md:py-1.5 md:pl-1.5">
       <GlobalSyncTracker />

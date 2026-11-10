@@ -1,5 +1,7 @@
+import { readUiCookie, writeUiCookie } from "./ui-cookie-helper";
+
 /**
- * Per-account wave toggle variant preference (localStorage only).
+ * Per-account wave toggle variant preference (localStorage and cookie mirrored).
  */
 
 export type WaveToggleVariant = "light" | "dark";
@@ -17,14 +19,21 @@ export function readWaveTogglePreference(
   try {
     if (accountId) {
       const saved = localStorage.getItem(waveToggleKey(accountId));
-      if (saved === "dark" || saved === "light") return saved;
+      if (saved === "dark" || saved === "light") {
+        return saved;
+      }
     }
     const fallback = localStorage.getItem("mailpilot_wave_toggle_global");
-    if (fallback === "dark" || fallback === "light") return fallback;
-    return "dark";
+    if (fallback === "dark" || fallback === "light") {
+      return fallback;
+    }
   } catch {
-    return "dark";
+    // Quota / private mode — fallback to cookie
   }
+
+  const cookieVal = readUiCookie("wave_toggle", accountId);
+  if (cookieVal === "dark" || cookieVal === "light") return cookieVal;
+  return "dark";
 }
 
 export function persistWaveTogglePreference(
@@ -37,12 +46,15 @@ export function persistWaveTogglePreference(
       localStorage.setItem(waveToggleKey(accountId), variant);
     }
     localStorage.setItem("mailpilot_wave_toggle_global", variant);
-    window.dispatchEvent(
-      new CustomEvent(WAVE_TOGGLE_CHANGE_EVENT, {
-        detail: { variant, accountId },
-      })
-    );
   } catch {
     // Quota / private mode — ignore.
   }
+
+  writeUiCookie("wave_toggle", accountId, variant);
+
+  window.dispatchEvent(
+    new CustomEvent(WAVE_TOGGLE_CHANGE_EVENT, {
+      detail: { variant, accountId },
+    })
+  );
 }

@@ -1,3 +1,4 @@
+import { BRANDING } from "@/lib/constants/branding";
 import { GoogleSignInButton } from "./google-sign-in-button";
 import { LoginBackgroundVideo } from "./login-background-video";
 import { LoginTrustFooter } from "./login-trust-footer";
@@ -55,7 +56,7 @@ export default async function LoginPage({
                 </span>{" "}
                 At this time, Mail Pilot is restricted to authorized accounts only. Please contact the{" "}
                 <a
-                  href="https://github.com/marqlo-c"
+                  href={BRANDING.developerGithubUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-medium text-muted-foreground underline underline-offset-2 transition-colors hover:text-muted-foreground/80"
@@ -83,7 +84,7 @@ export default async function LoginPage({
                 <div className="h-px flex-1 bg-border" />
               </div>
               <a
-                href="https://github.com/Marqlo-C/mailpilot"
+                href={BRANDING.repositoryUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group relative flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-[#24292f] text-sm font-medium text-white shadow-sm"

@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { skillCategoryLabel } from "@/lib/profile/skill-groups";
-import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/types/resume-draft";
+import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/resume-draft";
 import { cn } from "@/lib/utils";
 import {
   formatEducationDates,

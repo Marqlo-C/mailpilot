@@ -6,9 +6,9 @@ import {
   draftToPdfInput,
   moveResumeNode,
   refineResumeLine,
+  storedResumeDraftSchema,
 } from "@/lib/resume-draft";
-import { storedResumeDraftSchema } from "@/lib/types/resume-draft";
-import { tailorResumeForJob } from "@/lib/resume-tailor";
+import { tailorResumeForJob } from "@/lib/tailor";
 import type { WorkExperienceInput } from "@/lib/validations/profile";
 import {
   DEFAULT_RESUME_PREFERENCES,

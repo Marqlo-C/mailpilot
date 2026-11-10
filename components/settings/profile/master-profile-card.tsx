@@ -1,62 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Award,
-  Brain,
-  Briefcase,
-  Cpu,
-  FolderGit2,
-  GraduationCap,
-  Heart,
-  Link2,
-  Mail,
-  MapPin,
-  Phone,
-  SquareArrowOutUpRight,
-  Trophy,
-  UserRound,
-  Users,
-  Layers,
-} from "lucide-react";
-import {
-  NestedCardLevel,
-  SettingsEntryCard,
-  EntryBulletList,
-  EntryChip,
-  DateChip,
-  ENTRY_CHIP_CLASSNAME,
-  SettingsFeatureCard,
-  SettingsSectionCard,
-  SettingsStatusPill,
-  SlidableBadgeRow,
-  SLIDABLE_BADGE_ROW_LEADING_OFFSET_PX,
-} from "@/components/ui/tactile";
-import { ManualProfileEditor } from "@/components/profile/manual-profile-editor";
-import { PersonaViewer } from "@/components/profile/persona-viewer";
+import { useCallback, useMemo, useState } from "react";
+import { UserRound } from "lucide-react";
+import { SettingsSectionCard } from "@/components/ui/tactile";
+import { ManualProfileEditor } from "./manual-profile-editor";
 import { ProfileRevisionsMenu } from "@/components/profile/profile-revisions-menu";
-import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
-import { Badge } from "@/components/ui/badge";
-import { LogoFrameIcon } from "@/components/ui/logo-frame";
-import { explainCandidatePersona } from "@/lib/ai/persona";
+import { SETTINGS_CARD_CLASSNAME } from "@/lib/navigation/settings-chrome";
+import { explainCandidatePersona } from "@/lib/persona";
 import type { MasterProfileInput } from "@/lib/validations/profile";
 import { groupSkillSections, skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
+import { isWorkExperienceCategory } from "@/lib/validations/profile";
+import { LINKED_ACCOUNT_FIELDS } from "@/components/settings/profile/platform-mark";
 import {
-  educationProgressLabel,
-  formatEducationDates,
-  formatEducationTitle,
-  formatExperienceHeading,
-  formatSchoolName,
-  formatStatusPillTitle,
-} from "@/lib/utils/format";
-import { isWorkExperienceCategory, detectMetric } from "@/lib/validations/profile";
-import {
-  LINKED_ACCOUNT_FIELDS,
-  ICON_SQUIRCLE_CLASSNAME,
-  LinkStatusPill,
-  PlatformMark,
-} from "@/components/settings/profile/platform-mark";
-import { cn } from "@/lib/utils";
+  ProfileActivitiesCard,
+  ProfileAwardsCard,
+  ProfileCertificationsCard,
+  ProfileContactsCard,
+  ProfileEducationCard,
+  ProfileExperienceCard,
+  ProfileInterestsCard,
+  ProfilePersonaCard,
+  ProfileProjectsCard,
+  ProfileSkillsCard,
+  ProfileUpdatedStamp,
+} from "./sections";
 
 export type ProfileSnapshotData = MasterProfileInput & {
   updatedAt?: string;
@@ -76,169 +43,6 @@ type MasterProfileCardProps = {
   accountId: string | null;
   profile: ProfileSnapshotData | null;
 };
-
-/** Show stored skill headings in Title Case. All-caps labels are recased; mixed case is kept. */
-function skillHeading(label: string): string {
-  const letters = label.replace(/[^A-Za-z]/g, "");
-  if (letters.length > 0 && letters === letters.toUpperCase()) {
-    return formatStatusPillTitle(label.toLowerCase());
-  }
-  return label;
-}
-
-const SKILL_HEADING_CLASSNAME =
-  "text-xs font-semibold text-foreground/90 tracking-normal";
-
-function ContactChannel({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/20 p-3">
-      <span className={ICON_SQUIRCLE_CLASSNAME} aria-hidden="true">
-        <Icon className="size-[18px] text-muted-foreground" />
-      </span>
-      <div className="min-w-0">
-        <p className="truncate text-xs font-semibold text-foreground">{label}</p>
-        <p className="truncate text-[11px] text-muted-foreground" title={value}>
-          {value}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function SectionCountPill({
-  level,
-  count,
-  hasItems,
-  children,
-  dotClassName,
-  className,
-}: {
-  level?: NestedCardLevel;
-  count?: number;
-  hasItems?: boolean;
-  children: React.ReactNode;
-  dotClassName?: string;
-  className?: string;
-}) {
-  if (count === 0 || hasItems === false) {
-    return null;
-  }
-
-  return (
-    <SettingsStatusPill
-      level={level}
-      count={count}
-      hasItems={hasItems}
-      dotClassName={dotClassName}
-      className={className}
-    >
-      {children}
-    </SettingsStatusPill>
-  );
-}
-
-/** Last master-profile save, rendered in the browser's timezone. */
-function ProfileUpdatedStamp({ iso }: { iso: string }) {
-  const [label, setLabel] = useState<string | null>(null);
-
-  useEffect(() => {
-    const parsed = new Date(iso);
-    if (!Number.isFinite(parsed.getTime())) {
-      setLabel(null);
-      return;
-    }
-    setLabel(
-      parsed.toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        timeZoneName: "short",
-      })
-    );
-  }, [iso]);
-
-  if (!label) return null;
-
-  return (
-    <span className="shrink-0 text-[11px] text-muted-foreground">
-      Updated {label}
-    </span>
-  );
-}
-
-function FormattedBulletText({
-  text,
-  hasMetric,
-  variantsCount = 0,
-  onToggleVariants,
-}: {
-  text: string;
-  hasMetric: boolean;
-  variantsCount?: number;
-  onToggleVariants?: () => void;
-}) {
-  const trimmed = text.trim();
-  const words = trimmed.split(/\s+/);
-
-  const metricBadge = hasMetric ? (
-    <Badge
-      variant="outline"
-      className="ml-1.5 inline-flex align-middle rounded-md px-1.5 py-0 font-mono text-[9px] shrink-0 whitespace-nowrap"
-    >
-      metric
-    </Badge>
-  ) : null;
-
-  const variantButton =
-    variantsCount > 0 && onToggleVariants ? (
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleVariants();
-        }}
-        className="ml-1.5 inline-flex align-middle items-center gap-1 rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0 cursor-pointer whitespace-nowrap"
-        title="Toggle companion variants"
-      >
-        <Layers className="size-2.5 shrink-0" />
-        <span>{`+${variantsCount} ${variantsCount === 1 ? "variant" : "variants"}`}</span>
-      </button>
-    ) : null;
-
-  if (words.length <= 1 || (!hasMetric && variantsCount === 0)) {
-    return (
-      <span className="inline">
-        <span>{trimmed}</span>
-        {metricBadge}
-        {variantButton}
-      </span>
-    );
-  }
-
-  const leadingText = words.slice(0, -1).join(" ") + " ";
-  const lastWord = words[words.length - 1];
-
-  return (
-    <span className="inline">
-      <span>{leadingText}</span>
-      <span className="inline-block whitespace-nowrap">
-        <span>{lastWord}</span>
-        {metricBadge}
-        {variantButton}
-      </span>
-    </span>
-  );
-}
 
 /**
  * Unified Master Profile card:
@@ -401,7 +205,7 @@ export function MasterProfileCard({
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Top Identity Window (Preserved) */}
+          {/* Top Identity Window */}
           <div className="flex flex-col gap-3 rounded-lg border border-border/50 bg-card/70 p-3.5 sm:flex-row sm:items-center sm:justify-between shadow-xs">
             <div className="min-w-0 space-y-0.5">
               <div className="flex flex-wrap items-baseline gap-1.5">
@@ -422,823 +226,90 @@ export function MasterProfileCard({
 
           {/* Level 2 Feature Cards for Profile Sections */}
           <div className="space-y-3">
-            {/* 1. Persona & Career Synthesis */}
-            {personaInfo && (
-              <SettingsFeatureCard
-                logo={<LogoFrameIcon icon={Brain} />}
-                title="Persona & Career Synthesis"
-                subtitle="Seniority tier, target title family, career trajectory, and tone positioning."
-                statusBadge={
-                  personaInfo?.tier ? (
-                    <SectionCountPill
-                      hasItems={true}
-                      className="bg-primary/10 text-primary font-medium"
-                    >
-                      {personaInfo.tier}
-                    </SectionCountPill>
-                  ) : null
-                }
-                isExpanded={openSections.persona}
-                onToggle={() => toggleSection("persona")}
-                curvedDivider
-              >
-                <PersonaViewer accountId={accountId} profile={profile} />
-              </SettingsFeatureCard>
-            )}
+            <ProfilePersonaCard
+              accountId={accountId}
+              profile={profile}
+              isExpanded={openSections.persona}
+              onToggle={() => toggleSection("persona")}
+              personaInfo={personaInfo}
+            />
 
-            {/* 2. Contact & Linked Accounts */}
-            <SettingsFeatureCard
-              logo={<LogoFrameIcon icon={Link2} />}
-              title="Contact & Linked Accounts"
-              subtitle="Direct contact channels, professional summary, and external portfolio links."
-              statusBadge={
-                <SectionCountPill count={LINKED_ACCOUNT_FIELDS.length}>
-                  <span>{LINKED_ACCOUNT_FIELDS.length} Sites</span>
-                  <span
-                    aria-hidden="true"
-                    className="h-2.5 w-px shrink-0 bg-border/90"
-                  />
-                  <span>{linkedCount} Linked</span>
-                </SectionCountPill>
-              }
+            <ProfileContactsCard
+              profile={profile}
               isExpanded={openSections.contact}
               onToggle={() => toggleSection("contact")}
-              curvedDivider
-            >
-              <div className="space-y-2.5">
-                <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
-                  <ContactChannel
-                    icon={Phone}
-                    label="Phone"
-                    value={profile.phone || "—"}
-                  />
-                  <ContactChannel
-                    icon={Mail}
-                    label="Email"
-                    value={profile.email || "—"}
-                  />
-                  <ContactChannel
-                    icon={MapPin}
-                    label="Location"
-                    value={profile.location || "—"}
-                  />
-                </div>
-                <div className="space-y-1 rounded-xl border border-border/60 bg-muted/20 p-3.5">
-                  <p className="text-[11px] font-semibold text-muted-foreground">Summary</p>
-                  {profile.summary?.trim() && profile.summary.trim() !== "—" ? (
-                    <p className="text-xs leading-relaxed text-foreground/85">
-                      {profile.summary}
-                    </p>
-                  ) : (
-                    <p className="text-xs italic text-muted-foreground">
-                      No professional summary added
-                    </p>
-                  )}
-                </div>
-                <ul className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-                  {LINKED_ACCOUNT_FIELDS.map(({ key, label, iconSrc, iconSize }) => {
-                    const url = profile[key];
-                    const linked = typeof url === "string" && url.length > 0;
-                    return (
-                      <li
-                        key={key}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card p-3"
-                      >
-                        <div className="flex min-w-0 flex-1 items-center gap-3">
-                          <PlatformMark name={label} src={iconSrc} iconSize={iconSize} />
-                          <div className="min-w-0 flex-1">
-                            <h5 className="truncate text-xs font-semibold text-foreground">
-                              {label}
-                            </h5>
-                            <p className="truncate text-[11px] text-muted-foreground">
-                              {linked ? url : "Not linked"}
-                            </p>
-                          </div>
-                        </div>
-                        <LinkStatusPill linked={linked} />
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            </SettingsFeatureCard>
+              linkedCount={linkedCount}
+            />
 
-            {/* 3. Skills & Core Competencies */}
-            <SettingsFeatureCard
-              logo={<LogoFrameIcon icon={Cpu} />}
-              title="Skills & Core Competencies"
-              subtitle="Categorized skill taxonomy, domains, and granular proficiency levels."
-              statusBadge={
-                totalSkillsCount > 0 ? (
-                  <SectionCountPill count={totalSkillsCount}>
-                    <span>
-                      {totalSkillGroupsCount}{" "}
-                      {totalSkillGroupsCount === 1 ? "Group" : "Groups"}
-                    </span>
-                    <span
-                      aria-hidden="true"
-                      className="h-2.5 w-px shrink-0 bg-border/90"
-                    />
-                    <span>
-                      {totalSkillsCount}{" "}
-                      {totalSkillsCount === 1 ? "Skill" : "Skills"}
-                    </span>
-                  </SectionCountPill>
-                ) : null
-              }
+            <ProfileSkillsCard
               isExpanded={openSections.skills}
               onToggle={() => toggleSection("skills")}
-              curvedDivider
-            >
-              <div className="space-y-4">
-                {skillGroups.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">None listed</p>
-                ) : (
-                  skillSections.map((section, sectionIndex) => (
-                    <div
-                      key={`${section.parentCategory ?? "root"}-${sectionIndex}`}
-                      className="space-y-3"
-                    >
-                      {section.parentCategory ? (
-                        <p className={SKILL_HEADING_CLASSNAME}>
-                          {skillHeading(section.parentCategory)}
-                        </p>
-                      ) : null}
-                      {section.groups.map((group, index) => (
-                        <div key={`${section.parentCategory ?? ""}-${group.label}-${index}`}>
-                          <p className={cn("mb-2", SKILL_HEADING_CLASSNAME)}>
-                            {skillHeading(group.label)}
-                          </p>
-                          {group.items.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">
-                              None listed
-                            </p>
-                          ) : (
-                            <SlidableBadgeRow>
-                              {group.items.map((skill) => (
-                                <Badge
-                                  key={`${group.label}-${skill.name}`}
-                                  variant="secondary"
-                                  className="gap-1 font-normal shrink-0 whitespace-nowrap"
-                                >
-                                  <span className="font-medium text-foreground">{skill.name}</span>
-                                  {skill.proficiency ? (
-                                    <span className="text-muted-foreground">
-                                      · {skill.proficiency}
-                                    </span>
-                                  ) : null}
-                                </Badge>
-                              ))}
-                            </SlidableBadgeRow>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ))
-                )}
-              </div>
-            </SettingsFeatureCard>
+              totalSkillsCount={totalSkillsCount}
+              totalSkillGroupsCount={totalSkillGroupsCount}
+              skillGroups={skillGroups}
+              skillSections={skillSections}
+            />
 
-            {/* 4. Work Experience & History (Expanded by default) */}
-            <SettingsFeatureCard
-              logo={<LogoFrameIcon icon={Briefcase} />}
-              title="Work Experience & History"
-              subtitle="Chronological employment roles with quantifiable achievement bullets."
-              statusBadge={
-                workExperiences.length > 0 ? (
-                  <SectionCountPill count={workExperiences.length}>
-                    <span>
-                      {workExperiences.length}{" "}
-                      {workExperiences.length === 1 ? "Role" : "Roles"}
-                    </span>
-                    {totalWorkBullets > 0 ? (
-                      <>
-                        <span
-                          aria-hidden="true"
-                          className="h-2.5 w-px shrink-0 bg-border/90"
-                        />
-                        <span>
-                          {totalWorkBullets}{" "}
-                          {totalWorkBullets === 1 ? "Bullet" : "Bullets"}
-                        </span>
-                      </>
-                    ) : null}
-                  </SectionCountPill>
-                ) : null
-              }
+            <ProfileExperienceCard
+              workExperiences={workExperiences}
+              totalWorkBullets={totalWorkBullets}
               isExpanded={openSections.experience}
               onToggle={() => toggleSection("experience")}
-              curvedDivider
-            >
-              {workExperiences.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No work history saved.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {workExperiences.map((exp, expIndex) => {
-                    const itemKey = `work-${exp.id ?? `${exp.company}-${exp.role}`}`;
-                    const isExpanded = openItems[itemKey] ?? true;
-                    return (
-                      <SettingsEntryCard
-                        key={itemKey}
-                        index={expIndex + 1}
-                        title={exp.role}
-                        subtitle={[exp.company, exp.location].filter(Boolean).join(" · ")}
-                        trailing={
-                          <DateChip>
-                            {exp.startDate} – {exp.endDate ?? "Present"}
-                          </DateChip>
-                        }
-                        isExpanded={isExpanded}
-                        onToggle={() => toggleItem(itemKey)}
-                        curvedDivider
-                      >
-                        <EntryBulletList
-                          items={exp.bullets.map((b, bIdx) => {
-                            const bulletVariants = b.variants || [];
-                            const variantKey = `${itemKey}-bullet-${b.id || bIdx}-variants`;
-                            const isVariantExpanded = expandedVariants[variantKey] ?? false;
+              openItems={openItems}
+              toggleItem={toggleItem}
+              expandedVariants={expandedVariants}
+              toggleVariant={toggleVariant}
+            />
 
-                            return {
-                              key: b.id,
-                              content: (
-                                <div className="space-y-1 w-full">
-                                  <div className="text-xs leading-relaxed text-foreground/90">
-                                    <FormattedBulletText
-                                      text={b.rawText}
-                                      hasMetric={b.hasMetric}
-                                      variantsCount={bulletVariants.length}
-                                      onToggleVariants={() => toggleVariant(variantKey)}
-                                    />
-                                  </div>
-                                  {bulletVariants.length > 0 && isVariantExpanded ? (
-                                    <div className="mt-1.5 ml-1 border-l-2 border-border/60 pl-2.5 py-1 space-y-1.5 animate-in fade-in-50 duration-150">
-                                      {bulletVariants.map((v, vIdx) => (
-                                        <div
-                                          key={`exp-v-${vIdx}`}
-                                          className="rounded bg-muted/30 p-2 text-[11px] leading-relaxed text-muted-foreground border border-border/40"
-                                        >
-                                          <div className="flex items-center gap-1.5 mb-1 text-[10px] font-medium text-foreground/80">
-                                            <Badge variant="outline" className="text-[9px] px-1 py-0">
-                                              {v.origin === "HUMAN_VERIFIED"
-                                                ? "Prior Revision"
-                                                : "Variant"}
-                                            </Badge>
-                                          </div>
-                                          <p>{v.text}</p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ),
-                            };
-                          })}
-                        />
-                      </SettingsEntryCard>
-                    );
-                  })}
-                </div>
-              )}
-            </SettingsFeatureCard>
-
-            {/* 5. Activities & Leadership */}
-            <SettingsFeatureCard
-              logo={<LogoFrameIcon icon={Users} />}
-              title="Activities & Leadership"
-              subtitle="Campus leadership, extracurricular positions, volunteer initiatives, and community impact."
-              statusBadge={
-                activityExperiences.length > 0 ? (
-                  <SectionCountPill count={activityExperiences.length}>
-                    <span>
-                      {activityExperiences.length}{" "}
-                      {activityExperiences.length === 1 ? "Activity" : "Activities"}
-                    </span>
-                    {totalActivityBullets > 0 ? (
-                      <>
-                        <span
-                          aria-hidden="true"
-                          className="h-2.5 w-px shrink-0 bg-border/90"
-                        />
-                        <span>
-                          {totalActivityBullets}{" "}
-                          {totalActivityBullets === 1 ? "Bullet" : "Bullets"}
-                        </span>
-                      </>
-                    ) : null}
-                  </SectionCountPill>
-                ) : null
-              }
+            <ProfileActivitiesCard
+              activityExperiences={activityExperiences}
+              totalActivityBullets={totalActivityBullets}
               isExpanded={openSections.activities}
               onToggle={() => toggleSection("activities")}
-              curvedDivider
-            >
-              {activityExperiences.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No activities or leadership saved.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {activityExperiences.map((exp, actIndex) => {
-                    const itemKey = `activity-${exp.id ?? `${exp.company}-${exp.role}`}`;
-                    const isExpanded = openItems[itemKey] ?? true;
-                    return (
-                      <SettingsEntryCard
-                        key={itemKey}
-                        index={actIndex + 1}
-                        title={exp.role}
-                        subtitle={[exp.company, exp.location].filter(Boolean).join(" · ")}
-                        trailing={
-                          <DateChip>
-                            {exp.startDate} – {exp.endDate ?? "Present"}
-                          </DateChip>
-                        }
-                        isExpanded={isExpanded}
-                        onToggle={() => toggleItem(itemKey)}
-                        curvedDivider
-                      >
-                        <EntryBulletList
-                          items={exp.bullets.map((b) => ({ key: b.id, content: b.rawText }))}
-                        />
-                      </SettingsEntryCard>
-                    );
-                  })}
-                </div>
-              )}
-            </SettingsFeatureCard>
+              openItems={openItems}
+              toggleItem={toggleItem}
+            />
 
-            {/* 6. Projects & Practical Work */}
-            <SettingsFeatureCard
-              logo={<LogoFrameIcon icon={FolderGit2} />}
-              title="Projects & Practical Work"
-              subtitle="Key practical initiatives, technical deliverables, descriptions, and technology stacks."
-              statusBadge={
-                profile.projects.length > 0 ? (
-                  <SectionCountPill count={profile.projects.length}>
-                    <span>
-                      {profile.projects.length}{" "}
-                      {profile.projects.length === 1 ? "Project" : "Projects"}
-                    </span>
-                    {totalProjectBullets > 0 ? (
-                      <>
-                        <span
-                          aria-hidden="true"
-                          className="h-2.5 w-px shrink-0 bg-border/90"
-                        />
-                        <span>
-                          {totalProjectBullets}{" "}
-                          {totalProjectBullets === 1 ? "Bullet" : "Bullets"}
-                        </span>
-                      </>
-                    ) : null}
-                  </SectionCountPill>
-                ) : null
-              }
+            <ProfileProjectsCard
+              projects={profile.projects}
+              totalProjectBullets={totalProjectBullets}
               isExpanded={openSections.projects}
               onToggle={() => toggleSection("projects")}
-              curvedDivider
-            >
-              {profile.projects.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No projects saved.</p>
-              ) : (
-                <div className="space-y-3">
-                  {[...profile.projects]
-                    .sort((a, b) =>
-                      (a.name || "").localeCompare(b.name || "", undefined, {
-                        sensitivity: "base",
-                      })
-                    )
-                    .map((project, pIndex) => {
-                    const itemKey = `project-${project.id ?? project.name ?? pIndex}`;
-                    const isExpanded = openItems[itemKey] ?? true;
-                    const hasTools = project.technologies.length > 0;
-                    const toolLabel = hasTools
-                      ? `${project.technologies.length} ${project.technologies.length === 1 ? "Tool" : "Tools"}`
-                      : null;
+              openItems={openItems}
+              toggleItem={toggleItem}
+              expandedVariants={expandedVariants}
+              toggleVariant={toggleVariant}
+            />
 
-                    return (
-                      <SettingsEntryCard
-                        key={itemKey}
-                        index={pIndex + 1}
-                        title={
-                          <div className="inline-flex items-center gap-1.5 leading-none max-w-full">
-                            <h4 className="text-sm font-semibold text-foreground truncate leading-none">
-                              {project.name}
-                            </h4>
-                            {project.link ? (
-                              <a
-                                href={project.link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(event) => event.stopPropagation()}
-                                className="inline-flex items-center justify-center self-center text-muted-foreground/60 hover:text-foreground transition-colors shrink-0 p-0.5"
-                                title="Open repository"
-                              >
-                                <SquareArrowOutUpRight className="size-3.5 shrink-0" />
-                              </a>
-                            ) : null}
-                          </div>
-                        }
-                        subtitle={project.description || undefined}
-                        trailing={
-                          toolLabel ? (
-                            <EntryChip>
-                              {toolLabel}
-                            </EntryChip>
-                          ) : null
-                        }
-                        isExpanded={isExpanded}
-                        onToggle={() => toggleItem(itemKey)}
-                        curvedDivider
-                      >
-                        {project.technologies.length > 0 && (
-                          <SlidableBadgeRow>
-                            {project.technologies.map((tech) => (
-                              <Badge key={tech} variant="outline" className={ENTRY_CHIP_CLASSNAME}>
-                                {tech}
-                              </Badge>
-                            ))}
-                          </SlidableBadgeRow>
-                        )}
-                        {project.bullets.length > 0 ? (() => {
-                          const renderBulletItem = (bullet: string, bIdx: number, sourceKey = "bullet") => {
-                            const bulletVariants = (project.variants || []).filter(
-                              (v) => v.shadowOf === bullet || v.shadowOf === String(bIdx)
-                            );
-                            const variantKey = `${itemKey}-${sourceKey}-${bIdx}-variants`;
-                            const isVariantExpanded = expandedVariants[variantKey] ?? false;
-
-                            return {
-                              key: `proj-${sourceKey}-${bIdx}`,
-                              content: (
-                                <div className="space-y-1 w-full">
-                                  <div className="text-xs leading-relaxed text-foreground/90">
-                                    <FormattedBulletText
-                                      text={bullet}
-                                      hasMetric={detectMetric(bullet)}
-                                      variantsCount={bulletVariants.length}
-                                      onToggleVariants={() => toggleVariant(variantKey)}
-                                    />
-                                  </div>
-                                  {bulletVariants.length > 0 && isVariantExpanded ? (
-                                    <div className="mt-1.5 ml-1 border-l-2 border-border/60 pl-2.5 py-1 space-y-1.5 animate-in fade-in-50 duration-150">
-                                      {bulletVariants.map((v, vIdx) => (
-                                        <div
-                                          key={`v-${vIdx}`}
-                                          className="rounded bg-muted/30 p-2 text-[11px] leading-relaxed text-muted-foreground border border-border/40"
-                                        >
-                                          <div className="flex items-center gap-1.5 mb-1 text-[10px] font-medium text-foreground/80">
-                                            <Badge variant="outline" className="text-[9px] px-1 py-0">
-                                              {v.origin === "HUMAN_VERIFIED"
-                                                ? "Prior Revision"
-                                                : v.origin === "GITHUB_INFERRED"
-                                                ? "Inferred Variant"
-                                                : "Variant"}
-                                            </Badge>
-                                            {v.confidenceScore ? (
-                                              <span className="text-muted-foreground">
-                                                {Math.round(v.confidenceScore * 100)}% match
-                                              </span>
-                                            ) : null}
-                                          </div>
-                                          <p>{v.text}</p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ),
-                            };
-                          };
-
-                          const isHumanBullet = (bullet: string, idx: number) => {
-                            const origin =
-                              project.bulletOrigins?.[bullet] ??
-                              project.bulletOrigins?.[String(idx)] ??
-                              project.origin;
-                            return origin === "HUMAN_VERIFIED" || origin === undefined;
-                          };
-
-                          const resumeBullets = project.bullets
-                            .map((b, idx) => ({ b, idx }))
-                            .filter(({ b, idx }) => isHumanBullet(b, idx));
-
-                          const inferredBullets = project.bullets
-                            .map((b, idx) => ({ b, idx }))
-                            .filter(({ b, idx }) => !isHumanBullet(b, idx));
-
-                          const hasSplit = resumeBullets.length > 0 && inferredBullets.length > 0;
-
-                          if (hasSplit) {
-                            return (
-                              <div className="space-y-3.5 pt-1">
-                                <div className="space-y-2">
-                                  <div
-                                    className="flex items-center"
-                                    style={{
-                                      marginInline: `${SLIDABLE_BADGE_ROW_LEADING_OFFSET_PX}px`,
-                                    }}
-                                  >
-                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                      User-Verified
-                                    </span>
-                                  </div>
-                                  <EntryBulletList
-                                    items={resumeBullets.map(({ b, idx }) =>
-                                      renderBulletItem(b, idx, "resume")
-                                    )}
-                                  />
-                                </div>
-
-                                <div className="space-y-2">
-                                  <div
-                                    className="relative py-2 my-1"
-                                    style={{
-                                      marginInline: `${SLIDABLE_BADGE_ROW_LEADING_OFFSET_PX}px`,
-                                    }}
-                                  >
-                                    <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                                      <div className="w-full border-t border-border/60" />
-                                    </div>
-                                    <div className="relative flex items-center justify-start">
-                                      <span className="bg-card pr-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                        Externally-Sourced
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <EntryBulletList
-                                    items={inferredBullets.map(({ b, idx }) =>
-                                      renderBulletItem(b, idx, "inferred")
-                                    )}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          }
-
-                          if (project.origin === "GITHUB_INFERRED" || inferredBullets.length === project.bullets.length) {
-                            return (
-                              <div className="space-y-2 pt-1">
-                                <div
-                                  className="flex items-center"
-                                  style={{
-                                    marginInline: `${SLIDABLE_BADGE_ROW_LEADING_OFFSET_PX}px`,
-                                  }}
-                                >
-                                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                    Externally-Sourced
-                                  </span>
-                                </div>
-                                <EntryBulletList
-                                  items={project.bullets.map((b, idx) =>
-                                    renderBulletItem(b, idx, "inferred")
-                                  )}
-                                />
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <div className="space-y-2 pt-1">
-                              <div
-                                className="flex items-center"
-                                style={{
-                                  marginInline: `${SLIDABLE_BADGE_ROW_LEADING_OFFSET_PX}px`,
-                                }}
-                              >
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                  User-Verified
-                                </span>
-                              </div>
-                              <EntryBulletList
-                                items={project.bullets.map((b, idx) =>
-                                  renderBulletItem(b, idx, "resume")
-                                )}
-                              />
-                            </div>
-                          );
-                        })() : null}
-                        {project.technologies.length === 0 && project.bullets.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">No additional details recorded.</p>
-                        ) : null}
-                      </SettingsEntryCard>
-                    );
-                  })}
-                </div>
-              )}
-            </SettingsFeatureCard>
-
-            {/* 7. Education & Academics */}
-            <SettingsFeatureCard
-              logo={<LogoFrameIcon icon={GraduationCap} />}
-              title="Education & Academics"
-              subtitle="Academic institutions, degrees, relevant coursework, and honors."
-              statusBadge={
-                profile.education.length > 0 ? (
-                  <SectionCountPill count={profile.education.length}>
-                    {profile.education.length} {profile.education.length === 1 ? "Credential" : "Credentials"}
-                  </SectionCountPill>
-                ) : null
-              }
+            <ProfileEducationCard
+              education={profile.education}
               isExpanded={openSections.education}
               onToggle={() => toggleSection("education")}
-              curvedDivider
-            >
-              {profile.education.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No education saved.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {profile.education.map((ed, edIndex) => {
-                    const title = formatEducationTitle(ed.degree, ed.fieldOfStudy);
-                    const school = formatSchoolName(ed.institution, ed.subSchool);
-                    const dateRange = formatEducationDates(ed);
-                    const progressLabel = educationProgressLabel(ed);
-                    const itemKey = `edu-${ed.id ?? `${ed.institution}-${ed.degree}-${edIndex}`}`;
-                    const isExpanded = openItems[itemKey] ?? true;
-                    return (
-                      <SettingsEntryCard
-                        key={itemKey}
-                        index={edIndex + 1}
-                        title={school || "Academic Institution"}
-                        subtitle={title || undefined}
-                        trailing={
-                          dateRange || progressLabel ? (
-                            <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                              {dateRange ? <DateChip>{dateRange}</DateChip> : null}
-                              {progressLabel ? (
-                                <EntryChip>
-                                  {progressLabel}
-                                </EntryChip>
-                              ) : null}
-                            </div>
-                          ) : null
-                        }
-                        isExpanded={isExpanded}
-                        onToggle={() => toggleItem(itemKey)}
-                        curvedDivider
-                      >
-                        {ed.honors.length > 0 ? (
-                          <p className="text-xs text-muted-foreground">
-                            <span className="font-medium text-foreground">Honors: </span>
-                            {ed.honors.join(", ")}
-                          </p>
-                        ) : null}
-                        {ed.coursework.length > 0 ? (
-                          <div className="space-y-1.5">
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Relevant Coursework
-                            </p>
-                            <SlidableBadgeRow>
-                              {ed.coursework.map((course) => (
-                                <Badge key={course} variant="outline" className={ENTRY_CHIP_CLASSNAME}>
-                                  {course}
-                                </Badge>
-                              ))}
-                            </SlidableBadgeRow>
-                          </div>
-                        ) : null}
-                      </SettingsEntryCard>
-                    );
-                  })}
-                </div>
-              )}
-            </SettingsFeatureCard>
+              openItems={openItems}
+              toggleItem={toggleItem}
+            />
 
-            {/* 8. Certifications & Licenses */}
-            <SettingsFeatureCard
-              logo={<LogoFrameIcon icon={Award} />}
-              title="Certifications & Licenses"
-              subtitle="Professional certifications, active licenses, and credential authorities."
-              statusBadge={
-                profile.certifications.length > 0 ? (
-                  <SectionCountPill count={profile.certifications.length}>
-                    {profile.certifications.length} {profile.certifications.length === 1 ? "Certificate" : "Certificates"}
-                  </SectionCountPill>
-                ) : null
-              }
+            <ProfileCertificationsCard
+              certifications={profile.certifications}
               isExpanded={openSections.certifications}
               onToggle={() => toggleSection("certifications")}
-              curvedDivider
-            >
-              {profile.certifications.length === 0 ? (
-                <p className="text-sm text-muted-foreground">None listed.</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {profile.certifications.map((item, cIndex) => {
-                    const itemKey = `cert-${item.name}-${item.issuer ?? cIndex}`;
-                    const isExpanded = openItems[itemKey] ?? true;
-                    return (
-                      <SettingsEntryCard
-                        key={itemKey}
-                        index={cIndex + 1}
-                        title={item.name}
-                        subtitle={item.issuer || undefined}
-                        trailing={item.date ? <DateChip>{item.date}</DateChip> : null}
-                        isExpanded={isExpanded}
-                        onToggle={() => toggleItem(itemKey)}
-                        curvedDivider
-                      >
-                        {item.url ? (
-                          <p className="truncate text-xs text-muted-foreground">
-                            <span className="font-medium text-foreground">Credential URL: </span>
-                            <a
-                              href={item.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary hover:underline ml-1"
-                            >
-                              {item.url}
-                            </a>
-                          </p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">No credential URL attached.</p>
-                        )}
-                      </SettingsEntryCard>
-                    );
-                  })}
-                </div>
-              )}
-            </SettingsFeatureCard>
+              openItems={openItems}
+              toggleItem={toggleItem}
+            />
 
-            {/* 9. Honors & Awards */}
-            <SettingsFeatureCard
-              logo={<LogoFrameIcon icon={Trophy} />}
-              title="Honors & Awards"
-              subtitle="Distinctions, competitive scholarships, and industry recognitions."
-              statusBadge={
-                profile.awards.length > 0 ? (
-                  <SectionCountPill count={profile.awards.length}>
-                    {profile.awards.length} {profile.awards.length === 1 ? "Award" : "Awards"}
-                  </SectionCountPill>
-                ) : null
-              }
+            <ProfileAwardsCard
+              awards={profile.awards}
               isExpanded={openSections.awards}
               onToggle={() => toggleSection("awards")}
-              curvedDivider
-            >
-              {profile.awards.length === 0 ? (
-                <p className="text-sm text-muted-foreground">None listed.</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {profile.awards.map((item, aIndex) => {
-                    const itemKey = `award-${item.title}-${item.issuer ?? aIndex}`;
-                    const isExpanded = openItems[itemKey] ?? true;
-                    return (
-                      <SettingsEntryCard
-                        key={itemKey}
-                        index={aIndex + 1}
-                        title={item.title}
-                        subtitle={item.issuer || undefined}
-                        trailing={item.date ? <DateChip>{item.date}</DateChip> : null}
-                        isExpanded={isExpanded}
-                        onToggle={() => toggleItem(itemKey)}
-                        curvedDivider
-                      >
-                        {item.description ? (
-                          <p className="text-xs text-foreground/90 leading-relaxed">
-                            {item.description}
-                          </p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">No description provided.</p>
-                        )}
-                      </SettingsEntryCard>
-                    );
-                  })}
-                </div>
-              )}
-            </SettingsFeatureCard>
+              openItems={openItems}
+              toggleItem={toggleItem}
+            />
 
-            {/* 10. Interests & Activities */}
-            <SettingsFeatureCard
-              logo={<LogoFrameIcon icon={Heart} />}
-              title="Interests & Activities"
-              subtitle="Personal pursuits, creative hobbies, and community engagement."
-              statusBadge={
-                profile.interests.length > 0 ? (
-                  <SectionCountPill count={profile.interests.length}>
-                    {profile.interests.length} {profile.interests.length === 1 ? "Interest" : "Interests"}
-                  </SectionCountPill>
-                ) : null
-              }
+            <ProfileInterestsCard
+              interests={profile.interests}
               isExpanded={openSections.interests}
               onToggle={() => toggleSection("interests")}
-              curvedDivider
-            >
-              {profile.interests.length === 0 ? (
-                <p className="text-sm text-muted-foreground">None listed.</p>
-              ) : (
-                <SlidableBadgeRow>
-                  {profile.interests.map((interest) => (
-                    <Badge key={interest} variant="secondary" className="shrink-0 whitespace-nowrap">
-                      {interest}
-                    </Badge>
-                  ))}
-                </SlidableBadgeRow>
-              )}
-            </SettingsFeatureCard>
+            />
           </div>
         </div>
       )}

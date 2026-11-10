@@ -110,53 +110,45 @@ export function OllamaBridgeCard({
       disabled={!useOllama}
       curvedDivider
     >
-      {!mounted ? (
-        <div className="text-xs text-muted-foreground">
-          Loading Ollama settings…
-        </div>
-      ) : (
-        <>
-          <StepGettingStarted
-            isExpanded={step1Open}
-            onToggle={onToggleStep1}
-            checkingLocalOllama={checkingLocalOllama}
-            onLaunchOrDownloadOllama={onLaunchOrDownloadOllama}
-          />
+      <StepGettingStarted
+        isExpanded={step1Open}
+        onToggle={onToggleStep1}
+        checkingLocalOllama={checkingLocalOllama}
+        onLaunchOrDownloadOllama={onLaunchOrDownloadOllama}
+      />
 
-          <StepBridgeCommands
-            isExpanded={step2Open}
-            onToggle={onToggleStep2}
-            disabled={disabled}
-            pending={pending}
-            hasSecret={hasSecret}
-            accountEmail={accountEmail}
-            macBridgeCommand={macBridgeCommand}
-            winBridgeCommand={winBridgeCommand}
-            copiedOsCommand={copiedOsCommand}
-            onGenerateSecret={onGenerateSecret}
-            onCopyOsCommand={onCopyOsCommand}
-          />
+      <StepBridgeCommands
+        isExpanded={step2Open}
+        onToggle={onToggleStep2}
+        disabled={disabled}
+        pending={pending}
+        hasSecret={hasSecret}
+        accountEmail={accountEmail}
+        macBridgeCommand={macBridgeCommand}
+        winBridgeCommand={winBridgeCommand}
+        copiedOsCommand={copiedOsCommand}
+        onGenerateSecret={onGenerateSecret}
+        onCopyOsCommand={onCopyOsCommand}
+      />
 
-          <StepConnectionCheck
-            isExpanded={step3Open}
-            onToggle={onToggleStep3}
-            disabled={disabled}
-            verifying={verifying}
-            mounted={mounted}
-            isConnected={isConnected}
-            displayStatus={displayStatus}
-            url={url}
-            statusMessage={statusMessage}
-            models={models}
-            selectOptions={selectOptions}
-            selectedModel={selectedModel}
-            useOllama={useOllama}
-            onCheckSignal={onCheckSignal}
-            onRefreshModels={onRefreshModels}
-            onSelectModel={onSelectModel}
-          />
-        </>
-      )}
+      <StepConnectionCheck
+        isExpanded={step3Open}
+        onToggle={onToggleStep3}
+        disabled={disabled}
+        verifying={verifying}
+        mounted={mounted}
+        isConnected={isConnected}
+        displayStatus={displayStatus}
+        url={url}
+        statusMessage={statusMessage}
+        models={models}
+        selectOptions={selectOptions}
+        selectedModel={selectedModel}
+        useOllama={useOllama}
+        onCheckSignal={onCheckSignal}
+        onRefreshModels={onRefreshModels}
+        onSelectModel={onSelectModel}
+      />
     </SettingsFeatureCard>
   );
 }

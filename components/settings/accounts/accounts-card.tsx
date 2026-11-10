@@ -9,7 +9,7 @@ import { GoogleCloudIcon } from "@/components/icons/google-cloud-icon";
 import {
   BOXY_ACTION_BTN_DESTRUCTIVE,
   SETTINGS_CARD_CLASSNAME,
-} from "@/components/settings/settings-chrome";
+} from "@/lib/navigation/settings-chrome";
 import { buttonVariants } from "@/components/ui/button";
 import { CompanyLogo } from "@/components/ui/logo-frame";
 import {

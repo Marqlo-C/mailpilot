@@ -16,11 +16,11 @@ import {
 } from "@/components/settings/profile";
 import {
   BOXY_ACTION_BTN_DESTRUCTIVE,
-} from "@/components/settings/settings-chrome";
+} from "@/lib/navigation/settings-chrome";
 import { useRailActionClass } from "@/components/ui/rail-action";
 import {
   TactileControlsCard,
-} from "@/components/settings/ui";
+} from "@/components/settings/tactile-preferences";
 import {
   CommandDeckFrame,
   tabRailRowClassName,
@@ -38,6 +38,8 @@ import {
 } from "@/lib/navigation/page-tabs";
 import { cn } from "@/lib/utils";
 import type { AccountRules } from "@/lib/validations/rules";
+import type { SettingsServerAccordions } from "@/lib/navigation/settings-accordion-server";
+import type { ServerUiPreferences } from "@/lib/ui/ui-preferences-server";
 
 type SettingsViewProps = {
   accounts: AccountSummary[];
@@ -52,6 +54,9 @@ type SettingsViewProps = {
   isDev?: boolean;
   errorBanner?: string | null;
   initialTab?: SettingsPageTab;
+  initialAccordions?: SettingsServerAccordions;
+  initialUiPreferences?: ServerUiPreferences;
+  serverOrigin?: string;
 };
 
 /**
@@ -72,6 +77,9 @@ export function SettingsView({
   isDev = false,
   errorBanner,
   initialTab,
+  initialAccordions,
+  initialUiPreferences,
+  serverOrigin,
 }: SettingsViewProps) {
   const [tab, setTab] = useState<SettingsPageTab>(() => initialTab ?? "accounts");
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(
@@ -228,6 +236,7 @@ export function SettingsView({
             <OutboundTailoringCard
               accountId={activeAccountId}
               rules={rules}
+              initialAccordion={initialAccordions?.outbound}
             />
           ) : null}
         </TabsContent>
@@ -242,6 +251,7 @@ export function SettingsView({
               accountId={activeAccountId}
               rules={rules}
               matchThreshold={matchThreshold}
+              initialAccordion={initialAccordions?.automation}
             />
           ) : null}
         </TabsContent>
@@ -272,6 +282,8 @@ export function SettingsView({
               maskedHasDataApiKey={rules.maskedHasDataApiKey ?? null}
               hasDataUsage={rules.hasDataUsage ?? null}
               enableWebScrapingProxies={rules.enableWebScrapingProxies ?? true}
+              initialAccordion={initialAccordions?.ollama}
+              serverOrigin={serverOrigin}
             />
           ) : null}
         </TabsContent>
@@ -282,7 +294,10 @@ export function SettingsView({
           className="mt-0 space-y-4 data-[state=inactive]:hidden"
         >
           {visitedTabs.has("ui") ? (
-            <TactileControlsCard accountId={activeAccountId} />
+            <TactileControlsCard
+              accountId={activeAccountId}
+              initialPreferences={initialUiPreferences}
+            />
           ) : null}
         </TabsContent>
         </CommandDeckFrame>

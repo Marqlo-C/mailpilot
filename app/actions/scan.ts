@@ -23,15 +23,9 @@ export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
 
-const scanInputSchema = z.object({
-  accountId: z.string().min(1),
-  days: z.union([
-    z.literal(5),
-    z.literal(10),
-    z.literal(15),
-    z.literal(30),
-  ]),
-});
+import { scanInputSchema, type ScanInput } from "@/lib/validations/sync";
+
+export type { ScanInput };
 
 /**
  * Starts a historical inbox scan in the background and returns immediately.

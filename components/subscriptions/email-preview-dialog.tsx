@@ -1,6 +1,6 @@
 "use client";
 
-import { ViewEmailDialog } from "@/components/dialogs/view-email-dialog";
+import { ViewEmailDialog } from "@/components/ui/composites/view-email-dialog";
 
 type EmailPreviewDialogProps = {
   open: boolean;

@@ -36,7 +36,7 @@ import { SettingsSectionCard } from "@/components/ui/tactile/nested-settings-car
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 import { cn } from "@/lib/utils";
-import type { TailoredResumeDraft } from "@/lib/types/resume-draft";
+import type { TailoredResumeDraft } from "@/lib/resume-draft";
 import {
   checkSession,
   exportDraftDocument,

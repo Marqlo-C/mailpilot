@@ -1,4 +1,4 @@
-import type { SkillGroup, SkillItem } from "@/lib/types/resume-draft";
+import type { SkillGroup, SkillItem } from "@/lib/resume-draft";
 
 export type { SkillGroup, SkillItem };
 

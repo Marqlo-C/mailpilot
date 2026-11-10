@@ -1,12 +1,7 @@
-import { z } from "zod";
 import { getExtensionAccountId } from "@/lib/extension/auth";
 import { handleOptionsCors, jsonWithCors } from "@/lib/extension/cors";
 import { compileResumeDocument } from "@/lib/opportunities/dispatch/resume";
-
-const exportSchema = z.object({
-  opportunityId: z.string().min(1),
-  format: z.enum(["pdf", "docx"]).default("pdf"),
-});
+import { exportSchema } from "@/lib/validations/extension";
 
 export async function OPTIONS(request: Request) {
   return handleOptionsCors(request);

@@ -12,7 +12,7 @@ import {
   saveScrapingAntApiKey,
   updateRule,
 } from "@/app/actions/settings";
-import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
+import { SETTINGS_CARD_CLASSNAME } from "@/lib/navigation/settings-chrome";
 import {
   HasDataControlPanel,
   ScrapingAntControlPanel,

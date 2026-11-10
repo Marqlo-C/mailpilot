@@ -27,7 +27,7 @@ export const MAX_PRIMARY_EXPERIENCE_BULLETS = 15;
 
 const UNIVERSAL_STOPWORDS = new Set([
   "the", "and", "with", "for", "from", "that", "this", "into", "across",
-  "using", "their", "them", "line", "word", "users", "each", "game",
+  "using", "their", "them", "line", "word", "users", "each",
   "which", "then", "per", "via", "under", "over", "allow", "allowing",
   "ensure", "ensuring", "tools", "such", "application", "system", "platform"
 ]);

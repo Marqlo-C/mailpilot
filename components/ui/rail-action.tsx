@@ -30,26 +30,43 @@ const RailActionContext = createContext<{
 const useClientLayoutEffect =
   typeof window === "undefined" ? useEffect : useLayoutEffect;
 
+function applyRailActionDataset(variant: RailActionVariant) {
+  if (typeof document === "undefined") return;
+  if (variant === "dark") {
+    document.documentElement.dataset.mpRailAction = "dark";
+  } else {
+    document.documentElement.removeAttribute("data-mp-rail-action");
+  }
+}
+
 export function RailActionProvider({
   accountId,
+  initialVariant,
   children,
 }: {
   accountId: string | null;
+  initialVariant?: RailActionVariant;
   children: ReactNode;
 }) {
-  const [variant, setVariantState] = useState<RailActionVariant>("light");
+  const [variant, setVariantState] = useState<RailActionVariant>(
+    () => initialVariant ?? (accountId ? readRailAction(accountId) : "light")
+  );
 
   useClientLayoutEffect(() => {
     if (!accountId) {
       setVariantState("light");
+      applyRailActionDataset("light");
       return;
     }
-    setVariantState(readRailAction(accountId));
+    const current = readRailAction(accountId);
+    setVariantState((prev) => (prev === current ? prev : current));
+    applyRailActionDataset(current);
   }, [accountId]);
 
   const setVariant = useCallback(
     (next: RailActionVariant) => {
       setVariantState(next);
+      applyRailActionDataset(next);
       if (accountId) persistRailAction(accountId, next);
     },
     [accountId]

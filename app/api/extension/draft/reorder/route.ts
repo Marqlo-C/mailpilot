@@ -1,13 +1,7 @@
-import { z } from "zod";
 import { getExtensionAccountId } from "@/lib/extension/auth";
 import { handleOptionsCors, jsonWithCors } from "@/lib/extension/cors";
 import { reorderResumeDraftNode } from "@/lib/opportunities/dispatch/resume";
-
-const reorderNodeSchema = z.object({
-  opportunityId: z.string().min(1),
-  nodeId: z.string().min(1),
-  direction: z.enum(["up", "down"]),
-});
+import { reorderNodeSchema } from "@/lib/validations/extension";
 
 export async function OPTIONS(request: Request) {
   return handleOptionsCors(request);

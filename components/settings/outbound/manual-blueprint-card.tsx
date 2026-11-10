@@ -1,7 +1,7 @@
 "use client";
 
 import { Layers } from "lucide-react";
-import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
+import { SETTINGS_CARD_CLASSNAME } from "@/lib/navigation/settings-chrome";
 import { SettingsSectionCard } from "@/components/ui/tactile/nested-settings-card";
 import { CanonicalSectionLayoutCard } from "./canonical-section-layout-card";
 

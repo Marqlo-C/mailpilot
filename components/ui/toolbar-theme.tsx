@@ -37,12 +37,16 @@ function applyToolbarDataset(variant: ToolbarVariant) {
 
 export function ToolbarThemeProvider({
   accountId,
+  initialVariant,
   children,
 }: {
   accountId: string | null;
+  initialVariant?: ToolbarVariant;
   children: ReactNode;
 }) {
-  const [variant, setVariantState] = useState<ToolbarVariant>("light");
+  const [variant, setVariantState] = useState<ToolbarVariant>(
+    () => initialVariant ?? (accountId ? readToolbar(accountId) : "light")
+  );
 
   useClientLayoutEffect(() => {
     if (!accountId) {
@@ -51,7 +55,7 @@ export function ToolbarThemeProvider({
       return;
     }
     const next = readToolbar(accountId);
-    setVariantState(next);
+    setVariantState((prev) => (prev === next ? prev : next));
     applyToolbarDataset(next);
   }, [accountId]);
 

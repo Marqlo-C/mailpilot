@@ -1,13 +1,7 @@
-import { z } from "zod";
 import { getExtensionAccountId } from "@/lib/extension/auth";
 import { handleOptionsCors, jsonWithCors } from "@/lib/extension/cors";
 import { refineSingleResumeNode } from "@/lib/opportunities/dispatch/resume";
-
-const refineNodeSchema = z.object({
-  opportunityId: z.string().min(1),
-  nodeId: z.string().min(1),
-  instruction: z.string().min(1, "Instruction is required"),
-});
+import { refineNodeSchema } from "@/lib/validations/extension";
 
 export async function OPTIONS(request: Request) {
   return handleOptionsCors(request);

@@ -24,7 +24,7 @@ import {
   type CloudLlmProvider,
   PROVIDER_ENDPOINTS,
 } from "@/lib/llm/provider.ssot";
-import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
+import { SETTINGS_CARD_CLASSNAME } from "@/lib/navigation/settings-chrome";
 import { AppMenuSelect } from "@/components/ui/app-menu";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";

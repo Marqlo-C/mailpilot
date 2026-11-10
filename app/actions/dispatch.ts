@@ -11,7 +11,7 @@ import {
   refineApplicationDraft,
   updateApplicationRecipient,
   updatePreparedDraft,
-} from "@/lib/dispatch";
+} from "@/lib/services/application-dispatch.service";
 import {
   canDraftDirectEmail,
   extractRecruiterEmail,
@@ -406,9 +406,9 @@ export async function downloadTailoredPdfAction(
 ): Promise<ActionResult<{ base64: string; filename: string }>> {
   // Lazy import to keep action surface thin
   const { generateTailoredResumePdf } = await import("@/lib/document/pdf-generator");
-  const { tailorResumeForJob } = await import("@/lib/resume-tailor");
+  const { tailorResumeForJob } = await import("@/lib/tailor");
   const { getMasterProfile } = await import("@/app/actions/profile");
-  const { storedResumeDraftSchema } = await import("@/lib/types/resume-draft");
+  const { storedResumeDraftSchema } = await import("@/lib/resume-draft");
   const { renderDraftPdf } = await import("@/lib/opportunities/dispatch/composer");
 
   const application = await prisma.jobApplication.findUnique({

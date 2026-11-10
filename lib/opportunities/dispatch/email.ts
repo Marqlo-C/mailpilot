@@ -12,7 +12,7 @@ import { prisma } from "@/lib/core/prisma";
 import {
   buildSlimCandidate,
   draftContextualEmail,
-} from "@/lib/resume-tailor";
+} from "@/lib/tailor";
 import type {
   MasterProfileInput,
   ProjectInput,

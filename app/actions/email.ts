@@ -30,11 +30,14 @@ export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
 
-const syncInputSchema = z.object({
-  forceRescan: z.boolean().default(false),
-  lookbackDays: z.number().int().min(1).max(30).default(14),
-  accountId: z.string().min(1).optional(),
-});
+import {
+  syncInputSchema,
+  drainQueuedSchema,
+  type SyncInput,
+  type DrainQueuedInput,
+} from "@/lib/validations/sync";
+
+export type { SyncInput, DrainQueuedInput };
 
 /**
  * Immediately clears a stuck isSyncing lock for the active account.
@@ -278,9 +281,7 @@ export async function syncInboxOpportunities(
   };
 }
 
-const drainQueuedSchema = z.object({
-  accountId: z.string().min(1).optional(),
-});
+
 
 /**
  * Ace queue only — classify PENDING_AI up to the account drain cap.

@@ -1,7 +1,7 @@
 import {
   getCachedOrSynthesizePersona,
   type ProfileWithPersonaCache,
-} from "@/lib/ai/persona";
+} from "@/lib/persona";
 import { prisma } from "@/lib/core/prisma";
 import {
   calculateElasticPageBudget,

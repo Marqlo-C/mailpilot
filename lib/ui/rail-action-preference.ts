@@ -1,6 +1,8 @@
+import { readUiCookie, writeUiCookie } from "./ui-cookie-helper";
+
 /**
  * Per-account light/dark choice for the white action buttons on the tab rail
- * row (localStorage only).
+ * row (localStorage and cookie mirrored).
  */
 
 export type RailActionVariant = "light" | "dark";
@@ -11,10 +13,20 @@ function railActionKey(accountId: string): string {
 
 export function readRailAction(accountId: string): RailActionVariant {
   if (typeof window === "undefined") return "light";
+  const cookieVal = readUiCookie("rail_action", accountId);
+  if (cookieVal === "dark" || cookieVal === "light") return cookieVal;
   try {
-    return localStorage.getItem(railActionKey(accountId)) === "dark"
-      ? "dark"
-      : "light";
+    const saved = localStorage.getItem(railActionKey(accountId));
+    if (saved === "dark" || saved === "light") {
+      writeUiCookie("rail_action", accountId, saved);
+      return saved;
+    }
+    const globalSaved = localStorage.getItem("mailpilot_rail_action_global");
+    if (globalSaved === "dark" || globalSaved === "light") {
+      writeUiCookie("rail_action", accountId, globalSaved);
+      return globalSaved;
+    }
+    return "light";
   } catch {
     return "light";
   }
@@ -30,4 +42,5 @@ export function persistRailAction(
   } catch {
     // Quota / private mode — ignore.
   }
+  writeUiCookie("rail_action", accountId, variant);
 }
