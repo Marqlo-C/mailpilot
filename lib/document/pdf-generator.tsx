@@ -34,18 +34,18 @@ import type {
   MasterProfileInput,
   ProjectInput,
   WorkExperienceInput,
-} from "@/lib/validations/profile";
+} from "@/lib/validations/profile.schema";
 import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import type { SkillGroup } from "@/lib/resume-draft";
 import {
   RESUME_FONTS,
   RESUME_SPACING,
   RESUME_TYPOGRAPHY,
-} from "@/lib/resume-draft/layout.ssot";
+} from "@/lib/resume-draft/layout.schema";
 import {
   DEFAULT_SECTION_ORDER,
   RESUME_SECTION_KEYS,
-} from "@/lib/resume-draft/schema.ssot";
+} from "@/lib/validations/resume-draft.schema";
 import {
   buildResumeContactLine,
   cleanDisplayUrl,

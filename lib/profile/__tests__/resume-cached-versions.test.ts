@@ -14,8 +14,8 @@ import {
   getMasterProfile,
   resetMasterProfile,
 } from "@/app/actions/profile";
-import type { MasterProfileInput, ProjectInput } from "@/lib/validations/profile";
-import { parseAccountRules } from "@/lib/validations/rules";
+import type { MasterProfileInput, ProjectInput } from "@/lib/validations/profile.schema";
+import { parseAccountRules } from "@/lib/validations/rules.schema";
 
 describe("Cached Resume Multi-Version Lifecycle: Additive vs OverwriteAll", () => {
   let testAccountId: string;

@@ -1,4 +1,4 @@
-import type { JobTargetContext } from "./schema.ssot";
+import type { JobTargetContext } from "@/lib/validations/tailor.schema";
 
 export const COMMON_STOP_WORDS = new Set([
   "and", "the", "for", "with", "are", "you", "our", "all", "that", "this",

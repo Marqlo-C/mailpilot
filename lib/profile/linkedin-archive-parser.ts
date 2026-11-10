@@ -2,7 +2,7 @@ import JSZip from "jszip";
 import Papa from "papaparse";
 
 import { normalizeEducationDatesAndStatus } from "@/lib/profile/resume-parser";
-import type { MasterProfileInput } from "@/lib/validations/profile";
+import type { MasterProfileInput } from "@/lib/validations/profile.schema";
 
 type CsvRow = Record<string, string | undefined>;
 

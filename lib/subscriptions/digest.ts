@@ -1,7 +1,7 @@
 import type { gmail_v1 } from "googleapis";
 
 import { rethrowIfInsufficientScope } from "@/lib/gmail/google";
-import { extractMessageBody, sanitizeEmailBody } from "@/lib/llm";
+import { extractMessageBody, sanitizeEmailBody } from "@/lib/ai";
 import { prisma } from "@/lib/core/prisma";
 import { MAX_BRIEFING_DAYS } from "@/lib/subscriptions/digest-constants";
 import { subscriptionClutterScore } from "@/lib/subscriptions/filters";

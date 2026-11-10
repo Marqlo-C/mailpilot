@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
-import { handleOptionsCors } from "@/lib/extension/cors";
+import { handleOptionsCors } from "@/lib/utils/extension/cors";
 
 export async function OPTIONS(request: Request) {
   return handleOptionsCors(request);

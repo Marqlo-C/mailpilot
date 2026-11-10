@@ -2,7 +2,7 @@
 
 import { type ButtonHTMLAttributes, type ReactNode } from "react";
 
-import { SnapshotIcon } from "@/components/icons/snapshot-icon";
+import { SnapshotIcon } from "@/components/ui/icons/snapshot-icon";
 import {
   SECONDARY_ACTION_BTN_CLASSNAME,
   SECONDARY_ACTION_BTN_MUTED_CLASSNAME,

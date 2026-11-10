@@ -2,14 +2,14 @@ import type {
   MasterProfileInput,
   ProjectInput,
   WorkExperienceInput,
-} from "@/lib/validations/profile";
+} from "@/lib/validations/profile.schema";
 import { cleanDisplayUrl } from "@/lib/utils/format";
 import type {
   HierarchicalBulletNode,
   HierarchicalExperienceNode,
   HierarchicalProfileTree,
   HierarchicalProjectNode,
-} from "./schema.ssot";
+} from "@/lib/validations/tailor.schema";
 
 /**
  * Detects GitHub profile / meta repositories that shouldn't be featured as portfolio projects.

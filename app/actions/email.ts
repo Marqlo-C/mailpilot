@@ -2,7 +2,6 @@
 
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 
 import {
   InsufficientScopeError,
@@ -10,7 +9,7 @@ import {
   isInsufficientScopeError,
 } from "@/lib/gmail/google";
 import { SYNC_LOCK_STALE_MS } from "@/lib/core/constants";
-import { getAuthenticatedAccountId } from "@/lib/auth";
+import { getAuthenticatedAccountId } from "@/lib/core/auth";
 import { getActiveAccount } from "@/lib/data";
 import {
   initSyncBatchTelemetry,
@@ -23,19 +22,27 @@ import {
   runOpportunitySync,
   runPendingAiQueueDrain,
 } from "@/lib/opportunities/sync";
-import { prisma } from "@/lib/core/prisma";
 import { checkRateLimit } from "@/lib/core/ratelimit";
+import {
+  syncInputSchema,
+  drainQueuedSchema,
+  flushAccountSchema,
+  type SyncInput,
+  type DrainQueuedInput,
+} from "@/lib/validations/sync.schema";
+import {
+  completeDrainSession,
+  completeSyncSession,
+  findAccountForSync,
+  findAccountsForProfileCheck,
+  flushPendingAiMessagesForAccount,
+  resetSyncLock,
+  startSyncSession,
+} from "@/lib/services/email-ingestion.service";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
-
-import {
-  syncInputSchema,
-  drainQueuedSchema,
-  type SyncInput,
-  type DrainQueuedInput,
-} from "@/lib/validations/sync";
 
 export type { SyncInput, DrainQueuedInput };
 
@@ -48,19 +55,7 @@ export async function forceResetSyncStatus(): Promise<ActionResult> {
     return { ok: false, error: "Unauthorized" };
   }
 
-  await prisma.account.update({
-    where: { id: active.id },
-    data: {
-      isSyncing: false,
-      syncError: null,
-      syncKind: null,
-      syncTotal: null,
-      lastSyncProcessed: 0,
-      syncPendingTotal: null,
-      lastSyncPendingProcessed: null,
-      lastSyncedAt: new Date(),
-    },
-  });
+  await resetSyncLock(active.id);
 
   revalidatePath("/");
   revalidatePath("/jobs");
@@ -106,11 +101,7 @@ export async function syncInboxOpportunities(
     accountId = active.id;
   }
 
-  const account = await prisma.account.findUnique({
-    where: { id: accountId },
-    select: { id: true, isActive: true, isSyncing: true, updatedAt: true },
-  });
-
+  const account = await findAccountForSync(accountId);
   if (!account || !account.isActive) {
     return { ok: false, error: "Account not found or inactive" };
   }
@@ -143,26 +134,12 @@ export async function syncInboxOpportunities(
   const runStartedAt = new Date();
   initSyncBatchTelemetry({ startTime: runStartedAt.getTime() });
 
-  await prisma.account.update({
-    where: { id: account.id },
-    data: {
-      isSyncing: true,
-      syncError: null,
-      syncKind: "inbox",
-      lastSyncProcessed: 0,
-      syncTotal: null,
-      syncPendingTotal: null,
-      lastSyncPendingProcessed: null,
-      syncHeartbeatAt: runStartedAt,
-    },
-  });
+  await startSyncSession(account.id, runStartedAt, "inbox");
 
   const syncAccountId = account.id;
   const mode = forceRescan ? ("rescan" as const) : ("incremental" as const);
 
   after(async () => {
-    // Snapshot before any digestion so mid-run arrivals stay inside the next
-    // incremental window (plus INCREMENTAL_OVERLAP_SECONDS in opportunity-sync).
     let errorMessage: string | null = null;
     let processed = 0;
     let createdCount = 0;
@@ -174,8 +151,6 @@ export async function syncInboxOpportunities(
     });
 
     try {
-      // Batch ceilings come from AccountSettings.rules (syncMaxMessages /
-      // pendingAiDrainLimit); runOpportunitySync resolves defaults.
       const result = await runOpportunitySync(syncAccountId, {
         forceRescan,
         lookbackDays,
@@ -216,56 +191,30 @@ export async function syncInboxOpportunities(
           error instanceof Error ? error.message : "Inbox sync failed";
       }
     } finally {
-      // ALWAYS clear lock — even on crash / timeout paths we control.
-      // Advance lastSyncedAt only on success, using the pre-run snapshot.
       const stampedLastSyncedAt = !errorMessage;
-      try {
-        await prisma.account.update({
-          where: { id: syncAccountId },
-          data: {
-            isSyncing: false,
-            ...(stampedLastSyncedAt ? { lastSyncedAt: runStartedAt } : {}),
-            syncError: errorMessage,
-            syncKind: null,
-            lastSyncProcessed: errorMessage ? null : createdCount,
-            syncTotal: null,
-            syncPendingTotal: null,
-            lastSyncPendingProcessed: null,
-          },
+      await completeSyncSession(syncAccountId, {
+        errorMessage,
+        runStartedAt,
+        createdCount,
+        advanceLastSyncedAt: stampedLastSyncedAt,
+      });
+
+      if (stampedLastSyncedAt) {
+        logStory(syncLog, "Step 4/4 — Finish SUCCESS", {
+          lastSyncedAt: runStartedAt.toISOString(),
+          "opportunities touched": processed,
+          isSyncing: false,
         });
-
-        if (stampedLastSyncedAt) {
-          logStory(syncLog, "Step 4/4 — Finish SUCCESS", {
-            lastSyncedAt: runStartedAt.toISOString(),
-            "opportunities touched": processed,
+      } else {
+        logStory(
+          syncLog,
+          "Step 4/4 — Finish FAILED — lastSyncedAt NOT advanced",
+          {
+            error: errorMessage,
             isSyncing: false,
-          });
-        } else {
-          logStory(
-            syncLog,
-            "Step 4/4 — Finish FAILED — lastSyncedAt NOT advanced",
-            {
-              error: errorMessage,
-              isSyncing: false,
-            },
-            "warn"
-          );
-        }
-
-      } catch (finalizeError) {
-        syncLog.error(
-          { err: finalizeError },
-          "Failed to clear isSyncing after inbox sync"
+          },
+          "warn"
         );
-        // Last-resort retry without optional fields.
-        try {
-          await prisma.account.update({
-            where: { id: syncAccountId },
-            data: { isSyncing: false },
-          });
-        } catch (retryError) {
-          syncLog.error({ err: retryError }, "Retry clear isSyncing also failed");
-        }
       }
     }
   });
@@ -280,8 +229,6 @@ export async function syncInboxOpportunities(
     },
   };
 }
-
-
 
 /**
  * Ace queue only — classify PENDING_AI up to the account drain cap.
@@ -310,22 +257,10 @@ export async function drainPendingAiQueue(
     return { ok: false, error: "Unauthorized" };
   }
 
-  const [account, sessionAccount] = await Promise.all([
-    prisma.account.findUnique({
-      where: { id: accountId },
-      select: {
-        id: true,
-        isActive: true,
-        isSyncing: true,
-        updatedAt: true,
-        persistentProfileId: true,
-      },
-    }),
-    prisma.account.findUnique({
-      where: { id: sessionAccountId },
-      select: { persistentProfileId: true },
-    }),
-  ]);
+  const [account, sessionAccount] = await findAccountsForProfileCheck(
+    accountId,
+    sessionAccountId
+  );
 
   if (!account || !account.isActive) {
     return { ok: false, error: "Account not found or inactive" };
@@ -363,32 +298,18 @@ export async function drainPendingAiQueue(
   const runStartedAt = new Date();
   initSyncBatchTelemetry({ startTime: runStartedAt.getTime() });
 
-  await prisma.account.update({
-    where: { id: account.id },
-    data: {
-      isSyncing: true,
-      syncError: null,
-      syncKind: "queued",
-      lastSyncProcessed: 0,
-      syncTotal: null,
-      syncPendingTotal: null,
-      lastSyncPendingProcessed: null,
-      syncHeartbeatAt: runStartedAt,
-    },
-  });
+  await startSyncSession(account.id, runStartedAt, "queued");
 
   const drainAccountId = account.id;
 
   after(async () => {
     let errorMessage: string | null = null;
-    let processed = 0;
     let createdCount = 0;
 
     try {
       const result = await runPendingAiQueueDrain(drainAccountId, {
         syncStartedAt: runStartedAt.getTime(),
       });
-      processed = result.processed;
       createdCount = result.createdCount ?? 0;
       revalidatePath("/");
       revalidatePath("/jobs");
@@ -405,34 +326,10 @@ export async function drainPendingAiQueue(
           error instanceof Error ? error.message : "Ace queue review failed";
       }
     } finally {
-      try {
-        await prisma.account.update({
-          where: { id: drainAccountId },
-          data: {
-            isSyncing: false,
-            // Do not advance lastSyncedAt — this path never runs delta/search.
-            syncError: errorMessage,
-            syncKind: null,
-            lastSyncProcessed: errorMessage ? null : createdCount,
-            syncTotal: null,
-            syncPendingTotal: null,
-            lastSyncPendingProcessed: null,
-          },
-        });
-      } catch (finalizeError) {
-        syncLog.error(
-          { err: finalizeError },
-          "Failed to clear isSyncing after Ace queue drain"
-        );
-        try {
-          await prisma.account.update({
-            where: { id: drainAccountId },
-            data: { isSyncing: false },
-          });
-        } catch (retryError) {
-          syncLog.error({ err: retryError }, "Retry clear isSyncing also failed");
-        }
-      }
+      await completeDrainSession(drainAccountId, {
+        errorMessage,
+        createdCount,
+      });
     }
   });
 
@@ -441,8 +338,6 @@ export async function drainPendingAiQueue(
     data: { message: "Ace is reviewing queued emails" },
   };
 }
-
-const flushAccountSchema = z.string().min(1);
 
 /**
  * Defuses the unclassified queue without deleting rows or moving sync watermarks.
@@ -461,16 +356,10 @@ export async function flushPendingAiMessages(
     return { ok: false, error: "Unauthorized" };
   }
 
-  const [account, sessionAccount] = await Promise.all([
-    prisma.account.findUnique({
-      where: { id: parsed.data },
-      select: { id: true, isActive: true, persistentProfileId: true },
-    }),
-    prisma.account.findUnique({
-      where: { id: sessionAccountId },
-      select: { persistentProfileId: true },
-    }),
-  ]);
+  const [account, sessionAccount] = await findAccountsForProfileCheck(
+    parsed.data,
+    sessionAccountId
+  );
 
   if (!account || !account.isActive) {
     return { ok: false, error: "Account not found or inactive" };
@@ -491,20 +380,10 @@ export async function flushPendingAiMessages(
     };
   }
 
-  const flushed = await prisma.emailMessage.updateMany({
-    where: {
-      accountId: account.id,
-      emailCategory: "PENDING_AI",
-      opportunities: { none: {} },
-    },
-    data: {
-      emailCategory: "IRRELEVANT",
-      rawBody: null,
-    },
-  });
+  const flushedCount = await flushPendingAiMessagesForAccount(account.id);
 
   revalidatePath("/");
   revalidatePath("/jobs");
 
-  return { ok: true, data: { flushed: flushed.count } };
+  return { ok: true, data: { flushed: flushedCount } };
 }

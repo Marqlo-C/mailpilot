@@ -25,3 +25,16 @@ export const drainQueuedSchema = z.object({
   accountId: z.string().min(1).optional(),
 });
 export type DrainQueuedInput = z.infer<typeof drainQueuedSchema>;
+
+export const flushAccountSchema = z.string().min(1, "Account ID is required");
+export type FlushAccountInput = z.infer<typeof flushAccountSchema>;
+
+export const gmailMessageQuerySchema = z
+  .object({
+    id: z.string().min(1).optional(),
+    from: z.string().email().optional(),
+  })
+  .refine((v) => Boolean(v.id || v.from), {
+    message: "Provide id or from",
+  });
+export type GmailMessageQuery = z.infer<typeof gmailMessageQuerySchema>;

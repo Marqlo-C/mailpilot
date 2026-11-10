@@ -12,8 +12,8 @@ import {
   recordProfileSnapshot,
   serializeUserProfileToInput,
 } from "@/lib/profile/profile-history";
-import { parseAccountRules } from "@/lib/validations/rules";
-import type { MasterProfileUpdateInput } from "@/lib/validations/profile";
+import { parseAccountRules } from "@/lib/validations/rules.schema";
+import type { MasterProfileUpdateInput } from "@/lib/validations/profile.schema";
 import { updateMasterProfile } from "./profile-snapshot.service";
 
 export type ActionResult<T = undefined> =

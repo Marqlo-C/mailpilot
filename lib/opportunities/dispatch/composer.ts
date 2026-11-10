@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { cleanEmailPayload } from "@/lib/ai/email-cleaner";
 import { getGmailClientForAccount } from "@/lib/gmail/google";
-import { extractMessageBody, type LlmProvider } from "@/lib/llm";
+import { extractMessageBody, type LlmProvider } from "@/lib/ai";
 import { generateTailoredResumePdf } from "@/lib/document/pdf-generator";
 import { prisma } from "@/lib/core/prisma";
 import { loadMasterProfileForDraft } from "@/lib/profile/master-profile";
@@ -23,7 +23,7 @@ import {
   type MasterProfileInput,
   type ProjectInput,
   type WorkExperienceInput,
-} from "@/lib/validations/profile";
+} from "@/lib/validations/profile.schema";
 import {
   resolveJobOpportunity,
   type NormalizedJobOpportunity,

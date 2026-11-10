@@ -17,7 +17,7 @@ import {
   importGitHubProjects,
 } from "@/app/actions/profile";
 import { FLYOUT_FIELD_CLASS, FLYOUT_LABEL_CLASS } from "@/components/layout/sidebar-flyout-chrome";
-import { getDevOllamaModelOverride } from "@/components/settings/ai-models";
+import { getDevOllamaModelOverride } from "@/components/features/settings/ai-models";
 import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import type { DevCachedResumeMetadata } from "@/lib/profile/dev-resume-cache";
 import { cn } from "@/lib/utils";

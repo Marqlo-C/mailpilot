@@ -4,21 +4,23 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 import { logoutSession } from "@/app/actions/auth";
-import { getSessionToken } from "@/lib/auth";
+import { getSessionToken } from "@/lib/core/auth";
 import {
   ACTIVE_ACCOUNT_COOKIE,
   AUTH_COOKIE_MAX_AGE,
   SESSION_COOKIE,
 } from "@/lib/core/constants";
 import { getGmailClientForAccount } from "@/lib/gmail/google";
-import { normalizeOllamaBaseUrl, ollamaBaseUrlFromEnv, probeOllamaTags } from "@/lib/llm";
-import { prisma } from "@/lib/core/prisma";
+import { normalizeOllamaBaseUrl, ollamaBaseUrlFromEnv, probeOllamaTags } from "@/lib/ai";
 import { processInboxDelta } from "@/lib/gmail/sync";
-import { Prisma } from "@prisma/client";
 import {
-  accountRulesSchema,
-  parseAccountRules,
-} from "@/lib/validations/rules";
+  getAccountForGmailProbe,
+  getAccountForManualSync,
+  getAccountOllamaSettings,
+  unlinkAccountTokens,
+  updateOllamaSettings,
+  verifyAccountOwnership,
+} from "@/lib/services/account-lifecycle.service";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -32,26 +34,9 @@ export async function setActiveAccount(
     return { ok: false, error: "Not authenticated" };
   }
 
-  const sessionAccount = await prisma.account.findFirst({
-    where: { id: session, isActive: true },
-    select: { id: true, persistentProfileId: true },
-  });
-  if (!sessionAccount) {
-    return { ok: false, error: "Session expired" };
-  }
-
-  const account = await prisma.account.findFirst({
-    where: {
-      id: accountId,
-      isActive: true,
-      ...(sessionAccount.persistentProfileId
-        ? { persistentProfileId: sessionAccount.persistentProfileId }
-        : { id: sessionAccount.id }),
-    },
-  });
-
-  if (!account) {
-    return { ok: false, error: "Account not found for this user" };
+  const verification = await verifyAccountOwnership(session, accountId);
+  if (!verification.ok || !verification.accountId) {
+    return { ok: false, error: verification.error ?? "Account not found for this user" };
   }
 
   const cookieStore = await cookies();
@@ -73,30 +58,16 @@ export async function setActiveAccount(
 export async function unlinkAccountCredentials(
   accountId: string
 ): Promise<ActionResult> {
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account) {
-    return { ok: false, error: "Account not found" };
+  const result = await unlinkAccountTokens(accountId);
+  if (!result.ok) {
+    return { ok: false, error: result.error ?? "Account not found" };
   }
-
-  await prisma.account.update({
-    where: { id: accountId },
-    data: {
-      encryptedAccess: null,
-      encryptedRefresh: null,
-      tokenExpiry: null,
-      historyId: null,
-      // Keep row active in UI so history remains visible; tokens alone are cleared.
-      isActive: true,
-    },
-  });
 
   const cookieStore = await cookies();
   if (cookieStore.get(ACTIVE_ACCOUNT_COOKIE)?.value === accountId) {
     cookieStore.delete(ACTIVE_ACCOUNT_COOKIE);
   }
   if (cookieStore.get(SESSION_COOKIE)?.value === accountId) {
-    // Session pointed at this inbox — clear selection but keep session if another
-    // account exists; full logout is explicit via logoutSession.
     cookieStore.delete(ACTIVE_ACCOUNT_COOKIE);
   }
 
@@ -128,8 +99,8 @@ export async function logoutMailPilotSession(): Promise<never> {
 export async function triggerManualSync(
   accountId: string
 ): Promise<ActionResult> {
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account || !account.isActive || !account.encryptedAccess) {
+  const account = await getAccountForManualSync(accountId);
+  if (!account) {
     return { ok: false, error: "Account not found or credentials unlinked" };
   }
 
@@ -153,9 +124,7 @@ export async function pingOllama(
   accountId: string,
   url?: string
 ): Promise<ActionResult<{ models: string[] }>> {
-  const settings = await prisma.accountSettings.findUnique({
-    where: { accountId },
-  });
+  const settings = await getAccountOllamaSettings(accountId);
 
   const raw =
     url?.trim() || settings?.localOllamaUrl || ollamaBaseUrlFromEnv();
@@ -164,21 +133,7 @@ export async function pingOllama(
   try {
     const { models } = await probeOllamaTags(base, 5000);
 
-    const current = parseAccountRules(settings?.rules);
-    const validated = accountRulesSchema.parse({
-      ...current,
-      availableModels: models,
-      bridgeConnected: true,
-    });
-
-    await prisma.accountSettings.update({
-      where: { accountId },
-      data: {
-        localOllamaUrl: base,
-        llmProvider: "LOCAL_OLLAMA",
-        rules: validated as Prisma.InputJsonValue,
-      },
-    });
+    await updateOllamaSettings(accountId, base, models);
 
     return { ok: true, data: { models } };
   } catch (error) {
@@ -196,7 +151,7 @@ export async function pingOllama(
 export async function probeGmailConnection(
   accountId: string
 ): Promise<ActionResult> {
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
+  const account = await getAccountForGmailProbe(accountId);
   if (!account || !account.encryptedAccess) {
     return { ok: false, error: "Account not found or credentials unlinked" };
   }

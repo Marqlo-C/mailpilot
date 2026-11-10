@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/core/prisma";
-import { parseAccountRules } from "@/lib/validations/rules";
+import { parseAccountRules } from "@/lib/validations/rules.schema";
 
 /**
  * Permanently deletes DISMISSED opportunities older than the account's

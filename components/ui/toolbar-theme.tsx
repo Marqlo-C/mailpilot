@@ -15,7 +15,7 @@ import {
   persistToolbar,
   readToolbar,
   type ToolbarVariant,
-} from "@/lib/ui/toolbar-preference";
+} from "@/lib/utils/ui/toolbar-preference";
 
 const ToolbarThemeContext = createContext<{
   variant: ToolbarVariant;

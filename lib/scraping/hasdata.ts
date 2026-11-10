@@ -8,8 +8,8 @@ import {
 import {
   parseAccountRules,
   type HasDataUsage,
-} from "@/lib/validations/rules";
-import { resolveDecryptedHasDataKey } from "@/lib/llm/vault";
+} from "@/lib/validations/rules.schema";
+import { resolveDecryptedHasDataKey } from "@/lib/ai/vault";
 
 /**
  * Default cache duration for HasData usage telemetry: 4 hours.

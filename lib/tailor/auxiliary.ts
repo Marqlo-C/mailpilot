@@ -1,8 +1,8 @@
 import { flattenSkillItems } from "@/lib/profile/skill-groups";
-import type { MasterProfileInput } from "@/lib/validations/profile";
-import type { StrategyRationale, TailorOptions } from "./schema.ssot";
-import type { CandidatePersona } from "@/lib/persona/schema.ssot";
-import { callLLMWithFallback } from "@/lib/llm";
+import type { MasterProfileInput } from "@/lib/validations/profile.schema";
+import type { StrategyRationale, TailorOptions } from "@/lib/validations/tailor.schema";
+import type { CandidatePersona } from "@/lib/validations/persona.schema";
+import { callLLMWithFallback } from "@/lib/ai";
 
 /** Strict blacklist of persona system diagnostic terms forbidden in candidate summaries. */
 export const BANNED_SUMMARY_PERSONA_TERMS = [

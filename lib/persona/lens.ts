@@ -1,8 +1,8 @@
 import {
   isWorkExperienceCategory,
   type MasterProfileInput,
-} from "@/lib/validations/profile";
-import type { PersonaFactLens } from "./schema.ssot";
+} from "@/lib/validations/profile.schema";
+import type { PersonaFactLens } from "@/lib/validations/persona.schema";
 
 export type { MasterProfileInput };
 

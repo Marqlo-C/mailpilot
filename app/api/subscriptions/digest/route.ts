@@ -10,15 +10,10 @@ import {
 import { prisma } from "@/lib/core/prisma";
 import { MAX_BRIEFING_DAYS } from "@/lib/subscriptions/digest-constants";
 import { createSubscriptionBriefing } from "@/lib/subscriptions/digest";
+import { subscriptionDigestCreateSchema } from "@/lib/validations/subscriptions.schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const bodySchema = z.object({
-  senderEmails: z.array(z.string().email()).min(1).max(50),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-});
 
 function parseYmd(value: string): Date {
   const [y, m, d] = value.split("-").map(Number);
@@ -50,7 +45,7 @@ export async function POST(req: Request) {
     }
 
     const json: unknown = await req.json();
-    const parsed = bodySchema.safeParse(json);
+    const parsed = subscriptionDigestCreateSchema.safeParse(json);
     if (!parsed.success) {
       return NextResponse.json(
         {

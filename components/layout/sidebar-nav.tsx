@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Cog, MailCheck, Radar, SquareKanban } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 
-import { SyncTelemetry } from "@/components/opportunities/sync-telemetry";
+import { SyncTelemetry } from "@/components/features/opportunities/sync-telemetry";
 import { useSyncStatus } from "@/components/layout/sync-status-provider";
 import {
   SIDEBAR_TELEMETRY_OPEN_DELAY_MS,
@@ -16,7 +16,7 @@ import {
   rememberSidebarPageTab,
   sidebarTabsForHref,
   type SidebarPageTab,
-} from "@/lib/navigation/page-tabs";
+} from "@/lib/utils/navigation/page-tabs";
 import {
   darkPlateClassName,
   TabCountBadge,

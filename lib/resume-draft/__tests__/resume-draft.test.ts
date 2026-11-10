@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import * as dispatcher from "@/lib/llm/dispatcher";
+import * as dispatcher from "@/lib/ai/dispatcher";
 import {
   calculateElasticPageBudget,
   DEFAULT_SECTION_ORDER,
@@ -31,8 +31,8 @@ import {
   tailorResumeForJob,
   type TailorResult,
 } from "@/lib/tailor";
-import type { MasterProfileInput, WorkExperienceInput } from "@/lib/validations/profile";
-import type { CandidatePersona } from "@/lib/persona/schema.ssot";
+import type { MasterProfileInput, WorkExperienceInput } from "@/lib/validations/profile.schema";
+import type { CandidatePersona } from "@/lib/validations/persona.schema";
 
 describe("Resume Drafting & Tailoring Architecture", () => {
   const baseProfile: MasterProfileInput = {

@@ -1,12 +1,12 @@
 import { headers } from "next/headers";
 import { getMasterProfile } from "@/app/actions/profile";
-import { SettingsView } from "@/components/settings/settings-view";
+import { SettingsView } from "@/components/features/settings/settings-view";
 import { getActiveAccount, listAccounts } from "@/lib/data";
-import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
-import { SETTINGS_PAGE_TABS } from "@/lib/navigation/page-tabs";
-import { readServerActivePageTab } from "@/lib/navigation/page-tabs-server";
-import { readServerSettingsAccordions } from "@/lib/navigation/settings-accordion-server";
-import { readServerUiPreferences } from "@/lib/ui/ui-preferences-server";
+import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules.schema";
+import { SETTINGS_PAGE_TABS } from "@/lib/utils/navigation/page-tabs";
+import { readServerActivePageTab } from "@/lib/utils/navigation/page-tabs-server";
+import { readServerSettingsAccordions } from "@/lib/utils/navigation/settings-accordion-server";
+import { readServerUiPreferences } from "@/lib/utils/ui/ui-preferences-server";
 
 export default async function SettingsPage({
   searchParams,

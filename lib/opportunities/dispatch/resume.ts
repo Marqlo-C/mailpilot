@@ -9,16 +9,16 @@ import {
   storedResumeDraftSchema,
 } from "@/lib/resume-draft";
 import { tailorResumeForJob } from "@/lib/tailor";
-import type { WorkExperienceInput } from "@/lib/validations/profile";
+import type { WorkExperienceInput } from "@/lib/validations/profile.schema";
 import {
   DEFAULT_RESUME_PREFERENCES,
   parseAccountRules,
-} from "@/lib/validations/rules";
-import { resolveDecryptedHasDataKey } from "@/lib/llm/vault";
+} from "@/lib/validations/rules.schema";
+import { resolveDecryptedHasDataKey } from "@/lib/ai/vault";
 import { fetchViaHasData } from "@/lib/opportunities/context/hasdata";
 import { refreshHasDataUsageAfterUse } from "@/lib/scraping/hasdata";
 import { normalizeSalaryDisplay, parseSalaryMax } from "@/lib/ai/classifier";
-import { loadCandidateProfileSummary } from "@/lib/llm/classification";
+import { loadCandidateProfileSummary } from "@/lib/ai/classification";
 import {
   extractMatchCandidateLens,
   evaluateOpportunityMatch,

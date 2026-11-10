@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/core/prisma";
-import { getExtensionAccountId } from "@/lib/extension/auth";
-import { handleOptionsCors, jsonWithCors } from "@/lib/extension/cors";
+import { getExtensionAccountId } from "@/lib/utils/extension/auth";
+import { handleOptionsCors, jsonWithCors } from "@/lib/utils/extension/cors";
 import { prepareOpportunityResume } from "@/lib/opportunities/dispatch/resume";
 import { getCompanyLogoUrl, inferApexDomainFromCompanyName } from "@/lib/utils/company-logo";
 import { parseStructuredJobSections } from "@/lib/opportunities/context/section-classifier";
 import { normalizeSalaryDisplay, parseSalaryMax } from "@/lib/ai/classifier";
-import { tailorRequestSchema } from "@/lib/validations/extension";
+import { tailorRequestSchema } from "@/lib/validations/extension.schema";
 
 export async function OPTIONS(request: Request) {
   return handleOptionsCors(request);

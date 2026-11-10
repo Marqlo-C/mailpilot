@@ -7,7 +7,12 @@
  * ============================================================================
  */
 
+export * from "./provider.schema";
+export * from "./vault";
+export * from "./local-ollama";
+export * from "./client";
+export * from "./dispatcher";
 export * from "./classifier";
 export * from "./prefilter";
 export * from "./email-cleaner";
-export * from "@/lib/llm";
+export * from "./classification";

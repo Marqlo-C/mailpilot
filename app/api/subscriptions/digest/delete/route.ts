@@ -3,13 +3,10 @@ import { z } from "zod";
 
 import { getActiveAccount } from "@/lib/data";
 import { prisma } from "@/lib/core/prisma";
+import { subscriptionDigestDeleteSchema } from "@/lib/validations/subscriptions.schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const bodySchema = z.object({
-  subscriptionIds: z.array(z.string().min(1)).min(1).max(100),
-});
 
 /**
  * POST /api/subscriptions/digest/delete
@@ -27,7 +24,7 @@ export async function POST(req: Request) {
     }
 
     const json: unknown = await req.json();
-    const parsed = bodySchema.safeParse(json);
+    const parsed = subscriptionDigestDeleteSchema.safeParse(json);
     if (!parsed.success) {
       return NextResponse.json(
         { success: false, error: "Invalid subscription ids" },

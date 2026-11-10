@@ -1,12 +1,12 @@
-import { type MasterProfileInput } from "@/lib/validations/profile";
+import { type MasterProfileInput } from "@/lib/validations/profile.schema";
 import {
   strategyRationaleSchema,
   tailorSchema,
   type TailorPayload,
-} from "@/lib/resume-draft/schema.ssot";
+} from "@/lib/validations/resume-draft.schema";
 import { COMMON_STOP_WORDS } from "./distiller";
 
-/** @deprecated Re-exported for backwards compatibility; consume directly from `@/lib/resume-draft/schema.ssot`. */
+/** @deprecated Re-exported for backwards compatibility; consume directly from `@/lib/validations/resume-draft.schema`. */
 export { strategyRationaleSchema, tailorSchema };
 export type { TailorPayload };
 

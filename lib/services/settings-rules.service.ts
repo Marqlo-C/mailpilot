@@ -10,7 +10,7 @@ import {
   accountRulesSchema,
   parseAccountRules,
   type AccountRules,
-} from "@/lib/validations/rules";
+} from "@/lib/validations/rules.schema";
 import { encryptToken } from "@/lib/core/crypto";
 
 export type ActionResult<T = undefined> =

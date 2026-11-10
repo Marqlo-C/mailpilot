@@ -12,18 +12,10 @@ import {
   REAUTH_REQUIRED_MESSAGE,
 } from "@/lib/gmail/google";
 import { prisma } from "@/lib/core/prisma";
+import { gmailMessageQuerySchema } from "@/lib/validations/sync.schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const querySchema = z
-  .object({
-    id: z.string().min(1).optional(),
-    from: z.string().email().optional(),
-  })
-  .refine((v) => Boolean(v.id || v.from), {
-    message: "Provide id or from",
-  });
 
 /**
  * GET /api/gmail/message?id=<messageId>
@@ -50,7 +42,7 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url);
-    const parsed = querySchema.safeParse({
+    const parsed = gmailMessageQuerySchema.safeParse({
       id: url.searchParams.get("id") ?? undefined,
       from: url.searchParams.get("from") ?? undefined,
     });

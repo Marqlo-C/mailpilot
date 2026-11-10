@@ -7,14 +7,14 @@ import {
   isOllamaCircuitTripped,
   shouldClassifyEmail,
   type LlmProvider,
-} from "@/lib/llm";
+} from "@/lib/ai";
 import {
   type JobClassification,
   extractMessageHtml,
   isValidEmployerName,
   isValidRoleTitle,
   sanitizeRoleTitle,
-} from "@/lib/llm/classification";
+} from "@/lib/ai/classification";
 import {
   isJobLeadsEmail,
   parseJobLeadsDigest,
@@ -51,7 +51,7 @@ import {
 import { JOB_BOARD_KEYWORDS } from "@/lib/constants/job-sources";
 import { prisma } from "@/lib/core/prisma";
 import { parseFromHeader, type ClassifiableAccount } from "@/lib/gmail/sync";
-import type { parseAccountRules } from "@/lib/validations/rules";
+import type { parseAccountRules } from "@/lib/validations/rules.schema";
 import { withRateLimitRetry } from "./candidates";
 import { persistSyncOpportunity } from "./dedupe";
 

@@ -8,7 +8,7 @@ import {
   isOllamaCircuitTripped,
   loadCandidateProfileSummary,
   type LlmProvider,
-} from "@/lib/llm";
+} from "@/lib/ai";
 import { prisma } from "@/lib/core/prisma";
 import {
   initSyncBatchTelemetry,
@@ -21,7 +21,7 @@ import {
   purgeExpiredDismissed,
   pruneHeuristicOpportunities,
 } from "@/lib/opportunities/cleanup";
-import { parseAccountRules } from "@/lib/validations/rules";
+import { parseAccountRules } from "@/lib/validations/rules.schema";
 import {
   gatherSyncCandidates,
   isRateLimited,

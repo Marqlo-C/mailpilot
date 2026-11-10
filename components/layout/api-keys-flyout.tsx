@@ -22,7 +22,7 @@ import {
 import {
   CLOUD_LLM_PROVIDERS,
   type CloudLlmProvider,
-} from "@/lib/llm/provider.ssot";
+} from "@/lib/ai/provider.schema";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 

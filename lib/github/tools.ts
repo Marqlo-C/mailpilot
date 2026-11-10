@@ -1,4 +1,4 @@
-import { ALL_FILE_EXTENSIONS_SET } from "./schema.ssot";
+import { ALL_FILE_EXTENSIONS_SET } from "./github.schema";
 
 /**
  * Canonical tool display mapping, micro-exclusion denylist,

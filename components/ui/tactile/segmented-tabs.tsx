@@ -15,7 +15,7 @@ import {
   persistTabRail,
   readTabRail,
   type TabRailVariant,
-} from "@/lib/ui/tab-rail-preference";
+} from "@/lib/utils/ui/tab-rail-preference";
 import { cn } from "@/lib/utils";
 
 /** Shared segmented tab rail used on Job Radar and Subscriptions. */

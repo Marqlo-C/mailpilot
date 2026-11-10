@@ -8,7 +8,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3.4-38B2AC?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-502_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-677+_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
 [![Vercel WAF](https://img.shields.io/badge/Vercel-Edge_WAF_Mitigation-000000?style=flat-square&logo=vercel)](https://vercel.com/)
 [![Upstash](https://img.shields.io/badge/Upstash-Redis_Rate_Limiting-00E599?style=flat-square&logo=redis)](https://upstash.com/)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM_Vaulted-green?style=flat-square&logo=security)](https://nodejs.org/api/crypto.html)
@@ -20,13 +20,16 @@
 - [1. System Vision & Problem Space](#1-system-vision--problem-space)
 - [2. Architectural Shifts & Engineering Rationales](#2-architectural-shifts--engineering-rationales)
 - [3. End-to-End System Architecture](#3-end-to-end-system-architecture)
+  - [3.1 Ingestion, Classification & Decoupled Opportunity Pipeline](#31-ingestion-classification--decoupled-opportunity-pipeline)
+  - [3.2 MailPilot Companion DOM Ingestion & Context Extraction Flow](#32-mailpilot-companion-dom-ingestion--context-extraction-flow)
+  - [3.3 Unified Platform Pipeline: Ingestion, Deduplication, Tailoring & Elastic Rendering](#33-unified-platform-pipeline-ingestion-deduplication-tailoring--elastic-rendering)
 - [4. Domain Modularization & Codebase Taxonomy](#4-domain-modularization--codebase-taxonomy)
 - [5. The Decoupled Domain Architecture (SSOT & Lenses)](#5-the-decoupled-domain-architecture-ssot--lenses)
   - [5.1 Candidate Persona Engine](#1-candidate-persona-engine-libpersona)
   - [5.2 Job Context Domain](#2-job-context-domain-libopportunitiescontext)
   - [5.3 Match Scoring Lens](#3-match-scoring-lens-libmatching)
   - [5.4 GitHub Technical Ingestion & Deep Inference Domain](#4-github-technical-ingestion--deep-inference-domain-libgithub)
-  - [5.5 Universal Cross-Source Deduplication & Profile Reconciliation Engine](#5-universal-cross-source-deduplication--profile-reconciliation-engine-libprofilededuplicationts--libprofileprofile-consolidationts)
+  - [5.5 Universal Cross-Source Deduplication & Profile Reconciliation Engine](#5-universal-cross-source-deduplication--profile-reconciliation-engine-libprofilededuplication--libprofileprofile-consolidationts)
 - [6. Zero-Dependency Pointer Drag & Drop (DnD) & Batch Grab Engine](#6-zero-dependency-pointer-drag--drop-dnd--batch-grab-engine)
 - [7. Multi-Tier Inference Router & Local Circuit Breaker](#7-multi-tier-inference-router--local-circuit-breaker)
 - [8. Web Scraping & Anti-Bot Evasion Engine](#8-web-scraping--anti-bot-evasion-engine)
@@ -38,7 +41,7 @@
   - [11.3 Stage 3: Hierarchical Matrix Ranker & 4 Universal Dimensions](#113-stage-3-hierarchical-matrix-ranker-libtailorrankerts)
   - [11.4 Stage 4: Competitive Knapsack Assembler & Headroom Backfill](#114-stage-4-competitive-knapsack-assembler--headroom-backfill-libtailorassemblerts)
   - [11.5 Stage 5: Dual-Mode Google XYZ Bullet Reframing](#115-stage-5-dual-mode-google-xyz-bullet-reframing-libtailorreframets)
-  - [11.6 Stage 6: Physical Layout SSOT & Atomic Page Splitting](#116-stage-6-physical-layout-ssot--atomic-page-splitting-libresume-draftlayoutssotts)
+  - [11.6 Stage 6: Physical Layout SSOT & Atomic Page Splitting](#116-stage-6-physical-layout-ssot--atomic-page-splitting-libresume-draftlayoutschemats)
   - [11.7 Stage 7: Offline Master Profile Export (Zero LLM Overhead)](#117-stage-7-offline-master-profile-export-zero-llm-overhead)
   - [11.8 Stage 8: Dual-Mode Section Ordering Engine](#118-stage-8-dual-mode-section-ordering-engine-resolvesectionorder)
 - [12. Performance, Systems Optimization & Telemetry](#12-performance-systems-optimization--telemetry)
@@ -94,10 +97,10 @@ To scale MailPilot reliably under production constraints on the Vercel Hobby tie
 - **Prior Pattern:** Accumulating 35+ loose files in `components/ui/` and 32+ loose utility files directly in `lib/`.
 - **Failure Mode:** Mixing generic UI primitives with application composites and low-level Node utilities created a flat namespace where changes carried unpredictable ripple effects.
 - **Engineering Shift:** Reorganized the repository into semantic domain clusters:
-  - `components/opportunities/`: Structured into `cards/`, `dialogs/`, `drawer/`, `toolbar/`, and `views/`.
-  - `components/settings/`: Grouped into `ai-models/`, `profile/`, `automation/`, and `scraping/`.
-  - `components/ui/`: Separated into `tactile/` (custom fluid controls), `composites/` (complex layouts, modals), and `styles/` (pure CSS utility tokens).
-  - `lib/`: Clustered into `core/` (DB singletons, cryptography, rate limiting, SSRF), `profile/` (candidate master facts), `document/` (PDF & DOCX layout compilers), `scraping/` (anti-bot proxy managers), `gmail/` (mailbox synchronizers), and `utils/` (pure formatting & URL helpers).
+  - `components/features/opportunities/`: Structured into `cards/`, `dialogs/`, `drawer/`, `toolbar/`, and `views/`.
+  - `components/features/settings/`: Grouped into `accounts/`, `ai-models/`, `automation/`, `outbound/`, `profile/`, `scraping/`, and `tactile-preferences/`.
+  - `components/ui/`: Separated into `tactile/` (custom fluid controls), `composites/` (complex layouts, modals), `dnd/` (hardware-accelerated ghosts and bumpers), and `styles/` (pure CSS utility tokens).
+  - `lib/`: Clustered into `ai/` (inference router, local Ollama circuit, vault), `services/` (pure business orchestration), `data/` (read queries), `validations/` (SSOT Zod schemas), `core/` (DB singletons, cryptography, rate limiting, SSRF), `profile/` (master profile, deduplication), `document/` (PDF & DOCX layout compilers), `scraping/` (anti-bot proxy managers), `gmail/` (mailbox synchronizers), and `utils/` (dnd, navigation, ui preferences, formatters).
 
 ### 3. Unified 4-Tier Polymorphic Card Hierarchy & Typographic Scale
 - **Prior Pattern:** Ad-hoc padding, border radii, and font sizes across settings cards and status panels.
@@ -172,7 +175,7 @@ flowchart TD
   end
 ```
 
-### Ingestion, Classification & Decoupled Opportunity Pipeline
+### 3.1 Ingestion, Classification & Decoupled Opportunity Pipeline
 
 ```mermaid
 %%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
@@ -187,9 +190,111 @@ flowchart TD
   DEDUP --> LENS_JOB["resolveJobOpportunity()<br/>(lib/opportunities/context/lens.ts)"]
   DEDUP --> LENS_MATCH["extractMatchCandidateLens()<br/>(lib/matching/lens.ts)"]
 
-  LENS_JOB --> UI["1. Standardized 2-Pill Job Card UI<br/>(components/opportunities/)"]
+  LENS_JOB --> UI["1. Standardized 2-Pill Job Card UI<br/>(components/features/opportunities/)"]
   LENS_JOB & LENS_MATCH --> MATCH["2. Match Scoring Evaluator<br/>(lib/matching/evaluator.ts)"]
   LENS_JOB --> TAILOR["3. Resume Tailoring Engine<br/>(lib/tailor/)"]
+```
+
+### 3.2 MailPilot Companion DOM Ingestion & Context Extraction Flow
+
+In addition to asynchronous Gmail push synchronization, candidates can import external job postings directly from any active browser tab using **MailPilot Companion (Chrome Extension v1.0.0)**. The extension leverages Chrome's native Side Panel API, client-side AST microdata extraction, and dedicated portal DOM parsers to stream structured specifications directly into MailPilot's serverless pipeline:
+
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
+flowchart TD
+  subgraph BrowserTab["1. Host Webpage (Active Browser Tab)"]
+    DOM["Raw DOM Tree<br/>(LinkedIn, Greenhouse, Lever, Ashby, Workday)"]
+    JSONLD["JSON-LD Microdata<br/>(script type='application/ld+json')"]
+  end
+
+  subgraph Companion["2. MailPilot Companion (Chrome Extension v1.0.0)"]
+    CS["Content Script: extractor.ts<br/>• Microdata AST Extractor<br/>• Portal-Specific DOM Extractors"]
+    SP["Side Panel UI (React 19 + Vite 8)<br/>• Tactile Settings & Layout Budget Controls<br/>• Real-Time Bullet Selection & Reframe Stream"]
+    CLIENT["Typed Extension API Client<br/>(credentials: 'include' · mp_session)"]
+
+    DOM & JSONLD --> CS
+    CS -->|"Structured Job Payload"| SP
+    SP -->|"Inference / Save Dispatch"| CLIENT
+  end
+
+  subgraph NextApp["3. MailPilot Serverless Backend (/api/extension/*)"]
+    AUTH["Session Guard<br/>(validateExtensionSession)"]
+    ZOD["Schema Gatekeeper<br/>(lib/validations/extension.schema.ts)"]
+    SANITIZER["DOM & Markdown Sanitizer<br/>(dom-extractor.ts · html-markdown.ts)"]
+    DEDUP["3-Tier Deduplication & Persistence<br/>(opportunity-lifecycle.service.ts)"]
+    TAILOR["Tailoring & AFM Physics Engine<br/>(opportunity-draft.service.ts)"]
+
+    CLIENT -->|"HTTPS POST"| AUTH
+    AUTH --> ZOD
+    ZOD --> SANITIZER
+    SANITIZER --> DEDUP
+    SANITIZER --> TAILOR
+  end
+
+  subgraph Output["4. Delivery & Artifact Synthesis"]
+    DB[("PostgreSQL Database<br/>(JobOpportunity · DraftNode[])")]
+    STREAM["Reactive Bullet / Layout Stream"]
+    EXPORTERS["Client-Side PDF & DOCX Export<br/>(pdf-generator.tsx · resume-docx.ts)"]
+
+    DEDUP --> DB
+    TAILOR --> STREAM
+    STREAM --> SP
+    SP --> EXPORTERS
+  end
+```
+
+### 3.3 Unified Platform Pipeline: Ingestion, Deduplication, Tailoring & Elastic Rendering
+
+The end-to-end operational pipeline links multi-stream ingestion with candidate persona synthesis, AST-guided deduplication, knapsack point budgeting, and physical WYSIWYG export:
+
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".node text, .node foreignObject, .label foreignObject { overflow: visible !important; } .cluster text, .cluster-label span { overflow: visible !important; } .edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 28, "nodeSpacing": 40, "rankSpacing": 44, "subGraphTitleMargin": {"top": 16, "bottom": 20}}}}%%
+flowchart TD
+  subgraph Ingestion["1. Multi-Stream Ingestion Layer"]
+    GMAIL["Gmail Pub/Sub Webhook<br/>(/api/webhooks/gmail · Next.js after)"]
+    COMPANION["MailPilot Companion Tab<br/>(/api/extension/session)"]
+    GITHUB["GitHub AST Syncer<br/>(lib/github/syncer.ts)"]
+  end
+
+  subgraph Extraction["2. Context Distillation & Anti-Corruption Lenses"]
+    SCRUB["Scrub Transient Email Bodies<br/>(rawBody = null at persistent boundary)"]
+    DOM_PARSE["DOM Extractor & JSON-LD Parser<br/>(lib/opportunities/context/)"]
+    LENS_JOB["Job Opportunity Lens<br/>(lib/opportunities/context/lens.ts)"]
+    LENS_MATCH["Candidate Match Lens<br/>(lib/matching/lens.ts)"]
+    LENS_PERSONA["Persona Fact Lens<br/>(lib/persona/lens.ts)"]
+
+    GMAIL --> SCRUB --> DOM_PARSE
+    COMPANION --> DOM_PARSE
+    DOM_PARSE --> LENS_JOB
+    GITHUB --> LENS_PERSONA
+  end
+
+  subgraph Deduplication["3. Universal 3-Tier Deduplication & Reconciliation"]
+    DED_JOB["Job Deduplication Engine<br/>• Tier 1: Canonical URL / Title<br/>• Tier 2: Company + Level Match<br/>• Tier 3: Insert Verified Opportunity"]
+    DED_PROF["15-Bullet Profile Reconciliation<br/>• Szymkiewicz-Simpson Overlap (&ge; 0.50)<br/>• 4-Way Origin Arbiter (Human vs Inferred)"]
+
+    LENS_JOB --> DED_JOB
+    LENS_PERSONA --> DED_PROF
+    DED_JOB & DED_PROF --> DB[("Prisma PostgreSQL Database")]
+  end
+
+  subgraph Evaluation["4. Candidate Alignment & ATS Scoring"]
+    DB --> EVAL["Match Scoring Evaluator<br/>(lib/matching/evaluator.ts)"]
+    EVAL --> SCORE["Deterministic Fit Score & Factual Rationale<br/>(HIGH / MID / LOW Bands · 4 CS Dimensions)"]
+  end
+
+  subgraph Tailoring["5. Vectorless Line-Addressable Resume Tailoring"]
+    SCORE & DB --> TREE["Hierarchical Profile Tree<br/>(Bound Parent-Child Pointers · Zero Orphans)"]
+    TREE --> KNAPSACK["Elastic Knapsack Assembler<br/>• Marginal Decay Matrix: [1.0, 0.85, 0.65, 0.45]<br/>• Dynamic Headroom Backfill (12-14 Bullets)"]
+    KNAPSACK --> REFRAME["Dual-Mode Google XYZ Reframing<br/>(Action Verb + Impact Metric + Method)"]
+  end
+
+  subgraph Rendering["6. WYSIWYG Elastic AFM Physical Layout"]
+    REFRAME --> SSOT_LAYOUT["Physical Typography SSOT<br/>(lib/resume-draft/layout.schema.ts · 720pt Safe Ceiling)"]
+    SSOT_LAYOUT --> WEB_PREVIEW["Web Preview Sheet<br/>(resume-draft-sheet.tsx · Atomic Role Grouping)"]
+    SSOT_LAYOUT --> PDF_OUT["React-PDF Export<br/>(wrap={false} Containers · Zero Page Seam Slicing)"]
+    SSOT_LAYOUT --> DOCX_OUT["Word DOCX Compiler<br/>(OpenXML Tables & Strict Typography Spacing)"]
+  end
 ```
 
 ---
@@ -201,45 +306,56 @@ MailPilot avoids flat-folder accumulation by grouping related responsibilities i
 ```text
 MailPilot/
 ├── app/                           # Next.js 15 App Router & Server Actions
-│   ├── actions/                   # Server Actions (accounts, dispatch, jobs, profile, settings, etc.)
-│   └── api/                       # Webhooks, cron endpoints, OAuth, bridge scripts, telemetry
+│   ├── actions/                   # Thin Server Action mutation boundaries (accounts, dispatch, jobs, etc.)
+│   └── api/                       # REST Route Handlers, webhooks, cron, bridge, extension endpoints
 ├── components/
-│   ├── opportunities/             # Core Pipeline Domain
-│   │   ├── views/                 # Top-level opportunities canvas (opportunities-view.tsx)
-│   │   ├── cards/                 # Unified 2-pill opportunity cards (opportunity-card.tsx)
-│   │   ├── drawer/                # ATS handoff quick-fill & interactive resume sheets
-│   │   ├── dialogs/               # Direct-email drafting & review modal dialogs
-│   │   └── toolbar/               # Search, filters, score threshold slider & JobsRadar tab rail
-│   ├── settings/                  # Multi-Domain Settings Management
-│   │   ├── accounts/              # Connected Gmail accounts & OAuth credentials management
-│   │   ├── ai-models/             # Ollama bridge steps, cloud providers, bot bypass card
-│   │   ├── automation/            # Radar rules, lifecycle rules, retention policy, excluded titles
-│   │   ├── outbound/              # Resume tailoring defaults, Google XYZ synthesis & section layout
-│   │   ├── profile/               # Master profile editor, resume cards, linked accounts
-│   │   ├── scraping/              # HasData & ScrapingAnt usage control panels
-│   │   └── ui/                    # Tactile preference cards (tab rail, wavy meters, wave toggles)
-│   ├── ui/                        # Universal Design System
-│   │   ├── tactile/               # Wave controls (WaveToggle, WavySlider, WavyMeter, NestedSettingsCard)
-│   │   ├── composites/            # Action dialog shells, flyouts, pagination, row menus
-│   │   ├── styles/                # Boxy button styles, checkbox styles, score percentage tokens
-│   │   └── [primitives].tsx       # Pure atomic Radix/Shadcn primitives (button, badge, dialog, etc.)
-│   └── dnd/                       # Floating 3D drag ghost stack & viewport edge page-flip bumpers
+│   ├── brand/                     # Platform logos, marks & brand graphics
+│   ├── features/                  # Domain-Specific UI Component Trees
+│   │   ├── console-digest/        # Real-time telemetry feed & terminal digest
+│   │   ├── login/                 # Video background auth portal & OAuth buttons
+│   │   ├── opportunities/         # Pipeline domain (views/, cards/, drawer/, dialogs/, toolbar/)
+│   │   ├── profile/               # Master profile editor, experience/project cards & revision diffs
+│   │   ├── settings/              # Settings domains (accounts/, ai-models/, automation/, outbound/, scraping/, tactile-preferences/)
+│   │   └── subscriptions/         # RFC 8058 newsletter feed, unsubscribe actions & digests
+│   ├── layout/                    # Shell, navigation, sidebar, drawers & global sync provider
+│   └── ui/                        # Universal Design System Primitives
+│       ├── composites/            # Action dialog shells, flyouts, pagination, row menus
+│       ├── dnd/                   # Floating 3D drag ghost stack & edge page-flip bumpers
+│       ├── icons/                 # Brand iconography & SVG glyphs
+│       ├── styles/                # Boxy button styles, checkbox styles, score percentage tokens
+│       ├── tactile/               # Wave controls (WaveToggle, WavySlider, WavyMeter, NestedSettingsCard)
+│       └── [primitives].tsx       # Pure atomic Radix primitives (button, badge, dialog, tabs, etc.)
+├── extension/                     # Mail Pilot + Companion (Chrome Extension MV3 · React 19 + Vite 8)
+│   ├── src/                       # Content scripts (extractor.ts), Side Panel UI & API clients
+│   └── manifest.json              # Extension Manifest V3 configuration
 ├── hooks/                         # Custom React Hooks (use-card-list-gestures.ts, use-last-clicked-id.ts, etc.)
 └── lib/
-    ├── core/                      # Core Singletons (prisma.ts, crypto.ts, ratelimit.ts, ssrf.ts, constants.ts)
-    ├── dnd/                       # Pointer drag physics, RAF lerp loop, 3-zone deadzone & reorder helpers
-    ├── profile/                   # Master profile, deduplication engine, consolidation, persistent profile
+    ├── ai/                        # Inference router, dispatcher, local Ollama circuit breaker, cloud BYOK vault
+    ├── constants/                 # SSOT Constants (job-sources.ts, branding.ts, wave-geometry.ts, stamp-geometry.ts)
+    ├── core/                      # Foundational singletons (prisma.ts, crypto.ts, ratelimit.ts, ssrf.ts)
+    ├── data/                      # Domain-segregated database read access (accounts, opportunities, subscriptions, navigation)
     ├── document/                  # React-PDF generator, Word DOCX compiler, text extractor, polyfills
-    ├── tailor/                    # 5-stage resume tailor (distiller, tree, ranker, knapsack assembler, reframe)
-    ├── resume-draft/              # Physical geometry SSOT, height physics, elastic budgeter, lens
+    ├── github/                    # Software engineering ingestion, AST prefiltering, topologies, syncer
+    │   └── nlp/                   # Substantiveness bullet auditor & non-colliding verb harmonizer
+    ├── gmail/                     # Google OAuth2 client, Pub/Sub sync, watch renewal, RFC 8058 engine
+    ├── logging/                   # Pino structured logger & 66-column terminal ASCII telemetry
+    ├── matching/                  # Match evaluation engine, taxonomy normalizer, fit bands, lens
+    ├── opportunities/             # Context lens, deduplication, sync loops, application dispatch
+    │   └── context/               # Dual-tier link enrichment (dom-extractor.ts, json-ld.ts, extractors/)
+    ├── persona/                   # Deterministic 4-dimensional persona matrix, tone composer, lens
+    ├── profile/                   # Master profile, consolidation, persistent profile, history
+    │   └── deduplication/         # 15-bullet cross-source deduplication engine & 4-way origin arbiter
+    ├── resume-draft/              # Physical geometry SSOT, height physics, elastic knapsack budgeter
     ├── scraping/                  # HasData & ScrapingAnt proxy clients, quota caches
-    ├── gmail/                     # Google OAuth2 client, Pub/Sub sync, historical scan, RFC 8058 unsubscribe
-    ├── llm/                       # Dispatcher, Ollama circuit breaker, cloud BYOK vault
-    ├── matching/                  # Match evaluation engine, taxonomy normalizer, fit bands, job matcher
-    ├── opportunities/             # Context lens, deduplication, dispatch, sync, application method
-    ├── persona/                   # Multi-dimensional persona matrix, tone composer
+    ├── services/                  # Pure business orchestration services (*.service.ts)
     ├── subscriptions/             # Mailing list categorization, briefing generators
-    └── utils/                     # Formatters, apex domain resolver, company logos, bridge scripts
+    ├── tailor/                    # Line-addressable resume tailor (distiller, tree, ranker, assembler, reframe)
+    ├── utils/                     # Pure helper functions, apex domain resolver, company logos
+    │   ├── dnd/                   # Pointer drag physics, RAF lerp loop, 3-zone deadzones
+    │   ├── extension/             # Companion session validation & CORS helpers
+    │   ├── navigation/            # Dual-layer tab persistence & SSR cookie alignment
+    │   └── ui/                    # Tactile UI preference cookie sync (ui-preferences-server.ts)
+    └── validations/               # Single Source of Truth Zod schemas (*.schema.ts)
 ```
 
 ---
@@ -260,9 +376,9 @@ flowchart TD
   end
 
   subgraph SSOT["Normalized SSOT Domain Contracts"]
-    CP["Candidate Persona<br/>(schema.ssot.ts)"]
-    NJO["Normalized Job Opp<br/>(schema.ssot.ts)"]
-    MC["Match Candidate<br/>(schema.ssot.ts)"]
+    CP["Candidate Persona<br/>(lib/validations/persona.schema.ts)"]
+    NJO["Normalized Job Opp<br/>(lib/validations/opportunity.schema.ts)"]
+    MC["Match Candidate<br/>(lib/validations/matching.schema.ts)"]
   end
 
   CORE["Evaluator & Tailor Core<br/>(Domain-Neutral Engine)"]
@@ -284,7 +400,7 @@ flowchart TD
   LENS["Adapter Lens: PersonaFactLens<br/>(lens.ts)"]
   MATRIX["Interlocking Classification Matrix<br/>(matrix.ts)<br/>• Seniority Tier (6 tiers)<br/>• Disciplinary Archetype (4 archetypes)<br/>• Leadership Scope (3 scopes)<br/>• Distinction Anchor (3 anchors)"]
   TONE["Tone Composer<br/>(tone-composer.ts)<br/>4-Layer Modular Voice Stack"]
-  CONTRACT["Contract: CandidatePersona<br/>(schema.ssot.ts)"]
+  CONTRACT["Contract: CandidatePersona<br/>(lib/validations/persona.schema.ts)"]
 
   MS["Match Scoring<br/>(lib/matching/)"]
   ER["Email Responding<br/>(lib/opportunities/dispatch/)"]
@@ -335,7 +451,7 @@ flowchart TD
   end
 
   subgraph Stage3["3. 3-Pass Tournament & Breadth Lens"]
-    AUDIT["auditBulletSubstantiveness()<br/>• Base 4.0 + Metric 2.0 + Signals 1.5<br/>• Chore & Fluff Penalties -1.5"]
+    AUDIT["nlp/bullet-auditor.ts: Scoring Engine<br/>• Base 4.0 + Metric 2.0 + Signals 1.5<br/>• Chore & Fluff Penalties -1.5"]
     PASS1["Pass 1: Dimension Breadth<br/>• 6 Universal CS Dimensions<br/>• Guarantees Security & UI Slots"]
     PASS2["Pass 2: Greedy Primary Fill<br/>• Score >= 4.5 Candidates"]
     PASS3["Pass 3: Capacity Backfill<br/>• Backfills Score >= 3.0 to maxBullets"]
@@ -343,9 +459,9 @@ flowchart TD
 
   subgraph Stage4["4. Anti-Corruption & Quality Engine"]
     DEDUP["deduplicateOrSynthesizeBullets()<br/>• Suffix Root Stemming<br/>• Fractional Overlap >= 0.30<br/>• 4+ Shared Substantive Roots"]
-    VERB["diversifyLeadingVerbs()<br/>• Non-Colliding Card-Wide Alternatives"]
+    VERB["nlp/verb-harmonizer.ts: Verb Diversifier<br/>• Non-Colliding Card-Wide Alternatives"]
     SHIELD["Grounded Hallucination Shield<br/>• Rejects Ungrounded Claims<br/>• Cross-Repo Corpus Verification"]
-    SCRUB["Universal Path & Syntax Scrubber<br/>• Strips [fileId].js & Normalizes 'utilizing to'<br/>• Harmonizes Serial Gerunds & Plural Agreements"]
+    SCRUB["nlp/verb-harmonizer.ts: Syntax Scrubber<br/>• Strips [fileId].js & Normalizes 'utilizing to'<br/>• Harmonizes Serial Gerunds & Plural Agreements"]
     TOOLS["Canonical Tool Normalizer<br/>• 140+ Systems Taxonomy Mapping<br/>• Micro-Excludes Build/Linter Scaffolding"]
   end
 
@@ -361,7 +477,9 @@ flowchart TD
 ```
 
 #### Sub-Module Architecture:
-- `schema.ssot.ts`: Single source of truth defining `ProjectItem`, `GitHubRawRepo`, `RepoComplexityScale`, and the `determineRepoScale()` complexity evaluator.
+- `github.schema.ts`: Single source of truth defining `ProjectItem`, `GitHubRawRepo`, `RepoComplexityScale`, and the `determineRepoScale()` complexity evaluator.
+- `nlp/bullet-auditor.ts`: Continuous 0.0–10.0 substantiveness scoring engine (`auditBulletSubstantiveness`) with operational signal bonuses and 3-pass heuristic tournament breadth allocation.
+- `nlp/verb-harmonizer.ts`: Dynamic leading systems verb diversification with card-wide collision avoidance (`diversifyLeadingVerbs`), bare infinitive normalization (`sanitizeBulletString`), and serial predicate gerund harmonizing (`harmonizeCoordinatedVerbs`).
 - `prefilter.ts`: Semantic markdown AST scrubber (`extractSemanticMarkdownDigest`) that strips non-technical boilerplate (shield badges, raw HTML images, sponsor links, HTML comments, multiline shell/terminal code blocks), completely eliminates installation/licensing clutter, and proportionally allocates character budgets across all surviving architectural sections (`architecture`, `system design`, `data flow`, `components`, `protocols`, `concurrency`, `pipeline`, `benchmarks`, `performance`, `security`, `storage`, `api specification`, `models`).
 - `manifests.ts`: Probes root and nested manifests (`package.json`, `requirements.txt`, `pyproject.toml`, `go.mod`, `Cargo.toml`), filters out dev/linter tooling noise, and organizes packages into systems domains (`groupDependenciesByDomain`: *"Networking & Protocols"*, *"State, Storage & Persistence"*, *"Concurrency, Queues & Messaging"*, *"Architecture & Web Frameworks"*, *"Math, Compute & ML"*, *"Telemetry, Hardening & Security"*).
 - `topology.ts`: Deterministically deduces cross-manifest architectural topologies (`deduceArchitecturalTopology`), detecting decoupled backends (e.g., *"Decoupled service layer pairing an asynchronous Python backend with a TypeScript web frontend"*), real-time WebSocket/Redis pub-sub pipelines, and distributed message broker queues.
@@ -512,7 +630,7 @@ Across iterative generations of the GitHub ingestion, deep inference engine, and
 
 ##### Project-by-Project Extraction Breakdown (Evaluation: `Marq_Lott_Master_Profile (5)_2.pdf` — Score: 9.86 / 10)
 - **Experience & Education:** Preserves verified numerical ground truths across all roles (15+ fleet units, 3 internal API endpoints & 8 external API keys, 4-month Brevo SMTP verification regression, 143% account-to-quota ratio across 12 data center markets, 99.99% and 99.9% network availability SLAs, and 15% provisioning velocity acceleration across 6 cross-functional engineering teams). Clean dual-degree academic hierarchy (BS in Computer Science from UC Davis, June 2026, alongside AS in Computer Science, Mathematics, & Physics from San Joaquin Delta College, May 2024).
-- **MailPilot:** High-density systems extraction: sub-second delta synchronization via Google Cloud Pub/Sub webhooks, adaptive 3-tier inference router with in-memory circuit breaker falling back to a zero-token regex/AST heuristic engine executing in under 2ms, authenticated AES-256-GCM envelope encryption with DNS pre-resolution IP validation for SSRF mitigation, deterministic vectorless RAG eliminating approximate nearest neighbor retrieval, 66-column terminal ASCII telemetry logger, and automated zero-token test suite using Vitest (502 tests).
+- **MailPilot:** High-density systems extraction: sub-second delta synchronization via Google Cloud Pub/Sub webhooks, adaptive 3-tier inference router with in-memory circuit breaker falling back to a zero-token regex/AST heuristic engine executing in under 2ms, authenticated AES-256-GCM envelope encryption with DNS pre-resolution IP validation for SSRF mitigation, deterministic vectorless RAG eliminating approximate nearest neighbor retrieval, 66-column terminal ASCII telemetry logger, and automated zero-token test suite using Vitest (677+ tests).
 - **Connect 4 Player Agent:** Explicitly extracts script-level utilities and filenames from the repository (`thread.py` killable thread utility and `eval_diagnostics` heuristic scoring script). Accurately distinguishes between human player interfaces (GUI and console), baseline AIs (random and heuristic), and advanced game-tree agents (minimax, alpha-beta pruning, Monte Carlo simulation).
 - **SafeHaven:** Deep forensic-evasion and networking primitives: sub-100ms bidirectional latency over Socket.io WebSockets across 100+ concurrent encrypted client sessions, zero-latency multi-vector panic exit, raw Node.js `http.Server` abstraction in serverless handlers to prevent WebSocket upgrade hooks, `global._mongooseCache` connection promise caching, HTTP 206 byte-range partial content streaming, and OpenRouter native fallback routing.
 - **Embergency, Ms Pac Man, Secret Message Encoder, & Toes Down:**
@@ -551,9 +669,14 @@ flowchart TD
 
 ---
 
-### 5. Universal Cross-Source Deduplication & Profile Reconciliation Engine (`lib/profile/deduplication.ts` & `lib/profile/profile-consolidation.ts`)
+### 5. Universal Cross-Source Deduplication & Profile Reconciliation Engine (`lib/profile/deduplication/` & `lib/profile/profile-consolidation.ts`)
 
-MailPilot reconciles candidate profile data originating from diverse upstream sources: human-uploaded resumes, LinkedIn archives, and automated GitHub repository ingestion. To prevent ghost duplicates, preserve human ground truth, and prevent bullet bloat, MailPilot implements a universal, career-agnostic **15-Bullet Deduplication & Reconciliation Engine**:
+MailPilot reconciles candidate profile data originating from diverse upstream sources: human-uploaded resumes, LinkedIn archives, and automated GitHub repository ingestion. To prevent ghost duplicates, preserve human ground truth, and prevent bullet bloat, MailPilot implements a universal, career-agnostic **15-Bullet Deduplication & Reconciliation Engine** structured as a modularized package in [`lib/profile/deduplication/`](file:///Users/marqlott/desktop/mailpilot/lib/profile/deduplication) (re-exported via [`lib/profile/deduplication.ts`](file:///Users/marqlott/desktop/mailpilot/lib/profile/deduplication.ts)) and validated against [`lib/validations/profile.schema.ts`](file:///Users/marqlott/desktop/mailpilot/lib/validations/profile.schema.ts):
+- `reconcile.ts`: Implements the 4-way origin arbiter, primary bullet slot allocation, and companion variant archiving.
+- `similarity.ts`: Computes Szymkiewicz–Simpson token overlap coefficients and normalized project title matching.
+- `scoring.ts`: Information density computation and title polish weighting.
+- `tokenizer.ts`: Substantive token extraction and universal stopword pruning.
+- `typology.ts`: 8-dimension career-agnostic functional typology classification.
 
 ```mermaid
 %%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".node text, .node foreignObject, .label foreignObject { overflow: visible !important; } .cluster text, .cluster-label span { overflow: visible !important; } .edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 28, "nodeSpacing": 40, "rankSpacing": 44, "subGraphTitleMargin": {"top": 16, "bottom": 20}}}}%%
@@ -640,7 +763,7 @@ flowchart TD
 
 ## 6. Zero-Dependency Pointer Drag & Drop (DnD) & Batch Grab Engine
 
-Rather than relying on heavy external libraries (`@dnd-kit`, `react-beautiful-dnd`, `framer-motion`) that trigger frequent React layout recalculations and inflate bundle size, MailPilot runs a custom, hardware-accelerated **Pointer Physics Drag & Drop Engine** (`lib/dnd/`, `hooks/use-card-list-gestures.ts`):
+Rather than relying on heavy external libraries (`@dnd-kit`, `react-beautiful-dnd`, `framer-motion`) that trigger frequent React layout recalculations and inflate bundle size, MailPilot runs a custom, hardware-accelerated **Pointer Physics Drag & Drop Engine** ([`lib/utils/dnd/`](file:///Users/marqlott/desktop/mailpilot/lib/utils/dnd), [`hooks/use-card-list-gestures.ts`](file:///Users/marqlott/desktop/mailpilot/hooks/use-card-list-gestures.ts)):
 
 ```mermaid
 %%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
@@ -664,18 +787,18 @@ When initiating a drag on an opportunity card or multi-card bounding box of heig
 - **Top 40% & Bottom 40% Active Thresholds:** Once the cursor moves past the boundary, the target position shifts smoothly to track the pointer.
 - **Middle 20% "Free Zone" ($0.40 \times H \le \text{relativeY} \le 0.60 \times H$):** Micro-movements, hand tremors, and natural mouse jitter within this deadzone do not move the card, preventing jumpy drag starts.
 
-### 2. Hardware-Accelerated Lerp Smoothing (`lib/dnd/drag-smooth.ts`)
+### 2. Hardware-Accelerated Lerp Smoothing ([`lib/utils/dnd/drag-smooth.ts`](file:///Users/marqlott/desktop/mailpilot/lib/utils/dnd/drag-smooth.ts))
 Movement is driven entirely outside React render passes using an in-memory `requestAnimationFrame` loop with linear interpolation:
 $$\text{pos}_{\text{next}} = \text{pos}_{\text{current}} + (\text{pos}_{\text{target}} - \text{pos}_{\text{current}}) \times \alpha$$
 - **60fps Native Performance:** Uses an optimized damping factor ($\alpha = 0.16$) and CSS `transform: translate3d(x, y, 0)` so card dragging never triggers synchronous DOM reflows or style recalculations.
 
-### 3. Multi-Card Batch Grab & 3D Peek Stack (`components/dnd/drag-ghost.tsx`)
+### 3. Multi-Card Batch Grab & 3D Peek Stack ([`components/ui/dnd/drag-ghost.tsx`](file:///Users/marqlott/desktop/mailpilot/components/ui/dnd/drag-ghost.tsx))
 When items are multi-selected via checkboxes or click-drag selection:
 - Grabbing any selected item hoists the entire batch into a single floating drag proxy.
 - Renders a physical 3D peek stack displaying up to 4 fanned preview cards with company logos, role titles, match scores, and a badge indicating total selected items (e.g., `4 job(s)`).
 - Releases all items simultaneously into the target lifecycle state in a single batch server transition.
 
-### 4. Edge Page-Flip Bumpers (`components/dnd/page-flip-bumpers.tsx`)
+### 4. Edge Page-Flip Bumpers ([`components/ui/dnd/page-flip-bumpers.tsx`](file:///Users/marqlott/desktop/mailpilot/components/ui/dnd/page-flip-bumpers.tsx))
 - Detects pointer proximity to top and bottom viewport boundaries during active drags.
 - Automatically pages forward or backward through paginated result sets without dropping the held items, allowing cross-page reorganizations.
 
@@ -687,19 +810,39 @@ When items are multi-selected via checkboxes or click-drag selection:
 
 ## 7. Multi-Tier Inference Router & Local Circuit Breaker
 
-MailPilot features an account-scoped multi-tier inference router (`lib/llm/dispatcher.ts`) engineered for zero token waste, local privacy, and continuous synchronization uptime.
+MailPilot features an account-scoped multi-tier inference router ([`lib/ai/dispatcher.ts`](file:///Users/marqlott/desktop/mailpilot/lib/ai/dispatcher.ts)) engineered for zero token waste, local privacy, and continuous synchronization uptime.
 
 ```mermaid
 %%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
 flowchart TD
-  REQ["Inference Request<br/>(dispatcher.ts)"] --> OLL["LOCAL_OLLAMA<br/>• 2s tag probe<br/>• Adaptive timeout<br/>• Stream decoder"]
-  REQ --> CLOUD["Cloud Provider<br/>(BYOK)"]
+  REQ["Inference Request<br/>(Classification, Matching, or Resume Tailoring)"] --> PRE["Input Sanitization & Schema Validation<br/>(lib/validations/classification.schema.ts)"]
+  PRE --> DISP["Inference Dispatcher<br/>(lib/ai/dispatcher.ts)"]
 
-  OLL -.->|"&nbsp;&nbsp;Failover (if allowed)&nbsp;&nbsp;"| VAULT
-  CLOUD --> VAULT["Account Vault<br/>(vault.ts)<br/>• AES-256-GCM<br/>• Masked UI"]
+  DISP --> CHECK{"Preferred Engine?"}
 
-  VAULT --> OAICLIENT["OpenAI-Compatible Client<br/>(/chat/completions)<br/>• OpenRouter<br/>• OpenAI<br/>• Groq<br/>• DeepSeek<br/>• Gemini (compat)"]
-  VAULT --> ANTHRO["Anthropic Native Client<br/>(/messages)<br/>• Claude 3.5 Haiku / Sonnet<br/>• x-api-key headers"]
+  subgraph LocalOllama["Tier 1: Private Local Inference ($0.00 Tokens)"]
+    CHECK -->|"LOCAL_OLLAMA"| PROBE["Circuit Breaker Health Probe<br/>(2s Probe to /api/tags via Cloudflare Quick Tunnel)"]
+    PROBE -->|"Healthy"| OLL_EXEC["Execute Local Model<br/>(Adaptive Timeout: 45s - 180s)"]
+    PROBE -->|"Offline / Timed Out"| TRIP["Trip Circuit Breaker<br/>(isOllamaCircuitTripped = true)"]
+  end
+
+  subgraph CloudBYOK["Tier 2: Encrypted Cloud Inference (Vault BYOK)"]
+    TRIP -.->|"Graceful Failover"| VAULT["Decrypt Account Key<br/>(lib/ai/vault.ts · AES-256-GCM)"]
+    CHECK -->|"CLOUD_BYOK"| VAULT
+    VAULT --> CLOUD_ROUTER{"Provider Selector"}
+    CLOUD_ROUTER -->|"OpenRouter / Groq / OpenAI"| OAI["OpenAI-Compatible REST Client<br/>(/chat/completions)"]
+    CLOUD_ROUTER -->|"Anthropic"| ANTHRO["Anthropic Native Client<br/>(/v1/messages)"]
+  end
+
+  subgraph Resilience["Tier 3: Offline Queue & Parking"]
+    OAI & ANTHRO -.->|"HTTP 429 / Provider Downtime"| PARK["PENDING_AI Parking Queue<br/>• Raw Body Scrubbed (null)<br/>• Non-Destructive Message ID Enqueue"]
+    PARK -->|"On Tunnel / Key Recovery"| DRAIN["Automated Queue Drain Pass<br/>(Re-dispatches Pending Ingestion)"]
+  end
+
+  OLL_EXEC --> TELEMETRY["66-Column Terminal ASCII Telemetry<br/>(lib/logging/index.ts)"]
+  OAI & ANTHRO --> TELEMETRY
+  DRAIN --> TELEMETRY
+  TELEMETRY --> RET["Validated Output Payload"]
 ```
 
 ### The 3-Tier Fallback Hierarchy
@@ -782,14 +925,28 @@ All model invocations are monitored via a standardized 66-column terminal ASCII 
 
 ## 8. Web Scraping & Anti-Bot Evasion Engine
 
-Inbound emails frequently contain abbreviated link digests (`< 300 chars`) pointing to external job boards. MailPilot utilizes a cost-aware, multi-stage link parsing engine (`lib/opportunities/context/`) designed to extract rich specifications while protecting proxy credits:
+Inbound emails frequently contain abbreviated link digests (`< 300 chars`) pointing to external job boards. MailPilot utilizes a cost-aware, multi-stage context extraction engine ([`lib/opportunities/context/`](file:///Users/marqlott/desktop/mailpilot/lib/opportunities/context)) designed to extract rich specifications while protecting proxy credits:
 
 ### Pacing & Hydration Strategy
 - **Background Sync Pacing (Zero Credit Waste):** During automated inbox sync passes, Glassdoor and Indeed links fast-exit immediately in **0ms** without triggering external proxy calls, persisting as `MINIMAL_LEAD` records.
 - **On-Demand Spec Hydration (HasData BYOK):** When a user opens an opportunity to tailor a resume or clicks *Hydrate Spec*, MailPilot executes `fetchViaHasData` using the customer's encrypted HasData BYOK key, upgrading the record from `MINIMAL_LEAD` to `RICH_SPEC` (saving up to 4,000+ characters of parsed requirements to PostgreSQL).
-- **Master Proxy Toggle (`enableWebScrapingProxies`):** A dedicated master switch on `BotBypassCard` (`components/settings/ai-models/bot-bypass-card.tsx`) permits candidates to disable external proxy execution across all scraping paths while preserving their vaulted AES-256-GCM HasData and ScrapingAnt API keys intact.
+- **Master Proxy Toggle (`enableWebScrapingProxies`):** A dedicated master switch on `BotBypassCard` ([`components/features/settings/ai-models/bot-bypass-card.tsx`](file:///Users/marqlott/desktop/mailpilot/components/features/settings/ai-models/bot-bypass-card.tsx)) permits candidates to disable external proxy execution across all scraping paths while preserving their vaulted AES-256-GCM HasData and ScrapingAnt API keys intact.
 
-### Multi-Stage Scraping Pipeline
+### 2-Tier Context Enrichment Architecture
+
+MailPilot eliminates brittle HTML-scraping failures through a resilient 2-tier extraction pipeline:
+
+1. **Tier 1: Structured AST Microdata Extraction ([`json-ld.ts`](file:///Users/marqlott/desktop/mailpilot/lib/opportunities/context/json-ld.ts), [`json-ld-parser.ts`](file:///Users/marqlott/desktop/mailpilot/lib/opportunities/context/json-ld-parser.ts)):**
+   - **Schema.org AST Parser:** Extracts `<script type="application/ld+json">` blocks, isolating canonical `JobPosting` entities (title, hiring organization, base salary, date posted, employment type).
+   - **Nuxt 3 SSR State Parser:** De-serializes `<script id="__NUXT_DATA__">` JSON arrays. Resolves recursive object index pointers to extract full job descriptions from modern Nuxt 3 applications without headless Chrome overhead.
+   - **LinkedIn Public Guest API:** Resolves LinkedIn URLs via a 2-tier public unauthenticated pipeline (`https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{id}`) with fallback to Googlebot-emulated Schema.org parsing.
+2. **Tier 2: Semantic DOM Markdown Extraction ([`dom-extractor.ts`](file:///Users/marqlott/desktop/mailpilot/lib/opportunities/context/dom-extractor.ts), [`html-markdown.ts`](file:///Users/marqlott/desktop/mailpilot/lib/opportunities/context/html-markdown.ts)):**
+   - When structured JSON-LD microdata is absent or protected, `dom-extractor.ts` traverses semantic DOM containers (`<main>`, `<article>`, `[role="main"]`), strips boilerplate headers, cookie banners, and navigation footers, and classifies sections via [`section-classifier.ts`](file:///Users/marqlott/desktop/mailpilot/lib/opportunities/context/section-classifier.ts).
+   - Formats extracted text into clean, hierarchical Markdown anchored strictly to verbatim document content.
+3. **Portal-Specific Heuristic Extractors ([`lib/opportunities/context/extractors/`](file:///Users/marqlott/desktop/mailpilot/lib/opportunities/context/extractors/)):**
+   - Purpose-built extractors tailored to distinct page layouts and selector hierarchies across **Ashby, Greenhouse, Lever, Workday, Indeed, Glassdoor, and JobLeads**.
+4. **Proxy BYOK Fallback ([`lib/scraping/hasdata.ts`](file:///Users/marqlott/desktop/mailpilot/lib/scraping/hasdata.ts), [`lib/scraping/scrapingant.ts`](file:///Users/marqlott/desktop/mailpilot/lib/scraping/scrapingant.ts)):**
+   - Transparent residential rotating proxy failover for Cloudflare and DataDome protected career portals.
 
 ```mermaid
 %%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
@@ -808,24 +965,19 @@ flowchart TD
   STATUS -->|"&nbsp;&nbsp;200 OK&nbsp;&nbsp;"| PARSE(["Payload Extraction"])
   STATUS -->|"&nbsp;&nbsp;403 / 429&nbsp;&nbsp;"| SCRAPINGANT["ScrapingAnt BYOK<br/>Proxy Fallback"]
 
-  PARSE --> JLD["Schema.org Parser<br/>(JSON-LD AST)"]
-  PARSE --> NUXT["Nuxt 3 State Parser<br/>(__NUXT_DATA__)"]
-  PARSE --> LI["LinkedIn Guest API<br/>(Job Posting)"]
+  PARSE --> JLD["Tier 1: Schema.org AST<br/>(JSON-LD & Nuxt 3)"]
+  PARSE --> DOM_EXT["Tier 2: Semantic DOM<br/>(dom-extractor.ts)"]
+  PARSE --> EXTRACTORS["Site Extractors<br/>(Greenhouse, Lever, Ashby...)"]
 
-  JLD & NUXT & LI & HASDATA & SCRAPINGANT --> SANITIZE["sanitizeJobDescription()<br/>(4,000 Chars Clean)"]
+  JLD & DOM_EXT & EXTRACTORS & HASDATA & SCRAPINGANT --> SANITIZE["sanitizeJobDescription()<br/>(4,000 Chars Clean)"]
   SANITIZE --> DB[("PostgreSQL RICH_SPEC")]
 ```
-
-1. **Schema.org JSON-LD Extraction (`json-ld.ts`):** Parses `<script type="application/ld+json">` AST blocks, extracting structured `JobPosting` entities (title, hiring organization, base salary, date posted, employment type).
-2. **Nuxt 3 SSR State Parser (`json-ld.ts`):** De-serializes `<script id="__NUXT_DATA__">` JSON arrays. Resolves recursive object index pointers to extract full job descriptions from modern Nuxt 3 applications without headless Chrome overhead.
-3. **LinkedIn Public Guest API (`json-ld.ts`):** Resolves LinkedIn URLs via a 2-tier public unauthenticated pipeline (`https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{id}`) with fallback to Googlebot-emulated Schema.org parsing.
-4. **Proxy BYOK Fallback (`lib/scraping/hasdata.ts`, `lib/scraping/scrapingant.ts`):** Transparent residential rotating proxy failover for Cloudflare and DataDome protected career portals.
 
 ---
 
 ## 9. Polymorphic 4-Tier Card Design System
 
-To ensure mathematical visual consistency and eliminate CSS drift across all settings surfaces, MailPilot enforces a 4-tier typographic matrix (`NESTED_CARD_TYPOGRAPHY`) codified in `components/ui/tactile/nested-settings-card.tsx`:
+To ensure mathematical visual consistency and eliminate CSS drift across all settings surfaces, MailPilot enforces a 4-tier typographic matrix (`NESTED_CARD_TYPOGRAPHY`) codified in [`components/ui/tactile/nested-settings-card.tsx`](file:///Users/marqlott/desktop/mailpilot/components/ui/tactile/nested-settings-card.tsx):
 
 ```text
 Level 1 (Section Container) : 16px Title (font-semibold) · 12px Subtitle · p-4 Container
@@ -842,6 +994,14 @@ Level 1 (Section Container) : 16px Title (font-semibold) · 12px Subtitle · p-4
 - **`SettingsFeatureCard` (Level 2):** Collapsible feature sub-cards sporting brand iconography (`CompanyLogo`), independent accordion controls, and real-time status badges (*Active*, *Key Needed*, *Disabled*).
 - **`SettingsStepCard` (Level 3):** Numbered onboarding steps (e.g., Steps 1.1, 2.1 in Ollama Bridge) with dedicated action CTA buttons.
 - **`SettingsStatusCard` (Level 4):** Inner live telemetry indicators with pulsing status pings and monospace endpoint readouts.
+
+### Tactile UI Preferences Suite & Dual-Layer SSR Cookie Sync
+MailPilot features a tactile control suite located in [`components/ui/tactile/`](file:///Users/marqlott/desktop/mailpilot/components/ui/tactile) and configured in [`components/features/settings/tactile-preferences/`](file:///Users/marqlott/desktop/mailpilot/components/features/settings/tactile-preferences):
+- **`WaveToggle`:** Fluid sinusoidal SVG toggle switch with animated crest and trough wave transitions.
+- **`WavySlider` & `WavyMeter`:** Continuous dynamic sinusoidal SVG meters for match score thresholds, inbox clutter filtering, and budget headroom visualization.
+- **`SegmentedTabs`:** Tactile segmented tab rail with smooth sliding pill indicators.
+- **Dual-Layer SSR Persistence ([`lib/utils/ui/`](file:///Users/marqlott/desktop/mailpilot/lib/utils/ui)):** User tactile selections (`mp_ui_tab_rail`, `mp_ui_wavy_meter`, `mp_ui_wave_toggle`, `mp_ui_rail_action`) are written synchronously to `localStorage` and durable browser cookies.
+- **Zero Pre-Paint Hydration Layout Shift:** Next.js Server Components call `readServerTactilePreferences()` ([`lib/utils/ui/ui-preferences-server.ts`](file:///Users/marqlott/desktop/mailpilot/lib/utils/ui/ui-preferences-server.ts)) during SSR, ensuring tactile controls render on byte 0 without visual flicker, layout jumps, or React hydration mismatches.
 
 ---
 
@@ -870,17 +1030,20 @@ To eliminate credential loss and key fragmentation across inbox lifecycle events
 
 - **Identity Anchor (`PersistentProfile` & `PermanentSettings`):**
   Each user is anchored to a durable `PersistentProfile` keyed to their Google identity (`googleSub` / primary email), backed by a 1-to-1 `PermanentSettings` record containing a profile-scoped `rules Json` store.
+- **Service-Layer Orchestration ([`lib/services/api-keys.service.ts`](file:///Users/marqlott/desktop/mailpilot/lib/services/api-keys.service.ts), [`lib/services/settings-rules.service.ts`](file:///Users/marqlott/desktop/mailpilot/lib/services/settings-rules.service.ts)):**
+  Instead of presentation components or route handlers directly mutating database models, mutations are routed through `app/actions/settings.ts`, validated against [`lib/validations/settings.schema.ts`](file:///Users/marqlott/desktop/mailpilot/lib/validations/settings.schema.ts), and delegated to dedicated domain services that manage encryption envelopes and dual persistence.
 - **Dual-Persisted Key Synchronization (`persistProfileScopedRules`):**
   When a candidate configures or rotates credentials (Cloud LLM API keys: OpenRouter, OpenAI, Groq, DeepSeek, Anthropic, Gemini; or Web Scraping proxy keys: HasData, ScrapingAnt), credentials are synchronously vaulted to both `AccountSettings.rules` (active inbox) and `PermanentSettings.rules` (durable profile).
 - **Inbox Reconnect & Multi-Inbox Immunity:**
-  - Upon active account resolution (`getActiveAccount()` in `lib/data.ts`), `mergeRulesWithPermanentSettings()` automatically injects durable profile credentials into active sessions.
+  - Upon active account resolution (`getActiveAccount()` in `lib/data/accounts.data.ts`), `mergeRulesWithPermanentSettings()` automatically injects durable profile credentials into active sessions.
   - If a user unlinks, rotates, or re-links an inbox, all vaulted keys, models, and scraping quotas persist intact without requiring re-entry.
 
 ```mermaid
 %%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
 flowchart TD
-  User(["Candidate / UI"]) -->|"&nbsp;&nbsp;Save / Rotate Keys&nbsp;&nbsp;"| Action["Settings Server Action<br/>(settings.ts)"]
-  Action --> Encrypt["AES-256-GCM Encrypt<br/>(iv:authTag:ciphertext)"]
+  User(["Candidate / UI"]) -->|"&nbsp;&nbsp;Save / Rotate Keys&nbsp;&nbsp;"| Action["Settings Server Action<br/>(app/actions/settings.ts)"]
+  Action --> SVC["API Keys Service<br/>(lib/services/api-keys.service.ts)"]
+  SVC --> Encrypt["AES-256-GCM Encrypt<br/>(iv:authTag:ciphertext)"]
 
   subgraph DurableIdentity["Durable Identity Boundary"]
     Encrypt -->|"&nbsp;&nbsp;persistProfileScopedRules()&nbsp;&nbsp;"| PS[("PermanentSettings.rules<br/>(PersistentProfile)")]
@@ -989,9 +1152,9 @@ flowchart TD
     MODEA & MODEB --> STRIP
   end
 
-  subgraph Stage6["6. Physical Layout SSOT & Atomic Page Splitting (layout.ssot.ts)"]
+  subgraph Stage6["6. Physical Layout SSOT & Atomic Page Splitting (layout.schema.ts)"]
     DRAFT[("<b>[OUTPUT] TailoredResumeDraft JSON Tree</b><br/>Line-Addressable Node Representation")]:::output
-    PREVIEW["<b>[HEURISTIC] Web Preview Sheet (resume-draft-sheet.tsx)</b><br/>• Look-Ahead getEntityTotalHeight() Evaluation<br/>• Option 1: Advances Whole Entity to Next Page<br/>• Reactive Role Grouping on Dynamic Resize"]:::output
+    PREVIEW["<b>[HEURISTIC] Web Preview Sheet (components/features/opportunities/drawer/resume-draft-sheet.tsx)</b><br/>• Look-Ahead getEntityTotalHeight() Evaluation<br/>• Option 1: Advances Whole Entity to Next Page<br/>• Reactive Role Grouping on Dynamic Resize"]:::output
     CLAMP["<b>[HEURISTIC] clampPdfContentToPhysicalCeiling()</b><br/>Identical 720pt (960px) Physical Ceiling Clamp"]:::output
     PDF["<b>[OUTPUT] React-PDF Export (pdf-generator.tsx)</b><br/>• wrap={false} Containers on Roles, Projects & Degrees<br/>• Standardized 8pt/10pt Geometry & Right-Aligned Dates"]:::output
     DOCX["<b>[OUTPUT] compileResumeDocx (resume-docx.ts)</b><br/>Native OpenXML Document Architecture"]:::output
@@ -1120,9 +1283,9 @@ $$\text{[Strong Action Verb]} + \text{[Quantifiable Impact / Scope / Metric]} + 
 
 ---
 
-### 11.6 Stage 6: Physical Layout SSOT & Atomic Page Splitting (`lib/resume-draft/layout.ssot.ts`)
+### 11.6 Stage 6: Physical Layout SSOT & Atomic Page Splitting (`lib/resume-draft/layout.schema.ts`)
 
-To eliminate visual desynchronization between web previews, PDF exports, and Word documents, MailPilot codifies all physical metrics in a Single Source of Truth (`RESUME_PAGE_GEOMETRY`, `RESUME_TYPOGRAPHY`, `RESUME_SPACING`):
+To eliminate visual desynchronization between web previews, PDF exports, and Word documents, MailPilot codifies all physical metrics in a Single Source of Truth ([`lib/resume-draft/layout.schema.ts`](file:///Users/marqlott/desktop/mailpilot/lib/resume-draft/layout.schema.ts), `RESUME_PAGE_GEOMETRY`, `RESUME_TYPOGRAPHY`, `RESUME_SPACING`). All node mutations and draft transformations are orchestrated through [`lib/services/opportunity-draft.service.ts`](file:///Users/marqlott/desktop/mailpilot/lib/services/opportunity-draft.service.ts):
 
 | Element | Point Specification (PDF / Print) | Pixel Specification (CSS / Web Preview) |
 | :--- | :--- | :--- |
@@ -1138,7 +1301,7 @@ To eliminate visual desynchronization between web previews, PDF exports, and Wor
 When multi-page documents transition across the page seam, slicing mid-role leaves orphaned headers or disconnected bullets. MailPilot enforces **Strict Role & Project Atomicity** across both targets:
 1. **React-PDF Generator (`lib/document/pdf-generator.tsx`):**
    - Applies `<View wrap={false}>` containers around each work experience role, project card, and education row. React-PDF automatically moves the entire entity to Page 2 whenever it cannot fit on Page 1.
-2. **Web Preview Sheet (`components/opportunities/drawer/resume-draft-sheet.tsx`):**
+2. **Web Preview Sheet ([`components/features/opportunities/drawer/resume-draft-sheet.tsx`](file:///Users/marqlott/desktop/mailpilot/components/features/opportunities/drawer/resume-draft-sheet.tsx)):**
    - **Proactive Look-Ahead (`getEntityTotalHeight`):** When encountering a role or project header, the partitioner calculates the total height of the header plus all its child bullets. If the full entity exceeds the remaining printable height (`PRINTABLE_HEIGHT = 960px`) but fits on a clean page, the entire entity is advanced to Page 2.
    - **Reactive Role Grouping:** If dynamic DOM height measurement causes a bullet to overflow, the partitioner pulls the parent header and all preceding bullets of that role forward onto the new page rather than slicing mid-role.
 3. **Clamping Parity (`clampPdfContentToPhysicalCeiling`):**
@@ -1174,8 +1337,9 @@ Controls the macroscopic hierarchy of the tailored resume through two distinct b
 
 ### Zero-Flicker Tab State Persistence & SSR Cookie Alignment
 - **Problem:** Full page refreshes previously reset navigation tabs back to the default tab (`leads` in Opportunities, `accounts` in Settings), and client-only state hydration produced visual flash and delayed First Contentful Paint (FCP).
-- **Dual-Layer Account-Scoped Persistence (`lib/navigation/page-tabs.ts`):** Active tab selections are instantly synchronized to both account-scoped `localStorage` (`mp_tab_<account>_<page>`) and a durable cookie (`mp_active_tab_<page>`).
-- **Server-Side Rendering (SSR) Alignment (`lib/navigation/page-tabs-server.ts`):** Server Components call `readServerActivePageTab()` to read the active cookie during initial SSR, rendering the user's exact active tab markup on byte 0 with zero layout shift or hydration mismatch.
+- **Dual-Layer Account-Scoped Persistence ([`lib/utils/navigation/page-tabs.ts`](file:///Users/marqlott/desktop/mailpilot/lib/utils/navigation/page-tabs.ts)):** Active tab selections are instantly synchronized to both account-scoped `localStorage` (`mp_tab_<account>_<page>`) and a durable cookie (`mp_active_tab_<page>`).
+- **Server-Side Rendering (SSR) Alignment ([`lib/utils/navigation/page-tabs-server.ts`](file:///Users/marqlott/desktop/mailpilot/lib/utils/navigation/page-tabs-server.ts)):** Server Components call `readServerActivePageTab()` to read the active cookie during initial SSR, rendering the user's exact active tab markup on byte 0 with zero layout shift or hydration mismatch.
+- **Dual-Layer Tactile UI Cookie Hydration ([`lib/utils/ui/ui-preferences-server.ts`](file:///Users/marqlott/desktop/mailpilot/lib/utils/ui/ui-preferences-server.ts)):** Server components call `readServerTactilePreferences()` to ingest active tactile settings (`mp_ui_tab_rail`, `mp_ui_wavy_meter`, `mp_ui_wave_toggle`, `mp_ui_rail_action`) during SSR pre-paint, eliminating visual flicker on fluid controls.
 - **Lazy-Mounted Settings Tabs:** Inactive settings tabs are lazy-mounted on demand rather than eagerly evaluated, reducing initial HTML document payload by ~40% and eliminating render lag on tab refresh.
 
 ### Media Streaming & Perceived Latency (Auth Portal)
@@ -1220,14 +1384,32 @@ flowchart TD
 
 ## 13. Technology Stack Matrix
 
+### Mail Pilot + Companion Architecture (Chrome Extension v1.0.0)
+
+MailPilot extends its career telemetry pipeline directly into the candidate's browser via **Mail Pilot + Companion** ([`extension/`](file:///Users/marqlott/desktop/mailpilot/extension)):
+- **Platform:** Google Chrome Extension Manifest V3 utilizing the modern Chrome Side Panel API (`chrome.sidePanel`).
+- **UI & Build System:** Built with React 19, TypeScript, and Tailwind CSS, bundled with Vite 8 (`extension/vite.config.ts`) into a standalone distribution bundle (`extension/dist/`).
+- **Packaging & Distribution Pipeline:** Compiled and archived via `node scripts/package-extension.mjs` into `mailpilot-extension.zip` at the repository root and copied to `public/downloads/mailpilot-extension.zip` for instant web downloads.
+- **Client-Side Metadata Extractor (`extension/src/extractor.ts`):** Injected content script executing non-destructive DOM scans for Schema.org JSON-LD microdata and custom DOM selector trees across LinkedIn, Greenhouse, Lever, Ashby, Workday, Indeed, and Glassdoor.
+- **Dedicated Extension Endpoints:** Direct communication with the Next.js serverless backend over typed REST endpoints authenticated via session cookies (`credentials: "include"`):
+  - `POST /api/extension/session`: Active session verification and candidate persona synchronization.
+  - `POST /api/extension/tailor`: End-to-end 1-page/2-page knapsack resume tailoring stream.
+  - `POST /api/extension/draft/node`: Granular bullet toggle mutations and inline rewrites.
+  - `POST /api/extension/draft/refine`: On-demand bullet synthesis and AI reframing.
+  - `POST /api/extension/draft/reorder`: Tactile bullet drag re-indexing.
+  - `POST /api/extension/export`: Direct PDF and DOCX document compiling.
+  - `GET /api/extension/download`: Streaming binary download endpoint for `mailpilot-extension.zip`.
+
+### Enterprise Technology Stack
+
 | Layer | Technology | Version / Specification | Architectural Responsibility |
 | :--- | :--- | :--- | :--- |
-| **Framework** | **Next.js** | 15 (App Router, Server Actions) | Unified web framework with React 19 Server Components and Route Handlers. |
+| **Framework** | **Next.js** | 15.5+ (App Router, Server Actions) | Unified web framework with React 19 Server Components, Route Handlers, and `after()`. |
 | **Serverless Runtime** | **Node.js** | v20+ on Vercel Serverless | Non-blocking background worker execution using Next.js 15 `after()`. |
 | **Edge Infrastructure** | **Vercel Edge WAF** | Managed Edge Firewall / Route Rules | Edge-level bot mitigation and header deny rules on sensitive auth routes (`^/(login\|api/auth/.*)`). |
 | **Rate Limiting & Security** | **Upstash Redis** | `@upstash/ratelimit` & `@upstash/redis` | Serverless token-bucket rate limiting via stateless HTTP REST with fail-open isolation. |
 | **Database** | **PostgreSQL** | v16 (Neon / Supabase) | Multi-tenant relational persistence with connection pooling. |
-| **ORM** | **Prisma** | v6 | Type-safe query building, relation mapping, and migrations. |
+| **ORM** | **Prisma** | v6.19+ | Type-safe query building, relation mapping, and migrations. |
 | **Object Storage** | **Vercel Blob** | `@vercel/blob` v2.8 | Private object store for progressive HTTP 206 background video streaming and WebP poster delivery. |
 | **Cloud Messaging & APIs** | **Google Cloud Pub/Sub** | `googleapis` v178 | Asynchronous webhook push notifications for mailbox deltas and RFC 8058 unsubscribe automation. |
 | **Schema Validation** | **Zod** | v4 | Runtime boundary validation for webhook payloads, LLM structured JSON, and extensible account rules. |
@@ -1236,10 +1418,10 @@ flowchart TD
 | **Cryptography** | **Node.js Crypto** | AES-256-GCM / timingSafeEqual | Authenticated envelope encryption at rest; timing-safe secret comparisons. |
 | **Document Compilers** | **React-PDF & JSZip** | `@react-pdf/renderer` v4 | Dynamic vector PDF rendering and binary `.docx` XML generation. |
 | **Inference Router** | **Multi-Provider BYOK** | Local Ollama + Cloud REST | Multi-tier failover: Zero-clone Ollama (Quick Tunnel) $\to$ OpenRouter $\to$ `PENDING_AI` parking. |
-| **Scraping & Parsing** | **Custom AST & JSON Parsers** | Schema.org JSON-LD, Nuxt 3 AST | Anti-bot spec extraction, Nuxt state un-flattening, LinkedIn Guest API, HasData/ScrapingAnt proxies. |
+| **Scraping & Parsing** | **Custom AST & JSON Parsers** | Schema.org JSON-LD, Nuxt 3 AST, Semantic DOM | Anti-bot spec extraction, Nuxt state un-flattening, LinkedIn Guest API, HasData/ScrapingAnt proxies. |
 | **Logging & Telemetry** | **Pino & TableLogger** | Pino v10 + 66-col ASCII | Structured JSON logging in production; formatted ASCII telemetry in dev. |
-| **Browser Extension** | **Chrome Extension MV3** | Side Panel API + React 19 + Vite | Mail Pilot + Companion: Client-side listing extraction, resume tailoring, and real-time pagination engine. |
-| **Testing** | **Vitest** | v4.1 (Zero-Token Mocks) | Deterministic, offline unit and integration test suite. |
+| **Browser Extension** | **Mail Pilot + Companion** | Chrome MV3 · React 19 + Vite 8 | Native Side Panel API, client-side listing extraction, real-time tailoring, and pagination engine. |
+| **Testing** | **Vitest** | v4.1 (Zero-Token Mocks) | Deterministic, offline unit and integration test suite (677+ tests passing). |
 
 ---
 
@@ -1249,7 +1431,7 @@ flowchart TD
 MailPilot maintains a comprehensive, zero-token test suite using **Vitest**. All tests execute completely offline without network calls or live database dependencies:
 
 ```bash
-# Run the complete test suite (37 test files, 502 tests)
+# Run the complete test suite (51 test files, 677+ tests)
 npx vitest run
 
 # Run tests in interactive watch mode
@@ -1260,47 +1442,98 @@ npx tsc --noEmit
 ```
 
 ```text
- ✓ lib/opportunities/context/__tests__/job-context.test.ts (28 tests)
- ✓ lib/logging/__tests__/table-logger.test.ts (15 tests)
- ✓ lib/opportunities/context/__tests__/json-ld.test.ts (41 tests)
- ✓ lib/ai/__tests__/prefilter.test.ts (10 tests)
- ✓ lib/llm/__tests__/local-ollama-circuit.test.ts (18 tests)
- ✓ lib/llm/__tests__/classification-normalizer.test.ts (16 tests)
- ✓ lib/__tests__/scrapingant.test.ts (6 tests)
- ✓ lib/__tests__/ratelimit.test.ts (9 tests)
- ✓ lib/matching/__tests__/matching.test.ts (8 tests)
- ✓ lib/__tests__/github-sync.test.ts (80 tests)
- ✓ app/api/login-background/__tests__/route.test.ts (6 tests)
- ✓ lib/llm/__tests__/llm-ratelimit.test.ts (4 tests)
- ✓ lib/llm/__tests__/llm-vault.test.ts (15 tests)
+ ✓ lib/ai/__tests__/classification-normalizer.test.ts (16 tests)
+ ✓ lib/ai/__tests__/email-cleaner.test.ts (12 tests)
+ ✓ lib/ai/__tests__/llm-ratelimit.test.ts (4 tests)
+ ✓ lib/ai/__tests__/llm-vault.test.ts (15 tests)
+ ✓ lib/ai/__tests__/local-ollama-circuit.test.ts (18 tests)
+ ✓ lib/ai/__tests__/prefilter.test.ts (29 tests)
  ✓ lib/ai/__tests__/salary.test.ts (14 tests)
- ✓ lib/resume-draft/__tests__/resume-draft.test.ts (56 tests)
- ✓ lib/__tests__/ssrf.test.ts (3 tests)
- ✓ lib/__tests__/hasdata-usage.test.ts (9 tests)
- ✓ lib/__tests__/account-encryption.test.ts (7 tests)
- ✓ lib/persona/__tests__/persona.test.ts (3 tests)
- ✓ lib/__tests__/company-logo.test.ts (11 tests)
- ✓ lib/__tests__/crypto.test.ts (2 tests)
- ✓ lib/utils/__tests__/location.test.ts (9 tests)
- ✓ lib/opportunities/context/__tests__/hasdata.test.ts (6 tests)
- ✓ lib/__tests__/persistent-profile.test.ts (7 tests)
- ✓ lib/__tests__/master-profile-export.test.ts (4 tests)
- ✓ lib/__tests__/bridge-scripts.test.ts (2 tests)
- ✓ app/api/ollama/verify/__tests__/route.test.ts (5 tests)
- ✓ lib/navigation/__tests__/page-tabs.test.ts (11 tests)
- ✓ lib/resume-draft/__tests__/resume-draft-sheet-pagination.test.ts (7 tests)
- ✓ lib/utils/__tests__/format-status-pill.test.ts (4 tests)
- ✓ lib/__tests__/dev-resume-cache.test.ts (3 tests)
- ✓ lib/__tests__/github-metrics.test.ts (8 tests)
- ✓ lib/__tests__/deduplication.test.ts (43 tests)
+ ✓ lib/core/__tests__/account-encryption.test.ts (7 tests)
+ ✓ lib/core/__tests__/crypto.test.ts (2 tests)
+ ✓ lib/core/__tests__/ratelimit.test.ts (9 tests)
+ ✓ lib/core/__tests__/ssrf.test.ts (3 tests)
+ ✓ lib/document/__tests__/experience-heading.test.ts (4 tests)
  ✓ lib/document/__tests__/pdf-spacing-render.test.ts (1 test)
- ✓ lib/__tests__/resume-reconciliation-run.test.ts (10 tests)
- ✓ lib/__tests__/resume-cached-versions.test.ts (5 tests)
- ↓ lib/__tests__/temp-resume-llm-audit.test.ts (1 test | 1 skipped)
+ ✓ lib/github/__tests__/github-metrics.test.ts (8 tests)
+ ✓ lib/github/__tests__/github-sync.test.ts (80 tests)
+ ✓ lib/logging/__tests__/table-logger.test.ts (15 tests)
+ ✓ lib/matching/__tests__/matching.test.ts (8 tests)
+ ✓ lib/opportunities/context/__tests__/dom-extractor.test.ts (22 tests)
+ ✓ lib/opportunities/context/__tests__/hasdata.test.ts (6 tests)
+ ✓ lib/opportunities/context/__tests__/html-markdown.test.ts (10 tests)
+ ✓ lib/opportunities/context/__tests__/job-context.test.ts (28 tests)
+ ✓ lib/opportunities/context/__tests__/json-ld.test.ts (53 tests)
+ ✓ lib/opportunities/context/__tests__/section-classifier.test.ts (14 tests)
+ ✓ lib/opportunities/sync/__tests__/jobleads-flow.test.ts (6 tests)
+ ✓ lib/opportunities/sync/__tests__/jobleads.test.ts (5 tests)
+ ✓ lib/persona/__tests__/persona.test.ts (3 tests)
+ ✓ lib/profile/__tests__/deduplication.test.ts (43 tests)
+ ✓ lib/profile/__tests__/dev-resume-cache.test.ts (3 tests)
+ ✓ lib/profile/__tests__/master-profile-export.test.ts (4 tests)
+ ✓ lib/profile/__tests__/persistent-profile.test.ts (7 tests)
+ ✓ lib/profile/__tests__/resume-cached-versions.test.ts (5 tests)
+ ✓ lib/profile/__tests__/resume-reconciliation-run.test.ts (10 tests)
+ ↓ lib/profile/__tests__/temp-resume-llm-audit.test.ts (1 test | 1 skipped)
+ ✓ lib/resume-draft/__tests__/resume-draft-sheet-pagination.test.ts (7 tests)
+ ✓ lib/resume-draft/__tests__/resume-draft.test.ts (56 tests)
+ ✓ lib/scraping/__tests__/hasdata-usage.test.ts (9 tests)
+ ✓ lib/scraping/__tests__/scrapingant.test.ts (6 tests)
+ ✓ lib/tailor/__tests__/tailor.test.ts (28 tests)
+ ✓ lib/utils/__tests__/bridge-scripts.test.ts (2 tests)
+ ✓ lib/utils/__tests__/company-logo.test.ts (11 tests)
+ ✓ lib/utils/__tests__/format-distance.test.ts (7 tests)
+ ✓ lib/utils/__tests__/format-status-pill.test.ts (4 tests)
+ ✓ lib/utils/__tests__/location.test.ts (9 tests)
+ ✓ lib/utils/extension/__tests__/extension-api.test.ts (12 tests)
+ ✓ lib/utils/extension/__tests__/extractor.test.ts (18 tests)
+ ✓ lib/utils/navigation/__tests__/page-tabs.test.ts (11 tests)
+ ✓ lib/utils/navigation/__tests__/settings-accordion.test.ts (6 tests)
+ ✓ lib/utils/ui/__tests__/ui-preferences.test.ts (18 tests)
+ ✓ app/api/account/sync-status/__tests__/route.test.ts (4 tests)
+ ✓ app/api/login-background/__tests__/route.test.ts (6 tests)
+ ✓ app/api/ollama/verify/__tests__/route.test.ts (5 tests)
 
-Test Files  37 passed | 1 skipped (38)
-     Tests  502 passed | 1 skipped (503)
-  Duration  11.76s
+Test Files  50 passed | 1 skipped (51)
+     Tests  677 passed | 6 skipped (683)
+  Duration  12.28s
+```
+
+### Next.js Production Build & Static Page Generation
+MailPilot executes a zero-error Next.js 15 production build with verified static route optimization:
+
+```text
+ ✓ Generating static pages (19/19)
+ Route (app)                                 Size  First Load JS
+ ┌ ƒ /                                     3.8 kB         173 kB
+ ├ ƒ /_not-found                             1 kB         103 kB
+ ├ ƒ /api/account/sync-status               193 B         103 kB
+ ├ ƒ /api/auth/callback/google              193 B         103 kB
+ ├ ƒ /api/auth/google                       193 B         103 kB
+ ├ ƒ /api/bridge/mac                        193 B         103 kB
+ ├ ƒ /api/bridge/win                        193 B         103 kB
+ ├ ƒ /api/cron/renew-watch                  193 B         103 kB
+ ├ ƒ /api/cron/sync                         193 B         103 kB
+ ├ ƒ /api/extension/download                193 B         103 kB
+ ├ ƒ /api/extension/draft/node              193 B         103 kB
+ ├ ƒ /api/extension/draft/refine            193 B         103 kB
+ ├ ƒ /api/extension/draft/reorder           193 B         103 kB
+ ├ ƒ /api/extension/export                  193 B         103 kB
+ ├ ƒ /api/extension/session                 193 B         103 kB
+ ├ ƒ /api/extension/tailor                  193 B         103 kB
+ ├ ƒ /api/gmail/message                     193 B         103 kB
+ ├ ƒ /api/login-background                  193 B         103 kB
+ ├ ƒ /api/ollama/dev-models                 193 B         103 kB
+ ├ ƒ /api/ollama/verify                     193 B         103 kB
+ ├ ƒ /api/profile/history                   193 B         103 kB
+ ├ ƒ /api/settings/ollama-bridge            193 B         103 kB
+ ├ ƒ /api/subscriptions/digest              193 B         103 kB
+ ├ ƒ /api/subscriptions/digest/delete       193 B         103 kB
+ ├ ƒ /api/webhooks/gmail                    193 B         103 kB
+ ├ ƒ /jobs                                35.4 kB         295 kB
+ ├ ƒ /login                               2.67 kB         141 kB
+ ├ ƒ /settings                              180 kB         426 kB
+ └ ƒ /subscriptions                       40.5 kB         250 kB
 ```
 
 ### Prerequisites
@@ -1336,7 +1569,13 @@ Test Files  37 passed | 1 skipped (38)
    ```
    Open `http://localhost:3000` in your browser.
 
-5. **Build and Package Mail Pilot + Companion (Chrome Extension):**
+5. **Connect Local Ollama via Zero-Clone Quick Tunnel (Optional):**
+   ```bash
+   npm run ollama:bridge
+   ```
+   Spawns a Cloudflare Quick Tunnel that securely registers local model tags with your MailPilot account.
+
+6. **Build and Package Mail Pilot + Companion (Chrome Extension):**
    ```bash
    # Compile extension to extension/dist
    npm run build:extension
@@ -1344,7 +1583,7 @@ Test Files  37 passed | 1 skipped (38)
    # Build and package production ZIP archive (mailpilot-extension.zip)
    npm run package:extension
    ```
-   See [extension/README.md](file:///users/marqlott/desktop/MailPilot/extension/README.md) for full installation and architecture details.
+   See [`extension/README.md`](file:///Users/marqlott/desktop/mailpilot/extension/README.md) for full installation and architecture details.
 
 ### Key Environment Variables
 

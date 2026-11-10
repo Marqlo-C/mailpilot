@@ -1,12 +1,12 @@
 import { COLORED_WORDMARK_SRC, Wordmark } from "@/components/brand/logo";
-import { SyncControls } from "@/components/opportunities/sync-controls";
+import { SyncControls } from "@/components/features/opportunities/sync-controls";
 import {
   getActiveAccount,
   getJobOpportunitiesForAccount,
   getJobsForAccount,
   getSubscriptionsForAccount,
 } from "@/lib/data";
-import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile";
+import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile.schema";
 import {
   ConsoleDigestCards,
   ConsoleMetricsGrid,

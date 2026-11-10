@@ -1,7 +1,7 @@
 import { getMasterProfile } from "@/app/actions/profile";
 import { prisma } from "@/lib/core/prisma";
-import { getExtensionAccountId } from "@/lib/extension/auth";
-import { handleOptionsCors, jsonWithCors } from "@/lib/extension/cors";
+import { getExtensionAccountId } from "@/lib/utils/extension/auth";
+import { handleOptionsCors, jsonWithCors } from "@/lib/utils/extension/cors";
 
 export async function OPTIONS(request: Request) {
   return handleOptionsCors(request);

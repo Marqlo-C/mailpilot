@@ -20,8 +20,8 @@ import {
   loadProfileSnapshot,
   recordProfileSnapshot,
 } from "@/lib/profile/profile-history";
-import { parseAccountRules } from "@/lib/validations/rules";
-import type { MasterProfileInput } from "@/lib/validations/profile";
+import { parseAccountRules } from "@/lib/validations/rules.schema";
+import type { MasterProfileInput } from "@/lib/validations/profile.schema";
 import {
   saveMasterProfile,
   getMasterProfile,

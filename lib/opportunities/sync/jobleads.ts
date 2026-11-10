@@ -1,4 +1,4 @@
-import type { JobClassification, ExtractedJob } from "@/lib/llm/classification";
+import type { JobClassification, ExtractedJob } from "@/lib/ai/classification";
 import { sanitizeCompanyName } from "@/lib/opportunities/context";
 import {
   unwrapTrackingUrl,

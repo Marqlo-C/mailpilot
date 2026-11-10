@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { synthesizeCandidatePersona } from "../index";
 import { formatHumanYears } from "../tone-composer";
-import type { MasterProfileInput } from "@/lib/validations/profile";
+import type { MasterProfileInput } from "@/lib/validations/profile.schema";
 
 describe("Persona Engine Deterministic Heuristics", () => {
   it("formats humanized tenure without robotic decimals", () => {

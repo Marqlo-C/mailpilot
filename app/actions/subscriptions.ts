@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 
 import { getGmailClientForAccount } from "@/lib/gmail/google";
 import {
@@ -9,22 +8,26 @@ import {
   REAUTH_REQUIRED_MESSAGE,
   isInsufficientScopeError,
 } from "@/lib/gmail/google";
-import {
-  ensurePersistentProfileForAccount,
-  recordSubscriptionHistory,
-} from "@/lib/profile/persistent-profile";
-import { prisma } from "@/lib/core/prisma";
+import { recordSubscriptionHistory } from "@/lib/profile/persistent-profile";
 import {
   cleanupSenderMessages,
   executeUnsubscribe,
   type CleanupAction,
 } from "@/lib/gmail/unsubscribe";
+import {
+  cleanupActionSchema,
+  subscriptionSenderSchema,
+} from "@/lib/validations/subscriptions.schema";
+import {
+  deleteArchivedSubscription,
+  findSubscriptionWithAccount,
+  getSubscriptionSenderContext,
+  updateSubscriptionStatus,
+} from "@/lib/services/subscription-digest.service";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
-
-const cleanupActionSchema = z.enum(["NONE", "TRASH", "ARCHIVE"]);
 
 /**
  * Runs the unsubscribe chain for a stored subscription and optional cleanup.
@@ -38,11 +41,7 @@ export async function unsubscribeSender(
     return { ok: false, error: "Invalid cleanup action" };
   }
 
-  const subscription = await prisma.subscription.findUnique({
-    where: { id: subscriptionId },
-    include: { account: true },
-  });
-
+  const subscription = await findSubscriptionWithAccount(subscriptionId);
   if (!subscription) {
     return { ok: false, error: "Subscription not found" };
   }
@@ -63,7 +62,6 @@ export async function unsubscribeSender(
     const cleanupRequested = parsedCleanup.data !== "NONE";
     const cleanupOk = !cleanupRequested || result.cleanupOk;
 
-    // Decoupled status: FAILED only when both sides fail (or unsub fails with no cleanup).
     const bothFailed = !unsubOk && !cleanupOk;
     const status = bothFailed ? "FAILED" : "UNSUBSCRIBED";
     const lastError = bothFailed
@@ -75,24 +73,21 @@ export async function unsubscribeSender(
           ? result.cleanupError
           : null;
 
-    await prisma.subscription.update({
-      where: { id: subscriptionId },
-      data: {
-        status,
-        lastError,
-      },
-    });
+    await updateSubscriptionStatus(subscriptionId, status, lastError);
 
     if (status === "UNSUBSCRIBED") {
-      const profile = await ensurePersistentProfileForAccount(
-        subscription.account
+      const senderContext = await getSubscriptionSenderContext(
+        subscription.account.id,
+        subscription.senderEmail.toLowerCase()
       );
-      await recordSubscriptionHistory({
-        userProfileId: profile.id,
-        senderEmail: subscription.senderEmail,
-        senderName: subscription.senderName,
-        status: "UNSUBSCRIBED",
-      });
+      if (senderContext?.profile) {
+        await recordSubscriptionHistory({
+          userProfileId: senderContext.profile.id,
+          senderEmail: subscription.senderEmail,
+          senderName: subscription.senderName,
+          status: "UNSUBSCRIBED",
+        });
+      }
     }
 
     revalidatePath("/subscriptions");
@@ -117,14 +112,11 @@ export async function unsubscribeSender(
   } catch (error) {
     console.error("unsubscribeSender failed", error);
 
-    await prisma.subscription.update({
-      where: { id: subscriptionId },
-      data: {
-        status: "FAILED",
-        lastError:
-          error instanceof Error ? error.message : "Unsubscribe failed",
-      },
-    });
+    await updateSubscriptionStatus(
+      subscriptionId,
+      "FAILED",
+      error instanceof Error ? error.message : "Unsubscribe failed"
+    );
 
     if (
       error instanceof InsufficientScopeError ||
@@ -148,45 +140,22 @@ export async function batchCleanupSender(
   accountId: string,
   senderEmail: string
 ): Promise<ActionResult<{ cleaned: number }>> {
-  const parsed = z
-    .object({
-      accountId: z.string().min(1),
-      senderEmail: z.string().email().or(z.string().min(3)),
-    })
-    .safeParse({ accountId, senderEmail });
-
+  const parsed = subscriptionSenderSchema.safeParse({ accountId, senderEmail });
   if (!parsed.success) {
     return { ok: false, error: "Invalid account or sender email" };
   }
 
-  const account = await prisma.account.findUnique({
-    where: { id: parsed.data.accountId },
-  });
+  const normalizedSender = parsed.data.senderEmail.toLowerCase();
+  const context = await getSubscriptionSenderContext(
+    parsed.data.accountId,
+    normalizedSender
+  );
 
-  if (!account || !account.isActive || !account.encryptedAccess) {
+  if (!context || !context.account.isActive || !context.account.encryptedAccess) {
     return { ok: false, error: "Account credentials are not linked" };
   }
 
-  const normalizedSender = parsed.data.senderEmail.toLowerCase();
-
-  const subscription = await prisma.subscription.findUnique({
-    where: {
-      accountId_senderEmail: {
-        accountId: account.id,
-        senderEmail: normalizedSender,
-      },
-    },
-  });
-
-  const profile = await ensurePersistentProfileForAccount(account);
-  const history = await prisma.subscriptionHistory.findUnique({
-    where: {
-      userProfileId_senderEmail: {
-        userProfileId: profile.id,
-        senderEmail: normalizedSender,
-      },
-    },
-  });
+  const { account, subscription, profile, history } = context;
 
   const isArchived =
     subscription?.status === "UNSUBSCRIBED" ||
@@ -241,83 +210,22 @@ export async function deleteUnsubscribedRecord(
   accountId: string,
   senderEmail: string
 ): Promise<ActionResult> {
-  const parsed = z
-    .object({
-      accountId: z.string().min(1),
-      senderEmail: z.string().email().or(z.string().min(3)),
-    })
-    .safeParse({ accountId, senderEmail });
-
+  const parsed = subscriptionSenderSchema.safeParse({ accountId, senderEmail });
   if (!parsed.success) {
     return { ok: false, error: "Invalid account or sender email" };
   }
 
-  const account = await prisma.account.findUnique({
-    where: { id: parsed.data.accountId },
-  });
-
-  if (!account) {
-    return { ok: false, error: "Account not found" };
-  }
-
   const normalizedSender = parsed.data.senderEmail.toLowerCase();
+  const result = await deleteArchivedSubscription(
+    parsed.data.accountId,
+    normalizedSender
+  );
 
-  const subscription = await prisma.subscription.findUnique({
-    where: {
-      accountId_senderEmail: {
-        accountId: account.id,
-        senderEmail: normalizedSender,
-      },
-    },
-  });
-
-  if (subscription && subscription.status !== "UNSUBSCRIBED") {
-    return {
-      ok: false,
-      error: "Only unsubscribed records can be deleted from the archive.",
-    };
+  if (!result.ok) {
+    return { ok: false, error: result.error ?? "Failed to delete record" };
   }
 
-  const profile = await ensurePersistentProfileForAccount(account);
-  const history = await prisma.subscriptionHistory.findUnique({
-    where: {
-      userProfileId_senderEmail: {
-        userProfileId: profile.id,
-        senderEmail: normalizedSender,
-      },
-    },
-  });
-
-  if (!subscription && !history) {
-    return { ok: false, error: "Record not found" };
-  }
-
-  if (history && history.status !== "UNSUBSCRIBED") {
-    return {
-      ok: false,
-      error: "Only unsubscribed records can be deleted from the archive.",
-    };
-  }
-
-  try {
-    await prisma.$transaction(async (tx) => {
-      if (subscription?.status === "UNSUBSCRIBED") {
-        await tx.subscription.delete({ where: { id: subscription.id } });
-      }
-      if (history?.status === "UNSUBSCRIBED") {
-        await tx.subscriptionHistory.delete({ where: { id: history.id } });
-      }
-    });
-
-    revalidatePath("/subscriptions");
-    revalidatePath("/");
-    return { ok: true };
-  } catch (error) {
-    console.error("deleteUnsubscribedRecord failed", error);
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "Failed to delete record",
-    };
-  }
+  revalidatePath("/subscriptions");
+  revalidatePath("/");
+  return { ok: true };
 }

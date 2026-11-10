@@ -5,9 +5,9 @@ import {
   type PersonaDbClient,
   type ProfileWithPersonaCache,
 } from "@/lib/persona";
-import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
+import { callLLMWithFallback, type LlmProvider } from "@/lib/ai";
 import { flattenSkillItems } from "@/lib/profile/skill-groups";
-import type { AccountRules } from "@/lib/validations/rules";
+import type { AccountRules } from "@/lib/validations/rules.schema";
 import { scrubDraftPunctuation } from "./auxiliary";
 
 export type DraftContextualEmailParams = {

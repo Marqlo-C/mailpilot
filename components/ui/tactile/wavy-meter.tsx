@@ -11,7 +11,7 @@ import {
   readWavyMeterPreference,
   WAVY_METER_CHANGE_EVENT,
   type WavyMeterVariant,
-} from "@/lib/ui/wavy-meter-preference";
+} from "@/lib/utils/ui/wavy-meter-preference";
 
 export type WavyMeterTone = "default" | "warning" | "destructive" | "auto";
 export type { WavyMeterVariant };

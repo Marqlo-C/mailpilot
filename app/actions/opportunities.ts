@@ -1,11 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { WorkExperienceInput } from "@/lib/validations/profile";
+import type { WorkExperienceInput } from "@/lib/validations/profile.schema";
 import type {
   DraftAttachment,
   DraftAttachments,
-} from "@/lib/validations/opportunity";
+} from "@/lib/validations/opportunity.schema";
 import {
   type ActionResult,
   type OriginalEmailPreview,

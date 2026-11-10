@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { MasterProfileInput } from "@/lib/validations/profile";
+import type { MasterProfileInput } from "@/lib/validations/profile.schema";
 import {
   buildHierarchicalProfileTree,
   hydrateSelectedFromTree,

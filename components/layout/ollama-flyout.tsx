@@ -13,7 +13,7 @@ import {
   FlyoutIconPill,
   FlyoutSelect,
 } from "@/components/layout/sidebar-flyout-chrome";
-import { DEV_OLLAMA_MODEL_STORAGE_KEY } from "@/components/settings/ai-models";
+import { DEV_OLLAMA_MODEL_STORAGE_KEY } from "@/components/features/settings/ai-models";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 

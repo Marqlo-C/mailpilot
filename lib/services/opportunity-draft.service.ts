@@ -33,13 +33,13 @@ import {
   type MasterProfileInput,
   type ProjectInput,
   type WorkExperienceInput,
-} from "@/lib/validations/profile";
+} from "@/lib/validations/profile.schema";
 import {
   recipientEmailSchema,
   draftAttachmentsSchema,
   type DraftAttachment,
   type DraftAttachments,
-} from "@/lib/validations/opportunity";
+} from "@/lib/validations/opportunity.schema";
 import { z } from "zod";
 
 export type ActionResult<T = undefined> =

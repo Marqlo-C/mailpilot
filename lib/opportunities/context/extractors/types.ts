@@ -1,4 +1,4 @@
-import type { ScrapedJobPosting } from "../schema.ssot";
+import type { ScrapedJobPosting } from "../context.schema";
 
 export interface PlatformExtractor {
   name: string;

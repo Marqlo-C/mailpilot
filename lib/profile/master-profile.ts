@@ -7,7 +7,7 @@ import {
   interestsSchema,
   readEducationStatus,
   type MasterProfileInput,
-} from "@/lib/validations/profile";
+} from "@/lib/validations/profile.schema";
 import { decryptPhoneAtRest } from "@/lib/core/crypto";
 
 /**

@@ -5,7 +5,7 @@ import type {
   Skills,
   ProjectInput,
   WorkExperienceInput,
-} from "@/lib/validations/profile";
+} from "@/lib/validations/profile.schema";
 import {
   accountLabelForUrl,
   categorizeProfileUrl,

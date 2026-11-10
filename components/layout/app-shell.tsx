@@ -25,10 +25,10 @@ import { CurvedCardDivider } from "@/components/ui/tactile/nested-settings-card"
 import { TabRailProvider, darkPlateClassName } from "@/components/ui/tactile/segmented-tabs";
 import { RailActionProvider } from "@/components/ui/rail-action";
 import { ToolbarThemeProvider } from "@/components/ui/toolbar-theme";
-import { SyncTelemetry } from "@/components/opportunities/sync-telemetry";
+import { SyncTelemetry } from "@/components/features/opportunities/sync-telemetry";
 import { cn } from "@/lib/utils";
 import type { AccountSummary, SidebarTabCounts } from "@/lib/data";
-import type { ServerUiPreferences } from "@/lib/ui/ui-preferences-server";
+import type { ServerUiPreferences } from "@/lib/utils/ui/ui-preferences-server";
 
 /** Mobile top bar. Desktop pages no longer share this band. */
 const SHELL_TOP_BAND_CLASS = "flex h-[4.25rem] shrink-0 items-center";

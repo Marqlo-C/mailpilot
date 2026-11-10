@@ -1,4 +1,4 @@
-import type { ElasticBudgetResult } from "@/lib/resume-draft/schema.ssot";
+import type { ElasticBudgetResult } from "@/lib/validations/resume-draft.schema";
 import {
   estimateBulletHeightPoints,
   HEIGHT_CONSTANTS,
@@ -7,7 +7,7 @@ import type {
   HierarchicalProfileTree,
   HierarchicalProjectNode,
   MatrixRankResult,
-} from "./schema.ssot";
+} from "@/lib/validations/tailor.schema";
 
 /** Drop identical or near-duplicate project bullets; hard-cap at max. */
 export function dedupeAndCapProjectBullets(bullets: string[], max: number = 4): string[] {

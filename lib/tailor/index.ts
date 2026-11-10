@@ -7,7 +7,7 @@ import {
   calculateElasticPageBudget,
   isCareerSwitcherOrEarlyTenure,
 } from "@/lib/resume-draft";
-import type { MasterProfileInput } from "@/lib/validations/profile";
+import type { MasterProfileInput } from "@/lib/validations/profile.schema";
 import {
   defaultCoverLetter,
   fallbackStrategyRationale,
@@ -33,9 +33,9 @@ import {
 import type {
   TailorOptions,
   TailorResult,
-} from "./schema.ssot";
+} from "@/lib/validations/tailor.schema";
 
-export * from "./schema.ssot";
+export * from "@/lib/validations/tailor.schema";
 export * from "./tree";
 export * from "./distiller";
 export * from "./assembler";

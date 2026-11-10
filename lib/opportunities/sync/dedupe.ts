@@ -7,8 +7,8 @@ import {
   type ClassifiableAccount,
   type SenderInfo,
 } from "@/lib/gmail/sync";
-import type { JobClassification } from "@/lib/llm/classification";
-import type { parseAccountRules } from "@/lib/validations/rules";
+import type { JobClassification } from "@/lib/ai/classification";
+import type { parseAccountRules } from "@/lib/validations/rules.schema";
 
 export type PersistSyncOpportunityParams = {
   gmail: gmail_v1.Gmail;

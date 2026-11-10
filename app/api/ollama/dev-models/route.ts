@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { getAuthenticatedAccountId } from "@/lib/auth";
-import { ollamaBaseUrlFromEnv, probeOllamaTagsWithRetry } from "@/lib/llm";
+import { getAuthenticatedAccountId } from "@/lib/core/auth";
+import { ollamaBaseUrlFromEnv, probeOllamaTagsWithRetry } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

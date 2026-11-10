@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/llm", () => ({
+vi.mock("@/lib/ai", () => ({
   callLLMWithFallback: vi.fn(),
 }));
 
-import { callLLMWithFallback } from "@/lib/llm";
+import { callLLMWithFallback } from "@/lib/ai";
 import {
   extractSemanticMarkdownDigest,
   determineRepoScale,
@@ -40,7 +40,7 @@ import {
   type GitHubRawRepo,
 } from "@/lib/github";
 import { consolidateProfiles } from "@/lib/profile/profile-consolidation";
-import { getEmptyMasterProfileData, detectMetric } from "@/lib/validations/profile";
+import { getEmptyMasterProfileData, detectMetric } from "@/lib/validations/profile.schema";
 
 describe("GitHub Syncer & Elastic Ingestion Architecture", () => {
   beforeEach(() => {

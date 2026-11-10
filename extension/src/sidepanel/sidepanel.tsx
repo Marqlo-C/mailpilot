@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 import "@/app/globals.css";
-import { ResumeDraftSheet } from "@/components/opportunities/drawer/resume-draft-sheet";
+import { ResumeDraftSheet } from "@/components/features/opportunities/drawer/resume-draft-sheet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

@@ -1,5 +1,5 @@
-import type { CandidatePersona, SeniorityTier } from "./schema.ssot";
-import { SENIORITY_TIERS } from "./schema.ssot";
+import type { CandidatePersona, SeniorityTier } from "@/lib/validations/persona.schema";
+import { SENIORITY_TIERS } from "@/lib/validations/persona.schema";
 import type { ProfileWithPersonaCache } from "./lens";
 import { synthesizeCandidatePersona } from "./synthesize";
 
