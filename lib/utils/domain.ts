@@ -124,3 +124,16 @@ export function getCleanDomain(senderEmail: string): string | null {
 export function faviconUrlForDomain(domain: string): string {
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
 }
+
+/**
+ * Extracts a normalized hostname from a URL string, stripping 'www.'.
+ * Returns null if the URL is invalid.
+ */
+export function domainFromUrl(url: string): string | null {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+

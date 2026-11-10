@@ -1,4 +1,4 @@
-import type { ProfileWithPersonaCache } from "@/lib/ai/persona";
+import type { ProfileWithPersonaCache } from "@/lib/persona";
 import { prisma } from "@/lib/core/prisma";
 import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
 import {

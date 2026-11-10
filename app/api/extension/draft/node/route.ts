@@ -1,14 +1,7 @@
-import { z } from "zod";
 import { getExtensionAccountId } from "@/lib/extension/auth";
 import { handleOptionsCors, jsonWithCors } from "@/lib/extension/cors";
 import { updateResumeDraftNode } from "@/lib/opportunities/dispatch/resume";
-
-const patchNodeSchema = z.object({
-  opportunityId: z.string().min(1),
-  nodeId: z.string().min(1),
-  content: z.string().optional(),
-  selected: z.boolean().optional(),
-});
+import { patchNodeSchema } from "@/lib/validations/extension";
 
 export async function OPTIONS(request: Request) {
   return handleOptionsCors(request);

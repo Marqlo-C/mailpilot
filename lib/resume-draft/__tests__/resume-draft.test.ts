@@ -30,7 +30,7 @@ import {
   heuristicProjectIds,
   tailorResumeForJob,
   type TailorResult,
-} from "@/lib/resume-tailor";
+} from "@/lib/tailor";
 import type { MasterProfileInput, WorkExperienceInput } from "@/lib/validations/profile";
 import type { CandidatePersona } from "@/lib/persona/schema.ssot";
 

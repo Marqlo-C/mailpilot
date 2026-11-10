@@ -6,7 +6,7 @@ mailpilot-extension.zip
 /Delete/
 /Test Outputs/
 scripts/temp-resume-llm-audit.ts
-lib/__tests__/temp-resume-llm-audit.test.ts
+lib/profile/__tests__/temp-resume-llm-audit.test.ts
 .scraper-failures.json
 .pc_ollama_cache
 test-hasdata-*.json

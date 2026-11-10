@@ -648,7 +648,7 @@ Return ONLY valid JSON (no markdown fences):
 CRITICAL EXTRACTION RULES:
 1. BODY PRECEDENCE: If the email subject line is vague (e.g. "New Opportunities", "Quick Chat", "Job Alert"), extract the exact job title, hiring company name, and location directly from the email body text.
 2. HIRING COMPANY VS PLATFORM: Never assign job board or aggregator platforms (${aggregatorList}) as the company_name unless the role is genuinely employment at that platform. Find the actual hiring employer named in the listing block or headline.
-3. EXPLICIT LOCATION: Extract physical city and state locations (e.g., "Sacramento, CA", "Folsom, CA") whenever present in the text before defaulting to "Remote" or "Unspecified".
+3. EXPLICIT LOCATION: Extract physical city and state locations (e.g., physical city, state, or regional workplace) whenever present in the text before defaulting to "Remote" or "Unspecified".
 
 Category rules:
 - DIRECT_RECRUITER: personal 1:1 outreach from ANY company representative (Recruiter, Hiring Manager, Department Director, Team Lead, Operations Manager, Practice Lead, Founder, VP, or Director) discussing an open position or exploring fit. You MUST extract exactly one job into 'jobs' with the role discussed.

@@ -4,7 +4,7 @@ import {
   type CandidatePersona,
   type PersonaDbClient,
   type ProfileWithPersonaCache,
-} from "@/lib/ai/persona";
+} from "@/lib/persona";
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
 import { flattenSkillItems } from "@/lib/profile/skill-groups";
 import type { AccountRules } from "@/lib/validations/rules";

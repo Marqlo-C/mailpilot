@@ -249,7 +249,7 @@ html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button[aria-pressed="true"]
 
 /*
  * Content-column horizontal center (main area right of the desktop sidebar).
- * Source constant: APP_CONTENT_CENTER_LEFT in lib/app-content-center.ts.
+ * Source constant: APP_CONTENT_CENTER_LEFT in lib/utils/layout.ts.
  * Pair with -translate-x-1/2 (or translate-x-[-50%]).
  */
 .app-content-center-x {

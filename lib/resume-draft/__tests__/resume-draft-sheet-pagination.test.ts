@@ -9,7 +9,7 @@ import {
   PAGE_GAP,
   type DraftBlock,
 } from "@/components/opportunities/drawer/resume-draft-sheet";
-import type { TailoredResumeDraft } from "@/lib/types/resume-draft";
+import type { TailoredResumeDraft } from "@/lib/resume-draft";
 
 describe("ResumeDraftSheet Multi-Page Pagination & Seam Logic", () => {
   it("defines physical dimensions matching US Letter specs", () => {

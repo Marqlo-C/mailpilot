@@ -1,6 +1,10 @@
 import JSZip from "jszip";
 
-import { activeResumeNodes } from "@/lib/resume-draft";
+import {
+  activeResumeNodes,
+  type ResumeDraftNode,
+  type TailoredResumeDraft,
+} from "@/lib/resume-draft";
 import {
   formatEducationDates,
   sanitizeResumeContactLine,
@@ -11,10 +15,6 @@ import {
   RESUME_TYPOGRAPHY,
 } from "@/lib/resume-draft/layout.ssot";
 import { skillCategoryLabel } from "@/lib/profile/skill-groups";
-import type {
-  ResumeDraftNode,
-  TailoredResumeDraft,
-} from "@/lib/types/resume-draft";
 
 const SECTION_LABEL: Record<ResumeDraftNode["section"], string | null> = {
   contact: null,

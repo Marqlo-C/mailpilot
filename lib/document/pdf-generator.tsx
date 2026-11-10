@@ -36,7 +36,7 @@ import type {
   WorkExperienceInput,
 } from "@/lib/validations/profile";
 import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
-import type { SkillGroup } from "@/lib/types/resume-draft";
+import type { SkillGroup } from "@/lib/resume-draft";
 import {
   RESUME_FONTS,
   RESUME_SPACING,

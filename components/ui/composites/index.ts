@@ -7,3 +7,4 @@ export * from "./row-menu-trigger";
 export * from "./cancel-task-button";
 export * from "./create-snapshot-button";
 export * from "./received-meta";
+export * from "./view-email-dialog";

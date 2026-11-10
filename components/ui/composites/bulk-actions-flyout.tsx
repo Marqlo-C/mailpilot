@@ -28,7 +28,7 @@ import {
   darkPlateClassName,
 } from "@/components/ui/tactile/segmented-tabs";
 import { CurvedVerticalDivider } from "@/components/ui/tactile/nested-settings-card";
-import { APP_CONTENT_CENTER_X_CLASS } from "@/lib/app-content-center";
+import { APP_CONTENT_CENTER_X_CLASS } from "@/lib/utils/layout";
 import { cn } from "@/lib/utils";
 
 /**

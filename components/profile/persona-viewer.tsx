@@ -6,7 +6,7 @@ import {
   collectRolesFromFacts,
   explainCandidatePersona,
   extractPersonaFacts,
-} from "@/lib/ai/persona";
+} from "@/lib/persona";
 import {
   EntryBulletList,
   SettingsEntryCard,

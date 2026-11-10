@@ -6,10 +6,18 @@ import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { updateRule } from "@/app/actions/settings";
-import { SETTINGS_CARD_CLASSNAME } from "@/components/settings/settings-chrome";
+import { SETTINGS_CARD_CLASSNAME } from "@/lib/navigation/settings-chrome";
 import { SettingsSectionCard } from "@/components/ui/tactile/nested-settings-card";
 import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import type { AccountRules } from "@/lib/validations/rules";
+import {
+  type StoredOutboundAccordionState,
+  DEFAULT_OUTBOUND_ACCORDION,
+  loadStoredOutboundAccordion,
+  saveStoredOutboundAccordion,
+} from "@/lib/navigation/settings-accordion";
+
+export type { StoredOutboundAccordionState };
 
 import { MetricSynthesisCard } from "./metric-synthesis-card";
 import { SectionOrderingStrategyCard } from "./section-ordering-strategy-card";
@@ -17,88 +25,40 @@ import { ContentInclusionCard } from "./content-inclusion-card";
 import { PageBudgetingCard } from "./page-budgeting-card";
 import { ManualBlueprintCard } from "./manual-blueprint-card";
 
-export interface StoredOutboundAccordionState {
-  metricOpen: boolean;
-  orderingOpen: boolean;
-  inclusionOpen: boolean;
-  budgetOpen: boolean;
-  layoutOpen: boolean;
-}
-
-const DEFAULT_ACCORDION_STATE: StoredOutboundAccordionState = {
-  metricOpen: true,
-  orderingOpen: true,
-  inclusionOpen: true,
-  budgetOpen: true,
-  layoutOpen: true,
-};
-
-function getOutboundAccordionStorageKey(accountId: string | null): string {
-  return accountId
-    ? `mailpilot_outbound_accordion_${accountId}`
-    : "mailpilot_outbound_accordion_default";
-}
-
-function loadStoredAccordionState(
-  accountId: string | null
-): StoredOutboundAccordionState {
-  if (typeof window === "undefined") return DEFAULT_ACCORDION_STATE;
-  try {
-    const raw = localStorage.getItem(getOutboundAccordionStorageKey(accountId));
-    if (!raw) return DEFAULT_ACCORDION_STATE;
-    const parsed = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) {
-      return DEFAULT_ACCORDION_STATE;
-    }
-    return {
-      metricOpen:
-        typeof parsed.metricOpen === "boolean" ? parsed.metricOpen : true,
-      orderingOpen:
-        typeof parsed.orderingOpen === "boolean" ? parsed.orderingOpen : true,
-      inclusionOpen:
-        typeof parsed.inclusionOpen === "boolean" ? parsed.inclusionOpen : true,
-      budgetOpen:
-        typeof parsed.budgetOpen === "boolean" ? parsed.budgetOpen : true,
-      layoutOpen:
-        typeof parsed.layoutOpen === "boolean" ? parsed.layoutOpen : true,
-    };
-  } catch {
-    return DEFAULT_ACCORDION_STATE;
-  }
-}
-
-function saveStoredAccordionState(
-  accountId: string | null,
-  state: StoredOutboundAccordionState
-): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(
-      getOutboundAccordionStorageKey(accountId),
-      JSON.stringify(state)
-    );
-  } catch {
-    // ignore quota/permission errors
-  }
-}
-
 interface OutboundTailoringCardProps {
   accountId: string | null;
   rules: AccountRules;
+  initialAccordion?: StoredOutboundAccordionState | null;
 }
 
 export function OutboundTailoringCard({
   accountId,
   rules,
+  initialAccordion,
 }: OutboundTailoringCardProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   const [accordionState, setAccordionState] =
-    useState<StoredOutboundAccordionState>(DEFAULT_ACCORDION_STATE);
+    useState<StoredOutboundAccordionState>(
+      () => initialAccordion ?? loadStoredOutboundAccordion(accountId)
+    );
 
   useEffect(() => {
-    setAccordionState(loadStoredAccordionState(accountId));
+    const stored = loadStoredOutboundAccordion(accountId);
+    setAccordionState((prev) => {
+      if (
+        prev.metricOpen === stored.metricOpen &&
+        prev.orderingOpen === stored.orderingOpen &&
+        prev.inclusionOpen === stored.inclusionOpen &&
+        prev.budgetOpen === stored.budgetOpen &&
+        prev.layoutOpen === stored.layoutOpen
+      ) {
+        return prev;
+      }
+      return stored;
+    });
+    saveStoredOutboundAccordion(accountId, stored);
   }, [accountId]);
 
   const [enableAiTailoringDefaults, setEnableAiTailoringDefaults] = useState(
@@ -202,7 +162,7 @@ export function OutboundTailoringCard({
     if (isMasterAiLocked) return;
     setAccordionState((prev) => {
       const next = { ...prev, [key]: !prev[key] };
-      saveStoredAccordionState(accountId, next);
+      saveStoredOutboundAccordion(accountId, next);
       return next;
     });
   }

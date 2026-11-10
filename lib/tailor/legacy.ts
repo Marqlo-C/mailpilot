@@ -1,23 +1,14 @@
-import { z } from "zod";
-import { skillsSchema, type MasterProfileInput } from "@/lib/validations/profile";
+import { type MasterProfileInput } from "@/lib/validations/profile";
+import {
+  strategyRationaleSchema,
+  tailorSchema,
+  type TailorPayload,
+} from "@/lib/resume-draft/schema.ssot";
 import { COMMON_STOP_WORDS } from "./distiller";
 
-export const strategyRationaleSchema = z.object({
-  roleFitAnalysis: z.string(),
-  selectedSkillsReasoning: z.string(),
-  featuredExperiencesReasoning: z.string(),
-  featuredProjectsReasoning: z.string(),
-});
-
-export const tailorSchema = z.object({
-  tailoredSummary: z.string().nullable().optional(),
-  tailoredSkills: skillsSchema.optional(),
-  selectedBulletIds: z.array(z.string()).default([]),
-  selectedProjectIds: z.array(z.string()).default([]),
-  strategyRationale: strategyRationaleSchema.optional(),
-  coverLetter: z.string().default(""),
-  jobRequirements: z.array(z.string()).default([]),
-});
+/** @deprecated Re-exported for backwards compatibility; consume directly from `@/lib/resume-draft/schema.ssot`. */
+export { strategyRationaleSchema, tailorSchema };
+export type { TailorPayload };
 
 function formatProfessionalTenureYears(years: number): string {
   if (!Number.isFinite(years) || years < 0.5) {

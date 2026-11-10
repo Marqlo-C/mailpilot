@@ -2,7 +2,7 @@
 
 import { Gauge } from "lucide-react";
 
-import { SETTINGS_ROW_CLASSNAME } from "@/components/settings/settings-chrome";
+import { SETTINGS_ROW_CLASSNAME } from "@/lib/navigation/settings-chrome";
 import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import {
   SettingsFeatureCard,

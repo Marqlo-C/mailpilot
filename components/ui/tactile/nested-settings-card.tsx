@@ -9,7 +9,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { SETTINGS_SECTION_ICON_CLASSNAME } from "@/components/settings/settings-chrome";
+import { SETTINGS_SECTION_ICON_CLASSNAME } from "@/lib/navigation/settings-chrome";
 import { ENTRY_CHIP_CLASSNAME } from "@/components/ui/tactile/entry-chip";
 import { formatStatusPillTitle } from "@/lib/utils/format";
 import { SLIDABLE_BADGE_ROW_LEADING_OFFSET_PX } from "./slidable-badge-row";
@@ -452,6 +452,11 @@ export function NestedSettingsCard({
   contentClassName,
 }: NestedSettingsCardProps) {
   const styles = NESTED_CARD_TYPOGRAPHY[level];
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleHeaderClick = (e: React.MouseEvent) => {
     // Prevent collapsing when clicking interactive controls in trailing/leading slots
@@ -488,7 +493,8 @@ export function NestedSettingsCard({
       <div
         className={cn(
           styles.container,
-          "overflow-hidden transition-all duration-200 [container-type:inline-size]",
+          "overflow-hidden [container-type:inline-size]",
+          mounted ? "transition-all duration-200" : "transition-none",
           className
         )}
       >
@@ -566,7 +572,8 @@ export function NestedSettingsCard({
             {collapsible && (
               <ChevronDown
                 className={cn(
-                  "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                  "size-4 shrink-0 text-muted-foreground",
+                  mounted ? "transition-transform duration-200" : "transition-none",
                   isExpanded && "rotate-180",
                   disabled && "opacity-40"
                 )}

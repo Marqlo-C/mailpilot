@@ -11,19 +11,7 @@ import {
   type CSSProperties,
 } from "react";
 import type { JobOpportunity } from "@prisma/client";
-import {
-  ChevronDown,
-  ChevronUp,
-  FileText,
-  Loader2,
-  Mail,
-  Paperclip,
-  RotateCcw,
-  Send,
-  Sparkles,
-  WandSparkles,
-  X,
-} from "lucide-react";
+import { Loader2, Mail, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -45,18 +33,11 @@ import {
 } from "@/app/actions/opportunities";
 import { useSidebarCollapse } from "@/components/layout/sidebar-collapse-provider";
 import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
-import { ResumeDraftSheet } from "@/components/opportunities/drawer/resume-draft-sheet";
-import { Button } from "@/components/ui/button";
 import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 import { getDevOllamaModelOverride } from "@/components/settings/ai-models";
-import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
-import { ViewEmailDialog } from "@/components/dialogs/view-email-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ViewEmailDialog } from "@/components/ui/composites/view-email-dialog";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
-import { selectCheckboxClassName } from "@/components/ui/styles/select-checkbox";
 import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
-import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import {
   Tooltip,
   TooltipContent,
@@ -68,44 +49,25 @@ import {
   isAbortError,
   useTaskAbortManager,
 } from "@/hooks/use-task-abort-manager";
+import { useDraftSplitPane } from "@/hooks/use-draft-split-pane";
+import {
+  useDraftPdf,
+  formatSize,
+  estimateBase64Bytes,
+  downloadBase64File,
+} from "@/hooks/use-draft-pdf";
 import { cn } from "@/lib/utils";
+import {
+  EmailEditorPanel,
+  ResumePreviewPanel,
+  RefinePanel,
+  DraftFooterControls,
+} from "./draft";
 
 /** Stable task ids for abortable AI work in the review draft modal. */
 const TASK_RESUME = "resume-generation";
 const TASK_EMAIL_REFINE = "email-refine";
 const TASK_EMAIL_DRAFT = "email-draft";
-
-const DRAFT_SPLIT_STORAGE_KEY = "mp-draft-email-resume-split";
-const DRAFT_SPLIT_DEFAULT = 48;
-const DRAFT_SPLIT_MIN = 28;
-const DRAFT_SPLIT_MAX = 72;
-
-function readDraftSplitPct(): number {
-  if (typeof window === "undefined") return DRAFT_SPLIT_DEFAULT;
-  try {
-    const raw = localStorage.getItem(DRAFT_SPLIT_STORAGE_KEY);
-    if (!raw) return DRAFT_SPLIT_DEFAULT;
-    const next = Number(raw);
-    if (
-      !Number.isFinite(next) ||
-      next < DRAFT_SPLIT_MIN ||
-      next > DRAFT_SPLIT_MAX
-    ) {
-      return DRAFT_SPLIT_DEFAULT;
-    }
-    return next;
-  } catch {
-    return DRAFT_SPLIT_DEFAULT;
-  }
-}
-
-function writeDraftSplitPct(pct: number) {
-  try {
-    localStorage.setItem(DRAFT_SPLIT_STORAGE_KEY, String(pct));
-  } catch {
-    // ignore quota / private mode
-  }
-}
 
 const EMAIL_REFINE_PLACEHOLDER =
   "Ask Ace AI to refine email (e.g., make it more concise, emphasize relevant experience, adjust tone)…";
@@ -118,50 +80,6 @@ type OpportunityDraftDialogProps = {
   opportunity: JobOpportunity | null;
   onCompleted?: () => void;
 };
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function estimateBase64Bytes(base64: string): number {
-  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
-  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
-}
-
-function formatEmailDate(value: Date | string | null | undefined): string {
-  if (!value) return "";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
-
-function pdfBase64ToBlobUrl(base64: string): string {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
-}
-
-function downloadBase64File(filename: string, base64: string, mime: string) {
-  const binary = atob(base64.replace(/\s/g, ""));
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
 
 async function fileToAttachment(file: File): Promise<DraftAttachmentInput> {
   const buffer = await file.arrayBuffer();
@@ -218,26 +136,27 @@ export function OpportunityDraftDialog({
   const [viewOriginalEmailOpen, setViewOriginalEmailOpen] = useState(false);
   const [extraFiles, setExtraFiles] = useState<File[]>([]);
   const [resume, setResume] = useState<OpportunityResumePreview | null>(null);
-  const [resumePdfUrl, setResumePdfUrl] = useState<string | null>(null);
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [resumeStateLoaded, setResumeStateLoaded] = useState(false);
   const [includeSummary, setIncludeSummary] = useState(true);
   const [attachResume, setAttachResume] = useState(true);
   const [showRationale, setShowRationale] = useState(false);
-  const [emailSplitPct, setEmailSplitPct] = useState(DRAFT_SPLIT_DEFAULT);
-  const [splitDragging, setSplitDragging] = useState(false);
-  const splitRowRef = useRef<HTMLDivElement>(null);
-  const emailSplitPctRef = useRef(emailSplitPct);
+
+  const {
+    emailSplitPct,
+    splitDragging,
+    setSplitDragging,
+    splitRowRef,
+    onSplitKeyDown,
+    minSplit,
+    maxSplit,
+  } = useDraftSplitPane();
+
+  const { resumePdfUrl } = useDraftPdf(resume?.pdfBase64);
 
   const resumeBusy = isTaskActive(TASK_RESUME);
   const refining = isTaskActive(TASK_EMAIL_REFINE);
   const retrying = isTaskActive(TASK_EMAIL_DRAFT);
-
-  useEffect(() => {
-    const next = readDraftSplitPct();
-    setEmailSplitPct(next);
-    emailSplitPctRef.current = next;
-  }, []);
 
   // Free horizontal room for the resume pane; restore only if we collapsed it.
   useEffect(() => {
@@ -247,50 +166,6 @@ export function OpportunityDraftDialog({
       setDraftResumeSidebarMode(false);
     };
   }, [open, attachResume, setDraftResumeSidebarMode]);
-
-  useEffect(() => {
-    emailSplitPctRef.current = emailSplitPct;
-  }, [emailSplitPct]);
-
-  useEffect(() => {
-    if (!splitDragging) return;
-
-    function onPointerMove(event: PointerEvent) {
-      const row = splitRowRef.current;
-      if (!row) return;
-      const rect = row.getBoundingClientRect();
-      if (rect.width <= 0) return;
-      const next = Math.min(
-        DRAFT_SPLIT_MAX,
-        Math.max(
-          DRAFT_SPLIT_MIN,
-          ((event.clientX - rect.left) / rect.width) * 100
-        )
-      );
-      emailSplitPctRef.current = next;
-      setEmailSplitPct(next);
-    }
-
-    function onPointerUp() {
-      setSplitDragging(false);
-      writeDraftSplitPct(emailSplitPctRef.current);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    }
-
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("pointercancel", onPointerUp);
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-  }, [splitDragging]);
 
   useEffect(() => {
     if (!open || !opportunity) return;
@@ -360,26 +235,14 @@ export function OpportunityDraftDialog({
     };
   }, [open, opportunity, cancelAll]);
 
-  useEffect(() => {
-    if (!resume?.pdfBase64) {
-      setResumePdfUrl(null);
-      return;
-    }
-    const url = pdfBase64ToBlobUrl(resume.pdfBase64);
-    setResumePdfUrl(url);
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [resume?.pdfBase64]);
-
-  function applyResumeResult(data: OpportunityResumePreview) {
+  const applyResumeResult = useCallback((data: OpportunityResumePreview) => {
     setResume(data);
     setResumeError(null);
     setResumeStateLoaded(true);
     if (typeof data.includeSummary === "boolean") {
       setIncludeSummary(data.includeSummary);
     }
-  }
+  }, []);
 
   async function persistDraftChange(
     run: () => Promise<
@@ -752,6 +615,81 @@ export function OpportunityDraftDialog({
 
   const showComposerActions = !loadingDraft && !error;
 
+  const handleRefineResumeNode = useCallback(
+    (nodeId: string, instruction: string) => {
+      if (!opportunity) return;
+      const signal = startTask(TASK_RESUME);
+      void (async () => {
+        try {
+          const result = await abortablePromise(
+            refineSingleResumeNodeAction(opportunity.id, nodeId, instruction),
+            signal
+          );
+          if (signal.aborted) return;
+          if (!result.ok || !result.data) {
+            toast.error(result.ok ? "Empty resume" : result.error);
+            return;
+          }
+          applyResumeResult(result.data);
+        } catch (error) {
+          if (isAbortError(error) || signal.aborted) return;
+          toast.error(
+            error instanceof Error ? error.message : "Failed to refine line"
+          );
+        } finally {
+          finishTask(TASK_RESUME, signal);
+        }
+      })();
+    },
+    [opportunity, startTask, finishTask, applyResumeResult]
+  );
+
+  const handleExportResume = useCallback(
+    (format: "pdf" | "docx") => {
+      if (!opportunity) return;
+      const signal = startTask(TASK_RESUME);
+      void (async () => {
+        try {
+          const result = await abortablePromise(
+            compileResumeDocumentAction(opportunity.id, format),
+            signal
+          );
+          if (signal.aborted) return;
+          if (!result.ok || !result.data) {
+            toast.error(result.ok ? "Empty resume" : result.error);
+            return;
+          }
+          if (format === "docx" && result.data.docxBase64) {
+            downloadBase64File(
+              result.data.filename,
+              result.data.docxBase64,
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            );
+            toast.success("DOCX exported");
+            return;
+          }
+          if (result.data.pdfBase64) {
+            downloadBase64File(
+              result.data.filename,
+              result.data.pdfBase64,
+              "application/pdf"
+            );
+          }
+          applyResumeResult(result.data);
+          toast.success("PDF exported");
+        } catch (error) {
+          if (isAbortError(error) || signal.aborted) return;
+          toast.error(
+            error instanceof Error ? error.message : "Failed to export resume"
+          );
+        } finally {
+          finishTask(TASK_RESUME, signal);
+        }
+      })();
+    },
+    [opportunity, startTask, finishTask, applyResumeResult]
+  );
+
   return (
     <ActionDialogShell
       open={open}
@@ -824,634 +762,178 @@ export function OpportunityDraftDialog({
         ) : null
       }
     >
-        {loadingDraft ? (
-          <div className="flex flex-1 items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Preparing draft…
-          </div>
-        ) : error ? (
-          <p className="flex-1 px-6 py-8 text-sm text-destructive">{error}</p>
-        ) : (
-          <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden">
-            {/* Tier 2: main split — drag the gutter to resize email vs resume */}
-            <div
-              ref={splitRowRef}
-              className={cn(
-                "flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col gap-4 overflow-x-hidden px-6 py-4",
-                attachResume && "lg:flex-row lg:gap-0",
-                !splitDragging && "transition-[gap] duration-300 ease-in-out"
-              )}
-              style={
-                attachResume
-                  ? ({
-                      ["--draft-email-split"]: `${emailSplitPct}%`,
-                    } as CSSProperties)
-                  : undefined
-              }
-            >
-              {/* Left: seamless email composer */}
+      {loadingDraft ? (
+        <div className="flex flex-1 items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Preparing draft…
+        </div>
+      ) : error ? (
+        <p className="flex-1 px-6 py-8 text-sm text-destructive">{error}</p>
+      ) : (
+        <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden">
+          {/* Tier 2: main split — drag the gutter to resize email vs resume */}
+          <div
+            ref={splitRowRef}
+            className={cn(
+              "flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col gap-4 overflow-x-hidden px-6 py-4",
+              attachResume && "lg:flex-row lg:gap-0",
+              !splitDragging && "transition-[gap] duration-300 ease-in-out"
+            )}
+            style={
+              attachResume
+                ? ({
+                    ["--draft-email-split"]: `${emailSplitPct}%`,
+                  } as CSSProperties)
+                : undefined
+            }
+          >
+            {/* Left: seamless email composer */}
+            <EmailEditorPanel
+              attachResume={attachResume}
+              recipient={recipient}
+              setRecipient={setRecipient}
+              subject={subject}
+              setSubject={setSubject}
+              originalEmail={originalEmail}
+              onViewOriginalEmail={() => setViewOriginalEmailOpen(true)}
+              body={body}
+              setBody={setBody}
+              extraFiles={extraFiles}
+              removeFile={removeFile}
+              handleFileSelect={handleFileSelect}
+              fileInputId={fileInputId}
+              busy={busy}
+            />
+
+            {/* Split resize handle: appears on lg screens when resume preview is mounted */}
+            {attachResume ? (
               <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize email and resume panes"
+                aria-valuemin={minSplit}
+                aria-valuemax={maxSplit}
+                aria-valuenow={Math.round(emailSplitPct)}
+                tabIndex={0}
                 className={cn(
-                  "flex h-full min-h-0 min-w-0 w-full max-w-full flex-col divide-y overflow-x-hidden overflow-hidden rounded-lg border bg-card text-sm focus-within:ring-1 focus-within:ring-ring lg:min-h-0",
-                  attachResume &&
-                    "lg:max-w-full lg:shrink-0 lg:grow-0 lg:[flex-basis:var(--draft-email-split)]"
+                  "group relative hidden w-4 shrink-0 cursor-col-resize touch-none lg:block",
+                  splitDragging && "bg-border/40"
                 )}
-              >
-                <div className="flex flex-none items-center px-3 py-2">
-                  <Label
-                    htmlFor="opp-draft-to"
-                    className="w-16 shrink-0 select-none text-xs font-medium text-muted-foreground"
-                  >
-                    To:
-                  </Label>
-                  <input
-                    id="opp-draft-to"
-                    type="email"
-                    placeholder="recruiter@company.com"
-                    value={recipient}
-                    onChange={(e) => setRecipient(e.target.value)}
-                    disabled={busy}
-                    className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-foreground outline-none ring-0 focus:outline-none focus:ring-0 disabled:opacity-50"
-                  />
-                </div>
-
-                <div className="flex flex-none items-center justify-between gap-2 px-3 py-2">
-                  <div className="flex min-w-0 flex-1 items-center">
-                    <Label
-                      htmlFor="opp-draft-subject"
-                      className="w-16 shrink-0 select-none text-xs font-medium text-muted-foreground"
-                    >
-                      Subject:
-                    </Label>
-                    <input
-                      id="opp-draft-subject"
-                      value={subject}
-                      onChange={(e) => setSubject(e.target.value)}
-                      disabled={busy}
-                      className="min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-sm text-foreground outline-none ring-0 focus:outline-none focus:ring-0 disabled:opacity-50"
-                    />
-                  </div>
-                  {originalEmail ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setViewOriginalEmailOpen(true)}
-                      className="h-7 shrink-0 gap-1.5 rounded-md bg-muted/40 px-2.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                      <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="hidden sm:inline">
-                        View original email
-                      </span>
-                    </Button>
-                  ) : null}
-                </div>
-
-                <div className="relative flex min-h-0 flex-1 flex-col">
-                  <Label htmlFor="opp-draft-body" className="sr-only">
-                    Body
-                  </Label>
-                  <textarea
-                    id="opp-draft-body"
-                    className="min-h-0 w-full flex-1 resize-none overflow-y-auto border-0 bg-transparent p-3 pb-10 text-sm leading-relaxed outline-none focus:outline-none focus-visible:ring-0 disabled:opacity-50"
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    disabled={busy}
-                  />
-                  <div className="pointer-events-none absolute bottom-2 left-2 right-2 flex items-end justify-between gap-2">
-                    {extraFiles.length > 0 ? (
-                      <ul className="pointer-events-auto flex min-w-0 flex-1 flex-wrap gap-1.5">
-                        {extraFiles.map((file, index) => (
-                          <li
-                            key={`${file.name}-${file.size}-${index}`}
-                            className="inline-flex max-w-[160px] items-center gap-1.5 rounded-md border border-border/60 bg-background/95 px-2 py-1 text-xs shadow-sm"
-                          >
-                            <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                            <span className="truncate">
-                              {file.name} ({formatSize(file.size)})
-                            </span>
-                            <button
-                              type="button"
-                              className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                              onClick={() => removeFile(index)}
-                              disabled={busy}
-                              aria-label={`Remove ${file.name}`}
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <span />
-                    )}
-                    <div className="pointer-events-auto flex shrink-0 items-center">
-                      <input
-                        id={fileInputId}
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={handleFileSelect}
-                        disabled={busy}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        title="Attach file"
-                        disabled={busy}
-                        className="h-7 w-7 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        onClick={() => {
-                          document.getElementById(fileInputId)?.click();
-                        }}
-                      >
-                        <Paperclip className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {attachResume ? (
-                <div
-                  role="separator"
-                  aria-orientation="vertical"
-                  aria-label="Resize email and resume panes"
-                  aria-valuemin={DRAFT_SPLIT_MIN}
-                  aria-valuemax={DRAFT_SPLIT_MAX}
-                  aria-valuenow={Math.round(emailSplitPct)}
-                  tabIndex={0}
-                  className={cn(
-                    "group relative hidden w-4 shrink-0 cursor-col-resize touch-none lg:block",
-                    splitDragging && "bg-border/40"
-                  )}
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    setSplitDragging(true);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
-                      return;
-                    }
-                    event.preventDefault();
-                    const delta = event.key === "ArrowLeft" ? -2 : 2;
-                    setEmailSplitPct((prev) => {
-                      const next = Math.min(
-                        DRAFT_SPLIT_MAX,
-                        Math.max(DRAFT_SPLIT_MIN, prev + delta)
-                      );
-                      emailSplitPctRef.current = next;
-                      writeDraftSplitPct(next);
-                      return next;
-                    });
-                  }}
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "absolute inset-y-3 left-1/2 w-px -translate-x-1/2 rounded-full bg-border transition-colors",
-                      splitDragging
-                        ? "bg-[#129f96]"
-                        : "group-hover:bg-foreground/40"
-                    )}
-                  />
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "absolute left-1/2 top-1/2 h-8 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border/80",
-                      splitDragging && "bg-[#129f96]"
-                    )}
-                  />
-                </div>
-              ) : null}
-
-              {/* Right: flush PDF + ATS rationale */}
-              {attachResume ? (
-                <div className="mt-0 flex h-full min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden overflow-hidden rounded-lg border border-border/60 bg-muted/10 pt-0 duration-300 animate-in fade-in-0 slide-in-from-right-4 lg:min-w-0">
-                  <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col gap-2 overflow-x-hidden overflow-hidden p-0">
-                    {resumeBusy && !resume ? (
-                      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-3 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Tailoring resume…
-                        </div>
-                        <CancelTaskButton
-                          title="Cancel generation"
-                          onCancel={() => handleCancelTask(TASK_RESUME)}
-                        />
-                      </div>
-                    ) : resumeError && !resume ? (
-                      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-3 text-center">
-                        <p className="text-sm text-destructive">{resumeError}</p>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={busy}
-                          onClick={() => generateResume()}
-                        >
-                          Retry
-                        </Button>
-                      </div>
-                    ) : resume?.draft ? (
-                      <ResumeDraftSheet
-                        draft={resume.draft}
-                        strategyRationale={resume.strategyRationale}
-                        disabled={busy}
-                        exporting={resumeBusy}
-                        onCommit={(nodeId, content) => {
-                          if (!opportunity) return;
-                          void persistDraftChange(() =>
-                            updateResumeDraftNodeAction(opportunity.id, nodeId, {
-                              content,
-                            })
-                          );
-                        }}
-                        onToggle={(nodeId, selected) => {
-                          if (!opportunity) return;
-                          void persistDraftChange(() =>
-                            updateResumeDraftNodeAction(opportunity.id, nodeId, {
-                              selected,
-                            })
-                          );
-                        }}
-                        onMove={(nodeId, direction) => {
-                          if (!opportunity) return;
-                          void persistDraftChange(() =>
-                            reorderResumeDraftNodeAction(
-                              opportunity.id,
-                              nodeId,
-                              direction
-                            )
-                          );
-                        }}
-                        onRefine={(nodeId, instruction) => {
-                          if (!opportunity) return;
-                          const signal = startTask(TASK_RESUME);
-                          void (async () => {
-                            try {
-                              const result = await abortablePromise(
-                                refineSingleResumeNodeAction(
-                                  opportunity.id,
-                                  nodeId,
-                                  instruction
-                                ),
-                                signal
-                              );
-                              if (signal.aborted) return;
-                              if (!result.ok || !result.data) {
-                                toast.error(result.ok ? "Empty resume" : result.error);
-                                return;
-                              }
-                              applyResumeResult(result.data);
-                            } catch (error) {
-                              if (isAbortError(error) || signal.aborted) return;
-                              toast.error(
-                                error instanceof Error
-                                  ? error.message
-                                  : "Failed to refine line"
-                              );
-                            } finally {
-                              finishTask(TASK_RESUME, signal);
-                            }
-                          })();
-                        }}
-                        onExport={(format) => {
-                          if (!opportunity) return;
-                          const signal = startTask(TASK_RESUME);
-                          void (async () => {
-                            try {
-                              const result = await abortablePromise(
-                                compileResumeDocumentAction(opportunity.id, format),
-                                signal
-                              );
-                              if (signal.aborted) return;
-                              if (!result.ok || !result.data) {
-                                toast.error(result.ok ? "Empty resume" : result.error);
-                                return;
-                              }
-                              if (format === "docx" && result.data.docxBase64) {
-                                downloadBase64File(
-                                  result.data.filename,
-                                  result.data.docxBase64,
-                                  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                );
-                                toast.success("DOCX exported");
-                                return;
-                              }
-                              if (result.data.pdfBase64) {
-                                downloadBase64File(
-                                  result.data.filename,
-                                  result.data.pdfBase64,
-                                  "application/pdf"
-                                );
-                              }
-                              applyResumeResult(result.data);
-                              toast.success("PDF exported");
-                            } catch (error) {
-                              if (isAbortError(error) || signal.aborted) return;
-                              toast.error(
-                                error instanceof Error
-                                  ? error.message
-                                  : "Failed to export resume"
-                              );
-                            } finally {
-                              finishTask(TASK_RESUME, signal);
-                            }
-                          })();
-                        }}
-                      />
-                    ) : resume && resumePdfUrl ? (
-                      <>
-                        <iframe
-                          title="Tailored resume preview"
-                          src={resumePdfUrl}
-                          className="min-h-0 w-full flex-1 border-0 bg-card"
-                        />
-                        {resume.strategyRationale ? (
-                          <div className="mx-2 mb-2 shrink-0 rounded-md border border-border/50 bg-card">
-                            <button
-                              type="button"
-                              className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-medium text-foreground/90"
-                              onClick={() => setShowRationale((v) => !v)}
-                              aria-expanded={showRationale}
-                            >
-                              <span>ATS Strategy & Match Rationale</span>
-                              {showRationale ? (
-                                <ChevronUp className="h-3.5 w-3.5" />
-                              ) : (
-                                <ChevronDown className="h-3.5 w-3.5" />
-                              )}
-                            </button>
-                            {showRationale ? (
-                              <div className="max-h-40 space-y-2 overflow-y-auto border-t border-border/50 px-3 py-2 text-xs text-muted-foreground">
-                                <div>
-                                  <p className="font-medium text-foreground/80">
-                                    Role Fit Analysis
-                                  </p>
-                                  <p className="mt-0.5 leading-relaxed">
-                                    {resume.strategyRationale.roleFitAnalysis}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="font-medium text-foreground/80">
-                                    Prioritized Skills & Why
-                                  </p>
-                                  <p className="mt-0.5 leading-relaxed">
-                                    {
-                                      resume.strategyRationale
-                                        .selectedSkillsReasoning
-                                    }
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="font-medium text-foreground/80">
-                                    Featured Roles & Projects
-                                  </p>
-                                  <p className="mt-0.5 leading-relaxed">
-                                    {
-                                      resume.strategyRationale
-                                        .featuredExperiencesReasoning
-                                    }
-                                  </p>
-                                  <p className="mt-1 leading-relaxed">
-                                    {
-                                      resume.strategyRationale
-                                        .featuredProjectsReasoning
-                                    }
-                                  </p>
-                                </div>
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </>
-                    ) : resumeStateLoaded ? (
-                      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-                        <FileText className="h-10 w-10 text-muted-foreground/50" />
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-foreground">
-                            No Auto-Tailored Resume Yet
-                          </p>
-                          <p className="max-w-sm text-xs text-muted-foreground">
-                            Select &apos;Resume&apos; in the toolbar below and
-                            click &apos;Generate&apos; to tailor a PDF for this
-                            opportunity. Nothing runs until you ask.
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Checking saved resume…
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            {/* Tier 3: unified Ace AI bar */}
-            <div className="flex flex-none items-center gap-3 border-t bg-muted/20 px-6 py-2">
-              {attachResume ? (
-                <div
-                  className="inline-flex h-8 shrink-0 items-center rounded-md border border-border/60 bg-card p-0.5"
-                  role="group"
-                  aria-label="Ace AI target"
-                >
-                  <button
-                    type="button"
-                    className={cn(
-                      "rounded px-2.5 py-1 text-xs font-medium transition-colors",
-                      effectiveRefineTarget === "email"
-                        ? "bg-muted text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                    onClick={() => setRefineTarget("email")}
-                    disabled={busy}
-                  >
-                    Email
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      "rounded px-2.5 py-1 text-xs font-medium transition-colors",
-                      effectiveRefineTarget === "resume"
-                        ? "bg-muted text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                    onClick={() => setRefineTarget("resume")}
-                    disabled={busy}
-                  >
-                    Resume
-                  </button>
-                </div>
-              ) : null}
-
-              <Input
-                id="opp-ace-refine"
-                placeholder={refinePlaceholder}
-                value={refinePrompt}
-                onChange={(e) => setRefinePrompt(e.target.value)}
-                disabled={busy}
-                className="h-8 flex-1 bg-card text-xs"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleUnifiedRefine();
-                  }
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  setSplitDragging(true);
                 }}
-              />
-
-              {regeneratingTarget ? (
-                <div className="inline-flex h-8 shrink-0 items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 gap-1 px-2.5 text-xs"
-                    disabled
-                  >
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    {primaryActionLabel}
-                  </Button>
-                  <CancelTaskButton
-                    title={
-                      showGenerateResume
-                        ? "Cancel generation"
-                        : "Cancel regeneration"
-                    }
-                    onCancel={() =>
-                      handleCancelTask(
-                        effectiveRefineTarget === "email"
-                          ? TASK_EMAIL_DRAFT
-                          : TASK_RESUME
-                      )
-                    }
-                  />
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 shrink-0 gap-1 px-2.5 text-xs"
-                  disabled={busy}
-                  onClick={handleUnifiedRegenerate}
-                  title={primaryActionTitle}
-                >
-                  {showGenerateResume ? (
-                    <Sparkles className="h-3.5 w-3.5" />
-                  ) : (
-                    <RotateCcw className="h-3.5 w-3.5" />
+                onKeyDown={onSplitKeyDown}
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    "absolute inset-y-3 left-1/2 w-px -translate-x-1/2 rounded-full bg-border transition-colors",
+                    splitDragging
+                      ? "bg-[#129f96]"
+                      : "group-hover:bg-[#129f96]/70 group-focus-visible:bg-[#129f96]"
                   )}
-                  {primaryActionLabel}
-                </Button>
-              )}
-
-              {refiningTarget ? (
-                <div className="inline-flex h-8 shrink-0 items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="h-8 gap-1 px-2.5 text-xs"
-                    disabled
-                  >
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Refine
-                  </Button>
-                  <CancelTaskButton
-                    title="Cancel refine"
-                    onCancel={() =>
-                      handleCancelTask(
-                        effectiveRefineTarget === "email"
-                          ? TASK_EMAIL_REFINE
-                          : TASK_RESUME
-                      )
-                    }
-                  />
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="h-8 shrink-0 gap-1 px-2.5 text-xs"
-                  disabled={refineDisabled}
-                  onClick={handleUnifiedRefine}
-                >
-                  <WandSparkles className="h-3.5 w-3.5" />
-                  Refine
-                </Button>
-              )}
-            </div>
-
-            {/* Tier 4: configuration strip */}
-            <div className="flex flex-none items-center justify-between gap-4 border-t bg-card px-6 py-2">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="attach-resume"
-                    checked={attachResume}
-                    onChange={(e) =>
-                      handleAttachResumeChange(e.target.checked)
-                    }
-                    disabled={busy}
-                    className={selectCheckboxClassName({
-                      className:
-                        "h-3.5 w-3.5 shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
-                    })}
-                  />
-                  <Label
-                    htmlFor="attach-resume"
-                    className="cursor-pointer text-sm font-medium"
-                  >
-                    Attach Tailored Resume
-                  </Label>
-                </div>
-                {attachResume && resume ? (
-                  <div className="inline-flex min-w-0 max-w-[240px] items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-xs">
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span className="truncate">
-                      {resume.filename}
-                      {resumeSizeLabel ? ` (${resumeSizeLabel})` : ""}
-                    </span>
-                    <button
-                      type="button"
-                      className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      onClick={() => handleAttachResumeChange(false)}
-                      disabled={busy}
-                      aria-label="Remove resume attachment"
-                      title="Do not attach resume"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ) : null}
+                />
+                <span
+                  aria-hidden
+                  className={cn(
+                    "absolute left-1/2 top-1/2 h-8 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border/80",
+                    splitDragging && "bg-[#129f96]"
+                  )}
+                />
               </div>
+            ) : null}
 
-              {attachResume ? (
-                <div className="flex shrink-0 items-center gap-2">
-                  <WaveToggle
-                    id="opp-include-summary"
-                    checked={includeSummary}
-                    onCheckedChange={setIncludeSummary}
-                    disabled={busy}
-                  />
-                  <Label
-                    htmlFor="opp-include-summary"
-                    className="cursor-pointer text-sm font-medium"
-                  >
-                    Include Summary
-                  </Label>
-                </div>
-              ) : null}
-            </div>
-
+            {/* Right: auto-tailored resume preview */}
+            {attachResume ? (
+              <ResumePreviewPanel
+                resumeBusy={resumeBusy}
+                resume={resume}
+                resumeError={resumeError}
+                busy={busy}
+                resumePdfUrl={resumePdfUrl}
+                showRationale={showRationale}
+                setShowRationale={setShowRationale}
+                resumeStateLoaded={resumeStateLoaded}
+                onCancelTask={() => handleCancelTask(TASK_RESUME)}
+                onRetry={() => void generateResume()}
+                onCommit={(nodeId, content) => {
+                  if (!opportunity) return;
+                  void persistDraftChange(() =>
+                    updateResumeDraftNodeAction(opportunity.id, nodeId, {
+                      content,
+                    })
+                  );
+                }}
+                onToggle={(nodeId, selected) => {
+                  if (!opportunity) return;
+                  void persistDraftChange(() =>
+                    updateResumeDraftNodeAction(opportunity.id, nodeId, {
+                      selected,
+                    })
+                  );
+                }}
+                onMove={(nodeId, direction) => {
+                  if (!opportunity) return;
+                  void persistDraftChange(() =>
+                    reorderResumeDraftNodeAction(
+                      opportunity.id,
+                      nodeId,
+                      direction
+                    )
+                  );
+                }}
+                onRefine={handleRefineResumeNode}
+                onExport={handleExportResume}
+              />
+            ) : null}
           </div>
-        )}
+
+          {/* Tier 3: unified Ace AI bar */}
+          <RefinePanel
+            attachResume={attachResume}
+            effectiveRefineTarget={effectiveRefineTarget}
+            setRefineTarget={setRefineTarget}
+            busy={busy}
+            refinePlaceholder={refinePlaceholder}
+            refinePrompt={refinePrompt}
+            setRefinePrompt={setRefinePrompt}
+            handleUnifiedRefine={handleUnifiedRefine}
+            handleUnifiedRegenerate={handleUnifiedRegenerate}
+            regeneratingTarget={regeneratingTarget}
+            refiningTarget={refiningTarget}
+            primaryActionLabel={primaryActionLabel}
+            primaryActionTitle={primaryActionTitle}
+            showGenerateResume={showGenerateResume}
+            refineDisabled={refineDisabled}
+            onCancelRegenerate={() =>
+              handleCancelTask(
+                effectiveRefineTarget === "email"
+                  ? TASK_EMAIL_DRAFT
+                  : TASK_RESUME
+              )
+            }
+            onCancelRefine={() =>
+              handleCancelTask(
+                effectiveRefineTarget === "email"
+                  ? TASK_EMAIL_REFINE
+                  : TASK_RESUME
+              )
+            }
+          />
+
+          {/* Tier 4: configuration strip */}
+          <DraftFooterControls
+            attachResume={attachResume}
+            handleAttachResumeChange={handleAttachResumeChange}
+            busy={busy}
+            resume={resume}
+            resumeSizeLabel={resumeSizeLabel}
+            includeSummary={includeSummary}
+            setIncludeSummary={setIncludeSummary}
+          />
+        </div>
+      )}
       <ViewEmailDialog
         open={viewOriginalEmailOpen}
         onOpenChange={setViewOriginalEmailOpen}

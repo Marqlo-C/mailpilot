@@ -239,8 +239,8 @@ export function WavyMeter({
     };
   }, [clampedPercent]);
 
-  // Compute wave fluid path based on measured dimensions
-  const safeWidth = Math.max(trackWidth, 120);
+  // Compute wave fluid path based on measured dimensions (defaults to 800 on SSR so full chamber is covered before ResizeObserver)
+  const safeWidth = Math.max(trackWidth || 800, 120);
   const midY = trackHeight / 2;
   const ampY = Math.min(3, Math.max(1.5, trackHeight * 0.18));
   const bottomY = trackHeight + 6;
@@ -259,7 +259,7 @@ export function WavyMeter({
       aria-valuemax={max}
       aria-label={ariaLabel}
       className={cn(
-        "relative h-3.5 w-full select-none overflow-hidden rounded-full border transition-colors duration-300",
+        "relative h-3.5 w-full select-none overflow-hidden rounded-full border transition-colors duration-300 [container-type:inline-size]",
         theme.container,
         className
       )}
@@ -293,8 +293,8 @@ export function WavyMeter({
         style={{ width: `${clampedPercent}%` }}
       >
         <div
-          style={{ width: `${safeWidth}px` }}
-          className="absolute left-0 top-0 h-full"
+          style={trackWidth > 0 ? { width: `${trackWidth}px` } : undefined}
+          className="absolute left-0 top-0 h-full w-[100cqw] min-w-[100cqw]"
         >
           <svg
             className="h-full w-full pointer-events-none"

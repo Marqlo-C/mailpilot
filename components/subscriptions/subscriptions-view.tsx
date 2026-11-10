@@ -73,7 +73,8 @@ import {
   MetaChip,
 } from "@/components/ui/tactile/meta-chip";
 import { selectCheckboxClassName } from "@/components/ui/styles/select-checkbox";
-import { useLastClickedId } from "@/hooks/use-last-clicked-id";
+import { useSubscriptionsSelection } from "@/hooks/use-subscriptions-selection";
+import { useSubscriptionsReorder } from "@/hooks/use-subscriptions-reorder";
 import {
   getSelectionGroupEdges,
   selectHighlightCardGroupClassName,
@@ -92,10 +93,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import { useCardListGestures } from "@/hooks/use-card-list-gestures";
 import { usePagination } from "@/hooks/use-pagination";
-import {
-  mergeFilteredOrderIntoCustom,
-  orderItemsByIds,
-} from "@/lib/dnd/reorder";
+import { orderItemsByIds } from "@/lib/dnd/reorder";
 import { faviconUrlForDomain, getCleanDomain } from "@/lib/utils/domain";
 import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import {
@@ -126,9 +124,7 @@ import {
 import {
   applyCustomOrder,
   persistClutterThreshold,
-  persistCustomOrder,
   readClutterThreshold,
-  readCustomOrder,
 } from "@/lib/subscriptions/preferences";
 import { runSubscriptionMove } from "@/lib/subscriptions/run-subscription-move";
 import {
@@ -181,34 +177,21 @@ const UNSUBSCRIBE_OPTIONS: {
 
 const SUBSCRIPTIONS_PAGE_SIZE_KEY = "mailpilot_subscriptions_per_page";
 
-function senderLogoSrc(email: string): string | null {
-  const domain = getCleanDomain(email);
-  return domain ? faviconUrlForDomain(domain) : null;
-}
-
-type ArchiveEntry = {
-  key: string;
-  senderEmail: string;
-  senderName: string | null;
-  emailCount: number | null;
-  lastReceivedAt: Date | null;
-  subscriptionId: string | null;
-  source: "subscription" | "history";
-};
-
-export type LatestBriefingProp = {
-  id: string;
-  subject?: string | null;
-  htmlPreview: string;
-  generatedAt: string;
-  senderEmails: string[];
-  subscriptionIds: string[];
-};
-
-type ResolvedBriefing = LatestBriefingProp & {
-  subscriptionId: string;
-  source: "db" | "local";
-};
+import {
+  ActiveDesktopTable,
+  ActiveMobileCards,
+  ArchiveDesktopTable,
+  ArchiveMobileCards,
+  EmptyState,
+  SnapshotPreviewDialog,
+  UnsubscribeCleanupDialog,
+  clutterForSub,
+  formatLastReceivedValue,
+  senderLogoSrc,
+  type ArchiveEntry,
+  type LatestBriefingProp,
+  type ResolvedBriefing,
+} from "./parts";
 
 type SubscriptionsViewProps = {
   accountId: string;
@@ -270,10 +253,50 @@ export function SubscriptionsView({
     useState<SubscriptionCategoryFilter>("all");
   const [sortOption, setSortOption] =
     useState<SubscriptionSortOption>("clutter_desc");
-  const [customOrder, setCustomOrder] = useState<string[]>([]);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [selectionMode, setSelectionMode] = useState(false);
-  const suppressTabChangeRef = useRef(false);
+
+  const filteredActiveIdsRef = useRef<string[]>([]);
+  const requestUnsubscribeRef = useRef<(ids: string[]) => void>(() => {});
+
+  const active = useMemo(
+    () =>
+      subscriptions.filter(
+        (s) => s.status === "ACTIVE" || s.status === "FAILED"
+      ),
+    [subscriptions]
+  );
+
+  const {
+    customOrder,
+    setCustomOrder,
+    suppressTabChangeRef,
+    handleReorder,
+    handleDropZone,
+  } = useSubscriptionsReorder({
+    accountId,
+    filteredActiveIds: filteredActiveIdsRef,
+    sortOption,
+    onSortOptionChange: setSortOption,
+    onRequestUnsubscribe: (ids) => requestUnsubscribeRef.current(ids),
+  });
+
+  const {
+    selectedIds,
+    setSelectedIds,
+    selectionMode,
+    setSelectionMode,
+    lastClickedId,
+    markLastClicked,
+    clearSelection,
+    toggleRow,
+    enterSelectionMode,
+    paintSelect,
+    toggleSelectAll,
+    isAllSelected: checkAllSelected,
+    selectedSubscriptions,
+  } = useSubscriptionsSelection({
+    activeItems: active,
+    filteredActiveIds: filteredActiveIdsRef,
+  });
 
   // Hydrate before paint so the clutter slider thumb isn't at 0 on first frame.
   useLayoutEffect(() => {
@@ -282,7 +305,6 @@ export function SubscriptionsView({
     if (stored != null) {
       setClutterThresholdState(stored);
     }
-    setCustomOrder(readCustomOrder(accountId));
   }, [accountId]);
 
   useEffect(() => {
@@ -297,11 +319,6 @@ export function SubscriptionsView({
     setClutterThresholdState(next);
     persistClutterThreshold(accountId, next);
   }
-
-  const clearSelection = useCallback(() => {
-    setSelectedIds([]);
-    setSelectionMode(false);
-  }, []);
 
   useLayoutEffect(() => {
     const pending = peekSidebarPageTab(
@@ -358,14 +375,6 @@ export function SubscriptionsView({
       setClutterThreshold(value);
     },
     [clearSelection]
-  );
-
-  const active = useMemo(
-    () =>
-      subscriptions.filter(
-        (s) => s.status === "ACTIVE" || s.status === "FAILED"
-      ),
-    [subscriptions]
   );
 
   const archive = useMemo(() => {
@@ -477,69 +486,7 @@ export function SubscriptionsView({
     () => filteredActive.map((s) => s.id),
     [filteredActive]
   );
-  const { lastClickedId, markLastClicked } = useLastClickedId(
-    selectedIds,
-    filteredActiveIds
-  );
-
-  useEffect(() => {
-    const visibleIds = new Set(filteredActiveIds);
-    setSelectedIds((prev) => {
-      const next = prev.filter((id) => visibleIds.has(id));
-      return next.length === prev.length ? prev : next;
-    });
-  }, [filteredActiveIds]);
-
-  function toggleRow(id: string) {
-    markLastClicked(id);
-    setSelectedIds((prev) => {
-      const next = prev.includes(id)
-        ? prev.filter((i) => i !== id)
-        : [...prev, id];
-      // Empty selection leaves multi-select entirely so the next long-press
-      // re-enters select mode instead of attempting a Custom-only drag.
-      setSelectionMode(next.length > 0);
-      return next;
-    });
-  }
-
-  // Belt-and-suspenders: never stay in selectionMode with zero ids.
-  useEffect(() => {
-    if (selectedIds.length === 0 && selectionMode) {
-      setSelectionMode(false);
-    }
-  }, [selectedIds.length, selectionMode]);
-
-  const enterSelectionMode = useCallback(
-    (id: string) => {
-      markLastClicked(id);
-      setSelectionMode(true);
-      setSelectedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    },
-    [markLastClicked]
-  );
-
-  const paintSelect = useCallback(
-    (id: string, mode: "add" | "remove") => {
-      markLastClicked(id);
-      setSelectedIds((prev) => {
-        if (mode === "add") {
-          if (prev.includes(id)) return prev;
-          setSelectionMode(true);
-          return [...prev, id];
-        }
-        const next = prev.filter((i) => i !== id);
-        setSelectionMode(next.length > 0);
-        return next;
-      });
-    },
-    [markLastClicked]
-  );
-
-  const selectedSubscriptions = useMemo(
-    () => active.filter((s) => selectedIds.includes(s.id)),
-    [active, selectedIds]
-  );
+  filteredActiveIdsRef.current = filteredActiveIds;
 
   function resolveBriefingForSub(sub: Subscription): ResolvedBriefing | null {
     if (
@@ -751,6 +698,7 @@ export function SubscriptionsView({
     setError(null);
     setBatchConfirmOpen(true);
   }
+  requestUnsubscribeRef.current = requestUnsubscribe;
 
   function runUnsubscribe(cleanup: CleanupAction) {
     const ids = batchConfirmOpen
@@ -882,42 +830,6 @@ export function SubscriptionsView({
     hasSavedCustomOrder: customOrder.length > 0,
   });
 
-  const handleReorder = useCallback(
-    (nextFullIds: string[], _movedIds: string[]) => {
-      const merged = mergeFilteredOrderIntoCustom(
-        customOrder,
-        filteredActiveIds,
-        nextFullIds
-      );
-      setCustomOrder(merged);
-      persistCustomOrder(accountId, merged);
-      // Keep multi-select after reorder; only flip the sort label.
-      if (sortOption !== "custom") {
-        setSortOption("custom");
-      }
-    },
-    [accountId, customOrder, filteredActiveIds, sortOption]
-  );
-
-  const handleDropZone = useCallback(
-    (zoneId: string, movedIds: string[]) => {
-      const resolved = resolveSubscriptionMove(
-        "active",
-        zoneId as "active" | "archive"
-      );
-      if (resolved.kind !== "unsubscribe" || movedIds.length === 0) return;
-      // Prevent the Unsubscribed tab trigger from stealing this pointer-up as a click.
-      suppressTabChangeRef.current = true;
-      window.setTimeout(() => {
-        suppressTabChangeRef.current = false;
-      }, 0);
-      requestUnsubscribe(movedIds);
-    },
-    // requestUnsubscribe closes over `active` — refresh when list changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
-    [active]
-  );
-
   const { drag, bindItem, onBackgroundPointerDown } = useCardListGestures({
     pageItemIds: paginatedActiveIds,
     fullItemIds: filteredActiveIds,
@@ -1026,18 +938,10 @@ export function SubscriptionsView({
     () => paginatedActive.map((subscription) => subscription.id),
     [paginatedActive]
   );
-  const isAllSelected =
-    pageSubscriptionIds.length > 0 &&
-    pageSubscriptionIds.every((id) => selectedIds.includes(id));
+  const isAllSelected = checkAllSelected(pageSubscriptionIds);
 
-  function toggleSelectAll() {
-    markLastClicked(null);
-    if (isAllSelected) {
-      clearSelection();
-      return;
-    }
-    setSelectionMode(true);
-    setSelectedIds(pageSubscriptionIds);
+  function handleToggleSelectAll() {
+    toggleSelectAll(pageSubscriptionIds);
   }
 
   return (
@@ -1132,7 +1036,7 @@ export function SubscriptionsView({
               }
               isAllSelected={activeTab === "active" ? isAllSelected : false}
               onToggleSelectAll={
-                activeTab === "active" ? toggleSelectAll : () => undefined
+                activeTab === "active" ? handleToggleSelectAll : () => undefined
               }
               clutterThreshold={clutterThreshold}
               onClutterThresholdChange={changeClutterThreshold}
@@ -1337,230 +1241,33 @@ export function SubscriptionsView({
         senderEmail={selectedEmailSub?.senderEmail ?? ""}
       />
 
-      <ActionDialogShell
-        open={Boolean(viewingBriefing)}
-        onOpenChange={(open) => {
-          if (!open) setViewingBriefing(null);
+      <SnapshotPreviewDialog
+        viewingBriefing={viewingBriefing}
+        onClose={() => setViewingBriefing(null)}
+        deletePending={deletePending}
+        onDelete={(briefing) => {
+          void deleteBriefingsForSubscriptions([briefing.subscriptionId]);
         }}
-        pending={deletePending}
-        size="lg"
-        identity={(() => {
-          if (!viewingBriefing) {
-            return {
-              title: "Viewing snap for:",
-              primary: "No snapshot available",
-            };
-          }
-          const emails = viewingBriefing.senderEmails;
-          const firstEmail = emails[0] ?? "";
-          const firstName =
-            active.find(
-              (s) =>
-                s.senderEmail.toLowerCase() === firstEmail.toLowerCase()
-            )?.senderName ?? null;
-          const multi = emails.length > 1;
-          return {
-            title: "Viewing snap for:",
-            primary: multi ? `${emails.length} senders` : firstEmail,
-            secondary: multi
-              ? new Date(viewingBriefing.generatedAt).toLocaleString()
-              : firstName,
-            logo: (
-              <DialogIdentityLogoStack
-                size="lg"
-                items={emails.map((email) => ({
-                  key: email,
-                  src: senderLogoSrc(email),
-                  name:
-                    active.find(
-                      (s) =>
-                        s.senderEmail.toLowerCase() === email.toLowerCase()
-                    )?.senderName ?? email,
-                }))}
-              />
-            ),
-          };
-        })()}
-        cancelLabel="Close"
-        secondaryAction={
-          <button
-            type="button"
-            disabled={deletePending || !viewingBriefing}
-            onClick={() => {
-              if (!viewingBriefing) return;
-              void deleteBriefingsForSubscriptions([
-                viewingBriefing.subscriptionId,
-              ]);
-            }}
-            className={cn(
-              SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME,
-              "h-9 px-3.5"
-            )}
-          >
-            {deletePending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Trash2 className="h-3.5 w-3.5" />
-            )}
-            <span>Delete</span>
-          </button>
-        }
-        primaryAction={
-          <button
-            type="button"
-            disabled={!viewingBriefing || briefingPending}
-            onClick={openBriefingFromViewing}
-            className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
-          >
-            <CirclePlus className="h-3.5 w-3.5" />
-            <span>New</span>
-          </button>
-        }
-      >
-        {viewingBriefing ? (
-          <PreviewLoadChrome
-            loading={briefingPreviewLoading}
-            subject={
-              viewingBriefing.subject?.trim() ||
-              (viewingBriefing.senderEmails.length > 1
-                ? `Snapshot · ${viewingBriefing.senderEmails.length} senders`
-                : `Snapshot · ${viewingBriefing.senderEmails[0] ?? "sender"}`)
-            }
-            dateLabel={formatPreviewDisplayDate(viewingBriefing.generatedAt)}
-            loadingMessage="Loading snapshot…"
-          >
-            <div className="max-w-full overflow-x-hidden rounded-lg border border-border/60 bg-muted/20">
-              <iframe
-                key={viewingBriefing.id}
-                title="Snapshot preview"
-                className="h-[65vh] max-h-[70vh] w-full max-w-full border-0 bg-slate-950"
-                srcDoc={constrainBriefingPreviewHtml(viewingBriefing.htmlPreview)}
-                // allow-same-origin so inlined @font-face / relative assets can apply
-                sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-                onLoad={() => setBriefingPreviewLoading(false)}
-              />
-            </div>
-          </PreviewLoadChrome>
-        ) : null}
-      </ActionDialogShell>
+        briefingPending={briefingPending}
+        onNewBriefing={openBriefingFromViewing}
+        briefingPreviewLoading={briefingPreviewLoading}
+        onIframeLoad={() => setBriefingPreviewLoading(false)}
+        active={active}
+      />
 
-      <ActionDialogShell
+      <UnsubscribeCleanupDialog
         open={unsubscribeDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) closeUnsubscribeDialog();
-        }}
+        onClose={closeUnsubscribeDialog}
         pending={pending}
-        size="sm"
-        identity={{
-          title: "Unsubscribing from:",
-          primary: batchConfirmOpen
-            ? `${selectedIds.length} selected sender${selectedIds.length === 1 ? "" : "s"}`
-            : (selected?.senderEmail ?? "sender"),
-          secondary: batchConfirmOpen ? null : (selected?.senderName ?? null),
-          logo: batchConfirmOpen ? (
-            <DialogIdentityLogoStack
-              size="lg"
-              items={selectedSubscriptions.map((sub) => ({
-                key: sub.id,
-                src: senderLogoSrc(sub.senderEmail),
-                name: sub.senderName ?? sub.senderEmail,
-              }))}
-            />
-          ) : selected ? (
-            <CompanyLogo
-              src={senderLogoSrc(selected.senderEmail)}
-              name={selected.senderName ?? selected.senderEmail}
-              size="lg"
-            />
-          ) : undefined,
-        }}
-        onCancel={closeUnsubscribeDialog}
-        primaryAction={
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => runUnsubscribe(cleanupChoice)}
-            className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
-          >
-            {pending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <UserRoundMinus className="h-3.5 w-3.5" />
-            )}
-            <span>{pending ? "Working…" : "Unsubscribe"}</span>
-          </button>
-        }
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            {batchConfirmOpen
-              ? "Future emails from these senders will be blocked."
-              : "Future emails from this sender will be blocked."}
-          </p>
-
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-foreground">
-              What would you like to do with past emails?
-            </p>
-            <div
-              className="overflow-hidden rounded-lg border border-border/60 bg-muted/20"
-              role="radiogroup"
-              aria-label="Past email cleanup"
-            >
-              {UNSUBSCRIBE_OPTIONS.map((option, index) => {
-                const selectedOption = cleanupChoice === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={selectedOption}
-                    disabled={pending}
-                    onClick={() => setCleanupChoice(option.value)}
-                    className={cn(
-                      "flex w-full items-start gap-3 px-3.5 py-3 text-left transition-colors disabled:opacity-50",
-                      index > 0 && "border-t border-border/50",
-                      selectedOption
-                        ? "bg-background"
-                        : "hover:bg-background/70"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
-                        selectedOption
-                          ? "border-[#1ab5af] bg-[#1ab5af]"
-                          : "border-muted-foreground/40"
-                      )}
-                      aria-hidden
-                    >
-                      {selectedOption ? (
-                        <span className="size-1.5 rounded-full bg-white" />
-                      ) : null}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium text-foreground">
-                        {option.label}
-                      </span>
-                      {option.description ? (
-                        <span className="mt-0.5 block text-xs text-muted-foreground">
-                          {option.description}
-                        </span>
-                      ) : null}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {error ? (
-            <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
-        </div>
-      </ActionDialogShell>
+        batchConfirmOpen={batchConfirmOpen}
+        selectedIds={selectedIds}
+        selectedSubscriptions={selectedSubscriptions}
+        selected={selected}
+        cleanupChoice={cleanupChoice}
+        onCleanupChoiceChange={setCleanupChoice}
+        onConfirm={() => runUnsubscribe(cleanupChoice)}
+        error={error}
+      />
 
       <ConfirmActionDialog
         open={Boolean(deleteRecordTarget)}
@@ -1590,936 +1297,3 @@ export function SubscriptionsView({
   );
 }
 
-function EmptyState({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-lg border border-dashed border-border px-6 py-16 text-center">
-      <p className="font-medium">{title}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{body}</p>
-    </div>
-  );
-}
-
-function formatLastReceivedValue(
-  date: Date | string | null | undefined
-): string {
-  if (!date || !Number.isFinite(new Date(date).getTime())) return "—";
-  return formatDistanceToNow(new Date(date), { addSuffix: false });
-}
-
-type MetricColumnWidths = {
-  clutter: string;
-  emails: string;
-  received: string;
-};
-
-/** Width each badge type to the widest value on the current page for vertical alignment. */
-function computeMetricColumnWidths(
-  items: { emailCount: number }[]
-): MetricColumnWidths {
-  let maxEmailChars = 1;
-  for (const item of items) {
-    maxEmailChars = Math.max(maxEmailChars, String(item.emailCount).length);
-  }
-  // Sized for 11px type + compact icon rail (~2ch). Received capped; longer ellipsis.
-  const clutterCh = 3.75;
-  const emailsCh = Math.max(5.25, maxEmailChars + 2.75);
-  const receivedCh = 6.25;
-  return {
-    clutter: `${clutterCh}ch`,
-    emails: `${emailsCh}ch`,
-    received: `${receivedCh}ch`,
-  };
-}
-
-function ClutterStatBadge({
-  score,
-  width,
-  selected = false,
-}: {
-  score: number;
-  width?: string;
-  selected?: boolean;
-}) {
-  const tier = clutterScoreTier(score);
-  return (
-    <MetaChip
-      title="Noise level"
-      value={`${score}%`}
-      valueClassName={
-        selected
-          ? SELECT_MUTED_PILL_VALUE_CLASSNAME
-          : CLUTTER_VALUE_CLASSES[tier]
-      }
-      width={width}
-      selected={selected}
-    />
-  );
-}
-
-function EmailsStatBadge({
-  count,
-  width,
-  selected = false,
-}: {
-  count: number;
-  width?: string;
-  selected?: boolean;
-}) {
-  return (
-    <MetaChip
-      title="Email volume"
-      icon={<Mail className={META_CHIP_ICON_CLASSNAME.sm} aria-hidden />}
-      iconSize="sm"
-      value={String(count)}
-      valueClassName="font-medium"
-      width={width}
-      selected={selected}
-      divider="pipe"
-    />
-  );
-}
-
-function LastReceivedStatBadge({
-  date,
-  width,
-  selected = false,
-}: {
-  date: Date | string | null | undefined;
-  width?: string;
-  selected?: boolean;
-}) {
-  const value = formatLastReceivedValue(date);
-  return (
-    <MetaChip
-      title="Last received"
-      icon={<History className={META_CHIP_ICON_CLASSNAME.sm} aria-hidden />}
-      iconSize="sm"
-      value={value}
-      valueClassName="font-normal"
-      width={width ?? "6.25ch"}
-      truncateValue
-      selected={selected}
-      divider="pipe"
-    />
-  );
-}
-
-/** Same gap as Send Snapshot ↔ Unsubscribe (`gap-2.5`). */
-const METRICS_GAP_CLASS = "gap-2.5";
-
-/** Desktop row height — was `h-16` (64px); +2px. Class literal for Tailwind. */
-const SUBSCRIPTION_ROW_HEIGHT_PX = 66;
-const SUBSCRIPTION_ROW_HEIGHT_CLASS = "h-[66px]";
-
-/**
- * Mobile card shell — 1px border matches Job Radar / settings / selection
- * highlight so multiselect only recolors the edge (no size jump).
- */
-const SUBSCRIPTION_CARD_SHELL_CLASS =
-  "rounded-xl border bg-card p-4 shadow-md";
-
-/** Job Radar card hover — border lift + shadow (mobile cards). */
-const SUBSCRIPTION_CARD_SURFACE_CLASS = cn(
-  SUBSCRIPTION_CARD_SHELL_CLASS,
-  "border-border/80 transition-[border-color,box-shadow] duration-200 hover:border-border hover:shadow-lg"
-);
-
-/** Desktop table row hover — same family, background tint instead of shadow. */
-const SUBSCRIPTION_ROW_HOVER_CLASS =
-  "transition-colors duration-200 hover:bg-muted/30";
-
-function AnalyticsMetrics({
-  clutter,
-  emailCount,
-  lastReceivedAt,
-  widths,
-  selected = false,
-}: {
-  clutter: number;
-  emailCount: number;
-  lastReceivedAt: Date | string | null | undefined;
-  widths?: MetricColumnWidths;
-  selected?: boolean;
-}) {
-  return (
-    <div className={cn("flex items-center", METRICS_GAP_CLASS)}>
-      <LastReceivedStatBadge
-        date={lastReceivedAt}
-        width={widths?.received}
-        selected={selected}
-      />
-      <EmailsStatBadge
-        count={emailCount}
-        width={widths?.emails}
-        selected={selected}
-      />
-      <ClutterStatBadge
-        score={clutter}
-        width={widths?.clutter}
-        selected={selected}
-      />
-    </div>
-  );
-}
-
-function LastBriefingIconButton({
-  briefing,
-  onView,
-  disabled = false,
-}: {
-  briefing: ResolvedBriefing;
-  onView: (briefing: ResolvedBriefing) => void;
-  disabled?: boolean;
-}) {
-  const tip =
-    briefing.source === "db"
-      ? "View snap (cloud)"
-      : "View snap (this device)";
-
-  return (
-    <LabelTooltip label={disabled ? null : tip} side="top">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onView(briefing)}
-        aria-label="View snap"
-        className={cn(
-          "inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold transition-colors",
-          disabled
-            ? "pointer-events-none text-muted-foreground"
-            : "text-[#129f96] hover:bg-[#129f96]/10 hover:text-[#0f8f87]"
-        )}
-      >
-        <Eye className="size-3" />
-        Snapshot
-      </button>
-    </LabelTooltip>
-  );
-}
-
-function SubscriptionRowActions({
-  sub,
-  onBriefing,
-  onUnsubscribe,
-  onViewLastEmail,
-  disabled = false,
-}: {
-  sub: Subscription;
-  onBriefing: (sub: Subscription) => void;
-  onUnsubscribe: (sub: Subscription) => void;
-  onViewLastEmail: (sub: Subscription) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <>
-      <CreateSnapshotButton
-        disabled={disabled}
-        onClick={() => onBriefing(sub)}
-      />
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onUnsubscribe(sub)}
-        className={
-          disabled
-            ? PRIMARY_ACTION_BTN_MUTED_CLASSNAME
-            : PRIMARY_ACTION_BTN_CLASSNAME
-        }
-      >
-        <UserRoundMinus className="h-3.5 w-3.5" />
-        <span>Unsubscribe</span>
-      </button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <RowMenuTrigger
-            label="Subscription actions"
-            disabled={disabled}
-            // Keep the same h-8/w-4 chrome when locked — swapping to solid
-            // `bg-muted` made the ⋮ read larger and shifted neighbors.
-            className={
-              disabled
-                ? "pointer-events-none opacity-55 hover:bg-[#e4f7f3] hover:text-[#181e26]"
-                : undefined
-            }
-          />
-        </DropdownMenuTrigger>
-        <AppMenuContent align="end">
-          <AppMenuItem
-            className="cursor-pointer gap-2"
-            disabled={disabled}
-            onClick={() => onViewLastEmail(sub)}
-          >
-            <Mail className="size-4 text-muted-foreground" />
-            <span>Inbox Message</span>
-          </AppMenuItem>
-        </AppMenuContent>
-      </DropdownMenu>
-    </>
-  );
-}
-
-/** Desktop row: three zones separated by subtle vertical dividers. */
-type BindItem = ReturnType<typeof useCardListGestures>["bindItem"];
-
-function InsertMarker({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn("pointer-events-none h-0.5 w-full bg-[#1ab5af]", className)}
-      aria-hidden
-    />
-  );
-}
-
-function SubscriptionDesktopRow({
-  sub,
-  selected,
-  selectionGroup,
-  selectionStartRadius,
-  selectionEndRadius,
-  lastClicked,
-  onToggleRow,
-  itemProps,
-  showInsertBefore,
-  showRowDivider,
-  clutter,
-  briefing,
-  metricWidths,
-  onBriefing,
-  onUnsubscribe,
-  onViewLastBriefing,
-  onViewLastEmail,
-}: {
-  sub: Subscription;
-  selected: boolean;
-  selectionGroup: SelectionGroupEdges;
-  /** `xl` when this row is the list’s top edge so it matches the card shell. */
-  selectionStartRadius: "sm" | "xl";
-  /** `xl` when this row is the list’s bottom edge so it matches the card shell. */
-  selectionEndRadius: "sm" | "xl";
-  lastClicked: boolean;
-  onToggleRow: (id: string) => void;
-  itemProps: ReturnType<BindItem>;
-  showInsertBefore: boolean;
-  /**
-   * Wavy dashed hairline under the row. False on the last card, when this row
-   * is selected, or when the next row is selected (avoids peeking past the
-   * multiselect perimeter).
-   */
-  showRowDivider: boolean;
-  clutter: number;
-  briefing: ResolvedBriefing | null;
-  metricWidths: MetricColumnWidths;
-  onBriefing: (sub: Subscription) => void;
-  onUnsubscribe: (sub: Subscription) => void;
-  onViewLastBriefing: (briefing: ResolvedBriefing) => void;
-  onViewLastEmail: (sub: Subscription) => void;
-}) {
-  const { style: itemStyle, ...itemRest } = itemProps;
-  return (
-    <div
-      {...itemRest}
-      style={itemStyle}
-      className={cn(
-        "relative flex cursor-default items-center select-none",
-        SUBSCRIPTION_ROW_HEIGHT_CLASS,
-        SUBSCRIPTION_ROW_HOVER_CLASS,
-        selected
-          ? selectHighlightGroupClassName(selectionGroup, {
-              startRadius: selectionStartRadius,
-              endRadius: selectionEndRadius,
-            })
-          : null
-      )}
-    >
-      {showInsertBefore ? (
-        <div className="absolute inset-x-0 top-0 z-10">
-          <InsertMarker />
-        </div>
-      ) : null}
-      {showRowDivider ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] translate-y-1/2">
-          <WavyDashedLine orientation="horizontal" />
-        </div>
-      ) : null}
-      {/* Left half aligns with toolbar identity; right half with search → actions. */}
-      <div className="flex h-full w-1/2 min-w-0 items-center gap-3 pl-3 pr-3">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={() => onToggleRow(sub.id)}
-          className={selectCheckboxClassName({
-            lastClicked,
-            className: "m-0 h-3.5 w-3.5 shrink-0 cursor-pointer",
-          })}
-          aria-label={`Select ${sub.senderEmail}`}
-        />
-        <CompanyLogo
-          src={senderLogoSrc(sub.senderEmail)}
-          name={sub.senderName ?? sub.senderEmail}
-          size="md"
-        />
-        <div className={cn("min-w-0", selected && "text-muted-foreground")}>
-          <div className="flex min-w-0 items-center gap-1.5">
-            <p
-              className={cn(
-                "truncate text-sm font-medium",
-                selected ? "text-muted-foreground" : "text-foreground"
-              )}
-            >
-              {sub.senderName ?? "—"}
-            </p>
-            {briefing ? (
-              <LastBriefingIconButton
-                briefing={briefing}
-                onView={onViewLastBriefing}
-                disabled={selected}
-              />
-            ) : null}
-          </div>
-          <p className="truncate text-[11px] text-muted-foreground">
-            {sub.senderEmail}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex h-full w-1/2 min-w-0 items-center">
-        {/* pl-4 = ToolbarRoot gap-3 + ToolbarDivider mx-1 (divider → search) */}
-        <div className={cn("flex shrink-0 items-center pl-4", METRICS_GAP_CLASS)}>
-          <LastReceivedStatBadge
-            date={sub.lastReceivedAt}
-            width={metricWidths.received}
-            selected={selected}
-          />
-          <EmailsStatBadge
-            count={sub.emailCount}
-            width={metricWidths.emails}
-            selected={selected}
-          />
-          <ClutterStatBadge
-            score={clutter}
-            width={metricWidths.clutter}
-            selected={selected}
-          />
-        </div>
-
-        {/*
-          Squiggle centered between clutter pill and first CTA. No CTA pl-* —
-          that padding only sat on the right and threw the midpoint off (~12px).
-        */}
-        <div className="flex h-full min-w-0 flex-1 items-center justify-center self-stretch">
-          <WavyDashedLine
-            orientation="vertical"
-            length={SUBSCRIPTION_ROW_HEIGHT_PX}
-          />
-        </div>
-
-        {/* pr-2.5 matches gap-2.5 so ⋮ sits evenly vs left button and card edge */}
-        <div className="flex h-full shrink-0 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pr-2.5">
-          <SubscriptionRowActions
-            sub={sub}
-            onBriefing={onBriefing}
-            onUnsubscribe={onUnsubscribe}
-            onViewLastEmail={onViewLastEmail}
-            disabled={selected}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function clutterForSub(sub: Subscription): number {
-  return effectiveSubscriptionClutterScore(sub);
-}
-
-function ActiveDesktopTable({
-  subscriptions,
-  selectedIds,
-  lastClickedId,
-  onToggleRow,
-  bindItem,
-  insertBeforeId,
-  insertAfterLast,
-  onUnsubscribe,
-  onBriefing,
-  resolveBriefing,
-  onViewLastBriefing,
-  onViewLastEmail,
-}: {
-  subscriptions: Subscription[];
-  selectedIds: string[];
-  lastClickedId: string | null;
-  onToggleRow: (id: string) => void;
-  bindItem: BindItem;
-  insertBeforeId: string | null;
-  insertAfterLast: boolean;
-  onUnsubscribe: (sub: Subscription) => void;
-  onBriefing: (sub: Subscription) => void;
-  resolveBriefing: (sub: Subscription) => ResolvedBriefing | null;
-  onViewLastBriefing: (briefing: ResolvedBriefing) => void;
-  onViewLastEmail: (sub: Subscription) => void;
-}) {
-  const metricWidths = useMemo(
-    () => computeMetricColumnWidths(subscriptions),
-    [subscriptions]
-  );
-
-  const orderedIds = useMemo(
-    () => subscriptions.map((sub) => sub.id),
-    [subscriptions]
-  );
-
-  const firstId = subscriptions[0]?.id;
-  const lastId = subscriptions[subscriptions.length - 1]?.id;
-  const selectionTouchesShell =
-    (firstId != null && selectedIds.includes(firstId)) ||
-    (lastId != null && selectedIds.includes(lastId));
-
-  return (
-    <div
-      data-dnd-list
-      className={cn(
-        // No layout border — toggling border↔border-0 shifted size. Resting
-        // edge is a ring (box-shadow); clear it when selection paints flush.
-        "relative hidden w-full overflow-hidden rounded-xl border-0 bg-card shadow-lg transition-[box-shadow] duration-200 hover:shadow-xl md:block",
-        selectionTouchesShell ? "ring-0" : "ring-1 ring-border/80"
-      )}
-    >
-      {subscriptions.map((sub, index) => {
-        const clutter = clutterForSub(sub);
-        const briefing = resolveBriefing(sub);
-        const selectionGroup = getSelectionGroupEdges(
-          orderedIds,
-          selectedIds,
-          index
-        );
-        return (
-          <SubscriptionDesktopRow
-            key={sub.id}
-            sub={sub}
-            selected={selectionGroup.selected}
-            selectionGroup={selectionGroup}
-            selectionStartRadius={index === 0 ? "xl" : "sm"}
-            selectionEndRadius={
-              index === subscriptions.length - 1 ? "xl" : "sm"
-            }
-            lastClicked={lastClickedId === sub.id}
-            onToggleRow={onToggleRow}
-            itemProps={bindItem(sub.id)}
-            showInsertBefore={insertBeforeId === sub.id}
-            showRowDivider={
-              index < subscriptions.length - 1 &&
-              !selectionGroup.selected &&
-              !selectedIds.includes(subscriptions[index + 1]?.id ?? "")
-            }
-            clutter={clutter}
-            briefing={briefing}
-            metricWidths={metricWidths}
-            onBriefing={onBriefing}
-            onUnsubscribe={onUnsubscribe}
-            onViewLastBriefing={onViewLastBriefing}
-            onViewLastEmail={onViewLastEmail}
-          />
-        );
-      })}
-      {insertAfterLast ? (
-        <div className="absolute inset-x-0 bottom-0 z-10">
-          <InsertMarker />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ActiveMobileCards({
-  subscriptions,
-  selectedIds,
-  lastClickedId,
-  onToggleRow,
-  bindItem,
-  insertBeforeId,
-  insertAfterLast,
-  onUnsubscribe,
-  onBriefing,
-  resolveBriefing,
-  onViewLastBriefing,
-  onViewLastEmail,
-}: {
-  subscriptions: Subscription[];
-  selectedIds: string[];
-  lastClickedId: string | null;
-  onToggleRow: (id: string) => void;
-  bindItem: BindItem;
-  insertBeforeId: string | null;
-  insertAfterLast: boolean;
-  onUnsubscribe: (sub: Subscription) => void;
-  onBriefing: (sub: Subscription) => void;
-  resolveBriefing: (sub: Subscription) => ResolvedBriefing | null;
-  onViewLastBriefing: (briefing: ResolvedBriefing) => void;
-  onViewLastEmail: (sub: Subscription) => void;
-}) {
-  const metricWidths = useMemo(
-    () => computeMetricColumnWidths(subscriptions),
-    [subscriptions]
-  );
-
-  const orderedIds = useMemo(
-    () => subscriptions.map((sub) => sub.id),
-    [subscriptions]
-  );
-
-  return (
-    <ul className="md:hidden" data-dnd-list>
-      {subscriptions.map((sub, index) => {
-        const clutter = clutterForSub(sub);
-        const briefing = resolveBriefing(sub);
-        const selectionGroup = getSelectionGroupEdges(
-          orderedIds,
-          selectedIds,
-          index
-        );
-        const selected = selectionGroup.selected;
-        const nextSelected =
-          selected && !selectionGroup.isGroupEnd;
-        const itemProps = bindItem(sub.id);
-        const { style: itemStyle, ...itemRest } = itemProps;
-        return (
-          <li
-            key={sub.id}
-            {...itemRest}
-            style={itemStyle}
-            className={cn(
-              "relative select-none",
-              selected
-                ? cn(
-                    SUBSCRIPTION_CARD_SHELL_CLASS,
-                    "transition-[background,border-color,border-radius,margin] duration-200",
-                    selectHighlightCardGroupClassName(selectionGroup),
-                    // Collapse gaps inside a selected run so the perimeter reads as one block.
-                    nextSelected ? "mb-0" : "mb-3"
-                  )
-                : cn(SUBSCRIPTION_CARD_SURFACE_CLASS, "mb-3")
-            )}
-          >
-            {insertBeforeId === sub.id ? (
-              <div className="absolute inset-x-2 top-0 z-10">
-                <InsertMarker />
-              </div>
-            ) : null}
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={selected}
-                onChange={() => onToggleRow(sub.id)}
-                className={selectCheckboxClassName({
-                  lastClicked: lastClickedId === sub.id,
-                  className: "m-0 h-3.5 w-3.5 shrink-0 cursor-pointer",
-                })}
-                aria-label={`Select ${sub.senderEmail}`}
-              />
-              <div className="flex min-w-0 flex-1 items-center gap-3">
-                <CompanyLogo
-                  src={senderLogoSrc(sub.senderEmail)}
-                  name={sub.senderName ?? sub.senderEmail}
-                  size="md"
-                />
-                <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <p
-                      className={cn(
-                        "truncate text-sm font-medium",
-                        selected ? "text-muted-foreground" : "text-foreground"
-                      )}
-                    >
-                      {sub.senderName ?? sub.senderEmail}
-                    </p>
-                    {briefing ? (
-                      <LastBriefingIconButton
-                        briefing={briefing}
-                        onView={onViewLastBriefing}
-                        disabled={selected}
-                      />
-                    ) : null}
-                  </div>
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {sub.senderEmail}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <AnalyticsMetrics
-                clutter={clutter}
-                emailCount={sub.emailCount}
-                lastReceivedAt={sub.lastReceivedAt}
-                widths={metricWidths}
-                selected={selected}
-              />
-              <div className="-mr-1.5 flex shrink-0 items-center justify-end gap-2.5">
-                <SubscriptionRowActions
-                  sub={sub}
-                  onBriefing={onBriefing}
-                  onUnsubscribe={onUnsubscribe}
-                  onViewLastEmail={onViewLastEmail}
-                  disabled={selected}
-                />
-              </div>
-            </div>
-          </li>
-        );
-      })}
-      {insertAfterLast ? (
-        <li className="list-none px-2" aria-hidden>
-          <InsertMarker />
-        </li>
-      ) : null}
-    </ul>
-  );
-}
-
-function clutterForArchiveEntry(entry: ArchiveEntry): number {
-  return subscriptionClutterScore({
-    emailCount: entry.emailCount ?? 0,
-    lastReceivedAt: entry.lastReceivedAt,
-  });
-}
-
-function ArchiveCleanupButton({
-  pending,
-  onCleanup,
-}: {
-  pending: boolean;
-  onCleanup: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={pending}
-      onClick={onCleanup}
-      className={PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME}
-    >
-      {pending ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      ) : (
-        <Trash2 className="h-3.5 w-3.5" />
-      )}
-      <span>Delete Emails</span>
-    </button>
-  );
-}
-
-function ArchiveRowActions({
-  entry,
-  pending,
-  onCleanup,
-  onDeleteRecord,
-}: {
-  entry: ArchiveEntry;
-  pending: boolean;
-  onCleanup: (entry: ArchiveEntry) => void;
-  onDeleteRecord: (entry: ArchiveEntry) => void;
-}) {
-  return (
-    <div className="flex items-center gap-0.5">
-      <ArchiveCleanupButton
-        pending={pending}
-        onCleanup={() => onCleanup(entry)}
-      />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <RowMenuTrigger label="Archive actions" disabled={pending} />
-        </DropdownMenuTrigger>
-        <AppMenuContent align="end" className="w-56">
-          <AppMenuItem
-            className="cursor-pointer gap-2 text-[#c21f10] focus:bg-[#c21f10]/10 focus:text-[#c21f10] dark:text-[#fb6230] dark:focus:bg-[#fb6230]/10 dark:focus:text-[#fb6230]"
-            onClick={() => onDeleteRecord(entry)}
-          >
-            <DatabaseX className="size-4" />
-            <span>Delete Record</span>
-          </AppMenuItem>
-        </AppMenuContent>
-      </DropdownMenu>
-    </div>
-  );
-}
-
-function ArchiveDesktopRow({
-  entry,
-  pending,
-  metricWidths,
-  showRowDivider,
-  onCleanup,
-  onDeleteRecord,
-}: {
-  entry: ArchiveEntry;
-  pending: boolean;
-  metricWidths: MetricColumnWidths;
-  showRowDivider: boolean;
-  onCleanup: (entry: ArchiveEntry) => void;
-  onDeleteRecord: (entry: ArchiveEntry) => void;
-}) {
-  const clutter = clutterForArchiveEntry(entry);
-  const emailCount = entry.emailCount ?? 0;
-
-  return (
-    <div
-      className={cn(
-        "relative flex items-center",
-        SUBSCRIPTION_ROW_HEIGHT_CLASS,
-        SUBSCRIPTION_ROW_HOVER_CLASS
-      )}
-    >
-      {showRowDivider ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] translate-y-1/2">
-          <WavyDashedLine orientation="horizontal" />
-        </div>
-      ) : null}
-      <div className="flex h-full w-1/2 min-w-0 items-center gap-3 pl-3 pr-3">
-        <CompanyLogo
-          src={senderLogoSrc(entry.senderEmail)}
-          name={entry.senderName ?? entry.senderEmail}
-          size="md"
-        />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-foreground">
-            {entry.senderName ?? "—"}
-          </p>
-          <p className="truncate text-[11px] text-muted-foreground">
-            {entry.senderEmail}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex h-full w-1/2 min-w-0 items-center">
-        <div className={cn("flex shrink-0 items-center pl-4", METRICS_GAP_CLASS)}>
-          <LastReceivedStatBadge
-            date={entry.lastReceivedAt}
-            width={metricWidths.received}
-          />
-          <EmailsStatBadge count={emailCount} width={metricWidths.emails} />
-          <ClutterStatBadge score={clutter} width={metricWidths.clutter} />
-        </div>
-
-        <div className="flex h-full min-w-0 flex-1 items-center justify-center self-stretch">
-          <WavyDashedLine
-            orientation="vertical"
-            length={SUBSCRIPTION_ROW_HEIGHT_PX}
-          />
-        </div>
-
-        {/* pr-2.5 matches gap-2.5 so ⋮ sits evenly vs left button and card edge */}
-        <div className="flex h-full shrink-0 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pr-2.5">
-          <ArchiveRowActions
-            entry={entry}
-            pending={pending}
-            onCleanup={onCleanup}
-            onDeleteRecord={onDeleteRecord}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ArchiveDesktopTable({
-  entries,
-  cleanupPendingKey,
-  pending,
-  onCleanup,
-  onDeleteRecord,
-}: {
-  entries: ArchiveEntry[];
-  cleanupPendingKey: string | null;
-  pending: boolean;
-  onCleanup: (entry: ArchiveEntry) => void;
-  onDeleteRecord: (entry: ArchiveEntry) => void;
-}) {
-  const metricWidths = useMemo(
-    () =>
-      computeMetricColumnWidths(
-        entries.map((entry) => ({ emailCount: entry.emailCount ?? 0 }))
-      ),
-    [entries]
-  );
-
-  return (
-    <div className="hidden w-full overflow-hidden rounded-xl border border-border/80 bg-card shadow-md transition-shadow duration-200 hover:shadow-lg md:block">
-      {entries.map((entry, index) => (
-        <ArchiveDesktopRow
-          key={entry.key}
-          entry={entry}
-          pending={cleanupPendingKey === entry.key || pending}
-          metricWidths={metricWidths}
-          showRowDivider={index < entries.length - 1}
-          onCleanup={onCleanup}
-          onDeleteRecord={onDeleteRecord}
-        />
-      ))}
-    </div>
-  );
-}
-
-function ArchiveMobileCards({
-  entries,
-  cleanupPendingKey,
-  pending,
-  onCleanup,
-  onDeleteRecord,
-}: {
-  entries: ArchiveEntry[];
-  cleanupPendingKey: string | null;
-  pending: boolean;
-  onCleanup: (entry: ArchiveEntry) => void;
-  onDeleteRecord: (entry: ArchiveEntry) => void;
-}) {
-  const metricWidths = useMemo(
-    () =>
-      computeMetricColumnWidths(
-        entries.map((entry) => ({ emailCount: entry.emailCount ?? 0 }))
-      ),
-    [entries]
-  );
-
-  return (
-    <ul className="space-y-3 md:hidden">
-      {entries.map((entry) => {
-        const clutter = clutterForArchiveEntry(entry);
-        return (
-          <li key={entry.key} className={SUBSCRIPTION_CARD_SURFACE_CLASS}>
-            <div className="flex min-w-0 items-center gap-3">
-              <CompanyLogo
-                src={senderLogoSrc(entry.senderEmail)}
-                name={entry.senderName ?? entry.senderEmail}
-                size="md"
-              />
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-foreground">
-                  {entry.senderName ?? entry.senderEmail}
-                </p>
-                <p className="truncate text-[11px] text-muted-foreground">
-                  {entry.senderEmail}
-                </p>
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <AnalyticsMetrics
-                clutter={clutter}
-                emailCount={entry.emailCount ?? 0}
-                lastReceivedAt={entry.lastReceivedAt}
-                widths={metricWidths}
-              />
-              <div className="-mr-1.5">
-                <ArchiveRowActions
-                  entry={entry}
-                  pending={cleanupPendingKey === entry.key || pending}
-                  onCleanup={onCleanup}
-                  onDeleteRecord={onDeleteRecord}
-                />
-              </div>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}

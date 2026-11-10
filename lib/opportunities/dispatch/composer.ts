@@ -9,12 +9,13 @@ import { extractMessageBody, type LlmProvider } from "@/lib/llm";
 import { generateTailoredResumePdf } from "@/lib/document/pdf-generator";
 import { prisma } from "@/lib/core/prisma";
 import { loadMasterProfileForDraft } from "@/lib/profile/master-profile";
-import { draftToPdfInput, touchDraft } from "@/lib/resume-draft";
 import {
+  draftToPdfInput,
   storedResumeDraftSchema,
+  touchDraft,
   type TailoredResumeDraft,
-} from "@/lib/types/resume-draft";
-import type { TailorResult } from "@/lib/resume-tailor";
+} from "@/lib/resume-draft";
+import type { TailorResult } from "@/lib/tailor";
 import {
   projectInputSchema,
   skillsSchema,

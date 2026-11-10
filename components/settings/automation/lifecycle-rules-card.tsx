@@ -6,7 +6,7 @@ import { MailWarning } from "lucide-react";
 import { toast } from "sonner";
 
 import { updateRule } from "@/app/actions/settings";
-import { SETTINGS_ROW_CLASSNAME } from "@/components/settings/settings-chrome";
+import { SETTINGS_ROW_CLASSNAME } from "@/lib/navigation/settings-chrome";
 import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";

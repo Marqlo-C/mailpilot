@@ -17,6 +17,7 @@ export * from "./switch";
 export * from "./radio-group";
 export * from "./logo-frame";
 export * from "./app-toaster";
+export * from "./sender-avatar";
 
 export * from "./styles";
 export * from "./tactile";

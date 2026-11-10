@@ -32,11 +32,11 @@ import { updateMatchThreshold } from "@/app/actions/profile";
 import { AtsHandoffDrawer } from "@/components/opportunities/drawer/ats-handoff-drawer";
 import { DraftReviewDialog } from "@/components/opportunities/dialogs/draft-review-dialog";
 import { OpportunityDraftDialog } from "@/components/opportunities/dialogs/opportunity-draft-dialog";
-import { ViewEmailDialog } from "@/components/dialogs/view-email-dialog";
+import { ViewEmailDialog } from "@/components/ui/composites/view-email-dialog";
 import { OpportunitiesView } from "@/components/opportunities/views/opportunities-view";
 import { SyncControls } from "@/components/opportunities/sync-controls";
 import { CompanyLogo } from "@/components/ui/logo-frame";
-import { domainFromActionUrl } from "@/components/sender-avatar";
+import { domainFromActionUrl } from "@/components/ui/sender-avatar";
 import {
   JOB_RADAR_PAGE_TABS,
   JOB_RADAR_TAB_LABEL,

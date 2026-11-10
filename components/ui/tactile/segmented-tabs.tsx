@@ -128,28 +128,43 @@ const TabRailContext = createContext<{
 const useClientLayoutEffect =
   typeof window === "undefined" ? useEffect : useLayoutEffect;
 
+function applyTabRailDataset(variant: TabRailVariant) {
+  if (typeof document === "undefined") return;
+  if (variant === "dark") {
+    document.documentElement.dataset.mpTabRail = "dark";
+  } else {
+    document.documentElement.removeAttribute("data-mp-tab-rail");
+  }
+}
+
 export function TabRailProvider({
   accountId,
+  initialVariant,
   children,
 }: {
   accountId: string | null;
+  initialVariant?: TabRailVariant;
   children: ReactNode;
 }) {
-  const [variant, setVariantState] = useState<TabRailVariant>("light");
+  const [variant, setVariantState] = useState<TabRailVariant>(
+    () => initialVariant ?? (accountId ? readTabRail(accountId) : "light")
+  );
 
   useClientLayoutEffect(() => {
-    document.documentElement.removeAttribute("data-mp-tab-rail");
-    document.documentElement.removeAttribute("data-mp-rail-action");
     if (!accountId) {
       setVariantState("light");
+      applyTabRailDataset("light");
       return;
     }
-    setVariantState(readTabRail(accountId));
+    const current = readTabRail(accountId);
+    setVariantState((prev) => (prev === current ? prev : current));
+    applyTabRailDataset(current);
   }, [accountId]);
 
   const setVariant = useCallback(
     (next: TabRailVariant) => {
       setVariantState(next);
+      applyTabRailDataset(next);
       if (accountId) persistTabRail(accountId, next);
     },
     [accountId]

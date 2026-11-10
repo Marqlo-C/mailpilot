@@ -1,9 +1,12 @@
+import { headers } from "next/headers";
 import { getMasterProfile } from "@/app/actions/profile";
 import { SettingsView } from "@/components/settings/settings-view";
 import { getActiveAccount, listAccounts } from "@/lib/data";
 import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules";
 import { SETTINGS_PAGE_TABS } from "@/lib/navigation/page-tabs";
 import { readServerActivePageTab } from "@/lib/navigation/page-tabs-server";
+import { readServerSettingsAccordions } from "@/lib/navigation/settings-accordion-server";
+import { readServerUiPreferences } from "@/lib/ui/ui-preferences-server";
 
 export default async function SettingsPage({
   searchParams,
@@ -11,21 +14,34 @@ export default async function SettingsPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const params = await searchParams;
-  const [accounts, active] = await Promise.all([
+  const [accounts, active, headersList] = await Promise.all([
     listAccounts(),
     getActiveAccount(),
+    headers(),
   ]);
 
-  const [profileResult, initialTab] = await Promise.all([
-    active
-      ? getMasterProfile(active.id)
-      : Promise.resolve({ ok: false as const, error: "no account" }),
-    readServerActivePageTab(
-      "/settings",
-      SETTINGS_PAGE_TABS.map((t) => t.value),
-      active?.id ?? null
-    ),
-  ]);
+  const hostHeader =
+    headersList.get("x-forwarded-host") ?? headersList.get("host");
+  const host = hostHeader?.split(",")[0]?.trim() || "mailpilot-prod.vercel.app";
+  const protoHeader = headersList.get("x-forwarded-proto");
+  const protocol =
+    protoHeader?.split(",")[0]?.trim() ||
+    (host.includes("localhost") || host.startsWith("127.") ? "http" : "https");
+  const serverOrigin = `${protocol}://${host}`;
+
+  const [profileResult, initialTab, initialAccordions, initialUiPreferences] =
+    await Promise.all([
+      active
+        ? getMasterProfile(active.id)
+        : Promise.resolve({ ok: false as const, error: "no account" }),
+      readServerActivePageTab(
+        "/settings",
+        SETTINGS_PAGE_TABS.map((t) => t.value),
+        active?.id ?? null
+      ),
+      readServerSettingsAccordions(active?.id ?? null),
+      readServerUiPreferences(active?.id ?? null),
+    ]);
   const profile =
     profileResult.ok && profileResult.data ? profileResult.data : null;
 
@@ -35,6 +51,9 @@ export default async function SettingsPage({
       activeAccountId={active?.id ?? null}
       activeEmail={active?.email ?? null}
       initialTab={initialTab ?? undefined}
+      initialAccordions={initialAccordions}
+      initialUiPreferences={initialUiPreferences}
+      serverOrigin={serverOrigin}
       profile={profile}
       rules={active?.rules ?? DEFAULT_ACCOUNT_RULES}
       matchThreshold={active?.matchThreshold ?? profile?.matchThreshold}

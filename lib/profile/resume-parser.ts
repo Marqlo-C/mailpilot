@@ -4,7 +4,7 @@ import { z } from "zod";
 import { callLLMWithFallback, type LlmProvider } from "@/lib/llm";
 import { isPlaceholderEmail } from "@/lib/profile/profile-consolidation";
 import { interpretSkillGroups, isCourseworkLabel } from "@/lib/profile/skill-groups";
-import type { SkillGroup, SkillItem } from "@/lib/types/resume-draft";
+import type { SkillGroup, SkillItem } from "@/lib/resume-draft";
 import { normalizeProjectName } from "@/lib/utils/format";
 import { normalizeDateString } from "@/lib/utils/date";
 import { githubProfileRoot, isVerifiedProfileUrl, normalizeProfileUrl } from "@/lib/utils/url";
@@ -14,29 +14,20 @@ import {
   experienceBulletSchema,
   interestsSchema,
   masterProfileInputSchema,
+  resumeLlmSchema,
   detectMetric,
   METRIC_RE,
   type EducationStatus,
   type MasterProfileInput,
+  type ResumeLlmPayload,
 } from "@/lib/validations/profile";
 import type { AccountRules } from "@/lib/validations/rules";
 
+export { resumeLlmSchema };
+
 const MAX_RESUME_CHARS = 12_000;
 
-const nullableStringToEmpty = z
-  .string()
-  .nullish()
-  .transform((val) => val ?? "");
 
-const nullableStringOrNull = z
-  .string()
-  .nullish()
-  .transform((val) => val ?? null);
-
-const nullableStringArray = z
-  .array(z.string())
-  .nullish()
-  .transform((val) => val ?? []);
 
 const HONOR_SPLIT = /\s*(?:,|;|\n|•|·|●)\s*|\s+[-–—]\s+/;
 
@@ -87,95 +78,7 @@ function coerceGpa(value: unknown): string | null {
   return null;
 }
 
-const coercedStringList = z.preprocess(coerceStringList, z.array(z.string()));
 
-const coercedGpa = z.preprocess(coerceGpa, z.string().nullable());
-
-const resumeLlmSchema = z.object({
-  fullName: nullableStringToEmpty,
-  email: nullableStringToEmpty,
-  phone: nullableStringOrNull,
-  location: nullableStringOrNull,
-  summary: nullableStringOrNull,
-  links: z
-    .array(
-      z.object({
-        label: nullableStringToEmpty,
-        url: nullableStringToEmpty,
-      })
-    )
-    .nullish()
-    .transform((val) => val ?? []),
-  skills: z
-    .array(
-      z.object({
-        label: nullableStringToEmpty,
-        parentCategory: nullableStringOrNull,
-        items: z
-          .array(
-            z.union([
-              z.string(),
-              z.object({
-                name: z.string(),
-                proficiency: z.string().nullish(),
-              }),
-            ])
-          )
-          .nullish()
-          .transform((val) => val ?? []),
-      })
-    )
-    .nullish()
-    .transform((val) => val ?? []),
-  experiences: z
-    .array(
-      z.object({
-        company: nullableStringToEmpty,
-        role: nullableStringToEmpty,
-        location: nullableStringOrNull,
-        category: nullableStringToEmpty,
-        startDate: nullableStringToEmpty,
-        endDate: nullableStringOrNull,
-        bullets: nullableStringArray,
-      })
-    )
-    .nullish()
-    .transform((val) => val ?? []),
-  projects: z
-    .array(
-      z.object({
-        name: z.string().nullish().transform((val) => val ?? "Untitled Project"),
-        description: nullableStringToEmpty,
-        technologies: nullableStringArray,
-        link: nullableStringOrNull,
-        bullets: nullableStringArray,
-      })
-    )
-    .nullish()
-    .transform((val) => val ?? []),
-  education: z
-    .array(
-      z.object({
-        institution: nullableStringToEmpty,
-        school: nullableStringToEmpty,
-        subSchool: nullableStringOrNull,
-        degree: nullableStringToEmpty,
-        fieldOfStudy: nullableStringOrNull,
-        startDate: nullableStringOrNull,
-        graduationDate: nullableStringOrNull,
-        endDate: nullableStringOrNull,
-        status: z.string().nullish().transform((val) => val ?? null),
-        gpa: coercedGpa,
-        honors: coercedStringList,
-        coursework: nullableStringArray,
-      })
-    )
-    .nullish()
-    .transform((val) => val ?? []),
-  certifications: certificationsSchema.default([]),
-  awards: awardsSchema.default([]),
-  interests: interestsSchema.default([]),
-});
 
 type RawLlmJson = Record<string, unknown>;
 

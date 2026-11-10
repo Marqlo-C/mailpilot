@@ -1,5 +1,7 @@
+import { readUiCookie, writeUiCookie } from "./ui-cookie-helper";
+
 /**
- * Per-account wavy meter variant preference (localStorage only).
+ * Per-account wavy meter variant preference (localStorage and cookie mirrored).
  */
 
 export type WavyMeterVariant = "light" | "dark";
@@ -17,13 +19,21 @@ export function readWavyMeterPreference(
   try {
     if (accountId) {
       const saved = localStorage.getItem(wavyMeterKey(accountId));
-      if (saved === "dark" || saved === "light") return saved;
+      if (saved === "dark" || saved === "light") {
+        return saved;
+      }
     }
     const fallback = localStorage.getItem("mailpilot_wavy_meter_global");
-    return fallback === "dark" ? "dark" : "light";
+    if (fallback === "dark" || fallback === "light") {
+      return fallback;
+    }
   } catch {
-    return "light";
+    // Quota / private mode — fallback to cookie
   }
+
+  const cookieVal = readUiCookie("wavy_meter", accountId);
+  if (cookieVal === "dark" || cookieVal === "light") return cookieVal;
+  return "light";
 }
 
 export function persistWavyMeterPreference(
@@ -36,12 +46,15 @@ export function persistWavyMeterPreference(
       localStorage.setItem(wavyMeterKey(accountId), variant);
     }
     localStorage.setItem("mailpilot_wavy_meter_global", variant);
-    window.dispatchEvent(
-      new CustomEvent(WAVY_METER_CHANGE_EVENT, {
-        detail: { variant, accountId },
-      })
-    );
   } catch {
     // Quota / private mode — ignore.
   }
+
+  writeUiCookie("wavy_meter", accountId, variant);
+
+  window.dispatchEvent(
+    new CustomEvent(WAVY_METER_CHANGE_EVENT, {
+      detail: { variant, accountId },
+    })
+  );
 }

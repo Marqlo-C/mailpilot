@@ -189,7 +189,7 @@ flowchart TD
 
   LENS_JOB --> UI["1. Standardized 2-Pill Job Card UI<br/>(components/opportunities/)"]
   LENS_JOB & LENS_MATCH --> MATCH["2. Match Scoring Evaluator<br/>(lib/matching/evaluator.ts)"]
-  LENS_JOB --> TAILOR["3. Resume Tailoring Engine<br/>(lib/resume-tailor.ts)"]
+  LENS_JOB --> TAILOR["3. Resume Tailoring Engine<br/>(lib/tailor/)"]
 ```
 
 ---
@@ -288,7 +288,7 @@ flowchart TD
 
   MS["Match Scoring<br/>(lib/matching/)"]
   ER["Email Responding<br/>(lib/opportunities/dispatch/)"]
-  RT["Resume Tailoring<br/>(lib/resume-tailor.ts)"]
+  RT["Resume Tailoring<br/>(lib/tailor/)"]
 
   GT --> LENS
   LENS -->|"&nbsp;&nbsp;Buffers schema changes&nbsp;&nbsp;"| MATRIX

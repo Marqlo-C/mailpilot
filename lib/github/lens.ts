@@ -78,7 +78,7 @@ function isCodeFilename(token: string): boolean {
  * Strips:
  * 1. Directory paths (e.g., 'to src/data/', 'in app/api/', 'under pkg/storage/')
  * 2. Raw file extension mentions (e.g. '.txt files' -> 'text files')
- * 3. Physical code/script filenames (e.g. 'in connect4.py', 'from thread.py')
+ * 3. Physical code/script filenames (e.g. 'in worker.py', 'from index.ts')
  * 4. Stranded prepositions and orphan punctuation.
  */
 export function stripFileSystemArtifacts(bullet: string): string {
@@ -112,7 +112,7 @@ export function stripFileSystemArtifacts(bullet: string): string {
     ""
   );
 
-  // 3. Parenthetical directory or filename references: (in connect4.py), (in src/data/), [script.ts]
+  // 3. Parenthetical directory or filename references: (in worker.py), (in src/data/), [script.ts]
   text = text.replace(
     new RegExp(
       `\\s*[\\(\\[](?:\\s*(?:in|inside|within|defined in|see|from)\\s+)?\`?@?(?:(?:\\.?\\/)?(?:${DIR_ROOT_PATTERN})\\/[a-zA-Z0-9_\\-\\.\\/]*|(?:[a-zA-Z0-9_\\-\\.]+\\/)*[a-zA-Z0-9_\\-\\.]+\\.[a-zA-Z0-9]+)\`?[\\)\\]]`,
@@ -128,7 +128,7 @@ export function stripFileSystemArtifacts(bullet: string): string {
   );
 
   // 4. Participle clauses referencing files:
-  // e.g. ", implemented in connect4.py", "implemented in connect4.py", "defined in thread.py"
+  // e.g. ", implemented in worker.py", "implemented in worker.py", "defined in thread.py"
   text = text.replace(
     /(?:,\s*)?\b(?:implemented|defined|located|found|written|hosted|specified|authored|managed)\s+(?:in|inside|within)\s+`?@?(?:[a-zA-Z0-9_\-\.]+\/)*[a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+`?/gi,
     (match) => {
@@ -978,7 +978,7 @@ export function isUngroundedHallucination(bullet: string, contextCorpus: string)
     /\b(?:haversine|geospatial|concentric\s+bounding\s+boxes?)\b/i.test(bLower)
   ) {
     const hasGeoGrounding =
-      /\b(?:geo|geospatial|haversine|gps|coord(?:inate)?s?|latitude|longitude|spatial|map(?:s|ping)?|proximity|radius|radial|wildfire|shelter)\b/i.test(
+      /\b(?:geo|geospatial|haversine|gps|coord(?:inate)?s?|latitude|longitude|spatial|map(?:s|ping)?|proximity|radius|radial)\b/i.test(
         normCorpus
       );
     if (!hasGeoGrounding) return true;
@@ -997,10 +997,10 @@ export function isUngroundedHallucination(bullet: string, contextCorpus: string)
 
   // 4. Emergency SOS / crisis workflow dispatch claims
   if (
-    /\b(?:emergency\s+sos|panic\s+exit|domestic\s+violence|crisis\s+service)\b/i.test(bLower)
+    /\b(?:emergency\s+sos|crisis\s+(?:service|dispatch|workflow)|safety\s+dispatch)\b/i.test(bLower)
   ) {
     const hasCrisisGrounding =
-      /\b(?:sos|emergency|crisis|safety|shelter|survivor|panic|domestic|violence)\b/i.test(
+      /\b(?:sos|emergency|crisis|safety|dispatch)\b/i.test(
         normCorpus
       );
     if (!hasCrisisGrounding) return true;
@@ -1074,7 +1074,7 @@ export function isUngroundedHallucination(bullet: string, contextCorpus: string)
     /\b(?:game\s+engine|physics\s+engine|compiler\s+pipeline|operating\s+system\s+kernel)\b/i.test(bLower)
   ) {
     const hasDomainGrounding =
-      /\b(?:game|physics|engine|simulation|compiler|kernel|minimax|alpha-beta|board|player|sprite)\b/i.test(
+      /\b(?:game|physics|engine|simulation|compiler|kernel|board|player|sprite)\b/i.test(
         normCorpus
       );
     if (!hasDomainGrounding) return true;

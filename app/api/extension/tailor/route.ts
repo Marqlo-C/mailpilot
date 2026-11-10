@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { prisma } from "@/lib/core/prisma";
 import { getExtensionAccountId } from "@/lib/extension/auth";
 import { handleOptionsCors, jsonWithCors } from "@/lib/extension/cors";
@@ -6,19 +5,7 @@ import { prepareOpportunityResume } from "@/lib/opportunities/dispatch/resume";
 import { getCompanyLogoUrl, inferApexDomainFromCompanyName } from "@/lib/utils/company-logo";
 import { parseStructuredJobSections } from "@/lib/opportunities/context/section-classifier";
 import { normalizeSalaryDisplay, parseSalaryMax } from "@/lib/ai/classifier";
-
-const tailorRequestSchema = z.object({
-  company: z.string().min(1, "Company name is required"),
-  title: z.string().min(1, "Job title is required"),
-  description: z.string().min(1, "Job description is required"),
-  url: z.string().url().optional().or(z.literal("")).or(z.null()),
-  location: z.string().optional().or(z.null()),
-  salary: z.string().optional().or(z.null()),
-  logoUrl: z.string().optional().or(z.null()),
-  pageBudget: z.union([z.literal("auto"), z.literal(1), z.literal(2)]).optional().default("auto"),
-  includeSummary: z.boolean().optional().default(true),
-  opportunityId: z.string().optional().or(z.null()),
-});
+import { tailorRequestSchema } from "@/lib/validations/extension";
 
 export async function OPTIONS(request: Request) {
   return handleOptionsCors(request);

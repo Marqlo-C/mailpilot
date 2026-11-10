@@ -1,5 +1,5 @@
 import { JobsRadar } from "@/components/opportunities/toolbar/jobs-radar";
-import { ScanInboxDialog } from "@/components/scan-inbox-dialog";
+import { SyncControls } from "@/components/opportunities/sync-controls";
 import { getMasterProfile } from "@/app/actions/profile";
 import {
   getActiveAccount,
@@ -47,7 +47,7 @@ export default async function JobsPage({
     return (
       <div className="space-y-3 pt-2">
         <div className="mb-3 flex justify-end">
-          <ScanInboxDialog accountId={null} />
+          <SyncControls accountId={null} />
         </div>
         <div className="rounded-lg border border-dashed border-border px-6 py-16 text-center">
           <p className="font-medium">Connect a Gmail account first</p>

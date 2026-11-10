@@ -6,3 +6,4 @@ export * from "./resume-parser";
 export * from "./skill-groups";
 export * from "./linkedin-archive-parser";
 export * from "./revision-diff";
+export * from "./revision-namer";

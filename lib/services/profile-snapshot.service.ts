@@ -1,0 +1,895 @@
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/core/prisma";
+import { encryptPhoneAtRest, decryptPhoneAtRest } from "@/lib/core/crypto";
+import { synthesizeCandidatePersona } from "@/lib/persona";
+import { normalizeProfileUrl } from "@/lib/utils/url";
+import { buildResumeContactLine, normalizeProjectName } from "@/lib/utils/format";
+import { loadMasterProfileForDraft } from "@/lib/profile/master-profile";
+import { generateTailoredResumePdf } from "@/lib/document/pdf-generator";
+import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
+import { ensurePersistentProfileForAccount } from "@/lib/profile/persistent-profile";
+import { serializeUserProfileToInput } from "@/lib/profile/profile-history";
+import {
+  consolidateProfiles,
+  extractPlatformLinks,
+  isPlaceholderEmail,
+} from "@/lib/profile/profile-consolidation";
+import {
+  describeProfileRevision,
+  isEmptyProfileDiff,
+  latestProfileUpdate,
+  serializeRevisionSummary,
+} from "@/lib/profile/revision-diff";
+import {
+  awardsSchema,
+  certificationsSchema,
+  getEmptyMasterProfileData,
+  interestsSchema,
+  linkedAccountsSchema,
+  readEducationStatus,
+  masterProfileSchema,
+  matchThresholdSchema,
+  snapMatchThreshold,
+  type LinkedAccountsInput,
+  type MasterProfileInput,
+  type MasterProfileUpdateInput,
+} from "@/lib/validations/profile";
+import { parseAccountRules } from "@/lib/validations/rules";
+import { captureProfileRevision } from "./profile-diff.service";
+
+export type ActionResult<T = undefined> =
+  | { ok: true; data?: T }
+  | { ok: false; error: string };
+
+export type UpdateMasterProfileOptions = {
+  summary?: string;
+  skipHistory?: boolean;
+  /** Replace the stored profile with the incoming resume instead of merging. */
+  overwriteAll?: boolean;
+};
+
+const LINKED_ACCOUNT_KEYS = [
+  "linkedWebsite",
+  "linkedIndeed",
+  "linkedGlassdoor",
+  "linkedGithub",
+  "linkedLinkedin",
+  "linkedHandshake",
+] as const;
+
+/** Bare domains get a scheme before schema validation. Blank fields stay null. */
+export function normalizedLinkedAccounts(
+  input: object
+): Partial<Record<(typeof LINKED_ACCOUNT_KEYS)[number], string | null>> {
+  const record = input as Partial<
+    Record<(typeof LINKED_ACCOUNT_KEYS)[number], string | null | undefined>
+  >;
+  const normalized: Partial<Record<(typeof LINKED_ACCOUNT_KEYS)[number], string | null>> = {};
+  for (const key of LINKED_ACCOUNT_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(record, key)) continue;
+    const raw = record[key];
+    const trimmed = typeof raw === "string" ? raw.trim() : "";
+    normalized[key] = trimmed ? normalizeProfileUrl(trimmed) : null;
+  }
+  return normalized;
+}
+
+export function honorsList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) =>
+    typeof item === "string" && item.trim() ? [item.trim()] : []
+  );
+}
+
+export function resolvedAccountLinks(profile: {
+  links: MasterProfileInput["links"];
+  linkedWebsite: string | null;
+  linkedIndeed: string | null;
+  linkedGlassdoor: string | null;
+  linkedGithub: string | null;
+  linkedLinkedin: string | null;
+  linkedHandshake: string | null;
+}) {
+  const detected = extractPlatformLinks(profile.links);
+  return {
+    linkedWebsite: profile.linkedWebsite || detected.linkedWebsite,
+    linkedIndeed: profile.linkedIndeed || detected.linkedIndeed,
+    linkedGlassdoor: profile.linkedGlassdoor || detected.linkedGlassdoor,
+    linkedGithub: profile.linkedGithub || detected.linkedGithub,
+    linkedLinkedin: profile.linkedLinkedin || detected.linkedLinkedin,
+    linkedHandshake: profile.linkedHandshake || detected.linkedHandshake,
+  };
+}
+
+/**
+ * Full master profile write (core resume fields + linked URLs).
+ * Validates with `masterProfileSchema` and replaces child relations in a transaction.
+ */
+export async function updateMasterProfile(
+  accountId: string,
+  data: MasterProfileUpdateInput | MasterProfileInput,
+  options?: UpdateMasterProfileOptions
+): Promise<ActionResult<{ profileId: string }>> {
+  const account = await prisma.account.findUnique({ where: { id: accountId } });
+  if (!account) {
+    return { ok: false, error: "Account not found" };
+  }
+
+  const email = isPlaceholderEmail(data.email) ? account.email : data.email;
+  const parsed = masterProfileSchema.safeParse({
+    ...data,
+    email,
+    ...normalizedLinkedAccounts(data),
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues.map((i) => i.message).join("; "),
+    };
+  }
+
+  const payload = parsed.data;
+  const persona = synthesizeCandidatePersona(payload);
+
+  try {
+    let summaryForSnapshot: string | null = null;
+    if (!options?.skipHistory) {
+      const keepGiven =
+        options?.summary?.startsWith("Restored:") ||
+        options?.summary === "Before Profile Reset";
+      let summary = options?.summary ?? "Profile update";
+      if (!keepGiven) {
+        const [existingTree, existingSettings] = await Promise.all([
+          prisma.userProfile.findUnique({
+            where: { accountId },
+            include: {
+              experiences: { orderBy: { displayOrder: "asc" } },
+              projects: true,
+              education: true,
+            },
+          }),
+          prisma.accountSettings.findUnique({
+            where: { accountId },
+          }),
+        ]);
+        const currentRules = parseAccountRules(existingSettings?.rules);
+        const previous = existingTree
+          ? serializeUserProfileToInput(existingTree, currentRules.projectMeta)
+          : null;
+        const described = describeProfileRevision(previous, payload);
+        if (previous && isEmptyProfileDiff(described.diff)) {
+          summaryForSnapshot = null;
+        } else {
+          summary = serializeRevisionSummary(described);
+          summaryForSnapshot = summary;
+        }
+      } else {
+        summaryForSnapshot = summary;
+      }
+    }
+
+    const profileId = await prisma.$transaction(async (tx) => {
+      const existing = await tx.userProfile.findUnique({
+        where: { accountId },
+      });
+
+      const shared = {
+        fullName: payload.fullName,
+        email: payload.email,
+        phone: encryptPhoneAtRest(payload.phone),
+        location: payload.location ?? null,
+        summary: payload.summary ?? null,
+        links: payload.links as Prisma.InputJsonValue,
+        skills: payload.skills as Prisma.InputJsonValue,
+        certifications: payload.certifications as Prisma.InputJsonValue,
+        awards: payload.awards as Prisma.InputJsonValue,
+        interests: payload.interests as Prisma.InputJsonValue,
+        linkedWebsite: payload.linkedWebsite ?? null,
+        linkedIndeed: payload.linkedIndeed ?? null,
+        linkedGlassdoor: payload.linkedGlassdoor ?? null,
+        linkedGithub: payload.linkedGithub ?? null,
+        linkedLinkedin: payload.linkedLinkedin ?? null,
+        linkedHandshake: payload.linkedHandshake ?? null,
+        seniorityTier: persona.seniorityTier,
+        timelineContext: persona.timelineContext,
+        toneGuidance: persona.toneGuidance,
+      };
+
+      const profile = existing
+        ? await tx.userProfile.update({
+            where: { accountId },
+            data: shared,
+          })
+        : await tx.userProfile.create({
+            data: {
+              accountId,
+              ...shared,
+            },
+          });
+
+      await tx.workExperience.deleteMany({ where: { profileId: profile.id } });
+      await tx.project.deleteMany({ where: { profileId: profile.id } });
+      await tx.education.deleteMany({ where: { profileId: profile.id } });
+
+      if (payload.experiences.length > 0) {
+        await tx.workExperience.createMany({
+          data: payload.experiences.map((exp, index) => ({
+            profileId: profile.id,
+            company: exp.company,
+            role: exp.role,
+            location: exp.location ?? null,
+            category: exp.category || "Work",
+            startDate: exp.startDate,
+            endDate: exp.endDate ?? null,
+            bullets: exp.bullets as Prisma.InputJsonValue,
+            displayOrder: exp.displayOrder ?? index,
+          })),
+        });
+      }
+
+      if (payload.projects.length > 0) {
+        const sortedProjects = [...payload.projects].sort((a, b) =>
+          (a.name || "").localeCompare(b.name || "", undefined, {
+            sensitivity: "base",
+          })
+        );
+        await tx.project.createMany({
+          data: sortedProjects.map((p) => ({
+            profileId: profile.id,
+            name: normalizeProjectName(p.name),
+            description: p.description,
+            technologies: p.technologies,
+            link: p.link ?? null,
+            bullets: p.bullets,
+          })),
+        });
+
+        // Agnostically persist project metadata (bulletOrigins, variants, origin) in rules
+        const existingSettings = await tx.accountSettings.findUnique({
+          where: { accountId },
+        });
+        const currentRules = parseAccountRules(existingSettings?.rules);
+        const updatedProjectMeta: Record<
+          string,
+          {
+            origin?: string;
+            bulletOrigins?: Record<string, string>;
+            variants?: unknown[];
+          }
+        > = {
+          ...(options?.overwriteAll ? {} : (currentRules.projectMeta || {})),
+        };
+
+        for (const p of payload.projects) {
+          const normKey = normalizeProjectName(p.name);
+          const lowerKey = p.name.trim().toLowerCase();
+          const repoSlug = p.link ? p.link.split("/").pop()?.replace(/\.git$/i, "") : null;
+          const defaultOrigin = p.origin ?? "HUMAN_VERIFIED";
+          const existingBulletOrigins =
+            updatedProjectMeta[normKey]?.bulletOrigins ??
+            updatedProjectMeta[lowerKey]?.bulletOrigins ??
+            (repoSlug ? updatedProjectMeta[repoSlug]?.bulletOrigins ?? updatedProjectMeta[repoSlug.toLowerCase()]?.bulletOrigins : undefined) ??
+            {};
+          const bOrigins: Record<string, string> = {
+            ...(options?.overwriteAll ? {} : existingBulletOrigins),
+            ...(p.bulletOrigins ?? {}),
+          };
+          for (const b of p.bullets) {
+            if (!bOrigins[b]) {
+              bOrigins[b] = defaultOrigin;
+            }
+          }
+
+          const existingVariants =
+            updatedProjectMeta[normKey]?.variants ??
+            updatedProjectMeta[lowerKey]?.variants ??
+            (repoSlug ? updatedProjectMeta[repoSlug]?.variants ?? updatedProjectMeta[repoSlug.toLowerCase()]?.variants : undefined) ??
+            [];
+
+          const metaEntry = {
+            origin: defaultOrigin,
+            bulletOrigins: bOrigins,
+            variants:
+              (p.variants as unknown[]) ??
+              (options?.overwriteAll ? [] : existingVariants),
+          };
+          updatedProjectMeta[normKey] = metaEntry;
+          updatedProjectMeta[lowerKey] = metaEntry;
+          if (repoSlug) {
+            updatedProjectMeta[repoSlug] = metaEntry;
+            updatedProjectMeta[repoSlug.toLowerCase()] = metaEntry;
+          }
+        }
+
+        await tx.accountSettings.upsert({
+          where: { accountId },
+          create: {
+            accountId,
+            rules: {
+              ...currentRules,
+              projectMeta: updatedProjectMeta,
+            } as Prisma.InputJsonValue,
+          },
+          update: {
+            rules: {
+              ...currentRules,
+              projectMeta: updatedProjectMeta,
+            } as Prisma.InputJsonValue,
+          },
+        });
+      } else if (options?.overwriteAll) {
+        const existingSettings = await tx.accountSettings.findUnique({
+          where: { accountId },
+        });
+        const currentRules = parseAccountRules(existingSettings?.rules);
+        await tx.accountSettings.upsert({
+          where: { accountId },
+          create: {
+            accountId,
+            rules: {
+              ...currentRules,
+              projectMeta: {},
+            } as Prisma.InputJsonValue,
+          },
+          update: {
+            rules: {
+              ...currentRules,
+              projectMeta: {},
+            } as Prisma.InputJsonValue,
+          },
+        });
+      }
+
+      if (payload.education.length > 0) {
+        await tx.education.createMany({
+          data: payload.education.map((ed) => ({
+            profileId: profile.id,
+            institution: ed.institution,
+            subSchool: ed.subSchool ?? null,
+            degree: ed.degree ?? null,
+            fieldOfStudy: ed.fieldOfStudy ?? null,
+            startDate: ed.startDate ?? null,
+            graduationDate: ed.graduationDate || ed.endDate || null,
+            status: ed.status ?? "GRADUATED",
+            gpa: ed.gpa ?? null,
+            honors: (ed.honors ?? []) as Prisma.InputJsonValue,
+            coursework: (ed.coursework ?? []) as Prisma.InputJsonValue,
+          })),
+        });
+      }
+
+      return profile.id;
+    });
+
+    if (summaryForSnapshot) {
+      await captureProfileRevision(accountId, summaryForSnapshot);
+    }
+
+    return { ok: true, data: { profileId } };
+  } catch (error) {
+    console.error("updateMasterProfile failed", error);
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to save profile",
+    };
+  }
+}
+
+/**
+ * Additively consolidates incoming profile data with any existing master profile,
+ * auto-fills linked platform URLs from the links array, then persists.
+ */
+export async function saveMasterProfile(
+  accountId: string,
+  data: MasterProfileInput,
+  options?: UpdateMasterProfileOptions
+): Promise<ActionResult<{ profileId: string }>> {
+  const [existing, existingSettings] = await Promise.all([
+    prisma.userProfile.findUnique({
+      where: { accountId },
+      include: {
+        experiences: { orderBy: { displayOrder: "asc" } },
+        projects: true,
+        education: true,
+      },
+    }),
+    prisma.accountSettings.findUnique({
+      where: { accountId },
+    }),
+  ]);
+
+  const platforms = extractPlatformLinks(data.links);
+  let consolidated: MasterProfileInput = data;
+
+  const overwriteAll = options?.overwriteAll === true;
+
+  if (existing) {
+    const currentRules = parseAccountRules(existingSettings?.rules);
+    const current = serializeUserProfileToInput(existing, currentRules.projectMeta);
+    consolidated = consolidateProfiles(current, data, { overwriteAll });
+  }
+
+  if (platforms.linkedWebsite) {
+    const hasWebsite = consolidated.links.some(
+      (l) =>
+        l.url.toLowerCase() === platforms.linkedWebsite!.toLowerCase() ||
+        l.label.toLowerCase().includes("portfolio") ||
+        l.label.toLowerCase().includes("website")
+    );
+    if (!hasWebsite) {
+      consolidated = {
+        ...consolidated,
+        links: [
+          ...consolidated.links,
+          { label: "Portfolio", url: platforms.linkedWebsite },
+        ],
+      };
+    }
+  }
+
+  const resolvedPlatforms = extractPlatformLinks(consolidated.links);
+
+  return updateMasterProfile(
+    accountId,
+    {
+      ...consolidated,
+      linkedWebsite: overwriteAll
+        ? resolvedPlatforms.linkedWebsite
+        : existing?.linkedWebsite ?? resolvedPlatforms.linkedWebsite ?? null,
+      linkedIndeed: overwriteAll
+        ? resolvedPlatforms.linkedIndeed
+        : existing?.linkedIndeed ?? resolvedPlatforms.linkedIndeed ?? null,
+      linkedGlassdoor: overwriteAll
+        ? resolvedPlatforms.linkedGlassdoor
+        : existing?.linkedGlassdoor ?? resolvedPlatforms.linkedGlassdoor ?? null,
+      linkedGithub: overwriteAll
+        ? resolvedPlatforms.linkedGithub
+        : existing?.linkedGithub ?? resolvedPlatforms.linkedGithub ?? null,
+      linkedLinkedin: overwriteAll
+        ? resolvedPlatforms.linkedLinkedin
+        : existing?.linkedLinkedin ?? resolvedPlatforms.linkedLinkedin ?? null,
+      linkedHandshake: overwriteAll
+        ? resolvedPlatforms.linkedHandshake
+        : existing?.linkedHandshake ?? resolvedPlatforms.linkedHandshake ?? null,
+    },
+    {
+      summary:
+        options?.summary ??
+        (existing ? "Additive Profile Update" : "Before Resume Extraction"),
+      skipHistory: options?.skipHistory,
+      overwriteAll,
+    }
+  );
+}
+
+/**
+ * Wipes the active master profile after storing the current state in ProfileHistory.
+ */
+export async function resetMasterProfile(
+  accountId: string
+): Promise<ActionResult<{ profileId: string }>> {
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { profile: true },
+  });
+  if (!account) return { ok: false, error: "Account not found" };
+  if (!account.profile) return { ok: false, error: "Profile not found" };
+
+  const blank = getEmptyMasterProfileData();
+
+  try {
+    const [existingTree, existingSettings] = await Promise.all([
+      prisma.userProfile.findUnique({
+        where: { accountId },
+        include: {
+          experiences: { orderBy: { displayOrder: "asc" } },
+          projects: true,
+          education: true,
+        },
+      }),
+      prisma.accountSettings.findUnique({
+        where: { accountId },
+      }),
+    ]);
+    const currentRules = parseAccountRules(existingSettings?.rules);
+    const previous = existingTree
+      ? serializeUserProfileToInput(existingTree, currentRules.projectMeta)
+      : null;
+    const currentSummary = serializeRevisionSummary(
+      describeProfileRevision(previous, {
+        ...blank,
+        email: account.email,
+      })
+    );
+
+    await captureProfileRevision(accountId, "Before Profile Reset");
+    await prisma.$transaction(async (tx) => {
+      await tx.userProfile.update({
+        where: { accountId },
+        data: {
+          fullName: blank.fullName,
+          email: blank.email,
+          phone: null,
+          location: null,
+          summary: null,
+          links: blank.links as Prisma.InputJsonValue,
+          skills: blank.skills as Prisma.InputJsonValue,
+          certifications: blank.certifications as Prisma.InputJsonValue,
+          awards: blank.awards as Prisma.InputJsonValue,
+          interests: blank.interests as Prisma.InputJsonValue,
+          linkedWebsite: null,
+          linkedIndeed: null,
+          linkedGlassdoor: null,
+          linkedGithub: null,
+          linkedLinkedin: null,
+          linkedHandshake: null,
+          seniorityTier: null,
+          timelineContext: null,
+          toneGuidance: null,
+        },
+      });
+      await tx.workExperience.deleteMany({
+        where: { profileId: account.profile!.id },
+      });
+      await tx.project.deleteMany({
+        where: { profileId: account.profile!.id },
+      });
+      await tx.education.deleteMany({
+        where: { profileId: account.profile!.id },
+      });
+      await tx.accountSettings.upsert({
+        where: { accountId },
+        create: {
+          accountId,
+          rules: {
+            ...currentRules,
+            projectMeta: {},
+          } as Prisma.InputJsonValue,
+        },
+        update: {
+          rules: {
+            ...currentRules,
+            projectMeta: {},
+          } as Prisma.InputJsonValue,
+        },
+      });
+    });
+
+    await captureProfileRevision(accountId, currentSummary);
+
+    return { ok: true, data: { profileId: account.profile.id } };
+  } catch (error) {
+    console.error("resetMasterProfile failed", error);
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to reset profile",
+    };
+  }
+}
+
+/**
+ * Fetches the full master profile with experiences, projects, and education.
+ */
+export async function getMasterProfile(
+  accountId: string
+): Promise<
+  ActionResult<
+    MasterProfileInput & {
+      updatedAt?: string;
+      matchThreshold: number;
+      linkedWebsite: string | null;
+      linkedIndeed: string | null;
+      linkedGlassdoor: string | null;
+      linkedGithub: string | null;
+      linkedLinkedin: string | null;
+      linkedHandshake: string | null;
+      seniorityTier: string | null;
+      timelineContext: string | null;
+      toneGuidance: string | null;
+    }
+  >
+> {
+  try {
+    const [profile, settings] = await Promise.all([
+      prisma.userProfile.findUnique({
+        where: { accountId },
+        include: {
+          experiences: { orderBy: { displayOrder: "asc" } },
+          projects: { orderBy: { name: "asc" } },
+          education: true,
+          history: {
+            orderBy: { createdAt: "desc" },
+            select: { createdAt: true, summary: true },
+          },
+        },
+      }),
+      prisma.accountSettings.findUnique({
+        where: { accountId },
+      }),
+    ]);
+
+    if (!profile) {
+      return { ok: false, error: "Profile not found" };
+    }
+
+    const rules = parseAccountRules(settings?.rules);
+    const metaMap = (rules.projectMeta || {}) as Record<
+      string,
+      {
+        origin?: string;
+        bulletOrigins?: Record<string, string>;
+        variants?: MasterProfileInput["projects"][number]["variants"];
+      }
+    >;
+
+    return {
+      ok: true,
+      data: {
+        fullName: profile.fullName,
+        email: profile.email,
+        phone: decryptPhoneAtRest(profile.phone),
+        location: profile.location,
+        summary: profile.summary,
+        links: (profile.links as MasterProfileInput["links"]) ?? [],
+        skills: skillGroupsFromUnknown(profile.skills),
+        experiences: profile.experiences.map((e) => ({
+          id: e.id,
+          company: e.company,
+          role: e.role,
+          location: e.location,
+          category: e.category,
+          startDate: e.startDate,
+          endDate: e.endDate,
+          bullets:
+            (e.bullets as MasterProfileInput["experiences"][number]["bullets"]) ??
+            [],
+          displayOrder: e.displayOrder,
+        })),
+        projects: profile.projects
+          .map((p) => {
+            const normKey = normalizeProjectName(p.name);
+            const lowerKey = p.name.trim().toLowerCase();
+            const repoSlug = p.link ? p.link.split("/").pop()?.replace(/\.git$/i, "") : null;
+            const meta =
+              metaMap[normKey] ||
+              metaMap[lowerKey] ||
+              (repoSlug ? metaMap[repoSlug] || metaMap[repoSlug.toLowerCase()] : null) ||
+              metaMap[p.name];
+            return {
+              id: p.id,
+              name: p.name,
+              description: p.description,
+              technologies: p.technologies,
+              link: p.link,
+              bullets: p.bullets,
+              bulletOrigins: meta?.bulletOrigins,
+              variants: meta?.variants,
+              origin: (meta?.origin || "HUMAN_VERIFIED") as MasterProfileInput["projects"][number]["origin"],
+            };
+          })
+          .sort((a, b) =>
+            (a.name || "").localeCompare(b.name || "", undefined, {
+              sensitivity: "base",
+            })
+          ),
+        education: profile.education.map((ed) => ({
+          id: ed.id,
+          institution: ed.institution,
+          subSchool: ed.subSchool,
+          degree: ed.degree,
+          fieldOfStudy: ed.fieldOfStudy,
+          startDate: ed.startDate,
+          graduationDate: ed.graduationDate,
+          status: readEducationStatus(ed.status),
+          gpa: ed.gpa,
+          honors: honorsList(ed.honors),
+          coursework: honorsList(ed.coursework),
+        })),
+        certifications: certificationsSchema.parse(profile.certifications),
+        awards: awardsSchema.parse(profile.awards),
+        interests: interestsSchema.parse(profile.interests),
+        updatedAt: latestProfileUpdate(profile.history, profile.updatedAt),
+        matchThreshold: profile.matchThreshold,
+        ...resolvedAccountLinks({
+          links: (profile.links as MasterProfileInput["links"]) ?? [],
+          linkedWebsite: profile.linkedWebsite,
+          linkedIndeed: profile.linkedIndeed,
+          linkedGlassdoor: profile.linkedGlassdoor,
+          linkedGithub: profile.linkedGithub,
+          linkedLinkedin: profile.linkedLinkedin,
+          linkedHandshake: profile.linkedHandshake,
+        }),
+        seniorityTier: profile.seniorityTier,
+        timelineContext: profile.timelineContext,
+        toneGuidance: profile.toneGuidance,
+      },
+    };
+  } catch (error) {
+    console.error("getMasterProfile failed", error);
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to load profile",
+    };
+  }
+}
+
+/**
+ * Sole mutation for Job Radar match threshold.
+ * Writes PermanentSettings.matchScoreThreshold (canonical) and mirrors
+ * UserProfile.matchThreshold when a resume profile exists.
+ */
+export async function updateMatchThreshold(
+  accountId: string,
+  value: number
+): Promise<ActionResult<{ matchThreshold: number }>> {
+  const parsed = matchThresholdSchema.safeParse(value);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues.map((i) => i.message).join("; "),
+    };
+  }
+
+  const next = snapMatchThreshold(parsed.data);
+
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    select: {
+      id: true,
+      email: true,
+      persistentProfileId: true,
+      profile: { select: { id: true } },
+    },
+  });
+  if (!account) {
+    return { ok: false, error: "Account not found" };
+  }
+
+  try {
+    const durable = await ensurePersistentProfileForAccount(account);
+
+    await prisma.permanentSettings.upsert({
+      where: { persistentProfileId: durable.id },
+      create: {
+        persistentProfileId: durable.id,
+        matchScoreThreshold: next,
+      },
+      update: { matchScoreThreshold: next },
+    });
+
+    if (account.profile) {
+      await prisma.userProfile.update({
+        where: { accountId },
+        data: { matchThreshold: next },
+      });
+    }
+
+    return { ok: true, data: { matchThreshold: next } };
+  } catch (error) {
+    console.error("updateMatchThreshold failed", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to update threshold",
+    };
+  }
+}
+
+/**
+ * Saves Linked Professional Account profile URLs on UserProfile.
+ */
+export async function updateLinkedAccounts(
+  accountId: string,
+  input: LinkedAccountsInput
+): Promise<ActionResult> {
+  const parsed = linkedAccountsSchema.safeParse(normalizedLinkedAccounts(input));
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues.map((i) => i.message).join("; "),
+    };
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { profile: true },
+  });
+  if (!account) {
+    return { ok: false, error: "Account not found" };
+  }
+  if (!account.profile) {
+    return {
+      ok: false,
+      error: "Upload a master resume before linking professional accounts",
+    };
+  }
+
+  try {
+    await prisma.userProfile.update({
+      where: { accountId },
+      data: {
+        linkedWebsite: parsed.data.linkedWebsite,
+        linkedIndeed: parsed.data.linkedIndeed,
+        linkedGlassdoor: parsed.data.linkedGlassdoor,
+        linkedGithub: parsed.data.linkedGithub,
+        linkedLinkedin: parsed.data.linkedLinkedin,
+        linkedHandshake: parsed.data.linkedHandshake,
+      },
+    });
+
+    return { ok: true };
+  } catch (error) {
+    console.error("updateLinkedAccounts failed", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to update linked accounts",
+    };
+  }
+}
+
+/**
+ * Exports the unpruned Master Profile as a comprehensive, multi-page PDF document
+ * containing all experiences, projects, skills, education, and credentials without calling the LLM.
+ */
+export async function exportMasterProfilePdf(
+  accountId: string
+): Promise<ActionResult<{ pdfBase64: string; filename: string }>> {
+  if (!accountId) {
+    return { ok: false, error: "accountId is required" };
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+  });
+  if (!account) {
+    return { ok: false, error: "Account not found" };
+  }
+
+  try {
+    const profile = await loadMasterProfileForDraft(accountId);
+
+    const pdfBuffer = await generateTailoredResumePdf(
+      profile,
+      profile.experiences,
+      profile.projects,
+      profile.summary ?? null,
+      profile.skills,
+      Boolean(profile.summary),
+      {
+        headerName: profile.fullName,
+        contactLine: buildResumeContactLine(profile),
+        education: profile.education,
+        skillGroups: profile.skills,
+        certifications: profile.certifications,
+        awards: profile.awards,
+        interests: profile.interests,
+        includeVariants: true,
+      }
+    );
+
+    const safeName = (profile.fullName || "Candidate")
+      .trim()
+      .replace(/\s+/g, "_");
+    const filename = `${safeName}_Master_Profile.pdf`;
+
+    return {
+      ok: true,
+      data: {
+        pdfBase64: pdfBuffer.toString("base64"),
+        filename,
+      },
+    };
+  } catch (error) {
+    console.error("exportMasterProfilePdfAction failed", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to export master profile PDF",
+    };
+  }
+}

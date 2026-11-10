@@ -1,0 +1,592 @@
+import {
+  buildResumeContactLine,
+  cleanProjectUrl,
+  formatEducationTitle,
+  formatExperienceHeading,
+  formatSchoolName,
+  normalizeProjectName,
+  sanitizeResumeContactLine,
+} from "@/lib/utils/format";
+import type { TailorResult } from "@/lib/tailor";
+import {
+  tailoredResumeDraftSchema,
+  type ResumeDraftNode,
+  type ResumeExportConfig,
+  type SkillGroup,
+  type TailoredResumeDraft,
+} from "./schema.ssot";
+import {
+  readEducationStatus,
+  type MasterProfileInput,
+  type ProjectInput,
+  type WorkExperienceInput,
+} from "@/lib/validations/profile";
+import type { AccountRules } from "@/lib/validations/rules";
+import type { CandidatePersona } from "@/lib/persona/schema.ssot";
+import {
+  resolveResumeDraftLens,
+  sortExperiencesReverseChronological,
+} from "./lens";
+import {
+  estimateFixedSectionsHeight,
+  clampPdfContentToPhysicalCeiling,
+} from "./physics";
+import {
+  skillCategoryLabel,
+  skillGroupsFromUnknown,
+} from "@/lib/profile/skill-groups";
+import { createDraftNode, activeResumeNodes } from "./node-ops";
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function splitList(content: string): string[] {
+  return content
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Turn a tailor result plus the master profile into a line-addressable draft.
+ * Does not render a PDF.
+ */
+export function digestTailoredResume(input: {
+  opportunityId: string;
+  profile: MasterProfileInput;
+  tailored: TailorResult;
+  includeSummary: boolean;
+  persona?: CandidatePersona | null;
+  rules?: Partial<AccountRules> | null;
+  exportOverrides?: Partial<ResumeExportConfig> | null;
+}): TailoredResumeDraft {
+  const {
+    opportunityId,
+    profile,
+    tailored,
+    includeSummary,
+    persona,
+    rules,
+    exportOverrides,
+  } = input;
+
+  const resolved = resolveResumeDraftLens({
+    profile,
+    persona,
+    rules,
+    draftOverrides: {
+      includeSummary,
+      ...exportOverrides,
+    },
+  });
+
+  const nodes: ResumeDraftNode[] = [];
+
+  // Contact header always sits at the top of the resume
+  nodes.push(
+    createDraftNode({
+      id: `header:${opportunityId}`,
+      type: "header",
+      section: "contact",
+      content: profile.fullName,
+      metadata: {
+        contactLine: sanitizeResumeContactLine(buildResumeContactLine(profile)),
+      },
+    })
+  );
+
+  const tailoredGroups = skillGroupsFromUnknown(tailored.tailoredSkills);
+  const skillGroups =
+    tailoredGroups.length > 0
+      ? tailoredGroups
+      : skillGroupsFromUnknown(profile.skills);
+
+  const rawExperiences =
+    resolved.inclusionMode === "MANUAL"
+      ? sortExperiencesReverseChronological(
+          tailored.selectedExperience.length > 0
+            ? tailored.selectedExperience
+            : resolved.profile.experiences
+        )
+      : tailored.selectedExperience.length > 0
+        ? sortExperiencesReverseChronological(tailored.selectedExperience)
+        : resolved.profile.experiences;
+
+  const rawProjects =
+    resolved.inclusionMode === "MANUAL"
+      ? tailored.selectedProjects.length > 0
+        ? tailored.selectedProjects
+        : resolved.disabledSections.includes("projects")
+          ? []
+          : resolved.profile.projects
+      : tailored.selectedProjects;
+  const education = resolved.profile.education;
+  const summary = tailored.tailoredSummary?.trim() || profile.summary?.trim() || "";
+
+  const rawBudget = resolved.pageBudget;
+  const targetPages: 1 | 2 = String(rawBudget) === "2" ? 2 : 1;
+
+  let finalSkillGroups = skillGroups;
+  const totalSkillsCount = skillGroups.reduce((acc, g) => acc + g.items.length, 0);
+  if (targetPages === 1 && totalSkillsCount > 24) {
+    const perCategoryCap = Math.max(4, Math.floor(24 / Math.max(1, skillGroups.length)));
+    finalSkillGroups = skillGroups
+      .map((g) => ({
+        ...g,
+        items: g.items.slice(0, perCategoryCap),
+      }))
+      .filter((g) => g.items.length > 0);
+  }
+
+  const fixedSectionsHeight = estimateFixedSectionsHeight({
+    hasSummary: resolved.includeSummary && Boolean(summary),
+    summaryText: summary,
+    skillsCount: finalSkillGroups.reduce((acc, g) => acc + g.items.length, 0),
+    skillsLineCount: finalSkillGroups.length,
+    educationCount: education.length,
+    certificationsCount: profile.certifications?.length ?? 0,
+    awardsCount: profile.awards?.length ?? 0,
+    interestsCount: profile.interests?.length ?? 0,
+    disabledSections: resolved.disabledSections,
+  });
+
+  const {
+    experiences,
+    projects,
+    didClamp,
+  } = clampPdfContentToPhysicalCeiling({
+    targetPages,
+    fixedSectionsHeight,
+    experiences: rawExperiences,
+    projects: rawProjects,
+  });
+
+  const warningFlags = [...(tailored.warningFlags ?? [])];
+  if (didClamp && !warningFlags.includes("PAGE_BUDGET_OVERFLOW")) {
+    warningFlags.push("PAGE_BUDGET_OVERFLOW");
+  }
+
+  // Append sections strictly following resolved.sectionOrder
+  for (const section of resolved.sectionOrder) {
+    switch (section) {
+      case "summary": {
+        if (resolved.includeSummary && summary) {
+          nodes.push(
+            createDraftNode({
+              id: `summary:${opportunityId}`,
+              type: "summary",
+              section: "summary",
+              content: summary,
+            })
+          );
+        }
+        break;
+      }
+
+      case "skills": {
+        finalSkillGroups.forEach((group, index) => {
+          const content = group.items.map((item) => item.name).join(", ");
+          const slug =
+            group.label
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-|-$/g, "") || `group-${index}`;
+          nodes.push(
+            createDraftNode({
+              id: `skills:${slug}:${index}:${opportunityId}`,
+              type: "skill_group",
+              section: "skills",
+              content,
+              metadata: {
+                categoryLabel: group.label,
+                parentCategory: group.parentCategory ?? null,
+              },
+            })
+          );
+        });
+        break;
+      }
+
+      case "projects": {
+        projects.forEach((project, index) => {
+          const headerId = `proj:${project.id ?? index}:${opportunityId}`;
+          nodes.push(
+            createDraftNode({
+              id: headerId,
+              type: "project_header",
+              section: "projects",
+              content: normalizeProjectName(project.name),
+              metadata: {
+                description: project.description,
+                technologies: project.technologies,
+                link: project.link ?? null,
+              },
+            })
+          );
+          const bullets =
+            project.bullets.length > 0
+              ? project.bullets
+              : project.description
+                ? [project.description]
+                : [];
+          bullets.forEach((text, bulletIndex) => {
+            nodes.push(
+              createDraftNode({
+                id: `proj-bullet:${bulletIndex}:${headerId}`,
+                type: "project_bullet",
+                section: "projects",
+                parentId: headerId,
+                content: text,
+              })
+            );
+          });
+        });
+        break;
+      }
+
+      case "experience": {
+        experiences.forEach((exp, index) => {
+          const headerId = `exp:${exp.id ?? index}:${opportunityId}`;
+          nodes.push(
+            createDraftNode({
+              id: headerId,
+              type: "experience_header",
+              section: "experience",
+              content: formatExperienceHeading(exp.role, exp.company, exp.location),
+              metadata: {
+                company: exp.company,
+                role: exp.role,
+                location: exp.location ?? null,
+                category: exp.category || "Work",
+                startDate: exp.startDate,
+                endDate: exp.endDate ?? null,
+                displayOrder: exp.displayOrder ?? index,
+              },
+            })
+          );
+          exp.bullets.forEach((bullet, bulletIndex) => {
+            nodes.push(
+              createDraftNode({
+                id: `exp-bullet:${bullet.id || bulletIndex}:${headerId}`,
+                type: "experience_bullet",
+                section: "experience",
+                parentId: headerId,
+                content: bullet.rawText,
+                metadata: {
+                  bulletId: bullet.id,
+                  technologies: bullet.technologies,
+                  hasMetric: bullet.hasMetric,
+                },
+              })
+            );
+          });
+        });
+        break;
+      }
+
+      case "education": {
+        education.forEach((ed, index) => {
+          const degree = formatEducationTitle(ed.degree, ed.fieldOfStudy);
+          const school = formatSchoolName(ed.institution, ed.subSchool);
+          nodes.push(
+            createDraftNode({
+              id: `edu:${ed.id ?? index}:${opportunityId}`,
+              type: "education_item",
+              section: "education",
+              content: [degree, school].filter(Boolean).join(" — "),
+              metadata: {
+                institution: ed.institution,
+                subSchool: ed.subSchool ?? null,
+                degree: ed.degree,
+                fieldOfStudy: ed.fieldOfStudy ?? null,
+                startDate: ed.startDate ?? null,
+                graduationDate: ed.graduationDate ?? null,
+                status: ed.status ?? "GRADUATED",
+              },
+            })
+          );
+        });
+        break;
+      }
+
+      case "certifications": {
+        profile.certifications.forEach((item, index) => {
+          const detail = [item.issuer, item.date].filter(Boolean).join(" | ");
+          nodes.push(
+            createDraftNode({
+              id: `cert:${index}:${opportunityId}`,
+              type: "certification_item",
+              section: "certifications",
+              content: detail ? `${item.name} — ${detail}` : item.name,
+              metadata: {
+                name: item.name,
+                issuer: item.issuer ?? null,
+                date: item.date ?? null,
+                url: item.url ?? null,
+              },
+            })
+          );
+        });
+        break;
+      }
+
+      case "awards": {
+        profile.awards.forEach((item, index) => {
+          const detail = [item.issuer, item.date].filter(Boolean).join(" | ");
+          const headline = detail ? `${item.title} — ${detail}` : item.title;
+          nodes.push(
+            createDraftNode({
+              id: `award:${index}:${opportunityId}`,
+              type: "award_item",
+              section: "awards",
+              content: item.description ? `${headline}. ${item.description}` : headline,
+              metadata: {
+                title: item.title,
+                issuer: item.issuer ?? null,
+                date: item.date ?? null,
+                description: item.description ?? null,
+              },
+            })
+          );
+        });
+        break;
+      }
+
+      case "interests": {
+        profile.interests.forEach((interest, index) => {
+          nodes.push(
+            createDraftNode({
+              id: `interest:${index}:${opportunityId}`,
+              type: "interest_item",
+              section: "interests",
+              content: interest,
+            })
+          );
+        });
+        break;
+      }
+    }
+  }
+
+  return tailoredResumeDraftSchema.parse({
+    opportunityId,
+    nodes,
+    exportConfig: {
+      includeSummary: resolved.includeSummary,
+      pageBudget: resolved.pageBudget,
+      sectionOrder: resolved.sectionOrder,
+      disabledSections: resolved.disabledSections,
+      orderingMode: resolved.orderingMode,
+      inclusionMode: resolved.inclusionMode,
+      inventMetrics: resolved.inventMetrics,
+      warningFlags,
+    },
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/** Rebuild the structures the PDF renderer already understands. */
+export function draftToPdfInput(
+  draft: TailoredResumeDraft,
+  profile?: MasterProfileInput | null
+): {
+  headerName: string;
+  contactLine: string;
+  experiences: WorkExperienceInput[];
+  projects: ProjectInput[];
+  tailoredSummary: string | null;
+  skillGroups: SkillGroup[];
+  includeSummary: boolean;
+  education: MasterProfileInput["education"];
+  certifications: MasterProfileInput["certifications"];
+  awards: MasterProfileInput["awards"];
+  interests: MasterProfileInput["interests"];
+  sectionOrder?: string[] | null;
+  disabledSections?: string[] | null;
+  warningFlags?: string[];
+} {
+  const active = activeResumeNodes(draft);
+  const header = active.find((item) => item.type === "header");
+  const summary = active.find((item) => item.type === "summary");
+  const skillGroups = active
+    .filter((item) => item.type === "skill_group")
+    .flatMap((group) => {
+      const items = splitList(group.content);
+      if (items.length === 0) return [];
+      return [
+        {
+          label: skillCategoryLabel(group) ?? "",
+          parentCategory: asString(group.metadata?.parentCategory) || null,
+          items: items.map((name) => ({ name, proficiency: null })),
+        },
+      ];
+    });
+
+  const experiences: WorkExperienceInput[] = [];
+  for (const headerNode of active.filter(
+    (item) => item.type === "experience_header"
+  )) {
+    const bullets = active.filter(
+      (item) =>
+        item.type === "experience_bullet" && item.parentId === headerNode.id
+    );
+    const parts = headerNode.content.split(/\s*[|·]\s*/);
+    const role =
+      parts[0]?.trim() || asString(headerNode.metadata?.role) || headerNode.content;
+    const company =
+      (parts.length > 1 ? parts[1]?.trim() : null) ||
+      asString(headerNode.metadata?.company) ||
+      role;
+    const location =
+      (parts.length > 2 ? parts[2]?.trim() : null) ||
+      asString(headerNode.metadata?.location) ||
+      null;
+    experiences.push({
+      id: headerNode.id,
+      company: company || role,
+      role,
+      location,
+      category: asString(headerNode.metadata?.category) || "Work",
+      startDate: asString(headerNode.metadata?.startDate) || "—",
+      endDate: asString(headerNode.metadata?.endDate) || null,
+      displayOrder: Number(headerNode.metadata?.displayOrder ?? experiences.length),
+      bullets: bullets.map((bullet) => ({
+        id: bullet.id,
+        rawText: bullet.content,
+        technologies: Array.isArray(bullet.metadata?.technologies)
+          ? bullet.metadata.technologies.filter(
+              (item): item is string => typeof item === "string"
+            )
+          : [],
+        hasMetric: bullet.metadata?.hasMetric === true,
+      })),
+    });
+  }
+
+  const projects: ProjectInput[] = [];
+  for (const headerNode of active.filter((item) => item.type === "project_header")) {
+    const bullets = active
+      .filter(
+        (item) =>
+          item.type === "project_bullet" && item.parentId === headerNode.id
+      )
+      .map((item) => item.content);
+    const rawLink = asString(headerNode.metadata?.link);
+    const link = rawLink ? cleanProjectUrl(rawLink) : null;
+    projects.push({
+      id: headerNode.id,
+      name: normalizeProjectName(headerNode.content),
+      description: asString(headerNode.metadata?.description),
+      technologies: Array.isArray(headerNode.metadata?.technologies)
+        ? headerNode.metadata.technologies.filter(
+            (item): item is string => typeof item === "string"
+          )
+        : [],
+      link: link || null,
+      bullets,
+    });
+  }
+
+  const certifications = active
+    .filter((item) => item.type === "certification_item")
+    .map((item) => ({
+      name: asString(item.metadata?.name) || item.content,
+      issuer: asString(item.metadata?.issuer) || null,
+      date: asString(item.metadata?.date) || null,
+      url: asString(item.metadata?.url) || null,
+    }));
+
+  const awards = active
+    .filter((item) => item.type === "award_item")
+    .map((item) => ({
+      title: asString(item.metadata?.title) || item.content,
+      issuer: asString(item.metadata?.issuer) || null,
+      date: asString(item.metadata?.date) || null,
+      description: asString(item.metadata?.description) || null,
+    }));
+
+  const interests = active
+    .filter((item) => item.type === "interest_item")
+    .map((item) => item.content.trim())
+    .filter(Boolean);
+
+  const education = active
+    .filter((item) => item.type === "education_item")
+    .map((item) => ({
+      id: item.id,
+      institution: asString(item.metadata?.institution),
+      subSchool: asString(item.metadata?.subSchool) || null,
+      degree: asString(item.metadata?.degree) || null,
+      fieldOfStudy: asString(item.metadata?.fieldOfStudy) || null,
+      startDate: asString(item.metadata?.startDate) || null,
+      graduationDate: asString(item.metadata?.graduationDate) || null,
+      status: readEducationStatus(item.metadata?.status),
+      honors: [],
+      coursework: [],
+    }));
+
+  const rawBudget = draft.exportConfig.pageBudget;
+  const targetPages: 1 | 2 = String(rawBudget) === "2" ? 2 : 1;
+
+  let finalSkillGroups = skillGroups;
+  const totalSkillsCount = skillGroups.reduce((acc, g) => acc + g.items.length, 0);
+  if (targetPages === 1 && totalSkillsCount > 24) {
+    const perCategoryCap = Math.max(4, Math.floor(24 / Math.max(1, skillGroups.length)));
+    finalSkillGroups = skillGroups
+      .map((g) => ({
+        ...g,
+        items: g.items.slice(0, perCategoryCap),
+      }))
+      .filter((g) => g.items.length > 0);
+  }
+
+  const fixedSectionsHeight = estimateFixedSectionsHeight({
+    hasSummary: draft.exportConfig.includeSummary && Boolean(summary?.content.trim()),
+    summaryText: summary?.content,
+    skillsCount: finalSkillGroups.reduce((acc, g) => acc + g.items.length, 0),
+    skillsLineCount: finalSkillGroups.length,
+    educationCount: education.length,
+    certificationsCount: certifications.length,
+    awardsCount: awards.length,
+    interestsCount: interests.length,
+    disabledSections: draft.exportConfig.disabledSections,
+  });
+
+  const {
+    experiences: finalExperiences,
+    projects: finalProjects,
+    didClamp,
+  } = clampPdfContentToPhysicalCeiling({
+    targetPages,
+    fixedSectionsHeight,
+    experiences,
+    projects,
+  });
+
+  const warningFlags = [...(draft.exportConfig.warningFlags ?? [])];
+  if (didClamp && !warningFlags.includes("PAGE_BUDGET_OVERFLOW")) {
+    warningFlags.push("PAGE_BUDGET_OVERFLOW");
+  }
+
+  return {
+    headerName: header?.content.trim() || profile?.fullName || "",
+    contactLine: sanitizeResumeContactLine(
+      asString(header?.metadata?.contactLine) ||
+        (profile ? buildResumeContactLine(profile) : "")
+    ),
+    experiences: finalExperiences,
+    projects: finalProjects,
+    tailoredSummary: summary?.content.trim() || null,
+    skillGroups: finalSkillGroups,
+    includeSummary:
+      draft.exportConfig.includeSummary && Boolean(summary?.content.trim()),
+    education,
+    certifications,
+    awards,
+    interests,
+    sectionOrder: draft.exportConfig.sectionOrder ?? null,
+    disabledSections: draft.exportConfig.disabledSections ?? null,
+    warningFlags,
+  };
+}

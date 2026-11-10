@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
-import { isGenericTitle } from "../lib/parsers/application-parser";
+import { isGenericTitle } from "../lib/gmail/application-parser";
 
 const prisma = new PrismaClient();
 

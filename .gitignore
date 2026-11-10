@@ -64,14 +64,18 @@ repomix-output*
 public/videos/*.mp4
 
 # Temporary Analysis Dumps
+/Delete/
+/Test Outputs/
 Delete/
 Test Outputs/
 
 # Temporary Audit Tests
 scripts/temp-resume-llm-audit.ts
-lib/__tests__/temp-resume-llm-audit.test.ts
+lib/profile/__tests__/temp-resume-llm-audit.test.ts
 
-# Chrome Extension Build Artifacts
+# Chrome Extension Build Artifacts & Archives
+*.zip
+repomix-output.xml
 extension/dist/
 mailpilot-extension.zip
 public/downloads/mailpilot-extension.zip

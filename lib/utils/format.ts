@@ -696,3 +696,17 @@ export function formatStatusPillTitle(text: string): string {
     .join("");
 }
 
+/**
+ * Returns Tailwind class names for a match score badge based on score ranges.
+ */
+export function scoreTone(score: number): string {
+  if (score >= 80) {
+    return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+  }
+  if (score >= 60) {
+    return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
+  }
+  return "bg-muted/60 text-muted-foreground";
+}
+
+
