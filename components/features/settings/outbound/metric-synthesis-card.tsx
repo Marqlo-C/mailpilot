@@ -164,5 +164,3 @@ export function MetricSynthesisCard({
     </SettingsFeatureCard>
   );
 }
-
-export default MetricSynthesisCard;

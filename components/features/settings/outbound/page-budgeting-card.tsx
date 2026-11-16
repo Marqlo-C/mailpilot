@@ -176,5 +176,3 @@ export function PageBudgetingCard({
     </SettingsFeatureCard>
   );
 }
-
-export default PageBudgetingCard;

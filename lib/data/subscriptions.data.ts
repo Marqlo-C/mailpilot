@@ -13,6 +13,13 @@ export type LatestBriefingPreview = {
   subscriptionIds: string[];
 };
 
+/**
+ * Queries all newsletter and email subscriptions tracked for an account.
+ * Sorted primarily by subscription status ascending and secondarily by last email reception date descending.
+ *
+ * @param accountId - Target user account ID
+ * @returns Array of Subscription database rows
+ */
 export async function getSubscriptionsForAccount(
   accountId: string
 ): Promise<Subscription[]> {
@@ -27,6 +34,12 @@ export async function getSubscriptionsForAccount(
   }
 }
 
+/**
+ * Retrieves the most recent AI-generated newsletter briefing preview for an account.
+ *
+ * @param accountId - Target user account ID
+ * @returns Latest briefing record with HTML summary preview or null if none exists
+ */
 export async function getLatestBriefingForAccount(
   accountId: string
 ): Promise<LatestBriefingPreview | null> {
@@ -49,6 +62,13 @@ export async function getLatestBriefingForAccount(
   }
 }
 
+/**
+ * Queries cross-account subscription unsubscribe history preserved on the user's permanent profile.
+ * Ordered by update timestamp descending.
+ *
+ * @param userProfileId - Durable persistent profile ID
+ * @returns Array of SubscriptionHistory records
+ */
 export async function getSubscriptionHistoryForProfile(
   userProfileId: string
 ): Promise<SubscriptionHistory[]> {

@@ -306,5 +306,3 @@ export function OutboundTailoringCard({
     </div>
   );
 }
-
-export default OutboundTailoringCard;

@@ -561,5 +561,3 @@ export function CloudProviderCard({
     </SettingsSectionCard>
   );
 }
-
-export default CloudProviderCard;

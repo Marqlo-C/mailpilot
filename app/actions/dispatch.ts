@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-
+import { auth } from "@/lib/core/auth";
 import {
   countSendsToday,
   dispatchApplicationEmail,
@@ -30,37 +30,56 @@ import {
   saveDraftEditsSchema,
 } from "@/lib/validations/dispatch.schema";
 import { recipientEmailSchema } from "@/lib/validations/opportunity.schema";
+import {
+  idParamSchema,
+  instructionParamSchema,
+  actionError,
+  actionSuccess,
+  type ServerActionResult,
+} from "@/lib/validations/action.schema";
 import type { ApplicationStatus } from "@/lib/validations/profile.schema";
 
 const NO_RECRUITER_EMAIL_ERROR =
   "No recruiter email address — email drafts are forbidden without a direct contact. Use the external apply link instead.";
 
-export type ActionResult<T = undefined> =
-  | { ok: true; data?: T }
-  | { ok: false; error: string };
+export type ActionResult<T = void> = ServerActionResult<T>;
+
+export type { ServerActionResult, ApplicationStatus };
+
+async function checkAuthSession(): Promise<ServerActionResult<string>> {
+  const session = await auth();
+  if (!session) return actionError("Unauthorized");
+  return actionSuccess(session.accountId);
+}
 
 export async function sendSingleApplication(
   applicationId: string,
   asDraft = false
-): Promise<ActionResult<{ mode: "draft" | "sent" }>> {
-  const application = await getApplicationForDispatch(applicationId);
+): Promise<ServerActionResult<{ mode: "draft" | "sent" }>> {
+  const authGate = await checkAuthSession();
+  if (!authGate.success) return authGate;
+
+  const parsedId = idParamSchema.safeParse(applicationId);
+  if (!parsedId.success) return actionError(parsedId.error.issues[0]?.message ?? "Invalid application ID");
+
+  const application = await getApplicationForDispatch(parsedId.data);
   if (!application) {
-    return { ok: false, error: "Application not found" };
+    return actionError("Application not found");
   }
   if (!application.accountId) {
-    return {
-      ok: false,
-      error: "Gmail account is unlinked. Reconnect to continue.",
-    };
+    return actionError("Gmail account is unlinked. Reconnect to continue.");
   }
   const accountId = application.accountId;
 
   const rateLimit = await checkRateLimit(`dispatch:${accountId}`, "strict");
   if (!rateLimit.success) {
-    return {
-      ok: false,
-      error: "Rate limit reached. Please wait a few seconds before dispatching again.",
-    };
+    return actionError("Rate limit reached. Please wait a few seconds before dispatching another application.");
+  }
+
+  const sendsToday = await countSendsToday(accountId);
+  const dailyLimit = await getDailySendLimit(accountId);
+  if (!asDraft && sendsToday >= dailyLimit) {
+    return actionError(`Daily application limit reached (${sendsToday}/${dailyLimit}). Drafts can still be prepared for review.`);
   }
 
   if (
@@ -70,64 +89,46 @@ export async function sendSingleApplication(
       applyUrl: application.applyUrl,
     })
   ) {
-    return { ok: false, error: NO_RECRUITER_EMAIL_ERROR };
+    return actionError(NO_RECRUITER_EMAIL_ERROR);
   }
 
   try {
-    if (!asDraft) {
-      const sentToday = await countSendsToday(accountId);
-      const limit = await getDailySendLimit(accountId);
-      if (sentToday >= limit) {
-        return {
-          ok: false,
-          error: `Daily auto-send limit reached (${limit})`,
-        };
-      }
-    }
-
     const hasPreparedDraft = Boolean(
       application.draftSubject?.trim() && application.draftBody?.trim()
     );
 
-    const result = await dispatchApplicationEmail(accountId, applicationId, {
+    const result = await dispatchApplicationEmail(accountId, parsedId.data, {
       createDraftOnly: asDraft,
       usePreparedDraft: hasPreparedDraft,
     });
     revalidatePath("/jobs");
     revalidatePath("/");
-    return { ok: true, data: result };
+    return actionSuccess(result);
   } catch (error) {
-    console.error("sendSingleApplication failed", error);
-    if (
-      error instanceof InsufficientScopeError ||
-      isInsufficientScopeError(error)
-    ) {
-      return { ok: false, error: REAUTH_REQUIRED_MESSAGE };
+    if (error instanceof InsufficientScopeError || isInsufficientScopeError(error)) {
+      return actionError(REAUTH_REQUIRED_MESSAGE);
     }
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Dispatch failed",
-    };
+    return actionError(error instanceof Error ? error.message : "Failed to dispatch application");
   }
 }
 
-/**
- * Generates an editable in-app draft and persists subject/body on the job row.
- */
 export async function prepareDraftForReview(
   applicationId: string
 ): Promise<
-  ActionResult<{ subject: string; body: string; recipient: string | null }>
+  ServerActionResult<{ subject: string; body: string; recipient: string | null }>
 > {
-  const application = await getApplicationForDispatch(applicationId);
+  const authGate = await checkAuthSession();
+  if (!authGate.success) return authGate;
+
+  const parsedId = idParamSchema.safeParse(applicationId);
+  if (!parsedId.success) return actionError(parsedId.error.issues[0]?.message ?? "Invalid application ID");
+
+  const application = await getApplicationForDispatch(parsedId.data);
   if (!application) {
-    return { ok: false, error: "Application not found" };
+    return actionError("Application not found");
   }
   if (!application.accountId) {
-    return {
-      ok: false,
-      error: "Gmail account is unlinked. Reconnect to continue.",
-    };
+    return actionError("Gmail account is unlinked. Reconnect to continue.");
   }
 
   const recipientGate = extractRecruiterEmail({
@@ -136,68 +137,62 @@ export async function prepareDraftForReview(
     applyUrl: application.applyUrl,
   });
 
+  if (!canDraftDirectEmail(recipientGate)) {
+    return actionError(NO_RECRUITER_EMAIL_ERROR);
+  }
+
   try {
-    if (
-      application.draftSubject?.trim() &&
-      application.draftBody?.trim() &&
-      (application.opportunityStatus === "DRAFT_PREPARED" ||
-        application.opportunityStatus === "DRAFT_SAVED_GMAIL")
-    ) {
-      return {
-        ok: true,
-        data: {
-          subject: application.draftSubject,
-          body: application.draftBody,
-          recipient: recipientGate,
-        },
-      };
+    if (application.draftSubject && application.draftBody) {
+      return actionSuccess({
+        subject: application.draftSubject,
+        body: application.draftBody,
+        recipient: recipientGate,
+      });
     }
 
     const draft = await prepareApplicationDraft(
       application.accountId,
-      applicationId
+      parsedId.data
     );
     revalidatePath("/jobs");
-    return {
-      ok: true,
-      data: {
-        subject: draft.subject,
-        body: draft.body,
-        recipient: draft.recipient,
-      },
-    };
+    return actionSuccess({
+      subject: draft.subject,
+      body: draft.body,
+      recipient: draft.recipient,
+    });
   } catch (error) {
-    console.error("prepareDraftForReview failed", error);
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "Failed to prepare draft",
-    };
+    return actionError(error instanceof Error ? error.message : "Failed to prepare draft");
   }
 }
 
 export async function refineApplicationDraftAction(
   applicationId: string,
   instruction: string
-): Promise<ActionResult<{ subject: string; body: string }>> {
-  const application = await getApplicationForDispatch(applicationId);
+): Promise<ServerActionResult<{ subject: string; body: string }>> {
+  const authGate = await checkAuthSession();
+  if (!authGate.success) return authGate;
+
+  const parsedId = idParamSchema.safeParse(applicationId);
+  if (!parsedId.success) return actionError(parsedId.error.issues[0]?.message ?? "Invalid application ID");
+
+  const parsedInstr = instructionParamSchema.safeParse(instruction);
+  if (!parsedInstr.success) return actionError(parsedInstr.error.issues[0]?.message ?? "Invalid instruction");
+
+  const application = await getApplicationForDispatch(parsedId.data);
   if (!application?.accountId) {
-    return { ok: false, error: "Application not found" };
+    return actionError("Application not found");
   }
 
   try {
     const draft = await refineApplicationDraft(
       application.accountId,
-      applicationId,
-      instruction
+      parsedId.data,
+      parsedInstr.data
     );
     revalidatePath("/jobs");
-    return { ok: true, data: draft };
+    return actionSuccess(draft);
   } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Failed to refine draft",
-    };
+    return actionError(error instanceof Error ? error.message : "Failed to refine draft");
   }
 }
 
@@ -205,70 +200,68 @@ export async function refineApplicationDraftAction(
 export async function regenerateApplicationDraftAction(
   applicationId: string
 ): Promise<
-  ActionResult<{ subject: string; body: string; recipient: string | null }>
+  ServerActionResult<{ subject: string; body: string; recipient: string | null }>
 > {
-  const application = await getApplicationForDispatch(applicationId);
+  const authGate = await checkAuthSession();
+  if (!authGate.success) return authGate;
+
+  const parsedId = idParamSchema.safeParse(applicationId);
+  if (!parsedId.success) return actionError(parsedId.error.issues[0]?.message ?? "Invalid application ID");
+
+  const application = await getApplicationForDispatch(parsedId.data);
   if (!application) {
-    return { ok: false, error: "Application not found" };
+    return actionError("Application not found");
   }
   if (!application.accountId) {
-    return {
-      ok: false,
-      error: "Gmail account is unlinked. Reconnect to continue.",
-    };
+    return actionError("Gmail account is unlinked. Reconnect to continue.");
   }
 
   try {
     const draft = await prepareApplicationDraft(
       application.accountId,
-      applicationId
+      parsedId.data
     );
     revalidatePath("/jobs");
-    return {
-      ok: true,
-      data: {
-        subject: draft.subject,
-        body: draft.body,
-        recipient: draft.recipient,
-      },
-    };
+    return actionSuccess({
+      subject: draft.subject,
+      body: draft.body,
+      recipient: draft.recipient,
+    });
   } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "Failed to regenerate draft",
-    };
+    return actionError(error instanceof Error ? error.message : "Failed to regenerate draft");
   }
 }
 
 export async function updateApplicationRecipientAction(
   applicationId: string,
   recipientEmail: string
-): Promise<ActionResult<{ recipientEmail: string }>> {
+): Promise<ServerActionResult<{ recipientEmail: string }>> {
+  const authGate = await checkAuthSession();
+  if (!authGate.success) return authGate;
+
+  const parsedId = idParamSchema.safeParse(applicationId);
+  if (!parsedId.success) return actionError(parsedId.error.issues[0]?.message ?? "Invalid application ID");
+
   const parsed = recipientEmailSchema.safeParse(recipientEmail);
   if (!parsed.success) {
-    return { ok: false, error: "Invalid recipient email address" };
+    return actionError("Invalid recipient email address");
   }
 
-  const application = await getApplicationForDispatch(applicationId);
+  const application = await getApplicationForDispatch(parsedId.data);
   if (!application?.accountId) {
-    return { ok: false, error: "Application not found" };
+    return actionError("Application not found");
   }
 
   try {
     const data = await updateApplicationRecipient(
       application.accountId,
-      applicationId,
+      parsedId.data,
       parsed.data
     );
     revalidatePath("/jobs");
-    return { ok: true, data };
+    return actionSuccess(data);
   } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "Failed to update recipient",
-    };
+    return actionError(error instanceof Error ? error.message : "Failed to update recipient");
   }
 }
 
@@ -278,15 +271,21 @@ export async function updateApplicationRecipientAction(
 export async function saveDraftEdits(
   applicationId: string,
   input: { subject: string; body: string; recipientEmail?: string }
-): Promise<ActionResult> {
-  const application = await getApplicationForDispatch(applicationId);
+): Promise<ServerActionResult<void>> {
+  const authGate = await checkAuthSession();
+  if (!authGate.success) return authGate;
+
+  const parsedId = idParamSchema.safeParse(applicationId);
+  if (!parsedId.success) return actionError(parsedId.error.issues[0]?.message ?? "Invalid application ID");
+
+  const application = await getApplicationForDispatch(parsedId.data);
   if (!application?.accountId) {
-    return { ok: false, error: "Application not found" };
+    return actionError("Application not found");
   }
 
   const parsed = saveDraftEditsSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid draft data" };
+    return actionError(parsed.error.issues[0]?.message ?? "Invalid draft data");
   }
 
   const effectiveRecipient =
@@ -299,11 +298,11 @@ export async function saveDraftEdits(
         });
 
   if (!canDraftDirectEmail(effectiveRecipient)) {
-    return { ok: false, error: NO_RECRUITER_EMAIL_ERROR };
+    return actionError(NO_RECRUITER_EMAIL_ERROR);
   }
 
   try {
-    await updatePreparedDraft(application.accountId, applicationId, {
+    await updatePreparedDraft(application.accountId, parsedId.data, {
       subject: parsed.data.subject,
       body: parsed.data.body,
       ...(parsed.data.recipientEmail !== undefined
@@ -311,64 +310,74 @@ export async function saveDraftEdits(
         : {}),
     });
     revalidatePath("/jobs");
-    return { ok: true };
+    return actionSuccess(undefined);
   } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Failed to save draft",
-    };
+    return actionError(error instanceof Error ? error.message : "Failed to save draft");
   }
 }
 
 export async function markPortalAsApplied(
   applicationId: string
-): Promise<ActionResult> {
-  const ok = await markApplicationApplied(applicationId);
+): Promise<ServerActionResult<void>> {
+  const authGate = await checkAuthSession();
+  if (!authGate.success) return authGate;
+
+  const parsedId = idParamSchema.safeParse(applicationId);
+  if (!parsedId.success) return actionError(parsedId.error.issues[0]?.message ?? "Invalid application ID");
+
+  const ok = await markApplicationApplied(parsedId.data);
   if (!ok) {
-    return { ok: false, error: "Application not found" };
+    return actionError("Application not found");
   }
 
   revalidatePath("/jobs");
-  return { ok: true };
+  return actionSuccess(undefined);
 }
 
 export async function updateApplicationStatus(
   applicationId: string,
   status: string
-): Promise<ActionResult> {
+): Promise<ServerActionResult<void>> {
+  const authGate = await checkAuthSession();
+  if (!authGate.success) return authGate;
+
+  const parsedId = idParamSchema.safeParse(applicationId);
+  if (!parsedId.success) return actionError(parsedId.error.issues[0]?.message ?? "Invalid application ID");
+
   const parsed = dispatchStatusSchema.safeParse(status);
   if (!parsed.success) {
-    return { ok: false, error: "Invalid application status" };
+    return actionError("Invalid application status");
   }
 
   const ok = await updateApplicationLifecycleStatus(
-    applicationId,
+    parsedId.data,
     parsed.data as ApplicationStatus
   );
   if (!ok) {
-    return { ok: false, error: "Application not found" };
+    return actionError("Application not found");
   }
 
   revalidatePath("/jobs");
-  return { ok: true };
+  return actionSuccess(undefined);
 }
 
 export async function downloadTailoredPdfAction(
   applicationId: string,
   includeSummary = true
-): Promise<ActionResult<{ base64: string; filename: string }>> {
-  const result = await generateApplicationPdfPayload(applicationId, includeSummary);
+): Promise<ServerActionResult<{ base64: string; filename: string }>> {
+  const authGate = await checkAuthSession();
+  if (!authGate.success) return authGate;
+
+  const parsedId = idParamSchema.safeParse(applicationId);
+  if (!parsedId.success) return actionError(parsedId.error.issues[0]?.message ?? "Invalid application ID");
+
+  const result = await generateApplicationPdfPayload(parsedId.data, includeSummary);
   if (!result.ok) {
-    return { ok: false, error: result.error };
+    return actionError(result.error ?? "Failed to generate application PDF");
   }
 
-  return {
-    ok: true,
-    data: {
-      base64: result.base64,
-      filename: result.filename,
-    },
-  };
+  return actionSuccess({
+    base64: result.base64,
+    filename: result.filename,
+  });
 }
-
-export type { ApplicationStatus };

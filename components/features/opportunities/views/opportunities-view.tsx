@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   useTransition,
   type MutableRefObject,
@@ -12,31 +11,16 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import type { JobOpportunity } from "@prisma/client";
-import { Archive, CheckCircle2, Trash2, Undo2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  deleteDismissedPermanently,
-  markLessLikeThis,
-} from "@/app/actions/opportunities";
+import { markLessLikeThis } from "@/app/actions/opportunities";
 import { DragGhost } from "@/components/ui/dnd/drag-ghost";
 import { PageFlipBumpers } from "@/components/ui/dnd/page-flip-bumpers";
-import {
-  OpportunityCard,
-  type OpportunityCardVariant,
-} from "@/components/features/opportunities/cards/opportunity-card";
+import type { OpportunityCardVariant } from "@/components/features/opportunities/cards/opportunity-card";
 import { PipelineToolbar } from "@/components/features/opportunities/toolbar/pipeline-toolbar";
-import {
-  BULK_ACTION_BTN_CLASSNAME,
-  BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME,
-  BULK_ACTION_COUNT_DISMISS_CLASSNAME,
-  BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME,
-  BULK_ACTION_DISMISS_BTN_CLASSNAME,
-  BulkActionCount,
-  BulkActionSeparator,
-} from "@/components/ui/composites/bulk-actions-flyout";
-import { BulkActionsWithClassifying } from "@/components/layout/bulk-actions-with-classifying";
 import { PipelinePaginationFooter } from "@/components/ui/composites/pipeline-pagination";
+import { OpportunitiesBulkBar } from "@/components/features/opportunities/views/subcomponents/opportunities-bulk-bar";
+import { OpportunitiesGrid } from "@/components/features/opportunities/views/subcomponents/opportunities-grid";
 import { useLastClickedId } from "@/hooks/use-last-clicked-id";
 import { useCardListGestures } from "@/hooks/use-card-list-gestures";
 import { JOBS_PAGE_SIZE_OPTIONS, usePagination } from "@/hooks/use-pagination";
@@ -59,10 +43,7 @@ import {
   type PipelineTab,
   type SourceFilter,
 } from "@/lib/opportunities/pipeline-filters";
-import {
-  runJobCardAction,
-  runJobDrop,
-} from "@/lib/opportunities/run-job-move";
+import { runJobDrop } from "@/lib/opportunities/run-job-move";
 import { TAB_SORT_CONFIG } from "@/lib/opportunities/sorting";
 
 const JOBS_PAGE_SIZE_KEY = "mailpilot_jobs_per_page";
@@ -75,7 +56,7 @@ const MOVE_TOAST: Partial<Record<JobMoveKind, string>> = {
   restore: "Restored",
 };
 
-type OpportunitiesViewProps = {
+export type OpportunitiesViewProps = {
   accountId: string;
   opportunities: JobOpportunity[];
   matchThreshold: number;
@@ -124,7 +105,6 @@ function variantToPipelineTab(variant: OpportunityCardVariant): PipelineTab {
  * (Custom reorder + tab drops via movement-rules / runJobMove).
  */
 export function OpportunitiesView({
-  accountId,
   opportunities,
   matchThreshold,
   variant = "leads",
@@ -240,6 +220,7 @@ export function OpportunitiesView({
         .map((o) => o.id),
     [selectedRecords]
   );
+
   function toggleSelect(id: string) {
     markLastClicked(id);
     setSelectedIds((prev) => {
@@ -348,10 +329,7 @@ export function OpportunitiesView({
 
   const handleDropZone = useCallback(
     (zoneId: string, movedIds: string[]) => {
-      const resolved = resolveJobMove(
-        jobsTabKey,
-        zoneId as JobDropZone
-      );
+      const resolved = resolveJobMove(jobsTabKey, zoneId as JobDropZone);
       if (
         resolved.kind === "forbidden" ||
         resolved.kind === "reorder" ||
@@ -366,7 +344,11 @@ export function OpportunitiesView({
         }, 0);
       }
       startBatch(async () => {
-        const result = await runJobDrop(jobsTabKey, zoneId as JobDropZone, movedIds);
+        const result = await runJobDrop(
+          jobsTabKey,
+          zoneId as JobDropZone,
+          movedIds
+        );
         if (!result.ok) {
           toast.error(result.error);
           return;
@@ -377,8 +359,6 @@ export function OpportunitiesView({
         afterBatch(message);
       });
     },
-    // afterBatch / startBatch close over latest selection helpers
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
     [jobsTabKey, suppressTabChangeRef]
   );
 
@@ -409,8 +389,6 @@ export function OpportunitiesView({
       clearSelection();
       setCurrentPage(page);
     },
-    // clearSelection is stable enough for page chrome
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
     [setCurrentPage]
   );
 
@@ -419,7 +397,6 @@ export function OpportunitiesView({
       clearSelection();
       setPageSize(size);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
     [setPageSize]
   );
 
@@ -434,7 +411,6 @@ export function OpportunitiesView({
 
   const dragStackItems = useMemo(() => {
     if (!drag?.active) return [];
-    // Grabbed card first so front name + icon match; others fill the peek stack.
     const orderedIds = [
       drag.originId,
       ...drag.movedIds.filter((id) => id !== drag.originId),
@@ -480,7 +456,6 @@ export function OpportunitiesView({
     setSelectedIds(pageOpportunityIds);
   }
 
-  // Multi-column grids skip live reorder — show a stable insert marker instead.
   const marker =
     drag?.active &&
     !drag.previewFullIds &&
@@ -493,72 +468,7 @@ export function OpportunitiesView({
         )
       : { insertBeforeId: null as string | null, insertAfterLast: false };
 
-  const gridRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const grid = gridRef.current;
-    if (!grid) return;
-
-    function syncMatchReasonHeights() {
-      if (!grid) return;
-      const isTwoCol = window.matchMedia("(min-width: 768px)").matches;
-      const cards = grid.querySelectorAll<HTMLElement>("article[data-opportunity-card]");
-      if (!cards || cards.length === 0) return;
-
-      if (!isTwoCol) {
-        cards.forEach((card) => {
-          const box = card.querySelector<HTMLElement>("[data-match-reason-box]");
-          if (box) box.style.minHeight = "";
-        });
-        return;
-      }
-
-      // Group cards in pairs for each 2-card row
-      for (let i = 0; i < cards.length; i += 2) {
-        const cardA = cards[i];
-        const cardB = cards[i + 1];
-        const boxA = cardA?.querySelector<HTMLElement>("[data-match-reason-box]");
-        const boxB = cardB?.querySelector<HTMLElement>("[data-match-reason-box]");
-
-        if (boxA) boxA.style.minHeight = "";
-        if (boxB) boxB.style.minHeight = "";
-
-        if (boxA && boxB) {
-          const hA = boxA.offsetHeight;
-          const hB = boxB.offsetHeight;
-          const maxHeight = Math.max(hA, hB);
-          if (maxHeight > 0) {
-            boxA.style.minHeight = `${maxHeight}px`;
-            boxB.style.minHeight = `${maxHeight}px`;
-          }
-        }
-      }
-    }
-
-    syncMatchReasonHeights();
-
-    let rafId: number;
-    const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(syncMatchReasonHeights);
-    });
-
-    observer.observe(grid);
-
-    const handleResize = () => {
-      cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(syncMatchReasonHeights);
-    };
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      observer.disconnect();
-      window.removeEventListener("resize", handleResize);
-    };
-  }, [paginatedJobs]);
-
-  const toolbar = (
+  const dockedToolbar = (
     <PipelineToolbar
       activeTab={activeTab}
       totalCount={totalCount}
@@ -567,12 +477,8 @@ export function OpportunitiesView({
       isAllSelected={isAllSelected}
       onToggleSelectAll={handleSelectAll}
       minScore={matchThreshold}
-      onMinScoreChange={
-        showThresholdControl ? onThresholdChange : undefined
-      }
-      onMinScoreCommit={
-        showThresholdControl ? onThresholdCommit : undefined
-      }
+      onMinScoreChange={showThresholdControl ? onThresholdChange : undefined}
+      onMinScoreCommit={showThresholdControl ? onThresholdCommit : undefined}
       scoreDisabled={busy || !onThresholdCommit}
       searchQuery={searchQuery}
       onSearchQueryChange={setSearchQuery}
@@ -599,7 +505,6 @@ export function OpportunitiesView({
       onResetTransientFilters={handleResetTransientFilters}
     />
   );
-  const dockedToolbar = toolbar;
 
   const body = (
     <div className="mt-0" onPointerDown={onBackgroundPointerDown}>
@@ -623,56 +528,29 @@ export function OpportunitiesView({
         dropZone={drag?.dropZone ?? null}
       />
 
-      {orderedOpportunities.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
-          {emptyText}
-        </div>
-      ) : (
-        <div
-          ref={gridRef}
-          className="relative z-0 grid min-w-0 gap-3 md:grid-cols-2"
-          data-dnd-list
-          data-dnd-previewing={drag?.previewFullIds ? "true" : undefined}
-        >
-          {paginatedJobs.map((opp) => (
-            <OpportunityCard
-              key={opp.id}
-              opportunity={opp}
-              matchThreshold={matchThreshold}
-              variant={variant}
-              pending={busy}
-              retentionDays={retentionDays}
-              isSelected={selectedIds.includes(opp.id)}
-              isLastClicked={lastClickedId === opp.id}
-              isEmbeddedAiEnabled={isEmbeddedAiEnabled}
-              isAutoDispatchEnabled={isAutoDispatchEnabled}
-              onToggleSelect={toggleSelect}
-              itemProps={bindItem(opp.id)}
-              showInsertBefore={marker.insertBeforeId === opp.id}
-              onReviewDraft={() => onReviewDraft?.(opp)}
-              onSendNow={() => onSendNow?.(opp)}
-              onMarkApplied={() => onMarkApplied?.(opp)}
-              onUnmarkApplied={() => onUnmarkApplied?.(opp)}
-              onViewOriginalEmail={
-                onViewOriginalEmail
-                  ? () => onViewOriginalEmail(opp)
-                  : undefined
-              }
-              onLessLikeThis={
-                variant === "history"
-                  ? undefined
-                  : () => handleLessLikeThis(opp)
-              }
-            />
-          ))}
-          {marker.insertAfterLast ? (
-            <div
-              className="pointer-events-none col-span-full h-0.5 bg-[#1ab5af]"
-              aria-hidden
-            />
-          ) : null}
-        </div>
-      )}
+      <OpportunitiesGrid
+        opportunities={orderedOpportunities}
+        paginatedJobs={paginatedJobs}
+        emptyText={emptyText}
+        variant={variant}
+        matchThreshold={matchThreshold}
+        busy={busy}
+        retentionDays={retentionDays}
+        selectedIds={selectedIds}
+        lastClickedId={lastClickedId}
+        isEmbeddedAiEnabled={isEmbeddedAiEnabled}
+        isAutoDispatchEnabled={isAutoDispatchEnabled}
+        onToggleSelect={toggleSelect}
+        bindItem={bindItem}
+        marker={marker}
+        previewFullIds={drag?.previewFullIds}
+        onReviewDraft={onReviewDraft}
+        onSendNow={onSendNow}
+        onMarkApplied={onMarkApplied}
+        onUnmarkApplied={onUnmarkApplied}
+        onViewOriginalEmail={onViewOriginalEmail}
+        onLessLikeThis={handleLessLikeThis}
+      />
 
       <PipelinePaginationFooter
         currentPage={currentPage}
@@ -682,182 +560,16 @@ export function OpportunitiesView({
         onPageChange={changePage}
       />
 
-      <BulkActionsWithClassifying
-        selectedCount={selectedIds.length}
-        onCancel={clearSelection}
-      >
-        {variant === "history" ? (
-          <>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() =>
-                startBatch(async () => {
-                  const result = await runJobCardAction(
-                    "history",
-                    "restore",
-                    selectedIds
-                  );
-                  if (!result.ok) {
-                    toast.error(result.error);
-                    return;
-                  }
-                  afterBatch("Restored");
-                })
-              }
-              className={BULK_ACTION_BTN_CLASSNAME}
-            >
-              <Undo2 className="h-3.5 w-3.5" />
-              Restore
-              <BulkActionCount count={selectedIds.length} />
-            </button>
-
-            {archivedSelectedIds.length > 0 ? (
-              <>
-                <BulkActionSeparator />
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    startBatch(async () => {
-                      const result = await runJobCardAction(
-                        "history",
-                        "dismiss",
-                        archivedSelectedIds
-                      );
-                      if (!result.ok) {
-                        toast.error(result.error);
-                        return;
-                      }
-                      afterBatch("Dismissed — purge countdown started");
-                    })
-                  }
-                  className={BULK_ACTION_DISMISS_BTN_CLASSNAME}
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                  Dismiss Archived
-                  <BulkActionCount
-                    count={archivedSelectedIds.length}
-                    className={BULK_ACTION_COUNT_DISMISS_CLASSNAME}
-                  />
-                </button>
-              </>
-            ) : null}
-
-            {dismissedSelectedIds.length > 0 ? (
-              <>
-                <BulkActionSeparator />
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    startBatch(async () => {
-                      await deleteDismissedPermanently(dismissedSelectedIds);
-                      afterBatch("Deleted permanently");
-                    })
-                  }
-                  className={BULK_ACTION_DESTRUCTIVE_BTN_CLASSNAME}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete Permanently
-                  <BulkActionCount
-                    count={dismissedSelectedIds.length}
-                    className={BULK_ACTION_COUNT_DESTRUCTIVE_CLASSNAME}
-                  />
-                </button>
-              </>
-            ) : null}
-          </>
-        ) : (
-          <>
-            {(variant === "leads" || variant === "applied") && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  startBatch(async () => {
-                    const result = await runJobCardAction(
-                      variantToJobsTabKey(variant),
-                      "archive",
-                      selectedIds
-                    );
-                    if (!result.ok) {
-                      toast.error(result.error);
-                      return;
-                    }
-                    afterBatch("Archived");
-                  })
-                }
-                className={BULK_ACTION_BTN_CLASSNAME}
-              >
-                <Archive className="h-3.5 w-3.5" />
-                Archive
-                <BulkActionCount count={selectedIds.length} />
-              </button>
-            )}
-
-            {variant === "leads" ? (
-              <>
-                <BulkActionSeparator />
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    startBatch(async () => {
-                      const result = await runJobCardAction(
-                        "leads",
-                        "mark_applied",
-                        selectedIds
-                      );
-                      if (!result.ok) {
-                        toast.error(result.error);
-                        return;
-                      }
-                      afterBatch("Marked as applied");
-                    })
-                  }
-                  className={BULK_ACTION_BTN_CLASSNAME}
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Mark Applied
-                  <BulkActionCount count={selectedIds.length} />
-                </button>
-              </>
-            ) : null}
-
-            {/* Only when Archive / Mark Applied precede Dismiss (e.g. Action Required is alone). */}
-            {(variant === "leads" || variant === "applied") && (
-              <BulkActionSeparator />
-            )}
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() =>
-                startBatch(async () => {
-                  const result = await runJobCardAction(
-                    variantToJobsTabKey(variant),
-                    "dismiss",
-                    selectedIds
-                  );
-                  if (!result.ok) {
-                    toast.error(result.error);
-                    return;
-                  }
-                  afterBatch("Dismissed");
-                })
-              }
-              className={BULK_ACTION_DISMISS_BTN_CLASSNAME}
-            >
-              <XCircle className="h-3.5 w-3.5" />
-              Dismiss
-              <BulkActionCount
-                count={selectedIds.length}
-                className={BULK_ACTION_COUNT_DISMISS_CLASSNAME}
-              />
-            </button>
-          </>
-        )}
-      </BulkActionsWithClassifying>
+      <OpportunitiesBulkBar
+        variant={variant}
+        selectedIds={selectedIds}
+        archivedSelectedIds={archivedSelectedIds}
+        dismissedSelectedIds={dismissedSelectedIds}
+        busy={busy}
+        onClearSelection={clearSelection}
+        onAfterBatch={afterBatch}
+        startBatch={startBatch}
+      />
     </div>
   );
 

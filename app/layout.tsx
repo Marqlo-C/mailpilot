@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 
 import "@/lib/document/polyfills";
 
@@ -17,14 +17,16 @@ import { AppToaster } from "@/components/ui/app-toaster";
 
 import "./globals.css";
 
-const geistSans = Geist({
+const geistSans = localFont({
+  src: "../public/fonts/geist-sans.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "../public/fonts/geist-mono.woff2",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {

@@ -26,8 +26,12 @@ const NOT_USER_ARCHIVED: Prisma.JobOpportunityWhereInput = {
 };
 
 /**
- * Same totals as the tab-rail pills. Leads ignore the match threshold.
- * Subscription archive is one row per sender, including history-only senders.
+ * Computes badge counts for sidebar navigation tab rails across opportunities, jobs, and subscriptions.
+ * Runs concurrent aggregated counts across Prisma scopes and unifies active and cross-account history totals.
+ *
+ * @param accountId - Target user account ID
+ * @param persistentProfileId - Optional persistent profile ID for cross-inbox aggregation
+ * @returns Aggregated badge count totals mapped by navigation domain and tab key
  */
 export async function getSidebarTabCounts(
   accountId: string,

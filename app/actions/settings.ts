@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { auth } from "@/lib/core/auth";
 import { verifyAccountOwnership } from "@/lib/services/account-lifecycle.service";
 import {
-  type ActionResult,
   type OllamaStatus,
   updateRule as updateRuleService,
   updateFeatureFlag as updateFeatureFlagService,
@@ -17,6 +17,8 @@ import {
   removeExcludedTitle as removeExcludedTitleService,
   readOllamaStatus as readOllamaStatusService,
 } from "@/lib/services/settings-rules.service";
+import type { ScrapingAntUsage, HasDataUsage } from "@/lib/validations/rules.schema";
+import type { CloudLlmProvider } from "@/lib/ai/provider.schema";
 import {
   type ApiKeyStatus,
   updateCustomLlmKey as updateCustomLlmKeyService,
@@ -38,12 +40,15 @@ import {
   toggleFeatureFlagSchema,
   type ToggleFeatureFlagInput,
 } from "@/lib/validations/settings.schema";
+import {
+  accountIdParamSchema,
+  actionError,
+  actionSuccess,
+  type ActionResult,
+  type ServerActionResult,
+} from "@/lib/validations/action.schema";
 import type { FeatureFlagKey } from "@/lib/validations/feature-flags.schema";
 import type { AccountRules } from "@/lib/validations/rules.schema";
-
-export type ServerActionResult<T> =
-  | { success: true; data: T }
-  | { success: false; error: string };
 
 export type {
   ActionResult,
@@ -51,134 +56,327 @@ export type {
   OllamaStatus,
   UpdateCustomLlmKeyInput,
   ToggleFeatureFlagInput,
+  ServerActionResult,
 };
 
-
-export async function updateRule(accountId: string, key: string, value: unknown) {
-  const result = await updateRuleService(accountId, key, value);
-  if (result.ok) revalidatePath("/settings");
-  return result;
+async function verifyAuthAndAccount(targetAccountId: string): Promise<ServerActionResult<string>> {
+  const session = await auth();
+  if (!session) return actionError("Unauthorized");
+  const parsed = accountIdParamSchema.safeParse(targetAccountId);
+  if (!parsed.success) {
+    return actionError(parsed.error.issues[0]?.message ?? "Invalid account ID");
+  }
+  const verification = await verifyAccountOwnership(session.accountId, parsed.data);
+  if (!verification.ok) {
+    return actionError(verification.error ?? "Account not found for this user");
+  }
+  return actionSuccess(parsed.data);
 }
 
-export async function updateBridgeSecret(accountId: string, secret: string) {
-  const result = await updateBridgeSecretService(accountId, secret);
+export async function updateRule(
+  accountId: string,
+  key: string,
+  value: unknown
+): Promise<ServerActionResult<AccountRules>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const keyParsed = z.string().trim().min(1, "Rule key cannot be empty").safeParse(key);
+  if (!keyParsed.success) {
+    return actionError(keyParsed.error.issues[0]?.message ?? "Invalid rule key");
+  }
+
+  const result = await updateRuleService(authCheck.data, keyParsed.data, value);
   if (result.ok) revalidatePath("/settings");
-  return result;
+  return result.ok
+    ? actionSuccess(result.data!)
+    : actionError(result.error ?? "Failed to update rule");
 }
 
-export async function updateLlmProvider(accountId: string, provider: string) {
-  const result = await updateLlmProviderService(accountId, provider);
+export async function updateBridgeSecret(
+  accountId: string,
+  secret: string
+): Promise<ServerActionResult<{ bridgeSecret: string | null }>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const result = await updateBridgeSecretService(authCheck.data, secret);
   if (result.ok) revalidatePath("/settings");
-  return result;
+  return result.ok ? actionSuccess(result.data!) : actionError(result.error ?? "Failed to update bridge secret");
 }
 
-export async function updateOllamaUrl(accountId: string, url: string, ollamaModel?: string | null) {
-  const result = await updateOllamaUrlService(accountId, url, ollamaModel);
+export async function updateLlmProvider(
+  accountId: string,
+  provider: string
+): Promise<ServerActionResult<void>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const providerParsed = z.string().trim().min(1, "Provider cannot be empty").safeParse(provider);
+  if (!providerParsed.success) {
+    return actionError(providerParsed.error.issues[0]?.message ?? "Invalid LLM provider");
+  }
+
+  const result = await updateLlmProviderService(authCheck.data, providerParsed.data);
   if (result.ok) revalidatePath("/settings");
-  return result;
+  return result.ok ? actionSuccess(undefined) : actionError(result.error ?? "Failed to update LLM provider");
 }
 
-export async function updateOllamaModel(accountId: string, ollamaModel: string) {
-  const result = await updateOllamaModelService(accountId, ollamaModel);
+export async function updateOllamaUrl(
+  accountId: string,
+  url: string,
+  ollamaModel?: string | null
+): Promise<ServerActionResult<void>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const urlParsed = z.string().trim().min(1, "URL cannot be empty").safeParse(url);
+  if (!urlParsed.success) {
+    return actionError(urlParsed.error.issues[0]?.message ?? "Invalid Ollama URL");
+  }
+
+  const result = await updateOllamaUrlService(authCheck.data, urlParsed.data, ollamaModel);
   if (result.ok) revalidatePath("/settings");
-  return result;
+  return result.ok ? actionSuccess(undefined) : actionError(result.error ?? "Failed to update Ollama URL");
 }
 
-export async function updateDismissedRetention(days: number) {
-  const result = await updateDismissedRetentionService(days);
+export async function updateOllamaModel(
+  accountId: string,
+  ollamaModel: string
+): Promise<ServerActionResult<void>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const modelParsed = z.string().trim().min(1, "Model name cannot be empty").safeParse(ollamaModel);
+  if (!modelParsed.success) {
+    return actionError(modelParsed.error.issues[0]?.message ?? "Invalid Ollama model");
+  }
+
+  const result = await updateOllamaModelService(authCheck.data, modelParsed.data);
+  if (result.ok) revalidatePath("/settings");
+  return result.ok ? actionSuccess(undefined) : actionError(result.error ?? "Failed to update Ollama model");
+}
+
+export async function updateDismissedRetention(days: number): Promise<ServerActionResult<void>> {
+  const session = await auth();
+  if (!session) return actionError("Unauthorized");
+
+  const daysParsed = z.number().int().positive("Retention days must be a positive number").safeParse(days);
+  if (!daysParsed.success) {
+    return actionError(daysParsed.error.issues[0]?.message ?? "Invalid retention days");
+  }
+
+  const result = await updateDismissedRetentionService(daysParsed.data);
   if (result.ok) {
     revalidatePath("/settings");
     revalidatePath("/jobs");
   }
-  return result;
+  return result.ok ? actionSuccess(undefined) : actionError(result.error ?? "Failed to update dismissed retention");
 }
 
-export async function addExcludedTitle(accountId: string, title: string) {
-  const result = await addExcludedTitleService(accountId, title);
+export async function addExcludedTitle(
+  accountId: string,
+  title: string
+): Promise<ServerActionResult<void>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const titleParsed = z.string().trim().min(1, "Title cannot be empty").safeParse(title);
+  if (!titleParsed.success) {
+    return actionError(titleParsed.error.issues[0]?.message ?? "Invalid excluded title");
+  }
+
+  const result = await addExcludedTitleService(authCheck.data, titleParsed.data);
   if (result.ok) {
     revalidatePath("/settings");
     revalidatePath("/jobs");
   }
-  return result;
+  return result.ok ? actionSuccess(undefined) : actionError(result.error ?? "Failed to add excluded title");
 }
 
-export async function removeExcludedTitle(accountId: string, title: string) {
-  const result = await removeExcludedTitleService(accountId, title);
+export async function removeExcludedTitle(
+  accountId: string,
+  title: string
+): Promise<ServerActionResult<void>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const titleParsed = z.string().trim().min(1, "Title cannot be empty").safeParse(title);
+  if (!titleParsed.success) {
+    return actionError(titleParsed.error.issues[0]?.message ?? "Invalid excluded title");
+  }
+
+  const result = await removeExcludedTitleService(authCheck.data, titleParsed.data);
   if (result.ok) {
     revalidatePath("/settings");
     revalidatePath("/jobs");
   }
-  return result;
+  return result.ok ? actionSuccess(undefined) : actionError(result.error ?? "Failed to remove excluded title");
 }
 
-export async function updateCustomLlmKey(accountId: string, input: UpdateCustomLlmKeyInput) {
-  const result = await updateCustomLlmKeyService(accountId, input);
+export async function updateCustomLlmKey(
+  accountId: string,
+  input: UpdateCustomLlmKeyInput
+): Promise<ServerActionResult<{ provider: CloudLlmProvider; model: string; maskedApiKey: string }>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const inputParsed = updateCustomLlmKeyInputSchema.safeParse(input);
+  if (!inputParsed.success) {
+    return actionError(inputParsed.error.issues.map((i) => i.message).join("; "));
+  }
+
+  const result = await updateCustomLlmKeyService(authCheck.data, inputParsed.data);
   if (result.ok) revalidatePath("/settings");
-  return result;
+  return result.ok ? actionSuccess(result.data!) : actionError(result.error ?? "Failed to update custom LLM key");
 }
 
-export async function saveCustomLlmKey(accountId: string, input: UpdateCustomLlmKeyInput) {
-  const result = await saveCustomLlmKeyService(accountId, input);
+export async function saveCustomLlmKey(
+  accountId: string,
+  input: UpdateCustomLlmKeyInput
+): Promise<ServerActionResult<{ provider: CloudLlmProvider; model: string; maskedApiKey: string }>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const inputParsed = updateCustomLlmKeyInputSchema.safeParse(input);
+  if (!inputParsed.success) {
+    return actionError(inputParsed.error.issues.map((i) => i.message).join("; "));
+  }
+
+  const result = await saveCustomLlmKeyService(authCheck.data, inputParsed.data);
   if (result.ok) revalidatePath("/settings");
-  return result;
+  return result.ok ? actionSuccess(result.data!) : actionError(result.error ?? "Failed to save custom LLM key");
 }
 
-export async function clearCustomLlmKey(accountId: string) {
-  const result = await clearCustomLlmKeyService(accountId);
+export async function clearCustomLlmKey(
+  accountId: string
+): Promise<ServerActionResult<{ cleared: true }>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const result = await clearCustomLlmKeyService(authCheck.data);
   if (result.ok) revalidatePath("/settings");
-  return result;
+  return result.ok ? actionSuccess(result.data!) : actionError(result.error ?? "Failed to clear custom LLM key");
 }
 
-export async function saveScrapingAntApiKey(accountId: string, rawKey: string | null) {
-  const result = await saveScrapingAntApiKeyService(accountId, rawKey);
+export async function saveScrapingAntApiKey(
+  accountId: string,
+  rawKey: string | null
+): Promise<ServerActionResult<{ maskedScrapingAntApiKey: string | null; scrapingAntUsage?: ScrapingAntUsage | null }>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const result = await saveScrapingAntApiKeyService(authCheck.data, rawKey);
   if (result.ok) revalidatePath("/settings");
-  return result;
+  return result.ok ? actionSuccess(result.data!) : actionError(result.error ?? "Failed to save ScrapingAnt key");
 }
 
-export async function clearScrapingAntApiKey(accountId: string) {
-  const result = await clearScrapingAntApiKeyService(accountId);
+export async function clearScrapingAntApiKey(
+  accountId: string
+): Promise<ServerActionResult<{ cleared: true }>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const result = await clearScrapingAntApiKeyService(authCheck.data);
   if (result.ok) revalidatePath("/settings");
-  return result;
+  return result.ok ? actionSuccess(result.data!) : actionError(result.error ?? "Failed to clear ScrapingAnt key");
 }
 
-export async function getScrapingAntUsageAction(accountId: string, force?: boolean) {
-  return getScrapingAntUsageService(accountId, force);
+export async function getScrapingAntUsageAction(
+  accountId: string,
+  force?: boolean
+): Promise<ServerActionResult<ScrapingAntUsage | null>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const result = await getScrapingAntUsageService(authCheck.data, force);
+  return result.ok
+    ? actionSuccess(result.data ?? null)
+    : actionError(result.error ?? "Failed to fetch ScrapingAnt usage");
 }
 
-export async function saveHasDataApiKey(accountId: string, rawKey: string | null) {
-  const result = await saveHasDataApiKeyService(accountId, rawKey);
+export async function saveHasDataApiKey(
+  accountId: string,
+  rawKey: string | null
+): Promise<ServerActionResult<{ maskedHasDataApiKey: string | null; hasDataUsage?: HasDataUsage | null }>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const result = await saveHasDataApiKeyService(authCheck.data, rawKey);
   if (result.ok) revalidatePath("/settings");
-  return result;
+  return result.ok ? actionSuccess(result.data!) : actionError(result.error ?? "Failed to save HasData key");
 }
 
-export async function clearHasDataApiKey(accountId: string) {
-  const result = await clearHasDataApiKeyService(accountId);
+export async function clearHasDataApiKey(
+  accountId: string
+): Promise<ServerActionResult<{ cleared: true }>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const result = await clearHasDataApiKeyService(authCheck.data);
   if (result.ok) revalidatePath("/settings");
-  return result;
+  return result.ok ? actionSuccess(result.data!) : actionError(result.error ?? "Failed to clear HasData key");
 }
 
-export async function getHasDataUsageAction(accountId: string, force?: boolean) {
-  return getHasDataUsageService(accountId, force);
+export async function getHasDataUsageAction(
+  accountId: string,
+  force?: boolean
+): Promise<ServerActionResult<HasDataUsage | null>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const result = await getHasDataUsageService(authCheck.data, force);
+  return result.ok
+    ? actionSuccess(result.data ?? null)
+    : actionError(result.error ?? "Failed to fetch HasData usage");
 }
 
-export async function saveJinaApiKey(accountId: string, apiKey: string) {
-  const result = await saveJinaApiKeyService(accountId, apiKey);
+export async function saveJinaApiKey(
+  accountId: string,
+  apiKey: string
+): Promise<ServerActionResult<void>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const keyParsed = z.string().trim().min(1, "API key cannot be empty").safeParse(apiKey);
+  if (!keyParsed.success) {
+    return actionError(keyParsed.error.issues[0]?.message ?? "Invalid Jina API key");
+  }
+
+  const result = await saveJinaApiKeyService(authCheck.data, keyParsed.data);
   if (result.ok) revalidatePath("/settings");
-  return result;
+  return result.ok ? actionSuccess(undefined) : actionError(result.error ?? "Failed to save Jina key");
 }
 
-export async function clearJinaApiKey(accountId: string) {
-  const result = await clearJinaApiKeyService(accountId);
+export async function clearJinaApiKey(
+  accountId: string
+): Promise<ServerActionResult<{ cleared: true }>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const result = await clearJinaApiKeyService(authCheck.data);
   if (result.ok) revalidatePath("/settings");
-  return result;
+  return result.ok ? actionSuccess(result.data!) : actionError(result.error ?? "Failed to clear Jina key");
 }
 
-export async function readApiKeyStatus(accountId: string) {
-  return readApiKeyStatusService(accountId);
+export async function readApiKeyStatus(accountId: string): Promise<ServerActionResult<ApiKeyStatus>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const result = await readApiKeyStatusService(authCheck.data);
+  return result.ok
+    ? actionSuccess(result.data!)
+    : actionError(result.error ?? "Failed to read API key status");
 }
 
-export async function readOllamaStatus(accountId: string) {
-  return readOllamaStatusService(accountId);
+export async function readOllamaStatus(accountId: string): Promise<ServerActionResult<OllamaStatus>> {
+  const authCheck = await verifyAuthAndAccount(accountId);
+  if (!authCheck.success) return authCheck;
+
+  const result = await readOllamaStatusService(authCheck.data);
+  return result.ok
+    ? actionSuccess(result.data!)
+    : actionError(result.error ?? "Failed to read Ollama status");
 }
 
 /**
@@ -206,7 +404,7 @@ export async function toggleFeatureFlagAction(
   try {
     const session = await auth();
     if (!session) {
-      return { success: false, error: "Unauthorized" };
+      return actionError("Unauthorized");
     }
 
     const rawInput =
@@ -220,10 +418,7 @@ export async function toggleFeatureFlagAction(
 
     const parsed = toggleFeatureFlagSchema.safeParse(rawInput);
     if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.issues.map((i) => i.message).join("; "),
-      };
+      return actionError(parsed.error.issues.map((i) => i.message).join("; "));
     }
 
     const verification = await verifyAccountOwnership(
@@ -231,18 +426,11 @@ export async function toggleFeatureFlagAction(
       parsed.data.accountId
     );
     if (!verification.ok) {
-      return {
-        success: false,
-        error: verification.error ?? "Account not found for this user",
-      };
+      return actionError(verification.error ?? "Account not found for this user");
     }
 
     if (process.env.NODE_ENV === "production") {
-      return {
-        success: false,
-        error:
-          "Developer feature flags cannot be toggled via UI in production",
-      };
+      return actionError("Developer feature flags cannot be toggled via UI in production");
     }
 
     const result = await updateFeatureFlagService(
@@ -252,31 +440,18 @@ export async function toggleFeatureFlagAction(
     );
 
     if (!result.ok) {
-      return {
-        success: false,
-        error: result.error,
-      };
+      return actionError(result.error);
     }
 
     if (!result.data) {
-      return {
-        success: false,
-        error: "Failed to update feature flag",
-      };
+      return actionError("Failed to update feature flag");
     }
 
     revalidatePath("/settings");
     revalidatePath("/jobs");
 
-    return {
-      success: true,
-      data: result.data,
-    };
+    return actionSuccess(result.data);
   } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Internal server error",
-    };
+    return actionError(error instanceof Error ? error.message : "Internal server error");
   }
 }
-

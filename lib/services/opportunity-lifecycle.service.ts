@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/core/prisma";
-import { addExcludedTitle } from "@/app/actions/settings";
+import { addExcludedTitle } from "@/lib/services/settings-rules.service";
 import { parseAccountRules } from "@/lib/validations/rules.schema";
 import {
   getGmailClientForAccount,
@@ -15,6 +15,14 @@ export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
 
+/**
+ * Bulk dismisses job opportunities to the History tab.
+ * Preserves the original active lifecycle state in `previousStatus` so the card
+ * can be accurately restored later, while clearing active archive indicators.
+ *
+ * @param ids - Array of opportunity IDs to dismiss
+ * @returns Result object containing the count of successfully updated opportunities
+ */
 export async function dismissOpportunities(
   ids: string[]
 ): Promise<ActionResult<{ count: number }>> {
@@ -53,6 +61,12 @@ export async function dismissOpportunities(
   return { ok: true, data: { count } };
 }
 
+/**
+ * Dismisses a single job opportunity to the History tab.
+ *
+ * @param opportunityId - Unique identifier of the opportunity to dismiss
+ * @returns Standard tagged union result
+ */
 export async function dismissOpportunity(
   opportunityId: string
 ): Promise<ActionResult> {
@@ -60,6 +74,13 @@ export async function dismissOpportunity(
   return result.ok ? { ok: true } : result;
 }
 
+/**
+ * Bulk marks opportunities as externally applied (e.g. submitted via external job portal).
+ * Updates status to APPLIED, timestamps submission, and clears previous navigation pointers.
+ *
+ * @param ids - Array of opportunity IDs to mark as applied
+ * @returns Result object containing the count of successfully updated rows
+ */
 export async function markOpportunitiesExternalApplied(
   ids: string[]
 ): Promise<ActionResult<{ count: number }>> {
@@ -78,6 +99,12 @@ export async function markOpportunitiesExternalApplied(
   return { ok: true, data: { count: result.count } };
 }
 
+/**
+ * Marks a single opportunity as externally applied.
+ *
+ * @param opportunityId - Unique identifier of the target opportunity
+ * @returns Standard tagged union result
+ */
 export async function markOpportunityExternalApplied(
   opportunityId: string
 ): Promise<ActionResult> {
@@ -86,7 +113,11 @@ export async function markOpportunityExternalApplied(
 }
 
 /**
- * Ban this role pattern ("Less like this") and dismiss the card to History.
+ * Bans a role title pattern ("Less like this") by appending it to the account's excluded titles list,
+ * then dismisses the card into the History tab. Prevents future sync cycles from surfacing this role.
+ *
+ * @param opportunityId - Target opportunity whose title will be excluded
+ * @returns Standard tagged union result
  */
 export async function markLessLikeThis(
   opportunityId: string
@@ -104,7 +135,13 @@ export async function markLessLikeThis(
   return { ok: true };
 }
 
-/** Applied → back to active queue. */
+/**
+ * Moves an applied opportunity back to the active discovery pipeline (status DISCOVERED).
+ * Clears applied and dismissed timestamps.
+ *
+ * @param opportunityId - Target opportunity to unmark
+ * @returns Standard tagged union result
+ */
 export async function unmarkApplied(
   opportunityId: string
 ): Promise<ActionResult> {
@@ -121,7 +158,12 @@ export async function unmarkApplied(
   return { ok: true };
 }
 
-/** Action Required / leads → History (dismissed). */
+/**
+ * Dismisses an opportunity in the Action Required queue directly to the History tab.
+ *
+ * @param opportunityId - Unique opportunity identifier
+ * @returns Standard tagged union result
+ */
 export async function dismissActionRequired(
   opportunityId: string
 ): Promise<ActionResult> {
@@ -129,7 +171,12 @@ export async function dismissActionRequired(
   return result.ok ? { ok: true } : result;
 }
 
-/** History → previous active status. */
+/**
+ * Restores a dismissed or archived card from the History tab back to its previous active pipeline status.
+ *
+ * @param opportunityId - Target opportunity to restore
+ * @returns Standard tagged union result
+ */
 export async function restoreFromHistory(
   opportunityId: string
 ): Promise<ActionResult> {
@@ -137,7 +184,13 @@ export async function restoreFromHistory(
   return result.ok ? { ok: true } : result;
 }
 
-/** Permanently delete a dismissed opportunity row. */
+/**
+ * Permanently removes a dismissed opportunity row from the database.
+ * Only opportunities in DISMISSED status can be deleted through this pipeline.
+ *
+ * @param opportunityId - Opportunity ID to permanently delete
+ * @returns Standard tagged union result
+ */
 export async function deleteOpportunityPermanently(
   opportunityId: string
 ): Promise<ActionResult> {
@@ -145,7 +198,13 @@ export async function deleteOpportunityPermanently(
   return result.ok ? { ok: true } : result;
 }
 
-/** Archive Leads & Applied only (moves to History as ARCHIVED). */
+/**
+ * Bulk archives eligible opportunities (DISCOVERED and APPLIED), moving them to the History tab.
+ * Preserves the original active state in `previousStatus` so they can be accurately restored.
+ *
+ * @param ids - Array of opportunity IDs to archive
+ * @returns Result object containing the count of archived opportunities
+ */
 export async function archiveOpportunities(
   ids: string[]
 ): Promise<ActionResult<{ count: number }>> {
@@ -179,7 +238,13 @@ export async function archiveOpportunities(
   return { ok: true, data: { count } };
 }
 
-/** Restore History items to previousStatus (or DISCOVERED). */
+/**
+ * Restores opportunities from the History tab back to their previous active state (or DISCOVERED).
+ * Unsets archive flags, clears dismissal timestamps, and restores navigational status.
+ *
+ * @param ids - Array of opportunity IDs to restore
+ * @returns Result object containing the count of successfully restored opportunities
+ */
 export async function restoreOpportunities(
   ids: string[]
 ): Promise<ActionResult<{ count: number }>> {
@@ -213,7 +278,13 @@ export async function restoreOpportunities(
   return { ok: true, data: { count } };
 }
 
-/** Permanently delete DISMISSED items only. */
+/**
+ * Permanently deletes rows that are in DISMISSED state from the database.
+ * Non-dismissed records are safely bypassed by database where-clause filters.
+ *
+ * @param ids - Array of opportunity IDs to permanently delete
+ * @returns Result object containing the count of deleted rows
+ */
 export async function deleteDismissedPermanently(
   ids: string[]
 ): Promise<ActionResult<{ count: number }>> {
@@ -230,8 +301,12 @@ export async function deleteDismissedPermanently(
 }
 
 /**
- * Development-only utility to re-process an opportunity's source email message
- * back through the full sync, extraction, debiasing, and deduplication pipeline.
+ * Development-only diagnostic utility to re-process an opportunity's raw Gmail message
+ * through ingestion, taxonomy classification, and opportunity upsertion pipelines.
+ * Blocked in production environments.
+ *
+ * @param opportunityId - Unique identifier of the opportunity to reprocess
+ * @returns Result object containing message processing telemetry and counts
  */
 export async function reprocessOpportunityEmail(
   opportunityId: string
@@ -317,8 +392,12 @@ export async function reprocessOpportunityEmail(
 }
 
 /**
- * Trashes all Gmail messages tagged with the account's rejection label,
- * and updates matching JobApplication rows to trashed/archived.
+ * Trashes all Gmail messages associated with the account's configured rejection label
+ * and marks matching JobApplication records as archived/trashed in the database.
+ * Batches Gmail message IDs and uses batchDelete / trash API commands.
+ *
+ * @param accountId - Target user account ID
+ * @returns Result object containing the total count of messages moved to trash
  */
 export async function emptyRejectionApplications(
   accountId: string

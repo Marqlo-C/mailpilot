@@ -102,7 +102,15 @@ export type DispatchOptions = {
 };
 
 /**
- * Generates (or reuses) a tailored draft and either creates a Gmail draft or sends.
+ * Dispatches an outbound application email or creates a Gmail draft based on account automation rules.
+ * Enforces daily outbound send ceilings to prevent Gmail account rate limiting or spam flags.
+ * Attaches a synthesized tailored resume PDF when requested or configured.
+ *
+ * @param accountId - User account ID executing the dispatch
+ * @param applicationId - Target job application ID
+ * @param options - Dispatch configuration toggles (preview mode, prepared draft reuse, PDF attachment)
+ * @returns Result object with mode ("draft" or "sent") and Gmail draft identifier
+ * @throws Error when the account is inactive, application is missing, or daily dispatch ceiling is exceeded
  */
 export async function dispatchApplicationEmail(
   accountId: string,
@@ -267,7 +275,13 @@ export async function dispatchApplicationEmail(
 }
 
 /**
- * Generates an in-app draft (subject + body) and persists it without touching Gmail yet.
+ * Generates an in-app tailored application draft (subject and body) and persists it
+ * to the database in DRAFT_PREPARED status without creating a draft in Gmail.
+ *
+ * @param accountId - User account ID owning the application
+ * @param applicationId - Target job application ID
+ * @returns Object with generated subject, body, extracted recipient email, and updated status
+ * @throws Error when the account is inactive, application is missing, or profile cannot be loaded
  */
 export async function prepareApplicationDraft(
   accountId: string,
@@ -357,6 +371,17 @@ export async function prepareApplicationDraft(
   };
 }
 
+/**
+ * Iteratively refines an existing application email draft using LLM inference guided
+ * by freeform user instructions (e.g. "make it more concise", "highlight distributed systems experience").
+ * Persists the refined subject and body back to the application record.
+ *
+ * @param accountId - User account ID
+ * @param applicationId - Target job application ID
+ * @param instruction - Freeform natural language refinement directive
+ * @returns Object with refined subject and body strings
+ * @throws Error when instruction is blank, account is inactive, or application is missing
+ */
 export async function refineApplicationDraft(
   accountId: string,
   applicationId: string,
@@ -445,6 +470,16 @@ export async function refineApplicationDraft(
   return draft;
 }
 
+/**
+ * Updates the recipient contact email for an application.
+ * Normalizes email address and updates application routing method to DIRECT_EMAIL.
+ *
+ * @param accountId - User account ID owning the application
+ * @param applicationId - Target job application ID
+ * @param recipientEmail - Validated target recruiter or contact email address
+ * @returns Object containing the normalized recipient email
+ * @throws Error when email is structurally invalid or application cannot be found
+ */
 export async function updateApplicationRecipient(
   accountId: string,
   applicationId: string,
@@ -475,6 +510,16 @@ export async function updateApplicationRecipient(
   return { recipientEmail: email };
 }
 
+/**
+ * Updates an application's prepared subject, body, and optional recipient email in place.
+ * Synchronizes coverLetter and tailoredData JSON fields.
+ *
+ * @param accountId - User account ID
+ * @param applicationId - Target job application ID
+ * @param input - Updated subject, body, and optional recipient email
+ * @returns Resolves when persistence is complete
+ * @throws Error when application is not found or recipient email is invalid
+ */
 export async function updatePreparedDraft(
   accountId: string,
   applicationId: string,
@@ -527,12 +572,25 @@ export async function updatePreparedDraft(
   });
 }
 
+/**
+ * Retrieves a single JobApplication record by ID for dispatch preview or transmission.
+ *
+ * @param applicationId - Target job application ID
+ * @returns Found JobApplication database record or null if not found
+ */
 export async function getApplicationForDispatch(applicationId: string) {
   return prisma.jobApplication.findUnique({
     where: { id: applicationId },
   });
 }
 
+/**
+ * Marks an application as externally applied (e.g. portal submission).
+ * Sets status to APPLIED, dispatchStatus to MANUAL_APPLIED, and records timestamp.
+ *
+ * @param applicationId - Target application identifier
+ * @returns Boolean indicating whether the application was found and updated
+ */
 export async function markApplicationApplied(applicationId: string): Promise<boolean> {
   const application = await prisma.jobApplication.findUnique({
     where: { id: applicationId },
@@ -555,6 +613,14 @@ export async function markApplicationApplied(applicationId: string): Promise<boo
   return true;
 }
 
+/**
+ * Transitions an application's lifecycle status (e.g. APPLIED, OA, INTERVIEW, OFFER, REJECTED, ARCHIVED).
+ * Automatically flags actionRequired when entering interview or assessment stages.
+ *
+ * @param applicationId - Target application identifier
+ * @param status - Target ApplicationStatus enum value
+ * @returns Boolean indicating whether the update succeeded
+ */
 export async function updateApplicationLifecycleStatus(
   applicationId: string,
   status: ApplicationStatus
@@ -579,6 +645,14 @@ export async function updateApplicationLifecycleStatus(
   return true;
 }
 
+/**
+ * Generates a compiled PDF resume for a specific job application, tailored to the target role.
+ * Encodes the binary PDF into base64 and formats a candidate-specific filename.
+ *
+ * @param applicationId - Target application identifier
+ * @param includeSummary - Optional boolean flag to include or omit the professional summary section
+ * @returns Result object containing base64 PDF string and filename, or error message
+ */
 export async function generateApplicationPdfPayload(
   applicationId: string,
   includeSummary = true

@@ -14,6 +14,12 @@ import { getGmailClientForAccount } from "@/lib/gmail/google";
 import { normalizeOllamaBaseUrl, ollamaBaseUrlFromEnv, probeOllamaTags } from "@/lib/ai";
 import { processInboxDelta } from "@/lib/gmail/sync";
 import {
+  accountIdParamSchema,
+  actionError,
+  actionSuccess,
+  type ServerActionResult,
+} from "@/lib/validations/action.schema";
+import {
   getAccountForGmailProbe,
   getAccountForManualSync,
   getAccountOllamaSettings,
@@ -22,25 +28,30 @@ import {
   verifyAccountOwnership,
 } from "@/lib/services/account-lifecycle.service";
 
-export type ActionResult<T = undefined> =
-  | { ok: true; data?: T }
-  | { ok: false; error: string };
+export type ActionResult<T = void> = ServerActionResult<T>;
+
+export type { ServerActionResult };
 
 export async function setActiveAccount(
   accountId: string
-): Promise<ActionResult> {
-  const session = await getSessionToken();
-  if (!session) {
-    return { ok: false, error: "Not authenticated" };
+): Promise<ServerActionResult<void>> {
+  const parsed = accountIdParamSchema.safeParse(accountId);
+  if (!parsed.success) {
+    return actionError(parsed.error.issues[0]?.message ?? "Invalid account ID");
   }
 
-  const verification = await verifyAccountOwnership(session, accountId);
+  const session = await getSessionToken();
+  if (!session) {
+    return actionError("Not authenticated");
+  }
+
+  const verification = await verifyAccountOwnership(session, parsed.data);
   if (!verification.ok || !verification.accountId) {
-    return { ok: false, error: verification.error ?? "Account not found for this user" };
+    return actionError(verification.error ?? "Account not found for this user");
   }
 
   const cookieStore = await cookies();
-  cookieStore.set(ACTIVE_ACCOUNT_COOKIE, accountId, {
+  cookieStore.set(ACTIVE_ACCOUNT_COOKIE, parsed.data, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
@@ -49,7 +60,7 @@ export async function setActiveAccount(
   });
 
   revalidatePath("/", "layout");
-  return { ok: true };
+  return actionSuccess(undefined);
 }
 
 /**
@@ -57,29 +68,44 @@ export async function setActiveAccount(
  */
 export async function unlinkAccountCredentials(
   accountId: string
-): Promise<ActionResult> {
-  const result = await unlinkAccountTokens(accountId);
+): Promise<ServerActionResult<void>> {
+  const parsed = accountIdParamSchema.safeParse(accountId);
+  if (!parsed.success) {
+    return actionError(parsed.error.issues[0]?.message ?? "Invalid account ID");
+  }
+
+  const session = await getSessionToken();
+  if (!session) {
+    return actionError("Not authenticated");
+  }
+
+  const verification = await verifyAccountOwnership(session, parsed.data);
+  if (!verification.ok) {
+    return actionError(verification.error ?? "Unauthorized");
+  }
+
+  const result = await unlinkAccountTokens(parsed.data);
   if (!result.ok) {
-    return { ok: false, error: result.error ?? "Account not found" };
+    return actionError(result.error ?? "Account not found");
   }
 
   const cookieStore = await cookies();
-  if (cookieStore.get(ACTIVE_ACCOUNT_COOKIE)?.value === accountId) {
+  if (cookieStore.get(ACTIVE_ACCOUNT_COOKIE)?.value === parsed.data) {
     cookieStore.delete(ACTIVE_ACCOUNT_COOKIE);
   }
-  if (cookieStore.get(SESSION_COOKIE)?.value === accountId) {
+  if (cookieStore.get(SESSION_COOKIE)?.value === parsed.data) {
     cookieStore.delete(ACTIVE_ACCOUNT_COOKIE);
   }
 
   revalidatePath("/", "layout");
   revalidatePath("/settings");
-  return { ok: true };
+  return actionSuccess(undefined);
 }
 
 /**
  * @deprecated Prefer unlinkAccountCredentials — kept as alias for older callers.
  */
-export async function removeAccount(accountId: string): Promise<ActionResult> {
+export async function removeAccount(accountId: string): Promise<ServerActionResult<void>> {
   return unlinkAccountCredentials(accountId);
 }
 
@@ -98,10 +124,25 @@ export async function logoutMailPilotSession(): Promise<never> {
  */
 export async function triggerManualSync(
   accountId: string
-): Promise<ActionResult> {
-  const account = await getAccountForManualSync(accountId);
+): Promise<ServerActionResult<void>> {
+  const parsed = accountIdParamSchema.safeParse(accountId);
+  if (!parsed.success) {
+    return actionError(parsed.error.issues[0]?.message ?? "Invalid account ID");
+  }
+
+  const session = await getSessionToken();
+  if (!session) {
+    return actionError("Not authenticated");
+  }
+
+  const verification = await verifyAccountOwnership(session, parsed.data);
+  if (!verification.ok) {
+    return actionError(verification.error ?? "Unauthorized");
+  }
+
+  const account = await getAccountForManualSync(parsed.data);
   if (!account) {
-    return { ok: false, error: "Account not found or credentials unlinked" };
+    return actionError("Account not found or credentials unlinked");
   }
 
   try {
@@ -110,60 +151,55 @@ export async function triggerManualSync(
     revalidatePath("/");
     revalidatePath("/subscriptions");
     revalidatePath("/jobs");
-    return { ok: true };
+    return actionSuccess(undefined);
   } catch (error) {
-    console.error("Manual sync failed", error);
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Sync failed",
-    };
+    return actionError(error instanceof Error ? error.message : "Sync failed");
   }
 }
 
 export async function pingOllama(
   accountId: string,
   url?: string
-): Promise<ActionResult<{ models: string[] }>> {
-  const settings = await getAccountOllamaSettings(accountId);
+): Promise<ServerActionResult<{ models: string[] }>> {
+  const parsed = accountIdParamSchema.safeParse(accountId);
+  if (!parsed.success) {
+    return actionError(parsed.error.issues[0]?.message ?? "Invalid account ID");
+  }
 
-  const raw =
-    url?.trim() || settings?.localOllamaUrl || ollamaBaseUrlFromEnv();
+  const settings = await getAccountOllamaSettings(parsed.data);
+  const raw = url?.trim() || settings?.localOllamaUrl || ollamaBaseUrlFromEnv();
   const base = normalizeOllamaBaseUrl(raw);
 
   try {
     const { models } = await probeOllamaTags(base, 5000);
-
-    await updateOllamaSettings(accountId, base, models);
-
-    return { ok: true, data: { models } };
+    await updateOllamaSettings(parsed.data, base, models);
+    return actionSuccess({ models });
   } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Could not reach Ollama endpoint",
-    };
+    return actionError(
+      error instanceof Error ? error.message : "Could not reach Ollama endpoint"
+    );
   }
 }
 
 /** Used to verify Gmail still accepts tokens before showing sync badge as live. */
 export async function probeGmailConnection(
   accountId: string
-): Promise<ActionResult> {
-  const account = await getAccountForGmailProbe(accountId);
+): Promise<ServerActionResult<void>> {
+  const parsed = accountIdParamSchema.safeParse(accountId);
+  if (!parsed.success) {
+    return actionError(parsed.error.issues[0]?.message ?? "Invalid account ID");
+  }
+
+  const account = await getAccountForGmailProbe(parsed.data);
   if (!account || !account.encryptedAccess) {
-    return { ok: false, error: "Account not found or credentials unlinked" };
+    return actionError("Account not found or credentials unlinked");
   }
 
   try {
     const gmail = await getGmailClientForAccount(account);
     await gmail.users.getProfile({ userId: "me" });
-    return { ok: true };
+    return actionSuccess(undefined);
   } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Gmail probe failed",
-    };
+    return actionError(error instanceof Error ? error.message : "Gmail probe failed");
   }
 }

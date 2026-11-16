@@ -239,5 +239,3 @@ export { LifecycleRulesCard } from "@/components/features/settings/automation/li
 export { MatchSendLimitsCard } from "@/components/features/settings/automation/match-send-limits-card";
 export { RetentionPolicyCard } from "@/components/features/settings/automation/retention-policy-card";
 export { SyncThroughputCard } from "@/components/features/settings/automation/sync-throughput-card";
-
-export default AutomationCard;

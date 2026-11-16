@@ -138,5 +138,3 @@ export function SectionOrderingStrategyCard({
     </SettingsFeatureCard>
   );
 }
-
-export default SectionOrderingStrategyCard;

@@ -61,18 +61,18 @@ describe("Application Dispatch Service - Workflow Protection", () => {
           featureFlags: {},
         },
       },
-    } as any);
+    } as unknown as Awaited<ReturnType<typeof prisma.account.findUnique>>);
 
     vi.spyOn(prisma.jobApplication, "findFirst").mockResolvedValue(
-      mockApplication as any
+      mockApplication as unknown as Awaited<ReturnType<typeof prisma.jobApplication.findFirst>>
     );
 
     const updateSpy = vi
       .spyOn(prisma.jobApplication, "update")
-      .mockResolvedValue({} as any);
+      .mockResolvedValue({} as unknown as Awaited<ReturnType<typeof prisma.jobApplication.update>>);
 
     vi.spyOn(profileModule, "loadMasterProfileForDraft").mockResolvedValue(
-      mockProfile as any
+      mockProfile as unknown as Awaited<ReturnType<typeof profileModule.loadMasterProfileForDraft>>
     );
 
     vi.spyOn(pdfModule, "generateTailoredResumePdf").mockResolvedValue(
@@ -85,7 +85,7 @@ describe("Application Dispatch Service - Workflow Protection", () => {
       coverLetter: "Cover letter text",
       selectedBullets: [],
       jobRequirements: ["Staff Systems Engineer"],
-    } as any);
+    } as unknown as Awaited<ReturnType<typeof tailorModule.tailorResumeForJob>>);
 
     const draftCreateMock = vi.fn().mockResolvedValue({ data: { id: "draft_new_123" } });
     const messageSendMock = vi.fn().mockResolvedValue({ data: { id: "msg_new_123" } });
@@ -95,7 +95,7 @@ describe("Application Dispatch Service - Workflow Protection", () => {
         drafts: { create: draftCreateMock },
         messages: { send: messageSendMock },
       },
-    } as any);
+    } as unknown as Awaited<ReturnType<typeof googleModule.getGmailClientForAccount>>);
 
     // Caller requests SEND (createDraftOnly: false)
     const result = await dispatchApplicationEmail(
@@ -137,18 +137,18 @@ describe("Application Dispatch Service - Workflow Protection", () => {
           featureFlags: {},
         },
       },
-    } as any);
+    } as unknown as Awaited<ReturnType<typeof prisma.account.findUnique>>);
 
     vi.spyOn(prisma.jobApplication, "findFirst").mockResolvedValue(
-      mockApplication as any
+      mockApplication as unknown as Awaited<ReturnType<typeof prisma.jobApplication.findFirst>>
     );
 
     const updateSpy = vi
       .spyOn(prisma.jobApplication, "update")
-      .mockResolvedValue({} as any);
+      .mockResolvedValue({} as unknown as Awaited<ReturnType<typeof prisma.jobApplication.update>>);
 
     vi.spyOn(profileModule, "loadMasterProfileForDraft").mockResolvedValue(
-      mockProfile as any
+      mockProfile as unknown as Awaited<ReturnType<typeof profileModule.loadMasterProfileForDraft>>
     );
 
     vi.spyOn(pdfModule, "generateTailoredResumePdf").mockResolvedValue(
@@ -161,7 +161,7 @@ describe("Application Dispatch Service - Workflow Protection", () => {
       coverLetter: "Cover letter text",
       selectedBullets: [],
       jobRequirements: ["Staff Systems Engineer"],
-    } as any);
+    } as unknown as Awaited<ReturnType<typeof tailorModule.tailorResumeForJob>>);
 
     const draftCreateMock = vi.fn();
     const messageSendMock = vi.fn().mockResolvedValue({ data: { id: "sent_msg_999" } });
@@ -171,7 +171,7 @@ describe("Application Dispatch Service - Workflow Protection", () => {
         drafts: { create: draftCreateMock },
         messages: { send: messageSendMock },
       },
-    } as any);
+    } as unknown as Awaited<ReturnType<typeof googleModule.getGmailClientForAccount>>);
 
     const result = await dispatchApplicationEmail(
       sampleAccountId,

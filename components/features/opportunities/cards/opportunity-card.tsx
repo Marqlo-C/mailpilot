@@ -10,24 +10,11 @@ import {
 import { useRouter } from "next/navigation";
 import type { JobOpportunity } from "@prisma/client";
 import {
-  AlignLeft,
-  Archive,
-  Banknote,
-  Calendar,
-  CheckCircle2,
   Clock,
   ExternalLink,
   Mail,
-  MapPin,
-  RotateCcw,
-  RotateCw,
-  Send,
   Sparkle,
   Sparkles,
-  ThumbsDown,
-  Trash2,
-  Undo2,
-  XCircle,
   Zap,
 } from "lucide-react";
 
@@ -36,31 +23,19 @@ import {
   reprocessOpportunityEmailAction,
 } from "@/app/actions/opportunities";
 import { toast } from "sonner";
+import { LabelTooltip } from "@/components/ui/tooltip";
 import { WavyDashedFrame } from "@/components/ui/tactile/wavy-dashed-frame";
 import { WavyDashedLine } from "@/components/ui/tactile/wavy-dashed-line";
-import { LabelTooltip } from "@/components/ui/tooltip";
 import {
   variantToJobsTabKey,
   type JobCardAction,
 } from "@/lib/opportunities/movement-rules";
 import { runJobCardAction } from "@/lib/opportunities/run-job-move";
-import {
-  AppMenuContent,
-  AppMenuItem,
-  AppMenuSeparator,
-} from "@/components/ui/app-menu";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { OpportunityCardBadges } from "./subcomponents/opportunity-card-badges";
+import { OpportunityCardActions } from "./subcomponents/opportunity-card-actions";
+import { OpportunityCardMenu } from "./subcomponents/opportunity-card-menu";
 import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
-import { RowMenuTrigger } from "@/components/ui/composites/row-menu-trigger";
 import { CompanyLogo } from "@/components/ui/logo-frame";
-import { ReceivedMeta } from "@/components/ui/composites/received-meta";
-import {
-  META_CHIP_ICON_CLASSNAME,
-  MetaChip,
-} from "@/components/ui/tactile/meta-chip";
 import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/styles/score-percent";
 import {
   PRIMARY_ACTION_BTN_CLASSNAME,
@@ -96,7 +71,7 @@ export type OpportunityCardVariant =
   | "action"
   | "history";
 
-type OpportunityCardProps = {
+export type OpportunityCardProps = {
   opportunity: JobOpportunity;
   matchThreshold: number;
   variant?: OpportunityCardVariant;
@@ -513,62 +488,15 @@ export function OpportunityCard({
         </div>
       </div>
 
-      {/* Metadata — left: location + salary badges; right: unboxed telemetry */}
-      <div
-        className={cn(
-          "flex w-full min-w-0 items-center justify-between gap-2 px-6 py-1 text-[11px] select-none sm:px-7",
-          isSelected && "opacity-55"
-        )}
-      >
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <MetaChip
-            title={`Location: ${locationRaw || "Not specified"}`}
-            icon={
-              <MapPin className={META_CHIP_ICON_CLASSNAME.md} aria-hidden />
-            }
-            iconSize="md"
-            value={locationLabel}
-            divider="pipe"
-            truncateValue
-            selected={isSelected}
-            className="max-w-[220px]"
-            valueClassName="font-medium text-foreground/80"
-          />
-          <MetaChip
-            title={`Salary: ${salaryRaw || "Not specified"}`}
-            icon={
-              <Banknote className={META_CHIP_ICON_CLASSNAME.md} aria-hidden />
-            }
-            iconSize="md"
-            value={salaryLabel}
-            divider="pipe"
-            selected={isSelected}
-            tone={
-              salaryRaw && !/^\$?\s*tbd\b/i.test(salaryRaw)
-                ? "success"
-                : "default"
-            }
-            valueClassName="font-medium"
-          />
-        </div>
-
-        <div className="flex shrink-0 items-center gap-3 whitespace-nowrap text-muted-foreground">
-          {postedRaw ? (
-            <>
-              <LabelTooltip label={`Posted: ${postedRaw}`} side="top">
-                <span className="inline-flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-                  <span>{postedRaw}</span>
-                </span>
-              </LabelTooltip>
-              <span className="text-muted-foreground/40" aria-hidden>
-                ·
-              </span>
-            </>
-          ) : null}
-          <ReceivedMeta date={opportunity.receivedAt} className="text-[11px]" />
-        </div>
-      </div>
+      <OpportunityCardBadges
+        locationRaw={locationRaw}
+        locationLabel={locationLabel}
+        salaryRaw={salaryRaw}
+        salaryLabel={salaryLabel}
+        postedRaw={postedRaw}
+        receivedAt={opportunity.receivedAt}
+        isSelected={isSelected}
+      />
 
       {/* 4. Content body — description aligns with first metadata pill; AI row keeps tighter inset */}
       <div
@@ -627,318 +555,44 @@ export function OpportunityCard({
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {/* Secondary (left of primary) */}
-              {variant === "leads" ? (
-                <button
-                  type="button"
-                  disabled={actionsLocked}
-                  onClick={onMarkApplied}
-                  className={secondaryBtnClass}
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>Mark Applied</span>
-                </button>
-              ) : null}
+              <OpportunityCardActions
+                variant={variant}
+                actionsLocked={actionsLocked}
+                canEmail={canEmail}
+                validApplyUrl={validApplyUrl}
+                restoreLabel={restoreLabel}
+                primaryBtnClass={primaryBtnClass}
+                secondaryBtnClass={secondaryBtnClass}
+                onMarkApplied={onMarkApplied}
+                onUnmarkApplied={onUnmarkApplied}
+                onReviewDraft={onReviewDraft}
+                onSendNow={onSendNow}
+                onRestore={runRestore}
+              />
 
-              {variant === "action" && canEmail ? (
-                <button
-                  type="button"
-                  disabled={actionsLocked}
-                  onClick={onReviewDraft}
-                  className={secondaryBtnClass}
-                >
-                  <Mail className="h-3.5 w-3.5" />
-                  <span>Review Draft</span>
-                </button>
-              ) : null}
-
-              {variant === "history" && validApplyUrl ? (
-                actionsLocked ? (
-                  <span className={secondaryBtnClass} aria-disabled>
-                    <span>View Posting</span>
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </span>
-                ) : (
-                  <a
-                    href={validApplyUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={secondaryBtnClass}
-                  >
-                    <span>View Posting</span>
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                )
-              ) : null}
-
-              {/* Primary (just left of ⋮) */}
-              {variant === "leads" ? (
-                canEmail ? (
-                  <button
-                    type="button"
-                    disabled={actionsLocked}
-                    onClick={onReviewDraft}
-                    className={primaryBtnClass}
-                  >
-                    <Mail className="h-3.5 w-3.5" />
-                    <span>Draft Reply</span>
-                  </button>
-                ) : validApplyUrl ? (
-                  actionsLocked ? (
-                    <span className={primaryBtnClass} aria-disabled>
-                      <span>View Posting</span>
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </span>
-                  ) : (
-                    <a
-                      href={validApplyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={primaryBtnClass}
-                    >
-                      <span>View Posting</span>
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  )
-                ) : (
-                  <span className="inline-flex items-center rounded-lg border border-border/40 bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground/60">
-                    No link detected
-                  </span>
-                )
-              ) : null}
-
-              {variant === "applied" ? (
-                <button
-                  type="button"
-                  disabled={actionsLocked}
-                  onClick={onUnmarkApplied}
-                  className={primaryBtnClass}
-                >
-                  <Undo2 className="h-3.5 w-3.5" />
-                  <span>Mark Unapplied</span>
-                </button>
-              ) : null}
-
-              {variant === "action" ? (
-                canEmail ? (
-                  <button
-                    type="button"
-                    disabled={actionsLocked}
-                    onClick={onSendNow}
-                    className={primaryBtnClass}
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                    <span>Send</span>
-                  </button>
-                ) : validApplyUrl ? (
-                  actionsLocked ? (
-                    <span className={primaryBtnClass} aria-disabled>
-                      <span>View Posting</span>
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </span>
-                  ) : (
-                    <a
-                      href={validApplyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={primaryBtnClass}
-                    >
-                      <span>View Posting</span>
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  )
-                ) : null
-              ) : null}
-
-          {variant === "history" ? (
-            <button
-              type="button"
-              disabled={actionsLocked}
-              onClick={runRestore}
-              className={primaryBtnClass}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span>{restoreLabel}</span>
-            </button>
-          ) : null}
-
-          {showOverflowMenu ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <RowMenuTrigger
-                  label="Job actions"
-                  disabled={actionsLocked}
-                  className={
-                    isSelected
-                      ? "pointer-events-none opacity-55 hover:bg-[#e4f7f3] hover:text-[#181e26]"
-                      : undefined
-                  }
+              {showOverflowMenu ? (
+                <OpportunityCardMenu
+                  variant={variant}
+                  actionsLocked={actionsLocked}
+                  isSelected={isSelected}
+                  displayDescription={displayDescription}
+                  canEmail={canEmail}
+                  opportunity={opportunity}
+                  validApplyUrl={validApplyUrl}
+                  dismissed={dismissed}
+                  isDev={isDev}
+                  isReprocessing={isReprocessing}
+                  onDescriptionOpen={() => setDescriptionOpen(true)}
+                  onReviewDraft={onReviewDraft}
+                  onSendNow={onSendNow}
+                  onViewOriginalEmail={onViewOriginalEmail}
+                  onArchive={runArchive}
+                  onDismiss={runDismiss}
+                  onLessLikeThis={onLessLikeThis}
+                  onDelete={runDelete}
+                  onReprocess={handleReprocess}
                 />
-              </DropdownMenuTrigger>
-              <AppMenuContent align="end">
-                {displayDescription ? (
-                  <AppMenuItem
-                    disabled={actionsLocked}
-                    onClick={() => setDescriptionOpen(true)}
-                  >
-                    <AlignLeft className="mr-2 h-4 w-4" />
-                    Full Description
-                  </AppMenuItem>
-                ) : null}
-                {variant === "leads" && canEmail ? (
-                  <>
-                    {displayDescription ? <AppMenuSeparator /> : null}
-                    <AppMenuItem
-                      disabled={actionsLocked}
-                      onClick={onReviewDraft}
-                    >
-                      <Mail className="mr-2 h-4 w-4" />
-                      Review Draft
-                    </AppMenuItem>
-                    <AppMenuItem
-                      disabled={actionsLocked}
-                      onClick={onSendNow}
-                    >
-                      <Send className="mr-2 h-4 w-4" />
-                      Send Now
-                    </AppMenuItem>
-                    <AppMenuSeparator />
-                  </>
-                ) : null}
-                {opportunity.emailMessageId && onViewOriginalEmail ? (
-                  <AppMenuItem
-                    disabled={actionsLocked}
-                    onClick={onViewOriginalEmail}
-                  >
-                    <Mail className="mr-2 h-4 w-4" />
-                    Inbox Message
-                  </AppMenuItem>
-                ) : null}
-                {(variant === "applied" || variant === "action") &&
-                validApplyUrl ? (
-                  <AppMenuItem asChild disabled={actionsLocked}>
-                    <a
-                      href={validApplyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      View Posting
-                    </a>
-                  </AppMenuItem>
-                ) : null}
-                {(variant === "leads" || variant === "applied") && (
-                  <AppMenuItem
-                    disabled={actionsLocked}
-                    onClick={runArchive}
-                  >
-                    <Archive className="mr-2 h-4 w-4" />
-                    Archive
-                  </AppMenuItem>
-                )}
-                <AppMenuItem
-                  disabled={actionsLocked}
-                  onClick={runDismiss}
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Dismiss
-                </AppMenuItem>
-                {onLessLikeThis ? (
-                  <>
-                    <AppMenuSeparator />
-                    <AppMenuItem
-                      disabled={actionsLocked}
-                      onClick={onLessLikeThis}
-                      className="text-amber-600 focus:bg-amber-50 focus:text-amber-600 dark:text-amber-400 dark:focus:bg-amber-950/50 dark:focus:text-amber-400"
-                    >
-                      <ThumbsDown className="mr-2 h-4 w-4" />
-                      Less like this
-                    </AppMenuItem>
-                  </>
-                ) : null}
-                {isDev && opportunity.emailMessageId ? (
-                  <>
-                    <AppMenuSeparator />
-                    <AppMenuItem
-                      disabled={actionsLocked || isReprocessing}
-                      onClick={handleReprocess}
-                      className="text-cyan-600 focus:bg-cyan-50 focus:text-cyan-600 dark:text-cyan-400 dark:focus:bg-cyan-950/50 dark:focus:text-cyan-400"
-                    >
-                      <RotateCw
-                        className={cn("mr-2 h-4 w-4", isReprocessing && "animate-spin")}
-                      />
-                      Re-sync Email (Dev)
-                    </AppMenuItem>
-                  </>
-                ) : null}
-              </AppMenuContent>
-            </DropdownMenu>
-          ) : null}
-
-          {variant === "history" ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <RowMenuTrigger
-                  label="Job actions"
-                  disabled={actionsLocked}
-                  className={
-                    isSelected
-                      ? "pointer-events-none opacity-55 hover:bg-[#e4f7f3] hover:text-[#181e26]"
-                      : undefined
-                  }
-                />
-              </DropdownMenuTrigger>
-              <AppMenuContent align="end">
-                {displayDescription ? (
-                  <AppMenuItem
-                    disabled={actionsLocked}
-                    onClick={() => setDescriptionOpen(true)}
-                  >
-                    <AlignLeft className="mr-2 h-4 w-4" />
-                    Full Description
-                  </AppMenuItem>
-                ) : null}
-                {displayDescription &&
-                (opportunity.isArchived || dismissed) ? (
-                  <AppMenuSeparator />
-                ) : null}
-                {opportunity.isArchived && !dismissed ? (
-                  <AppMenuItem
-                    disabled={actionsLocked}
-                    onClick={runDismiss}
-                  >
-                    <XCircle className="mr-2 h-4 w-4" />
-                    Dismiss
-                  </AppMenuItem>
-                ) : null}
-                {dismissed ? (
-                  <AppMenuItem
-                    disabled={actionsLocked}
-                    onClick={runDelete}
-                    className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </AppMenuItem>
-                ) : null}
-                {isDev && opportunity.emailMessageId ? (
-                  <>
-                    <AppMenuSeparator />
-                    <AppMenuItem
-                      disabled={actionsLocked || isReprocessing}
-                      onClick={handleReprocess}
-                      className="text-cyan-600 focus:bg-cyan-50 focus:text-cyan-600 dark:text-cyan-400 dark:focus:bg-cyan-950/50 dark:focus:text-cyan-400"
-                    >
-                      <RotateCw
-                        className={cn("mr-2 h-4 w-4", isReprocessing && "animate-spin")}
-                      />
-                      Re-sync Email (Dev)
-                    </AppMenuItem>
-                  </>
-                ) : null}
-              </AppMenuContent>
-            </DropdownMenu>
-          ) : null}
+              ) : null}
             </div>
         </div>
       </div>

@@ -72,5 +72,3 @@ export function ManualBlueprintCard({
     </SettingsSectionCard>
   );
 }
-
-export default ManualBlueprintCard;

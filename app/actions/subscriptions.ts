@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { auth } from "@/lib/core/auth";
 import { getGmailClientForAccount } from "@/lib/gmail/google";
 import {
   InsufficientScopeError,
@@ -19,15 +20,26 @@ import {
   subscriptionSenderSchema,
 } from "@/lib/validations/subscriptions.schema";
 import {
+  idParamSchema,
+  actionError,
+  actionSuccess,
+  type ActionResult,
+  type ServerActionResult,
+} from "@/lib/validations/action.schema";
+import {
   deleteArchivedSubscription,
   findSubscriptionWithAccount,
   getSubscriptionSenderContext,
   updateSubscriptionStatus,
 } from "@/lib/services/subscription-digest.service";
 
-export type ActionResult<T = undefined> =
-  | { ok: true; data?: T }
-  | { ok: false; error: string };
+export type { ActionResult, ServerActionResult };
+
+async function checkAuthSession(): Promise<ServerActionResult<string>> {
+  const session = await auth();
+  if (!session) return actionError("Unauthorized");
+  return actionSuccess(session.accountId);
+}
 
 /**
  * Runs the unsubscribe chain for a stored subscription and optional cleanup.
@@ -35,19 +47,27 @@ export type ActionResult<T = undefined> =
 export async function unsubscribeSender(
   subscriptionId: string,
   cleanupAction: CleanupAction
-): Promise<ActionResult<{ method: string; cleaned?: number }>> {
-  const parsedCleanup = cleanupActionSchema.safeParse(cleanupAction);
-  if (!parsedCleanup.success) {
-    return { ok: false, error: "Invalid cleanup action" };
+): Promise<ServerActionResult<{ method: string; cleaned?: number }>> {
+  const authGate = await checkAuthSession();
+  if (!authGate.success) return authGate;
+
+  const parsedId = idParamSchema.safeParse(subscriptionId);
+  if (!parsedId.success) {
+    return actionError(parsedId.error.issues[0]?.message ?? "Invalid subscription ID");
   }
 
-  const subscription = await findSubscriptionWithAccount(subscriptionId);
+  const parsedCleanup = cleanupActionSchema.safeParse(cleanupAction);
+  if (!parsedCleanup.success) {
+    return actionError("Invalid cleanup action");
+  }
+
+  const subscription = await findSubscriptionWithAccount(parsedId.data);
   if (!subscription) {
-    return { ok: false, error: "Subscription not found" };
+    return actionError("Subscription not found");
   }
 
   if (!subscription.account.isActive || !subscription.account.encryptedAccess) {
-    return { ok: false, error: "Account credentials are not linked" };
+    return actionError("Account credentials are not linked");
   }
 
   try {
@@ -73,7 +93,7 @@ export async function unsubscribeSender(
           ? result.cleanupError
           : null;
 
-    await updateSubscriptionStatus(subscriptionId, status, lastError);
+    await updateSubscriptionStatus(parsedId.data, status, lastError);
 
     if (status === "UNSUBSCRIBED") {
       const senderContext = await getSubscriptionSenderContext(
@@ -94,26 +114,20 @@ export async function unsubscribeSender(
     revalidatePath("/");
 
     if (bothFailed) {
-      return {
-        ok: false,
-        error: lastError ?? "Unsubscribe request failed",
-      };
+      return actionError(lastError ?? "Unsubscribe request failed");
     }
 
-    return {
-      ok: true,
-      data: {
-        method: result.unsub.usedGetFallback
-          ? `${result.unsub.method}_FALLBACK`
-          : result.unsub.method,
-        cleaned: result.cleanedCount,
-      },
-    };
+    return actionSuccess({
+      method: result.unsub.usedGetFallback
+        ? `${result.unsub.method}_FALLBACK`
+        : result.unsub.method,
+      cleaned: result.cleanedCount,
+    });
   } catch (error) {
     console.error("unsubscribeSender failed", error);
 
     await updateSubscriptionStatus(
-      subscriptionId,
+      parsedId.data,
       "FAILED",
       error instanceof Error ? error.message : "Unsubscribe failed"
     );
@@ -122,13 +136,10 @@ export async function unsubscribeSender(
       error instanceof InsufficientScopeError ||
       isInsufficientScopeError(error)
     ) {
-      return { ok: false, error: REAUTH_REQUIRED_MESSAGE };
+      return actionError(REAUTH_REQUIRED_MESSAGE);
     }
 
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Unsubscribe failed",
-    };
+    return actionError(error instanceof Error ? error.message : "Unsubscribe failed");
   }
 }
 
@@ -139,10 +150,13 @@ export async function unsubscribeSender(
 export async function batchCleanupSender(
   accountId: string,
   senderEmail: string
-): Promise<ActionResult<{ cleaned: number }>> {
+): Promise<ServerActionResult<{ cleaned: number }>> {
+  const authGate = await checkAuthSession();
+  if (!authGate.success) return authGate;
+
   const parsed = subscriptionSenderSchema.safeParse({ accountId, senderEmail });
   if (!parsed.success) {
-    return { ok: false, error: "Invalid account or sender email" };
+    return actionError("Invalid account or sender email");
   }
 
   const normalizedSender = parsed.data.senderEmail.toLowerCase();
@@ -152,7 +166,7 @@ export async function batchCleanupSender(
   );
 
   if (!context || !context.account.isActive || !context.account.encryptedAccess) {
-    return { ok: false, error: "Account credentials are not linked" };
+    return actionError("Account credentials are not linked");
   }
 
   const { account, subscription, profile, history } = context;
@@ -162,11 +176,7 @@ export async function batchCleanupSender(
     history?.status === "UNSUBSCRIBED";
 
   if (!isArchived) {
-    return {
-      ok: false,
-      error:
-        "Sender is not in the Unsubscribed Archive. Unsubscribe first, then use second-chance cleanup.",
-    };
+    return actionError("Sender is not in the Unsubscribed Archive. Unsubscribe first, then use second-chance cleanup.");
   }
 
   try {
@@ -185,20 +195,16 @@ export async function batchCleanupSender(
     });
 
     revalidatePath("/subscriptions");
-    return { ok: true, data: { cleaned } };
+    return actionSuccess({ cleaned });
   } catch (error) {
     console.error("batchCleanupSender failed", error);
     if (
       error instanceof InsufficientScopeError ||
       isInsufficientScopeError(error)
     ) {
-      return { ok: false, error: REAUTH_REQUIRED_MESSAGE };
+      return actionError(REAUTH_REQUIRED_MESSAGE);
     }
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "Batch cleanup failed",
-    };
+    return actionError(error instanceof Error ? error.message : "Batch cleanup failed");
   }
 }
 
@@ -209,10 +215,13 @@ export async function batchCleanupSender(
 export async function deleteUnsubscribedRecord(
   accountId: string,
   senderEmail: string
-): Promise<ActionResult> {
+): Promise<ServerActionResult<void>> {
+  const authGate = await checkAuthSession();
+  if (!authGate.success) return authGate;
+
   const parsed = subscriptionSenderSchema.safeParse({ accountId, senderEmail });
   if (!parsed.success) {
-    return { ok: false, error: "Invalid account or sender email" };
+    return actionError("Invalid account or sender email");
   }
 
   const normalizedSender = parsed.data.senderEmail.toLowerCase();
@@ -222,10 +231,10 @@ export async function deleteUnsubscribedRecord(
   );
 
   if (!result.ok) {
-    return { ok: false, error: result.error ?? "Failed to delete record" };
+    return actionError(result.error ?? "Failed to delete record");
   }
 
   revalidatePath("/subscriptions");
   revalidatePath("/");
-  return { ok: true };
+  return actionSuccess(undefined);
 }

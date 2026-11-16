@@ -31,6 +31,11 @@ import {
   type DrainQueuedInput,
 } from "@/lib/validations/sync.schema";
 import {
+  actionError,
+  actionSuccess,
+  type ServerActionResult,
+} from "@/lib/validations/action.schema";
+import {
   completeDrainSession,
   completeSyncSession,
   findAccountForSync,
@@ -40,26 +45,24 @@ import {
   startSyncSession,
 } from "@/lib/services/email-ingestion.service";
 
-export type ActionResult<T = undefined> =
-  | { ok: true; data?: T }
-  | { ok: false; error: string };
+export type ActionResult<T = void> = ServerActionResult<T>;
 
-export type { SyncInput, DrainQueuedInput };
+export type { SyncInput, DrainQueuedInput, ServerActionResult };
 
 /**
  * Immediately clears a stuck isSyncing lock for the active account.
  */
-export async function forceResetSyncStatus(): Promise<ActionResult> {
+export async function forceResetSyncStatus(): Promise<ServerActionResult<void>> {
   const active = await getActiveAccount();
   if (!active) {
-    return { ok: false, error: "Unauthorized" };
+    return actionError("Unauthorized");
   }
 
   await resetSyncLock(active.id);
 
   revalidatePath("/");
   revalidatePath("/jobs");
-  return { ok: true };
+  return actionSuccess(undefined);
 }
 
 /**
@@ -83,10 +86,10 @@ export async function syncInboxOpportunities(
     lookbackDays?: number;
     accountId?: string;
   } = {}
-): Promise<ActionResult<{ message: string; mode: "incremental" | "rescan" }>> {
+): Promise<ServerActionResult<{ message: string; mode: "incremental" | "rescan" }>> {
   const parsed = syncInputSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Invalid sync input" };
+    return actionError("Invalid sync input");
   }
 
   const forceRescan = parsed.data.forceRescan;
@@ -96,34 +99,28 @@ export async function syncInboxOpportunities(
   if (!accountId) {
     const active = await getActiveAccount();
     if (!active) {
-      return { ok: false, error: "Unauthorized — connect a Gmail account first" };
+      return actionError("Unauthorized — connect a Gmail account first");
     }
     accountId = active.id;
   }
 
   const account = await findAccountForSync(accountId);
   if (!account || !account.isActive) {
-    return { ok: false, error: "Account not found or inactive" };
+    return actionError("Account not found or inactive");
   }
 
   const rateLimit = await checkRateLimit(`sync:${accountId}`, "strict");
   if (!rateLimit.success) {
-    return {
-      ok: false,
-      error: "Sync rate limit reached. Please wait a few seconds before syncing again.",
-    };
+    return actionError("Sync rate limit reached. Please wait a few seconds before syncing again.");
   }
 
   if (account.isSyncing) {
     const lockAgeMs = Date.now() - account.updatedAt.getTime();
     if (lockAgeMs <= SYNC_LOCK_STALE_MS) {
-      return {
-        ok: true,
-        data: {
-          message: "Sync already running in background",
-          mode: forceRescan ? "rescan" : "incremental",
-        },
-      };
+      return actionSuccess({
+        message: "Sync already running in background",
+        mode: forceRescan ? "rescan" : "incremental",
+      });
     }
     syncLockLog.warn(
       { ageSec: Math.round(lockAgeMs / 1000) },
@@ -219,15 +216,12 @@ export async function syncInboxOpportunities(
     }
   });
 
-  return {
-    ok: true,
-    data: {
-      message: forceRescan
-        ? "Force rescan started in background"
-        : "Sync started in background",
-      mode,
-    },
-  };
+  return actionSuccess({
+    message: forceRescan
+      ? "Force rescan started in background"
+      : "Sync started in background",
+    mode,
+  });
 }
 
 /**
@@ -237,24 +231,24 @@ export async function syncInboxOpportunities(
  */
 export async function drainPendingAiQueue(
   input: { accountId?: string } = {}
-): Promise<ActionResult<{ message: string }>> {
+): Promise<ServerActionResult<{ message: string }>> {
   const parsed = drainQueuedSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: "Invalid input" };
+    return actionError("Invalid input");
   }
 
   let accountId = parsed.data.accountId;
   if (!accountId) {
     const active = await getActiveAccount();
     if (!active) {
-      return { ok: false, error: "Unauthorized — connect a Gmail account first" };
+      return actionError("Unauthorized — connect a Gmail account first");
     }
     accountId = active.id;
   }
 
   const sessionAccountId = await getAuthenticatedAccountId();
   if (!sessionAccountId) {
-    return { ok: false, error: "Unauthorized" };
+    return actionError("Unauthorized");
   }
 
   const [account, sessionAccount] = await findAccountsForProfileCheck(
@@ -263,31 +257,25 @@ export async function drainPendingAiQueue(
   );
 
   if (!account || !account.isActive) {
-    return { ok: false, error: "Account not found or inactive" };
+    return actionError("Account not found or inactive");
   }
 
   const sameProfile =
     account.persistentProfileId != null &&
     account.persistentProfileId === sessionAccount?.persistentProfileId;
   if (account.id !== sessionAccountId && !sameProfile) {
-    return { ok: false, error: "Unauthorized" };
+    return actionError("Unauthorized");
   }
 
   const rateLimit = await checkRateLimit(`sync:${account.id}`, "strict");
   if (!rateLimit.success) {
-    return {
-      ok: false,
-      error: "Sync rate limit reached. Please wait a few seconds before trying again.",
-    };
+    return actionError("Sync rate limit reached. Please wait a few seconds before trying again.");
   }
 
   if (account.isSyncing) {
     const lockAgeMs = Date.now() - account.updatedAt.getTime();
     if (lockAgeMs <= SYNC_LOCK_STALE_MS) {
-      return {
-        ok: true,
-        data: { message: "Sync already running in background" },
-      };
+      return actionSuccess({ message: "Sync already running in background" });
     }
     syncLockLog.warn(
       { ageSec: Math.round(lockAgeMs / 1000) },
@@ -333,10 +321,7 @@ export async function drainPendingAiQueue(
     }
   });
 
-  return {
-    ok: true,
-    data: { message: "Ace is reviewing queued emails" },
-  };
+  return actionSuccess({ message: "Ace is reviewing queued emails" });
 }
 
 /**
@@ -345,15 +330,15 @@ export async function drainPendingAiQueue(
  */
 export async function flushPendingAiMessages(
   accountId: string
-): Promise<ActionResult<{ flushed: number }>> {
+): Promise<ServerActionResult<{ flushed: number }>> {
   const parsed = flushAccountSchema.safeParse(accountId);
   if (!parsed.success) {
-    return { ok: false, error: "Invalid account" };
+    return actionError("Invalid account");
   }
 
   const sessionAccountId = await getAuthenticatedAccountId();
   if (!sessionAccountId) {
-    return { ok: false, error: "Unauthorized" };
+    return actionError("Unauthorized");
   }
 
   const [account, sessionAccount] = await findAccountsForProfileCheck(
@@ -362,22 +347,19 @@ export async function flushPendingAiMessages(
   );
 
   if (!account || !account.isActive) {
-    return { ok: false, error: "Account not found or inactive" };
+    return actionError("Account not found or inactive");
   }
 
   const sameProfile =
     account.persistentProfileId != null &&
     account.persistentProfileId === sessionAccount?.persistentProfileId;
   if (account.id !== sessionAccountId && !sameProfile) {
-    return { ok: false, error: "Unauthorized" };
+    return actionError("Unauthorized");
   }
 
   const rateLimit = await checkRateLimit(`flush:${account.id}`, "strict");
   if (!rateLimit.success) {
-    return {
-      ok: false,
-      error: "Flush rate limit reached. Please wait a few seconds before trying again.",
-    };
+    return actionError("Flush rate limit reached. Please wait a few seconds before trying again.");
   }
 
   const flushedCount = await flushPendingAiMessagesForAccount(account.id);
@@ -385,5 +367,5 @@ export async function flushPendingAiMessages(
   revalidatePath("/");
   revalidatePath("/jobs");
 
-  return { ok: true, data: { flushed: flushedCount } };
+  return actionSuccess({ flushed: flushedCount });
 }

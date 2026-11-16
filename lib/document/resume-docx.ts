@@ -134,7 +134,7 @@ function datesFor(node: ResumeDraftNode): string | null {
         : "";
     const status =
       typeof node.metadata?.status === "string"
-        ? (node.metadata.status as any)
+        ? node.metadata.status
         : "GRADUATED";
     return formatEducationDates({ startDate: start, graduationDate: end, status });
   }

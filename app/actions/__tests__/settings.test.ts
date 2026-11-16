@@ -57,6 +57,7 @@ describe("toggleFeatureFlagAction (Phase 4 Server Action Mutation Boundary)", ()
 
       expect(result).toEqual({
         success: false,
+        ok: false,
         error: "Unauthorized",
       });
       expect(verifyAccountOwnership).not.toHaveBeenCalled();
@@ -147,6 +148,7 @@ describe("toggleFeatureFlagAction (Phase 4 Server Action Mutation Boundary)", ()
 
       expect(result).toEqual({
         success: false,
+        ok: false,
         error: "Account not found for this user",
       });
       expect(verifyAccountOwnership).toHaveBeenCalledWith(
@@ -181,6 +183,7 @@ describe("toggleFeatureFlagAction (Phase 4 Server Action Mutation Boundary)", ()
 
       expect(result).toEqual({
         success: false,
+        ok: false,
         error: "Account settings not found",
       });
       expect(revalidatePath).not.toHaveBeenCalled();
@@ -207,6 +210,7 @@ describe("toggleFeatureFlagAction (Phase 4 Server Action Mutation Boundary)", ()
 
       expect(result).toEqual({
         success: false,
+        ok: false,
         error: "Prisma connection pool timeout",
       });
       expect(revalidatePath).not.toHaveBeenCalled();
@@ -236,6 +240,7 @@ describe("toggleFeatureFlagAction (Phase 4 Server Action Mutation Boundary)", ()
 
       expect(result).toEqual({
         success: true,
+        ok: true,
         data: mockRules,
       });
       expect(updateFeatureFlagService).toHaveBeenCalledWith(
@@ -269,6 +274,7 @@ describe("toggleFeatureFlagAction (Phase 4 Server Action Mutation Boundary)", ()
 
       expect(result).toEqual({
         success: true,
+        ok: true,
         data: mockRules,
       });
       expect(updateFeatureFlagService).toHaveBeenCalledWith(
@@ -305,6 +311,7 @@ describe("toggleFeatureFlagAction (Phase 4 Server Action Mutation Boundary)", ()
 
       expect(result).toEqual({
         success: false,
+        ok: false,
         error:
           "Developer feature flags cannot be toggled via UI in production",
       });

@@ -332,7 +332,11 @@ export async function importGitHubProjects(
 }
 
 /**
- * Returns metadata about the dev-cached resume for instant repeated benchmark runs.
+ * Returns diagnostic metadata about the locally cached resume for benchmark and testing runs.
+ * Gated to development environment only; safely returns null in production environments.
+ *
+ * @param accountId - User account ID
+ * @returns Standard tagged union with cached metadata or null
  */
 export async function getDevCachedResumeInfo(
   accountId: string

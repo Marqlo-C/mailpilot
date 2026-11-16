@@ -565,5 +565,3 @@ export function CanonicalSectionLayoutCard({
     </SettingsFeatureCard>
   );
 }
-
-export default CanonicalSectionLayoutCard;

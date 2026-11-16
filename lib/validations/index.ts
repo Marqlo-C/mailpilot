@@ -2,6 +2,7 @@
  * Single Source of Truth (SSOT) Validation Contracts Barrel.
  * Exports all canonical Zod schemas and inferred TypeScript types across MailPilot.
  */
+export * from "./action.schema";
 export * from "./classification.schema";
 export * from "./dispatch.schema";
 export * from "./extension.schema";

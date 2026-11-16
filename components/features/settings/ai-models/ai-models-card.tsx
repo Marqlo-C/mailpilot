@@ -808,5 +808,3 @@ export function AiModelsCard({
     </div>
   );
 }
-
-export default AiModelsCard;

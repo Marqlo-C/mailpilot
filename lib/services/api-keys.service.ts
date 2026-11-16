@@ -447,7 +447,13 @@ export async function clearJinaApiKey(
   return { ok: true, data: { cleared: true } };
 }
 
-/** Masked key status for the sidebar key flyout. Never returns raw secrets. */
+/**
+ * Reads masked API key previews and configured cloud LLM provider for the UI flyout.
+ * Guarantees zero secret leakage: raw decrypted keys are never returned.
+ *
+ * @param accountId - User account ID
+ * @returns Result object containing masked key representations and provider configuration
+ */
 export async function readApiKeyStatus(
   accountId: string
 ): Promise<ActionResult<ApiKeyStatus>> {

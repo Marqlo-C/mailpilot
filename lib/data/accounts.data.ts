@@ -47,6 +47,12 @@ export type AccountWithSettings = AccountSummary & {
   pendingClassificationCount: number;
 };
 
+/**
+ * Lists all active connected accounts belonging to the authenticated user's permanent profile.
+ * Falls back to returning only the session inbox if no durable persistent profile is attached.
+ *
+ * @returns Array of AccountSummary records ordered by creation date
+ */
 export async function listAccounts(): Promise<AccountSummary[]> {
   try {
     const sessionAccountId = await getAuthenticatedAccountId();
@@ -110,6 +116,12 @@ export async function listAccounts(): Promise<AccountSummary[]> {
   }
 }
 
+/**
+ * Resolves the currently active account for the session context, loading settings, parsed rules,
+ * canonical match score threshold, and count of opportunities awaiting classification.
+ *
+ * @returns Fully hydrated AccountWithSettings object or null if session is unauthenticated
+ */
 export async function getActiveAccount(): Promise<AccountWithSettings | null> {
   try {
     const sessionToken = await getSessionToken();

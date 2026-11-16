@@ -152,4 +152,3 @@ export function OllamaBridgeCard({
     </SettingsFeatureCard>
   );
 }
-export default OllamaBridgeCard;

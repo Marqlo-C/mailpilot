@@ -19,425 +19,50 @@ import {
   RESUME_TYPOGRAPHY,
 } from "@/lib/resume-draft/layout.schema";
 
-export const SHEET_WIDTH = RESUME_PAGE_GEOMETRY.sheetWidthPx;
-export const PAGE_HEIGHT = RESUME_PAGE_GEOMETRY.sheetHeightPx;
-export const PAGE_PADDING_TOP = RESUME_PAGE_GEOMETRY.paddingTopPx;
-export const PAGE_PADDING_BOTTOM = RESUME_PAGE_GEOMETRY.paddingBottomPx;
-export const PAGE_PADDING_X = RESUME_PAGE_GEOMETRY.paddingHorizontalPx;
-export const PRINTABLE_HEIGHT = RESUME_PAGE_GEOMETRY.safeCeilingPx;
-export const PAGE_GAP = 24;
+import {
+  SHEET_WIDTH,
+  PAGE_HEIGHT,
+  PAGE_PADDING_TOP,
+  PAGE_PADDING_BOTTOM,
+  PAGE_PADDING_X,
+  PRINTABLE_HEIGHT,
+  PAGE_GAP,
+  SECTION_HEADING_CLASS,
+  type DraftBlock,
+  getBlockId,
+  estimateBlockHeight,
+  buildBlocks,
+  getEntityTotalHeight,
+  partitionBlocksIntoPages,
+} from "./subcomponents/resume-draft-layout";
+import {
+  EditableLine,
+  datesFor,
+  skillLabel,
+  projectTrailing,
+  renderEducationHtml,
+  renderExperienceHtml,
+} from "./subcomponents/resume-node-editor";
+import { ResumeStrategyPanel } from "./subcomponents/resume-strategy-panel";
+
+export {
+  SHEET_WIDTH,
+  PAGE_HEIGHT,
+  PAGE_PADDING_TOP,
+  PAGE_PADDING_BOTTOM,
+  PAGE_PADDING_X,
+  PRINTABLE_HEIGHT,
+  PAGE_GAP,
+  type DraftBlock,
+  getBlockId,
+  estimateBlockHeight,
+  buildBlocks,
+  getEntityTotalHeight,
+  partitionBlocksIntoPages,
+};
 
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
-
-export type DraftBlock =
-  | { kind: "node"; node: ResumeDraftNode; heading: string | null }
-  | { kind: "skills"; nodes: ResumeDraftNode[] };
-
-const SECTION_LABEL: Record<ResumeDraftNode["section"], string | null> = {
-  contact: null,
-  summary: "Summary",
-  skills: "Skills",
-  experience: "Experience",
-  projects: "Projects",
-  education: "Education",
-  certifications: "Certifications & Licenses",
-  awards: "Honors & Awards",
-  interests: "Interests",
-};
-
-const SECTION_HEADING_CLASS =
-  "border-b border-[#D1D5DB] pb-0.5 font-bold uppercase tracking-normal text-[#111827]";
-
-export function getBlockId(block: DraftBlock): string {
-  return block.kind === "skills"
-    ? `skills-${block.nodes.map((n) => n.id).join("-")}`
-    : block.node.id;
-}
-
-export function estimateBlockHeight(
-  block: DraftBlock,
-  refineFor?: string | null
-): number {
-  const sectionHeadingH = Math.round(
-    RESUME_TYPOGRAPHY.heading.px * RESUME_TYPOGRAPHY.heading.lineHeight +
-      RESUME_SPACING.sectionBefore.px +
-      RESUME_SPACING.sectionHeadingBottom.px
-  );
-
-  if (block.kind === "skills") {
-    const headingHeight = sectionHeadingH;
-    const totalChars = block.nodes.reduce(
-      (acc, n) => acc + (skillLabel(n)?.length ?? 0) + n.content.length + 5,
-      0
-    );
-    const lines = Math.max(1, Math.ceil(totalChars / 95));
-    const lineHeight = Math.round(
-      RESUME_TYPOGRAPHY.skills.px * RESUME_TYPOGRAPHY.skills.lineHeight
-    );
-    const refineExtra = block.nodes.some((n) => n.id === refineFor) ? 36 : 0;
-    return headingHeight + lines * lineHeight + refineExtra;
-  }
-
-  const { node, heading } = block;
-  const h = heading ? sectionHeadingH : 0;
-
-  if (node.type === "header") {
-    const hasContact =
-      typeof node.metadata?.contactLine === "string" &&
-      Boolean(node.metadata.contactLine);
-    const nameH = Math.round(
-      RESUME_TYPOGRAPHY.name.px * RESUME_TYPOGRAPHY.name.lineHeight +
-        RESUME_SPACING.nameToContact.px
-    );
-    const contactH = hasContact
-      ? Math.round(
-          RESUME_TYPOGRAPHY.contact.px * RESUME_TYPOGRAPHY.contact.lineHeight +
-            RESUME_SPACING.contactToFirstSection.px
-        )
-      : 0;
-    return h + nameH + contactH;
-  }
-
-  const refineExtra = refineFor === node.id ? 36 : 0;
-
-  if (node.type === "experience_header" || node.type === "project_header") {
-    const roleH = Math.round(
-      RESUME_TYPOGRAPHY.roleTitle.px * RESUME_TYPOGRAPHY.roleTitle.lineHeight +
-        RESUME_SPACING.roleTitleToFirstBullet.px +
-        (heading ? 0 : RESUME_SPACING.roleToRole.px)
-    );
-    return h + roleH + refineExtra;
-  }
-
-  const bullet =
-    node.type === "experience_bullet" || node.type === "project_bullet";
-  if (bullet) {
-    const lines = Math.max(1, Math.ceil(node.content.length / 90));
-    const bulletH =
-      lines * 18 +
-      Math.round(RESUME_SPACING.bulletSpacing.px) +
-      2;
-    return h + bulletH + refineExtra;
-  }
-
-  if (node.type === "education_item") {
-    const eduH = Math.round(
-      RESUME_TYPOGRAPHY.educationTitle.px *
-        RESUME_TYPOGRAPHY.educationTitle.lineHeight +
-        (heading ? 0 : RESUME_SPACING.degreeToDegree.px)
-    );
-    return h + eduH + refineExtra;
-  }
-
-  const lines = Math.max(1, Math.ceil(node.content.length / 90));
-  const bodyH =
-    lines *
-      Math.round(RESUME_TYPOGRAPHY.body.px * RESUME_TYPOGRAPHY.body.lineHeight) +
-    4;
-  return h + bodyH + refineExtra;
-}
-
-export function buildBlocks(draft: TailoredResumeDraft): DraftBlock[] {
-  const blocks: DraftBlock[] = [];
-  let lastSection: ResumeDraftNode["section"] | null = null;
-  for (let index = 0; index < draft.nodes.length; index += 1) {
-    const node = draft.nodes[index];
-    if (node.type === "skill_group") {
-      const nodes = [node];
-      while (draft.nodes[index + 1]?.type === "skill_group") {
-        index += 1;
-        nodes.push(draft.nodes[index]);
-      }
-      blocks.push({ kind: "skills", nodes });
-      lastSection = "skills";
-      continue;
-    }
-    const heading =
-      node.section !== lastSection ? SECTION_LABEL[node.section] : null;
-    lastSection = node.section;
-    blocks.push({ kind: "node", node, heading });
-  }
-  return blocks;
-}
-
-export function getEntityTotalHeight(
-  startIndex: number,
-  blocks: DraftBlock[],
-  blockHeights: Record<string, number>,
-  refineFor?: string | null
-): number {
-  const headerBlock = blocks[startIndex];
-  if (headerBlock.kind !== "node") return 0;
-  const headerId = headerBlock.node.id;
-  const headerH = blockHeights[headerId] ?? estimateBlockHeight(headerBlock, refineFor);
-  let total = headerH;
-
-  for (let j = startIndex + 1; j < blocks.length; j++) {
-    const next = blocks[j];
-    if (next.kind !== "node") break;
-    const isChild =
-      next.node.parentId === headerId ||
-      (headerBlock.node.type === "experience_header" &&
-        next.node.type === "experience_bullet" &&
-        (!next.node.parentId || next.node.parentId === headerId)) ||
-      (headerBlock.node.type === "project_header" &&
-        next.node.type === "project_bullet" &&
-        (!next.node.parentId || next.node.parentId === headerId));
-    if (!isChild) break;
-    const nextId = next.node.id;
-    const nextH = blockHeights[nextId] ?? estimateBlockHeight(next, refineFor);
-    total += nextH;
-  }
-  return total;
-}
-
-export function partitionBlocksIntoPages(
-  blocks: DraftBlock[],
-  blockHeights: Record<string, number>,
-  refineFor?: string | null
-): DraftBlock[][] {
-  if (blocks.length === 0) return [];
-
-  const result: DraftBlock[][] = [];
-  let currentPage: DraftBlock[] = [];
-  let currentHeight = 0;
-
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i];
-    const blockId = getBlockId(block);
-    const h = blockHeights[blockId] ?? estimateBlockHeight(block, refineFor);
-
-    // OPTION 1: Role/Project Atomicity (Preemptive look-ahead)
-    // If this block is a role or project header, check whether the entire role/project
-    // (header + all its bullets) can fit in the remaining space of currentPage.
-    // If it cannot fit on currentPage, but CAN fit on a clean single page,
-    // move the entire entity to the next page as an atomic unit (matching PDF wrap={false}).
-    const isRoleOrProjectHeader =
-      block.kind === "node" &&
-      (block.node.type === "experience_header" ||
-        block.node.type === "project_header");
-
-    if (isRoleOrProjectHeader && currentPage.length > 0) {
-      const entityTotalHeight = getEntityTotalHeight(
-        i,
-        blocks,
-        blockHeights,
-        refineFor
-      );
-      if (
-        entityTotalHeight <= PRINTABLE_HEIGHT &&
-        currentHeight + entityTotalHeight > PRINTABLE_HEIGHT
-      ) {
-        result.push(currentPage);
-        currentPage = [block];
-        currentHeight = h;
-        continue;
-      }
-    }
-
-    // If adding this block overflows printable height (and currentPage isn't empty)
-    if (currentHeight + h > PRINTABLE_HEIGHT && currentPage.length > 0) {
-      // Role/Project Atomicity fallback:
-      // If this block is a bullet belonging to a role/project header currently on currentPage,
-      // and there is prior content on currentPage before that header, pull the entire role
-      // (header + all preceding bullets of this role) forward onto the new page.
-      let roleHeaderIdx = -1;
-      if (block.kind === "node") {
-        const parentId = block.node.parentId;
-        if (parentId) {
-          roleHeaderIdx = currentPage.findIndex(
-            (b) => b.kind === "node" && b.node.id === parentId
-          );
-        } else if (
-          block.node.type === "experience_bullet" ||
-          block.node.type === "project_bullet"
-        ) {
-          const expectedHeaderType =
-            block.node.type === "experience_bullet"
-              ? "experience_header"
-              : "project_header";
-          for (let k = currentPage.length - 1; k >= 0; k--) {
-            const candidate = currentPage[k];
-            if (
-              candidate.kind === "node" &&
-              candidate.node.type === expectedHeaderType
-            ) {
-              roleHeaderIdx = k;
-              break;
-            }
-          }
-        }
-      }
-
-      if (roleHeaderIdx > 0) {
-        // Move header and already placed bullets of this role to the new page
-        const precedingBlocks = currentPage.slice(0, roleHeaderIdx);
-        const roleBlocks = currentPage.slice(roleHeaderIdx);
-        result.push(precedingBlocks);
-
-        currentPage = [...roleBlocks, block];
-        currentHeight = currentPage.reduce((sum, b) => {
-          const id = getBlockId(b);
-          return sum + (blockHeights[id] ?? estimateBlockHeight(b, refineFor));
-        }, 0);
-      } else {
-        result.push(currentPage);
-        currentPage = [block];
-        currentHeight = h;
-      }
-    } else {
-      currentPage.push(block);
-      currentHeight += h;
-    }
-  }
-
-  if (currentPage.length > 0) {
-    result.push(currentPage);
-  }
-
-  return result;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-function renderEducationHtml(val: string): string {
-  const parts = val.split(" — ");
-  if (parts.length > 1) {
-    const degree = parts[0];
-    const school = parts.slice(1).join(" — ");
-    return `<strong class="font-bold text-[#111827]">${escapeHtml(degree)}</strong> — <span style="color: #4B5563; font-weight: normal;">${escapeHtml(school)}</span>`;
-  }
-  return `<strong class="font-bold text-[#111827]">${escapeHtml(val)}</strong>`;
-}
-
-function renderExperienceHtml(val: string): string {
-  const parts = val.split(/\s*[|·]\s*/);
-  if (parts.length > 1) {
-    const role = parts[0];
-    const rest = parts.slice(1);
-    const restHtml = rest
-      .map(
-        (part) =>
-          `<span style="color: #9CA3AF; font-weight: normal;"> | </span><span style="color: #4B5563; font-weight: normal;">${escapeHtml(part)}</span>`
-      )
-      .join("");
-    return `<strong class="font-bold text-[#111827]">${escapeHtml(role)}</strong>${restHtml}`;
-  }
-  return `<strong class="font-bold text-[#111827]">${escapeHtml(val)}</strong>`;
-}
-
-function EditableLine({
-  value,
-  disabled,
-  className,
-  style,
-  onCommit,
-  as = "div",
-  renderHtml,
-}: {
-  value: string;
-  disabled?: boolean;
-  className?: string;
-  style?: React.CSSProperties;
-  onCommit: (next: string) => void;
-  as?: "div" | "span";
-  renderHtml?: (val: string) => string;
-}) {
-  const ref = useRef<HTMLElement>(null);
-  const assign = (el: HTMLElement | null) => {
-    ref.current = el;
-    if (!el || document.activeElement === el) return;
-    if (renderHtml) {
-      el.innerHTML = renderHtml(value);
-    } else {
-      if (el.textContent !== value) el.textContent = value;
-    }
-  };
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || document.activeElement === el) return;
-    if (renderHtml) {
-      el.innerHTML = renderHtml(value);
-    } else {
-      if (el.textContent !== value) el.textContent = value;
-    }
-  }, [value, renderHtml]);
-
-  const Tag = as;
-  return (
-    <Tag
-      ref={assign}
-      role="textbox"
-      aria-multiline="true"
-      contentEditable={!disabled}
-      suppressContentEditableWarning
-      className={className}
-      style={style}
-      onFocus={(event) => {
-        if (renderHtml) {
-          event.currentTarget.textContent = value;
-        }
-      }}
-      onBlur={(event) => {
-        const next = event.currentTarget.textContent ?? "";
-        if (next !== value) onCommit(next);
-        if (renderHtml) {
-          event.currentTarget.innerHTML = renderHtml(next);
-        }
-      }}
-    />
-  );
-}
-
-function datesFor(node: ResumeDraftNode): string | null {
-  if (node.type === "experience_header") {
-    const start =
-      typeof node.metadata?.startDate === "string" ? node.metadata.startDate : "";
-    const end =
-      typeof node.metadata?.endDate === "string" && node.metadata.endDate
-        ? node.metadata.endDate
-        : "Present";
-    if (!start) return null;
-    return `${start} – ${end}`;
-  }
-  if (node.type === "education_item") {
-    const start =
-      typeof node.metadata?.startDate === "string"
-        ? node.metadata.startDate
-        : "";
-    const end =
-      typeof node.metadata?.graduationDate === "string"
-        ? node.metadata.graduationDate
-        : "";
-    const status =
-      typeof node.metadata?.status === "string"
-        ? (node.metadata.status as "GRADUATED" | "IN_PROGRESS")
-        : "GRADUATED";
-    return formatEducationDates({ startDate: start, graduationDate: end, status });
-  }
-  return null;
-}
-
-function skillLabel(node: ResumeDraftNode): string | null {
-  return skillCategoryLabel(node);
-}
-
-function projectTrailing(node: ResumeDraftNode): string | null {
-  if (node.type !== "project_header") return null;
-  if (!Array.isArray(node.metadata?.technologies)) return null;
-  const technologies = node.metadata.technologies.filter(
-    (value): value is string => typeof value === "string" && value.trim().length > 0
-  );
-  return technologies.slice(0, 4).join(", ") || null;
-}
 
 export function ResumeDraftSheet({
   draft,
@@ -467,7 +92,6 @@ export function ResumeDraftSheet({
 }) {
   const [refineFor, setRefineFor] = useState<string | null>(null);
   const [instruction, setInstruction] = useState("");
-  const [showRationale, setShowRationale] = useState(false);
   const [zoomChoice, setZoomChoice] = useState<"fit" | 0.85 | 1 | 1.25>("fit");
   const [fitScale, setFitScale] = useState(0.7);
   const [blockHeights, setBlockHeights] = useState<Record<string, number>>({});
@@ -1008,45 +632,7 @@ export function ResumeDraftSheet({
         </div>
       </div>
       {strategyRationale ? (
-        <div className="w-full max-w-full shrink-0 border-t border-border/60 bg-card px-2 py-2">
-          <div className="w-full max-w-full rounded-md border border-border/50">
-            <button
-              type="button"
-              className="flex w-full max-w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-medium text-foreground/90"
-              onClick={() => setShowRationale((open) => !open)}
-              aria-expanded={showRationale}
-            >
-              <span>ATS Strategy & Match Rationale</span>
-              {showRationale ? (
-                <ChevronUp className="h-3.5 w-3.5 shrink-0" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-              )}
-            </button>
-            {showRationale ? (
-              <div className="max-h-40 space-y-2 overflow-y-auto overflow-x-hidden border-t border-border/50 px-3 py-2 text-xs text-muted-foreground">
-                <p>
-                  <span className="font-medium text-foreground/80">Role fit. </span>
-                  {strategyRationale.roleFitAnalysis}
-                </p>
-                <p>
-                  <span className="font-medium text-foreground/80">Skills. </span>
-                  {strategyRationale.selectedSkillsReasoning}
-                </p>
-                <p>
-                  <span className="font-medium text-foreground/80">
-                    Experience.{" "}
-                  </span>
-                  {strategyRationale.featuredExperiencesReasoning}
-                </p>
-                <p>
-                  <span className="font-medium text-foreground/80">Projects. </span>
-                  {strategyRationale.featuredProjectsReasoning}
-                </p>
-              </div>
-            ) : null}
-          </div>
-        </div>
+        <ResumeStrategyPanel strategyRationale={strategyRationale} />
       ) : null}
     </div>
   );

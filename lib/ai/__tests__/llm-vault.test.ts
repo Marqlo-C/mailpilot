@@ -53,7 +53,7 @@ describe("LLM Vault & Multi-Provider SSOT", () => {
         cloudModel: "claude-3-5-sonnet-20241022",
         encryptedApiKey,
         maskedApiKey,
-      } as any);
+      });
 
       expect(credentials).not.toBeNull();
       expect(credentials?.provider).toBe("ANTHROPIC");
@@ -67,7 +67,7 @@ describe("LLM Vault & Multi-Provider SSOT", () => {
 
       const credentials = resolveDecryptedAccountKey({
         encryptedApiKey,
-      } as any);
+      });
 
       expect(credentials?.provider).toBe("OPENROUTER");
       expect(credentials?.apiKey).toBe(rawKey);
@@ -100,13 +100,13 @@ describe("LLM Vault & Multi-Provider SSOT", () => {
     it("returns null when no encrypted key is configured", () => {
       expect(resolveDecryptedAccountKey(null)).toBeNull();
       expect(resolveDecryptedAccountKey({})).toBeNull();
-      expect(resolveDecryptedAccountKey({ encryptedApiKey: null } as any)).toBeNull();
+      expect(resolveDecryptedAccountKey({ encryptedApiKey: undefined })).toBeNull();
     });
 
     it("returns null without throwing when decrypting corrupted ciphertext", () => {
       const credentials = resolveDecryptedAccountKey({
         encryptedApiKey: "invalid:corrupted:tag",
-      } as any);
+      });
       expect(credentials).toBeNull();
     });
 
@@ -115,7 +115,7 @@ describe("LLM Vault & Multi-Provider SSOT", () => {
       const encrypted = encryptToken(rawKey);
       const decrypted = resolveDecryptedScrapingAntKey({
         encryptedScrapingAntApiKey: encrypted,
-      } as any);
+      });
       expect(decrypted).toBe(rawKey);
     });
 
@@ -125,7 +125,7 @@ describe("LLM Vault & Multi-Provider SSOT", () => {
       expect(
         resolveDecryptedScrapingAntKey({
           encryptedScrapingAntApiKey: "invalid:corrupted:token",
-        } as any)
+        })
       ).toBeNull();
     });
 
@@ -134,7 +134,7 @@ describe("LLM Vault & Multi-Provider SSOT", () => {
       const encrypted = encryptToken(rawKey);
       const decrypted = resolveDecryptedHasDataKey({
         encryptedHasDataApiKey: encrypted,
-      } as any);
+      });
       expect(decrypted).toBe(rawKey);
     });
 
@@ -144,7 +144,7 @@ describe("LLM Vault & Multi-Provider SSOT", () => {
       expect(
         resolveDecryptedHasDataKey({
           encryptedHasDataApiKey: "invalid:corrupted:token",
-        } as any)
+        })
       ).toBeNull();
     });
 

@@ -3,6 +3,7 @@
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 
+import { auth } from "@/lib/core/auth";
 import {
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
@@ -16,6 +17,12 @@ import {
 } from "@/lib/gmail/scan-types";
 import { scanInputSchema, type ScanInput } from "@/lib/validations/sync.schema";
 import {
+  accountIdParamSchema,
+  actionError,
+  actionSuccess,
+  type ServerActionResult,
+} from "@/lib/validations/action.schema";
+import {
   getAccountScanTarget,
   markAccountSyncStarted,
   finalizeAccountSync,
@@ -23,11 +30,9 @@ import {
   type AccountSyncStatusData,
 } from "@/lib/services/sync-orchestration.service";
 
-export type ActionResult<T = undefined> =
-  | { ok: true; data?: T }
-  | { ok: false; error: string };
+export type ActionResult<T = void> = ServerActionResult<T>;
 
-export type { ScanInput };
+export type { ScanInput, ServerActionResult };
 export type AccountSyncStatus = AccountSyncStatusData;
 
 /**
@@ -37,34 +42,27 @@ export type AccountSyncStatus = AccountSyncStatusData;
 export async function triggerHistoricalScan(
   accountId: string,
   days: number
-): Promise<ActionResult<{ message: string }>> {
+): Promise<ServerActionResult<{ message: string }>> {
+  const session = await auth();
+  if (!session) return actionError("Unauthorized");
+
   const parsed = scanInputSchema.safeParse({ accountId, days });
   if (!parsed.success) {
-    return {
-      ok: false,
-      error: `Invalid scan input. days must be one of ${SCAN_DAY_OPTIONS.join(", ")}`,
-    };
+    return actionError(`Invalid scan input. days must be one of ${SCAN_DAY_OPTIONS.join(", ")}`);
   }
 
   const account = await getAccountScanTarget(parsed.data.accountId);
-
   if (!account || !account.isActive) {
-    return { ok: false, error: "Account not found or inactive" };
+    return actionError("Account not found or inactive");
   }
 
   const rateLimit = await checkRateLimit(`scan:${account.id}`, "strict");
   if (!rateLimit.success) {
-    return {
-      ok: false,
-      error: "Scan rate limit reached. Please wait a few seconds before scanning again.",
-    };
+    return actionError("Scan rate limit reached. Please wait a few seconds before scanning again.");
   }
 
   if (account.isSyncing) {
-    return {
-      ok: true,
-      data: { message: "Sync already running in background" },
-    };
+    return actionSuccess({ message: "Sync already running in background" });
   }
 
   await markAccountSyncStarted(account.id);
@@ -107,10 +105,7 @@ export async function triggerHistoricalScan(
     }
   });
 
-  return {
-    ok: true,
-    data: { message: "Sync started in background" },
-  };
+  return actionSuccess({ message: "Sync started in background" });
 }
 
 /**
@@ -118,10 +113,14 @@ export async function triggerHistoricalScan(
  */
 export async function getAccountSyncStatus(
   accountId: string
-): Promise<ActionResult<AccountSyncStatus>> {
-  if (!accountId) {
-    return { ok: false, error: "accountId is required" };
+): Promise<ServerActionResult<AccountSyncStatus>> {
+  const parsed = accountIdParamSchema.safeParse(accountId);
+  if (!parsed.success) {
+    return actionError(parsed.error.issues[0]?.message ?? "accountId is required");
   }
 
-  return readAccountSyncStatus(accountId);
+  const result = await readAccountSyncStatus(parsed.data);
+  return result.ok
+    ? actionSuccess(result.data!)
+    : actionError(result.error ?? "Failed to read sync status");
 }

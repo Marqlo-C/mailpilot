@@ -116,14 +116,15 @@ export function createOAuth2Client(): OAuth2Client {
 
 /**
  * Generates the Google OAuth URL for Gmail access.
- * Use `forceConsent` only when scopes changed or a refresh token must be re-issued.
+ * Always requests access_type: "offline" and prompt: "consent" per AGENTS.md requirements,
+ * ensuring Google consistently returns a refresh token on authentication.
  */
 export function getAuthorizationUrl(
   state?: string,
-  options?: { forceConsent?: boolean }
+  options?: { forceConsent?: boolean; prompt?: "consent" | "select_account" }
 ): string {
   const oauth2Client = createOAuth2Client();
-  const promptValue = options?.forceConsent ? "consent" : "select_account";
+  const promptValue = options?.prompt ?? "consent";
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: promptValue,

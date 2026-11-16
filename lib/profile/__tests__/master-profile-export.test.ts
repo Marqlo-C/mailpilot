@@ -21,11 +21,21 @@ vi.mock("@/lib/core/prisma", () => ({
   },
 }));
 
+vi.mock("@/lib/core/auth", () => ({
+  auth: vi.fn(),
+}));
+
+vi.mock("@/lib/services/account-lifecycle.service", () => ({
+  verifyAccountOwnership: vi.fn(),
+}));
+
 vi.mock("@/lib/profile/master-profile", () => ({
   loadMasterProfileForDraft: vi.fn(),
 }));
 
 import { prisma } from "@/lib/core/prisma";
+import { auth } from "@/lib/core/auth";
+import { verifyAccountOwnership } from "@/lib/services/account-lifecycle.service";
 import { loadMasterProfileForDraft } from "@/lib/profile/master-profile";
 import { exportMasterProfilePdfAction } from "@/app/actions/profile";
 
@@ -208,10 +218,18 @@ describe("Master Profile PDF Export", () => {
 
   describe("exportMasterProfilePdfAction", () => {
     it("returns error if accountId is empty or account not found", async () => {
+      vi.mocked(auth).mockResolvedValue({
+        accountId: "acc-test-123",
+        user: { id: "acc-test-123" },
+      } as any);
+
       const resMissing = await exportMasterProfilePdfAction("");
       expect(resMissing.ok).toBe(false);
 
-      vi.mocked(prisma.account.findUnique).mockResolvedValueOnce(null);
+      vi.mocked(verifyAccountOwnership).mockResolvedValueOnce({
+        ok: false,
+        error: "Account not found",
+      });
       const resNotFound = await exportMasterProfilePdfAction("non-existent");
       expect(resNotFound.ok).toBe(false);
       if (!resNotFound.ok) {
@@ -222,6 +240,14 @@ describe("Master Profile PDF Export", () => {
     it(
       "successfully exports master profile to base64 PDF and formatted filename",
       async () => {
+        vi.mocked(auth).mockResolvedValueOnce({
+          accountId: "acc-test-123",
+          user: { id: "acc-test-123" },
+        } as any);
+        vi.mocked(verifyAccountOwnership).mockResolvedValueOnce({
+          ok: true,
+          accountId: "acc-test-123",
+        });
         vi.mocked(prisma.account.findUnique).mockResolvedValueOnce({
           id: "acc-test-123",
           email: "jordan.lee@example.com",

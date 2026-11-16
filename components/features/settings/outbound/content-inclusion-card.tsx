@@ -138,5 +138,3 @@ export function ContentInclusionCard({
     </SettingsFeatureCard>
   );
 }
-
-export default ContentInclusionCard;

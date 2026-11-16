@@ -33,9 +33,13 @@ export function authCookieOptions(
  * Returns the raw session cookie value (account id) when present.
  */
 export async function getSessionToken(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const value = cookieStore.get(SESSION_COOKIE)?.value?.trim();
-  return value && value.length > 0 ? value : null;
+  try {
+    const cookieStore = await cookies();
+    const value = cookieStore.get(SESSION_COOKIE)?.value?.trim();
+    return value && value.length > 0 ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

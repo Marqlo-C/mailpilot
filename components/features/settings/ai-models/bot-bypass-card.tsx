@@ -595,5 +595,3 @@ export function BotBypassCard({
     </SettingsSectionCard>
   );
 }
-
-export default BotBypassCard;

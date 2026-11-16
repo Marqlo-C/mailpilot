@@ -57,7 +57,13 @@ const LINKED_ACCOUNT_KEYS = [
   "linkedHandshake",
 ] as const;
 
-/** Bare domains get a scheme before schema validation. Blank fields stay null. */
+/**
+ * Normalizes user-submitted linked account URLs (e.g. prepending https:// schemes to bare domains).
+ * Ensures uniform URL representations prior to Zod validation.
+ *
+ * @param input - Raw key-value object containing prospective linked account URLs
+ * @returns Partial record of normalized URLs keyed by canonical platform identifiers
+ */
 export function normalizedLinkedAccounts(
   input: object
 ): Partial<Record<(typeof LINKED_ACCOUNT_KEYS)[number], string | null>> {
@@ -74,6 +80,13 @@ export function normalizedLinkedAccounts(
   return normalized;
 }
 
+/**
+ * Parses and sanitizes an honors or awards list from arbitrary input payloads.
+ * Filters out non-string and whitespace-only entries.
+ *
+ * @param value - Unknown array or value to sanitize
+ * @returns Array of trimmed honor strings
+ */
 export function honorsList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) =>
@@ -81,6 +94,13 @@ export function honorsList(value: unknown): string[] {
   );
 }
 
+/**
+ * Resolves candidate platform links by merging explicit linked account columns
+ * with URLs auto-detected from general portfolio link arrays.
+ *
+ * @param profile - Profile object containing explicit linked fields and general links array
+ * @returns Consolidated mapping of platform identifiers to resolved profile URLs
+ */
 export function resolvedAccountLinks(profile: {
   links: MasterProfileInput["links"];
   linkedWebsite: string | null;
@@ -714,9 +734,13 @@ export async function getMasterProfile(
 }
 
 /**
- * Sole mutation for Job Radar match threshold.
- * Writes PermanentSettings.matchScoreThreshold (canonical) and mirrors
- * UserProfile.matchThreshold when a resume profile exists.
+ * Sole mutation for Job Radar candidate match score filtering threshold.
+ * Persists to PermanentSettings.matchScoreThreshold (canonical durable store) and mirrors
+ * to UserProfile.matchThreshold when an active candidate profile exists.
+ *
+ * @param accountId - User account ID
+ * @param value - Target score threshold percentage (0-100)
+ * @returns Standard tagged union with snapped threshold value
  */
 export async function updateMatchThreshold(
   accountId: string,
@@ -776,7 +800,12 @@ export async function updateMatchThreshold(
 }
 
 /**
- * Saves Linked Professional Account profile URLs on UserProfile.
+ * Persists normalized professional account URLs (LinkedIn, GitHub, Handshake, Indeed, etc.) on UserProfile.
+ * Requires an existing uploaded master resume profile record.
+ *
+ * @param accountId - User account ID
+ * @param input - Key-value pair payload of platform URLs
+ * @returns Standard tagged union result
  */
 export async function updateLinkedAccounts(
   accountId: string,
@@ -832,7 +861,10 @@ export async function updateLinkedAccounts(
 
 /**
  * Exports the unpruned Master Profile as a comprehensive, multi-page PDF document
- * containing all experiences, projects, skills, education, and credentials without calling the LLM.
+ * containing all experiences, projects, skills, education, and credentials without calling an LLM.
+ *
+ * @param accountId - User account ID
+ * @returns Result object containing base64 PDF string and formatted filename
  */
 export async function exportMasterProfilePdf(
   accountId: string

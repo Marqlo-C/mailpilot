@@ -6,7 +6,11 @@ import {
 } from "../settings-rules.service";
 import { prisma } from "@/lib/core/prisma";
 import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules.schema";
+import type { FeatureFlagKey } from "@/lib/validations/feature-flags.schema";
 import * as persistentProfile from "@/lib/profile/persistent-profile";
+
+type AccountSettingsWithAccount = NonNullable<Awaited<ReturnType<typeof prisma.accountSettings.findUnique>>>;
+type AccountSettingsUpdateResult = Awaited<ReturnType<typeof prisma.accountSettings.update>>;
 
 vi.mock("@/lib/profile/persistent-profile", () => ({
   ensurePersistentProfileForAccount: vi.fn().mockResolvedValue({ id: "prof_123" }),
@@ -41,7 +45,7 @@ describe("Settings Rules Service - Feature Flags Isolation (Phase 1)", () => {
     it("rejects invalid feature flag key", async () => {
       const result = await updateFeatureFlag(
         sampleAccountId,
-        "invalid_flag" as any,
+        "invalid_flag" as unknown as FeatureFlagKey,
         true
       );
       expect(result.ok).toBe(false);
@@ -61,7 +65,7 @@ describe("Settings Rules Service - Feature Flags Isolation (Phase 1)", () => {
       for (const purged of purgedKeys) {
         const result = await updateFeatureFlag(
           sampleAccountId,
-          purged as any,
+          purged as unknown as FeatureFlagKey,
           true
         );
         expect(result.ok).toBe(false);
@@ -87,11 +91,11 @@ describe("Settings Rules Service - Feature Flags Isolation (Phase 1)", () => {
 
     it("toggles shadow_evaluation without mutating enableShadowEmbeddings user preference", async () => {
       vi.spyOn(prisma.accountSettings, "findUnique").mockResolvedValue(
-        mockSettings as any
+        mockSettings as unknown as AccountSettingsWithAccount
       );
       const updateSpy = vi
         .spyOn(prisma.accountSettings, "update")
-        .mockResolvedValue({} as any);
+        .mockResolvedValue({} as unknown as AccountSettingsUpdateResult);
 
       // Toggle to false
       const resultFalse = await updateFeatureFlag(
@@ -138,9 +142,9 @@ describe("Settings Rules Service - Feature Flags Isolation (Phase 1)", () => {
 
     it("toggles mode_b_metric_synthesis without mutating inventMetrics user preference", async () => {
       vi.spyOn(prisma.accountSettings, "findUnique").mockResolvedValue(
-        mockSettings as any
+        mockSettings as unknown as AccountSettingsWithAccount
       );
-      vi.spyOn(prisma.accountSettings, "update").mockResolvedValue({} as any);
+      vi.spyOn(prisma.accountSettings, "update").mockResolvedValue({} as unknown as AccountSettingsUpdateResult);
 
       const result = await updateFeatureFlag(
         sampleAccountId,
@@ -172,9 +176,9 @@ describe("Settings Rules Service - Feature Flags Isolation (Phase 1)", () => {
 
     it("toggles web_scraping_proxies without mutating enableWebScrapingProxies user preference", async () => {
       vi.spyOn(prisma.accountSettings, "findUnique").mockResolvedValue(
-        mockSettings as any
+        mockSettings as unknown as AccountSettingsWithAccount
       );
-      vi.spyOn(prisma.accountSettings, "update").mockResolvedValue({} as any);
+      vi.spyOn(prisma.accountSettings, "update").mockResolvedValue({} as unknown as AccountSettingsUpdateResult);
 
       const result = await updateFeatureFlag(
         sampleAccountId,
@@ -192,9 +196,9 @@ describe("Settings Rules Service - Feature Flags Isolation (Phase 1)", () => {
 
     it("toggles embedded_ai cleanly and persists to profile-scoped rules", async () => {
       vi.spyOn(prisma.accountSettings, "findUnique").mockResolvedValue(
-        mockSettings as any
+        mockSettings as unknown as AccountSettingsWithAccount
       );
-      vi.spyOn(prisma.accountSettings, "update").mockResolvedValue({} as any);
+      vi.spyOn(prisma.accountSettings, "update").mockResolvedValue({} as unknown as AccountSettingsUpdateResult);
 
       const result = await updateFeatureFlag(
         sampleAccountId,
@@ -226,9 +230,9 @@ describe("Settings Rules Service - Feature Flags Isolation (Phase 1)", () => {
       };
 
       vi.spyOn(prisma.accountSettings, "findUnique").mockResolvedValue(
-        customSettings as any
+        customSettings as unknown as AccountSettingsWithAccount
       );
-      vi.spyOn(prisma.accountSettings, "update").mockResolvedValue({} as any);
+      vi.spyOn(prisma.accountSettings, "update").mockResolvedValue({} as unknown as AccountSettingsUpdateResult);
 
       const result = await updateFeatureFlag(
         sampleAccountId,
@@ -251,9 +255,9 @@ describe("Settings Rules Service - Feature Flags Isolation (Phase 1)", () => {
   describe("updateRule with featureFlags", () => {
     it("updates featureFlags map via updateRule", async () => {
       vi.spyOn(prisma.accountSettings, "findUnique").mockResolvedValue(
-        mockSettings as any
+        mockSettings as unknown as AccountSettingsWithAccount
       );
-      vi.spyOn(prisma.accountSettings, "update").mockResolvedValue({} as any);
+      vi.spyOn(prisma.accountSettings, "update").mockResolvedValue({} as unknown as AccountSettingsUpdateResult);
 
       const result = await updateRule(sampleAccountId, "featureFlags", {
         shadow_evaluation: false,
