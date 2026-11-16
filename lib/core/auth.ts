@@ -65,6 +65,28 @@ export async function getAuthenticatedAccountId(): Promise<string | null> {
   }
 }
 
+export interface AuthSession {
+  accountId: string;
+  user: {
+    id: string;
+  };
+}
+
+/**
+ * Resolves the authenticated session for the current request.
+ * Returns null if the user is unauthenticated.
+ */
+export async function auth(): Promise<AuthSession | null> {
+  const accountId = await getAuthenticatedAccountId();
+  if (!accountId) {
+    return null;
+  }
+  return {
+    accountId,
+    user: { id: accountId },
+  };
+}
+
 /**
  * Clears all auth / account selection cookies (session + legacy leftovers).
  */

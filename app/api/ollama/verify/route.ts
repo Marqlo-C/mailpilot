@@ -170,6 +170,11 @@ export async function POST(request: Request) {
       ...currentRules,
       bridgeConnected: true,
       availableModels: models.length > 0 ? models : currentRules.availableModels,
+      embeddingProvider:
+        currentRules.embeddingProvider === "disabled"
+          ? "local_ollama"
+          : currentRules.embeddingProvider,
+      embeddingModel: currentRules.embeddingModel || "nomic-embed-text",
     });
 
     // Persist verified state and discovered models into AccountSettings

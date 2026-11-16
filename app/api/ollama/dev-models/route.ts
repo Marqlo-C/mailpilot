@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 
 import { getAuthenticatedAccountId } from "@/lib/core/auth";
+import { prisma } from "@/lib/core/prisma";
 import { ollamaBaseUrlFromEnv, probeOllamaTagsWithRetry } from "@/lib/ai";
+import { accountRulesSchema, parseAccountRules } from "@/lib/validations/rules.schema";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,6 +29,39 @@ export async function POST() {
       timeoutMs: 6_000,
       attempts: 2,
     });
+
+    const account = await prisma.account.findUnique({
+      where: { id: accountId },
+      include: { settings: true },
+    });
+
+    if (account) {
+      const currentRules = parseAccountRules(account.settings?.rules);
+      const updatedRules = accountRulesSchema.parse({
+        ...currentRules,
+        bridgeConnected: true,
+        availableModels:
+          probe.models.length > 0 ? probe.models : currentRules.availableModels,
+        embeddingProvider: "local_ollama",
+        embeddingModel: "nomic-embed-text",
+      });
+
+      await prisma.accountSettings.upsert({
+        where: { accountId },
+        update: {
+          llmProvider: "LOCAL_OLLAMA",
+          localOllamaUrl: url,
+          rules: updatedRules as Prisma.InputJsonValue,
+        },
+        create: {
+          accountId,
+          llmProvider: "LOCAL_OLLAMA",
+          localOllamaUrl: url,
+          rules: updatedRules as Prisma.InputJsonValue,
+        },
+      });
+    }
+
     return NextResponse.json({ models: probe.models, url });
   } catch (error) {
     const message =

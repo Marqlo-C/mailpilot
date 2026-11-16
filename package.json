@@ -13,6 +13,7 @@
     "bundle": "npx repomix@latest --include 'lib/**,prisma/**,app/actions/**,app/api/**,types/**,components/**' --watch",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:scoring-live": "NODE_ENV=development npx tsx --env-file=.env.local scripts/test-real-ollama-cutover.ts",
     "build:extension": "vite build --config extension/vite.config.ts",
     "package:extension": "npm run build:extension && node scripts/package-extension.mjs"
   },

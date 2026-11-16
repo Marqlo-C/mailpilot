@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { callLLMWithFallback } from "@/lib/ai";
 import type { TailorOptions } from "@/lib/validations/tailor.schema";
+import type { AccountRules } from "@/lib/validations/rules.schema";
+import { isModeBMetricSynthesisPermitted } from "./mode-b-synthesis";
 
 export function buildReframeSystemPrompt(
   optionsOrInventMetrics:
@@ -8,13 +10,17 @@ export function buildReframeSystemPrompt(
     | {
         inventMetrics?: boolean;
         seniorityTier?: string;
+        rules?: Partial<AccountRules> | null;
       } = {}
 ): string {
   const options =
     typeof optionsOrInventMetrics === "boolean"
       ? { inventMetrics: optionsOrInventMetrics }
       : optionsOrInventMetrics;
-  const inventMetrics = options.inventMetrics === true;
+  const inventMetrics = isModeBMetricSynthesisPermitted(
+    options.rules,
+    options.inventMetrics
+  );
 
   const metricDirective = inventMetrics
     ? `METRIC SYNTHESIS PERMITTED (UNIVERSAL 4-DIMENSIONAL TAXONOMY):

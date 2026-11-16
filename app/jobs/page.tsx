@@ -10,6 +10,7 @@ import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile.schema";
 import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules.schema";
 import { JOB_RADAR_PAGE_TABS } from "@/lib/utils/navigation/page-tabs";
 import { readServerActivePageTab } from "@/lib/utils/navigation/page-tabs-server";
+import { isFeatureEnabled } from "@/lib/core/feature-flags";
 
 export default async function JobsPage({
   searchParams,
@@ -42,6 +43,9 @@ export default async function JobsPage({
   const retentionDays =
     active?.rules.dismissedRetentionDays ??
     DEFAULT_ACCOUNT_RULES.dismissedRetentionDays;
+  const isEmbeddedAiEnabled = isFeatureEnabled("embedded_ai", active?.rules);
+  const isAutoDispatchEnabled =
+    active?.rules.applicationMode === "AUTO_SEND";
 
   if (!active) {
     return (
@@ -69,6 +73,8 @@ export default async function JobsPage({
       profile={profile}
       matchThreshold={threshold}
       retentionDays={retentionDays}
+      isEmbeddedAiEnabled={isEmbeddedAiEnabled}
+      isAutoDispatchEnabled={isAutoDispatchEnabled}
     />
   );
 }

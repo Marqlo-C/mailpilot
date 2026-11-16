@@ -85,3 +85,40 @@ export async function loadMasterProfileForDraft(
     toneGuidance: profile.toneGuidance,
   };
 }
+
+/** In-memory cache for profile lookups to avoid redundant database round-trips during digest sync loops */
+const masterProfileMemoryCache = new Map<
+  string,
+  { profile: ProfileWithPersonaCache; expiresAt: number }
+>();
+const MASTER_PROFILE_CACHE_TTL_MS = 30_000;
+
+/**
+ * Loads the master candidate profile utilizing in-memory cache when fresh,
+ * falling back to database query via `loadMasterProfileForDraft`.
+ */
+export async function getCachedMasterProfile(
+  accountId: string
+): Promise<ProfileWithPersonaCache | null> {
+  const cached = masterProfileMemoryCache.get(accountId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.profile;
+  }
+  try {
+    const profile = await loadMasterProfileForDraft(accountId);
+    masterProfileMemoryCache.set(accountId, {
+      profile,
+      expiresAt: Date.now() + MASTER_PROFILE_CACHE_TTL_MS,
+    });
+    return profile;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clears the in-memory master profile cache (primarily for test environments).
+ */
+export function clearMasterProfileMemoryCache(): void {
+  masterProfileMemoryCache.clear();
+}

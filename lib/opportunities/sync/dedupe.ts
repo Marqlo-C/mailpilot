@@ -9,6 +9,7 @@ import {
 } from "@/lib/gmail/sync";
 import type { JobClassification } from "@/lib/ai/classification";
 import type { parseAccountRules } from "@/lib/validations/rules.schema";
+import { resolveEffectiveScoringEngine } from "@/lib/matching";
 
 export type PersistSyncOpportunityParams = {
   gmail: gmail_v1.Gmail;
@@ -135,7 +136,34 @@ export async function persistSyncOpportunity(
           ? "MID"
           : "LOW"
       : "MID";
-  const matchSource = classificationMethod === "HEURISTIC" ? "Heur" : "AI";
+
+  const engineUsed =
+    firstJob?.scoringEngineUsed ??
+    resolveEffectiveScoringEngine(rules);
+
+  let matchSource = "AI";
+  if (engineUsed === "embedded") {
+    matchSource = "Vector AI";
+  } else if (engineUsed === "hybrid") {
+    matchSource = "Hybrid 50/50";
+  } else if (engineUsed === "heuristic") {
+    matchSource = "Heuristic";
+  } else if (classificationMethod === "HEURISTIC") {
+    matchSource = "Heur";
+  }
+
+  let scoringDetails: string | undefined;
+  if (firstJob?.scoringDetails) {
+    scoringDetails = firstJob.scoringDetails;
+  } else if (engineUsed === "embedded") {
+    const prov = rules?.embeddingProvider ?? "local_ollama";
+    scoringDetails = `Semantic crossover embedding match via ${prov}`;
+  } else if (engineUsed === "hybrid") {
+    scoringDetails = `50% heuristic profile overlap + 50% vector semantic crossover`;
+  } else if (engineUsed === "heuristic") {
+    scoringDetails = `Deterministic heuristic rule evaluation (role, seniority & skills)`;
+  }
+
   const dedupeOutcomeText =
     result.lastAction ||
     (result.createdCount > 0
@@ -158,6 +186,7 @@ export async function persistSyncOpportunity(
     matchScore,
     matchTier,
     matchSource,
+    scoringDetails,
     databaseAction: dedupeOutcomeText,
     syncStartedAt: params.syncStartedAt,
   });

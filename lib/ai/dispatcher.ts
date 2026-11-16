@@ -89,12 +89,28 @@ export type CallLLMOptions = {
   returnExecutionResult?: boolean;
 };
 
-function isCloudFallbackEnabled(options: CallLLMOptions): boolean {
+function isCloudFallbackEnabled(
+  options: CallLLMOptions,
+  resolvedRules?: Partial<AccountRules> | null
+): boolean {
+  const rules =
+    resolvedRules ??
+    options.accountRules ??
+    (options.allowCloudFallback !== undefined
+      ? { allowCloudFallback: options.allowCloudFallback }
+      : null);
+
+  if (rules?.allowCloudFallback === false) {
+    return false;
+  }
+
   if (options.allowCloudFallback === true) return true;
   if (options.allowOpenRouterFallback === true) return true;
   const env =
     process.env.OLLAMA_ALLOW_OPENROUTER_FALLBACK?.trim().toLowerCase();
-  return env === "1" || env === "true" || env === "yes";
+  if (env === "1" || env === "true" || env === "yes") return true;
+
+  return rules?.allowCloudFallback === true;
 }
 
 /**
@@ -204,12 +220,13 @@ export async function callLLMWithFallback(
   if (provider === "LOCAL_OLLAMA") {
     let localOllamaUrl = options.localOllamaUrl;
     let ollamaModel = options.ollamaModel;
+    let fetchedRules: Partial<AccountRules> | null = null;
 
-    if ((!localOllamaUrl || !ollamaModel) && options.accountId?.trim()) {
+    if (options.accountId?.trim()) {
       try {
         const settings = await prisma.accountSettings.findUnique({
           where: { accountId: options.accountId.trim() },
-          select: { localOllamaUrl: true, ollamaModel: true },
+          select: { localOllamaUrl: true, ollamaModel: true, rules: true },
         });
         if (settings) {
           if (!localOllamaUrl && settings.localOllamaUrl) {
@@ -217,6 +234,9 @@ export async function callLLMWithFallback(
           }
           if (!ollamaModel && settings.ollamaModel) {
             ollamaModel = settings.ollamaModel;
+          }
+          if (settings.rules) {
+            fetchedRules = parseAccountRules(settings.rules);
           }
         }
       } catch (e) {
@@ -228,7 +248,8 @@ export async function callLLMWithFallback(
     }
 
     const baseUrl = resolveOllamaBaseUrl(localOllamaUrl);
-    const allowFallback = isCloudFallbackEnabled(options);
+    const effectiveRules = options.accountRules ?? fetchedRules;
+    const allowFallback = isCloudFallbackEnabled(options, effectiveRules);
     const resolvedModel = resolveOllamaModel(
       ollamaModel,
       options.devModelOverride

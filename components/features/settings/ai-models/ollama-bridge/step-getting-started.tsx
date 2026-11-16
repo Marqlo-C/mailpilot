@@ -74,14 +74,21 @@ export function StepGettingStarted({
           <span className="text-xs text-muted-foreground leading-relaxed">
             Open your terminal and run{" "}
             <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground">
-              ollama run llama3.1:8b
+              ollama pull llama3.1:8b && ollama pull nomic-embed-text
             </code>
-            . Mail Pilot is calibrated for Llama 3.1 (8B) to reliably parse and
-            organize your emails, though other capable open models like{" "}
+            . Mail Pilot relies on{" "}
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground">
+              nomic-embed-text
+            </code>{" "}
+            for opportunity scoring and{" "}
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground">
+              llama3.1:8b
+            </code>{" "}
+            to intelligently organize your inbox—though other capable models like{" "}
             <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground">
               gemma2:27b
             </code>{" "}
-            also work smoothly if you prefer.
+            work seamlessly too.
           </span>
         </li>
       </ol>

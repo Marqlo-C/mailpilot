@@ -191,6 +191,11 @@ export async function POST(request: Request) {
       ...rules,
       availableModels: models,
       bridgeConnected: connected,
+      embeddingProvider:
+        connected && rules.embeddingProvider === "disabled"
+          ? "local_ollama"
+          : rules.embeddingProvider,
+      embeddingModel: rules.embeddingModel || "nomic-embed-text",
     });
 
     await prisma.accountSettings.upsert({

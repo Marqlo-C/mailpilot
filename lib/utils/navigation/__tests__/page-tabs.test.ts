@@ -7,6 +7,9 @@ import {
   readActivePageTab,
   resolveInitialPageTab,
   SETTINGS_PAGE_TABS,
+  DEVELOPER_SETTINGS_TAB,
+  getSettingsPageTabs,
+  sidebarTabsForHref,
   JOB_RADAR_PAGE_TABS,
   SUBSCRIPTION_PAGE_TABS,
 } from "../page-tabs";
@@ -180,6 +183,64 @@ describe("Navigation & Account-Scoped Tab Persistence", () => {
       });
 
       expect(resolved).toBe("active");
+    });
+  });
+
+  describe("Developer Tab & Production Invisibility", () => {
+    it("exports DEVELOPER_SETTINGS_TAB with value developer and Terminal icon", () => {
+      expect(DEVELOPER_SETTINGS_TAB.value).toBe("developer");
+      expect(DEVELOPER_SETTINGS_TAB.label).toBe("Developer");
+      expect(DEVELOPER_SETTINGS_TAB.icon).toBeDefined();
+    });
+
+    it("excludes developer tab in production (isDev = false)", () => {
+      const tabs = getSettingsPageTabs(false);
+      expect(tabs).toEqual(SETTINGS_PAGE_TABS);
+      expect(tabs.some((t) => t.value === "developer")).toBe(false);
+    });
+
+    it("defaults to isDev = false when omitted", () => {
+      const tabs = getSettingsPageTabs();
+      expect(tabs).toEqual(SETTINGS_PAGE_TABS);
+      expect(tabs.some((t) => t.value === "developer")).toBe(false);
+    });
+
+    it("includes developer tab in development (isDev = true)", () => {
+      const tabs = getSettingsPageTabs(true);
+      expect(tabs).toHaveLength(SETTINGS_PAGE_TABS.length + 1);
+      expect(tabs[tabs.length - 1]).toEqual(DEVELOPER_SETTINGS_TAB);
+      expect(tabs.some((t) => t.value === "developer")).toBe(true);
+    });
+
+    it("respects isDev in sidebarTabsForHref for /settings", () => {
+      expect(sidebarTabsForHref("/settings", false)).toEqual(SETTINGS_PAGE_TABS);
+      expect(sidebarTabsForHref("/settings", true)).toEqual([
+        ...SETTINGS_PAGE_TABS,
+        DEVELOPER_SETTINGS_TAB,
+      ]);
+      expect(sidebarTabsForHref("/settings")).toEqual(SETTINGS_PAGE_TABS);
+    });
+
+    it("rejects developer tab in readActivePageTab and peekSidebarPageTab when isDev = false", () => {
+      persistActivePageTab("/settings", "developer", "acc_1");
+      const allowedProd = getSettingsPageTabs(false).map((t) => t.value);
+      const readProd = readActivePageTab("/settings", allowedProd, "acc_1");
+      expect(readProd).toBeNull();
+
+      rememberSidebarPageTab("/settings", "developer");
+      const peekProd = peekSidebarPageTab("/settings", allowedProd);
+      expect(peekProd).toBeNull();
+    });
+
+    it("allows developer tab in readActivePageTab and peekSidebarPageTab when isDev = true", () => {
+      persistActivePageTab("/settings", "developer", "acc_1");
+      const allowedDev = getSettingsPageTabs(true).map((t) => t.value);
+      const readDev = readActivePageTab("/settings", allowedDev, "acc_1");
+      expect(readDev).toBe("developer");
+
+      rememberSidebarPageTab("/settings", "developer");
+      const peekDev = peekSidebarPageTab("/settings", allowedDev);
+      expect(peekDev).toBe("developer");
     });
   });
 });

@@ -97,6 +97,10 @@ type OpportunitiesViewProps = {
   suppressTabChangeRef?: MutableRefObject<boolean>;
   /** Hovered drop-zone id while dragging (for tab ring highlight). */
   onDragZoneChange?: (zoneId: string | null) => void;
+  /** Whether embedded vector AI scoring is active. */
+  isEmbeddedAiEnabled?: boolean;
+  /** Whether autonomous email dispatch is active. */
+  isAutoDispatchEnabled?: boolean;
   onReviewDraft?: (opp: JobOpportunity) => void;
   onSendNow?: (opp: JobOpportunity) => void;
   onMarkApplied?: (opp: JobOpportunity) => void;
@@ -136,6 +140,8 @@ export function OpportunitiesView({
   onSortOptionChange,
   suppressTabChangeRef,
   onDragZoneChange,
+  isEmbeddedAiEnabled,
+  isAutoDispatchEnabled,
   onReviewDraft,
   onSendNow,
   onMarkApplied,
@@ -638,6 +644,8 @@ export function OpportunitiesView({
               retentionDays={retentionDays}
               isSelected={selectedIds.includes(opp.id)}
               isLastClicked={lastClickedId === opp.id}
+              isEmbeddedAiEnabled={isEmbeddedAiEnabled}
+              isAutoDispatchEnabled={isAutoDispatchEnabled}
               onToggleSelect={toggleSelect}
               itemProps={bindItem(opp.id)}
               showInsertBefore={marker.insertBeforeId === opp.id}

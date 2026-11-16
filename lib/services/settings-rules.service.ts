@@ -11,6 +11,11 @@ import {
   parseAccountRules,
   type AccountRules,
 } from "@/lib/validations/rules.schema";
+import {
+  featureFlagKeySchema,
+  type FeatureFlagKey,
+  featureFlagsMapSchema,
+} from "@/lib/validations/feature-flags.schema";
 import { encryptToken } from "@/lib/core/crypto";
 
 export type ActionResult<T = undefined> =
@@ -45,6 +50,11 @@ export const ruleKeySchema = z.enum([
   "scrapingAntUsage",
   "hasDataUsage",
   "enableWebScrapingProxies",
+  "embeddingProvider",
+  "embeddingModel",
+  "crossoverScoreThreshold",
+  "scoringEngine",
+  "featureFlags",
 ]);
 
 export const retentionDaysSchema = z.union([
@@ -185,6 +195,18 @@ export async function updateRule(
     !current.cloudModelProvider
   ) {
     candidate.cloudModelProvider = current.cloudProvider;
+  } else if (parsedKey.data === "featureFlags") {
+    const flagsParsed = featureFlagsMapSchema.safeParse(value);
+    if (!flagsParsed.success) {
+      return {
+        ok: false,
+        error: flagsParsed.error.issues.map((i) => i.message).join("; "),
+      };
+    }
+    candidate.featureFlags = {
+      ...current.featureFlags,
+      ...flagsParsed.data,
+    };
   }
 
   const validated = accountRulesSchema.safeParse(candidate);
@@ -237,6 +259,79 @@ export async function updateRule(
       enableWebScrapingProxies: rulesWithoutThreshold.enableWebScrapingProxies,
     });
   }
+
+  if (parsedKey.data === "featureFlags") {
+    await persistProfileScopedRules(accountId, {
+      featureFlags: rulesWithoutThreshold.featureFlags,
+    });
+  }
+
+  return { ok: true, data: rulesWithoutThreshold };
+}
+
+/**
+ * Toggles a single feature flag for an account.
+ * Feature flag updates mutate only candidate.featureFlags without cross-mutating user preferences.
+ *
+ * @param accountId - ID of account to update
+ * @param flagKey - Canonical feature flag identifier
+ * @param enabled - Target boolean state
+ * @returns Standardized tagged union ActionResult with updated AccountRules
+ */
+export async function updateFeatureFlag(
+  accountId: string,
+  flagKey: FeatureFlagKey,
+  enabled: boolean
+): Promise<ActionResult<AccountRules>> {
+  const parsedKey = featureFlagKeySchema.safeParse(flagKey);
+  if (!parsedKey.success) {
+    return { ok: false, error: `Invalid feature flag key: ${flagKey}` };
+  }
+
+  const settings = await prisma.accountSettings.findUnique({
+    where: { accountId },
+    include: { account: true },
+  });
+
+  if (!settings) {
+    return { ok: false, error: "Account settings not found" };
+  }
+
+  const current = parseAccountRules(settings.rules);
+  const updatedFeatureFlags = {
+    ...current.featureFlags,
+    [parsedKey.data]: enabled,
+  };
+
+  const candidate: Record<string, unknown> = {
+    ...current,
+    featureFlags: updatedFeatureFlags,
+    ...(parsedKey.data === "embedded_ai"
+      ? { scoringEngine: enabled ? "embedded" : "heuristic" }
+      : {}),
+  };
+
+  const validated = accountRulesSchema.safeParse(candidate);
+  if (!validated.success) {
+    return {
+      ok: false,
+      error: validated.error.issues.map((i) => i.message).join("; "),
+    };
+  }
+
+  const { matchScoreThreshold: _drop, ...rulesWithoutThreshold } =
+    validated.data;
+
+  // Persist updated rules to AccountSettings
+  await prisma.accountSettings.update({
+    where: { accountId },
+    data: { rules: rulesWithoutThreshold as Prisma.InputJsonValue },
+  });
+
+  // Mirror profile-scoped rules (featureFlags) to durable PermanentSettings
+  await persistProfileScopedRules(accountId, {
+    featureFlags: rulesWithoutThreshold.featureFlags,
+  });
 
   return { ok: true, data: rulesWithoutThreshold };
 }
@@ -300,9 +395,22 @@ export async function updateLlmProvider(
     return { ok: false, error: "Account settings not found" };
   }
 
+  const currentRules = parseAccountRules(settings.rules);
+  const updatedRules =
+    parsed.data === "LOCAL_OLLAMA" && currentRules.embeddingProvider === "disabled"
+      ? accountRulesSchema.parse({
+          ...currentRules,
+          embeddingProvider: "local_ollama",
+          embeddingModel: currentRules.embeddingModel || "nomic-embed-text",
+        })
+      : currentRules;
+
   await prisma.accountSettings.update({
     where: { accountId },
-    data: { llmProvider: parsed.data },
+    data: {
+      llmProvider: parsed.data,
+      rules: updatedRules,
+    },
   });
 
   return { ok: true };

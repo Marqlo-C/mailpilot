@@ -16,3 +16,9 @@ export * from "./classifier";
 export * from "./prefilter";
 export * from "./email-cleaner";
 export * from "./classification";
+export * from "./embedding-types";
+export * from "./vector-math";
+export * from "./embedding-registry";
+export * from "./transferable-skills";
+export * from "./semantic-crossover";
+

@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { auth } from "@/lib/core/auth";
+import { verifyAccountOwnership } from "@/lib/services/account-lifecycle.service";
 import {
   type ActionResult,
   type OllamaStatus,
   updateRule as updateRuleService,
+  updateFeatureFlag as updateFeatureFlagService,
   updateBridgeSecret as updateBridgeSecretService,
   updateLlmProvider as updateLlmProviderService,
   updateOllamaUrl as updateOllamaUrlService,
@@ -32,9 +35,24 @@ import {
 import {
   updateCustomLlmKeyInputSchema,
   type UpdateCustomLlmKeyInput,
+  toggleFeatureFlagSchema,
+  type ToggleFeatureFlagInput,
 } from "@/lib/validations/settings.schema";
+import type { FeatureFlagKey } from "@/lib/validations/feature-flags.schema";
+import type { AccountRules } from "@/lib/validations/rules.schema";
 
-export type { ActionResult, ApiKeyStatus, OllamaStatus, UpdateCustomLlmKeyInput };
+export type ServerActionResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
+
+export type {
+  ActionResult,
+  ApiKeyStatus,
+  OllamaStatus,
+  UpdateCustomLlmKeyInput,
+  ToggleFeatureFlagInput,
+};
+
 
 export async function updateRule(accountId: string, key: string, value: unknown) {
   const result = await updateRuleService(accountId, key, value);
@@ -162,3 +180,103 @@ export async function readApiKeyStatus(accountId: string) {
 export async function readOllamaStatus(accountId: string) {
   return readOllamaStatusService(accountId);
 }
+
+/**
+ * Toggles a single feature flag for an account via server action mutation boundary.
+ *
+ * Guarantees:
+ * - Session authentication via `auth()`
+ * - Strict input validation against `toggleFeatureFlagSchema`
+ * - Multi-tenant account ownership authorization via `verifyAccountOwnership`
+ * - Production environment guard prohibiting UI toggling when `NODE_ENV === "production"`
+ * - Synchronizes legacy rule aliases to maintain 100% backward compatibility
+ * - Revalidates `/settings` and `/jobs` cache paths upon successful mutation
+ * - Returns a standardized tagged union contract (`{ success: true, data } | { success: false, error }`)
+ *
+ * @param inputOrAccountId - ToggleFeatureFlagInput object payload or target account ID
+ * @param maybeFlagKey - Canonical feature flag key (when using positional arguments)
+ * @param maybeEnabled - Target boolean enabled state (when using positional arguments)
+ * @returns Standardized tagged union with updated AccountRules on success or error string on failure
+ */
+export async function toggleFeatureFlagAction(
+  inputOrAccountId: ToggleFeatureFlagInput | string,
+  maybeFlagKey?: FeatureFlagKey,
+  maybeEnabled?: boolean
+): Promise<ServerActionResult<AccountRules>> {
+  try {
+    const session = await auth();
+    if (!session) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const rawInput =
+      typeof inputOrAccountId === "object" && inputOrAccountId !== null
+        ? inputOrAccountId
+        : {
+            accountId: inputOrAccountId,
+            flagKey: maybeFlagKey,
+            enabled: maybeEnabled,
+          };
+
+    const parsed = toggleFeatureFlagSchema.safeParse(rawInput);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.issues.map((i) => i.message).join("; "),
+      };
+    }
+
+    const verification = await verifyAccountOwnership(
+      session.accountId,
+      parsed.data.accountId
+    );
+    if (!verification.ok) {
+      return {
+        success: false,
+        error: verification.error ?? "Account not found for this user",
+      };
+    }
+
+    if (process.env.NODE_ENV === "production") {
+      return {
+        success: false,
+        error:
+          "Developer feature flags cannot be toggled via UI in production",
+      };
+    }
+
+    const result = await updateFeatureFlagService(
+      parsed.data.accountId,
+      parsed.data.flagKey,
+      parsed.data.enabled
+    );
+
+    if (!result.ok) {
+      return {
+        success: false,
+        error: result.error,
+      };
+    }
+
+    if (!result.data) {
+      return {
+        success: false,
+        error: "Failed to update feature flag",
+      };
+    }
+
+    revalidatePath("/settings");
+    revalidatePath("/jobs");
+
+    return {
+      success: true,
+      data: result.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Internal server error",
+    };
+  }
+}
+

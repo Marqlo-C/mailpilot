@@ -247,6 +247,7 @@ export type CompactSyncLogEntry = {
   matchScore?: number;
   matchTier?: string;
   matchSource?: string;
+  scoringDetails?: string;
   databaseAction?: string;
   skipReason?: string;
   syncStartedAt?: number;
@@ -454,6 +455,11 @@ export function logCompactSyncCard(entry: CompactSyncLogEntry): void {
 
   console.log(`├${"─".repeat(48)}┴${"─".repeat(49)}┤`);
 
+  if (entry.scoringDetails) {
+    const scoreLine = truncate(`Scoring : ${entry.scoringDetails}`, 94).padEnd(96);
+    console.log(`│ ${scoreLine} │`);
+  }
+
   // Multi-line word-wrapped "Saved :" with second line indented past "Saved   : "
   const fullAction = (entry.databaseAction || "Processed").trim();
   const maxLine1Chars = 86; // 96 total inner width - 10 chars label
@@ -557,3 +563,9 @@ export function logSyncSummaryBanner(stats: SyncSummaryStats): void {
   console.log(`│ ${`Watermark: ${stats.watermark}`.padEnd(96)} │`);
   console.log(`└${"─".repeat(98)}┘\n`);
 }
+
+export {
+  logShadowEvaluationTelemetry,
+  type ShadowEvaluationTelemetryParams,
+} from "./shadow-telemetry";
+

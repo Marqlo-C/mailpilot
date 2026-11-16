@@ -105,6 +105,12 @@ export function ConnectedModelPicker({
                   <Globe className="size-3 shrink-0 text-muted-foreground" />
                   <span className="truncate">{url.trim() || "local endpoint"}</span>
                 </code>
+                <Badge
+                  variant="outline"
+                  className="h-4.5 px-1.5 text-[10px] font-medium border-teal-500/30 bg-teal-500/10 text-teal-600 dark:text-teal-400"
+                >
+                  Active embedding model: nomic-embed-text
+                </Badge>
               </>
             ) : (
               <span>Run either command above to connect your local GPU/CPU</span>
@@ -187,6 +193,30 @@ export function ConnectedModelPicker({
               No models returned. Click Refresh.
             </p>
           )}
+
+          <div className="space-y-1.5 pt-2 border-t border-border/40">
+            <div className="flex items-center justify-between gap-2">
+              <Label
+                htmlFor="ollama-embed-model"
+                className="text-xs font-semibold tracking-tight text-foreground"
+              >
+                Active embedding model
+              </Label>
+              <Badge
+                variant="outline"
+                className="h-4.5 px-1.5 text-[10px] font-medium border-teal-500/30 bg-teal-500/10 text-teal-600 dark:text-teal-400"
+              >
+                Calibrated
+              </Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-normal">
+              Used for vector crossover scoring and semantic transferable skills.
+            </p>
+            <div className="flex items-center justify-between rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs font-mono text-foreground">
+              <span>nomic-embed-text</span>
+              <span className="text-[10px] font-sans text-muted-foreground">Default</span>
+            </div>
+          </div>
         </div>
       ) : null}
     </SettingsStatusCard>

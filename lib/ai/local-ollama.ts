@@ -14,9 +14,22 @@ export const DEFAULT_OLLAMA_MODEL = "llama3.1:8b";
 interface CircuitBreakerEntry {
   trippedAt: number;
   reason?: string;
+  ttlMs?: number;
 }
 
-const CIRCUIT_BREAKER_TTL_MS = 60_000;
+export const CIRCUIT_BREAKER_TTL_MS = 60_000;
+export const DEV_CIRCUIT_BREAKER_TTL_MS = 5_000;
+
+/**
+ * Returns the effective circuit breaker TTL.
+ * Uses 5s in development mode to prevent long lockouts during iterative local testing.
+ */
+export function getCircuitBreakerTtlMs(): number {
+  return process.env.NODE_ENV === "development"
+    ? DEV_CIRCUIT_BREAKER_TTL_MS
+    : CIRCUIT_BREAKER_TTL_MS;
+}
+
 const trippedCircuits = new Map<string, CircuitBreakerEntry>();
 
 /**
@@ -26,7 +39,8 @@ export function isOllamaCircuitTripped(baseUrl: string): boolean {
   const key = normalizeOllamaBaseUrl(baseUrl);
   const entry = trippedCircuits.get(key);
   if (!entry) return false;
-  if (Date.now() - entry.trippedAt > CIRCUIT_BREAKER_TTL_MS) {
+  const ttl = entry.ttlMs ?? getCircuitBreakerTtlMs();
+  if (Date.now() - entry.trippedAt > ttl) {
     trippedCircuits.delete(key);
     return false;
   }
@@ -35,12 +49,18 @@ export function isOllamaCircuitTripped(baseUrl: string): boolean {
 
 /**
  * Trips the circuit breaker for a given Ollama endpoint.
+ * In development mode, backoff defaults to 5 seconds instead of 60 seconds.
  */
-export function tripOllamaCircuit(baseUrl: string, reason?: string): void {
+export function tripOllamaCircuit(
+  baseUrl: string,
+  reason?: string,
+  customTtlMs?: number
+): void {
   const key = normalizeOllamaBaseUrl(baseUrl);
   trippedCircuits.set(key, {
     trippedAt: Date.now(),
     reason,
+    ttlMs: customTtlMs ?? getCircuitBreakerTtlMs(),
   });
 }
 
@@ -141,7 +161,9 @@ export function ollamaBaseUrlFromEnv(): string {
 
 export function resolveOllamaBaseUrl(configured?: string | null): string {
   const isDev = process.env.NODE_ENV === "development";
-  if (isDev) return ollamaBaseUrlFromEnv();
+  if (isDev && process.env.OLLAMA_BASE_URL?.trim()) {
+    return ollamaBaseUrlFromEnv();
+  }
   return normalizeOllamaBaseUrl(configured?.trim() || ollamaBaseUrlFromEnv());
 }
 

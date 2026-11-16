@@ -66,7 +66,7 @@ function evaluateSeniorityFit(
   return "ALIGNED";
 }
 
-function computeMatchTier(score: number): MatchTier {
+export function computeMatchTier(score: number): MatchTier {
   if (score >= 75) return "HIGH";
   if (score >= 50) return "MID";
   return "LOW";

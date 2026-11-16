@@ -199,7 +199,13 @@ export async function dispatchApplicationEmail(
   });
 
   const gmail = await getGmailClientForAccount(account);
-  const createDraftOnly = options.createDraftOnly === true;
+  const rules = parseAccountRules(account.settings?.rules);
+  const isAutonomousDispatchEnabled = rules.applicationMode === "AUTO_SEND";
+
+  // Fail-Safe: If autonomous_dispatch is disabled, force draft-only mode
+  // guaranteeing the opportunity is routed to manual review and never auto-sent.
+  const createDraftOnly =
+    options.createDraftOnly === true || !isAutonomousDispatchEnabled;
   let gmailDraftId: string | null = application.gmailDraftId;
   let gmailMessageId: string | null = application.gmailMessageId;
 

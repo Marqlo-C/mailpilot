@@ -15,6 +15,7 @@ import {
   MailX,
   SlidersHorizontal,
   Target,
+  Terminal,
   UserRound,
   Users,
   Zap,
@@ -60,7 +61,15 @@ export const SETTINGS_PAGE_TABS = [
   { value: "ui", label: "UI", icon: SlidersHorizontal },
 ] as const;
 
-export type SettingsPageTab = (typeof SETTINGS_PAGE_TABS)[number]["value"];
+export const DEVELOPER_SETTINGS_TAB = {
+  value: "developer",
+  label: "Developer",
+  icon: Terminal,
+} as const;
+
+export type SettingsPageTab =
+  | (typeof SETTINGS_PAGE_TABS)[number]["value"]
+  | typeof DEVELOPER_SETTINGS_TAB.value;
 
 export type SidebarPageTab = {
   value: string;
@@ -68,10 +77,27 @@ export type SidebarPageTab = {
   icon: LucideIcon;
 };
 
-export function sidebarTabsForHref(href: string): readonly SidebarPageTab[] {
+/**
+ * Returns the visible settings tabs based on the development environment.
+ * Developer-only tabs are isolated and only appear when isDev is true.
+ *
+ * @param isDev Whether the application is running in development mode
+ * @returns Array of sidebar page tabs accessible for the settings page
+ */
+export function getSettingsPageTabs(isDev = false): readonly SidebarPageTab[] {
+  if (isDev) {
+    return [...SETTINGS_PAGE_TABS, DEVELOPER_SETTINGS_TAB];
+  }
+  return SETTINGS_PAGE_TABS;
+}
+
+export function sidebarTabsForHref(
+  href: string,
+  isDev = false
+): readonly SidebarPageTab[] {
   if (href === "/jobs") return JOB_RADAR_PAGE_TABS;
   if (href === "/subscriptions") return SUBSCRIPTION_PAGE_TABS;
-  if (href === "/settings") return SETTINGS_PAGE_TABS;
+  if (href === "/settings") return getSettingsPageTabs(isDev);
   return [];
 }
 

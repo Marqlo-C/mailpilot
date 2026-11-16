@@ -10,18 +10,12 @@ import {
 
 import {
   WAVY_DASH_STROKE,
+  WAVE_DASH_PLACEHOLDER,
   buildWavyRoundedRectPath,
 } from "@/lib/constants/wave-geometry";
 import { cn } from "@/lib/utils";
 
 type WavyDashedFrameProps = HTMLAttributes<HTMLDivElement>;
-
-/**
- * Placeholder viewBox so SSR / first HTML paint already has a wavy outline.
- * Stretched to the real box via preserveAspectRatio="none"; useLayoutEffect
- * then swaps in a constant-wavelength path before the browser paints.
- */
-const PLACEHOLDER_SIZE = { w: 280, h: 48 } as const;
 
 /**
  * Rounded frame whose dashed stroke follows the same wave as the slider.
@@ -34,7 +28,7 @@ export function WavyDashedFrame({
   ...rest
 }: WavyDashedFrameProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState<{ w: number; h: number }>(PLACEHOLDER_SIZE);
+  const [size, setSize] = useState<{ w: number; h: number }>(WAVE_DASH_PLACEHOLDER);
 
   useLayoutEffect(() => {
     const el = ref.current;

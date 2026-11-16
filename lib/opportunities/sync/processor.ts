@@ -47,6 +47,8 @@ import {
 import {
   extractMatchCandidateLens,
   evaluateOpportunityMatch,
+  resolveOpportunityMatch,
+  resolveEffectiveScoringEngine,
 } from "@/lib/matching";
 import { JOB_BOARD_KEYWORDS } from "@/lib/constants/job-sources";
 import { prisma } from "@/lib/core/prisma";
@@ -505,8 +507,12 @@ export async function processSyncMessage(
       candidateProfile,
       candidateProfile.persona
     );
+    const effectiveEngine = resolveEffectiveScoringEngine(rules);
+    const forceReevaluate = effectiveEngine === "embedded" || effectiveEngine === "hybrid";
+
     for (const job of classification.jobs) {
       if (
+        forceReevaluate ||
         !job.matchScore ||
         job.matchScore === 0 ||
         /company are not directly related/i.test(job.matchReason || "") ||
@@ -521,13 +527,24 @@ export async function processSyncMessage(
           postedAt: job.postedAt,
           applyUrl: job.applyUrl,
         });
-        const evaluated = evaluateOpportunityMatch({
+        const evaluated = await resolveOpportunityMatch({
           opportunity: normalized,
           candidate: candidateLens,
-          mode: "HEURISTIC",
+          rules,
+          profile: candidateProfile,
+          accountId: account.id,
         });
         job.matchScore = evaluated.score;
+        job.heuristicScore = evaluated.heuristicResult.score;
         job.matchReason = evaluated.reason;
+        job.scoringEngineUsed = evaluated.scoringEngineUsed;
+        job.scoringDetails = evaluated.reason;
+        job.classificationMethod =
+          evaluated.scoringEngineUsed === "heuristic"
+            ? "HEURISTIC"
+            : evaluated.scoringEngineUsed === "hybrid"
+              ? "HYBRID"
+              : "AI";
       }
     }
   } else {
@@ -698,14 +715,24 @@ export async function processSyncMessage(
               postedAt: job.postedAt,
               applyUrl: job.applyUrl,
             });
-            const evaluated = evaluateOpportunityMatch({
+            const evaluated = await resolveOpportunityMatch({
               opportunity: normalized,
               candidate: candidateLens,
-              mode: "HEURISTIC",
+              rules,
+              profile: candidateProfile,
+              accountId: account.id,
             });
             job.matchScore = evaluated.score;
+            job.heuristicScore = evaluated.heuristicResult.score;
             job.matchReason = evaluated.reason;
-            job.classificationMethod = "HEURISTIC";
+            job.scoringEngineUsed = evaluated.scoringEngineUsed;
+            job.scoringDetails = evaluated.reason;
+            job.classificationMethod =
+              evaluated.scoringEngineUsed === "heuristic"
+                ? "HEURISTIC"
+                : evaluated.scoringEngineUsed === "hybrid"
+                  ? "HYBRID"
+                  : "AI";
           }
         }
 

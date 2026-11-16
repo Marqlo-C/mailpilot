@@ -37,6 +37,7 @@ import {
 } from "@/app/actions/opportunities";
 import { toast } from "sonner";
 import { WavyDashedFrame } from "@/components/ui/tactile/wavy-dashed-frame";
+import { WavyDashedLine } from "@/components/ui/tactile/wavy-dashed-line";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import {
   variantToJobsTabKey,
@@ -104,6 +105,10 @@ type OpportunityCardProps = {
   isSelected?: boolean;
   /** Most recently toggled checkbox in the shared selection set. */
   isLastClicked?: boolean;
+  /** Whether embedded vector AI scoring is active. */
+  isEmbeddedAiEnabled?: boolean;
+  /** Whether autonomous email dispatch is active. */
+  isAutoDispatchEnabled?: boolean;
   onToggleSelect?: (id: string) => void;
   onReviewDraft?: () => void;
   onSendNow?: () => void;
@@ -147,6 +152,8 @@ export function OpportunityCard({
   retentionDays = 30,
   isSelected = false,
   isLastClicked = false,
+  isEmbeddedAiEnabled,
+  isAutoDispatchEnabled: _isAutoDispatchEnabled,
   onToggleSelect,
   onReviewDraft,
   onSendNow,
@@ -331,6 +338,28 @@ export function OpportunityCard({
       </span>
     ) : null;
 
+  const isVectorClassification = Boolean(
+    opportunity.matchReason &&
+    /semantic vector|vector crossover|transferable competencies/i.test(
+      opportunity.matchReason
+    )
+  );
+  const showVectorBadge =
+    process.env.NODE_ENV === "development" &&
+    isEmbeddedAiEnabled !== false &&
+    isVectorClassification;
+  const vectorBadge = showVectorBadge ? (
+    <span
+      className={cn(
+        statusPillClass,
+        "border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium"
+      )}
+      title="Evaluated via Embedded Vector AI (Dev-only indicator)"
+    >
+      Vector AI
+    </span>
+  ) : null;
+
   const validApplyUrl =
     opportunity.applyUrl && /^https?:\/\//i.test(opportunity.applyUrl.trim())
       ? opportunity.applyUrl.trim()
@@ -471,6 +500,7 @@ export function OpportunityCard({
               {opportunity.company}
             </h4>
             {statusTag}
+            {vectorBadge}
           </div>
           <h3
             className={cn(
@@ -559,7 +589,7 @@ export function OpportunityCard({
               data-match-reason-box=""
               className="w-full rounded-lg bg-muted/20 p-2.5 dark:bg-muted/10"
             >
-              <p className="text-[11px] leading-relaxed text-muted-foreground">
+              <p className="min-h-[3lh] text-[11px] leading-relaxed text-muted-foreground/80">
                 {hasRichDescription ? (
                   <span title="Full spec heuristic evaluation" className="mr-1.5 inline-flex h-[1lh] items-center align-bottom">
                     <Sparkles
@@ -584,7 +614,9 @@ export function OpportunityCard({
 
       {/* 5. Pinned bottom action bar — secondary · primary · ⋮ */}
       {/* pr matches action gap-2 so ⋮ sits evenly vs left button and card edge */}
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/[0.12] py-3 pl-4 pr-2 sm:pl-5">
+      <div className="mt-auto flex flex-col">
+        <WavyDashedLine orientation="horizontal" cutoffFill />
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/90 py-3 pl-4 pr-2 sm:pl-5">
             <div className="flex min-w-0 items-center">
               {variant === "history" && dismissed ? (
                 <span className="inline-flex items-center gap-1 px-1 text-[11px] text-muted-foreground">
@@ -907,6 +939,7 @@ export function OpportunityCard({
               </AppMenuContent>
             </DropdownMenu>
           ) : null}
+            </div>
         </div>
       </div>
 

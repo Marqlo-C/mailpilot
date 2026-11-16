@@ -624,9 +624,14 @@ export function AiModelsCard({
           <div className="space-y-3 rounded-xl border border-dashed border-border/80 bg-muted/10 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 space-y-1">
-                <p className="text-sm font-medium tracking-tight">
-                  Development model check
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-medium tracking-tight">
+                    Development model check
+                  </p>
+                  <span className="inline-flex items-center rounded-md border border-teal-500/30 bg-teal-500/10 px-1.5 py-0.5 text-[10px] font-medium text-teal-600 dark:text-teal-400">
+                    Active dev embedding model: nomic-embed-text
+                  </span>
+                </div>
                 <p className="text-[11px] text-muted-foreground">
                   Lists models on the local Ollama host from OLLAMA_BASE_URL.
                   The saved Cloudflare tunnel is left unchanged.
@@ -724,36 +729,56 @@ export function AiModelsCard({
               </Button>
             </div>
             {devModels.length > 0 ? (
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor="dev-ollama-model"
-                  className="text-xs font-medium text-muted-foreground"
-                >
-                  Active dev model (client-only / localStorage)
-                </Label>
-                <AppMenuSelect
-                  id="dev-ollama-model"
-                  surface="light"
-                  disabled={disabled}
-                  value={
-                    devModels.includes(devSelectedModel)
-                      ? devSelectedModel
-                      : (devModels[0] ?? "")
-                  }
-                  options={devModels.map((name) => ({
-                    value: name,
-                    label: name,
-                  }))}
-                  onChange={(next) => {
-                    setDevSelectedModel(next);
-                    try {
-                      localStorage.setItem(DEV_OLLAMA_MODEL_STORAGE_KEY, next);
-                    } catch {
-                      // ignore localStorage error
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="dev-ollama-model"
+                    className="text-xs font-medium text-muted-foreground"
+                  >
+                    Active dev model (client-only / localStorage)
+                  </Label>
+                  <AppMenuSelect
+                    id="dev-ollama-model"
+                    surface="light"
+                    disabled={disabled}
+                    value={
+                      devModels.includes(devSelectedModel)
+                        ? devSelectedModel
+                        : (devModels[0] ?? "")
                     }
-                    toast.success(`Dev model set to ${next} (local only)`);
-                  }}
-                />
+                    options={devModels.map((name) => ({
+                      value: name,
+                      label: name,
+                    }))}
+                    onChange={(next) => {
+                      setDevSelectedModel(next);
+                      try {
+                        localStorage.setItem(DEV_OLLAMA_MODEL_STORAGE_KEY, next);
+                      } catch {
+                        // ignore localStorage error
+                      }
+                      toast.success(`Dev model set to ${next} (local only)`);
+                    }}
+                  />
+                </div>
+
+                <div className="space-y-1.5 pt-2 border-t border-border/40">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label
+                      htmlFor="dev-ollama-embed-model"
+                      className="text-xs font-medium text-muted-foreground"
+                    >
+                      Active dev embedding model: nomic-embed-text
+                    </Label>
+                    <span className="text-[10px] text-teal-600 dark:text-teal-400 font-medium">
+                      Vector Crossover
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs font-mono text-foreground">
+                    <span>nomic-embed-text</span>
+                    <span className="text-[10px] font-sans text-muted-foreground">Default</span>
+                  </div>
+                </div>
               </div>
             ) : null}
           </div>

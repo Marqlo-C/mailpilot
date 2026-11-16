@@ -91,6 +91,8 @@ type JobsRadarProps = {
   retentionDays?: number;
   initialTab?: string;
   initialOpportunityId?: string;
+  isEmbeddedAiEnabled?: boolean;
+  isAutoDispatchEnabled?: boolean;
 };
 
 const tabDescriptions: Record<string, string> = {
@@ -135,6 +137,8 @@ export function JobsRadar({
   retentionDays = 30,
   initialTab,
   initialOpportunityId,
+  isEmbeddedAiEnabled,
+  isAutoDispatchEnabled,
 }: JobsRadarProps) {
   const router = useRouter();
   const {
@@ -377,7 +381,9 @@ export function JobsRadar({
         : deckVariant === "history"
           ? sortedOpportunityHistory
           : sortedOpportunityLeads;
-  const showOpportunityDeck = deckOpportunities.length > 0;
+  const showOpportunityDeck =
+    deckOpportunities.length > 0 ||
+    (deckVariant === "leads" && archivedLeadCount > 0);
   const deckEmptyText =
     deckVariant === "applied"
       ? "No applied opportunities."
@@ -385,7 +391,9 @@ export function JobsRadar({
         ? "No drafts awaiting review."
         : deckVariant === "history"
           ? "No archived opportunities."
-          : "No matching opportunities.";
+          : archivedLeadCount > 0
+            ? `All ${archivedLeadCount} lead${archivedLeadCount === 1 ? "" : "s"} scored below your ${threshold}% match threshold. Adjust the threshold slider above to view them.`
+            : "No matching opportunities.";
 
   return (
     <>
@@ -397,6 +405,8 @@ export function JobsRadar({
       retentionDays={retentionDays}
       variant={deckVariant}
       pending={pending}
+      isEmbeddedAiEnabled={isEmbeddedAiEnabled}
+      isAutoDispatchEnabled={isAutoDispatchEnabled}
       emptyText={deckEmptyText}
       showThresholdControl={deckVariant === "leads"}
       onThresholdChange={deckVariant === "leads" ? setThreshold : undefined}

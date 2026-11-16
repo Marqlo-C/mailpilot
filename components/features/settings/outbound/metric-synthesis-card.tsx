@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleGauge, FlaskConical, ThumbsUp } from "lucide-react";
+import { CircleGauge, FlaskConical, Lock, ThumbsUp } from "lucide-react";
 import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { SettingsFeatureCard } from "@/components/ui/tactile/nested-settings-card";
 import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
@@ -12,6 +12,7 @@ interface MetricSynthesisCardProps {
   disabled: boolean;
   isLocked: boolean;
   isExpanded: boolean;
+  isKillSwitched?: boolean;
   onToggle: () => void;
   onSelectMode: (inventMetrics: boolean) => void;
 }
@@ -21,9 +22,12 @@ export function MetricSynthesisCard({
   disabled,
   isLocked,
   isExpanded,
+  isKillSwitched = false,
   onToggle,
   onSelectMode,
 }: MetricSynthesisCardProps) {
+  const effectiveInventMetrics = inventMetrics;
+
   return (
     <SettingsFeatureCard
       logo={
@@ -36,7 +40,7 @@ export function MetricSynthesisCard({
       title="Impact Metrics"
       subtitle="Decide whether AI adds realistic metric estimates when your original bullets don't include numbers."
       statusBadge={
-        isLocked || inventMetrics ? (
+        isLocked || effectiveInventMetrics ? (
           <OutboundStatusPill isRecommended={false}>AI Estimates</OutboundStatusPill>
         ) : (
           <OutboundStatusPill isRecommended={true}>Verified Facts</OutboundStatusPill>
@@ -48,11 +52,20 @@ export function MetricSynthesisCard({
       curvedDivider
     >
       <div className="space-y-3">
+        {isKillSwitched ? (
+          <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+            <Lock className="size-3.5 shrink-0" aria-hidden="true" />
+            <span>
+              Mode B Metric Synthesis is temporarily suspended by a platform kill-switch. Your preference is preserved and will take effect once restored.
+            </span>
+          </div>
+        ) : null}
+
         {/* Toggle Option 1: AI Metric Estimates */}
         <div
           className={cn(
             "flex items-start justify-between gap-4 rounded-lg border p-3 transition-colors",
-            inventMetrics
+            effectiveInventMetrics
               ? "border-border/60 bg-card hover:border-border"
               : "border-border/40 bg-card/60"
           )}
@@ -62,7 +75,7 @@ export function MetricSynthesisCard({
               <p
                 className={cn(
                   "text-[13px] font-semibold tracking-tight transition-colors duration-150",
-                  inventMetrics ? "text-foreground" : "text-muted-foreground"
+                  effectiveInventMetrics ? "text-foreground" : "text-muted-foreground"
                 )}
               >
                 Smart Metric Estimates
@@ -70,7 +83,7 @@ export function MetricSynthesisCard({
               <span
                 className={cn(
                   "inline-flex items-center gap-1 rounded-md border border-[#78486c]/20 bg-[#78486c]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#78486c] dark:border-[#78486c]/40 dark:bg-[#78486c]/20 dark:text-[#e49ecb] shrink-0 transition-opacity duration-150",
-                  inventMetrics ? "opacity-100" : "opacity-50"
+                  effectiveInventMetrics ? "opacity-100" : "opacity-50"
                 )}
               >
                 <FlaskConical className="size-3 shrink-0" aria-hidden="true" />
@@ -80,7 +93,7 @@ export function MetricSynthesisCard({
             <p
               className={cn(
                 "text-xs leading-relaxed transition-colors duration-150",
-                inventMetrics
+                effectiveInventMetrics
                   ? "text-muted-foreground"
                   : "text-muted-foreground/60"
               )}
@@ -90,9 +103,11 @@ export function MetricSynthesisCard({
           </div>
           <WaveToggle
             id="metric-ai-toggle"
-            checked={inventMetrics}
+            checked={effectiveInventMetrics}
             disabled={disabled || isLocked}
-            onCheckedChange={(checked) => onSelectMode(checked)}
+            onCheckedChange={(checked) => {
+              onSelectMode(checked);
+            }}
           />
         </div>
 
@@ -100,7 +115,7 @@ export function MetricSynthesisCard({
         <div
           className={cn(
             "flex items-start justify-between gap-4 rounded-lg border p-3 transition-colors",
-            !inventMetrics
+            !effectiveInventMetrics
               ? "border-border/60 bg-card hover:border-border"
               : "border-border/40 bg-card/60"
           )}
@@ -110,7 +125,7 @@ export function MetricSynthesisCard({
               <p
                 className={cn(
                   "text-[13px] font-semibold tracking-tight transition-colors duration-150",
-                  !inventMetrics ? "text-foreground" : "text-muted-foreground"
+                  !effectiveInventMetrics ? "text-foreground" : "text-muted-foreground"
                 )}
               >
                 Verified Facts
@@ -118,7 +133,7 @@ export function MetricSynthesisCard({
               <span
                 className={cn(
                   "inline-flex items-center gap-1 rounded-md border border-[#1ab5af]/30 bg-[#1ab5af]/15 px-1.5 py-0.5 text-[10px] font-medium text-[#139a94] dark:border-[#1ab5af]/40 dark:bg-[#1ab5af]/25 dark:text-[#2dd4bf] shrink-0 transition-opacity duration-150",
-                  !inventMetrics ? "opacity-100" : "opacity-50"
+                  !effectiveInventMetrics ? "opacity-100" : "opacity-50"
                 )}
               >
                 <ThumbsUp className="size-3 shrink-0" aria-hidden="true" />
@@ -128,7 +143,7 @@ export function MetricSynthesisCard({
             <p
               className={cn(
                 "text-xs leading-relaxed transition-colors duration-150",
-                !inventMetrics
+                !effectiveInventMetrics
                   ? "text-muted-foreground"
                   : "text-muted-foreground/60"
               )}
@@ -138,9 +153,11 @@ export function MetricSynthesisCard({
           </div>
           <WaveToggle
             id="metric-strict-toggle"
-            checked={!inventMetrics}
+            checked={!effectiveInventMetrics}
             disabled={disabled || isLocked}
-            onCheckedChange={(checked) => onSelectMode(!checked)}
+            onCheckedChange={(checked) => {
+              onSelectMode(!checked);
+            }}
           />
         </div>
       </div>

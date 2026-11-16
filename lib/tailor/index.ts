@@ -27,6 +27,10 @@ import { distillJobContext } from "./distiller";
 import { rankProfileAgainstJob } from "./ranker";
 import { executeBulletReframe } from "./reframe";
 import {
+  isModeBMetricSynthesisPermitted,
+  enforceMetricGrounding,
+} from "./mode-b-synthesis";
+import {
   buildHierarchicalProfileTree,
   hydrateSelectedFromTree,
 } from "./tree";
@@ -100,7 +104,10 @@ export async function tailorResumeForJob(
   const careerYears = estimateCareerYears(profile);
   const switcherOrEarlyTenure = isCareerSwitcherOrEarlyTenure(persona, profile);
   const roleCount = profile.experiences.length;
-  const inventMetrics = options.inventMetrics ?? options.accountRules?.resumePreferences?.inventMetrics ?? false;
+  const inventMetrics = isModeBMetricSynthesisPermitted(
+    options.accountRules,
+    options.inventMetrics
+  );
 
   let effectiveOllamaModel = options.ollamaModel;
   let effectiveLocalOllamaUrl = options.localOllamaUrl;
@@ -344,3 +351,5 @@ export async function tailorResumeForJob(
     warningFlags: budget.warningFlags,
   };
 }
+
+export * from "./mode-b-synthesis";

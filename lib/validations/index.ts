@@ -5,6 +5,7 @@
 export * from "./classification.schema";
 export * from "./dispatch.schema";
 export * from "./extension.schema";
+export * from "./feature-flags.schema";
 export * from "./gmail-webhook.schema";
 export * from "./matching.schema";
 export * from "./opportunity.schema";

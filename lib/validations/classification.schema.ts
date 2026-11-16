@@ -45,11 +45,17 @@ export const extractedJobSchema = z.object({
   ),
   isAlreadyApplied: z.boolean().optional().default(false),
   matchScore: z.coerce.number().min(0).max(100).optional(),
+  heuristicScore: z.coerce.number().min(0).max(100).optional(),
   matchReason: z.preprocess(
     (v) => (v == null ? null : v),
     z.string().nullable().optional()
   ),
   classificationMethod: z.enum(["AI", "HEURISTIC", "HYBRID"]).optional(),
+  scoringEngineUsed: z.enum(["heuristic", "embedded", "hybrid"]).optional(),
+  scoringDetails: z.preprocess(
+    (v) => (v == null ? null : v),
+    z.string().nullable().optional()
+  ),
 });
 
 export type ExtractedJob = z.infer<typeof extractedJobSchema>;

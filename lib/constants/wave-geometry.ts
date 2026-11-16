@@ -24,13 +24,13 @@ export const WAVE_TOGGLE_AMP_Y = 3;
 export const WAVE_TOGGLE_VB_H = 18;
 
 /**
- * Shared ink for dashed squiggle hairlines and frames
- * ({@link WavyDashedLine}, {@link WavyDashedFrame}).
+ * Shared ink for dashed hairlines and frames
+ * ({@link WavyDashedLine} wavy/straight, {@link WavyDashedFrame}).
  * Explicit HSL — avoid `currentColor` so parent text color can't retint the stroke.
  */
 export const WAVY_DASH_STROKE = {
-  /** Matches `muted-foreground` at 30% opacity. */
-  stroke: "hsl(var(--muted-foreground) / 0.3)",
+  /** Matches `muted-foreground` at 45% opacity. */
+  stroke: "hsl(var(--muted-foreground) / 0.45)",
   strokeWidth: 1,
   strokeDasharray: "3 3",
 } as const;
@@ -42,6 +42,14 @@ export const WAVY_DASH_STROKE = {
 export const WAVE_DASH_LINE_AMP_Y = 1.5;
 export const WAVE_DASH_LINE_MID_Y = 3;
 export const WAVE_DASH_LINE_VB = 6;
+
+/**
+ * Placeholder viewBox so SSR / first HTML paint already shows a wave.
+ * Stretched via preserveAspectRatio="none"; layout then swaps in a
+ * constant-wavelength path (same stand-in pattern as {@link WavyDashedFrame}).
+ */
+/** ~3 lines of 11px relaxed text + frame padding — matches AI reasoning base size. */
+export const WAVE_DASH_PLACEHOLDER = { w: 280, h: 72 } as const;
 
 /**
  * Build a squiggle wave line for an exact pixel width without stretching.

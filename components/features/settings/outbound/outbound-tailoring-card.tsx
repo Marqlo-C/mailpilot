@@ -29,12 +29,14 @@ interface OutboundTailoringCardProps {
   accountId: string | null;
   rules: AccountRules;
   initialAccordion?: StoredOutboundAccordionState | null;
+  isModeBKillSwitched?: boolean;
 }
 
 export function OutboundTailoringCard({
   accountId,
   rules,
   initialAccordion,
+  isModeBKillSwitched = false,
 }: OutboundTailoringCardProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -127,7 +129,7 @@ export function OutboundTailoringCard({
     ? "AI_OPTIMAL"
     : contentInclusionMode;
   const effectiveBudget = isMasterAiLocked ? "auto" : targetPageBudget;
-  const effectiveInventMetrics = isMasterAiLocked ? true : inventMetrics;
+  const effectiveInventMetrics = isMasterAiLocked ? false : inventMetrics;
 
   const isLayoutLocked =
     isMasterAiLocked ||
@@ -203,6 +205,7 @@ export function OutboundTailoringCard({
             disabled={isInputDisabled}
             isLocked={isMasterAiLocked}
             isExpanded={accordionState.metricOpen}
+            isKillSwitched={isModeBKillSwitched}
             onToggle={() => toggleAccordion("metricOpen")}
             onSelectMode={(val) => {
               setInventMetrics(val);

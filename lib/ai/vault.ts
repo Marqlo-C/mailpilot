@@ -1,4 +1,5 @@
 import { decryptToken, encryptToken } from "@/lib/core/crypto";
+import { isFeatureEnabled } from "@/lib/core/feature-flags";
 import type { AccountRules } from "@/lib/validations/rules.schema";
 import type { CloudLlmProvider } from "./provider.schema";
 
@@ -150,7 +151,7 @@ export function resolveDecryptedAccountKey(
 export function resolveDecryptedScrapingAntKey(
   rules: Partial<AccountRules> | null | undefined
 ): string | null {
-  if (rules?.enableWebScrapingProxies === false) {
+  if (!isFeatureEnabled("web_scraping_proxies", rules)) {
     return null;
   }
   if (!rules?.encryptedScrapingAntApiKey) {
@@ -181,7 +182,7 @@ export function resolveDecryptedScrapingAntKey(
 export function resolveDecryptedHasDataKey(
   rules: Partial<AccountRules> | null | undefined
 ): string | null {
-  if (rules?.enableWebScrapingProxies === false) {
+  if (!isFeatureEnabled("web_scraping_proxies", rules)) {
     return null;
   }
   if (!rules?.encryptedHasDataApiKey) {
@@ -203,5 +204,33 @@ export function resolveDecryptedHasDataKey(
     return null;
   }
 }
+
+/**
+ * Resolves and decrypts the Jina API key from AccountSettings.rules.
+ * Returns null if no custom key is configured or decryption fails.
+ */
+export function resolveDecryptedJinaKey(
+  rules: Partial<AccountRules> | null | undefined
+): string | null {
+  if (!rules?.encryptedJinaApiKey) {
+    return null;
+  }
+
+  try {
+    const decrypted = decryptToken(rules.encryptedJinaApiKey).trim();
+    if (!decrypted) {
+      console.warn("[vault] Decrypted Jina API key was empty string. Returning null.");
+      return null;
+    }
+    return decrypted;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.error(
+      `[vault] Failed to decrypt Jina API key: ${reason}`
+    );
+    return null;
+  }
+}
+
 
 

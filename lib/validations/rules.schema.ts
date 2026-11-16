@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CLOUD_LLM_PROVIDERS } from "@/lib/ai/provider.schema";
+import { featureFlagsMapSchema } from "./feature-flags.schema";
 
 export const DISMISSED_RETENTION_OPTIONS = [7, 14, 30] as const;
 
@@ -66,6 +67,22 @@ export const DEFAULT_RESUME_PREFERENCES: ResumePreferences = {
 export const CLASSIFICATION_MODES = ["AI_ONLY"] as const;
 export type ClassificationMode = (typeof CLASSIFICATION_MODES)[number];
 
+export const EMBEDDING_PROVIDERS = [
+  "disabled",
+  "local_ollama",
+  "openai",
+  "gemini",
+  "jina",
+] as const;
+
+export type EmbeddingProviderType = (typeof EMBEDDING_PROVIDERS)[number];
+
+export const embeddingProviderSchema = z.enum(EMBEDDING_PROVIDERS);
+
+export const SCORING_ENGINES = ["heuristic", "embedded", "hybrid"] as const;
+export type ScoringEngine = (typeof SCORING_ENGINES)[number];
+export const scoringEngineSchema = z.enum(SCORING_ENGINES);
+
 export const accountRulesSchema = z.object({
   rejectionMode: z.enum(["LABEL_ONLY", "AUTO_TRASH"]).default("LABEL_ONLY"),
   rejectionLabelName: z.string().default("Job Search/Rejections"),
@@ -119,6 +136,8 @@ export const accountRulesSchema = z.object({
     }),
   /** Last known model tags returned from a successful Ollama /api/tags ping. */
   availableModels: z.array(z.string()).default([]),
+  /** Optional Local Ollama base URL override stored in rules JSON */
+  localOllamaUrl: z.string().nullable().optional(),
   /** Whether the last verify ping reached Ollama successfully. */
   bridgeConnected: z.boolean().default(false),
   /**
@@ -136,6 +155,24 @@ export const accountRulesSchema = z.object({
   encryptedApiKey: z.string().nullable().default(null),
   /** Safe display mask (e.g. sk-...1234) for Settings UI */
   maskedApiKey: z.string().nullable().default(null),
+  /** Selected embedding provider for semantic crossover and shadow evaluation. */
+  embeddingProvider: embeddingProviderSchema.default("disabled"),
+  /** Model name or tag to use for generating vector embeddings. */
+  embeddingModel: z.string().default("nomic-embed-text"),
+  /**
+   * Master shadow mode toggle to run vector embedding evaluation concurrently in background.
+   * @deprecated Use `featureFlags.shadow_evaluation` as Single Source of Truth instead. Maintained purely for backwards-compatible DB JSON hydration.
+   */
+  enableShadowEmbeddings: z.boolean().default(true),
+  /** Minimum crossover match score (0-100) required to consider candidate skills transferable. */
+  crossoverScoreThreshold: z.number().int().min(0).max(100).default(60),
+  /**
+   * Active scoring engine cutover switch:
+   * - "heuristic": Legacy deterministic profile-matching engine (default resilient fallback).
+   * - "embedded": Primary match scoring driven by vector semantic crossover.
+   * - "hybrid": 50/50 blend of heuristic keyword alignment and semantic crossover.
+   */
+  scoringEngine: scoringEngineSchema.default("heuristic"),
   /** Master toggle for Bot Bypass & Web Scraping proxies (ScrapingAnt / HasData) */
   enableWebScrapingProxies: z.boolean().default(true),
   /** AES-256-GCM encrypted Jina API key for web scraping (deprecated; kept for backward compatibility) */
@@ -230,6 +267,11 @@ export const accountRulesSchema = z.object({
     .default({}),
   /** Total new opportunities created/added during the most recent sync pass. */
   lastSyncCreatedCount: z.number().int().nonnegative().nullable().optional(),
+  /**
+   * Account-scoped feature flag overrides.
+   * Single Source of Truth managed via featureFlagsMapSchema.
+   */
+  featureFlags: featureFlagsMapSchema.default({}),
 });
 
 export type ScrapingAntUsage = z.infer<

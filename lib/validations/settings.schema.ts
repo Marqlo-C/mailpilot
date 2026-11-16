@@ -24,3 +24,9 @@ export const bridgeBodySchema = z.object({
 });
 
 export type BridgeBodyInput = z.infer<typeof bridgeBodySchema>;
+
+export {
+  toggleFeatureFlagSchema,
+  type ToggleFeatureFlagInput,
+} from "./feature-flags.schema";
+

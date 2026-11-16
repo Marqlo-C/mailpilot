@@ -3,10 +3,14 @@ import { getMasterProfile } from "@/app/actions/profile";
 import { SettingsView } from "@/components/features/settings/settings-view";
 import { getActiveAccount, listAccounts } from "@/lib/data";
 import { DEFAULT_ACCOUNT_RULES } from "@/lib/validations/rules.schema";
-import { SETTINGS_PAGE_TABS } from "@/lib/utils/navigation/page-tabs";
+import {
+  getSettingsPageTabs,
+  type SettingsPageTab,
+} from "@/lib/utils/navigation/page-tabs";
 import { readServerActivePageTab } from "@/lib/utils/navigation/page-tabs-server";
 import { readServerSettingsAccordions } from "@/lib/utils/navigation/settings-accordion-server";
 import { readServerUiPreferences } from "@/lib/utils/ui/ui-preferences-server";
+import { getKillSwitchedFlags } from "@/lib/core/feature-flags";
 
 export default async function SettingsPage({
   searchParams,
@@ -29,6 +33,9 @@ export default async function SettingsPage({
     (host.includes("localhost") || host.startsWith("127.") ? "http" : "https");
   const serverOrigin = `${protocol}://${host}`;
 
+  const isDev = process.env.NODE_ENV === "development";
+  const settingsTabs = getSettingsPageTabs(isDev);
+
   const [profileResult, initialTab, initialAccordions, initialUiPreferences] =
     await Promise.all([
       active
@@ -36,7 +43,7 @@ export default async function SettingsPage({
         : Promise.resolve({ ok: false as const, error: "no account" }),
       readServerActivePageTab(
         "/settings",
-        SETTINGS_PAGE_TABS.map((t) => t.value),
+        settingsTabs.map((t) => t.value),
         active?.id ?? null
       ),
       readServerSettingsAccordions(active?.id ?? null),
@@ -44,13 +51,14 @@ export default async function SettingsPage({
     ]);
   const profile =
     profileResult.ok && profileResult.data ? profileResult.data : null;
+  const killSwitches = getKillSwitchedFlags();
 
   return (
     <SettingsView
       accounts={accounts}
       activeAccountId={active?.id ?? null}
       activeEmail={active?.email ?? null}
-      initialTab={initialTab ?? undefined}
+      initialTab={(initialTab as SettingsPageTab) ?? undefined}
       initialAccordions={initialAccordions}
       initialUiPreferences={initialUiPreferences}
       serverOrigin={serverOrigin}
@@ -60,8 +68,9 @@ export default async function SettingsPage({
       llmProvider={active?.settings?.llmProvider ?? "OPENROUTER"}
       localOllamaUrl={active?.settings?.localOllamaUrl ?? ""}
       ollamaModel={active?.settings?.ollamaModel ?? "llama3.1:8b"}
-      isDev={process.env.NODE_ENV === "development"}
+      isDev={isDev}
       errorBanner={params.error ?? null}
+      killSwitches={killSwitches}
     />
   );
 }

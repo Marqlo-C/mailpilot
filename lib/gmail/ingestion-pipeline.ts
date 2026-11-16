@@ -31,6 +31,7 @@ import {
   parseAccountRules,
   titleMatchesExcluded,
 } from "@/lib/validations/rules.schema";
+import { dispatchShadowEvaluation } from "@/lib/services/shadow-evaluation.service";
 import type { SenderInfo } from "./subscription-pipeline";
 
 export type { SenderInfo };
@@ -910,6 +911,25 @@ export async function persistClassifiedEmail(input: {
         companyRowsByCompany.set(compKey, [updated]);
       }
 
+      const shadowParams = {
+        accountId: account.id,
+        opportunity: {
+          id: updated.id,
+          title: updated.title,
+          company: updated.company,
+          description: updated.description,
+          matchScore: updated.matchScore,
+          heuristicScore: job.heuristicScore,
+        },
+        rules,
+      };
+
+      if (process.env.NODE_ENV === "development") {
+        await dispatchShadowEvaluation(shadowParams);
+      } else {
+        void dispatchShadowEvaluation(shadowParams);
+      }
+
       opportunitiesUpserted += 1;
       updatedCount += 1;
       lastAction = `Tier 2 Dedupe: Updated existing record (${existing.id.slice(-8)})`;
@@ -964,6 +984,25 @@ export async function persistClassifiedEmail(input: {
       rows.push(created);
     } else {
       companyRowsByCompany.set(compKey, [created]);
+    }
+
+    const shadowCreate = {
+      accountId: account.id,
+      opportunity: {
+        id: created.id,
+        title: created.title,
+        company: created.company,
+        description: created.description,
+        matchScore: created.matchScore,
+        heuristicScore: job.heuristicScore,
+      },
+      rules,
+    };
+
+    if (process.env.NODE_ENV === "development") {
+      await dispatchShadowEvaluation(shadowCreate);
+    } else {
+      void dispatchShadowEvaluation(shadowCreate);
     }
 
     opportunitiesUpserted += 1;

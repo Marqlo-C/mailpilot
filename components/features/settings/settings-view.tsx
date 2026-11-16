@@ -1,7 +1,7 @@
 "use client";
 
-import { useLayoutEffect, useState, useTransition } from "react";
-import { LogOut, PlusCircle } from "lucide-react";
+import { useLayoutEffect, useMemo, useState, useTransition } from "react";
+import { LogOut, PlusCircle, Terminal } from "lucide-react";
 
 import { logoutSession } from "@/app/actions/auth";
 import { ExportMasterProfileButton } from "@/components/features/profile/export-master-profile-button";
@@ -9,6 +9,7 @@ import { ResumeUploadDialog } from "@/components/features/profile/resume-upload-
 import { AccountsCard } from "@/components/features/settings/accounts";
 import { AiModelsCard } from "@/components/features/settings/ai-models";
 import { AutomationCard } from "@/components/features/settings/automation";
+import { FeatureFlagsCard } from "@/components/features/settings/feature-flags";
 import { OutboundTailoringCard } from "@/components/features/settings/outbound";
 import {
   MasterProfileCard,
@@ -29,7 +30,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AccountSummary } from "@/lib/data";
 import {
-  SETTINGS_PAGE_TABS,
+  getSettingsPageTabs,
   clearSidebarPageTab,
   peekSidebarPageTab,
   persistActivePageTab,
@@ -40,6 +41,7 @@ import { cn } from "@/lib/utils";
 import type { AccountRules } from "@/lib/validations/rules.schema";
 import type { SettingsServerAccordions } from "@/lib/utils/navigation/settings-accordion-server";
 import type { ServerUiPreferences } from "@/lib/utils/ui/ui-preferences-server";
+import type { FeatureFlagKey } from "@/lib/validations/feature-flags.schema";
 
 type SettingsViewProps = {
   accounts: AccountSummary[];
@@ -57,6 +59,7 @@ type SettingsViewProps = {
   initialAccordions?: SettingsServerAccordions;
   initialUiPreferences?: ServerUiPreferences;
   serverOrigin?: string;
+  killSwitches?: Record<FeatureFlagKey, boolean>;
 };
 
 /**
@@ -80,6 +83,7 @@ export function SettingsView({
   initialAccordions,
   initialUiPreferences,
   serverOrigin,
+  killSwitches,
 }: SettingsViewProps) {
   const [tab, setTab] = useState<SettingsPageTab>(() => initialTab ?? "accounts");
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(
@@ -91,14 +95,16 @@ export function SettingsView({
     triggerClassName: segmentedTabsTriggerClassName,
   } = useTabRailClasses();
   const railActionClass = useRailActionClass();
+  const settingsTabs = useMemo(() => getSettingsPageTabs(isDev), [isDev]);
 
   useLayoutEffect(() => {
+    const allowed = settingsTabs.map((item) => item.value);
     const pending = peekSidebarPageTab(
       "/settings",
-      SETTINGS_PAGE_TABS.map((item) => item.value)
+      allowed
     );
     if (pending) {
-      setTab(pending);
+      setTab(pending as SettingsPageTab);
       setVisitedTabs((prev) => new Set(prev).add(pending));
       persistActivePageTab("/settings", pending, activeAccountId);
       const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
@@ -107,14 +113,14 @@ export function SettingsView({
 
     const saved = readActivePageTab(
       "/settings",
-      SETTINGS_PAGE_TABS.map((item) => item.value),
+      allowed,
       activeAccountId
     );
     if (saved && saved !== tab) {
-      setTab(saved);
+      setTab(saved as SettingsPageTab);
       setVisitedTabs((prev) => new Set(prev).add(saved));
     }
-  }, [activeAccountId, tab]);
+  }, [activeAccountId, tab, settingsTabs]);
 
   function handleLogout() {
     startLogoutTransition(async () => {
@@ -126,9 +132,9 @@ export function SettingsView({
       <Tabs
         value={tab}
         onValueChange={(value) => {
-          const next = SETTINGS_PAGE_TABS.find((item) => item.value === value);
+          const next = settingsTabs.find((item) => item.value === value);
           if (next) {
-            setTab(next.value);
+            setTab(next.value as SettingsPageTab);
             setVisitedTabs((prev) => new Set(prev).add(next.value));
             persistActivePageTab("/settings", next.value, activeAccountId);
           }
@@ -139,7 +145,7 @@ export function SettingsView({
           rail={
         <div className={cn(tabRailRowClassName, "mb-0")}>
           <TabsList className={segmentedTabsListClassName} data-mp-tab-rail="">
-            {SETTINGS_PAGE_TABS.map((item) => (
+            {settingsTabs.map((item) => (
               <TabsTrigger
                 key={item.value}
                 value={item.value}
@@ -237,6 +243,7 @@ export function SettingsView({
               accountId={activeAccountId}
               rules={rules}
               initialAccordion={initialAccordions?.outbound}
+              isModeBKillSwitched={killSwitches?.mode_b_metric_synthesis ?? false}
             />
           ) : null}
         </TabsContent>
@@ -300,6 +307,34 @@ export function SettingsView({
             />
           ) : null}
         </TabsContent>
+
+        {isDev ? (
+          <TabsContent
+            value="developer"
+            forceMount
+            className="mt-0 space-y-4 data-[state=inactive]:hidden"
+          >
+            {visitedTabs.has("developer") ? (
+              <>
+                <div className="flex items-center gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+                  <Terminal className="size-4 shrink-0" aria-hidden="true" />
+                  <p className="text-xs leading-relaxed">
+                    Developer Environment Toggles — Active in local development only. Production relies on{" "}
+                    <code className="rounded bg-amber-500/20 px-1 py-0.5 font-mono text-[11px]">
+                      lib/config/features.config.ts
+                    </code>{" "}
+                    and deployment environment variables.
+                  </p>
+                </div>
+                <FeatureFlagsCard
+                  accountId={activeAccountId}
+                  rules={rules}
+                  killSwitches={killSwitches}
+                />
+              </>
+            ) : null}
+          </TabsContent>
+        ) : null}
         </CommandDeckFrame>
       </Tabs>
   );

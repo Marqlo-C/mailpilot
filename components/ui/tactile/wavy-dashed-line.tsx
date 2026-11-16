@@ -7,12 +7,25 @@ import {
   WAVE_DASH_LINE_AMP_Y,
   WAVE_DASH_LINE_MID_Y,
   WAVE_DASH_LINE_VB,
+  WAVE_DASH_PLACEHOLDER,
+  buildWaveFluidPath,
   buildWavePath,
 } from "@/lib/constants/wave-geometry";
 import { cn } from "@/lib/utils";
 
 export type WavyDashedLineProps = {
   orientation?: "horizontal" | "vertical";
+  /**
+   * `wavy` — squiggle hairline (default).
+   * `straight` — flat dashed hairline using the same stroke tokens.
+   */
+  variant?: "wavy" | "straight";
+  /**
+   * When true (horizontal wavy only), fill everything below the wave so the
+   * squiggle is the plate cutoff edge. Uses `--mp-wavy-cutoff-fill` when set,
+   * otherwise `hsl(var(--muted))`.
+   */
+  cutoffFill?: boolean;
   /**
    * Length along the line in CSS pixels.
    * Omit to fill the parent: horizontal → width; vertical → height
@@ -24,20 +37,24 @@ export type WavyDashedLineProps = {
 };
 
 /**
- * Reusable, resizable wavy dashed hairline.
- * Wavelength stays constant in CSS pixels; resize via `length` or parent size.
+ * Reusable, resizable dashed hairline (wavy or straight).
+ * Starts from {@link WAVE_DASH_PLACEHOLDER} so the wave paints on first HTML
+ * (same stand-in as {@link WavyDashedFrame}); layout then locks wavelength.
  */
 export function WavyDashedLine({
   orientation = "horizontal",
+  variant = "wavy",
+  cutoffFill = false,
   length: lengthProp,
   className,
 }: WavyDashedLineProps) {
   const ref = useRef<HTMLDivElement>(null);
-  // null = not measured yet; never drop back to 0 after a good read (avoids
-  // post-paint blank flashes when ResizeObserver/`Strict Mode` remount).
-  const [measured, setMeasured] = useState<number | null>(null);
+  // Placeholder length so SSR / first paint already has a wave (frame pattern).
+  const [measured, setMeasured] = useState<number>(WAVE_DASH_PLACEHOLDER.w);
   const isVertical = orientation === "vertical";
   const stretchVertical = isVertical && lengthProp == null;
+  const isStraight = variant === "straight";
+  const useCutoff = cutoffFill && !isVertical && !isStraight;
 
   useLayoutEffect(() => {
     if (lengthProp != null) return;
@@ -58,14 +75,29 @@ export function WavyDashedLine({
     return () => observer.disconnect();
   }, [lengthProp, isVertical]);
 
-  const length = lengthProp ?? measured ?? 0;
-  const d = useMemo(
-    () =>
-      length > 0
-        ? buildWavePath(length, WAVE_DASH_LINE_MID_Y, WAVE_DASH_LINE_AMP_Y)
-        : "",
-    [length]
-  );
+  const length = lengthProp ?? measured;
+  const paths = useMemo(() => {
+    if (length <= 0) return { line: "", fluid: "" };
+    if (isStraight) {
+      return {
+        line: `M 0 ${WAVE_DASH_LINE_MID_Y} L ${length} ${WAVE_DASH_LINE_MID_Y}`,
+        fluid: "",
+      };
+    }
+    if (useCutoff) {
+      const { linePath, fluidPath } = buildWaveFluidPath(
+        length,
+        WAVE_DASH_LINE_MID_Y,
+        WAVE_DASH_LINE_AMP_Y,
+        WAVE_DASH_LINE_VB
+      );
+      return { line: linePath, fluid: fluidPath };
+    }
+    return {
+      line: buildWavePath(length, WAVE_DASH_LINE_MID_Y, WAVE_DASH_LINE_AMP_Y),
+      fluid: "",
+    };
+  }, [length, isStraight, useCutoff]);
 
   return (
     <div
@@ -89,7 +121,7 @@ export function WavyDashedLine({
       }
       aria-hidden
     >
-      {d ? (
+      {paths.line ? (
         isVertical ? (
           // Map horizontal wave (x, y) → (y, x) so amplitude becomes horizontal
           // wiggle on a tall viewBox. CSS rotate-90 clips in a 6px column.
@@ -102,7 +134,7 @@ export function WavyDashedLine({
             preserveAspectRatio="none"
           >
             <path
-              d={d}
+              d={paths.line}
               transform="matrix(0 1 1 0 0 0)"
               stroke={WAVY_DASH_STROKE.stroke}
               strokeWidth={WAVY_DASH_STROKE.strokeWidth}
@@ -119,8 +151,15 @@ export function WavyDashedLine({
             fill="none"
             preserveAspectRatio="none"
           >
+            {paths.fluid ? (
+              <path
+                d={paths.fluid}
+                fill="var(--mp-wavy-cutoff-fill, hsl(var(--muted)))"
+                stroke="none"
+              />
+            ) : null}
             <path
-              d={d}
+              d={paths.line}
               stroke={WAVY_DASH_STROKE.stroke}
               strokeWidth={WAVY_DASH_STROKE.strokeWidth}
               strokeDasharray={WAVY_DASH_STROKE.strokeDasharray}
