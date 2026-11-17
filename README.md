@@ -1422,7 +1422,7 @@ MailPilot extends its career telemetry pipeline directly into the candidate's br
 | **Serverless Runtime** | **Node.js** | v20+ on Vercel Serverless | Non-blocking background worker execution using Next.js 15 `after()`. |
 | **Edge Infrastructure** | **Vercel Edge WAF** | Managed Edge Firewall / Route Rules | Edge-level bot mitigation and header deny rules on sensitive auth routes (`^/(login\|api/auth/.*)`). |
 | **Rate Limiting & Security** | **Upstash Redis** | `@upstash/ratelimit` & `@upstash/redis` | Serverless token-bucket rate limiting via stateless HTTP REST with fail-open isolation. |
-| **Database** | **PostgreSQL** | v16 (Neon / Supabase) | Multi-tenant relational persistence with connection pooling. |
+| **Database** | **PostgreSQL** | v16 (Aiven / Supabase) | Multi-tenant relational persistence with connection pooling. |
 | **ORM** | **Prisma** | v6.19+ | Type-safe query building, relation mapping, and migrations. |
 | **Object Storage** | **Vercel Blob** | `@vercel/blob` v2.8 | Private object store for progressive HTTP 206 background video streaming and WebP poster delivery. |
 | **Cloud Messaging & APIs** | **Google Cloud Pub/Sub** | `googleapis` v178 | Asynchronous webhook push notifications for mailbox deltas and RFC 8058 unsubscribe automation. |
@@ -1586,7 +1586,7 @@ MailPilot executes a zero-error Next.js 15 production build with verified static
 ### Prerequisites
 - **Node.js:** v20.0.0 or higher
 - **npm:** v10.0.0 or higher
-- **PostgreSQL:** v15+ instance (local or hosted on Neon / Supabase)
+- **PostgreSQL:** v15+ instance (local or hosted on Aiven / Supabase)
 - **Google Cloud Platform:** Project with Gmail API and Cloud Pub/Sub enabled
 - **Upstash Redis:** (Optional) Serverless Redis instance for token-bucket rate limiting
 
