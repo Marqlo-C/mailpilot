@@ -124,7 +124,6 @@ export default async function RootLayout({
         >
           {children}
         </AppShell>
-        <AppToaster />
       </body>
     </html>
   );

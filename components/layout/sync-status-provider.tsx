@@ -378,6 +378,10 @@ export function SyncStatusProvider({
   );
 }
 
+export function useOptionalSyncStatus(): SyncStatusContextValue | null {
+  return useContext(SyncStatusContext);
+}
+
 export function useSyncStatus(): SyncStatusContextValue {
   const ctx = useContext(SyncStatusContext);
   if (!ctx) {

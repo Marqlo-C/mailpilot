@@ -1,21 +1,18 @@
 "use client";
 
-import { Toaster } from "sonner";
+import { useClassifyingFlyoutVisible } from "@/components/layout/classifying-flyout-status";
+import { useBulkActionsOpen } from "@/components/ui/composites/bulk-actions-flyout";
+import { TactileToastDeck } from "@/components/ui/composites/tactile-toast-deck";
 
-import { appContentCenterXStyle } from "@/lib/utils/layout";
-
-/** Centers toasts in the main column; clears the mobile bottom nav. */
+/**
+ * Centered bottom toast deck for MailPilot.
+ * Coordinates elevation with the Bulk Actions flyout and Global Sync tracker
+ * so notifications glide up to tier 2 (~4rem elevation) when bottom controls are active.
+ */
 export function AppToaster() {
-  return (
-    <Toaster
-      richColors
-      position="top-center"
-      offset={{ top: 16, bottom: 16 }}
-      mobileOffset={{
-        top: 16,
-        bottom: "calc(16px + var(--app-mobile-bottom-inset, 0px))",
-      }}
-      style={appContentCenterXStyle}
-    />
-  );
+  const bulkOpen = useBulkActionsOpen();
+  const classifyingVisible = useClassifyingFlyoutVisible();
+  const isElevated = bulkOpen || classifyingVisible;
+
+  return <TactileToastDeck isElevated={isElevated} />;
 }

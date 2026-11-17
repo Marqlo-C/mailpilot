@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Sparkles } from "lucide-react";
 
-import { useSyncStatus } from "@/components/layout/sync-status-provider";
+import {
+  useOptionalSyncStatus,
+  useSyncStatus,
+} from "@/components/layout/sync-status-provider";
 import { BULK_FLYOUT_PILL_CLASSNAME } from "@/components/ui/composites/bulk-actions-flyout";
 import { cn } from "@/lib/utils";
 
@@ -243,6 +246,7 @@ export function ClassifyingFlyoutStatusPill({
 
 /** Whether the classifying status pill should be visible. */
 export function useClassifyingFlyoutVisible() {
-  const { accountId, isSyncing, justFinished } = useSyncStatus();
-  return Boolean(accountId && (isSyncing || justFinished));
+  const sync = useOptionalSyncStatus();
+  if (!sync) return false;
+  return Boolean(sync.accountId && (sync.isSyncing || sync.justFinished));
 }

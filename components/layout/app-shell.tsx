@@ -26,6 +26,7 @@ import { TabRailProvider, darkPlateClassName } from "@/components/ui/tactile/seg
 import { RailActionProvider } from "@/components/ui/rail-action";
 import { ToolbarThemeProvider } from "@/components/ui/toolbar-theme";
 import { SyncTelemetry } from "@/components/features/opportunities/sync-telemetry";
+import { AppToaster } from "@/components/ui/app-toaster";
 import { cn } from "@/lib/utils";
 import type { AccountSummary, SidebarTabCounts } from "@/lib/data";
 import type { ServerUiPreferences } from "@/lib/utils/ui/ui-preferences-server";
@@ -131,6 +132,7 @@ function AppShellInner({
     <SidebarFlyoutProvider>
     <div className="min-h-screen md:flex md:h-dvh md:min-h-0 md:overflow-hidden md:py-1.5 md:pl-1.5">
       <GlobalSyncTracker />
+      <AppToaster />
 
       {/* Desktop sidebar */}
       <aside

@@ -8,3 +8,5 @@ export * from "./cancel-task-button";
 export * from "./create-snapshot-button";
 export * from "./received-meta";
 export * from "./view-email-dialog";
+export * from "./tactile-toast-item";
+export * from "./tactile-toast-deck";
