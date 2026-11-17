@@ -1,9 +1,32 @@
 import { describe, it, expect } from "vitest";
 import {
   extractCleanSnippet,
+  isQualificationsOnlyDescription,
   sanitizeJobDescription,
   stripPortalPreambles,
 } from "../scrubber";
+
+const SONOSIM_DESCRIPTION = `About the job
+Compensation: $120,000 – $130,000 Base Salary + Benefits
+
+Location: Fully Remote (Option to work hybrid out of our Venice, CA office)
+
+About SonoSim & The Role
+
+At SonoSim, we create user-friendly digital experiences that transform medical education and improve healthcare outcomes. Our engineering team is a bright, motivated, and highly collaborative group. We partner closely across product and design stakeholders to deliver high-quality software that solves real-world needs for medical professionals and institutions.
+
+We are seeking a mid-level Full Stack Software Engineer (4+ years experience) to build, ship, and scale core features across the SonoSim LMS platform. Working alongside Lead, Senior, and Junior Engineers, you will navigate between projects and repositories with minimal oversight. You thrive in modern, AI-assisted development workflows and enjoy driving features from database schema design to polished user interfaces.
+
+Core Responsibilities
+
+End-to-End Feature Delivery: Own features across our primary stack—from database schema design and migrations in Prisma to backend logic (Express, tRPC) and modern UI delivery (Angular with Signals).
+Cross-Service Integration: Maintain cross-service awareness and navigate legacy services (Python, Django, GraphQL, REST APIs) as needed.
+
+Qualifications & Requirements
+
+4+ years of professional full-stack web development experience with demonstrated autonomy across multiple repositories.
+Frontend & Backend Expertise: Hands-on experience with Angular and Node.js backends (Express).
+APIs & ORMs: Proficiency with type-safe APIs (tRPC), ORMs (Prisma), and relational database management/migrations.`;
 import {
   isUnspecifiedPostedAt,
   normalizePostedAt,
@@ -257,6 +280,42 @@ describe("Job Context Domain", () => {
       expect(cleaned).not.toContain("Why it matches:");
       expect(cleaned).toContain("About the Role:");
       expect(cleaned).toContain("Senior Systems Analyst");
+    });
+
+    it("SonoSim: keeps About the Role prose and Core Responsibilities instead of splicing to quals", () => {
+      const cleaned = sanitizeJobDescription(SONOSIM_DESCRIPTION, 4000);
+      expect(cleaned).toContain("We are seeking a mid-level Full Stack Software Engineer");
+      expect(cleaned).toContain("Core Responsibilities");
+      expect(cleaned).toContain("Qualifications");
+      expect(cleaned.trim().startsWith("4+ years")).toBe(false);
+      expect(cleaned).not.toMatch(/^4\+\s*years/i);
+    });
+
+    it("keeps unlabeled role prose above Qualifications when marketing precedes it", () => {
+      const raw = `
+        About Acme Corp
+        Acme builds tools for enterprise customers.
+
+        We are seeking a Platform Engineer to own reliability and delivery across our core services.
+
+        Qualifications
+        4+ years of professional experience with distributed systems.
+      `;
+      const cleaned = sanitizeJobDescription(raw, 4000);
+      expect(cleaned).toContain("We are seeking a Platform Engineer");
+      expect(cleaned).toContain("Qualifications");
+      expect(cleaned.trim().startsWith("4+ years")).toBe(false);
+    });
+  });
+
+  describe("isQualificationsOnlyDescription", () => {
+    it("flags quals-only residue and rejects role-rich postings", () => {
+      expect(
+        isQualificationsOnlyDescription(
+          "4+ years of professional full-stack web development experience with demonstrated autonomy.\nHands-on experience with Angular and Node.js."
+        )
+      ).toBe(true);
+      expect(isQualificationsOnlyDescription(SONOSIM_DESCRIPTION)).toBe(false);
     });
   });
 

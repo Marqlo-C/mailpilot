@@ -23,17 +23,27 @@ const BOILERPLATE_PATTERNS = [
 const PORTAL_WRAPPER_HEADING_REGEX =
   /^(?:Job\s+(?:Details|Description|Overview|Snapshot|Summary)|Position\s+Overview|Role\s+Summary)[:\s-]*/i;
 
-/** Layout-invariant core role section headers across disciplines */
-const CORE_ROLE_SECTION_REGEX =
-  /^(?:#+\s*)?(?:About\s+the\s+(?:Role|Job|Position)|The\s+Role|Role\s+Overview|Position\s+Overview|Job\s+Summary|Role\s+Summary|Responsibilities|What\s+You(?:'ll|\s+will)\s+Do|Key\s+Responsibilities|Core\s+Duties|Duties|Day\s+in\s+the\s+Life|Requirements|Qualifications|What\s+You(?:'ll|\s+will)\s+Bring|What\s+We(?:'re|\s+are)\s+Looking\s+For|Minimum\s+(?:Qualifications|Requirements)|Basic\s+(?:Qualifications|Requirements)|Required\s+(?:Qualifications|Requirements)|Preferred\s+(?:Qualifications|Requirements)|Must\s+Have)[:\s-]*/i;
+/**
+ * Role overview / responsibilities headings — preferred splice anchors.
+ * Excludes bare Qualifications/Requirements so scrubbing never jumps past role prose.
+ */
+const ROLE_CONTENT_SECTION_REGEX =
+  /^(?:#+\s*)?(?:About\s+the\s+(?:Role|Job|Position)|About\s+.+\s+(?:&\s+)?(?:the\s+)?(?:Role|Job|Position)|The\s+Role|Role\s+Overview|Position\s+Overview|Job\s+Summary|Role\s+Summary|Core\s+Responsibilities|Key\s+Responsibilities|Responsibilities|What\s+You(?:'ll|’ll|\s+will)\s+Do|Core\s+Duties|Duties|Day\s+in\s+the\s+Life|Summary|Overview)[:\s-]*/i;
+
+/** Qualifications / requirements headings — weak anchors only. */
+const REQUIREMENTS_SECTION_REGEX =
+  /^(?:#+\s*)?(?:Requirements|Qualifications(?:\s*&\s*Requirements)?|What\s+You(?:'ll|’ll|\s+will)\s+Bring|What\s+We(?:'re|’re|\s+are)\s+Looking\s+For|Minimum\s+(?:Qualifications|Requirements)|Basic\s+(?:Qualifications|Requirements)|Required\s+(?:Qualifications|Requirements)|Preferred\s+(?:Qualifications|Requirements)|Must\s+Have|Great\s+to\s+Have|Nice\s+to\s+Have)[:\s-]*/i;
+
+/** Union kept for leading-line stop conditions (role or requirements). */
+const CORE_SECTION_HEADER_REGEX =
+  /^(?:#+\s*)?(?:About\s+(?:the\s+)?(?:Role|Job|Position|Us|Our\s+Team)|About\s+.+\s+(?:&\s+)?(?:the\s+)?(?:Role|Job|Position)|The\s+Role|Role\s+Overview|Responsibilities|Core\s+Responsibilities|Key\s+Responsibilities|What\s+You(?:'ll|’ll|\s+will)\s+Do|Core\s+Duties|Duties|Summary|Overview|Requirements|Qualifications|Minimum\s+(?:Qualifications|Requirements)|Basic\s+(?:Qualifications|Requirements)|Required\s+(?:Qualifications|Requirements)|Preferred\s+(?:Qualifications|Requirements)|Must\s+Have)[:\s-]*/i;
 
 /** Leading corporate marketing, mission, or company overview headers */
 const CORPORATE_MARKETING_HEADING_REGEX =
   /^(?:#+\s*)?(?:About\s+(?:the\s+)?(?:Company|Organization|Business|Firm)|About\s+[A-Za-z0-9&.,' -]{1,40}|Company\s+Overview|Organization\s+Overview|Who\s+We\s+Are|Our\s+Mission|Our\s+Story)[:\s-]*/i;
 
-/** Common standard core section headers across disciplines */
-const CORE_SECTION_HEADER_REGEX =
-  /^(?:#+\s*)?(?:About\s+(?:the\s+)?(?:Role|Job|Position|Us|Our\s+Team)|The\s+Role|Role\s+Overview|Responsibilities|What\s+You(?:'ll|\s+will)\s+Do|Key\s+Responsibilities|Core\s+Duties|Duties|Summary|Overview|Requirements|Qualifications|Minimum\s+(?:Qualifications|Requirements)|Basic\s+(?:Qualifications|Requirements)|Required\s+(?:Qualifications|Requirements)|Preferred\s+(?:Qualifications|Requirements)|Must\s+Have)[:\s-]*/i;
+const REQUIREMENT_OPENER_LINE_RE =
+  /^(?:\d+\+?\s*years?|bachelor|master|phd|degree in|must\s+have|required:|strong\s+(?:foundation|proficiency|experience)|hands-?on\s+experience|proficiency\s+in)/i;
 
 /** Common metadata key-value line pattern (e.g., Location: New York, Job ID: 12345) */
 const METADATA_KEY_VALUE_REGEX =
@@ -110,9 +120,37 @@ function filterPlaceholderSentences(text: string): string {
   return cleanedSentences.join(" ");
 }
 
+function isPreambleLine(trimmed: string): boolean {
+  if (!trimmed) return false;
+  // Hybrid "About Acme & The Role" is role content, not disposable marketing.
+  if (ROLE_CONTENT_SECTION_REGEX.test(trimmed)) return false;
+  return (
+    CORPORATE_MARKETING_HEADING_REGEX.test(trimmed) ||
+    PORTAL_WRAPPER_HEADING_REGEX.test(trimmed) ||
+    METADATA_KEY_VALUE_REGEX.test(trimmed) ||
+    AGGREGATOR_ALERT_LINE_REGEX.test(trimmed)
+  );
+}
+
+function looksLikeUnlabeledRoleProse(trimmed: string): boolean {
+  if (!trimmed || trimmed.length < 60) return false;
+  if (ROLE_CONTENT_SECTION_REGEX.test(trimmed) || REQUIREMENTS_SECTION_REGEX.test(trimmed)) {
+    return false;
+  }
+  if (isPreambleLine(trimmed) || REQUIREMENT_OPENER_LINE_RE.test(trimmed)) return false;
+  const sentenceStops = (trimmed.match(/[.!?]/g) || []).length;
+  return (
+    sentenceStops >= 1 &&
+    /\b(?:seeking|looking for|join|build|own|design|develop|partner|deliver|thrive|work(?:ing)?\s+alongside)\b/i.test(
+      trimmed
+    )
+  );
+}
+
 /**
  * Strips portal wrapper headings, leading metadata key-value blocks,
  * and loose navigation crumbs before the core job description content.
+ * Never splices away role overview/responsibilities solely to land on Qualifications.
  */
 export function stripPortalPreambles(text: string): string {
   if (!text) return "";
@@ -122,26 +160,32 @@ export function stripPortalPreambles(text: string): string {
     .replace(SAVED_SEARCH_HEADER_REGEX, "\n");
   const lines = preProcessed.replace(/\r\n/g, "\n").split("\n");
 
-  // 1. If document starts with corporate marketing or portal wrappers before a core role section, anchor at the core role section
-  const firstCoreRoleIdx = lines.findIndex((line, idx) => {
+  const firstRoleContentIdx = lines.findIndex((line, idx) => {
     if (idx > 40) return false;
-    return CORE_ROLE_SECTION_REGEX.test(line.trim());
+    return ROLE_CONTENT_SECTION_REGEX.test(line.trim());
+  });
+  const firstRequirementsIdx = lines.findIndex((line, idx) => {
+    if (idx > 40) return false;
+    return REQUIREMENTS_SECTION_REGEX.test(line.trim());
   });
 
-  if (firstCoreRoleIdx > 0) {
-    const precedingLines = lines.slice(0, firstCoreRoleIdx);
-    const hasMarketingOrPreamble = precedingLines.some((line) => {
-      const trimmed = line.trim();
-      return (
-        CORPORATE_MARKETING_HEADING_REGEX.test(trimmed) ||
-        PORTAL_WRAPPER_HEADING_REGEX.test(trimmed) ||
-        METADATA_KEY_VALUE_REGEX.test(trimmed) ||
-        AGGREGATOR_ALERT_LINE_REGEX.test(trimmed)
-      );
-    });
+  const earlyWindow = lines.slice(0, Math.max(firstRoleContentIdx, firstRequirementsIdx, 0) || 12);
+  const hasMarketingOrPreamble = earlyWindow.some((line) => isPreambleLine(line.trim()));
 
-    if (hasMarketingOrPreamble) {
-      lines.splice(0, firstCoreRoleIdx);
+  if (hasMarketingOrPreamble) {
+    if (firstRoleContentIdx > 0) {
+      // Prefer role/responsibilities as the content start — keep everything from there.
+      lines.splice(0, firstRoleContentIdx);
+    } else if (firstRequirementsIdx > 0) {
+      const beforeReqs = lines.slice(0, firstRequirementsIdx);
+      const hasRoleProseAbove = beforeReqs.some((line) =>
+        looksLikeUnlabeledRoleProse(line.trim())
+      );
+      if (!hasRoleProseAbove) {
+        // Safe: no role prose above quals — drop chrome through the requirements heading.
+        lines.splice(0, firstRequirementsIdx);
+      }
+      // else: leave lines intact; leading-line loop below removes chrome only.
     }
   }
 
@@ -153,8 +197,17 @@ export function stripPortalPreambles(text: string): string {
       continue;
     }
 
-    // Anchor at core section header
-    if (CORE_ROLE_SECTION_REGEX.test(firstLine) || CORE_SECTION_HEADER_REGEX.test(firstLine)) {
+    // Stop at role or requirements content headers (do not consume them).
+    if (
+      ROLE_CONTENT_SECTION_REGEX.test(firstLine) ||
+      REQUIREMENTS_SECTION_REGEX.test(firstLine) ||
+      CORE_SECTION_HEADER_REGEX.test(firstLine)
+    ) {
+      break;
+    }
+
+    // Keep unlabeled role prose that survived the marketing pass.
+    if (looksLikeUnlabeledRoleProse(firstLine)) {
       break;
     }
 
@@ -187,6 +240,15 @@ export function stripPortalPreambles(text: string): string {
       }
     }
 
+    // Drop pure company-marketing headings; hybrid About+Role already matched above.
+    if (
+      CORPORATE_MARKETING_HEADING_REGEX.test(firstLine) &&
+      !ROLE_CONTENT_SECTION_REGEX.test(firstLine)
+    ) {
+      lines.shift();
+      continue;
+    }
+
     const colonIdx = firstLine.indexOf(":");
     const hasValueAfterColon = colonIdx > 0 && firstLine.slice(colonIdx + 1).trim().length > 0;
     const isKeyValueMetadata = METADATA_KEY_VALUE_REGEX.test(firstLine) && hasValueAfterColon;
@@ -209,6 +271,35 @@ export function stripPortalPreambles(text: string): string {
   result = result.replace(/^[\s:;•\-\*\>\|]+/, "").trim();
 
   return result;
+}
+
+/**
+ * True when a stored description looks like qualifications-only residue
+ * (typical of the old quals-anchor splice bug). Used to force re-enrich.
+ */
+export function isQualificationsOnlyDescription(
+  text: string | null | undefined
+): boolean {
+  if (!text?.trim()) return false;
+  const trimmed = text.replace(/\s+/g, " ").trim();
+  if (trimmed.length < 40) return false;
+
+  const hasRoleMarkers =
+    /\b(?:about the (?:role|job|position)|core responsibilities|key responsibilities|what you(?:'ll| will) do|we are seeking|looking for a)\b/i.test(
+      trimmed
+    );
+  if (hasRoleMarkers) return false;
+
+  const startsQuals =
+    /^(?:#{1,3}\s*)?(?:qualifications|requirements|must have|great to have|nice to have)\b/i.test(
+      trimmed
+    ) || REQUIREMENT_OPENER_LINE_RE.test(trimmed);
+
+  const qualsDensity =
+    (trimmed.match(/\b(?:years? of|experience with|proficiency|hands-?on|bachelor|must have)\b/gi) ||
+      []).length >= 2;
+
+  return startsQuals || (qualsDensity && trimmed.length < 1200 && !hasRoleMarkers);
 }
 
 /**

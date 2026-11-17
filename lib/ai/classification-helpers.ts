@@ -23,6 +23,7 @@ import {
 import { JOB_BOARD_KEYWORDS } from "@/lib/constants/job-sources";
 import { extractLocationFromText, standardizeLocation } from "@/lib/utils/location";
 import {
+  buildSynthesizedJobOverview,
   resolveJobOpportunity,
   normalizePostedAt,
   relativeTimeToIso,
@@ -792,10 +793,12 @@ export function normalizeClassification(
     const rawDescription = job.description ?? null;
     let description = cleanOpportunityDescription(rawDescription);
     if (!description || description.length < 40 || /^job alert/i.test(description)) {
-      description =
-        resolvedCompany && resolvedCompany !== "Unknown Company"
-          ? `Opportunity for ${resolvedTitle} at ${resolvedCompany}.${resolvedLocation ? ` Located in ${resolvedLocation}.` : ""}${normalizedSalary ? ` Compensated at ${normalizedSalary}.` : ""}`
-          : `Opportunity for ${resolvedTitle}.${resolvedLocation ? ` Located in ${resolvedLocation}.` : ""}${normalizedSalary ? ` Compensated at ${normalizedSalary}.` : ""}`;
+      description = buildSynthesizedJobOverview({
+        roleTitle: resolvedTitle,
+        company: resolvedCompany,
+        location: resolvedLocation,
+        salary: normalizedSalary,
+      });
     }
 
     let matchScore = clampScore(job.matchScore);

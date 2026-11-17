@@ -1,5 +1,8 @@
 import type { JobClassification, ExtractedJob } from "@/lib/ai/classification";
-import { sanitizeCompanyName } from "@/lib/opportunities/context";
+import {
+  buildSynthesizedJobOverview,
+  sanitizeCompanyName,
+} from "@/lib/opportunities/context";
 import {
   unwrapTrackingUrl,
   stripTrackingParams,
@@ -161,19 +164,17 @@ export function parseJobLeadsDigest(
         applyUrl = stripTrackingParams(unwrapped || rawUrl);
       }
 
-      // Synthesize clean job description
-      const descParts = [rawTitle];
-      if (extractedCompany && extractedCompany !== "Unknown Company") {
-        descParts.push(`at ${extractedCompany}`);
-      }
-      if (location) {
-        descParts.push(`in ${location}`);
-      }
-      const description = `${descParts.join(" ")}.`;
+      const company = extractedCompany || "Unknown Company";
+      const description = buildSynthesizedJobOverview({
+        roleTitle: rawTitle,
+        company,
+        location,
+        salary: salaryDisplay,
+      });
 
       jobs.push({
         title: rawTitle,
-        company: extractedCompany || "Unknown Company",
+        company,
         companyDomain: null,
         location: location || null,
         salary: salaryDisplay || null,
@@ -222,7 +223,10 @@ export function parseJobLeadsDigest(
         salary: null,
         salaryMax: null,
         postedAt: options.receivedAt ? options.receivedAt.toISOString() : null,
-        description: `${title} at ${company}.`,
+        description: buildSynthesizedJobOverview({
+          roleTitle: title,
+          company,
+        }),
         applyUrl: applyUrl || null,
         applicationType: "EXTERNAL_LINK",
         classificationMethod: "HEURISTIC",

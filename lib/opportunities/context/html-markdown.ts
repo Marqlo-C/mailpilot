@@ -162,5 +162,28 @@ export function htmlToStructuredMarkdown(rawHtml: string): string {
   // Fix lines starting with ** but missing closing **
   s = s.replace(/^[ \t]*\*\*([A-Za-z0-9&/,\x27 -]{2,80})$/gm, "**$1**");
 
+  // 15. Coalesce split quals/requirements pseudo-headings
+  // e.g. ### Qualifications\n\n### & Requirements → ### Qualifications & Requirements
+  s = coalesceSplitSectionHeadings(s);
+
   return s.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * Merges adjacent short markdown headings that are clearly one section label
+ * (LinkedIn often splits "Qualifications" and "& Requirements" into two bold lines).
+ */
+export function coalesceSplitSectionHeadings(markdown: string): string {
+  if (!markdown) return "";
+  return markdown.replace(
+    /(?:^|\n)(#{1,3})\s*(Qualifications|Requirements|Must Have|Great to Have|Nice to Have)\s*\n+(?:#{1,3}\s*)?(&?\s*(?:Requirements|Qualifications|Must Have|Preferred Qualifications))\s*(?=\n|$)/gi,
+    (_m, hashes: string, left: string, right: string) => {
+      const rightClean = right.replace(/^&\s*/, "").trim();
+      const leftNorm = left.trim();
+      if (leftNorm.toLowerCase() === rightClean.toLowerCase()) {
+        return `\n${hashes} ${leftNorm}\n`;
+      }
+      return `\n${hashes} ${leftNorm} & ${rightClean}\n`;
+    }
+  );
 }

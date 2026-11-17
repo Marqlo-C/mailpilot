@@ -36,6 +36,7 @@ import {
 import {
   buildSynthesizedJobOverview,
   extractCleanSnippet,
+  isQualificationsOnlyDescription,
   isUnspecifiedPostedAt,
   normalizePostedAt,
   relativeTimeToIso,
@@ -556,10 +557,12 @@ export async function processSyncMessage(
     }
   }
 
-  // Link Parser Enrichment: hydrate thin jobs (< 300 chars) via public JSON-LD in parallel pools
+  // Link Parser Enrichment: hydrate thin or quals-only jobs via public JSON-LD in parallel pools
   const thinJobs = classification.jobs.filter(
     (job) =>
-      (!job.description || job.description.length < 300) &&
+      (!job.description ||
+        job.description.length < 300 ||
+        isQualificationsOnlyDescription(job.description)) &&
       Boolean(job.applyUrl && /^https?:\/\//i.test(job.applyUrl))
   );
 
@@ -621,9 +624,11 @@ export async function processSyncMessage(
 
           // Prefer structured scrape markdown (preserves headings / lists for the card modal).
           // overviewSnippet is card-teaser-only and is derived at read time — no dual-write.
+          // Also replace quals-only residue left by the old Qualifications splice bug.
           const shouldReplaceDescription =
             Boolean(enriched.description) &&
             (enriched.description!.length > (job.description?.length ?? 0) ||
+              isQualificationsOnlyDescription(job.description) ||
               ((job.description?.length ?? 0) < 300 &&
                 Boolean(enriched.overviewSnippet)));
           if (shouldReplaceDescription && enriched.description) {

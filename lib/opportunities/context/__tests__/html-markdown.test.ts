@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   htmlToStructuredMarkdown,
   decodeHtmlEntities,
+  coalesceSplitSectionHeadings,
 } from "../html-markdown";
 
 describe("HTML to Structured Markdown", () => {
@@ -37,6 +38,23 @@ describe("HTML to Structured Markdown", () => {
       const md = htmlToStructuredMarkdown(html);
       expect(md).toContain("### Qualifications");
       expect(md).toContain("5 years experience required.");
+    });
+
+    it("coalesces split Qualifications / & Requirements headings", () => {
+      const html =
+        "<p><strong>Qualifications</strong></p><p><strong>& Requirements</strong></p><p>4+ years experience.</p>";
+      const md = htmlToStructuredMarkdown(html);
+      expect(md).toMatch(/###\s*Qualifications\s*&\s*Requirements/i);
+      expect(md).not.toMatch(/###\s*&\s*Requirements/i);
+      expect(md).toContain("4+ years experience.");
+    });
+
+    it("coalesceSplitSectionHeadings merges adjacent markdown headings", () => {
+      const merged = coalesceSplitSectionHeadings(
+        "### Qualifications\n\n### & Requirements\n\n4+ years experience."
+      );
+      expect(merged).toMatch(/###\s*Qualifications\s*&\s*Requirements/);
+      expect(merged).toContain("4+ years experience.");
     });
 
     it("converts list items into markdown bullet points", () => {

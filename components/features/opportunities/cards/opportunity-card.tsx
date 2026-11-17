@@ -171,14 +171,23 @@ export function OpportunityCard({
     opportunity.dismissedAt,
     retentionDays
   );
-  const modalDescription = formatOpportunityModalBody(opportunity.description);
-  const hasDescription = Boolean(modalDescription);
   const salaryRaw = opportunity.salary?.trim() ?? "";
+  const locationRaw = opportunity.location?.trim() ?? "";
+  const descriptionContext = {
+    roleTitle: opportunity.title,
+    company: opportunity.company,
+    location: locationRaw || null,
+    salary: salaryRaw || null,
+  };
+  const modalDescription = formatOpportunityModalBody(
+    opportunity.description,
+    descriptionContext
+  );
+  const hasDescription = Boolean(modalDescription);
   const normalizedSalary =
     normalizeSalaryDisplay(salaryRaw) ??
     (modalDescription ? extractSalaryFromText(modalDescription) : null);
   const salaryLabel = normalizedSalary || "$TBD";
-  const locationRaw = opportunity.location?.trim() ?? "";
   const locationLabel = locationRaw || "Remote / Unspecified";
   const postedRaw =
     formatRelativeTime(opportunity.postedAt, { addSuffix: false }) ?? "";
@@ -506,6 +515,8 @@ export function OpportunityCard({
         <OpportunityCardDescription
           title={opportunity.title}
           company={opportunity.company}
+          location={locationRaw || null}
+          salary={normalizedSalary || salaryRaw || null}
           description={opportunity.description}
           logoSrc={companyLogoSrc}
           applyUrl={validApplyUrl}

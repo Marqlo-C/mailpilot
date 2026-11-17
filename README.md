@@ -21,12 +21,14 @@
 - [2. Architectural Shifts & Engineering Rationales](#2-architectural-shifts--engineering-rationales)
 - [3. End-to-End System Architecture](#3-end-to-end-system-architecture)
   - [3.1 Ingestion, Classification & Decoupled Opportunity Pipeline](#31-ingestion-classification--decoupled-opportunity-pipeline)
+  - [3.1.1 JobLeads Deterministic Digest Ingest](#311-jobleads-deterministic-digest-ingest)
   - [3.2 MailPilot Companion DOM Ingestion & Context Extraction Flow](#32-mailpilot-companion-dom-ingestion--context-extraction-flow)
   - [3.3 Unified Platform Pipeline: Ingestion, Deduplication, Tailoring & Elastic Rendering](#33-unified-platform-pipeline-ingestion-deduplication-tailoring--elastic-rendering)
 - [4. Domain Modularization & Codebase Taxonomy](#4-domain-modularization--codebase-taxonomy)
 - [5. The Decoupled Domain Architecture (SSOT & Lenses)](#5-the-decoupled-domain-architecture-ssot--lenses)
   - [5.1 Candidate Persona Engine](#1-candidate-persona-engine-libpersona)
   - [5.2 Job Context Domain](#2-job-context-domain-libopportunitiescontext)
+  - [5.2.1 Card Teaser & Full-Description Dialog](#521-card-teaser--full-description-dialog)
   - [5.3 Match Scoring Lens](#3-match-scoring-lens-libmatching)
   - [5.4 GitHub Technical Ingestion & Deep Inference Domain](#4-github-technical-ingestion--deep-inference-domain-libgithub)
   - [5.5 Universal Cross-Source Deduplication & Profile Reconciliation Engine](#5-universal-cross-source-deduplication--profile-reconciliation-engine-libprofilededuplication--libprofileprofile-consolidationts)
@@ -56,13 +58,13 @@ Modern personal inboxes are overwhelmed by high-velocity automated noise: transa
 
 **MailPilot** transforms the unstructured personal inbox into an autonomous, real-time career intelligence platform and telemetry pipeline. Built on a serverless, decoupled architecture, MailPilot executes two primary operational missions:
 
-### Deterministic Vectorless RAG Architecture
-Unlike conventional generative career tools that rely on vector databases, dense embeddings, and approximate nearest neighbor (ANN) retrieval—which introduce non-deterministic retrieval drift, semantic hallucinations, and embedding synchronization overhead—**MailPilot is built entirely on Vectorless Retrieval-Augmented Generation (Vectorless RAG)**.
+### Deterministic Vectorless RAG (Persona, Tailoring & Grounding)
+Unlike conventional generative career tools that rely on vector databases and ANN retrieval for *every* reasoning step—introducing retrieval drift, semantic hallucinations, and embedding sync overhead—**MailPilot grounds persona synthesis, profile reconciliation, and resume tailoring in Vectorless Retrieval-Augmented Generation (Vectorless RAG)**.
 
-By grounding every reasoning step in deterministic Abstract Syntax Trees (ASTs), typed anti-corruption data lenses, lexical topological graphs, and exact structural schemas (Single Source of Truth), MailPilot achieves:
-- **100% Verbatim Grounding:** Facts, metrics, repository topologies, and work accomplishments are anchored strictly to literal document substrings and parsed code artifacts.
-- **Sub-Millisecond Retrieval:** Eliminates embedding inference latencies, vector index scans, and embedding API costs.
-- **Zero Hallucinatory Contamination:** Guarantees that disparate domain entities (e.g. wildfire alerts vs. board game engines) never cross-contaminate via fuzzy vector proximity.
+Facts, metrics, repository topologies, and work accomplishments are anchored to literal document substrings and parsed artifacts via deterministic ASTs, typed anti-corruption lenses, lexical graphs, and SSOT schemas:
+- **100% Verbatim Grounding:** Profile and GitHub evidence stay tied to source substrings—not fuzzy neighbor lookup.
+- **Deterministic Assembly:** Knapsack layout, section order, and XYZ reframing operate on typed trees, not embedding proximity.
+- **Optional Fit Scoring Engines:** Opportunity *match scoring* is separately configurable as `heuristic`, `embedded`, or `hybrid` (`scoringEngine` on account rules, gated by `embedded_ai`). Vectorless remains the default path; embeddings are an opt-in scoring lane with heuristic fallback—not the RAG substrate for tailoring.
 
 1. **Autonomous Subscription Management & RFC 8058 Engine:**
    - Detects recurring newsletters, mailing lists, and marketing campaigns without hardcoded sender whitelists.
@@ -71,10 +73,10 @@ By grounding every reasoning step in deterministic Abstract Syntax Trees (ASTs),
 
 2. **Career Opportunity Extraction & Line-Addressable Tailoring:**
    - Receives inbound messages via Google Cloud Pub/Sub webhooks with sub-second delta synchronization.
-   - Routes payloads through a zero-token 3-tier pre-filtering triage gate ($H$ vs $N$ vector scoring).
+   - Routes payloads through a zero-token 3-tier pre-filtering triage gate (lexical $H$ vs $N$ signal scoring in `lib/ai/prefilter.ts`—not embedding vectors).
    - Ingests opportunities via a 2-tier inference router (Local Ollama via Cloudflare Tunnel $\to$ Cloud BYOK) with resilient offline parking (`PENDING_AI`) that drains automatically when models return, eliminating synthetic heuristic pollution.
    - Resolves unstructured job text into canonical, anti-corruption data lenses.
-   - Synthesizes 4-dimensional candidate personas and tailors line-addressable resume drafts with elastic 1-page Letter layout budgeting.
+   - Scores fit via `lib/matching/resolver.ts` (`heuristic` | `embedded` | `hybrid`), then synthesizes personas and line-addressable resume drafts with elastic 1-page Letter layout budgeting.
 
 ### Multi-Tenant Data Isolation & Privacy-First Architecture
 MailPilot is designed from the ground up for strict multi-tenancy and data privacy:
@@ -180,7 +182,7 @@ flowchart TD
 ```mermaid
 %%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
 flowchart TD
-  TRIG["Gmail Webhook / Sync Trigger<br/>(/api/webhooks/gmail · runOpportunitySync)"] --> INGEST["Serial Ingestion Loop<br/>• Throttled Pacing: 350ms delay/message<br/>• 2-Tier AI Pipeline with PENDING_AI Backlog Drain"]
+  TRIG["Gmail Webhook / Sync Trigger<br/>(/api/webhooks/gmail · runOpportunitySync)"] --> INGEST["Serial Ingestion Loop<br/>• Same-domain pacing: 250ms (processor.ts)<br/>• 2-Tier AI Pipeline with PENDING_AI Backlog Drain"]
 
   INGEST --> CLF["Primary Classifier<br/>(Local Ollama / Cloud LLM)"]
   CLF -.->|"&nbsp;&nbsp;Model Offline / Rate-Limited&nbsp;&nbsp;"| PARK["PENDING_AI Parking Queue<br/>(Queues Message ID for Safe Zero-Storage Retry)"]
@@ -191,50 +193,69 @@ flowchart TD
   DEDUP --> LENS_MATCH["extractMatchCandidateLens()<br/>(lib/matching/lens.ts)"]
 
   LENS_JOB --> UI["1. Standardized 2-Pill Job Card UI<br/>(components/features/opportunities/)"]
-  LENS_JOB & LENS_MATCH --> MATCH["2. Match Scoring Evaluator<br/>(lib/matching/evaluator.ts)"]
+  LENS_JOB & LENS_MATCH --> MATCH["2. Match Scoring Resolver<br/>(lib/matching/resolver.ts · heuristic / embedded / hybrid)"]
   LENS_JOB --> TAILOR["3. Resume Tailoring Engine<br/>(lib/tailor/)"]
 ```
 
-### 3.2 MailPilot Companion DOM Ingestion & Context Extraction Flow
+### 3.1.1 JobLeads Deterministic Digest Ingest
 
-In addition to asynchronous Gmail push synchronization, candidates can import external job postings directly from any active browser tab using **MailPilot Companion (Chrome Extension v1.0.0)**. The extension leverages Chrome's native Side Panel API, client-side AST microdata extraction, and dedicated portal DOM parsers to stream structured specifications directly into MailPilot's serverless pipeline:
+JobLeads saved-search digests are HTML card grids, not free-form recruiter prose. When `isJobLeadsEmail()` matches, the sync processor **bypasses the LLM classifier**, parses employers from HTML comment boundaries via `parseJobLeadsDigest` / `recoverJobLeadsCompany` (`lib/opportunities/sync/jobleads.ts`), and persists a synthesized overview through the SSOT helper `buildSynthesizedJobOverview()` (`Opportunity for {role}[ at {company}].[ Located in ….].[ Compensated at ….]`). Optional link enrichment may later upgrade a `MINIMAL_LEAD` to a richer spec.
 
 ```mermaid
 %%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
 flowchart TD
-  subgraph BrowserTab["1. Host Webpage (Active Browser Tab)"]
-    DOM["Raw DOM Tree<br/>(LinkedIn, Greenhouse, Lever, Ashby, Workday)"]
-    JSONLD["JSON-LD Microdata<br/>(script type='application/ld+json')"]
+  mail["Inbound email"] --> gate{"isJobLeadsEmail?"}
+  gate -->|"yes"| parse["parseJobLeadsDigest HTML"]
+  gate -->|"no"| llm["Ollama / Cloud classifier"]
+  parse --> company["recoverJobLeadsCompany"]
+  parse --> synth["buildSynthesizedJobOverview Opportunity for"]
+  company & synth --> dedup["3-tier dedupe + persist"]
+  llm --> dedup
+  dedup --> enrich["optional link enrich / MINIMAL_LEAD"]
+```
+
+### 3.2 MailPilot Companion DOM Ingestion & Context Extraction Flow
+
+In addition to asynchronous Gmail push synchronization, candidates can import external job postings directly from any active browser tab using **MailPilot Companion (Chrome Extension v1.0.0)**. The extension uses Chrome's Side Panel API, client-side JSON-LD / DOM extractors under `extension/src/content/` (including portal helpers in `content/ats/*` and site selectors for Ashby, Workday, and others), then streams structured payloads into MailPilot's serverless `/api/extension/*` routes.
+
+Session pairing uses **GET** `/api/extension/session` guarded by `getExtensionAccountId` (`lib/utils/extension/auth.ts`). Structured section parsing on the companion path leans on `parseStructuredJobSections` (`section-classifier.ts`) with shared HTML entity decode from `html-markdown.ts`—distinct from the Gmail sync scrubber (`sanitizeJobDescription` / `cleanEmailPayload`). Server-side link extractors (`lib/opportunities/context/extractors/`) cover Greenhouse, Lever, Indeed, Glassdoor, Monster, and JobLeads; Ashby/Workday selectors live primarily in the extension.
+
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
+flowchart TD
+  subgraph BrowserTab["1. Host Webpage Active Browser Tab"]
+    DOM["Raw DOM Tree<br/>(Greenhouse, Lever, Ashby, Workday, Indeed)"]
+    JSONLD["JSON-LD Microdata<br/>(script type application/ld+json)"]
   end
 
-  subgraph Companion["2. MailPilot Companion (Chrome Extension v1.0.0)"]
-    CS["Content Script: extractor.ts<br/>• Microdata AST Extractor<br/>• Portal-Specific DOM Extractors"]
-    SP["Side Panel UI (React 19 + Vite 8)<br/>• Tactile Settings & Layout Budget Controls<br/>• Real-Time Bullet Selection & Reframe Stream"]
-    CLIENT["Typed Extension API Client<br/>(credentials: 'include' · mp_session)"]
+  subgraph Companion["2. MailPilot Companion Chrome Extension v1.0.0"]
+    CS["content/extractor.ts + content/ats/*<br/>• JSON-LD / DOM extractors<br/>• Site selectors incl. Ashby Workday"]
+    SP["sidepanel React 19 + Vite 8<br/>• Layout budget controls<br/>• Bullet selection and reframe stream"]
+    CLIENT["Typed Extension API Client<br/>(credentials include · session cookie)"]
 
     DOM & JSONLD --> CS
     CS -->|"Structured Job Payload"| SP
     SP -->|"Inference / Save Dispatch"| CLIENT
   end
 
-  subgraph NextApp["3. MailPilot Serverless Backend (/api/extension/*)"]
-    AUTH["Session Guard<br/>(validateExtensionSession)"]
+  subgraph NextApp["3. MailPilot Serverless Backend /api/extension"]
+    AUTH["Session Guard GET /api/extension/session<br/>(getExtensionAccountId)"]
     ZOD["Schema Gatekeeper<br/>(lib/validations/extension.schema.ts)"]
-    SANITIZER["DOM & Markdown Sanitizer<br/>(dom-extractor.ts · html-markdown.ts)"]
-    DEDUP["3-Tier Deduplication & Persistence<br/>(opportunity-lifecycle.service.ts)"]
-    TAILOR["Tailoring & AFM Physics Engine<br/>(opportunity-draft.service.ts)"]
+    STRUCT["Section Classifier + HTML decode<br/>(section-classifier.ts · html-markdown.ts)"]
+    DEDUP["3-Tier Deduplication and Persistence<br/>(opportunity-lifecycle.service.ts)"]
+    TAILOR["Tailoring and AFM Physics Engine<br/>(opportunity-draft.service.ts)"]
 
-    CLIENT -->|"HTTPS POST"| AUTH
+    CLIENT -->|"HTTPS"| AUTH
     AUTH --> ZOD
-    ZOD --> SANITIZER
-    SANITIZER --> DEDUP
-    SANITIZER --> TAILOR
+    ZOD --> STRUCT
+    STRUCT --> DEDUP
+    STRUCT --> TAILOR
   end
 
-  subgraph Output["4. Delivery & Artifact Synthesis"]
-    DB[("PostgreSQL Database<br/>(JobOpportunity · DraftNode[])")]
+  subgraph Output["4. Delivery and Artifact Synthesis"]
+    DB[("PostgreSQL Database<br/>(JobOpportunity · DraftNode)")]
     STREAM["Reactive Bullet / Layout Stream"]
-    EXPORTERS["Client-Side PDF & DOCX Export<br/>(pdf-generator.tsx · resume-docx.ts)"]
+    EXPORTERS["Client-Side PDF and DOCX Export<br/>(pdf-generator.tsx · resume-docx.ts)"]
 
     DEDUP --> DB
     TAILOR --> STREAM
@@ -279,8 +300,8 @@ flowchart TD
   end
 
   subgraph Evaluation["4. Candidate Alignment & ATS Scoring"]
-    DB --> EVAL["Match Scoring Evaluator<br/>(lib/matching/evaluator.ts)"]
-    EVAL --> SCORE["Deterministic Fit Score & Factual Rationale<br/>(HIGH / MID / LOW Bands · 4 CS Dimensions)"]
+    DB --> RESOLVER["Match Scoring Resolver<br/>(lib/matching/resolver.ts)"]
+    RESOLVER --> SCORE["Fit Score & Factual Rationale<br/>(heuristic / embedded / hybrid · HIGH / MID / LOW)"]
   end
 
   subgraph Tailoring["5. Vectorless Line-Addressable Resume Tailoring"]
@@ -305,7 +326,7 @@ MailPilot avoids flat-folder accumulation by grouping related responsibilities i
 
 ```text
 MailPilot/
-├── app/                           # Next.js 15 App Router & Server Actions
+├── app/                           # Next.js 15 App Router (flat routes: login, jobs, settings, subscriptions, …)
 │   ├── actions/                   # Thin Server Action mutation boundaries (accounts, dispatch, jobs, settings)
 │   └── api/                       # REST Route Handlers, webhooks, cron, bridge, extension endpoints
 ├── components/
@@ -326,11 +347,15 @@ MailPilot/
 │       ├── tactile/               # Tactile controls (WaveToggle, WavySlider, WavyMeter, DateChip, EntryChip, NumericField, NestedSettingsCard)
 │       └── [primitives].tsx       # Pure atomic Radix primitives (button, badge, dialog, tabs, etc.)
 ├── extension/                     # Mail Pilot + Companion (Chrome Extension MV3 · React 19 + Vite 8)
-│   ├── src/                       # Content scripts (extractor.ts), Side Panel UI & API clients
+│   ├── src/
+│   │   ├── background/            # Service worker / session bridge
+│   │   ├── content/               # Tab extractors (extractor.ts, ats/*, site-selectors)
+│   │   ├── sidepanel/             # Side Panel UI
+│   │   └── lib/                   # Extension-local helpers & API client
 │   └── manifest.json              # Extension Manifest V3 configuration
 ├── hooks/                         # Custom React Hooks (use-card-list-gestures.ts, use-last-clicked-id.ts, use-tactile-toasts.ts, etc.)
 └── lib/
-    ├── ai/                        # Inference router, dispatcher, local Ollama circuit breaker, cloud BYOK vault, vector math
+    ├── ai/                        # Inference router, dispatcher, local Ollama circuit breaker, cloud BYOK vault, optional embeddings
     ├── config/                    # Centralized feature configurations (features.config.ts)
     ├── constants/                 # SSOT Constants (job-sources.ts, branding.ts, wave-geometry.ts, stamp-geometry.ts)
     ├── core/                      # Foundational singletons (prisma.ts, crypto.ts, ratelimit.ts, ssrf.ts, feature-flags.ts)
@@ -340,9 +365,9 @@ MailPilot/
     │   └── nlp/                   # Substantiveness bullet auditor & non-colliding verb harmonizer
     ├── gmail/                     # Google OAuth2 client, Pub/Sub sync, watch renewal, RFC 8058 engine
     ├── logging/                   # Pino structured logger & 66-column terminal ASCII telemetry
-    ├── matching/                  # Match evaluation engine, taxonomy normalizer, fit bands, lens
-    ├── opportunities/             # Context lens, deduplication, sync loops, application dispatch
-    │   └── context/               # Dual-tier link enrichment (dom-extractor.ts, json-ld.ts, extractors/)
+    ├── matching/                  # Resolver (heuristic/embedded/hybrid), evaluator, taxonomy, lens
+    ├── opportunities/             # Context lens, deduplication, sync loops (incl. JobLeads), application dispatch
+    │   └── context/               # Scrubber, card-description, dom-extractor, json-ld, extractors/, section-classifier
     ├── persona/                   # Deterministic 4-dimensional persona matrix, tone composer, lens
     ├── profile/                   # Master profile, consolidation, persistent profile, history
     │   └── deduplication/         # 15-bullet cross-source deduplication engine & 4-way origin arbiter
@@ -426,12 +451,46 @@ flowchart TD
 Isolates opportunity persistence from evaluation. The adapter `resolveJobOpportunity()` yields a canonical `NormalizedJobOpportunity` with strict sizing boundaries:
 - **Smart Snippet Extraction (`extractCleanSnippet`):** Enforces a minimum of 500 characters and a ceiling of 1,500 characters, ramping up to natural sentence boundaries (`[.!?]`) to eliminate word truncation.
 - **Job Description Scrubber (`sanitizeJobDescription`):** Strips legal boilerplate, Equal Opportunity Employer (EEO) statements, benefits headers, and company culture fluff. Hard-caps payloads between 4,000 and 6,000 characters (default 4,000) at clean paragraph breaks.
+- **Synthesized Overview SSOT (`buildSynthesizedJobOverview`):** When digests or thin leads lack a real JD, writers (JobLeads sync, classification fallback, processor scrubber) emit a shared `Opportunity for…` string—never ad-hoc `Title at Company in City` one-liners.
+- **Card Presentation (`card-description.ts`):** Decoupled from the AI classifier cleaner. Teaser fill, section-label peeling, and markdown block/inline renderers (`job-section-labels.ts`, `job-description-blocks.ts`, `job-description-inline.ts`) own the opportunity-card UX.
+
+#### 5.2.1 Card Teaser & Full-Description Dialog
+
+Opportunity cards show a ~2-line face teaser and, when a real JD exists, open a structured full-description dialog (`opportunity-card-description.tsx`, `opportunity-description-dialog.tsx`, `job-description-document.tsx`):
+
+- **Real JD:** `formatOpportunityCardTeaser` picks a prose paragraph, continues through following body text via a fill stream, clamps near ~190 characters with a trailing `...`, and strips list/markdown chrome.
+- **Synthetic / legacy no-JD:** Detected via `isSynthesizedJobOverviewEcho` (SSOT `Opportunity for…` or legacy JobLeads `Title at Company in City.`); the face renders `buildSynthesizedJobOverview` so all thin leads share the same language.
+- **Modal:** `formatOpportunityModalBody` returns `null` for synthetics—there is no fake “full description” dialog when only metadata was stored.
+
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
+flowchart TD
+  desc["JobOpportunity.description"] --> teaserFn["formatOpportunityCardTeaser"]
+  teaserFn --> echo{"synthesized or legacy one-liner?"}
+  echo -->|"yes"| ssot["buildSynthesizedJobOverview on face"]
+  echo -->|"no"| fill["pick + fill stream ~2 lines"]
+  desc --> modalFn["formatOpportunityModalBody"]
+  modalFn --> synthModal{"Opportunity for / echo?"}
+  synthModal -->|"yes"| noModal["no dialog"]
+  synthModal -->|"no"| dialog["OpportunityDescriptionDialog"]
+```
 
 ### 3. Match Scoring Lens (`lib/matching/`)
-Consumes `MatchCandidateLens` to evaluate alignment between candidate credentials and job specifications without exposing private candidate contact information or raw database entities:
-- **Tenure Flooring & Leveling Check:** Compares required job seniority against the candidate's verified leveling.
-- **Taxonomy Normalization:** Cross-references required technologies, operational methodologies, and domain keywords against candidate competencies.
-- **Fit Tier Output:** Produces standardized `HIGH`, `MID`, or `LOW` fit ratings accompanied by a bulleted factual rationale.
+Consumes `MatchCandidateLens` plus a `NormalizedJobOpportunity` to evaluate alignment without exposing private candidate contact information or raw database entities. Account rules select a `scoringEngine` (`heuristic` | `embedded` | `hybrid`); the `embedded_ai` feature flag and shadow-evaluation service gate / observe the optional embedding lane.
+- **Resolver (`resolver.ts`):** Dispatches to the configured engine and falls back to heuristic on flag-off, errors, or incomplete embedding context.
+- **Heuristic Evaluator (`evaluator.ts`):** Tenure flooring, leveling checks, taxonomy overlap, and richness-aware rationale sentences (including slim `MINIMAL_LEAD` leads).
+- **Embedded / Hybrid Lane:** Optional embedding registry + semantic crossover / transferable-skills analysis when enabled; hybrid blends signals rather than replacing verbatim grounding for tailoring.
+- **Fit Output:** Score, `HIGH` / `MID` / `LOW` bands, and a factual `matchReason`. A dev-only **Vector AI** badge on opportunity cards is telemetry for embedded-path evaluations—not a user-facing product promise.
+
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
+flowchart TD
+  lens["MatchCandidateLens + NormalizedJobOpportunity"] --> resolver["matching/resolver scoringEngine"]
+  resolver -->|"heuristic"| heur["evaluator.ts"]
+  resolver -->|"embedded / hybrid"| embed["embedding-registry + semantic-crossover"]
+  embed -->|"fail / flag off"| heur
+  heur & embed --> reason["score + matchReason"]
+```
 
 ### 4. GitHub Technical Ingestion & Deep Inference Domain (`lib/github/`)
 While general profile parsing across MailPilot remains strictly career-agnostic, repository synchronization serves as our **dedicated software & systems engineering domain**. It adopts an authentic, authoritative register spoken directly to senior technical reviewers:
@@ -613,26 +672,26 @@ Across iterative generations of the GitHub ingestion, deep inference engine, and
 | Rank | Parser / Profile Version | Benchmark Score | Core Assessment & Architectural Rationale |
 | :---: | :--- | :---: | :--- |
 | **#1** | **Profile 9** | **9.95 / 10** | **The Gold Standard.** Complete CAR grammar, zero hallucinations, granular data science tooling (`pandas`, `Matplotlib`), and explicit repository asset citations (`Old Faithful.txt`). |
-| **#2** | **Marq_Lott_Master_Profile.pdf (Dedupe Batch)** | **9.94 / 10** | Unmatched internal systems fidelity (`ResumeDraftNode[]`, vectorless RAG persona engine, `seaborn`/`matplotlib`/`pandas`/`numpy`, and explicit steganography datasets). |
+| **#2** | **Master Profile Export (Dedupe Batch)** | **9.94 / 10** | Unmatched internal systems fidelity (`ResumeDraftNode[]`, vectorless RAG persona engine, `seaborn`/`matplotlib`/`pandas`/`numpy`, and explicit steganography datasets). |
 | **#3** | **Profile 11** | **9.92 / 10** | Deep web systems (RFC 8058 unsubscribe, dual-mode section ordering, edge rate limiting); slips behind Profile 9 solely due to generic dataset tags in steganography. |
-| **#4** | **Profile 5** | **9.90 / 10** | First version to break the robotic verb carousel, cited exact test harness files (`marqlo_players_final_ver.py`), and maintained strict layout budget. |
-| **#5** | **Marq_Lott_Master_Profile (19).pdf / (19)_2.pdf** | **9.88 / 10** | MVC game engine decoupling, deep-copied board state simulation, 30 test files / 401 tests Vitest metrics, and 60-second landscape game loop. |
-| **#6** | **Marq_Lott_Master_Profile (12).pdf** | **9.87 / 10** | Weighted heuristic evaluation metrics (diagonal/horizontal/vertical/center), NumPy/Pandas steganography modeling, and verified 56% Paradise fire metrics. |
-| **#7** | **Marq_Lott_Master_Profile (5)_2.pdf (Single-Run Verified)** | **9.86 / 10** | **Outstanding Deduplicated Systems Profile.** Nails verified sub-2ms regex/AST engine fallback, 100+ concurrent client Socket.io sessions, `thread.py` killable thread utility, and `eval_diagnostics`. Edges out previous (5) run; held back from 9.9+ only by generic steganography dataset tags and minor identifier spacing (`http.Server`). |
-| **#8** | **Marq_Lott_Master_Profile (1).pdf (Dedupe Batch)** | **9.84 / 10** | Cites 32 test files / 423 tests via Vitest, `marqlo_players_final_ver`, and sub-100ms multi-vector panic exit. Slips on minor typos ("clouing"). |
-| **#9** | **Marq_Lott_Master_Profile (18).pdf / (18)_2.pdf** | **9.82 / 10** | High-density radial search sweeps ($20\text{ mi} \to 40\text{ mi} \to 75\text{ mi}$) and deadzone physics, but under-extracts steganography. |
-| **#10** | **Marq_Lott_Master_Profile (13).pdf** | **9.81 / 10** | Anti-Corruption Lenses, SSOT schemas, and Cloudflare quick tunnels; slips on informal diagnostics phrasing ("print function"). |
-| **#11** | **Marq_Lott_Master_Profile (3).pdf (Dedupe Batch)** | **9.78 / 10** | Cites Dueling DQN and 3-tier fallback hierarchy, but includes speculative roadmap text ("planned future feature") and dropped tokens. |
-| **#12** | **Marq_Lott_Master_Profile (2).pdf (Dedupe Batch)** | **9.64 / 10** | Retains 3D peek stack and rate-throttled batching, but drops tokens in Connect 4 ("of and scripts") and contains typos ("movving"). |
-| **#13** | **Marq_Lott_Master_Profile (17).pdf / (17)_2.pdf** | **9.62 / 10** | Strong SafeHaven decoy coverage, but penalised for syntax holes ("the and implementations") and diagram leaks. |
-| **#14** | **Marq_Lott_Master_Profile (14).pdf** | **9.60 / 10** | Repeated syntax failure dropping direct objects after "utilizing to [verb]" across 6 consecutive SafeHaven bullets. |
+| **#4** | **Profile 5** | **9.90 / 10** | First version to break the robotic verb carousel, cited exact test harness files, and maintained strict layout budget. |
+| **#5** | **Master Profile Export v19** | **9.88 / 10** | MVC game engine decoupling, deep-copied board state simulation, 30 test files / 401 tests Vitest metrics, and 60-second landscape game loop. |
+| **#6** | **Master Profile Export v12** | **9.87 / 10** | Weighted heuristic evaluation metrics (diagonal/horizontal/vertical/center), NumPy/Pandas steganography modeling, and verified spatial fire metrics. |
+| **#7** | **Master Profile Export v5b (Single-Run Verified)** | **9.86 / 10** | **Outstanding Deduplicated Systems Profile.** Nails verified sub-2ms regex/AST engine fallback, 100+ concurrent client Socket.io sessions, killable thread utility, and heuristic scoring diagnostics. Held back from 9.9+ only by generic steganography dataset tags and minor identifier spacing (`http.Server`). |
+| **#8** | **Master Profile Export v1 (Dedupe Batch)** | **9.84 / 10** | Cites 32 test files / 423 tests via Vitest and sub-100ms multi-vector panic exit. Slips on minor typos. |
+| **#9** | **Master Profile Export v18** | **9.82 / 10** | High-density radial search sweeps ($20\text{ mi} \to 40\text{ mi} \to 75\text{ mi}$) and deadzone physics, but under-extracts steganography. |
+| **#10** | **Master Profile Export v13** | **9.81 / 10** | Anti-Corruption Lenses, SSOT schemas, and Cloudflare quick tunnels; slips on informal diagnostics phrasing ("print function"). |
+| **#11** | **Master Profile Export v3 (Dedupe Batch)** | **9.78 / 10** | Cites Dueling DQN and 3-tier fallback hierarchy, but includes speculative roadmap text ("planned future feature") and dropped tokens. |
+| **#12** | **Master Profile Export v2 (Dedupe Batch)** | **9.64 / 10** | Retains 3D peek stack and rate-throttled batching, but drops tokens in Connect 4 and contains typos. |
+| **#13** | **Master Profile Export v17** | **9.62 / 10** | Strong SafeHaven decoy coverage, but penalised for syntax holes and diagram leaks. |
+| **#14** | **Master Profile Export v14** | **9.60 / 10** | Repeated syntax failure dropping direct objects after "utilizing to [verb]" across 6 consecutive SafeHaven bullets. |
 
 > **Production Deduplication Batch Benchmark:** Overall statistical average across deduplication evaluation batch runs reached **9.84 / 10**.
 
-##### Project-by-Project Extraction Breakdown (Evaluation: `Marq_Lott_Master_Profile (5)_2.pdf` — Score: 9.86 / 10)
-- **Experience & Education:** Preserves verified numerical ground truths across all roles (15+ fleet units, 3 internal API endpoints & 8 external API keys, 4-month Brevo SMTP verification regression, 143% account-to-quota ratio across 12 data center markets, 99.99% and 99.9% network availability SLAs, and 15% provisioning velocity acceleration across 6 cross-functional engineering teams). Clean dual-degree academic hierarchy (BS in Computer Science from UC Davis, June 2026, alongside AS in Computer Science, Mathematics, & Physics from San Joaquin Delta College, May 2024).
-- **MailPilot:** High-density systems extraction: sub-second delta synchronization via Google Cloud Pub/Sub webhooks, adaptive 3-tier inference router with in-memory circuit breaker falling back to a zero-token regex/AST heuristic engine executing in under 2ms, authenticated AES-256-GCM envelope encryption with DNS pre-resolution IP validation for SSRF mitigation, deterministic vectorless RAG eliminating approximate nearest neighbor retrieval, 66-column terminal ASCII telemetry logger, and automated zero-token test suite using Vitest (1,012+ tests).
-- **Connect 4 Player Agent:** Explicitly extracts script-level utilities and filenames from the repository (`thread.py` killable thread utility and `eval_diagnostics` heuristic scoring script). Accurately distinguishes between human player interfaces (GUI and console), baseline AIs (random and heuristic), and advanced game-tree agents (minimax, alpha-beta pruning, Monte Carlo simulation).
+##### Project-by-Project Extraction Breakdown (Evaluation: Master Profile Export v5b — Score: 9.86 / 10)
+- **Experience & Education:** Preserves verified numerical ground truths across roles (fleet units, API endpoints & keys, SMTP verification regression, account-to-quota ratios, network availability SLAs, provisioning velocity). Clean dual-degree academic hierarchy when present in the source document.
+- **MailPilot:** High-density systems extraction: sub-second delta synchronization via Google Cloud Pub/Sub webhooks, adaptive multi-tier inference router with in-memory circuit breaker, authenticated AES-256-GCM envelope encryption with DNS pre-resolution IP validation for SSRF mitigation, vectorless RAG for persona/tailoring with optional embedded fit scoring, 66-column terminal ASCII telemetry logger, and hermetic Vitest suite (1,056+ tests).
+- **Connect 4 Player Agent:** Explicitly extracts script-level utilities and filenames from the repository (killable thread utility and heuristic scoring diagnostics). Accurately distinguishes between human player interfaces (GUI and console), baseline AIs (random and heuristic), and advanced game-tree agents (minimax, alpha-beta pruning, Monte Carlo simulation).
 - **SafeHaven:** Deep forensic-evasion and networking primitives: sub-100ms bidirectional latency over Socket.io WebSockets across 100+ concurrent encrypted client sessions, zero-latency multi-vector panic exit, raw Node.js `http.Server` abstraction in serverless handlers to prevent WebSocket upgrade hooks, `global._mongooseCache` connection promise caching, HTTP 206 byte-range partial content streaming, and OpenRouter native fallback routing.
 - **Embergency, Ms Pac Man, Secret Message Encoder, & Toes Down:**
   - *Embergency:* Captures the hackathon ground-truth spatial intersection between wildfire perimeters and OpenCellID dead zones, paired with 3-API async/await Leaflet.js rendering and Unwired Labs reverse geocoding.
@@ -930,7 +989,7 @@ Inbound emails frequently contain abbreviated link digests (`< 300 chars`) point
 
 ### Pacing & Hydration Strategy
 - **Background Sync Pacing (Zero Credit Waste):** During automated inbox sync passes, Glassdoor and Indeed links fast-exit immediately in **0ms** without triggering external proxy calls, persisting as `MINIMAL_LEAD` records.
-- **On-Demand Spec Hydration (HasData BYOK):** When a user opens an opportunity to tailor a resume or clicks *Hydrate Spec*, MailPilot executes `fetchViaHasData` using the customer's encrypted HasData BYOK key, upgrading the record from `MINIMAL_LEAD` to `RICH_SPEC` (saving up to 4,000+ characters of parsed requirements to PostgreSQL).
+- **On-Demand Spec Hydration (HasData BYOK):** When resume prep / tailor needs a full spec, `hydrateOpportunitySpec` (`lib/opportunities/dispatch/resume.ts`) runs HasData BYOK enrichment and upgrades `MINIMAL_LEAD` → `RICH_SPEC` (up to 4,000+ characters of parsed requirements). There is no separate “Hydrate Spec” button in the opportunity UI—hydration is driven by the tailor/resume path.
 - **Master Proxy Toggle (`enableWebScrapingProxies`):** A dedicated master switch on `BotBypassCard` ([`components/features/settings/ai-models/bot-bypass-card.tsx`](file:///Users/marqlott/desktop/mailpilot/components/features/settings/ai-models/bot-bypass-card.tsx)) permits candidates to disable external proxy execution across all scraping paths while preserving their vaulted AES-256-GCM HasData and ScrapingAnt API keys intact.
 
 ### 2-Tier Context Enrichment Architecture
@@ -945,7 +1004,7 @@ MailPilot eliminates brittle HTML-scraping failures through a resilient 2-tier e
    - When structured JSON-LD microdata is absent or protected, `dom-extractor.ts` traverses semantic DOM containers (`<main>`, `<article>`, `[role="main"]`), strips boilerplate headers, cookie banners, and navigation footers, and classifies sections via [`section-classifier.ts`](file:///Users/marqlott/desktop/mailpilot/lib/opportunities/context/section-classifier.ts).
    - Formats extracted text into clean, hierarchical Markdown anchored strictly to verbatim document content.
 3. **Portal-Specific Heuristic Extractors ([`lib/opportunities/context/extractors/`](file:///Users/marqlott/desktop/mailpilot/lib/opportunities/context/extractors/)):**
-   - Purpose-built extractors tailored to distinct page layouts and selector hierarchies across **Ashby, Greenhouse, Lever, Workday, Indeed, Glassdoor, and JobLeads**.
+   - Server extractors cover **Greenhouse, Lever, Indeed, Glassdoor, Monster, and JobLeads**. Ashby/Workday DOM selectors are maintained in the Chrome extension (`extension/src/content/`), not as server `PLATFORM_EXTRACTORS`.
 4. **Proxy BYOK Fallback ([`lib/scraping/hasdata.ts`](file:///Users/marqlott/desktop/mailpilot/lib/scraping/hasdata.ts), [`lib/scraping/scrapingant.ts`](file:///Users/marqlott/desktop/mailpilot/lib/scraping/scrapingant.ts)):**
    - Transparent residential rotating proxy failover for Cloudflare and DataDome protected career portals.
 
@@ -953,22 +1012,22 @@ MailPilot eliminates brittle HTML-scraping failures through a resilient 2-tier e
 %%{init: {"themeVariables": {"fontSize": "12px", "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"}, "themeCSS": ".edgeLabel foreignObject { overflow: visible !important; } .edgeLabel span { padding: 0 4px; }", "flowchart": {"padding": 24, "nodeSpacing": 40, "rankSpacing": 40}}}%%
 flowchart TD
   URL["Inbound Job URL"] --> PROTO(["Direct ATS vs Portal?"])
-  PROTO -->|"&nbsp;&nbsp;Direct ATS&nbsp;&nbsp;"| DIRECT["Direct HTTP Request<br/>(MailPilot/1.0)"]
-  PROTO -->|"&nbsp;&nbsp;Job Boards&nbsp;&nbsp;"| PROXCHECK(["Proxies Enabled?"])
+  PROTO -->|"Direct ATS"| DIRECT["Direct HTTP Request<br/>(MailPilot/1.0)"]
+  PROTO -->|"Job Boards"| PROXCHECK(["Proxies Enabled?"])
 
-  PROXCHECK -->|"&nbsp;&nbsp;Disabled&nbsp;&nbsp;"| DIRECT
-  PROXCHECK -->|"&nbsp;&nbsp;Enabled&nbsp;&nbsp;"| GATE(["Sync Mode?"])
+  PROXCHECK -->|"Disabled"| DIRECT
+  PROXCHECK -->|"Enabled"| GATE(["Sync Mode?"])
 
-  GATE -->|"&nbsp;&nbsp;Background&nbsp;&nbsp;"| MIN["0ms Fast Exit<br/>(MINIMAL_LEAD)"]
-  GATE -->|"&nbsp;&nbsp;On-Demand&nbsp;&nbsp;"| HASDATA["HasData BYOK Proxy<br/>(Spec Hydration)"]
+  GATE -->|"Background"| MIN["0ms Fast Exit<br/>(MINIMAL_LEAD)"]
+  GATE -->|"Tailor / resume prep"| HASDATA["HasData BYOK Proxy<br/>(hydrateOpportunitySpec)"]
 
   DIRECT --> STATUS(["HTTP Status"])
-  STATUS -->|"&nbsp;&nbsp;200 OK&nbsp;&nbsp;"| PARSE(["Payload Extraction"])
-  STATUS -->|"&nbsp;&nbsp;403 / 429&nbsp;&nbsp;"| SCRAPINGANT["ScrapingAnt BYOK<br/>Proxy Fallback"]
+  STATUS -->|"200 OK"| PARSE(["Payload Extraction"])
+  STATUS -->|"403 / 429"| SCRAPINGANT["ScrapingAnt BYOK<br/>Proxy Fallback"]
 
-  PARSE --> JLD["Tier 1: Schema.org AST<br/>(JSON-LD & Nuxt 3)"]
+  PARSE --> JLD["Tier 1: Schema.org AST<br/>(JSON-LD and Nuxt 3)"]
   PARSE --> DOM_EXT["Tier 2: Semantic DOM<br/>(dom-extractor.ts)"]
-  PARSE --> EXTRACTORS["Site Extractors<br/>(Greenhouse, Lever, Ashby...)"]
+  PARSE --> EXTRACTORS["Server Site Extractors<br/>(Greenhouse Lever Indeed Glassdoor Monster JobLeads)"]
 
   JLD & DOM_EXT & EXTRACTORS & HASDATA & SCRAPINGANT --> SANITIZE["sanitizeJobDescription()<br/>(4,000 Chars Clean)"]
   SANITIZE --> DB[("PostgreSQL RICH_SPEC")]
@@ -1404,9 +1463,9 @@ MailPilot extends its career telemetry pipeline directly into the candidate's br
 - **Platform:** Google Chrome Extension Manifest V3 utilizing the modern Chrome Side Panel API (`chrome.sidePanel`).
 - **UI & Build System:** Built with React 19, TypeScript, and Tailwind CSS, bundled with Vite 8 (`extension/vite.config.ts`) into a standalone distribution bundle (`extension/dist/`).
 - **Packaging & Distribution Pipeline:** Compiled and archived via `node scripts/package-extension.mjs` into `mailpilot-extension.zip` at the repository root and copied to `public/downloads/mailpilot-extension.zip` for instant web downloads.
-- **Client-Side Metadata Extractor (`extension/src/extractor.ts`):** Injected content script executing non-destructive DOM scans for Schema.org JSON-LD microdata and custom DOM selector trees across LinkedIn, Greenhouse, Lever, Ashby, Workday, Indeed, and Glassdoor.
+- **Client-Side Metadata Extractor (`extension/src/content/extractor.ts`):** Injected content script executing non-destructive DOM scans for Schema.org JSON-LD microdata and custom DOM selector trees (Ashby/Workday selectors live here; server extractors cover Greenhouse, Lever, Indeed, Glassdoor, Monster, JobLeads).
 - **Dedicated Extension Endpoints:** Direct communication with the Next.js serverless backend over typed REST endpoints authenticated via session cookies (`credentials: "include"`):
-  - `POST /api/extension/session`: Active session verification and candidate persona synchronization.
+  - `GET /api/extension/session`: Active session verification (`getExtensionAccountId`) and candidate persona synchronization.
   - `POST /api/extension/tailor`: End-to-end 1-page/2-page knapsack resume tailoring stream.
   - `POST /api/extension/draft/node`: Granular bullet toggle mutations and inline rewrites.
   - `POST /api/extension/draft/refine`: On-demand bullet synthesis and AI reframing.
@@ -1422,7 +1481,7 @@ MailPilot extends its career telemetry pipeline directly into the candidate's br
 | **Serverless Runtime** | **Node.js** | v20+ on Vercel Serverless | Non-blocking background worker execution using Next.js 15 `after()`. |
 | **Edge Infrastructure** | **Vercel Edge WAF** | Managed Edge Firewall / Route Rules | Edge-level bot mitigation and header deny rules on sensitive auth routes (`^/(login\|api/auth/.*)`). |
 | **Rate Limiting & Security** | **Upstash Redis** | `@upstash/ratelimit` & `@upstash/redis` | Serverless token-bucket rate limiting via stateless HTTP REST with fail-open isolation. |
-| **Database** | **PostgreSQL** | v16 (Aiven / Supabase) | Multi-tenant relational persistence with connection pooling. |
+| **Database** | **PostgreSQL** | v16 (Aiven) | Multi-tenant relational persistence with connection pooling. |
 | **ORM** | **Prisma** | v6.19+ | Type-safe query building, relation mapping, and migrations. |
 | **Object Storage** | **Vercel Blob** | `@vercel/blob` v2.8 | Private object store for progressive HTTP 206 background video streaming and WebP poster delivery. |
 | **Cloud Messaging & APIs** | **Google Cloud Pub/Sub** | `googleapis` v178 | Asynchronous webhook push notifications for mailbox deltas and RFC 8058 unsubscribe automation. |
@@ -1435,7 +1494,7 @@ MailPilot extends its career telemetry pipeline directly into the candidate's br
 | **Scraping & Parsing** | **Custom AST & JSON Parsers** | Schema.org JSON-LD, Nuxt 3 AST, Semantic DOM | Anti-bot spec extraction, Nuxt state un-flattening, LinkedIn Guest API, HasData/ScrapingAnt proxies. |
 | **Logging & Telemetry** | **Pino & TableLogger** | Pino v10 + 66-col ASCII | Structured JSON logging in production; formatted ASCII telemetry in dev. |
 | **Browser Extension** | **Mail Pilot + Companion** | Chrome MV3 · React 19 + Vite 8 | Native Side Panel API, client-side listing extraction, real-time tailoring, and pagination engine. |
-| **Testing** | **Vitest** | v4.1 (Zero-Token Mocks) | Deterministic, offline unit and integration test suite (1,012+ tests passing). |
+| **Testing** | **Vitest** | v4.1 (Zero-Token Mocks) | Deterministic, offline unit and integration test suite (85 files · 1,056+ tests passing). |
 
 ---
 
@@ -1445,7 +1504,7 @@ MailPilot extends its career telemetry pipeline directly into the candidate's br
 MailPilot maintains a comprehensive, zero-token test suite using **Vitest**. All tests execute completely offline without network calls or live database dependencies:
 
 ```bash
-# Run the complete test suite (83 test files, 1,012+ tests)
+# Run the complete test suite (85 test files, 1,056+ tests)
 npx vitest run
 
 # Run tests in interactive watch mode
@@ -1500,6 +1559,8 @@ npx tsc --noEmit
  ✓ lib/logging/__tests__/table-logger.test.ts (19 tests)
  ✓ lib/matching/__tests__/matching.test.ts (8 tests)
  ✓ lib/matching/__tests__/resolver.test.ts (11 tests)
+ ✓ lib/opportunities/context/__tests__/card-description.test.ts (38 tests)
+ ✓ components/features/opportunities/__tests__/sync-telemetry.test.ts
  ✓ lib/opportunities/context/__tests__/dom-extractor.test.ts (22 tests)
  ✓ lib/opportunities/context/__tests__/hasdata.test.ts (6 tests)
  ✓ lib/opportunities/context/__tests__/html-markdown.test.ts (9 tests)
@@ -1586,7 +1647,7 @@ MailPilot executes a zero-error Next.js 15 production build with verified static
 ### Prerequisites
 - **Node.js:** v20.0.0 or higher
 - **npm:** v10.0.0 or higher
-- **PostgreSQL:** v15+ instance (local or hosted on Aiven / Supabase)
+- **PostgreSQL:** v15+ instance (local or hosted on Aiven)
 - **Google Cloud Platform:** Project with Gmail API and Cloud Pub/Sub enabled
 - **Upstash Redis:** (Optional) Serverless Redis instance for token-bucket rate limiting
 
@@ -1644,11 +1705,18 @@ MailPilot executes a zero-error Next.js 15 production build with verified static
 | `GMAIL_PUBSUB_TOPIC` | Google Pub/Sub topic (`projects/{project}/topics/{topic}`) | Required |
 | `GMAIL_WEBHOOK_SECRET`| Shared secret verifying `/api/webhooks/gmail?token=` requests | Required |
 | `CRON_SECRET` | Bearer token securing scheduled background maintenance endpoints | Required |
+| `NEXT_PUBLIC_APP_URL` | Canonical public origin for links, digests, and extension pairing | Required (defaults to `http://localhost:3000`) |
 | `UPSTASH_REDIS_REST_URL` | Upstash Redis REST API endpoint URL for token-bucket rate limiting | Optional (Fails open in dev) |
 | `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST API bearer token | Optional (Fails open in dev) |
 | `BLOB_READ_WRITE_TOKEN`| Vercel Blob access token for private object storage | Optional |
-| `GITHUB_TOKEN` | Optional GitHub personal access token for higher rate limits during repository sync | Optional |
+| `OLLAMA_BASE_URL` | Local/remote Ollama daemon HTTP address | Optional (defaults to `http://127.0.0.1:11434`) |
+| `OLLAMA_MODEL` | Default Ollama model tag | Optional (defaults to `llama3.1:8b`) |
+| `OLLAMA_ALLOW_OPENROUTER_FALLBACK` | Fall back to OpenRouter when Ollama is unreachable | Optional (dev; defaults to `false`) |
 | `OPENROUTER_API_KEY` | Optional development fallback (production keys are managed per-account) | Optional |
+| `GITHUB_TOKEN` | Optional GitHub personal access token for higher rate limits during repository sync | Optional |
+| `HASDATA_API_KEY` | Fallback HasData key (primary storage is per-account BYOK) | Optional |
+| `SCRAPINGANT_API_KEY` | Fallback ScrapingAnt key (primary storage is per-account BYOK) | Optional |
+| `JINA_API_KEY` | Fallback Jina Reader key (primary storage is per-account BYOK) | Optional |
 
 ---
 

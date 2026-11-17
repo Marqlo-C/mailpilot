@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 export type OpportunityCardDescriptionProps = {
   title: string;
   company: string;
+  location?: string | null;
+  salary?: string | null;
   description?: string | null;
   logoSrc?: string | null;
   applyUrl?: string | null;
@@ -24,15 +26,17 @@ export type OpportunityCardDescriptionProps = {
 export function OpportunityCardDescription({
   title,
   company,
+  location,
+  salary,
   description,
   logoSrc,
   applyUrl,
   open,
   onOpenChange,
 }: OpportunityCardDescriptionProps) {
-  const context = { roleTitle: title, company };
+  const context = { roleTitle: title, company, location, salary };
   const teaser = formatOpportunityCardTeaser(description, context);
-  const modalBody = formatOpportunityModalBody(description);
+  const modalBody = formatOpportunityModalBody(description, context);
 
   if (!teaser && !modalBody) return null;
 
@@ -75,7 +79,13 @@ export function OpportunityCardDescription({
  * Whether the overflow menu should expose Full Description.
  */
 export function opportunityHasModalDescription(
-  description?: string | null
+  description?: string | null,
+  context?: {
+    roleTitle?: string | null;
+    company?: string | null;
+    location?: string | null;
+    salary?: string | null;
+  }
 ): boolean {
-  return Boolean(formatOpportunityModalBody(description));
+  return Boolean(formatOpportunityModalBody(description, context));
 }

@@ -77,6 +77,10 @@ describe("JobLeads Sync Flow Invariant Verification", () => {
       // First job in JobLeads 1.eml is Amoha Recruitment Services LLC
       expect(parsed!.jobs[0].company).toBe("Amoha Recruitment Services LLC");
       expect(parsed!.jobs[0].title).toBe("Software Engineer (Backend / Full Stack)");
+      expect(parsed!.jobs[0].description).toMatch(/^Opportunity for /);
+      expect(parsed!.jobs[0].description).toContain(
+        "Software Engineer (Backend / Full Stack) at Amoha Recruitment Services LLC"
+      );
     });
   });
 
@@ -345,7 +349,8 @@ describe("JobLeads Sync Flow Invariant Verification", () => {
       };
 
       // 1. Minimal lead (e.g. un-scraped JobLeads digest or brief notification)
-      const minimalDesc = "Backend Engineer at Redolent, Inc in Sunnyvale, CA.";
+      const minimalDesc =
+        "Opportunity for Backend Engineer at Redolent, Inc. Located in Sunnyvale, CA.";
       expect(isRichSpec(minimalDesc)).toBe(false); // Gray sparkle (<Sparkle className="text-muted-foreground/80" />)
 
       // 2. Rich spec (from email body or successfully scraped LinkParser)

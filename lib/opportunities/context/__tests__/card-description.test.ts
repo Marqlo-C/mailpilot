@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildTeaserFillStream,
   clampSnippetAtBoundary,
   fillTeaserToTwoLines,
   formatOpportunityCardTeaser,
@@ -102,6 +103,25 @@ describe("card-description", () => {
       expect(isSynthesizedJobOverviewEcho(buildSynthesizedJobOverview(ctx), ctx)).toBe(true);
     });
 
+    it("detects SSOT overview with location/salary when context only has title and company", () => {
+      const ctx = { roleTitle: "Program Success Associate", company: "Tuition.io, Inc." };
+      const full = buildSynthesizedJobOverview({
+        ...ctx,
+        location: "CA",
+        salary: "$21.64-$26.44/Hr",
+      });
+      expect(isSynthesizedJobOverviewEcho(full, ctx)).toBe(true);
+    });
+
+    it("detects legacy JobLeads title-at-company one-liner", () => {
+      expect(
+        isSynthesizedJobOverviewEcho(
+          "Backend Engineer at Evlo AI in New York, NY.",
+          { roleTitle: "Backend Engineer", company: "Evlo AI" }
+        )
+      ).toBe(true);
+    });
+
     it("returns false for real role prose", () => {
       expect(
         isSynthesizedJobOverviewEcho(
@@ -159,10 +179,46 @@ describe("card-description", () => {
       expect(teaser!.toLowerCase()).not.toContain("job alert");
     });
 
-    it("returns null for synthesized metadata echo", () => {
+    it("renders SSOT Opportunity-for copy for synthesized metadata", () => {
       const ctx = { roleTitle: "Analyst", company: "Northwind" };
       const teaser = formatOpportunityCardTeaser(buildSynthesizedJobOverview(ctx), ctx);
-      expect(teaser).toBeNull();
+      expect(teaser).toBe(buildSynthesizedJobOverview(ctx));
+      expect(teaser!.startsWith("Opportunity for ")).toBe(true);
+    });
+
+    it("renders SSOT copy for overview with location/salary under title+company context", () => {
+      const ctx = {
+        roleTitle: "Performance Tester",
+        company: "Capio Group",
+        location: "Sacramento, CA",
+        salary: "$112K-$117K",
+      };
+      const description = buildSynthesizedJobOverview(ctx);
+      const teaser = formatOpportunityCardTeaser(description, {
+        roleTitle: ctx.roleTitle,
+        company: ctx.company,
+      });
+      expect(teaser).toBe(
+        buildSynthesizedJobOverview({
+          roleTitle: ctx.roleTitle,
+          company: ctx.company,
+        })
+      );
+      expect(teaser!.startsWith("Opportunity for ")).toBe(true);
+    });
+
+    it("normalizes legacy JobLeads one-liner to Opportunity-for SSOT", () => {
+      const ctx = {
+        roleTitle: "Backend Engineer",
+        company: "Evlo AI",
+        location: "New York, NY",
+      };
+      const teaser = formatOpportunityCardTeaser(
+        "Backend Engineer at Evlo AI in New York, NY.",
+        ctx
+      );
+      expect(teaser).toBe(buildSynthesizedJobOverview(ctx));
+      expect(teaser!.startsWith("Opportunity for ")).toBe(true);
     });
 
     it("prefers overview paragraph after markdown heading", () => {
@@ -200,6 +256,44 @@ describe("card-description", () => {
       expect(filled.endsWith("...")).toBe(true);
       expect(filled.length).toBeLessThanOrEqual(190);
       expect(filled).toContain("Viant is looking");
+    });
+
+    it("fillTeaserToTwoLines does not force ellipsis when the entire stream fits", () => {
+      const short = "We are seeking a coordinator for seasonal field studies.";
+      expect(fillTeaserToTwoLines(short)).toBe(short);
+      expect(fillTeaserToTwoLines(short).endsWith("...")).toBe(false);
+    });
+
+    it("continues past a short opening paragraph and ellipsizes when more JD remains", () => {
+      const description = [
+        "Working with a global, agile team, you will collaborate with product managers and designers. You will be responsible for developing new features.",
+        "",
+        "You will also own code reviews, mentor peers, and partner with platform teams to improve reliability across services that power customer workflows at scale every day.",
+        "",
+        "### Requirements",
+        "",
+        "4+ years of professional software development experience.",
+      ].join("\n");
+      const teaser = formatOpportunityCardTeaser(description);
+      expect(teaser).not.toBeNull();
+      expect(teaser!).toContain("Working with a global");
+      expect(teaser!).toMatch(/code reviews|mentor|reliability|platform/i);
+      expect(teaser!.endsWith("...")).toBe(true);
+      expect(teaser!.length).toBeGreaterThan(140);
+      expect(teaser!.length).toBeLessThanOrEqual(190);
+    });
+
+    it("buildTeaserFillStream extends from the preferred start through following prose", () => {
+      const preferred =
+        "Working with a global, agile team, you will collaborate with product managers and designers.";
+      const raw = [
+        preferred,
+        "",
+        "You will be responsible for developing new features and improving performance across the stack.",
+      ].join("\n");
+      const stream = buildTeaserFillStream(raw, preferred);
+      expect(stream.startsWith("Working with a global")).toBe(true);
+      expect(stream).toContain("developing new features");
     });
 
     it("pickTeaserSourceParagraph skips WHAT YOU'LL DO heading", () => {
@@ -314,6 +408,15 @@ describe("card-description", () => {
     it("returns null for synthesized opportunity echo strings", () => {
       expect(
         formatOpportunityModalBody("Opportunity for Designer at Acme.")
+      ).toBeNull();
+    });
+
+    it("returns null for legacy JobLeads one-liners", () => {
+      expect(
+        formatOpportunityModalBody("Backend Engineer at Evlo AI in New York, NY.", {
+          roleTitle: "Backend Engineer",
+          company: "Evlo AI",
+        })
       ).toBeNull();
     });
   });
