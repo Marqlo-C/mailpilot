@@ -4,6 +4,7 @@ import {
   decodeHtmlEntities,
   coalesceSplitSectionHeadings,
 } from "../html-markdown";
+import { GLASSDOOR_HEADING_FIXTURE_HTML } from "./fixtures/glassdoor-heading-html";
 
 describe("HTML to Structured Markdown", () => {
   describe("decodeHtmlEntities", () => {
@@ -90,16 +91,14 @@ describe("HTML to Structured Markdown", () => {
       expect(md).toBe("First paragraph.\n\nSecond paragraph.");
     });
 
-    it("converts Skyeton HTML cleanly without orphaned ** or stray ###", () => {
-      const fs = require("fs");
-      const path = require("path");
-      const filePath = path.join(process.cwd(), "Test HTML/Skyeton hiring Software Engineer Job in Fayetteville, NC ｜ Glassdoor (11_5_2026 5：09：33 PM).html");
-      const html = fs.readFileSync(filePath, "utf-8");
-      const md = htmlToStructuredMarkdown(html);
+    it("converts Glassdoor-shaped heading HTML cleanly without orphaned ** or stray ###", () => {
+      const md = htmlToStructuredMarkdown(GLASSDOOR_HEADING_FIXTURE_HTML);
       expect(md).not.toMatch(/(?:^|\n)\*\*\s*(?:\n|$)/);
       expect(md).not.toMatch(/(?:^|\n)###\s*(?:\n|$)/);
       expect(md).not.toContain("Company Culture**");
       expect(md).not.toContain("About the role**");
+      expect(md).toContain("Company Culture");
+      expect(md).toContain("About the role");
     });
   });
 });

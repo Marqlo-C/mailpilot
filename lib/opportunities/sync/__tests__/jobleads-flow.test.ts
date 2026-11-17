@@ -1,33 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
-import * as fs from "fs";
-import * as path from "path";
 import { isJobLeadsEmail, parseJobLeadsDigest } from "../jobleads";
 import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 import { isKnownJobDomain } from "@/lib/constants/job-sources";
 import { resolveJobOpportunity } from "@/lib/opportunities/context";
 import { evaluateOpportunityMatch } from "@/lib/matching";
-
-function decodeQuotedPrintable(str: string): string {
-  return str
-    .replace(/=\r?\n/g, "")
-    .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
-      String.fromCharCode(parseInt(hex, 16))
-    );
-}
-
-function extractHtmlFromEml(emlContent: string, boundary: string): string {
-  const parts = emlContent.split(boundary);
-  const htmlPart = parts.find((p) => /Content-Type:\s*text\/html/i.test(p)) ?? parts[2];
-  return decodeQuotedPrintable(htmlPart);
-}
+import { JOBLEADS_DIGEST_1_HTML } from "./fixtures/jobleads-digests";
 
 describe("JobLeads Sync Flow Invariant Verification", () => {
-  const emlPath = path.resolve(
-    process.cwd(),
-    "Test HTML/Test Gmail Html/JobLeads 1.eml"
-  );
-  const emlRaw = fs.readFileSync(emlPath, "utf-8");
-  const html = extractHtmlFromEml(emlRaw, "--jSsimxcQ");
+  const html = JOBLEADS_DIGEST_1_HTML;
 
   describe("1. Deterministic Parser vs Ollama Bypass", () => {
     it("identifies JobLeads emails accurately from headers", () => {
@@ -74,7 +54,7 @@ describe("JobLeads Sync Flow Invariant Verification", () => {
         expect(isKnownJobDomain(job.company)).toBe(false);
       }
 
-      // First job in JobLeads 1.eml is Amoha Recruitment Services LLC
+      // First card in hermetic digest fixture is Amoha Recruitment Services LLC
       expect(parsed!.jobs[0].company).toBe("Amoha Recruitment Services LLC");
       expect(parsed!.jobs[0].title).toBe("Software Engineer (Backend / Full Stack)");
       expect(parsed!.jobs[0].description).toMatch(/^Opportunity for /);

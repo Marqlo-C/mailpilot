@@ -1,23 +1,10 @@
 import { describe, it, expect } from "vitest";
-import * as fs from "fs";
-import * as path from "path";
 import { isJobLeadsEmail, parseJobLeadsDigest } from "../jobleads";
 import { getCompanyLogoUrl, getCompanyLogoFallbackUrl } from "@/lib/utils/company-logo";
-
-function decodeQuotedPrintable(str: string): string {
-  return str
-    .replace(/=\r?\n/g, "")
-    .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
-      String.fromCharCode(parseInt(hex, 16))
-    );
-}
-
-function extractHtmlFromEml(emlContent: string, boundary: string): string {
-  const parts = emlContent.split(boundary);
-  // Part index 2 contains text/html in both JobLeads test files
-  const htmlPart = parts.find((p) => /Content-Type:\s*text\/html/i.test(p)) ?? parts[2];
-  return decodeQuotedPrintable(htmlPart);
-}
+import {
+  JOBLEADS_DIGEST_1_HTML,
+  JOBLEADS_DIGEST_2_HTML,
+} from "./fixtures/jobleads-digests";
 
 describe("JobLeads Digest Parser & Ingestion Isolation", () => {
   describe("isJobLeadsEmail", () => {
@@ -34,13 +21,8 @@ describe("JobLeads Digest Parser & Ingestion Isolation", () => {
     });
   });
 
-  describe("parseJobLeadsDigest with JobLeads 1.eml", () => {
-    const emlPath = path.resolve(
-      process.cwd(),
-      "Test HTML/Test Gmail Html/JobLeads 1.eml"
-    );
-    const emlRaw = fs.readFileSync(emlPath, "utf-8");
-    const html = extractHtmlFromEml(emlRaw, "--jSsimxcQ");
+  describe("parseJobLeadsDigest with hermetic digest 1 fixture", () => {
+    const html = JOBLEADS_DIGEST_1_HTML;
 
     it("extracts all 5 job cards with accurate employer names, locations, and salaries", () => {
       const result = parseJobLeadsDigest(html, {
@@ -96,15 +78,10 @@ describe("JobLeads Digest Parser & Ingestion Isolation", () => {
     });
   });
 
-  describe("parseJobLeadsDigest with JobLeads 2.eml", () => {
-    const emlPath = path.resolve(
-      process.cwd(),
-      "Test HTML/Test Gmail Html/JobLeads 2.eml"
-    );
-    const emlRaw = fs.readFileSync(emlPath, "utf-8");
-    const html = extractHtmlFromEml(emlRaw, "--b9SzzCA5");
+  describe("parseJobLeadsDigest with hermetic digest 2 fixture", () => {
+    const html = JOBLEADS_DIGEST_2_HTML;
 
-    it("extracts all 5 job cards from JobLeads 2 with correct employer names", () => {
+    it("extracts all 5 job cards from digest 2 with correct employer names", () => {
       const result = parseJobLeadsDigest(html, {
         subject: "There are 5 new jobs matching your saved search",
       });
