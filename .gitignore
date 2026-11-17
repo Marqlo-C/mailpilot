@@ -60,7 +60,8 @@ HISTORICAL_SPEC_SCAN.md
 repomix*
 repomix-output*
 AGENTS.md
-/docs/*
+/docs/
+docs/
 
 # Media & Videos (Vercel Blob storage)
 *.mp4
