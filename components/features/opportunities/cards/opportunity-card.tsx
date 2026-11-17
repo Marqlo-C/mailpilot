@@ -34,8 +34,8 @@ import {
 import { runJobCardAction } from "@/lib/opportunities/run-job-move";
 import { OpportunityCardBadges } from "./subcomponents/opportunity-card-badges";
 import { OpportunityCardActions } from "./subcomponents/opportunity-card-actions";
+import { OpportunityCardDescription } from "./subcomponents/opportunity-card-description";
 import { OpportunityCardMenu } from "./subcomponents/opportunity-card-menu";
-import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
 import { CompanyLogo } from "@/components/ui/logo-frame";
 import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/styles/score-percent";
 import {
@@ -59,10 +59,10 @@ import {
   isUserArchived,
 } from "@/lib/opportunities/lifecycle";
 import {
-  cleanOpportunityDescription,
   extractSalaryFromText,
   normalizeSalaryDisplay,
 } from "@/lib/ai/classifier";
+import { formatOpportunityModalBody } from "@/lib/opportunities/context/card-description";
 import { formatRelativeTime } from "@/lib/utils/format-distance";
 import { cn } from "@/lib/utils";
 
@@ -171,11 +171,12 @@ export function OpportunityCard({
     opportunity.dismissedAt,
     retentionDays
   );
-  const displayDescription = cleanOpportunityDescription(opportunity.description);
+  const modalDescription = formatOpportunityModalBody(opportunity.description);
+  const hasDescription = Boolean(modalDescription);
   const salaryRaw = opportunity.salary?.trim() ?? "";
   const normalizedSalary =
     normalizeSalaryDisplay(salaryRaw) ??
-    (displayDescription ? extractSalaryFromText(displayDescription) : null);
+    (modalDescription ? extractSalaryFromText(modalDescription) : null);
   const salaryLabel = normalizedSalary || "$TBD";
   const locationRaw = opportunity.location?.trim() ?? "";
   const locationLabel = locationRaw || "Remote / Unspecified";
@@ -502,11 +503,15 @@ export function OpportunityCard({
           isSelected && "opacity-55"
         )}
       >
-        {displayDescription ? (
-          <p className="min-h-[2.5rem] line-clamp-2 px-6 text-xs leading-relaxed text-foreground/80 sm:px-7 dark:text-foreground/85">
-            {displayDescription}
-          </p>
-        ) : null}
+        <OpportunityCardDescription
+          title={opportunity.title}
+          company={opportunity.company}
+          description={opportunity.description}
+          logoSrc={companyLogoSrc}
+          applyUrl={validApplyUrl}
+          open={descriptionOpen}
+          onOpenChange={setDescriptionOpen}
+        />
 
         {opportunity.matchReason ? (
           <div className="mt-auto flex items-start gap-2 px-3.5 pt-3">
@@ -572,7 +577,7 @@ export function OpportunityCard({
                   variant={variant}
                   actionsLocked={actionsLocked}
                   isSelected={isSelected}
-                  displayDescription={displayDescription}
+                  hasDescription={hasDescription}
                   canEmail={canEmail}
                   opportunity={opportunity}
                   validApplyUrl={validApplyUrl}
@@ -593,36 +598,6 @@ export function OpportunityCard({
             </div>
         </div>
       </div>
-
-      {displayDescription ? (
-        <ActionDialogShell
-          open={descriptionOpen}
-          onOpenChange={setDescriptionOpen}
-          size="sm"
-          showCancel={false}
-          identity={{
-            title: "Viewing job description for:",
-            primary: opportunity.title,
-            secondary: opportunity.company,
-            logoSrc: companyLogoSrc,
-            logoName: opportunity.company,
-            emphasize: "primary",
-          }}
-          primaryAction={
-            <button
-              type="button"
-              onClick={() => setDescriptionOpen(false)}
-              className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
-            >
-              Close
-            </button>
-          }
-        >
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-            {displayDescription}
-          </p>
-        </ActionDialogShell>
-      ) : null}
     </article>
   );
 }

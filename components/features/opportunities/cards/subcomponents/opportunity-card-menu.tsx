@@ -35,7 +35,8 @@ export type OpportunityCardMenuProps = {
   variant: OpportunityCardVariant;
   actionsLocked: boolean;
   isSelected?: boolean;
-  displayDescription?: string | null;
+  /** When true, show Full Description in the overflow menu. */
+  hasDescription?: boolean;
   canEmail?: boolean;
   opportunity: JobOpportunity;
   validApplyUrl?: string | null;
@@ -57,7 +58,7 @@ export function OpportunityCardMenu({
   variant,
   actionsLocked,
   isSelected,
-  displayDescription,
+  hasDescription,
   canEmail,
   opportunity,
   validApplyUrl,
@@ -89,7 +90,7 @@ export function OpportunityCardMenu({
           />
         </DropdownMenuTrigger>
         <AppMenuContent align="end">
-          {displayDescription ? (
+          {hasDescription ? (
             <AppMenuItem
               disabled={actionsLocked}
               onClick={onDescriptionOpen}
@@ -100,7 +101,7 @@ export function OpportunityCardMenu({
           ) : null}
           {variant === "leads" && canEmail ? (
             <>
-              {displayDescription ? <AppMenuSeparator /> : null}
+              {hasDescription ? <AppMenuSeparator /> : null}
               <AppMenuItem
                 disabled={actionsLocked}
                 onClick={onReviewDraft}
@@ -202,7 +203,7 @@ export function OpportunityCardMenu({
         />
       </DropdownMenuTrigger>
       <AppMenuContent align="end">
-        {displayDescription ? (
+        {hasDescription ? (
           <AppMenuItem
             disabled={actionsLocked}
             onClick={onDescriptionOpen}
@@ -211,7 +212,7 @@ export function OpportunityCardMenu({
             Full Description
           </AppMenuItem>
         ) : null}
-        {displayDescription && (opportunity.isArchived || dismissed) ? (
+        {hasDescription && (opportunity.isArchived || dismissed) ? (
           <AppMenuSeparator />
         ) : null}
         {opportunity.isArchived && !dismissed ? (

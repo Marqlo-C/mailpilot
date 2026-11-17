@@ -16,6 +16,7 @@ import type {
   ParsedJobSection,
   StructuredJobDescription,
 } from "./context.schema";
+import { clampSnippetAtBoundary } from "./card-description";
 import { htmlToStructuredMarkdown } from "./html-markdown";
 import { US_STATES_AND_TERRITORIES, VALID_STATE_CODES } from "@/lib/utils/location";
 
@@ -433,7 +434,7 @@ export function parseStructuredJobSections(
       .replace(/^[-*•]\s+/gm, "")
       .replace(/\s+/g, " ")
       .trim();
-    overviewSnippet = firstPara.length > 220 ? `${firstPara.slice(0, 217)}...` : firstPara;
+    overviewSnippet = clampSnippetAtBoundary(firstPara, 220);
   }
 
   return {

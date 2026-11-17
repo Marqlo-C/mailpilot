@@ -619,10 +619,14 @@ export async function processSyncMessage(
             job.salaryMax = parseSalaryMax(job.salary);
           }
 
-          if (
-            enriched.description &&
-            enriched.description.length > (job.description?.length ?? 0)
-          ) {
+          // Prefer structured scrape markdown (preserves headings / lists for the card modal).
+          // overviewSnippet is card-teaser-only and is derived at read time — no dual-write.
+          const shouldReplaceDescription =
+            Boolean(enriched.description) &&
+            (enriched.description!.length > (job.description?.length ?? 0) ||
+              ((job.description?.length ?? 0) < 300 &&
+                Boolean(enriched.overviewSnippet)));
+          if (shouldReplaceDescription && enriched.description) {
             const fallbackContext = {
               roleTitle: job.title,
               company: job.company,
