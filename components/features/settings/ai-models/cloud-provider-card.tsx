@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 import {
   clearCustomLlmKey,
@@ -150,12 +151,12 @@ export function CloudProviderCard({
     startTransition(async () => {
       const result = await updateRule(accountId, "cloudModel", nextModel);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       setSavedCloudModel(nextModel);
       setSavedCloudModelProvider(nextModelProvider);
-      toast.success("Model override updated");
+      toast.success("Model updated");
       router.refresh();
     });
   }
@@ -164,7 +165,7 @@ export function CloudProviderCard({
     if (!accountId) return;
     const key = apiKeyInput.trim();
     if (!key) {
-      toast.error("Please enter an API key");
+      toast.error("Enter an API key");
       return;
     }
 
@@ -178,7 +179,7 @@ export function CloudProviderCard({
       });
 
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
 
@@ -187,7 +188,7 @@ export function CloudProviderCard({
       setMaskedApiKey(result.data?.maskedApiKey ?? null);
       setApiKeyInput("");
       setIsEditingKey(false);
-      toast.success(`${cloudProvider} API key encrypted and saved`);
+      toast.success(`${cloudProvider} key saved`);
       router.refresh();
     });
   }
@@ -197,7 +198,7 @@ export function CloudProviderCard({
     startTransition(async () => {
       const result = await clearCustomLlmKey(accountId);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       setMaskedApiKey(null);
@@ -240,13 +241,13 @@ export function CloudProviderCard({
               if (!result.ok) {
                 setAllowCloudFallback(!checked);
                 setCloudSubOpen(!checked);
-                toast.error(result.error);
+                toast.error(formatToastError(result.error));
                 return;
               }
               toast.success(
                 checked
-                  ? "Cloud credentials enabled"
-                  : "Cloud credentials disabled"
+                  ? "Cloud fallback enabled"
+                  : "Cloud fallback disabled"
               );
               router.refresh();
             });

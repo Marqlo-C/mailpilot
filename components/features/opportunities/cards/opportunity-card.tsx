@@ -23,6 +23,7 @@ import {
   reprocessOpportunityEmailAction,
 } from "@/app/actions/opportunities";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import { WavyDashedFrame } from "@/components/ui/tactile/wavy-dashed-frame";
 import { WavyDashedLine } from "@/components/ui/tactile/wavy-dashed-line";
@@ -239,23 +240,19 @@ export function OpportunityCard({
   const handleReprocess = async () => {
     if (isReprocessing) return;
     setIsReprocessing(true);
-    const toastId = toast.loading("Sending email back through sync flow...");
+    const toastId = toast.loading("Re-processing email…");
     try {
       const res = await reprocessOpportunityEmailAction(opportunity.id);
       if (res.ok) {
-        toast.success(
-          `Re-synced email (${res.data?.opportunitiesUpserted ?? 0} opportunities updated)`,
-          { id: toastId }
-        );
+        toast.success("Email re-synced", { id: toastId });
         router.refresh();
       } else {
-        toast.error(res.error || "Failed to re-sync email", { id: toastId });
+        toast.error(formatToastError(res.error, "Re-sync failed"), {
+          id: toastId,
+        });
       }
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to re-sync email",
-        { id: toastId }
-      );
+      toast.error(formatToastError(err, "Re-sync failed"), { id: toastId });
     } finally {
       setIsReprocessing(false);
     }

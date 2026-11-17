@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { History, Loader2, RotateCcwClock } from "lucide-react";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 import {
   restoreProfileHistory,
@@ -95,13 +96,13 @@ export function ProfileRevisionsMenu({
     }
 
     startTransition(async () => {
-      const toastId = toast.loading(`Restoring: ${parseRevisionSummary(item.summary).title}…`);
+      const toastId = toast.loading("Restoring revision…");
       const result = await restoreProfileHistory(accountId, item.id);
       if (!result.ok) {
-        toast.error(result.error, { id: toastId });
+        toast.error(formatToastError(result.error), { id: toastId });
         return;
       }
-      toast.success(`Restored ${label}`, { id: toastId });
+      toast.success("Revision restored", { id: toastId });
       setItems((current) => {
         const restored = current.find((row) => row.id === item.id);
         if (!restored) return current;

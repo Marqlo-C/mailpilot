@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import type { JobApplication } from "@prisma/client";
 import { Loader2, Mail, RefreshCw, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 import {
   prepareDraftForReview,
@@ -61,7 +62,7 @@ export function DraftReviewDialog({
       setLoadingDraft(false);
       if (!result.ok || !result.data) {
         setError(result.ok ? "Empty draft" : result.error);
-        toast.error(result.ok ? "Empty draft" : result.error);
+        toast.error(formatToastError(result.error, "Draft creation failed"));
         return;
       }
       setSubject(result.data.subject);
@@ -83,13 +84,13 @@ export function DraftReviewDialog({
         recipientEmail: recipient,
       });
       if (!saved.ok) {
-        toast.error(saved.error);
+        toast.error(formatToastError(saved.error, "Failed to save draft"));
         return;
       }
 
       const toastId = toast.loading(
         action === "gmail-draft"
-          ? "Saving draft to Gmail…"
+          ? "Saving to Gmail…"
           : "Sending application…"
       );
       const result = await sendSingleApplication(
@@ -97,7 +98,9 @@ export function DraftReviewDialog({
         action === "gmail-draft"
       );
       if (!result.ok) {
-        toast.error(result.error, { id: toastId });
+        toast.error(formatToastError(result.error, "Failed to send"), {
+          id: toastId,
+        });
         return;
       }
       toast.success(
@@ -119,7 +122,7 @@ export function DraftReviewDialog({
         refineInstruction.trim()
       );
       if (!result.ok || !result.data) {
-        toast.error(result.ok ? "Empty refine result" : result.error);
+        toast.error(formatToastError(result.error, "Draft refine failed"));
         return;
       }
       setSubject(result.data.subject);
@@ -134,7 +137,7 @@ export function DraftReviewDialog({
     startRetry(async () => {
       const result = await regenerateApplicationDraftAction(application.id);
       if (!result.ok || !result.data) {
-        toast.error(result.ok ? "Empty draft" : result.error);
+        toast.error(formatToastError(result.error, "Draft creation failed"));
         return;
       }
       setSubject(result.data.subject);

@@ -16,6 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 import { getHasDataUsageAction } from "@/app/actions/settings";
 import { Button } from "@/components/ui/button";
@@ -105,12 +106,12 @@ export function HasDataControlPanel({
     startRefresh(async () => {
       const res = await getHasDataUsageAction(accountId, true);
       if (!res.ok) {
-        toast.error(res.error || "Failed to fetch usage from HasData");
+        toast.error(formatToastError(res.error, "HasData fetch failed"));
         return;
       }
       if (res.data) {
         setUsage(res.data);
-        toast.success("HasData usage refreshed");
+        toast.success("Usage refreshed");
       }
     });
   }

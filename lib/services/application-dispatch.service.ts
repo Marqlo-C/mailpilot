@@ -585,35 +585,6 @@ export async function getApplicationForDispatch(applicationId: string) {
 }
 
 /**
- * Marks an application as externally applied (e.g. portal submission).
- * Sets status to APPLIED, dispatchStatus to MANUAL_APPLIED, and records timestamp.
- *
- * @param applicationId - Target application identifier
- * @returns Boolean indicating whether the application was found and updated
- */
-export async function markApplicationApplied(applicationId: string): Promise<boolean> {
-  const application = await prisma.jobApplication.findUnique({
-    where: { id: applicationId },
-    select: { id: true },
-  });
-  if (!application) return false;
-
-  const now = new Date();
-  await prisma.jobApplication.update({
-    where: { id: applicationId },
-    data: {
-      status: "APPLIED",
-      dispatchStatus: "MANUAL_APPLIED",
-      dispatchType: "PORTAL",
-      applicationMethod: "PORTAL_QUICK_APPLY",
-      opportunityStatus: "SENT",
-      appliedAt: now,
-    },
-  });
-  return true;
-}
-
-/**
  * Transitions an application's lifecycle status (e.g. APPLIED, OA, INTERVIEW, OFFER, REJECTED, ARCHIVED).
  * Automatically flags actionRequired when entering interview or assessment stages.
  *

@@ -289,7 +289,7 @@ export function SubscriptionsView({
     onReorder: handleReorder,
     onDropZone: handleDropZone,
     onReorderBlocked: () => {
-      toast.message("Switch to Custom order to rearrange", {
+      toast.message("Switch to Custom to reorder", {
         action: {
           label: "Custom",
           onClick: () => changeSortOption("custom"),

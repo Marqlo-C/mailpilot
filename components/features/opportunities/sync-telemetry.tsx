@@ -24,6 +24,7 @@ import { useFlyoutPresence } from "@/components/ui/composites/bulk-actions-flyou
 import { ConfirmActionDialog } from "@/components/ui/composites/confirm-action-dialog";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 /** Sidebar status copy — white label; state is carried by the colored dot only. */
 const STATUS_TEXT_CLASS = "text-[#e4f7f3]";
@@ -102,7 +103,7 @@ export function SyncTelemetry({
       const result = await drainPendingAiQueue({ accountId });
 
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         markSyncFailed();
         return;
       }

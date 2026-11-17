@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, Loader2, Worm, X } from "lucide-react";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 import {
   clearHasDataApiKey,
@@ -117,7 +118,7 @@ export function BotBypassCard({
     if (!accountId) return;
     const key = scrapingAntApiKeyInput.trim();
     if (!key) {
-      toast.error("Please enter a ScrapingAnt API key");
+      toast.error("Enter ScrapingAnt key");
       return;
     }
 
@@ -126,7 +127,7 @@ export function BotBypassCard({
       try {
         const result = await saveScrapingAntApiKey(accountId, key);
         if (!result.ok) {
-          toast.error(result.error);
+          toast.error(formatToastError(result.error));
           return;
         }
         setMaskedScrapingAntKey(result.data?.maskedScrapingAntApiKey ?? null);
@@ -135,10 +136,10 @@ export function BotBypassCard({
         }
         setScrapingAntApiKeyInput("");
         setIsReplacingScrapingAntKey(false);
-        toast.success("ScrapingAnt API key encrypted and saved");
+        toast.success("ScrapingAnt key saved");
         router.refresh();
       } catch {
-        toast.error("Failed to save ScrapingAnt API key");
+        toast.error("Failed to save key");
       } finally {
         setIsSavingScrapingAntKey(false);
       }
@@ -152,17 +153,17 @@ export function BotBypassCard({
       try {
         const result = await clearScrapingAntApiKey(accountId);
         if (!result.ok) {
-          toast.error(result.error);
+          toast.error(formatToastError(result.error));
           return;
         }
         setMaskedScrapingAntKey(null);
         setScrapingAntUsage(null);
         setScrapingAntApiKeyInput("");
         setIsReplacingScrapingAntKey(false);
-        toast.success("ScrapingAnt API key cleared; direct fetching only");
+        toast.success("ScrapingAnt key removed");
         router.refresh();
       } catch {
-        toast.error("Failed to clear ScrapingAnt API key");
+        toast.error("Failed to clear key");
       } finally {
         setIsClearingScrapingAntKey(false);
       }
@@ -173,7 +174,7 @@ export function BotBypassCard({
     if (!accountId) return;
     const key = hasDataApiKeyInput.trim();
     if (!key) {
-      toast.error("Please enter a HasData API key");
+      toast.error("Enter HasData key");
       return;
     }
 
@@ -182,7 +183,7 @@ export function BotBypassCard({
       try {
         const result = await saveHasDataApiKey(accountId, key);
         if (!result.ok) {
-          toast.error(result.error);
+          toast.error(formatToastError(result.error));
           return;
         }
         setMaskedHasDataKey(result.data?.maskedHasDataApiKey ?? null);
@@ -191,10 +192,10 @@ export function BotBypassCard({
         }
         setHasDataApiKeyInput("");
         setIsReplacingHasDataKey(false);
-        toast.success("HasData API key encrypted and saved");
+        toast.success("HasData key saved");
         router.refresh();
       } catch {
-        toast.error("Failed to save HasData API key");
+        toast.error("Failed to save key");
       } finally {
         setIsSavingHasDataKey(false);
       }
@@ -208,17 +209,17 @@ export function BotBypassCard({
       try {
         const result = await clearHasDataApiKey(accountId);
         if (!result.ok) {
-          toast.error(result.error);
+          toast.error(formatToastError(result.error));
           return;
         }
         setMaskedHasDataKey(null);
         setHasDataUsage(null);
         setHasDataApiKeyInput("");
         setIsReplacingHasDataKey(false);
-        toast.success("HasData API key cleared; direct fetching only");
+        toast.success("HasData key removed");
         router.refresh();
       } catch {
-        toast.error("Failed to clear HasData API key");
+        toast.error("Failed to clear key");
       } finally {
         setIsClearingHasDataKey(false);
       }
@@ -256,13 +257,11 @@ export function BotBypassCard({
               );
               if (!result.ok) {
                 setEnableWebScrapingProxies(!checked);
-                toast.error(result.error);
+                toast.error(formatToastError(result.error));
                 return;
               }
               toast.success(
-                checked
-                  ? "Web scraping proxies enabled"
-                  : "Web scraping proxies disabled (direct fetch only)"
+                checked ? "Proxies enabled" : "Proxies disabled"
               );
               router.refresh();
             });

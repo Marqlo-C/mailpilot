@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CloudDownload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 import { exportMasterProfilePdfAction } from "@/app/actions/profile";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { cn } from "@/lib/utils";
 export async function downloadMasterProfile(accountId: string): Promise<void> {
   const res = await exportMasterProfilePdfAction(accountId);
   if (!res.ok || !res.data) {
-    toast.error(res.ok ? "Export failed: No PDF generated" : res.error);
+    toast.error(formatToastError(res.error, "No PDF generated"));
     return;
   }
 
@@ -30,7 +31,7 @@ export async function downloadMasterProfile(accountId: string): Promise<void> {
   anchor.click();
   document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
-  toast.success("Master profile exported successfully");
+  toast.success("Profile exported");
 }
 
 export type ExportMasterProfileButtonProps = {
@@ -65,9 +66,7 @@ export function ExportMasterProfileButton({
       await downloadMasterProfile(accountId);
     } catch (err) {
       console.error("Export master profile failed:", err);
-      toast.error(
-        err instanceof Error ? err.message : "Failed to export master profile PDF"
-      );
+      toast.error(formatToastError(err, "PDF export failed"));
     } finally {
       setIsExporting(false);
     }

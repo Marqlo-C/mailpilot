@@ -13,9 +13,10 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import { CompanyLogo } from "@/components/ui/logo-frame";
 import {
+  DateChip,
   SettingsFeatureCard,
   SettingsSectionCard,
-} from "@/components/ui/tactile/nested-settings-card";
+} from "@/components/ui/tactile";
 import {
   Tooltip,
   TooltipContent,
@@ -70,7 +71,7 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
                     />
                   }
                   title={
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 pl-1">
                       <span className="truncate">
                         {account.name ? (
                           <>
@@ -91,9 +92,11 @@ export function AccountsCard({ accounts, activeAccountId }: AccountsCardProps) {
                     </div>
                   }
                   subtitle={
-                    account.historyId
-                      ? `Watch history #${account.historyId}`
-                      : "Watch not registered"
+                    <DateChip>
+                      {account.historyId
+                        ? `Watch history #${account.historyId}`
+                        : "Watch not registered"}
+                    </DateChip>
                   }
                   statusBadge={
                     <div className="flex flex-wrap items-center gap-2.5 shrink-0">

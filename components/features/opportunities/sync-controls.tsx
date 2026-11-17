@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 import { syncInboxOpportunities } from "@/app/actions/email";
 import {
@@ -51,7 +52,7 @@ export function SyncControls({
 
   function runSync(forceRescan: boolean, lookbackDays = 14) {
     if (!accountId) {
-      toast.error("Connect a Gmail account first");
+      toast.error("Connect an account first");
       return;
     }
 
@@ -70,17 +71,16 @@ export function SyncControls({
       });
 
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
 
       toast.success(
-        result.data?.message ??
-          (forceRescan
-            ? lookbackDays === 1
-              ? "Checking today’s mail…"
-              : `Checking the past ${lookbackDays} days…`
-            : "Checking for new mail…")
+        forceRescan
+          ? lookbackDays === 1
+            ? "Checking today’s mail…"
+            : `Checking past ${lookbackDays}d…`
+          : "Checking new mail…"
       );
       router.refresh();
     });

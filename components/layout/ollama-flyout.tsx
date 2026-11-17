@@ -15,6 +15,7 @@ import {
 } from "@/components/layout/sidebar-flyout-chrome";
 import { DEV_OLLAMA_MODEL_STORAGE_KEY } from "@/components/features/settings/ai-models";
 import { cn } from "@/lib/utils";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 import { toast } from "sonner";
 
 type ConnectionState = "idle" | "checking" | "connected" | "offline" | "error";
@@ -181,7 +182,7 @@ export function OllamaFlyout({ accountId }: { accountId: string }) {
       if (cancelled) return;
       setLoading(false);
       if (!data) {
-        if (!hit && !priorCheck) toast.error("Could not load Ollama settings");
+        if (!hit && !priorCheck) toast.error("Ollama status failed");
         return;
       }
       const view = applyOllamaStatus(data);
@@ -250,10 +251,10 @@ export function OllamaFlyout({ accountId }: { accountId: string }) {
           startTransition(async () => {
             const result = await updateOllamaModel(accountId, first);
             if (!result.ok) {
-              toast.error(result.error);
+              toast.error(formatToastError(result.error));
               return;
             }
-            toast.success(`Model set to ${first}`);
+            toast.success(`Model: ${first}`);
             router.refresh();
           });
         } else {
@@ -292,7 +293,7 @@ export function OllamaFlyout({ accountId }: { accountId: string }) {
     startTransition(async () => {
       const result = await updateOllamaModel(accountId, next);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       setStatus((current) => {
@@ -302,13 +303,14 @@ export function OllamaFlyout({ accountId }: { accountId: string }) {
         if (updated) ollamaCache = { accountId, data: updated };
         return updated;
       });
-      toast.success(`Model set to ${next}`);
+      toast.success(`Model: ${next}`);
       router.refresh();
     });
   }
 
   function checkDevModels() {
     setCheckingDevModels(true);
+    const toastId = toast.loading("Checking Ollama…");
     void (async () => {
       try {
         const res = await fetch("/api/ollama/dev-models", { method: "POST" });
@@ -320,10 +322,12 @@ export function OllamaFlyout({ accountId }: { accountId: string }) {
         setDevModels(names);
         rememberDevModels(accountId, names);
         if (!res.ok || data.error || names.length === 0) {
-          toast.error(data.error ?? "Could not list local models");
+          toast.error(formatToastError(data.error, "Could not list models"), {
+            id: toastId,
+          });
           return;
         }
-        toast.success("Local models loaded");
+        toast.success("Local models loaded", { id: toastId });
         setDevSelectedModel((prev) => {
           if (prev && names.includes(prev)) return prev;
           const stored = readStoredDevModel();
@@ -341,7 +345,7 @@ export function OllamaFlyout({ accountId }: { accountId: string }) {
       } catch {
         setDevModels([]);
         rememberDevModels(accountId, []);
-        toast.error("Could not list local models");
+        toast.error("Could not list models", { id: toastId });
       } finally {
         setCheckingDevModels(false);
       }
@@ -438,7 +442,7 @@ export function OllamaFlyout({ accountId }: { accountId: string }) {
               } catch {
                 // ignore
               }
-              toast.success(`Dev model set to ${next} (local only)`);
+              toast.success(`Dev model: ${next}`);
             }}
             className="min-w-0 flex-1"
             options={devModels.map((model) => ({

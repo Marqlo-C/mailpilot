@@ -59,12 +59,14 @@ export interface FeatureFlagConfigItem {
 export function resolveDeploymentEnvironment(
   envOverrides?: Record<string, string | undefined>
 ): DeploymentEnvironment {
-  const vercelEnv = (
-    envOverrides?.VERCEL_ENV ??
-    (typeof process !== "undefined" ? process.env?.VERCEL_ENV : undefined)
-  )
-    ?.trim()
-    .toLowerCase();
+  const envSource =
+    envOverrides !== undefined
+      ? envOverrides
+      : typeof process !== "undefined" && process.env
+        ? process.env
+        : {};
+
+  const vercelEnv = envSource.VERCEL_ENV?.trim().toLowerCase();
 
   if (
     vercelEnv === "production" ||
@@ -74,12 +76,7 @@ export function resolveDeploymentEnvironment(
     return vercelEnv;
   }
 
-  const nodeEnv = (
-    envOverrides?.NODE_ENV ??
-    (typeof process !== "undefined" ? process.env?.NODE_ENV : undefined)
-  )
-    ?.trim()
-    .toLowerCase();
+  const nodeEnv = envSource.NODE_ENV?.trim().toLowerCase();
 
   if (nodeEnv === "production") {
     return "production";

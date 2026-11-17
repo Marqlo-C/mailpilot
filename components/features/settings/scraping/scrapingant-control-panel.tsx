@@ -15,6 +15,7 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 import { getScrapingAntUsageAction } from "@/app/actions/settings";
 import { Button } from "@/components/ui/button";
@@ -104,12 +105,12 @@ export function ScrapingAntControlPanel({
     startRefresh(async () => {
       const res = await getScrapingAntUsageAction(accountId, true);
       if (!res.ok) {
-        toast.error(res.error || "Failed to fetch usage from ScrapingAnt");
+        toast.error(formatToastError(res.error, "ScrapingAnt fetch failed"));
         return;
       }
       if (res.data) {
         setUsage(res.data);
-        toast.success("ScrapingAnt usage refreshed");
+        toast.success("Usage refreshed");
       }
     });
   }

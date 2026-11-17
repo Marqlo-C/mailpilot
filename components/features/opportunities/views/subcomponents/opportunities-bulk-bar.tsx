@@ -15,6 +15,7 @@ import { BulkActionsWithClassifying } from "@/components/layout/bulk-actions-wit
 import type { OpportunityCardVariant } from "@/components/features/opportunities/cards/opportunity-card";
 import { variantToJobsTabKey } from "@/lib/opportunities/movement-rules";
 import { runJobCardAction } from "@/lib/opportunities/run-job-move";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 export type OpportunitiesBulkBarProps = {
   variant: OpportunityCardVariant;
@@ -58,7 +59,7 @@ export function OpportunitiesBulkBar({
                   selectedIds
                 );
                 if (!result.ok) {
-                  toast.error(result.error);
+                  toast.error(formatToastError(result.error));
                   return;
                 }
                 onAfterBatch("Restored");
@@ -85,10 +86,10 @@ export function OpportunitiesBulkBar({
                       archivedSelectedIds
                     );
                     if (!result.ok) {
-                      toast.error(result.error);
+                      toast.error(formatToastError(result.error));
                       return;
                     }
-                    onAfterBatch("Dismissed — purge countdown started");
+                    onAfterBatch("Dismissed");
                   })
                 }
                 className={BULK_ACTION_DISMISS_BTN_CLASSNAME}
@@ -141,7 +142,7 @@ export function OpportunitiesBulkBar({
                     selectedIds
                   );
                   if (!result.ok) {
-                    toast.error(result.error);
+                    toast.error(formatToastError(result.error));
                     return;
                   }
                   onAfterBatch("Archived");
@@ -169,7 +170,7 @@ export function OpportunitiesBulkBar({
                       selectedIds
                     );
                     if (!result.ok) {
-                      toast.error(result.error);
+                      toast.error(formatToastError(result.error));
                       return;
                     }
                     onAfterBatch("Marked as applied");
@@ -198,7 +199,7 @@ export function OpportunitiesBulkBar({
                   selectedIds
                 );
                 if (!result.ok) {
-                  toast.error(result.error);
+                  toast.error(formatToastError(result.error));
                   return;
                 }
                 onAfterBatch("Dismissed");

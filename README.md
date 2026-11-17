@@ -8,7 +8,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3.4-38B2AC?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-677+_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-1012+_Tests_Passing-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
 [![Vercel WAF](https://img.shields.io/badge/Vercel-Edge_WAF_Mitigation-000000?style=flat-square&logo=vercel)](https://vercel.com/)
 [![Upstash](https://img.shields.io/badge/Upstash-Redis_Rate_Limiting-00E599?style=flat-square&logo=redis)](https://upstash.com/)
 [![Security](https://img.shields.io/badge/Security-AES--256--GCM_Vaulted-green?style=flat-square&logo=security)](https://nodejs.org/api/crypto.html)
@@ -98,9 +98,9 @@ To scale MailPilot reliably under production constraints on the Vercel Hobby tie
 - **Failure Mode:** Mixing generic UI primitives with application composites and low-level Node utilities created a flat namespace where changes carried unpredictable ripple effects.
 - **Engineering Shift:** Reorganized the repository into semantic domain clusters:
   - `components/features/opportunities/`: Structured into `cards/`, `dialogs/`, `drawer/`, `toolbar/`, and `views/`.
-  - `components/features/settings/`: Grouped into `accounts/`, `ai-models/`, `automation/`, `outbound/`, `profile/`, `scraping/`, and `tactile-preferences/`.
-  - `components/ui/`: Separated into `tactile/` (custom fluid controls), `composites/` (complex layouts, modals), `dnd/` (hardware-accelerated ghosts and bumpers), and `styles/` (pure CSS utility tokens).
-  - `lib/`: Clustered into `ai/` (inference router, local Ollama circuit, vault), `services/` (pure business orchestration), `data/` (read queries), `validations/` (SSOT Zod schemas), `core/` (DB singletons, cryptography, rate limiting, SSRF), `profile/` (master profile, deduplication), `document/` (PDF & DOCX layout compilers), `scraping/` (anti-bot proxy managers), `gmail/` (mailbox synchronizers), and `utils/` (dnd, navigation, ui preferences, formatters).
+  - `components/features/settings/`: Grouped into `accounts/`, `ai-models/`, `automation/`, `feature-flags/`, `outbound/`, `profile/`, `scraping/`, and `tactile-preferences/`.
+  - `components/ui/`: Separated into `tactile/` (custom fluid controls, `DateChip` / `EntryChip`, `NumericField`), `composites/` (complex layouts, modals, flyouts), `dnd/` (hardware-accelerated ghosts and bumpers), and `styles/` (pure CSS utility tokens).
+  - `lib/`: Clustered into `ai/` (inference router, local Ollama circuit, vault, vector math), `config/` (centralized feature configurations), `services/` (pure business orchestration), `data/` (read queries), `validations/` (SSOT Zod schemas), `core/` (DB singletons, cryptography, feature flags, rate limiting, SSRF), `profile/` (master profile, deduplication), `document/` (PDF & DOCX layout compilers), `scraping/` (anti-bot proxy managers), `gmail/` (mailbox synchronizers), and `utils/` (dnd, navigation, ui preferences, formatters).
 
 ### 3. Unified 4-Tier Polymorphic Card Hierarchy & Typographic Scale
 - **Prior Pattern:** Ad-hoc padding, border radii, and font sizes across settings cards and status panels.
@@ -306,7 +306,7 @@ MailPilot avoids flat-folder accumulation by grouping related responsibilities i
 ```text
 MailPilot/
 ├── app/                           # Next.js 15 App Router & Server Actions
-│   ├── actions/                   # Thin Server Action mutation boundaries (accounts, dispatch, jobs, etc.)
+│   ├── actions/                   # Thin Server Action mutation boundaries (accounts, dispatch, jobs, settings)
 │   └── api/                       # REST Route Handlers, webhooks, cron, bridge, extension endpoints
 ├── components/
 │   ├── brand/                     # Platform logos, marks & brand graphics
@@ -315,24 +315,25 @@ MailPilot/
 │   │   ├── login/                 # Video background auth portal & OAuth buttons
 │   │   ├── opportunities/         # Pipeline domain (views/, cards/, drawer/, dialogs/, toolbar/)
 │   │   ├── profile/               # Master profile editor, experience/project cards & revision diffs
-│   │   ├── settings/              # Settings domains (accounts/, ai-models/, automation/, outbound/, scraping/, tactile-preferences/)
+│   │   ├── settings/              # Settings domains (accounts/, ai-models/, automation/, feature-flags/, outbound/, profile/, scraping/, tactile-preferences/)
 │   │   └── subscriptions/         # RFC 8058 newsletter feed, unsubscribe actions & digests
-│   ├── layout/                    # Shell, navigation, sidebar, drawers & global sync provider
+│   ├── layout/                    # Shell, navigation, sidebar, right-of-sidebar flyouts (SidebarFlyout) & sync provider
 │   └── ui/                        # Universal Design System Primitives
 │       ├── composites/            # Action dialog shells, flyouts, pagination, row menus
 │       ├── dnd/                   # Floating 3D drag ghost stack & edge page-flip bumpers
 │       ├── icons/                 # Brand iconography & SVG glyphs
 │       ├── styles/                # Boxy button styles, checkbox styles, score percentage tokens
-│       ├── tactile/               # Wave controls (WaveToggle, WavySlider, WavyMeter, NestedSettingsCard)
+│       ├── tactile/               # Tactile controls (WaveToggle, WavySlider, WavyMeter, DateChip, EntryChip, NumericField, NestedSettingsCard)
 │       └── [primitives].tsx       # Pure atomic Radix primitives (button, badge, dialog, tabs, etc.)
 ├── extension/                     # Mail Pilot + Companion (Chrome Extension MV3 · React 19 + Vite 8)
 │   ├── src/                       # Content scripts (extractor.ts), Side Panel UI & API clients
 │   └── manifest.json              # Extension Manifest V3 configuration
-├── hooks/                         # Custom React Hooks (use-card-list-gestures.ts, use-last-clicked-id.ts, etc.)
+├── hooks/                         # Custom React Hooks (use-card-list-gestures.ts, use-last-clicked-id.ts, use-tactile-toasts.ts, etc.)
 └── lib/
-    ├── ai/                        # Inference router, dispatcher, local Ollama circuit breaker, cloud BYOK vault
+    ├── ai/                        # Inference router, dispatcher, local Ollama circuit breaker, cloud BYOK vault, vector math
+    ├── config/                    # Centralized feature configurations (features.config.ts)
     ├── constants/                 # SSOT Constants (job-sources.ts, branding.ts, wave-geometry.ts, stamp-geometry.ts)
-    ├── core/                      # Foundational singletons (prisma.ts, crypto.ts, ratelimit.ts, ssrf.ts)
+    ├── core/                      # Foundational singletons (prisma.ts, crypto.ts, ratelimit.ts, ssrf.ts, feature-flags.ts)
     ├── data/                      # Domain-segregated database read access (accounts, opportunities, subscriptions, navigation)
     ├── document/                  # React-PDF generator, Word DOCX compiler, text extractor, polyfills
     ├── github/                    # Software engineering ingestion, AST prefiltering, topologies, syncer
@@ -354,7 +355,7 @@ MailPilot/
     │   ├── dnd/                   # Pointer drag physics, RAF lerp loop, 3-zone deadzones
     │   ├── extension/             # Companion session validation & CORS helpers
     │   ├── navigation/            # Dual-layer tab persistence & SSR cookie alignment
-    │   └── ui/                    # Tactile UI preference cookie sync (ui-preferences-server.ts)
+    │   └── ui/                    # Tactile UI preference cookie sync (ui-preferences-server.ts), toast formatters
     └── validations/               # Single Source of Truth Zod schemas (*.schema.ts)
 ```
 
@@ -630,7 +631,7 @@ Across iterative generations of the GitHub ingestion, deep inference engine, and
 
 ##### Project-by-Project Extraction Breakdown (Evaluation: `Marq_Lott_Master_Profile (5)_2.pdf` — Score: 9.86 / 10)
 - **Experience & Education:** Preserves verified numerical ground truths across all roles (15+ fleet units, 3 internal API endpoints & 8 external API keys, 4-month Brevo SMTP verification regression, 143% account-to-quota ratio across 12 data center markets, 99.99% and 99.9% network availability SLAs, and 15% provisioning velocity acceleration across 6 cross-functional engineering teams). Clean dual-degree academic hierarchy (BS in Computer Science from UC Davis, June 2026, alongside AS in Computer Science, Mathematics, & Physics from San Joaquin Delta College, May 2024).
-- **MailPilot:** High-density systems extraction: sub-second delta synchronization via Google Cloud Pub/Sub webhooks, adaptive 3-tier inference router with in-memory circuit breaker falling back to a zero-token regex/AST heuristic engine executing in under 2ms, authenticated AES-256-GCM envelope encryption with DNS pre-resolution IP validation for SSRF mitigation, deterministic vectorless RAG eliminating approximate nearest neighbor retrieval, 66-column terminal ASCII telemetry logger, and automated zero-token test suite using Vitest (677+ tests).
+- **MailPilot:** High-density systems extraction: sub-second delta synchronization via Google Cloud Pub/Sub webhooks, adaptive 3-tier inference router with in-memory circuit breaker falling back to a zero-token regex/AST heuristic engine executing in under 2ms, authenticated AES-256-GCM envelope encryption with DNS pre-resolution IP validation for SSRF mitigation, deterministic vectorless RAG eliminating approximate nearest neighbor retrieval, 66-column terminal ASCII telemetry logger, and automated zero-token test suite using Vitest (1,012+ tests).
 - **Connect 4 Player Agent:** Explicitly extracts script-level utilities and filenames from the repository (`thread.py` killable thread utility and `eval_diagnostics` heuristic scoring script). Accurately distinguishes between human player interfaces (GUI and console), baseline AIs (random and heuristic), and advanced game-tree agents (minimax, alpha-beta pruning, Monte Carlo simulation).
 - **SafeHaven:** Deep forensic-evasion and networking primitives: sub-100ms bidirectional latency over Socket.io WebSockets across 100+ concurrent encrypted client sessions, zero-latency multi-vector panic exit, raw Node.js `http.Server` abstraction in serverless handlers to prevent WebSocket upgrade hooks, `global._mongooseCache` connection promise caching, HTTP 206 byte-range partial content streaming, and OpenRouter native fallback routing.
 - **Embergency, Ms Pac Man, Secret Message Encoder, & Toes Down:**
@@ -999,9 +1000,22 @@ Level 1 (Section Container) : 16px Title (font-semibold) · 12px Subtitle · p-4
 MailPilot features a tactile control suite located in [`components/ui/tactile/`](file:///Users/marqlott/desktop/mailpilot/components/ui/tactile) and configured in [`components/features/settings/tactile-preferences/`](file:///Users/marqlott/desktop/mailpilot/components/features/settings/tactile-preferences):
 - **`WaveToggle`:** Fluid sinusoidal SVG toggle switch with animated crest and trough wave transitions.
 - **`WavySlider` & `WavyMeter`:** Continuous dynamic sinusoidal SVG meters for match score thresholds, inbox clutter filtering, and budget headroom visualization.
-- **`SegmentedTabs`:** Tactile segmented tab rail with smooth sliding pill indicators.
+- **SegmentedTabs:** Tactile segmented tab rail with smooth sliding pill indicators.
 - **Dual-Layer SSR Persistence ([`lib/utils/ui/`](file:///Users/marqlott/desktop/mailpilot/lib/utils/ui)):** User tactile selections (`mp_ui_tab_rail`, `mp_ui_wavy_meter`, `mp_ui_wave_toggle`, `mp_ui_rail_action`) are written synchronously to `localStorage` and durable browser cookies.
 - **Zero Pre-Paint Hydration Layout Shift:** Next.js Server Components call `readServerTactilePreferences()` ([`lib/utils/ui/ui-preferences-server.ts`](file:///Users/marqlott/desktop/mailpilot/lib/utils/ui/ui-preferences-server.ts)) during SSR, ensuring tactile controls render on byte 0 without visual flicker, layout jumps, or React hydration mismatches.
+
+### Tactile Meta Pills & Numeric Controls
+- **`DateChip` & `EntryChip` ([`components/ui/tactile/entry-chip.tsx`](file:///Users/marqlott/desktop/mailpilot/components/ui/tactile/entry-chip.tsx), [`meta-chip.tsx`](file:///Users/marqlott/desktop/mailpilot/components/ui/tactile/meta-chip.tsx)):** Reusable tactile badge pill providing subtle border treatment, rounded corner aesthetics, and optical spacing for temporal metadata across Master Profile work history, education dates, honors, and account watch history IDs (`account.historyId`).
+- **`NumericField` ([`components/ui/tactile/numeric-field.tsx`](file:///Users/marqlott/desktop/mailpilot/components/ui/tactile/numeric-field.tsx)):** Tactile numeric stepper with fluid boundary validation, direct input scrubbing, and animated increment/decrement controls.
+
+### Unified Right-of-Sidebar Flyout Coordination (`components/layout/`)
+MailPilot coordinates all secondary flyout surfaces through a shared, persistent drawer system ([`components/layout/sidebar-flyout-provider.tsx`](file:///Users/marqlott/desktop/mailpilot/components/layout/sidebar-flyout-provider.tsx), [`components/layout/sidebar-nav.tsx`](file:///Users/marqlott/desktop/mailpilot/components/layout/sidebar-nav.tsx)):
+- **Right-of-Sidebar Anchoring:** Unlike intrusive modal dialogs or popovers that overlay navigation controls and cause layout thrashing, `SidebarFlyout` panels anchor strictly to the right edge of the desktop sidebar. The navigation bar remains fully accessible and visually stable during inspection.
+- **Unified 4-Domain Lifecycle (`SidebarFlyoutId`):** Centralizes flyout state without competing overlays or race conditions:
+  1. `kind: "tab"`: Navigation tab sub-counts, filtering previews, and lifecycle statistics.
+  2. `kind: "quick"`: Quick actions drawer housing API key configuration (`api-keys-flyout.tsx`), Master Resume upload and text extraction (`resume-upload-flyout.tsx`), and Local Ollama tunnel setup (`ollama-flyout.tsx`).
+  3. `kind: "telemetry"`: Real-time background classifying queue inspector and sync status worker tracker (`classifying-flyout-status.tsx`).
+  4. `kind: "account"`: Unified account options flyout (`account-switcher.tsx`) displaying linked candidate mailboxes, watch history ID pills (`DateChip`), and account settings actions.
 
 ---
 
@@ -1306,7 +1320,7 @@ When multi-page documents transition across the page seam, slicing mid-role leav
    - **Reactive Role Grouping:** If dynamic DOM height measurement causes a bullet to overflow, the partitioner pulls the parent header and all preceding bullets of that role forward onto the new page rather than slicing mid-role.
 3. **Clamping Parity (`clampPdfContentToPhysicalCeiling`):**
    - Applies physical point budget clamping to `draft.nodes` during draft digest, guaranteeing that the web preview and PDF export receive the exact same projects and bullets.
-4. **Dispatched PDF Download Parity (`downloadTailoredPdfAction`):**
+4. **Dispatched PDF Download Parity (`compileResumeDocumentAction`):**
    - Directly renders the stored `tailoredResumeData.draft` using `renderDraftPdf`, guaranteeing that what the user reviewed in the drawer sheet is byte-for-byte identical to the downloaded PDF.
 
 ---
@@ -1421,7 +1435,7 @@ MailPilot extends its career telemetry pipeline directly into the candidate's br
 | **Scraping & Parsing** | **Custom AST & JSON Parsers** | Schema.org JSON-LD, Nuxt 3 AST, Semantic DOM | Anti-bot spec extraction, Nuxt state un-flattening, LinkedIn Guest API, HasData/ScrapingAnt proxies. |
 | **Logging & Telemetry** | **Pino & TableLogger** | Pino v10 + 66-col ASCII | Structured JSON logging in production; formatted ASCII telemetry in dev. |
 | **Browser Extension** | **Mail Pilot + Companion** | Chrome MV3 · React 19 + Vite 8 | Native Side Panel API, client-side listing extraction, real-time tailoring, and pagination engine. |
-| **Testing** | **Vitest** | v4.1 (Zero-Token Mocks) | Deterministic, offline unit and integration test suite (677+ tests passing). |
+| **Testing** | **Vitest** | v4.1 (Zero-Token Mocks) | Deterministic, offline unit and integration test suite (1,012+ tests passing). |
 
 ---
 
@@ -1431,7 +1445,7 @@ MailPilot extends its career telemetry pipeline directly into the candidate's br
 MailPilot maintains a comprehensive, zero-token test suite using **Vitest**. All tests execute completely offline without network calls or live database dependencies:
 
 ```bash
-# Run the complete test suite (51 test files, 677+ tests)
+# Run the complete test suite (83 test files, 1,012+ tests)
 npx vitest run
 
 # Run tests in interactive watch mode
@@ -1442,61 +1456,94 @@ npx tsc --noEmit
 ```
 
 ```text
- ✓ lib/ai/__tests__/classification-normalizer.test.ts (16 tests)
- ✓ lib/ai/__tests__/email-cleaner.test.ts (12 tests)
+ ✓ app/actions/__tests__/settings.test.ts (10 tests)
+ ✓ app/api/account/sync-status/__tests__/route.test.ts (3 tests)
+ ✓ app/api/login-background/__tests__/route.test.ts (6 tests)
+ ✓ app/api/ollama/verify/__tests__/route.test.ts (5 tests)
+ ✓ components/features/settings/accounts/__tests__/accounts-card.test.ts (1 test)
+ ✓ components/features/settings/feature-flags/__tests__/feature-flags-card.test.ts (3 tests)
+ ✓ components/layout/__tests__/account-switcher.test.ts (2 tests)
+ ✓ components/layout/__tests__/global-sync-tracker.test.ts (5 tests)
+ ✓ components/layout/__tests__/sidebar-nav.test.ts (2 tests)
+ ✓ components/ui/composites/__tests__/bulk-actions-flyout.test.ts (4 tests)
+ ✓ components/ui/composites/__tests__/dynamic-status-pill.test.ts (6 tests)
+ ✓ components/ui/composites/__tests__/tactile-toast-item.test.ts (5 tests)
+ ✓ components/ui/composites/__tests__/tactile-toast-stack.test.ts (5 tests)
+ ✓ components/ui/tactile/__tests__/numeric-field.test.ts (5 tests)
+ ✓ hooks/__tests__/use-dynamic-status-slot.test.ts (6 tests)
+ ✓ hooks/__tests__/use-tactile-toasts.test.ts (7 tests)
+ ✓ lib/ai/__tests__/classification-normalizer.test.ts (24 tests)
+ ✓ lib/ai/__tests__/email-cleaner.test.ts (6 tests)
+ ✓ lib/ai/__tests__/embedding-registry.test.ts (29 tests)
  ✓ lib/ai/__tests__/llm-ratelimit.test.ts (4 tests)
  ✓ lib/ai/__tests__/llm-vault.test.ts (15 tests)
  ✓ lib/ai/__tests__/local-ollama-circuit.test.ts (18 tests)
  ✓ lib/ai/__tests__/prefilter.test.ts (29 tests)
- ✓ lib/ai/__tests__/salary.test.ts (14 tests)
+ ✓ lib/ai/__tests__/salary.test.ts (16 tests)
+ ✓ lib/ai/__tests__/semantic-crossover.test.ts (12 tests)
+ ✓ lib/ai/__tests__/transferable-skills.test.ts (12 tests)
+ ✓ lib/ai/__tests__/vector-math.test.ts (21 tests)
+ ✓ lib/config/__tests__/features.config.test.ts (9 tests)
  ✓ lib/core/__tests__/account-encryption.test.ts (7 tests)
+ ✓ lib/core/__tests__/auth.test.ts (7 tests)
  ✓ lib/core/__tests__/crypto.test.ts (2 tests)
+ ✓ lib/core/__tests__/feature-flags-e2e.test.ts (13 tests)
+ ✓ lib/core/__tests__/feature-flags.test.ts (29 tests)
  ✓ lib/core/__tests__/ratelimit.test.ts (9 tests)
  ✓ lib/core/__tests__/ssrf.test.ts (3 tests)
  ✓ lib/document/__tests__/experience-heading.test.ts (4 tests)
  ✓ lib/document/__tests__/pdf-spacing-render.test.ts (1 test)
  ✓ lib/github/__tests__/github-metrics.test.ts (8 tests)
  ✓ lib/github/__tests__/github-sync.test.ts (80 tests)
- ✓ lib/logging/__tests__/table-logger.test.ts (15 tests)
+ ✓ lib/gmail/__tests__/ingestion-shadow.test.ts (2 tests)
+ ✓ lib/logging/__tests__/shadow-telemetry.test.ts (4 tests)
+ ✓ lib/logging/__tests__/table-logger.test.ts (19 tests)
  ✓ lib/matching/__tests__/matching.test.ts (8 tests)
+ ✓ lib/matching/__tests__/resolver.test.ts (11 tests)
  ✓ lib/opportunities/context/__tests__/dom-extractor.test.ts (22 tests)
  ✓ lib/opportunities/context/__tests__/hasdata.test.ts (6 tests)
- ✓ lib/opportunities/context/__tests__/html-markdown.test.ts (10 tests)
- ✓ lib/opportunities/context/__tests__/job-context.test.ts (28 tests)
+ ✓ lib/opportunities/context/__tests__/html-markdown.test.ts (9 tests)
+ ✓ lib/opportunities/context/__tests__/job-context.test.ts (29 tests)
  ✓ lib/opportunities/context/__tests__/json-ld.test.ts (53 tests)
- ✓ lib/opportunities/context/__tests__/section-classifier.test.ts (14 tests)
- ✓ lib/opportunities/sync/__tests__/jobleads-flow.test.ts (6 tests)
- ✓ lib/opportunities/sync/__tests__/jobleads.test.ts (5 tests)
+ ✓ lib/opportunities/context/__tests__/section-classifier.test.ts (5 tests)
+ ✓ lib/opportunities/sync/__tests__/jobleads-flow.test.ts (11 tests)
+ ✓ lib/opportunities/sync/__tests__/jobleads.test.ts (4 tests)
  ✓ lib/persona/__tests__/persona.test.ts (3 tests)
  ✓ lib/profile/__tests__/deduplication.test.ts (43 tests)
  ✓ lib/profile/__tests__/dev-resume-cache.test.ts (3 tests)
  ✓ lib/profile/__tests__/master-profile-export.test.ts (4 tests)
  ✓ lib/profile/__tests__/persistent-profile.test.ts (7 tests)
- ✓ lib/profile/__tests__/resume-cached-versions.test.ts (5 tests)
- ✓ lib/profile/__tests__/resume-reconciliation-run.test.ts (10 tests)
- ↓ lib/profile/__tests__/temp-resume-llm-audit.test.ts (1 test | 1 skipped)
+ ↓ lib/profile/__tests__/resume-cached-versions.test.ts (0 tests | 5 skipped)
+ ✓ lib/profile/__tests__/resume-reconciliation-run.test.ts (4 tests)
+ ↓ lib/profile/__tests__/temp-resume-llm-audit.test.ts (0 tests | 1 skipped)
  ✓ lib/resume-draft/__tests__/resume-draft-sheet-pagination.test.ts (7 tests)
  ✓ lib/resume-draft/__tests__/resume-draft.test.ts (56 tests)
+ ✓ lib/scraping/__tests__/dispatcher.test.ts (11 tests)
  ✓ lib/scraping/__tests__/hasdata-usage.test.ts (9 tests)
  ✓ lib/scraping/__tests__/scrapingant.test.ts (6 tests)
- ✓ lib/tailor/__tests__/tailor.test.ts (28 tests)
+ ✓ lib/services/__tests__/application-dispatch.service.test.ts (2 tests)
+ ✓ lib/services/__tests__/settings-rules.service.test.ts (10 tests)
+ ✓ lib/services/__tests__/shadow-evaluation.service.test.ts (22 tests)
+ ✓ lib/tailor/__tests__/mode-b-synthesis.test.ts (11 tests)
+ ✓ lib/tailor/__tests__/tailor.test.ts (22 tests)
  ✓ lib/utils/__tests__/bridge-scripts.test.ts (2 tests)
  ✓ lib/utils/__tests__/company-logo.test.ts (11 tests)
- ✓ lib/utils/__tests__/format-distance.test.ts (7 tests)
+ ✓ lib/utils/__tests__/format-distance.test.ts (5 tests)
  ✓ lib/utils/__tests__/format-status-pill.test.ts (4 tests)
- ✓ lib/utils/__tests__/location.test.ts (9 tests)
- ✓ lib/utils/extension/__tests__/extension-api.test.ts (12 tests)
- ✓ lib/utils/extension/__tests__/extractor.test.ts (18 tests)
- ✓ lib/utils/navigation/__tests__/page-tabs.test.ts (11 tests)
- ✓ lib/utils/navigation/__tests__/settings-accordion.test.ts (6 tests)
- ✓ lib/utils/ui/__tests__/ui-preferences.test.ts (18 tests)
- ✓ app/api/account/sync-status/__tests__/route.test.ts (4 tests)
- ✓ app/api/login-background/__tests__/route.test.ts (6 tests)
- ✓ app/api/ollama/verify/__tests__/route.test.ts (5 tests)
+ ✓ lib/utils/__tests__/location.test.ts (13 tests)
+ ✓ lib/utils/extension/__tests__/extension-api.test.ts (14 tests)
+ ✓ lib/utils/extension/__tests__/extractor.test.ts (19 tests)
+ ✓ lib/utils/navigation/__tests__/page-tabs.test.ts (18 tests)
+ ✓ lib/utils/navigation/__tests__/settings-accordion.test.ts (9 tests)
+ ✓ lib/utils/ui/__tests__/toast-format.test.ts (6 tests)
+ ✓ lib/utils/ui/__tests__/ui-preferences.test.ts (19 tests)
+ ✓ lib/validations/__tests__/feature-flags.schema.test.ts (33 tests)
+ ✓ lib/validations/__tests__/rules.schema.test.ts (23 tests)
 
-Test Files  50 passed | 1 skipped (51)
-     Tests  677 passed | 6 skipped (683)
-  Duration  12.28s
+Test Files  82 passed | 1 skipped (83)
+     Tests  1012 passed | 6 skipped (1018)
+  Duration  12.55s
+```
 ```
 
 ### Next.js Production Build & Static Page Generation

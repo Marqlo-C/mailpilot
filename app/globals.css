@@ -161,32 +161,52 @@ html[data-mp-toolbar="dark"] [data-mp-toolbar-divider] {
 html[data-mp-toolbar="dark"] [data-mp-toolbar-unit] {
   color: rgb(228 247 243 / 0.65) !important;
 }
-/* Search field: border only — no inset fill that reads as a strip under trailing icons. */
+/* Search field & numeric fields: static background matches sidebar inputs (#282c30) */
 html[data-mp-toolbar="dark"] [data-mp-toolbar-field] {
-  background-color: transparent !important;
+  background-color: #282c30 !important;
   border-color: rgb(255 255 255 / 0.12) !important;
   color: rgb(228 247 243 / 0.8) !important;
   box-shadow: none !important;
 }
-html[data-mp-toolbar="dark"] [data-mp-toolbar] input:not([type="range"]):not([type="checkbox"]),
+html[data-mp-toolbar="dark"] [data-mp-toolbar] input:not([type="range"]):not([type="checkbox"]):not([data-mp-toolbar-field] input),
 html[data-mp-toolbar="dark"] [data-mp-toolbar] select {
-  background-color: transparent !important;
+  background-color: #282c30 !important;
   border-color: rgb(255 255 255 / 0.12) !important;
   color: #e4f7f3 !important;
   box-shadow: none !important;
 }
-/* Unchecked select box = same chrome as the % number pill (not light card fill). */
-html[data-mp-toolbar="dark"] [data-mp-toolbar] .mp-select-checkbox {
-  background-color: transparent !important;
-  border-color: rgb(255 255 255 / 0.12) !important;
+/* Checkbox filters: static background matches sidebar inputs (#282c30) */
+html[data-mp-toolbar="dark"] [data-mp-toolbar] .mp-select-checkbox,
+html[data-mp-toolbar="dark"] [data-mp-toolbar] input[type="checkbox"] {
+  background-color: #282c30 !important;
+  border-color: rgb(255 255 255 / 0.18) !important;
 }
-html[data-mp-toolbar="dark"] [data-mp-toolbar] .mp-select-checkbox:checked {
+html[data-mp-toolbar="dark"] [data-mp-toolbar] .mp-select-checkbox:checked,
+html[data-mp-toolbar="dark"] [data-mp-toolbar] input[type="checkbox"]:checked {
   background-color: #1ab5af !important;
   border-color: #1ab5af !important;
+}
+/* Dropdown trigger boxes in toolbar & meta row (Show dropdown, Sort, Filter): solid #282c30 */
+html[data-mp-toolbar="dark"] [data-mp-toolbar] button[data-state]:not([data-mp-toolbar-field] button),
+html[data-mp-toolbar="dark"] [data-mp-toolbar-meta] button[data-state] {
+  background-color: #282c30 !important;
+  border-color: rgb(255 255 255 / 0.12) !important;
+  color: #e4f7f3 !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar] button[data-state]:not([data-mp-toolbar-field] button):hover,
+html[data-mp-toolbar="dark"] [data-mp-toolbar-meta] button[data-state]:hover {
+  background-color: #353a40 !important;
+  color: #e4f7f3 !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar] button[data-state="open"]:not([data-mp-toolbar-field] button),
+html[data-mp-toolbar="dark"] [data-mp-toolbar-meta] button[data-state="open"] {
+  background-color: hsl(var(--sidebar-highlight)) !important;
+  color: #e4f7f3 !important;
 }
 html[data-mp-toolbar="dark"] [data-mp-toolbar-field] input {
   background-color: transparent !important;
   border-color: transparent !important;
+  color: #e4f7f3 !important;
 }
 html[data-mp-toolbar="dark"] [data-mp-toolbar] input::placeholder {
   color: rgb(228 247 243 / 0.4) !important;
@@ -199,22 +219,38 @@ html[data-mp-toolbar="dark"] [data-mp-toolbar] option {
 html[data-mp-toolbar="dark"] [data-mp-toolbar] :is(.size-3, .size-4):where(svg) {
   color: rgb(228 247 243 / 0.55);
 }
-/* Ghost trailing actions: no pill fill at rest (avoids backfill under the icon cluster). */
-html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button {
-  background-color: transparent !important;
+/* Dark buttons in the searchbar: match sidebar check connection button (bg-white/10 at rest, bg-white/20 on hover) */
+html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button:not([role="group"] button) {
+  background-color: rgb(255 255 255 / 0.1) !important;
+  color: rgb(228 247 243 / 0.8) !important;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button:not([role="group"] button):hover {
+  background-color: rgb(255 255 255 / 0.2) !important;
   color: #e4f7f3 !important;
 }
-html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button:hover {
-  background-color: hsl(var(--sidebar-highlight)) !important;
+html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button:not([role="group"] button)[aria-expanded="true"] {
+  background-color: rgb(255 255 255 / 0.2) !important;
   color: #e4f7f3 !important;
 }
-html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button[aria-expanded="true"] {
-  background-color: hsl(var(--sidebar-highlight)) !important;
-  color: #e4f7f3 !important;
-}
-html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button[aria-pressed="true"] {
+html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button:not([role="group"] button)[aria-pressed="true"] {
   background-color: hsl(var(--destructive) / 0.25) !important;
   color: hsl(var(--destructive)) !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button:not([role="group"] button) svg {
+  color: inherit !important;
+}
+/* Numeric field compact steppers in dark toolbar */
+html[data-mp-toolbar="dark"] [data-mp-toolbar-field] [role="group"] {
+  background-color: rgb(255 255 255 / 0.1) !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar-field] [role="group"] button {
+  background-color: transparent !important;
+  color: rgb(228 247 243 / 0.8) !important;
+}
+html[data-mp-toolbar="dark"] [data-mp-toolbar-field] [role="group"] button:hover {
+  background-color: rgb(255 255 255 / 0.2) !important;
+  color: #e4f7f3 !important;
 }
 
 /*
@@ -393,6 +429,36 @@ html[data-mp-toolbar="dark"] [data-mp-toolbar-field] button[aria-pressed="true"]
   100% {
     transform: translateX(var(--mp-inward, 0px));
   }
+}
+
+@keyframes mp-toast-dock {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.mp-toast-dock {
+  animation: mp-toast-dock 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes mp-toast-exit {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.92) translateY(6px);
+  }
+}
+
+.mp-toast-exit {
+  animation: mp-toast-exit 180ms cubic-bezier(0.33, 1, 0.68, 1) both;
 }
 
 .mp-flyout-pop {

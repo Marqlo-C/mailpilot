@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 import { updateRule } from "@/app/actions/settings";
 import { SETTINGS_CARD_CLASSNAME } from "@/lib/utils/navigation/settings-chrome";
@@ -143,7 +144,7 @@ export function OutboundTailoringCard({
     startTransition(async () => {
       const res = await updateRule(accountId, key, val);
       if (!res.ok) {
-        toast.error(res.error);
+        toast.error(formatToastError(res.error));
         return;
       }
       router.refresh();
@@ -154,9 +155,7 @@ export function OutboundTailoringCard({
     setEnableAiTailoringDefaults(checked);
     patchRule("enableAiTailoringDefaults", checked);
     toast.success(
-      checked
-        ? "AI Resume Tailoring enabled"
-        : "Custom tailoring controls restored"
+      checked ? "AI Tailoring enabled" : "Custom tailoring restored"
     );
   }
 
@@ -211,9 +210,7 @@ export function OutboundTailoringCard({
               setInventMetrics(val);
               patchRule("inventMetrics", val);
               toast.success(
-                val
-                  ? "Smart metric estimates enabled"
-                  : "Verified facts enabled"
+                val ? "Smart metrics on" : "Verified facts only"
               );
             }}
           />
@@ -230,8 +227,8 @@ export function OutboundTailoringCard({
               patchRule("contentInclusionMode", mode);
               toast.success(
                 mode === "AI_OPTIMAL"
-                  ? "Role-targeted highlights enabled"
-                  : "Manual content selection enabled"
+                  ? "Targeted highlights on"
+                  : "Manual highlights on"
               );
             }}
           />
@@ -248,8 +245,8 @@ export function OutboundTailoringCard({
               patchRule("sectionOrderingMode", mode);
               toast.success(
                 mode === "AI_OPTIMAL"
-                  ? "Dynamic section ordering enabled"
-                  : "Manual ordering enabled"
+                  ? "Dynamic section order"
+                  : "Manual section order"
               );
             }}
           />
@@ -266,10 +263,10 @@ export function OutboundTailoringCard({
               patchRule("targetPageBudget", budget);
               toast.success(
                 budget === "auto"
-                  ? "Automatic page length enabled"
+                  ? "Page limit: Auto"
                   : budget === "1"
-                    ? "Strict 1-page limit set"
-                    : "Strict 2-page limit set"
+                    ? "Page limit: 1 page"
+                    : "Page limit: 2 pages"
               );
             }}
           />
@@ -300,7 +297,7 @@ export function OutboundTailoringCard({
           const next = { ...visibility, [key]: val };
           setVisibility(next);
           patchRule("canonicalSectionVisibility", next);
-          toast.success(`Updated selection for ${key}`);
+          toast.success("Section updated");
         }}
       />
     </div>

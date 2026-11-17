@@ -17,25 +17,32 @@ import {
   useFlyoutPresence,
 } from "@/components/ui/composites/bulk-actions-flyout";
 import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
+import { TactileToastStack } from "@/components/ui/composites/tactile-toast-stack";
+import { useTactileToasts } from "@/hooks/use-tactile-toasts";
 import { cn } from "@/lib/utils";
 
 /**
- * Standalone sort/review flyout — status pill + cancel.
- * On multiselect: leave fully first, then the selection bar mounts.
- * On clear selection: selection leaves fully first, then this remounts.
+ * Global primary bottom status slot host.
+ * Coordinates background sync telemetry and stacked toast notifications.
+ * On multiselect: leaves first, yielding the bottom bar to selection actions.
+ * On clear selection: multiselect leaves first, then this remounts.
  */
 export function GlobalSyncTracker() {
   const bulkOpen = useBulkActionsOpen();
   const { selectionRequested, setSyncTrackerMounted } = useBulkActionsHandoff();
-  const visible = useClassifyingFlyoutVisible();
+  const isSyncVisible = useClassifyingFlyoutVisible();
   const { isSyncing, justFinished, syncKind, forceReset } = useSyncStatus();
-  const open = visible && !selectionRequested && !bulkOpen;
+  const { toasts, dismissToast, completeExit, pauseAll, resumeAll } =
+    useTactileToasts();
+
+  const hasSync = isSyncVisible;
+  const hasToasts = toasts.length > 0;
+  const open = (hasSync || hasToasts) && !selectionRequested && !bulkOpen;
   const { mounted, phase, style, onAnimationEnd } = useFlyoutPresence(open);
-  // Yielding to multiselect — purpose-built shorter leave (not a time-ramp).
+
+  // Yielding to multiselect — purpose-built shorter leave
   const retractFast = phase === "out" && selectionRequested;
-  // Keep the X through leave so exit is slide+fold, not only-child compress.
-  // One effect: never clear on the pre-mount frame while sync is already active
-  // (that race left Ace reviewing with no X for the whole run).
+
   const [showCancel, setShowCancel] = useState(false);
   useEffect(() => {
     if (isSyncing || justFinished) {
@@ -55,15 +62,19 @@ export function GlobalSyncTracker() {
       ? "Stop reviewing — remaining emails stay awaiting Ace"
       : "Stop sorting — remaining emails stay awaiting Ace";
 
+  const ariaLabel = hasToasts
+    ? "Notification status"
+    : syncKind === "queued"
+    ? "Ace queue review status"
+    : "Inbox sort status";
+
   if (!mounted || typeof document === "undefined") return null;
 
   return createPortal(
     <aside
       role="status"
       aria-live="polite"
-      aria-label={
-        syncKind === "queued" ? "Ace queue review status" : "Inbox sort status"
-      }
+      aria-label={ariaLabel}
       data-dnd-ignore
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
@@ -79,8 +90,26 @@ export function GlobalSyncTracker() {
         style={style}
         onAnimationEnd={onAnimationEnd}
       >
-        <div className={cn("mp-flyout-chunk", BULK_FLYOUT_PILL_CLASSNAME)}>
-          <ClassifyingFlyoutStatus linger={phase === "out"} />
+        <div className="mp-flyout-chunk shrink-0">
+          <TactileToastStack
+            toasts={toasts}
+            onDismiss={dismissToast}
+            onCompleteExit={completeExit}
+            onPause={pauseAll}
+            onResume={resumeAll}
+            underlay={
+              hasSync ? (
+                <div
+                  className={cn(
+                    BULK_FLYOUT_PILL_CLASSNAME,
+                    "mp-flyout-chunk flex h-11 w-full min-w-0 items-center justify-center px-3"
+                  )}
+                >
+                  <ClassifyingFlyoutStatus linger={phase === "out"} />
+                </div>
+              ) : undefined
+            }
+          />
         </div>
 
         {showCancel ? (
@@ -89,7 +118,6 @@ export function GlobalSyncTracker() {
               onCancel={() => void forceReset()}
               title={stopTitle}
               spinMs={600}
-              // Don't disable — disabled:opacity makes the X go clear on sync end / leave.
               className={cn(
                 BULK_FLYOUT_CANCEL_CLASSNAME,
                 !isSyncing && "pointer-events-none"

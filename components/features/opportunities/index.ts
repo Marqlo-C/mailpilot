@@ -1,6 +1,5 @@
 export * from "./views/opportunities-view";
 export * from "./cards/opportunity-card";
-export * from "./drawer/ats-handoff-drawer";
 export * from "./drawer/resume-draft-sheet";
 export * from "./dialogs/opportunity-draft-dialog";
 export * from "./dialogs/draft-review-dialog";

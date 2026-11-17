@@ -34,6 +34,7 @@ import {
   useTaskAbortManager,
 } from "@/hooks/use-task-abort-manager";
 import { downloadBase64File } from "@/hooks/use-draft-pdf";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 export const TASK_RESUME = "resume-generation";
 export const TASK_EMAIL_REFINE = "email-refine";
@@ -144,7 +145,9 @@ export function useOpportunityDraftFlow({
 
       if (!draftResult.ok || !draftResult.data) {
         setError(draftResult.ok ? "Empty draft" : draftResult.error);
-        toast.error(draftResult.ok ? "Empty draft" : draftResult.error);
+        toast.error(
+          draftResult.ok ? "Empty draft" : formatToastError(draftResult.error)
+        );
       } else {
         setSubject(draftResult.data.subject);
         setBody(draftResult.data.body);
@@ -197,7 +200,9 @@ export function useOpportunityDraftFlow({
     if (!opportunity) return;
     const result = await run();
     if (!result.ok || !result.data) {
-      toast.error(result.ok ? "Empty resume" : result.error);
+      toast.error(
+        result.ok ? "Empty resume" : formatToastError(result.error)
+      );
       return;
     }
     applyResumeResult(result.data);
@@ -225,19 +230,21 @@ export function useOpportunityDraftFlow({
         if (!result.ok || !result.data) {
           const message = result.ok ? "Empty resume" : result.error;
           setResumeError(message);
-          toast.error(message);
+          toast.error(
+            result.ok ? "Empty resume" : formatToastError(result.error)
+          );
           return;
         }
         applyResumeResult(result.data);
         toast.success(
-          wasRegenerate ? "Resume regenerated" : "Tailored resume generated"
+          wasRegenerate ? "Resume regenerated" : "Resume generated"
         );
       } catch (error) {
         if (isAbortError(error) || signal.aborted) return;
         const message =
           error instanceof Error ? error.message : "Failed to generate resume";
         setResumeError(message);
-        toast.error(message);
+        toast.error(formatToastError(error, "Failed to generate resume"));
       } finally {
         finishTask(TASK_RESUME, signal);
         setResumeAction((current) =>
@@ -267,7 +274,9 @@ export function useOpportunityDraftFlow({
         );
         if (signal.aborted) return;
         if (!result.ok || !result.data) {
-          toast.error(result.ok ? "Empty resume" : result.error);
+          toast.error(
+            result.ok ? "Empty resume" : formatToastError(result.error)
+          );
           return;
         }
         applyResumeResult(result.data);
@@ -275,9 +284,7 @@ export function useOpportunityDraftFlow({
         toast.success("Resume refined");
       } catch (error) {
         if (isAbortError(error) || signal.aborted) return;
-        toast.error(
-          error instanceof Error ? error.message : "Failed to refine resume"
-        );
+        toast.error(formatToastError(error, "Failed to refine resume"));
       } finally {
         finishTask(TASK_RESUME, signal);
         setResumeAction((current) => (current === "refine" ? null : current));
@@ -295,11 +302,11 @@ export function useOpportunityDraftFlow({
           continue;
         }
         if (next.length >= 10) {
-          toast.error("You can attach up to 10 extra files");
+          toast.error("Max 10 files allowed");
           break;
         }
         if (file.size > 10 * 1024 * 1024) {
-          toast.error(`${file.name} is larger than 10MB`);
+          toast.error("File exceeds 10MB limit");
           continue;
         }
         next.push(file);
@@ -316,7 +323,7 @@ export function useOpportunityDraftFlow({
   function persistThen(action: "gmail-draft" | "send") {
     if (!opportunity) return;
     if (action === "send" && attachResume && !resume?.pdfBase64) {
-      toast.error("Generate a tailored resume first, or turn off attach.");
+      toast.error("Generate resume or detach PDF");
       return;
     }
     startTransition(async () => {
@@ -326,7 +333,7 @@ export function useOpportunityDraftFlow({
         recipientEmail: recipient,
       });
       if (!saved.ok) {
-        toast.error(saved.error);
+        toast.error(formatToastError(saved.error));
         return;
       }
 
@@ -358,7 +365,7 @@ export function useOpportunityDraftFlow({
         }
       );
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       toast.success(
@@ -381,7 +388,9 @@ export function useOpportunityDraftFlow({
         );
         if (signal.aborted) return;
         if (!result.ok || !result.data) {
-          toast.error(result.ok ? "Empty refine result" : result.error);
+          toast.error(
+            result.ok ? "Empty refine result" : formatToastError(result.error)
+          );
           return;
         }
         setSubject(result.data.subject);
@@ -399,9 +408,7 @@ export function useOpportunityDraftFlow({
           emailSnapshotRef.current = null;
           return;
         }
-        toast.error(
-          error instanceof Error ? error.message : "Failed to refine draft"
-        );
+        toast.error(formatToastError(error, "Failed to refine draft"));
       } finally {
         finishTask(TASK_EMAIL_REFINE, signal);
       }
@@ -420,7 +427,9 @@ export function useOpportunityDraftFlow({
         );
         if (signal.aborted) return;
         if (!result.ok || !result.data) {
-          toast.error(result.ok ? "Empty draft" : result.error);
+          toast.error(
+            result.ok ? "Empty draft" : formatToastError(result.error)
+          );
           return;
         }
         setSubject(result.data.subject);
@@ -441,9 +450,7 @@ export function useOpportunityDraftFlow({
           emailSnapshotRef.current = null;
           return;
         }
-        toast.error(
-          error instanceof Error ? error.message : "Failed to regenerate draft"
-        );
+        toast.error(formatToastError(error, "Failed to regenerate draft"));
       } finally {
         finishTask(TASK_EMAIL_DRAFT, signal);
       }
@@ -554,15 +561,15 @@ export function useOpportunityDraftFlow({
           );
           if (signal.aborted) return;
           if (!result.ok || !result.data) {
-            toast.error(result.ok ? "Empty resume" : result.error);
+            toast.error(
+              result.ok ? "Empty resume" : formatToastError(result.error)
+            );
             return;
           }
           applyResumeResult(result.data);
         } catch (error) {
           if (isAbortError(error) || signal.aborted) return;
-          toast.error(
-            error instanceof Error ? error.message : "Failed to refine line"
-          );
+          toast.error(formatToastError(error, "Failed to refine line"));
         } finally {
           finishTask(TASK_RESUME, signal);
         }
@@ -583,7 +590,9 @@ export function useOpportunityDraftFlow({
           );
           if (signal.aborted) return;
           if (!result.ok || !result.data) {
-            toast.error(result.ok ? "Empty resume" : result.error);
+            toast.error(
+              result.ok ? "Empty resume" : formatToastError(result.error)
+            );
             return;
           }
           if (format === "docx" && result.data.docxBase64) {
@@ -606,9 +615,7 @@ export function useOpportunityDraftFlow({
           toast.success("PDF exported");
         } catch (error) {
           if (isAbortError(error) || signal.aborted) return;
-          toast.error(
-            error instanceof Error ? error.message : "Failed to export resume"
-          );
+          toast.error(formatToastError(error, "Failed to export resume"));
         } finally {
           finishTask(TASK_RESUME, signal);
         }

@@ -30,6 +30,7 @@ import {
 import { downloadMasterProfile } from "@/components/features/profile/export-master-profile-button";
 import { tabRailInactiveTextClassName } from "@/components/ui/tactile/segmented-tabs";
 import { LabelTooltip } from "@/components/ui/tooltip";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -204,9 +205,7 @@ export function SidebarQuickActions({
     try {
       await downloadMasterProfile(accountId);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to export master profile PDF"
-      );
+      toast.error(formatToastError(err, "PDF export failed"));
     } finally {
       setExporting(false);
     }

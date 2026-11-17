@@ -144,7 +144,7 @@ export function BulkActionSection({
 type BulkActionsFlyoutProps = {
   selectedCount: number;
   onCancel: () => void;
-  children: ReactNode;
+  children?: ReactNode;
   /**
    * Optional second pill (e.g. Unsubscribe), separated from the main bar
    * the same way the clear control is.
@@ -164,6 +164,10 @@ type BulkActionsFlyoutProps = {
   onStopSync?: () => void;
   /** Label for stopping the active sync (e.g. Stop reviewing / Stop sorting). */
   stopSyncLabel?: string;
+  /** True when a notification toast is actively displaying alongside multiselect. */
+  toastActive?: boolean;
+  /** Callback to dismiss the active toast notification from the triad menu. */
+  onDismissToast?: () => void;
   className?: string;
   /** Accessible region label. */
   label?: string;
@@ -236,13 +240,9 @@ export function useFlyoutPresence(open: boolean) {
 
   useEffect(() => {
     if (open) {
-      // A leave already running must finish. Restarting here loops when the
-      // sliding edge passes back under a cursor held just outside.
       if (
         mountedRef.current &&
-        (phaseRef.current === "in" ||
-          phaseRef.current === "idle" ||
-          phaseRef.current === "out")
+        (phaseRef.current === "in" || phaseRef.current === "idle")
       ) {
         return;
       }
@@ -307,6 +307,8 @@ export function BulkActionsFlyout({
   syncActive = false,
   onStopSync,
   stopSyncLabel = "Stop sorting",
+  toastActive = false,
+  onDismissToast,
   className,
   label = "Bulk actions toolbar",
 }: BulkActionsFlyoutProps) {
@@ -332,6 +334,8 @@ export function BulkActionsFlyout({
     status,
     chooseOnCancel,
     stopLabel,
+    syncActive,
+    onStopSync,
   });
   if (selectedCount > 0) {
     lingerRef.current = {
@@ -340,6 +344,8 @@ export function BulkActionsFlyout({
       status,
       chooseOnCancel,
       stopLabel,
+      syncActive,
+      onStopSync,
     };
   }
   const shown = lingerRef.current;
@@ -431,12 +437,14 @@ export function BulkActionsFlyout({
                 >
                   Clear selection
                 </AppMenuItem>
-                <AppMenuItem
-                  className="h-9 rounded-xl px-3 text-[13px]"
-                  onSelect={() => onStopSync?.()}
-                >
-                  {shown.stopLabel}
-                </AppMenuItem>
+                {shown.syncActive && (
+                  <AppMenuItem
+                    className="h-9 rounded-xl px-3 text-[13px]"
+                    onSelect={() => shown.onStopSync?.()}
+                  >
+                    {shown.stopLabel}
+                  </AppMenuItem>
+                )}
               </AppMenuContent>
             </DropdownMenu>
           ) : (

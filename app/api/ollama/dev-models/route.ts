@@ -26,8 +26,8 @@ export async function POST() {
   const url = ollamaBaseUrlFromEnv();
   try {
     const probe = await probeOllamaTagsWithRetry(url, {
-      timeoutMs: 6_000,
-      attempts: 2,
+      timeoutMs: 2_500,
+      attempts: 1,
     });
 
     const account = await prisma.account.findUnique({

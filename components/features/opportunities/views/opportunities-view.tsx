@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import type { JobOpportunity } from "@prisma/client";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 import { markLessLikeThis } from "@/app/actions/opportunities";
 import { DragGhost } from "@/components/ui/dnd/drag-ghost";
@@ -150,10 +151,10 @@ export function OpportunitiesView({
     startBatch(async () => {
       const result = await markLessLikeThis(opp.id);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
-      toast.success(`Less like “${opp.title}” — dismissed`);
+      toast.success("Lead dismissed");
       router.refresh();
     });
   }
@@ -350,7 +351,7 @@ export function OpportunitiesView({
           movedIds
         );
         if (!result.ok) {
-          toast.error(result.error);
+          toast.error(formatToastError(result.error));
           return;
         }
         const message =

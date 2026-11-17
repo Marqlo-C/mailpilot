@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 import {
   Activity,
   AlertOctagon,
@@ -12,7 +13,12 @@ import {
 } from "lucide-react";
 
 import { toggleFeatureFlagAction } from "@/app/actions/settings";
-import { SettingsSectionCard } from "@/components/ui/tactile/nested-settings-card";
+import {
+  SettingsSectionCard,
+  SettingsFeatureCard,
+  SettingsStatusPill,
+} from "@/components/ui/tactile/nested-settings-card";
+import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { SETTINGS_CARD_CLASSNAME } from "@/lib/utils/navigation/settings-chrome";
 import { getEffectiveFeatureFlags } from "@/lib/core/feature-flags";
 import {
@@ -130,9 +136,54 @@ export function FeatureFlagsCard({
     return Object.values(killSwitches).filter(Boolean).length;
   }, [killSwitches]);
 
+  const storageKey = React.useMemo(
+    () => `mailpilot_dev_flags_accordion_${accountId ?? "default"}`,
+    [accountId]
+  );
+
+  const [expandedGroups, setExpandedGroups] = React.useState<
+    Record<string, boolean>
+  >(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (typeof parsed === "object" && parsed !== null) {
+            return parsed;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return {
+      ai_vector_engines: true,
+      platform_telemetry: true,
+      scraping_egress: true,
+    };
+  });
+
+  const toggleGroup = (id: string) => {
+    setExpandedGroups((prev) => {
+      const next = {
+        ...prev,
+        [id]: prev[id] === undefined ? false : !prev[id],
+      };
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+      }
+      return next;
+    });
+  };
+
   const handleToggle = (flagKey: FeatureFlagKey, nextVal: boolean) => {
     if (!accountId) {
-      toast.error("Connect an account to modify feature flags");
+      toast.error("Account required");
       return;
     }
 
@@ -148,7 +199,7 @@ export function FeatureFlagsCard({
 
       if (!res.success) {
         setOptimisticFlags((prev) => ({ ...prev, [flagKey]: previousVal }));
-        toast.error(res.error || "Failed to update feature flag");
+        toast.error(formatToastError(res.error, "Flag update failed"));
       } else {
         const flagDef = FEATURE_FLAGS_REGISTRY[flagKey];
         toast.success(
@@ -189,7 +240,7 @@ export function FeatureFlagsCard({
         </div>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-3.5">
         {activeKillSwitchCount > 0 ? (
           <div
             className="flex items-center gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 px-3.5 py-2.5 text-xs text-destructive"
@@ -220,23 +271,40 @@ export function FeatureFlagsCard({
 
           if (groupFlags.length === 0) return null;
 
-          return (
-            <div key={group.id} className="space-y-3">
-              <div className="flex items-center gap-2 border-b border-border/40 pb-2">
-                <GroupIcon
-                  className="size-4 shrink-0 text-primary/80"
-                  aria-hidden="true"
-                />
-                <div className="min-w-0">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-foreground">
-                    {group.title}
-                  </h4>
-                  <p className="text-[11px] text-muted-foreground">
-                    {group.description}
-                  </p>
-                </div>
-              </div>
+          const isAnyLocked = groupFlags.some((key) =>
+            Boolean(killSwitches?.[key])
+          );
+          const enabledCount = groupFlags.filter(
+            (key) =>
+              optimisticFlags[key] ?? FEATURE_FLAGS_REGISTRY[key]?.defaultValue
+          ).length;
+          const totalCount = groupFlags.length;
 
+          return (
+            <SettingsFeatureCard
+              key={group.id}
+              logo={<LogoFrameIcon icon={GroupIcon} />}
+              title={group.title}
+              subtitle={group.description}
+              statusBadge={
+                <SettingsStatusPill
+                  count={enabledCount}
+                  hasItems={enabledCount > 0}
+                  dotClassName={isAnyLocked ? "bg-rose-500" : undefined}
+                >
+                  {isAnyLocked
+                    ? "System locked"
+                    : enabledCount === totalCount
+                      ? "All active"
+                      : enabledCount > 0
+                        ? `${enabledCount}/${totalCount} active`
+                        : "Disabled"}
+                </SettingsStatusPill>
+              }
+              isExpanded={expandedGroups[group.id] ?? true}
+              onToggle={() => toggleGroup(group.id)}
+              curvedDivider
+            >
               <div className="space-y-2.5">
                 {groupFlags.map((key) => {
                   const definition = FEATURE_FLAGS_REGISTRY[key];
@@ -256,7 +324,7 @@ export function FeatureFlagsCard({
                   );
                 })}
               </div>
-            </div>
+            </SettingsFeatureCard>
           );
         })}
       </div>

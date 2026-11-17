@@ -6,6 +6,7 @@ import { History } from "lucide-react";
 import { toast } from "sonner";
 
 import { updateDismissedRetention } from "@/app/actions/settings";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { AppMenuSelect } from "@/components/ui/app-menu";
 import {
@@ -71,10 +72,10 @@ export function RetentionPolicyCard({
             startTransition(async () => {
               const result = await updateDismissedRetention(val);
               if (!result.ok) {
-                toast.error(result.error);
+                toast.error(formatToastError(result.error));
                 return;
               }
-              toast.success(`Dismissed jobs kept for ${val} days`);
+              toast.success(`Dismissed kept for ${val} days`);
               router.refresh();
             });
           }}

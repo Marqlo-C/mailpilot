@@ -134,16 +134,15 @@ export function ClassifyingFlyoutStatus({
   className,
   linger = false,
 }: ClassifyingFlyoutStatusProps) {
-  const {
-    isSyncing,
-    justFinished,
-    syncKind,
-    lastSyncProcessed,
-    totalToProcess,
-    lastSyncPendingProcessed,
-    syncPendingTotal,
-    opportunitiesAdded,
-  } = useSyncStatus();
+  const sync = useOptionalSyncStatus();
+  const isSyncing = sync?.isSyncing ?? false;
+  const justFinished = sync?.justFinished ?? false;
+  const syncKind = sync?.syncKind ?? null;
+  const lastSyncProcessed = sync?.lastSyncProcessed ?? null;
+  const totalToProcess = sync?.totalToProcess ?? null;
+  const lastSyncPendingProcessed = sync?.lastSyncPendingProcessed ?? null;
+  const syncPendingTotal = sync?.syncPendingTotal ?? null;
+  const opportunitiesAdded = sync?.opportunitiesAdded ?? null;
 
   const [showCount, setShowCount] = useState(false);
 
@@ -172,7 +171,7 @@ export function ClassifyingFlyoutStatus({
     if (justFinished) {
       const timer = setTimeout(() => {
         setShowCount(true);
-      }, 1300);
+      }, 1800);
       return () => clearTimeout(timer);
     }
     setShowCount(false);

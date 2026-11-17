@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 import {
   updateBridgeSecret,
@@ -397,14 +398,14 @@ export function AiModelsCard({
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-      toast.success("Ollama is already running on your machine!");
+      toast.success("Ollama is running");
       setCheckingLocalOllama(false);
       return;
     } catch {
       // Port 11434 is closed or not reachable, proceed to launch attempt
     }
 
-    toast.info("Checking for local Ollama installation…");
+    toast.info("Checking Ollama…");
 
     let appOpened = false;
     const handleBlur = () => {
@@ -428,7 +429,7 @@ export function AiModelsCard({
       try {
         await fetch("http://127.0.0.1:11434/api/version", { mode: "no-cors" });
         cleanup();
-        toast.success("Ollama desktop app launched and running!");
+        toast.success("Ollama launched");
       } catch {
         // Still booting
       }
@@ -437,7 +438,7 @@ export function AiModelsCard({
     fallbackTimer = setTimeout(() => {
       if (!appOpened && document.hasFocus()) {
         cleanup();
-        toast.info("Ollama not detected locally. Opening download page…");
+        toast.info("Opening Ollama download…");
         window.open("https://ollama.com/download", "_blank", "noreferrer");
       }
     }, 1800);
@@ -464,7 +465,7 @@ export function AiModelsCard({
     startTransition(async () => {
       const result = await updateBridgeSecret(accountId, next);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       setBridgeSecret(result.data?.bridgeSecret ?? "");
@@ -478,14 +479,14 @@ export function AiModelsCard({
     setBridgeSecret(next);
     persistSecret(
       next,
-      isRegen ? "Bridge secret regenerated" : "Bridge secret generated"
+      isRegen ? "Secret regenerated" : "Secret generated"
     );
   }
 
   async function copyOsCommand(os: "mac" | "win") {
     const command = os === "mac" ? macBridgeCommand : winBridgeCommand;
     if (!hasSecret || !accountEmail) {
-      toast.error("Generate a bridge secret first");
+      toast.error("Bridge secret required");
       return;
     }
     try {
@@ -494,7 +495,7 @@ export function AiModelsCard({
       window.setTimeout(() => setCopiedOsCommand(null), 1600);
       toast.success("Command copied");
     } catch {
-      toast.error("Could not copy to clipboard");
+      toast.error("Could not copy command");
     }
   }
 
@@ -537,13 +538,13 @@ export function AiModelsCard({
                   checked ? "LOCAL_OLLAMA" : "OPENROUTER"
                 );
                 if (!result.ok) {
-                  toast.error(result.error);
+                  toast.error(formatToastError(result.error));
                   return;
                 }
                 if (!checked) {
-                  toast.success("Local Ollama disabled (routed to Cloud AI)");
+                  toast.success("Routed to Cloud AI");
                 } else {
-                  toast.success("Local Ollama enabled");
+                  toast.success("Local Ollama active");
                 }
                 router.refresh();
               });
@@ -757,7 +758,7 @@ export function AiModelsCard({
                       } catch {
                         // ignore localStorage error
                       }
-                      toast.success(`Dev model set to ${next} (local only)`);
+                      toast.success(`Dev model: ${next}`);
                     }}
                   />
                 </div>

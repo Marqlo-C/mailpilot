@@ -36,7 +36,7 @@ export interface TactileToastRecord {
 
 const POP_DURATION_MS = 589;
 const RETRACT_DURATION_MS = 1050;
-const DEFAULT_LIFETIME_MS = 4000;
+const DEFAULT_LIFETIME_MS = 2500;
 
 function resolveNode(node: unknown): ReactNode {
   if (typeof node === "function") {
@@ -59,12 +59,17 @@ function getDuration(standardMs: number): number {
   return standardMs;
 }
 
+export interface UseTactileToastsOptions {
+  autoDismiss?: boolean;
+}
+
 /**
  * Bridges Sonner's reactive state engine with MailPilot's custom bottom flyout
  * animations. Buffers exiting toasts so `mp-flyout-retract` (1050ms) can complete
  * before removing the DOM elements, manages auto-dismiss timeouts, and supports hover pause.
  */
-export function useTactileToasts() {
+export function useTactileToasts(options?: UseTactileToastsOptions) {
+  const autoDismiss = options?.autoDismiss ?? true;
   const { toasts: sonnerToasts } = useSonner();
   const [displayedToasts, setDisplayedToasts] = useState<TactileToastRecord[]>([]);
   const timersRef = useRef<Map<string | number, NodeJS.Timeout>>(new Map());
@@ -190,7 +195,7 @@ export function useTactileToasts() {
           const updatedType = sonnerHit.type ?? "default";
 
           // If mutated in place from loading to success/error, start auto-dismiss timer
-          if (wasLoading && isNowLoaded) {
+          if (autoDismiss && wasLoading && isNowLoaded) {
             scheduleAutoDismiss(item.id, sonnerHit.duration);
           }
 
@@ -246,7 +251,7 @@ export function useTactileToasts() {
 
           timersRef.current.set(incoming.id, idleTimer);
 
-          if (toastType !== "loading") {
+          if (autoDismiss && toastType !== "loading") {
             scheduleAutoDismiss(incoming.id, incoming.duration);
           }
 

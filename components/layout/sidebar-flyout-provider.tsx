@@ -27,7 +27,8 @@ export type SidebarFlyoutId =
   | { kind: "telemetry" }
   | { kind: "keys" }
   | { kind: "resume" }
-  | { kind: "ollama" };
+  | { kind: "ollama" }
+  | { kind: "account" };
 
 type SidebarFlyoutContextValue = {
   open: SidebarFlyoutId | null;
@@ -217,10 +218,20 @@ export function SidebarFlyoutProvider({ children }: { children: ReactNode }) {
   );
 }
 
+const NOOP_FLYOUT_CONTEXT: SidebarFlyoutContextValue = {
+  open: null,
+  pinned: false,
+  isOpen: () => false,
+  openNow: () => {},
+  togglePinned: () => {},
+  scheduleOpen: () => {},
+  scheduleClose: () => {},
+  cancelScheduledOpen: () => {},
+  cancelScheduledClose: () => {},
+  closeNow: () => {},
+};
+
 export function useSidebarFlyout() {
   const ctx = useContext(SidebarFlyoutContext);
-  if (!ctx) {
-    throw new Error("useSidebarFlyout must be used within SidebarFlyoutProvider");
-  }
-  return ctx;
+  return ctx ?? NOOP_FLYOUT_CONTEXT;
 }

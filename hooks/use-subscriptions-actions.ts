@@ -24,6 +24,7 @@ import {
   resolveSubscriptionCardAction,
 } from "@/lib/subscriptions/movement-rules";
 import { runSubscriptionMove } from "@/lib/subscriptions/run-subscription-move";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 import type {
   ArchiveEntry,
   LatestBriefingProp,
@@ -165,7 +166,7 @@ export function useSubscriptionsActions({
       if (one) targets = [one];
     }
     if (targets.length === 0) {
-      toast.error("Those senders are no longer in Subscribed");
+      toast.error("Senders no longer subscribed");
       return;
     }
     setViewingBriefing(null);
@@ -210,17 +211,14 @@ export function useSubscriptionsActions({
         clearLocalBriefingsForSubscriptions(accountId, newSubIds);
         setLocalBriefings(listLocalBriefings(accountId));
 
-        toast.success(
-          `Snapshot sent to ${payload.digestSentTo ?? "your inbox"} · ${payload.processedCount ?? 0} cleaned`,
-          { id: toastId }
-        );
+        toast.success("Snapshot sent to inbox", { id: toastId });
         setBriefingOpen(false);
         setBriefingTargets([]);
         setSelectedIds([]);
         router.refresh();
       } catch (err) {
         toast.error(
-          err instanceof Error ? err.message : "Failed to create snapshot",
+          formatToastError(err, "Failed to create snapshot"),
           { id: toastId }
         );
       } finally {
@@ -264,7 +262,7 @@ export function useSubscriptionsActions({
         router.refresh();
       } catch (err) {
         toast.error(
-          err instanceof Error ? err.message : "Failed to delete snapshot",
+          formatToastError(err, "Failed to delete snapshot"),
           { id: toastId }
         );
       } finally {
@@ -284,7 +282,7 @@ export function useSubscriptionsActions({
     (ids: string[]) => {
       const resolved = resolveSubscriptionCardAction("active", "unsubscribe");
       if (resolved.kind === "forbidden") {
-        toast.error(resolved.description);
+        toast.error(formatToastError(resolved.description));
         return;
       }
       const unique = [...new Set(ids.filter(Boolean))];
@@ -322,14 +320,14 @@ export function useSubscriptionsActions({
       startTransition(async () => {
         const toastId =
           ids.length > 1
-            ? toast.loading(`Unsubscribing ${ids.length} sender(s)…`)
+            ? toast.loading(`Unsubscribing ${ids.length} senders…`)
             : undefined;
         const result = await runSubscriptionMove("unsubscribe", {
           subscriptionIds: ids,
           cleanup,
         });
         if (!result.ok) {
-          if (toastId) toast.error(result.error, { id: toastId });
+          if (toastId) toast.error(formatToastError(result.error), { id: toastId });
           else setError(result.error);
           return;
         }
@@ -337,7 +335,7 @@ export function useSubscriptionsActions({
         const failCount = result.data?.failed ?? 0;
         if (toastId) {
           if (failCount === 0) {
-            toast.success(`Unsubscribed ${okCount} sender(s)`, { id: toastId });
+            toast.success(`Unsubscribed ${okCount} senders`, { id: toastId });
           } else {
             toast.error(`Unsubscribed ${okCount}, failed ${failCount}`, {
               id: toastId,
@@ -356,7 +354,7 @@ export function useSubscriptionsActions({
     (entry: ArchiveEntry) => {
       const resolved = resolveSubscriptionCardAction("archive", "cleanup");
       if (resolved.kind === "forbidden") {
-        toast.error(resolved.description);
+        toast.error(formatToastError(resolved.description));
         return;
       }
       setCleanupPending(entry.key);
@@ -367,11 +365,11 @@ export function useSubscriptionsActions({
         });
         setCleanupPending(null);
         if (!result.ok) {
-          toast.error(result.error);
+          toast.error(formatToastError(result.error));
           return;
         }
         toast.success(
-          `Moved ${result.data?.count ?? 0} past email(s) to Trash`
+          `Moved ${result.data?.count ?? 0} to trash`
         );
         router.refresh();
       });
@@ -383,7 +381,7 @@ export function useSubscriptionsActions({
     if (!deleteRecordTarget) return;
     const resolved = resolveSubscriptionCardAction("archive", "delete_record");
     if (resolved.kind === "forbidden") {
-      toast.error(resolved.description);
+      toast.error(formatToastError(resolved.description));
       return;
     }
     const entry = deleteRecordTarget;
@@ -395,7 +393,7 @@ export function useSubscriptionsActions({
       });
       setDeleteRecordPending(false);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       if (entry.subscriptionId) {

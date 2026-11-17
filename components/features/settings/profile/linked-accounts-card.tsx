@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { updateLinkedAccounts } from "@/app/actions/profile";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 import {
   LINKED_ACCOUNT_FIELDS,
   LinkStatusPill,
@@ -61,7 +62,7 @@ export function LinkedAccountsCard({
       });
       if (!result.ok) {
         setError(result.error);
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       toast.success("Linked accounts saved");

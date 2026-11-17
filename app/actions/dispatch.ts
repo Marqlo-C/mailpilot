@@ -5,10 +5,8 @@ import { auth } from "@/lib/core/auth";
 import {
   countSendsToday,
   dispatchApplicationEmail,
-  generateApplicationPdfPayload,
   getApplicationForDispatch,
   getDailySendLimit,
-  markApplicationApplied,
   prepareApplicationDraft,
   refineApplicationDraft,
   updateApplicationLifecycleStatus,
@@ -316,24 +314,6 @@ export async function saveDraftEdits(
   }
 }
 
-export async function markPortalAsApplied(
-  applicationId: string
-): Promise<ServerActionResult<void>> {
-  const authGate = await checkAuthSession();
-  if (!authGate.success) return authGate;
-
-  const parsedId = idParamSchema.safeParse(applicationId);
-  if (!parsedId.success) return actionError(parsedId.error.issues[0]?.message ?? "Invalid application ID");
-
-  const ok = await markApplicationApplied(parsedId.data);
-  if (!ok) {
-    return actionError("Application not found");
-  }
-
-  revalidatePath("/jobs");
-  return actionSuccess(undefined);
-}
-
 export async function updateApplicationStatus(
   applicationId: string,
   status: string
@@ -359,25 +339,4 @@ export async function updateApplicationStatus(
 
   revalidatePath("/jobs");
   return actionSuccess(undefined);
-}
-
-export async function downloadTailoredPdfAction(
-  applicationId: string,
-  includeSummary = true
-): Promise<ServerActionResult<{ base64: string; filename: string }>> {
-  const authGate = await checkAuthSession();
-  if (!authGate.success) return authGate;
-
-  const parsedId = idParamSchema.safeParse(applicationId);
-  if (!parsedId.success) return actionError(parsedId.error.issues[0]?.message ?? "Invalid application ID");
-
-  const result = await generateApplicationPdfPayload(parsedId.data, includeSummary);
-  if (!result.ok) {
-    return actionError(result.error ?? "Failed to generate application PDF");
-  }
-
-  return actionSuccess({
-    base64: result.base64,
-    filename: result.filename,
-  });
 }

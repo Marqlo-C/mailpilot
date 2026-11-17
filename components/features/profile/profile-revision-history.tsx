@@ -9,6 +9,7 @@ import {
   RotateCcwClock,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 import { renameProfileRevision, type ProfileHistoryItem } from "@/app/actions/profile";
 import { Input } from "@/components/ui/input";
@@ -223,7 +224,7 @@ export function ProfileRevisionHistory({
     const result = await renameProfileRevision(accountId, item.id, next);
     if (!result.ok) {
       onChange(prior);
-      toast.error(result.error);
+      toast.error(formatToastError(result.error));
     }
   }
 

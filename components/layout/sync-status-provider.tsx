@@ -17,6 +17,7 @@ import {
   forceResetSyncStatus,
 } from "@/app/actions/email";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 import { SYNC_LOCK_STALE_MS } from "@/lib/core/constants";
 import { startSyncStatusBackoffPoll } from "@/lib/gmail/sync-status-poll";
 import {
@@ -300,7 +301,7 @@ export function SyncStatusProvider({
       syncKindRef.current = null;
       setSyncKind(null);
       setOpportunitiesAdded(null);
-    }, 4200);
+    }, 5800);
     return () => clearTimeout(timer);
   }, [justFinished]);
 
@@ -311,7 +312,7 @@ export function SyncStatusProvider({
     const result = await flushPendingAiMessages(accountId);
     if (!result.ok) {
       setPendingCount(previous);
-      toast.error(result.error);
+      toast.error(formatToastError(result.error));
       return false;
     }
     router.refresh();

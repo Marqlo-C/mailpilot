@@ -11,17 +11,16 @@ import {
   AlertTriangle,
   CheckCircle2,
   Info,
+  X,
 } from "lucide-react";
 
 import type { Action } from "sonner";
 
 import {
   BULK_ACTION_BTN_CLASSNAME,
-  BULK_FLYOUT_CANCEL_CLASSNAME,
   BULK_FLYOUT_PILL_CLASSNAME,
   BulkActionSeparator,
 } from "@/components/ui/composites/bulk-actions-flyout";
-import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
 import type {
   TactileToastRecord,
   TactileToastType,
@@ -37,6 +36,9 @@ export interface TactileToastItemProps {
   ) => void;
   style?: CSSProperties;
   className?: string;
+  showDismissButton?: boolean;
+  centerLabel?: boolean;
+  animateIn?: boolean;
 }
 
 function isSonnerAction(val: unknown): val is Action {
@@ -104,6 +106,9 @@ export function TactileToastItem({
   onAnimationEnd,
   style,
   className,
+  showDismissButton = true,
+  centerLabel = false,
+  animateIn = true,
 }: TactileToastItemProps) {
   const isExiting = toast.phase === "out";
   const isEntering = toast.phase === "in";
@@ -117,25 +122,48 @@ export function TactileToastItem({
       data-toast-phase={toast.phase}
       onAnimationEnd={(event) => onAnimationEnd?.(toast.id, event)}
       className={cn(
-        "flex origin-center flex-nowrap items-center gap-2.5",
-        isEntering && "mp-flyout-pop",
-        isExiting && "mp-flyout-retract",
+        "relative flex h-11 w-full min-w-0 max-w-[min(85vw,480px)] origin-center items-center overflow-visible",
+        animateIn && isEntering && "mp-flyout-pop",
+        !animateIn && isEntering && "mp-toast-dock",
+        isExiting && "mp-toast-exit",
         className
       )}
       style={style}
     >
+      {/* Upper-left compact dismiss button matching MailPilot UI (#282c30) */}
+      {showDismissButton ? (
+        <button
+          type="button"
+          aria-label="Close notification"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDismiss(toast.id);
+          }}
+          className="absolute -left-0.5 -top-0.5 z-40 flex size-3.5 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-[#282c30] text-[#e4f7f3]/75 shadow-sm transition-colors hover:bg-[#353a40] hover:text-[#e4f7f3] active:bg-[hsl(var(--sidebar-highlight))] before:absolute before:-inset-2 before:content-['']"
+        >
+          <X className="pointer-events-none size-2" strokeWidth={2.5} aria-hidden />
+        </button>
+      ) : null}
+
       {/* Main squircle toast pill */}
       <div
         className={cn(
-          "mp-flyout-chunk flex min-w-0 max-w-[min(85vw,480px)] items-center gap-2 px-3 text-[13px] font-medium tracking-normal text-[#e4f7f3]",
-          BULK_FLYOUT_PILL_CLASSNAME
+          BULK_FLYOUT_PILL_CLASSNAME,
+          "flex h-11 w-full min-w-0 items-center gap-2 px-3 text-[13px] font-medium tracking-normal text-[#e4f7f3]",
+          centerLabel && "justify-center"
         )}
       >
         <div className="flex shrink-0 items-center">
           <ToastTypeIcon type={toast.type} customIcon={toast.icon} />
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col justify-center leading-tight">
+        <div
+          className={cn(
+            "flex min-w-0 flex-col justify-center leading-tight",
+            centerLabel ? "items-center text-center" : "flex-1"
+          )}
+        >
           <span className="truncate whitespace-nowrap text-[#e4f7f3]">
             {toast.title}
           </span>
@@ -197,16 +225,6 @@ export function TactileToastItem({
             ) : null}
           </div>
         ) : null}
-      </div>
-
-      {/* Standalone circular dismiss button */}
-      <div className="mp-flyout-chunk shrink-0">
-        <CancelTaskButton
-          onCancel={() => onDismiss(toast.id)}
-          title="Dismiss notification"
-          spinMs={600}
-          className={BULK_FLYOUT_CANCEL_CLASSNAME}
-        />
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import { Plus, ShieldBan, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { addExcludedTitle, removeExcludedTitle } from "@/app/actions/settings";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import {
   SettingsFeatureCard,
@@ -43,11 +44,11 @@ export function ExcludedTitlesCard({
     startTransition(async () => {
       const result = await addExcludedTitle(accountId, title);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       setDraft("");
-      toast.success(`Excluded “${title}”`);
+      toast.success("Role excluded");
       router.refresh();
     });
   }
@@ -57,10 +58,10 @@ export function ExcludedTitlesCard({
     startTransition(async () => {
       const result = await removeExcludedTitle(accountId, title);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
-      toast.success(`Removed “${title}”`);
+      toast.success("Role restored");
       router.refresh();
     });
   }

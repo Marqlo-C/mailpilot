@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 import {
   applyResumeUpload,
@@ -183,29 +184,28 @@ export function ResumeUploadDialog({
 
     toast.promise(uploadPromise, {
       loading: forceReinfer
-        ? "Running fresh evaluation (bypassing all caches)..."
+        ? "Evaluating resume…"
         : overwriteAll
-          ? "Replacing your profile from this resume..."
+          ? "Replacing master profile…"
           : trimmedGithub
-            ? "Ingesting profile and GitHub data. You can navigate freely..."
-            : "Parsing and saving your profile...",
-      success: "Master profile successfully updated!",
-      error: (err) =>
-        err instanceof Error ? err.message : "Failed to process profile",
+            ? "Importing profile & GitHub…"
+            : "Parsing resume…",
+      success: "Master profile updated",
+      error: (err) => formatToastError(err, "Failed to process profile"),
     });
   }
 
   function onSyncGitHub() {
     const handle = githubInput.trim();
     if (!handle) {
-      toast.error("Enter a GitHub username or profile URL");
+      toast.error("Enter GitHub username or URL");
       return;
     }
 
     const devModel = getDevOllamaModelOverride();
 
     startTransition(async () => {
-      const toastId = toast.loading("Syncing GitHub repositories…");
+      const toastId = toast.loading("Syncing GitHub…");
       const result = await importGitHubProjects(
         accountId,
         handle,
@@ -213,13 +213,11 @@ export function ResumeUploadDialog({
         { forceRefresh: forceReinfer }
       );
       if (!result.ok) {
-        toast.error(result.error, { id: toastId });
+        toast.error(formatToastError(result.error), { id: toastId });
         return;
       }
       toast.success(
-        `Imported ${result.data?.imported ?? 0} GitHub project${
-          (result.data?.imported ?? 0) === 1 ? "" : "s"
-        }`,
+        `Imported ${result.data?.imported ?? 0} repos`,
         { id: toastId }
       );
       router.refresh();
@@ -232,7 +230,7 @@ export function ResumeUploadDialog({
       const toastId = toast.loading("Saving master profile…");
       const result = await saveMasterProfile(accountId, draft);
       if (!result.ok) {
-        toast.error(result.error, { id: toastId });
+        toast.error(formatToastError(result.error), { id: toastId });
         return;
       }
       toast.success("Master profile saved", { id: toastId });

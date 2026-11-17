@@ -1,36 +1,36 @@
 # ATS Handoff Drawer Removal Plan
 
-**Document Version:** 0.1.0 (initial)  
-**Status:** Draft — update after in-progress code refactor lands  
+**Document Version:** 1.0.0 (executed)  
+**Status:** Executed & Verified (Phase A & B complete; Phase C deferred)  
 **Scope:** Remove unreachable ATS Quick-Fill / portal handoff UI and its exclusive callers  
-**Out of scope (v0.1):** Opportunity `applicationType` taxonomy (`DIRECT_EMAIL` | `EXTERNAL_LINK` | `QUICK_APPLY`); DB migrations for legacy `JobApplication` string columns
+**Out of scope (v0.1 / v1.0):** Opportunity `applicationType` taxonomy (`DIRECT_EMAIL` | `EXTERNAL_LINK` | `QUICK_APPLY`); DB migrations for legacy `JobApplication` string columns
 
 ---
 
 ## 1. Why
 
 - Opportunity classification **no longer includes a portal class**. Cards use `DIRECT_EMAIL` / `EXTERNAL_LINK` / `QUICK_APPLY`.
-- `AtsHandoffDrawer` is mounted on Job Radar but **never opened** (`setPortalJob` is only used to clear).
-- Related server actions are **drawer-only** and safe to delete with the UI.
+- `AtsHandoffDrawer` was mounted on Job Radar but **never opened** (`setPortalJob` was only used to clear).
+- Related server actions were **drawer-only** and safe to delete with the UI.
 
-Estimated surface today: ~328 LOC (drawer ~182 + `markPortalAsApplied` ~27 + `downloadTailoredPdfAction` ~112 + Jobs Radar mount/state ~6 + barrel export).
+Total surface removed: 233 LOC deleted (drawer 185 LOC + `markPortalAsApplied` 18 LOC + `downloadTailoredPdfAction` 21 LOC + Jobs Radar mount/state 8 LOC + barrel export 1 LOC), plus `markApplicationApplied` (29 LOC) in dispatch service.
 
 ---
 
-## 2. Current wiring (baseline — re-verify after refactor)
+## 2. Post-Refactor Audit & Execution Status
 
-| Piece | Path | Notes |
-|-------|------|--------|
-| Drawer UI | `components/features/opportunities/drawer/ats-handoff-drawer.tsx` | Sheet titled “ATS Quick-Fill”; stub `onAutomateWithAgent` |
-| Barrel | `components/features/opportunities/index.ts` | `export * from "./drawer/ats-handoff-drawer"` |
-| Mount | `components/features/opportunities/toolbar/jobs-radar.tsx` | `portalJob` state + `<AtsHandoffDrawer />`; **no open entry point** |
-| Action | `app/actions/dispatch.ts` → `markPortalAsApplied` | Thin wrapper over `markApplicationApplied` |
-| Action | `app/actions/dispatch.ts` → `downloadTailoredPdfAction` | Thin wrapper over `generateApplicationPdfPayload`; **only drawer calls it** |
-| Service | `lib/services/application-dispatch.service.ts` → `markApplicationApplied` | Writes `dispatchType: "PORTAL"`, `applicationMethod: "PORTAL_QUICK_APPLY"` |
-| Service | `lib/services/application-dispatch.service.ts` → `generateApplicationPdfPayload` | Shared PDF helper; keep if other callers appear post-refactor |
-| Schema leftover | `lib/validations/profile.schema.ts` | `"PORTAL_QUICK_APPLY"` in application-method enum |
-| Prisma comments | `prisma/schema.prisma` | Documents `"EMAIL" \| "PORTAL"` / `PORTAL_QUICK_APPLY` on `JobApplication` |
-| Copy only | `components/features/settings/profile/linked-accounts-card.tsx` | Mentions “ATS handoff” in helper text |
+| Piece | Path | Status | Notes |
+|-------|------|--------|--------|
+| Drawer UI | `components/features/opportunities/drawer/ats-handoff-drawer.tsx` | **Removed** | Deleted (Phase A) |
+| Barrel | `components/features/opportunities/index.ts` | **Removed** | Drop `export * from "./drawer/ats-handoff-drawer"` (Phase A) |
+| Mount | `components/features/opportunities/toolbar/jobs-radar.tsx` | **Removed** | Dropped `portalJob` state + `<AtsHandoffDrawer />` mount + import (Phase A) |
+| Action | `app/actions/dispatch.ts` → `markPortalAsApplied` | **Removed** | Deleted action wrapper (Phase B) |
+| Action | `app/actions/dispatch.ts` → `downloadTailoredPdfAction` | **Removed** | Deleted action wrapper; README updated to `compileResumeDocumentAction` (Phase B) |
+| Service | `lib/services/application-dispatch.service.ts` → `markApplicationApplied` | **Removed** | Deleted dead service method (Phase B) |
+| Service | `lib/services/application-dispatch.service.ts` → `generateApplicationPdfPayload` | **Preserved** | Shared PDF service helper preserved per risk mitigation |
+| Schema leftover | `lib/validations/profile.schema.ts` | **Deferred** | `"PORTAL_QUICK_APPLY"` in application-method enum (Phase C) |
+| Prisma comments | `prisma/schema.prisma` | **Deferred** | Documents `"EMAIL" \| "PORTAL"` / `PORTAL_QUICK_APPLY` on `JobApplication` (Phase C) |
+| Copy only | `components/features/settings/profile/linked-accounts-card.tsx` | **Deferred** | Mentions “ATS handoff” in helper text (Phase C) |
 
 **Do not confuse with:** UI “portal” language in DnD (`lib/utils/dnd/interactive.ts` — Radix portal), or external apply links (`EXTERNAL_LINK` / `QUICK_APPLY` on opportunities).
 
@@ -38,24 +38,24 @@ Estimated surface today: ~328 LOC (drawer ~182 + `markPortalAsApplied` ~27 + `do
 
 ## 3. Removal phases
 
-### Phase A — Dead UI (safe, primary)
+### Phase A — Dead UI (safe, primary) — COMPLETE
 
-1. Delete `components/features/opportunities/drawer/ats-handoff-drawer.tsx`.
-2. Remove barrel export from `components/features/opportunities/index.ts`.
-3. In `jobs-radar.tsx`:
+1. [x] Delete `components/features/opportunities/drawer/ats-handoff-drawer.tsx`.
+2. [x] Remove barrel export from `components/features/opportunities/index.ts`.
+3. [x] In `jobs-radar.tsx`:
    - Drop `AtsHandoffDrawer` import
    - Drop `portalJob` / `setPortalJob` state
    - Drop `<AtsHandoffDrawer … />` mount
-4. Grep for `AtsHandoff`, `portalJob`, `onAutomateWithAgent`, `ATS Quick-Fill` — expect zero hits.
+4. [x] Grep for `AtsHandoff`, `portalJob`, `onAutomateWithAgent`, `ATS Quick-Fill` — confirmed zero hits in codebase outside this doc.
 
-### Phase B — Drawer-exclusive actions
+### Phase B — Drawer-exclusive actions — COMPLETE
 
-1. Remove `markPortalAsApplied` from `app/actions/dispatch.ts`.
-2. Remove `downloadTailoredPdfAction` from `app/actions/dispatch.ts` **only if** still unused after Phase A (confirm with grep).
-3. If `markApplicationApplied` has no remaining callers, remove it from `application-dispatch.service.ts` (or keep and rename later if a real “mark applied” path needs it).
-4. Leave `generateApplicationPdfPayload` unless grep shows it is unused after removing the action wrapper.
+1. [x] Remove `markPortalAsApplied` from `app/actions/dispatch.ts`.
+2. [x] Remove `downloadTailoredPdfAction` from `app/actions/dispatch.ts` (confirmed unused across entire codebase; README line 1309 updated to `compileResumeDocumentAction`).
+3. [x] Remove `markApplicationApplied` from `lib/services/application-dispatch.service.ts` (confirmed no remaining callers).
+4. [x] Leave `generateApplicationPdfPayload` in `application-dispatch.service.ts` as shared helper per design.
 
-### Phase C — Legacy strings / docs (optional follow-up)
+### Phase C — Legacy strings / docs (optional follow-up) — DEFERRED
 
 Defer until product decides how “mark applied” should work for external/quick-apply cards:
 
@@ -68,10 +68,10 @@ Defer until product decides how “mark applied” should work for external/quic
 
 ## 4. Verification checklist
 
-- [ ] `rg AtsHandoff|portalJob|markPortalAsApplied|downloadTailoredPdfAction|onAutomateWithAgent|ATS Quick-Fill` → empty (or only this doc)
-- [ ] `npx tsc --noEmit` clean
-- [ ] Relevant Vitest suites still pass (dispatch / opportunities)
-- [ ] Manual: Job Radar loads; opportunity apply/draft paths unchanged; no missing export errors
+- [x] `git grep -E "AtsHandoff|portalJob|markPortalAsApplied|downloadTailoredPdfAction|onAutomateWithAgent|ATS Quick-Fill"` → empty across codebase (only matches this plan document)
+- [x] `npx tsc --noEmit` clean (0 errors)
+- [x] Full Vitest suite passes (80 test files passed, 1009 tests passed, 0 failures)
+- [x] Manual: Jobs Radar loads cleanly without unused imports or dead sheet overlays; opportunity apply and draft paths unchanged
 
 ---
 
@@ -91,8 +91,8 @@ Defer until product decides how “mark applied” should work for external/quic
 ## 6. Suggested commit shape (when executing)
 
 1. `chore(opportunities): remove unreachable ATS handoff drawer and Job Radar mount`
-2. `chore(dispatch): drop portal-only mark-applied and tailored-PDF actions` (if still exclusive)
-3. Optional: `chore: tidy legacy PORTAL applicationMethod docs/enum`
+2. `chore(dispatch): drop portal-only mark-applied and tailored-PDF actions`
+3. `docs: update ATS handoff removal plan to v1.0.0 executed status and fix README reference`
 
 ---
 
@@ -101,3 +101,4 @@ Defer until product decides how “mark applied” should work for external/quic
 | Date | Note |
 |------|------|
 | 2026-11-10 | v0.1.0 — Initial plan from dead-wiring audit; hold execution until current refactor settles |
+| 2026-11-16 | v1.0.0 — Post-refactor audit and execution: completed Phase A (deleted dead drawer, barrel export, and Jobs Radar mount/state) and Phase B (deleted `markPortalAsApplied`, `downloadTailoredPdfAction`, and `markApplicationApplied`; updated README reference). Full test suite (1009 tests) and `tsc` verified passing cleanly. |

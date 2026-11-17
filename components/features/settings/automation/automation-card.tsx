@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Radar, Recycle } from "lucide-react";
 import { toast } from "sonner";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 import { updateMatchThreshold } from "@/app/actions/profile";
 import { updateRule } from "@/app/actions/settings";
@@ -105,7 +106,7 @@ export function AutomationCard({
     startTransition(async () => {
       const result = await updateRule(accountId, key, value);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       router.refresh();
@@ -119,11 +120,11 @@ export function AutomationCard({
     startTransition(async () => {
       const result = await updateMatchThreshold(accountId, next);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         setThreshold(matchThreshold ?? DEFAULT_MATCH_THRESHOLD);
         return;
       }
-      toast.success(`Match filter set to ${next}%`);
+      toast.success(`Match threshold: ${next}%`);
       router.refresh();
     });
   }
@@ -151,9 +152,7 @@ export function AutomationCard({
                 checked ? "AUTO_SEND" : "MANUAL_REVIEW"
               );
               toast.success(
-                checked
-                  ? "Auto-send enabled for matching leads"
-                  : "Manual review required before sending"
+                checked ? "Auto-send enabled" : "Manual review enabled"
               );
             }}
           />

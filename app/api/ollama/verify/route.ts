@@ -79,7 +79,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Ping Ollama tags with retry for transient tunnel warm-up
+    // Ping Ollama tags with snappy 2.5s timeout for fast UI feedback
     const endpoint = `${targetUrl.replace(/\/+$/, "")}/api/tags`;
     const fetchHeaders = {
       "User-Agent":
@@ -90,31 +90,17 @@ export async function POST(request: Request) {
     let res: Response | null = null;
     let lastError: unknown = null;
 
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const attemptRes = await fetch(endpoint, {
-          headers: fetchHeaders,
-          signal: AbortSignal.timeout(4000),
-        });
-        if (attemptRes.ok) {
-          res = attemptRes;
-          break;
-        }
-        if (attempt === 1) {
-          await new Promise((r) => setTimeout(r, 600));
-        } else {
-          res = attemptRes;
-        }
-      } catch (err) {
-        lastError = err;
-        if (attempt === 1) {
-          await new Promise((r) => setTimeout(r, 600));
-        }
-      }
+    try {
+      res = await fetch(endpoint, {
+        headers: fetchHeaders,
+        signal: AbortSignal.timeout(2500),
+      });
+    } catch (err) {
+      lastError = err;
     }
 
     if (!res) {
-      throw lastError ?? new Error("Could not reach Ollama through the public tunnel.");
+      throw lastError ?? new Error("Could not reach Ollama.");
     }
 
     if (!res.ok) {

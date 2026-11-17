@@ -121,6 +121,7 @@ export default async function RootLayout({
           }
           tabCounts={tabCounts}
           initialUiPreferences={initialUiPreferences}
+          isDev={process.env.NODE_ENV === "development"}
         >
           {children}
         </AppShell>

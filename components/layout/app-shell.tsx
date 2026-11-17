@@ -58,6 +58,7 @@ type AppShellProps = {
   initialPendingClassificationCount?: number;
   initialUiPreferences?: ServerUiPreferences;
   tabCounts: SidebarTabCounts;
+  isDev?: boolean;
   children: React.ReactNode;
 };
 
@@ -77,6 +78,7 @@ function AppShellInner({
   initialPendingClassificationCount = 0,
   initialUiPreferences,
   tabCounts,
+  isDev,
   children,
 }: AppShellProps) {
   const pathname = usePathname();
@@ -211,6 +213,7 @@ function AppShellInner({
             items={SIDEBAR_PRIMARY_NAV}
             title="Navigation"
             tabCounts={tabCounts}
+            isDev={isDev}
           />
           <div className={SHELL_HAIRLINE_CLASS} aria-hidden="true" />
           <SidebarQuickActions
@@ -224,11 +227,12 @@ function AppShellInner({
             items={SIDEBAR_SETTINGS_NAV}
             tabCounts={tabCounts}
             className="pb-2 pt-2"
+            isDev={isDev}
           />
           <div className="min-h-2 flex-1" />
         </div>
 
-        <div className="relative z-10 border-t border-white/[0.06] px-2 pb-2.5 pt-2">
+        <div className="relative z-10 border-t border-white/[0.06] px-3 pb-2.5 pt-2">
           <AccountSwitcher
             accounts={accounts}
             activeAccountId={activeAccountId}

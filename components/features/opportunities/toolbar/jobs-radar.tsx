@@ -28,8 +28,8 @@ import {
   sendOpportunityApplication,
   unmarkApplied,
 } from "@/app/actions/opportunities";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 import { updateMatchThreshold } from "@/app/actions/profile";
-import { AtsHandoffDrawer } from "@/components/features/opportunities/drawer/ats-handoff-drawer";
 import { DraftReviewDialog } from "@/components/features/opportunities/dialogs/draft-review-dialog";
 import { OpportunityDraftDialog } from "@/components/features/opportunities/dialogs/opportunity-draft-dialog";
 import { ViewEmailDialog } from "@/components/ui/composites/view-email-dialog";
@@ -146,7 +146,6 @@ export function JobsRadar({
     triggerClassName: segmentedTabsTriggerClassName,
   } = useTabRailClasses();
   const [pending, startTransition] = useTransition();
-  const [portalJob, setPortalJob] = useState<JobApplication | null>(null);
   const [draftJob, setDraftJob] = useState<JobApplication | null>(null);
   const [draftOpportunity, setDraftOpportunity] =
     useState<JobOpportunity | null>(null);
@@ -172,7 +171,7 @@ export function JobsRadar({
         setViewEmailSubject(res.data.subject);
         setViewEmailFrom(res.data.from);
       } else {
-        toast.error(res.ok ? "Message not found" : res.error);
+        toast.error(res.ok ? "Message not found" : formatToastError(res.error));
       }
     } catch {
       toast.error("Failed to load email message");
@@ -232,7 +231,7 @@ export function JobsRadar({
     startTransition(async () => {
       const result = await updateMatchThreshold(accountId, next);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         setThreshold(matchThreshold);
         return;
       }
@@ -357,7 +356,7 @@ export function JobsRadar({
     startTransition(async () => {
       const result = await sendOpportunityApplication(opp.id, false);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       toast.success("Application sent");
@@ -776,12 +775,6 @@ export function JobsRadar({
     )}
     </OpportunitiesView>
 
-      <AtsHandoffDrawer
-        open={Boolean(portalJob)}
-        onOpenChange={(open) => !open && setPortalJob(null)}
-        application={portalJob}
-        profile={profile}
-      />
       <DraftReviewDialog
         open={Boolean(draftJob)}
         onOpenChange={(open) => !open && setDraftJob(null)}

@@ -3,6 +3,8 @@
 import {
   useId,
   useState,
+  useEffect,
+  useRef,
   type ChangeEvent,
   type KeyboardEvent,
 } from "react";
@@ -24,11 +26,15 @@ function clampToRange(value: number, min: number, max: number): number {
 export type NumericFieldProps = {
   value: number;
   onChange: (value: number) => void;
-  /** Fired on blur / Enter after a typed edit. */
+  /** Fired on blur / Enter after a typed edit, or debounced after steppers/arrow keys. */
   onCommit?: (value: number) => void;
   min: number;
   max: number;
   step?: number;
+  /**
+   * Debounce delay in ms before firing onCommit after arrow / stepper clicks (defaults to 400ms).
+   */
+  debounceMs?: number;
   /**
    * Trailing Lucide Percent icon after steppers (outside the typable text).
    */
@@ -53,6 +59,7 @@ export function NumericField({
   min,
   max,
   step = 1,
+  debounceMs = 400,
   percent = false,
   steppers = false,
   disabled = false,
@@ -68,12 +75,49 @@ export function NumericField({
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
 
+  const onCommitRef = useRef(onCommit);
+  useEffect(() => {
+    onCommitRef.current = onCommit;
+  }, [onCommit]);
+
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingCommitRef = useRef<number | null>(null);
+
+  const clearDebounceTimer = () => {
+    if (debounceTimerRef.current !== null) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  };
+
+  const flushPendingCommit = () => {
+    clearDebounceTimer();
+    const pending = pendingCommitRef.current;
+    pendingCommitRef.current = null;
+    if (pending !== null) {
+      onCommitRef.current?.(pending);
+    }
+  };
+
+  // Clean up timer and flush any pending commit on unmount
+  useEffect(() => {
+    return () => {
+      clearDebounceTimer();
+      const pending = pendingCommitRef.current;
+      if (pending !== null) {
+        onCommitRef.current?.(pending);
+      }
+    };
+  }, []);
+
   const display = draft ?? String(value);
   const atMin = value <= min;
   const atMax = value >= max;
   const showSteppers = steppers && (hovered || focused);
 
   function commitParsed(raw: string) {
+    clearDebounceTimer();
+    pendingCommitRef.current = null;
     const parsed = raw.trim() === "" ? min : Number.parseInt(raw, 10);
     const next = clampToRange(
       Number.isFinite(parsed) ? parsed : value,
@@ -82,16 +126,28 @@ export function NumericField({
     );
     setDraft(null);
     if (next !== value) onChange(next);
-    onCommit?.(next);
+    onCommitRef.current?.(next);
   }
 
   function nudge(direction: 1 | -1) {
     if (disabled) return;
-    const next = clampToRange(value + direction * step, min, max);
-    if (next === value) return;
+    const base =
+      draft !== null && draft !== "" && draft !== "-"
+        ? Number.parseInt(draft, 10) || value
+        : value;
+    const next = clampToRange(base + direction * step, min, max);
+    if (next === value && draft === null) return;
     setDraft(null);
-    onChange(next);
-    onCommit?.(next);
+    if (next !== value) onChange(next);
+
+    // Schedule debounced onCommit so rapid arrow/stepper clicks don't flood server actions
+    pendingCommitRef.current = next;
+    clearDebounceTimer();
+    debounceTimerRef.current = setTimeout(() => {
+      pendingCommitRef.current = null;
+      debounceTimerRef.current = null;
+      onCommitRef.current?.(next);
+    }, debounceMs);
   }
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
@@ -110,11 +166,21 @@ export function NumericField({
   }
 
   function handleBlur() {
-    commitParsed(draft ?? String(value));
+    if (pendingCommitRef.current !== null) {
+      flushPendingCommit();
+    } else {
+      commitParsed(draft ?? String(value));
+    }
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
+      event.preventDefault();
+      if (pendingCommitRef.current !== null) {
+        flushPendingCommit();
+      } else {
+        commitParsed(draft ?? String(value));
+      }
       event.currentTarget.blur();
       return;
     }
@@ -144,6 +210,7 @@ export function NumericField({
       <input
         id={id}
         type="text"
+        role="spinbutton"
         inputMode="numeric"
         autoComplete="off"
         disabled={disabled}
@@ -181,6 +248,7 @@ export function NumericField({
             type="button"
             tabIndex={showSteppers ? 0 : -1}
             disabled={disabled || atMax}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => nudge(1)}
             aria-label="Increase"
             className="inline-flex min-h-0 flex-1 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))] disabled:pointer-events-none disabled:opacity-25"
@@ -195,6 +263,7 @@ export function NumericField({
             type="button"
             tabIndex={showSteppers ? 0 : -1}
             disabled={disabled || atMin}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => nudge(-1)}
             aria-label="Decrease"
             className="inline-flex min-h-0 flex-1 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))] disabled:pointer-events-none disabled:opacity-25"

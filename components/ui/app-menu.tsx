@@ -51,11 +51,11 @@ export const appMenuClassNames = {
   },
   dark: {
     trigger:
-      "flex h-8 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-medium text-[#e4f7f3] shadow-none outline-none transition-colors hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-white/20 data-[state=open]:bg-[hsl(var(--sidebar-highlight))] data-[state=open]:text-[#e4f7f3] disabled:cursor-not-allowed disabled:opacity-50",
+      "flex h-8 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-white/10 bg-[#282c30] px-3 text-xs font-medium text-[#e4f7f3] shadow-none outline-none transition-colors hover:bg-[#353a40] focus-visible:ring-1 focus-visible:ring-white/20 data-[state=open]:bg-[hsl(var(--sidebar-highlight))] data-[state=open]:text-[#e4f7f3] disabled:cursor-not-allowed disabled:opacity-50",
     triggerCompact:
-      "flex h-7 w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-white/10 bg-white/5 px-2.5 text-xs font-medium text-[#e4f7f3] shadow-none outline-none transition-colors hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-white/20 data-[state=open]:bg-[hsl(var(--sidebar-highlight))] disabled:cursor-not-allowed disabled:opacity-50",
+      "flex h-7 w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-white/10 bg-[#282c30] px-2.5 text-xs font-medium text-[#e4f7f3] shadow-none outline-none transition-colors hover:bg-[#353a40] focus-visible:ring-1 focus-visible:ring-white/20 data-[state=open]:bg-[hsl(var(--sidebar-highlight))] disabled:cursor-not-allowed disabled:opacity-50",
     triggerMeta:
-      "flex h-6 w-full cursor-pointer items-center justify-between gap-1.5 rounded-md border border-white/10 bg-white/5 px-2 text-[11px] font-medium text-[#e4f7f3] shadow-none outline-none transition-colors hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-white/20 disabled:cursor-not-allowed disabled:opacity-50",
+      "flex h-6 w-full cursor-pointer items-center justify-between gap-1.5 rounded-md border border-white/10 bg-[#282c30] px-2 text-[11px] font-medium text-[#e4f7f3] shadow-none outline-none transition-colors hover:bg-[#353a40] focus-visible:ring-1 focus-visible:ring-white/20 disabled:cursor-not-allowed disabled:opacity-50",
     content:
       "z-[160] min-w-[8rem] overflow-hidden rounded-lg border border-white/10 bg-[hsl(var(--sidebar-panel))] p-1 text-[#e4f7f3] shadow-md",
     item: "cursor-pointer justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium text-[#e4f7f3]/80 focus:bg-white/10 focus:text-[#e4f7f3] data-[highlighted]:bg-white/10 data-[highlighted]:text-[#e4f7f3] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-3.5",

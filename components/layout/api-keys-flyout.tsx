@@ -24,6 +24,7 @@ import {
   type CloudLlmProvider,
 } from "@/lib/ai/provider.schema";
 import { cn } from "@/lib/utils";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 import { toast } from "sonner";
 
 const PROVIDER_LABEL: Record<CloudLlmProvider, string> = {
@@ -125,7 +126,7 @@ export function ApiKeysFlyout({ accountId }: { accountId: string }) {
         apiKey: key,
       });
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       setStatus((current) => {
@@ -140,7 +141,7 @@ export function ApiKeysFlyout({ accountId }: { accountId: string }) {
         return next;
       });
       setCloudKey("");
-      toast.success("Cloud API key saved");
+      toast.success("API key saved");
     });
   }
 
@@ -148,7 +149,7 @@ export function ApiKeysFlyout({ accountId }: { accountId: string }) {
     startTransition(async () => {
       const result = await clearCustomLlmKey(accountId);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       setStatus((current) => {
@@ -156,7 +157,7 @@ export function ApiKeysFlyout({ accountId }: { accountId: string }) {
         if (next) apiKeyCache = { accountId, data: next };
         return next;
       });
-      toast.success("Cloud API key cleared");
+      toast.success("API key cleared");
     });
   }
 
@@ -165,7 +166,7 @@ export function ApiKeysFlyout({ accountId }: { accountId: string }) {
     startTransition(async () => {
       const result = await updateRule(accountId, "cloudProvider", next);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       setStatus((current) => {
@@ -202,7 +203,7 @@ export function ApiKeysFlyout({ accountId }: { accountId: string }) {
     startTransition(async () => {
       const result = await save(key);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       const masked =
@@ -225,7 +226,7 @@ export function ApiKeysFlyout({ accountId }: { accountId: string }) {
     startTransition(async () => {
       const result = await clear();
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       apply();

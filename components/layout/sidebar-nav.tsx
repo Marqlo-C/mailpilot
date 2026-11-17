@@ -132,6 +132,7 @@ export function SidebarNav({
   tabCounts,
   title,
   className,
+  isDev,
 }: {
   collapsed: boolean;
   activeAccountId: string | null;
@@ -139,7 +140,9 @@ export function SidebarNav({
   tabCounts: SidebarTabCounts;
   title?: string;
   className?: string;
+  isDev?: boolean;
 }) {
+  const isDevResolved = isDev ?? process.env.NODE_ENV === "development";
   const pathname = usePathname();
   const { isSyncing, pendingCount } = useSyncStatus();
   const {
@@ -198,7 +201,7 @@ export function SidebarNav({
       ) : null}
       {items.map((item) => {
         const active = isNavActive(pathname, item.href);
-        const tabs = sidebarTabsForHref(item.href);
+        const tabs = sidebarTabsForHref(item.href, isDevResolved);
         const showTabs = !active && tabs.length > 0;
         const open = showTabs && isOpen({ kind: "nav", href: item.href });
         const railOpen = isOpen({ kind: "telemetry" }) && item.href === "/jobs";

@@ -6,6 +6,7 @@ import { MailWarning } from "lucide-react";
 import { toast } from "sonner";
 
 import { updateRule } from "@/app/actions/settings";
+import { formatToastError } from "@/lib/utils/ui/toast-format";
 import { SETTINGS_ROW_CLASSNAME } from "@/lib/utils/navigation/settings-chrome";
 import { LogoFrameIcon } from "@/components/ui/logo-frame";
 import { Label } from "@/components/ui/label";
@@ -46,7 +47,7 @@ export function LifecycleRulesCard({
     startTransition(async () => {
       const result = await updateRule(accountId, key, value);
       if (!result.ok) {
-        toast.error(result.error);
+        toast.error(formatToastError(result.error));
         return;
       }
       router.refresh();
