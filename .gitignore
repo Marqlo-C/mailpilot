@@ -69,8 +69,10 @@ public/videos/*.mp4
 # Temporary Analysis Dumps
 /Delete/
 /Test Outputs/
+/Test HTML/
 Delete/
 Test Outputs/
+Test HTML/
 
 # Temporary Audit Tests
 scripts/temp-resume-llm-audit.ts
