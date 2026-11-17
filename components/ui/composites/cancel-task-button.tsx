@@ -18,6 +18,7 @@ type CancelTaskButtonProps = {
    * Use Trash2 when the action deletes or permanently drops persisted data.
    */
   icon?: LucideIcon;
+  iconClassName?: string;
 };
 
 /** Circular control for abortable tasks or destructive clears. */
@@ -28,6 +29,7 @@ export function CancelTaskButton({
   disabled,
   spinMs = 500,
   icon: Icon = X,
+  iconClassName,
 }: CancelTaskButtonProps) {
   const [rotationDeg, setRotationDeg] = useState(0);
 
@@ -49,7 +51,7 @@ export function CancelTaskButton({
         )}
       >
         <Icon
-          className="size-4 text-current"
+          className={cn("size-4 text-current", iconClassName)}
           aria-hidden
           style={{
             transform: `rotate(${rotationDeg}deg)`,

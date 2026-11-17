@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { EllipsisVertical, ListX, Square } from "lucide-react";
 
 import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
 import { LabelTooltip } from "@/components/ui/tooltip";
@@ -100,7 +100,7 @@ export const BULK_FLYOUT_PILL_CLASSNAME = cn(
  * translucent white/10 which made the control look clear).
  */
 export const BULK_FLYOUT_CANCEL_CLASSNAME =
-  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[hsl(var(--sidebar-panel))] p-0 text-[#e4f7f3]/65 shadow-md transition-colors duration-150 hover:bg-[hsl(var(--sidebar-highlight))] hover:text-[#C21E11] active:bg-[hsl(var(--sidebar-highlight))] disabled:opacity-60 [&_svg]:size-4 [&_svg]:text-current";
+  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[hsl(var(--sidebar-panel))] p-0 text-[#e4f7f3]/65 shadow-md transition-colors duration-150 hover:bg-[hsl(var(--sidebar-highlight))] hover:text-[#C21E11] active:bg-[hsl(var(--sidebar-highlight))] disabled:opacity-60 [&_svg]:text-current";
 
 /** Fixed bottom host for selection / classifying flyouts. */
 export const BULK_FLYOUT_HOST_CLASSNAME = cn(
@@ -420,7 +420,7 @@ export function BulkActionsFlyout({
                     aria-label={`Clear selection or ${shown.stopLabel.toLowerCase()}`}
                     className={BULK_FLYOUT_CANCEL_CLASSNAME}
                   >
-                    <X className="size-4 text-current" aria-hidden />
+                    <EllipsisVertical className="size-4 text-current" aria-hidden />
                   </button>
                 </DropdownMenuTrigger>
               </LabelTooltip>
@@ -432,17 +432,29 @@ export function BulkActionsFlyout({
                 className="w-max min-w-0 rounded-2xl p-1.5"
               >
                 <AppMenuItem
-                  className="h-9 rounded-xl px-3 text-[13px]"
+                  className="h-9 justify-start gap-2.5 rounded-xl px-3 text-[13px]"
                   onSelect={() => clearSelection()}
                 >
-                  Clear selection
+                  <span
+                    className="flex size-4 shrink-0 items-center justify-center text-current"
+                    aria-hidden
+                  >
+                    <ListX className="!size-4 shrink-0 text-current" />
+                  </span>
+                  <span>Clear selection</span>
                 </AppMenuItem>
                 {shown.syncActive && (
                   <AppMenuItem
-                    className="h-9 rounded-xl px-3 text-[13px]"
+                    className="h-9 justify-start gap-2.5 rounded-xl px-3 text-[13px]"
                     onSelect={() => shown.onStopSync?.()}
                   >
-                    {shown.stopLabel}
+                    <span
+                      className="flex size-4 shrink-0 items-center justify-center text-current"
+                      aria-hidden
+                    >
+                      <Square className="!size-3 shrink-0 fill-current text-current" />
+                    </span>
+                    <span>{shown.stopLabel}</span>
                   </AppMenuItem>
                 )}
               </AppMenuContent>
@@ -451,6 +463,7 @@ export function BulkActionsFlyout({
             <CancelTaskButton
               onCancel={clearSelection}
               title="Clear selection"
+              icon={ListX}
               // Full turn before pills meet; hold through the rest of converge.
               spinMs={600}
               className={BULK_FLYOUT_CANCEL_CLASSNAME}

@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { BroomSparkles, Trash2, X } from "lucide-react";
+import { BroomSparkles, Square, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { drainPendingAiQueue } from "@/app/actions/email";
@@ -251,7 +251,8 @@ export function SyncTelemetry({
         <FlyoutIconPill
           matchPairWidth={false}
           primary={{
-            icon: X,
+            icon: Square,
+            iconClassName: "!size-2.5 fill-current",
             label: stopSyncTitle,
             onClick: () => {
               // Same as broom: close before state flips so Ace reviewing

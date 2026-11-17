@@ -236,12 +236,19 @@ describe("BulkActionsFlyout Triad Menu & Classification Integration (Phase 3)", 
     const dropdownMenu = findNode(bodyRoot, (n) => n.attributes?.["data-testid"] === "dropdown-menu-root");
     expect(dropdownMenu).toBeNull();
 
-    // CancelTaskButton rendered with aria-label "Clear selection"
+    // CancelTaskButton rendered with aria-label "Clear selection" and ListX icon
     const cancelBtn = findNode(
       bodyRoot,
       (n) => n.tagName === "BUTTON" && n.attributes?.["aria-label"] === "Clear selection"
     );
     expect(cancelBtn).toBeDefined();
+
+    // Verify ListX icon is rendered inside CancelTaskButton
+    const listXIcon = findNode(
+      cancelBtn,
+      (n) => (n.tagName === "SVG" || n.tagName === "svg") && (n.attributes?.class?.includes("lucide-list-x") || n.className?.includes("lucide-list-x"))
+    );
+    expect(listXIcon).not.toBeNull();
 
     const props = getReactProps(cancelBtn);
     expect(props).toBeDefined();
@@ -282,17 +289,40 @@ describe("BulkActionsFlyout Triad Menu & Classification Integration (Phase 3)", 
     const dropdownMenu = findNode(bodyRoot, (n) => n.attributes?.["data-testid"] === "dropdown-menu-root");
     expect(dropdownMenu).toBeDefined();
 
+    // Verify EllipsisVertical icon on trigger button when both multiselect and sync coincide
+    const ellipsisIcon = findNode(
+      dropdownMenu,
+      (n) =>
+        (n.tagName === "SVG" || n.tagName === "svg") &&
+        (n.attributes?.class?.includes("lucide-ellipsis-vertical") ||
+          n.className?.includes("lucide-ellipsis-vertical"))
+    );
+    expect(ellipsisIcon).not.toBeNull();
+
     const menuItems = findNodes(bodyRoot, (n) => n.attributes?.["data-testid"] === "app-menu-item");
     expect(menuItems.length).toBe(2);
 
-    // Item 1: Clear selection
+    // Item 1: Clear selection with ListX icon
+    const item1ListX = findNode(
+      menuItems[0],
+      (n) => (n.tagName === "SVG" || n.tagName === "svg") && (n.attributes?.class?.includes("lucide-list-x") || n.className?.includes("lucide-list-x"))
+    );
+    expect(item1ListX).not.toBeNull();
     const item1Props = getReactProps(menuItems[0]);
     act(() => {
       item1Props.onClick();
     });
     expect(onCancelSpy).toHaveBeenCalledTimes(1);
 
-    // Item 2: Stop sorting
+    // Item 2: Stop sorting with filled Square icon
+    const item2Square = findNode(
+      menuItems[1],
+      (n) => (n.tagName === "SVG" || n.tagName === "svg") && (n.attributes?.class?.includes("lucide-square") || n.className?.includes("lucide-square"))
+    );
+    expect(item2Square).not.toBeNull();
+    const squareClass = item2Square?.attributes?.class || item2Square?.className || "";
+    expect(squareClass).toContain("fill-current");
+    expect(squareClass).toContain("size-3");
     const item2Props = getReactProps(menuItems[1]);
     act(() => {
       item2Props.onClick();

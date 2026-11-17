@@ -301,6 +301,19 @@ describe("GlobalSyncTracker Dynamic Status Slot", () => {
     );
     expect(cancelBtn).toBeDefined();
 
+    // Verify filled Square icon is rendered on CancelTaskButton for sync tracker
+    const squareIcon = findNode(
+      cancelBtn,
+      (n) =>
+        (n.tagName === "SVG" || n.tagName === "svg") &&
+        (n.attributes?.class?.includes("lucide-square") ||
+          n.className?.includes("lucide-square"))
+    );
+    expect(squareIcon).not.toBeNull();
+    const squareClass = squareIcon?.attributes?.class || squareIcon?.className || "";
+    expect(squareClass).toContain("fill-current");
+    expect(squareClass).toContain("size-3");
+
     const props = getReactProps(cancelBtn);
     act(() => {
       props.onClick({ preventDefault: vi.fn(), stopPropagation: vi.fn() });
@@ -342,6 +355,19 @@ describe("GlobalSyncTracker Dynamic Status Slot", () => {
         n.attributes?.["aria-label"] === "Stop sorting — remaining emails stay awaiting Ace"
     );
     expect(cancelBtn).toBeDefined();
+
+    // Verify filled Square icon is rendered on CancelTaskButton for sync tracker
+    const squareIcon = findNode(
+      cancelBtn,
+      (n) =>
+        (n.tagName === "SVG" || n.tagName === "svg") &&
+        (n.attributes?.class?.includes("lucide-square") ||
+          n.className?.includes("lucide-square"))
+    );
+    expect(squareIcon).not.toBeNull();
+    const squareClass = squareIcon?.attributes?.class || squareIcon?.className || "";
+    expect(squareClass).toContain("fill-current");
+    expect(squareClass).toContain("size-3");
 
     const props = getReactProps(cancelBtn);
     act(() => {

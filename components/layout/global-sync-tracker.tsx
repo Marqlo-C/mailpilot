@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { Square } from "lucide-react";
 
 import {
   ClassifyingFlyoutStatus,
@@ -117,6 +118,8 @@ export function GlobalSyncTracker() {
             <CancelTaskButton
               onCancel={() => void forceReset()}
               title={stopTitle}
+              icon={Square}
+              iconClassName="!size-3 fill-current"
               spinMs={600}
               className={cn(
                 BULK_FLYOUT_CANCEL_CLASSNAME,

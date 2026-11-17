@@ -20,12 +20,13 @@ const PILL_SHELL_CLASS =
 const PILL_BTN_CLASS =
   "inline-flex size-8 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent text-[#e4f7f3]/80 shadow-none transition-colors hover:bg-white/10 hover:text-[#e4f7f3] active:bg-[hsl(var(--sidebar-highlight))] active:text-[#e4f7f3] disabled:pointer-events-none disabled:opacity-25";
 
-type FlyoutIconAction = {
+export type FlyoutIconAction = {
   icon: LucideIcon;
   label: string;
   onClick: () => void;
   disabled?: boolean;
   busy?: boolean;
+  iconClassName?: string;
 };
 
 /** One or two icon actions in the same pill used by section-order up/down. */
@@ -62,7 +63,11 @@ export function FlyoutIconPill({
             )}
           >
             <PrimaryIcon
-              className={cn("size-3.5", primary.busy && "animate-spin")}
+              className={cn(
+                "size-3.5",
+                primary.busy && "animate-spin",
+                primary.iconClassName
+              )}
             />
           </button>
         </LabelTooltip>
@@ -82,7 +87,11 @@ export function FlyoutIconPill({
           className={cn(PILL_BTN_CLASS, "size-8 rounded-l-full")}
         >
           <PrimaryIcon
-            className={cn("size-3.5", primary.busy && "animate-spin")}
+            className={cn(
+              "size-3.5",
+              primary.busy && "animate-spin",
+              primary.iconClassName
+            )}
           />
         </button>
       </LabelTooltip>
@@ -99,7 +108,11 @@ export function FlyoutIconPill({
           className={cn(PILL_BTN_CLASS, "size-8 rounded-r-full")}
         >
           <SecondaryIcon
-            className={cn("size-3.5", secondary.busy && "animate-spin")}
+            className={cn(
+              "size-3.5",
+              secondary.busy && "animate-spin",
+              secondary.iconClassName
+            )}
           />
         </button>
       </LabelTooltip>
