@@ -72,7 +72,7 @@ export function SubscriptionRowActions({
         disabled={disabled}
         onClick={() => onBriefing(sub)}
       >
-        <span className="hidden min-[900px]:inline">Send </span>Snapshot
+        <span className="hidden min-[1180px]:inline">Send </span>Snapshot
       </CreateSnapshotButton>
       <button
         type="button"
