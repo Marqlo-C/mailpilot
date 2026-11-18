@@ -19,18 +19,20 @@ export const RECEIVED_META_ICON_CLASSNAME =
 export function ReceivedMeta({
   date,
   className,
+  iconClassName,
   titlePrefix = "Received",
   emptyLabel = "—",
 }: {
   date: Date | string | null | undefined;
   className?: string;
+  iconClassName?: string;
   titlePrefix?: string;
   emptyLabel?: string;
 }) {
   if (!date) {
     return (
       <span className={cn(RECEIVED_META_CLASSNAME, "shrink-0", className)}>
-        <History className={RECEIVED_META_ICON_CLASSNAME} aria-hidden />
+        <History className={cn(RECEIVED_META_ICON_CLASSNAME, iconClassName)} aria-hidden />
         <span>{emptyLabel}</span>
       </span>
     );
@@ -41,7 +43,7 @@ export function ReceivedMeta({
   return (
     <LabelTooltip label={`${titlePrefix}: ${label}`} side="top">
       <span className={cn(RECEIVED_META_CLASSNAME, "shrink-0", className)}>
-        <History className={RECEIVED_META_ICON_CLASSNAME} aria-hidden />
+        <History className={cn(RECEIVED_META_ICON_CLASSNAME, iconClassName)} aria-hidden />
         <span>{label}</span>
       </span>
     </LabelTooltip>

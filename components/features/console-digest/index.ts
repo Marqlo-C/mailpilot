@@ -8,9 +8,11 @@ export {
 } from "./subscription-digest-row";
 export { ConsoleMetricsGrid } from "./console-metrics-grid";
 export { ConsoleDigestCards } from "./console-digest-cards";
+export { ConsolePulseCapsules } from "./console-pulse-capsules";
 export {
   computeConsoleMetrics,
   type ConsoleMetricItem,
   type ActiveSubscriptionDigest,
   type ConsoleDigestData,
+  type MetricTone,
 } from "./metrics";

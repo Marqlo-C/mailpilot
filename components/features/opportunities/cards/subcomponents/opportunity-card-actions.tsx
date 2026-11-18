@@ -28,12 +28,11 @@ export type OpportunityCardActionsProps = {
 
 /**
  * Touch target ergonomics:
- * On fine pointer (desktop mouse), maintains dense, crisp UI footprint.
- * On coarse pointer (tablet / mobile), enforces minimum 44px touch target
- * with hit area expansion via pseudo-element.
+ * Maintains dense, crisp UI footprint across both mouse and touch devices.
+ * 44px touch target is achieved via an invisible pseudo-element expansion.
  */
 const TOUCH_TARGET_ACTION_CLASSNAME =
-  "relative touch-manipulation [@media(pointer:coarse)]:min-h-[44px] [@media(pointer:coarse)]:px-3.5 before:absolute before:inset-0 before:top-1/2 before:min-h-[44px] before:w-full before:min-w-full before:-translate-y-1/2 before:content-['']";
+  "relative touch-manipulation before:absolute before:inset-0 before:top-1/2 before:min-h-[44px] before:w-full before:min-w-full before:-translate-y-1/2 before:content-['']";
 
 export function OpportunityCardActions({
   variant,
@@ -128,7 +127,7 @@ export function OpportunityCardActions({
             </a>
           )
         ) : (
-          <span className="inline-flex items-center rounded-lg border border-border/40 bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground/60 [@media(pointer:coarse)]:min-h-[44px]">
+          <span className="inline-flex items-center rounded-lg border border-border/40 bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground/60">
             No link detected
           </span>
         )

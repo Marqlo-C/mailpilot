@@ -71,6 +71,7 @@ export function SubscriptionRowActions({
       <CreateSnapshotButton
         disabled={disabled}
         onClick={() => onBriefing(sub)}
+        className="h-8 shrink-0"
       >
         <span className="hidden min-[1180px]:inline">Send </span>Snapshot
       </CreateSnapshotButton>
@@ -78,11 +79,12 @@ export function SubscriptionRowActions({
         type="button"
         disabled={disabled}
         onClick={() => onUnsubscribe(sub)}
-        className={
+        className={cn(
           disabled
             ? PRIMARY_ACTION_BTN_MUTED_CLASSNAME
-            : PRIMARY_ACTION_BTN_CLASSNAME
-        }
+            : PRIMARY_ACTION_BTN_CLASSNAME,
+          "h-8 shrink-0"
+        )}
       >
         <UserRoundMinus className="h-3.5 w-3.5" />
         <span>Unsubscribe</span>
@@ -106,7 +108,7 @@ export function SubscriptionRowActions({
             onClick={() => onViewLastEmail(sub)}
           >
             <Mail className="size-4 text-muted-foreground" />
-            <span>Inbox Message</span>
+            <span>View Original Email</span>
           </AppMenuItem>
         </AppMenuContent>
       </DropdownMenu>

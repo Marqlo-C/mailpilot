@@ -66,9 +66,11 @@ export function OpportunitiesGrid({
     );
   }
 
+  const isMultiSelect = selectedIds.length > 0;
+
   return (
     <div
-      className="relative z-0 grid min-w-0 gap-3 min-[744px]:grid-cols-2"
+      className="relative z-0 grid min-w-0 gap-3 min-[880px]:grid-cols-2"
       data-dnd-list
       data-dnd-previewing={previewFullIds ? "true" : undefined}
     >
@@ -82,6 +84,7 @@ export function OpportunitiesGrid({
           retentionDays={retentionDays}
           isSelected={selectedIds.includes(opp.id)}
           isLastClicked={lastClickedId === opp.id}
+          isMultiSelect={isMultiSelect}
           isEmbeddedAiEnabled={isEmbeddedAiEnabled}
           isAutoDispatchEnabled={isAutoDispatchEnabled}
           onToggleSelect={onToggleSelect}

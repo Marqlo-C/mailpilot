@@ -88,3 +88,5 @@ public/downloads/mailpilot-extension.zip
 
 # Database Backups
 neon_backup*.sql
+# Gemini / Antigravity
+.gemini/

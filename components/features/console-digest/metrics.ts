@@ -1,15 +1,26 @@
 import type { JobApplication, JobOpportunity, Subscription } from "@prisma/client";
-import { ClipboardList, MailCheck, Radar, Send } from "lucide-react";
+import {
+  ClipboardList,
+  Radar,
+  Send,
+  Volume2,
+} from "lucide-react";
+import type { ComponentType } from "react";
 import { isUserArchived } from "@/lib/opportunities/lifecycle";
 import { sortOpportunities } from "@/lib/opportunities/sorting";
 import { subscriptionClutterScore } from "@/lib/subscriptions/filters";
 
+export type MetricTone = "emerald" | "amber" | "blue" | "rose" | "default";
+
 export interface ConsoleMetricItem {
+  id: "leads" | "action" | "applied" | "subscriptions";
   label: string;
   value: number;
   hint: string;
-  icon: typeof Radar;
+  icon: ComponentType<{ className?: string }>;
   href: string;
+  badge?: string;
+  tone?: MetricTone;
 }
 
 export interface ActiveSubscriptionDigest {
@@ -72,37 +83,53 @@ export function computeConsoleMetrics(
     }))
     .sort((a, b) => b.clutter - a.clutter);
 
-  const loudCount = activeSubscriptions.filter((row) => row.clutter >= 60)
-    .length;
+  const loudCount = activeSubscriptions.filter((row) => row.clutter >= 60).length;
+
+  const actionTotal = actionOpportunities.length + actionJobs.length;
 
   const metrics: ConsoleMetricItem[] = [
     {
+      id: "leads",
       label: "Leads",
       value: leadCount,
       hint: "In Job Radar",
       icon: Radar,
       href: "/jobs",
+      tone: "emerald",
+      badge: leadCount > 0 ? "Radar Active" : undefined,
     },
     {
-      label: "Action required",
-      value: actionOpportunities.length + actionJobs.length,
-      hint: "Waiting on you",
+      id: "action",
+      label: "Action Required",
+      value: actionTotal,
+      hint: actionTotal === 1 ? "1 item waiting on you" : `${actionTotal} waiting on you`,
       icon: ClipboardList,
       href: "/jobs",
+      tone: "amber",
+      badge: actionTotal > 0 ? "Needs Triage" : "All Clear",
     },
     {
-      label: "Applied",
+      id: "applied",
+      label: "Dispatched / Applied",
       value: appliedCount,
-      hint: "Already sent",
+      hint: "Already sent & tracking",
       icon: Send,
       href: "/jobs",
+      tone: "blue",
+      badge: appliedCount > 0 ? `${appliedCount} In-Flight` : undefined,
     },
     {
-      label: "Subscriptions",
-      value: activeSubscriptions.length,
-      hint: loudCount === 1 ? "1 running loud" : `${loudCount} running loud`,
-      icon: MailCheck,
+      id: "subscriptions",
+      label: "Loud Senders",
+      value: loudCount,
+      hint:
+        activeSubscriptions.length === 1
+          ? "1 total subscription"
+          : `${activeSubscriptions.length} total subscriptions`,
+      icon: Volume2,
       href: "/subscriptions",
+      tone: "rose",
+      badge: loudCount > 0 ? `${loudCount} Running Loud` : "Quiet Inbox",
     },
   ];
 

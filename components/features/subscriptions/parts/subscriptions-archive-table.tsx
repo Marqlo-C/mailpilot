@@ -46,7 +46,7 @@ export function ArchiveCleanupButton({
       type="button"
       disabled={pending}
       onClick={onCleanup}
-      className={PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME}
+      className={cn(PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME, "h-8 shrink-0")}
     >
       {pending ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -124,24 +124,30 @@ export function ArchiveDesktopRow({
           <WavyDashedLine orientation="horizontal" />
         </div>
       ) : null}
-      <div className="flex h-full min-w-0 flex-1 items-center gap-3 pl-3 pr-3">
+      <div className="flex h-full min-w-0 flex-[1_1_45%] items-center gap-2.5 sm:gap-3 pl-3 pr-2 sm:pr-3">
         <CompanyLogo
           src={senderLogoSrc(entry.senderEmail)}
           name={entry.senderName ?? entry.senderEmail}
           size="md"
         />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-foreground">
+        <div className="min-w-0 flex-1">
+          <p
+            className="truncate text-sm font-medium text-foreground"
+            title={entry.senderName ?? undefined}
+          >
             {entry.senderName ?? "—"}
           </p>
-          <p className="truncate text-[11px] text-muted-foreground">
+          <p
+            className="truncate text-[11px] text-muted-foreground"
+            title={entry.senderEmail}
+          >
             {entry.senderEmail}
           </p>
         </div>
       </div>
 
-      <div className="flex h-full min-w-[480px] flex-1 items-center">
-        <div className={cn("flex shrink-0 items-center pl-4", METRICS_GAP_CLASS)}>
+      <div className="flex h-full min-w-0 flex-1 items-center justify-end">
+        <div className={cn("flex shrink-0 items-center pl-2 sm:pl-4", METRICS_GAP_CLASS)}>
           <LastReceivedStatBadge
             date={entry.lastReceivedAt}
             width={metricWidths.received}
@@ -150,14 +156,14 @@ export function ArchiveDesktopRow({
           <ClutterStatBadge score={clutter} width={metricWidths.clutter} />
         </div>
 
-        <div className="flex h-full min-w-0 flex-1 items-center justify-center self-stretch px-3 sm:px-4">
+        <div className="hidden min-[1120px]:flex h-full shrink-0 items-center justify-center self-stretch px-2 sm:px-3">
           <WavyDashedLine
             orientation="vertical"
             length={SUBSCRIPTION_ROW_HEIGHT_PX}
           />
         </div>
 
-        <div className="flex h-full shrink-0 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pr-2.5">
+        <div className="flex h-full shrink-0 items-center justify-end gap-1.5 sm:gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-1.5 pr-2.5">
           <ArchiveRowActions
             entry={entry}
             pending={pending}

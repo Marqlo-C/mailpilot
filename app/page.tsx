@@ -1,21 +1,27 @@
-import { COLORED_WORDMARK_SRC, Wordmark } from "@/components/brand/logo";
 import { SyncControls } from "@/components/features/opportunities/sync-controls";
+import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { EmptyState } from "@/components/ui/composites";
 import {
   getActiveAccount,
   getJobOpportunitiesForAccount,
   getJobsForAccount,
   getSubscriptionsForAccount,
+  listAccounts,
 } from "@/lib/data";
 import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile.schema";
 import {
   ConsoleDigestCards,
   ConsoleMetricsGrid,
+  ConsolePulseCapsules,
   computeConsoleMetrics,
 } from "@/components/features/console-digest";
 
 export default async function ConsolePage() {
-  const active = await getActiveAccount();
+  const [active, accounts] = await Promise.all([
+    getActiveAccount(),
+    listAccounts(),
+  ]);
+
   const opportunities = active ? await getJobOpportunitiesForAccount(active.id) : [];
   const jobs = active ? await getJobsForAccount(active.id) : [];
   const subscriptions = active ? await getSubscriptionsForAccount(active.id) : [];
@@ -26,25 +32,40 @@ export default async function ConsolePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between md:pt-0">
-          <h1>
-            <span className="sr-only">MailPilot</span>
-            <span className="inline-flex h-[78px] max-w-[min(100%,27rem)] items-center overflow-hidden rounded-[32%/42%] md:max-w-[33rem]">
-              <Wordmark
-                src={COLORED_WORDMARK_SRC}
-                height={156}
-                imgClassName="max-w-none"
-                priority
+      {/* Executive Mission Control Header */}
+      <header className="flex flex-col gap-4 border-b border-border/60 pb-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="font-brand text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                Mission Control
+              </h1>
+              <span className="inline-flex items-center rounded-full border border-teal-500/30 bg-teal-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-teal-700 dark:text-teal-300">
+                Console Overview
+              </span>
+            </div>
+            <p className="max-w-xl text-xs text-muted-foreground sm:text-sm">
+              Real-time triage and operational intelligence across Job Radar and Subscriptions.
+            </p>
+          </div>
+
+          {/* Right Action Deck: Account Switcher Context & Sync Controls */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {accounts.length > 0 ? (
+              <AccountSwitcher
+                accounts={accounts}
+                activeAccountId={active?.id ?? null}
+                activeEmail={active?.email ?? null}
+                surface="header"
               />
-            </span>
-          </h1>
-          <SyncControls accountId={active?.id ?? null} />
+            ) : null}
+            <SyncControls accountId={active?.id ?? null} />
+          </div>
         </div>
-        <p className="mt-1 max-w-xl text-xs leading-snug text-muted-foreground">
-          What needs attention across Job Radar and Subscriptions.
-        </p>
-      </div>
+
+        {/* Real-time System Pulse Indicator Capsules */}
+        <ConsolePulseCapsules activeAccount={active} />
+      </header>
 
       {!active ? (
         <EmptyState

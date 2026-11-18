@@ -106,7 +106,7 @@ export function SubscriptionDesktopRow({
           <WavyDashedLine orientation="horizontal" />
         </div>
       ) : null}
-      <div className="flex h-full min-w-0 flex-1 items-center gap-3 pl-3 pr-3">
+      <div className="flex h-full min-w-0 flex-[1_1_45%] items-center gap-2.5 sm:gap-3 pl-3 pr-2 sm:pr-3">
         <input
           type="checkbox"
           checked={selected}
@@ -122,13 +122,14 @@ export function SubscriptionDesktopRow({
           name={sub.senderName ?? sub.senderEmail}
           size="md"
         />
-        <div className={cn("min-w-0", selected && "text-muted-foreground")}>
+        <div className={cn("min-w-0 flex-1", selected && "text-muted-foreground")}>
           <div className="flex min-w-0 items-center gap-1.5">
             <p
               className={cn(
                 "truncate text-sm font-medium",
                 selected ? "text-muted-foreground" : "text-foreground"
               )}
+              title={sub.senderName ?? undefined}
             >
               {sub.senderName ?? "—"}
             </p>
@@ -140,14 +141,17 @@ export function SubscriptionDesktopRow({
               />
             ) : null}
           </div>
-          <p className="truncate text-[11px] text-muted-foreground">
+          <p
+            className="truncate text-[11px] text-muted-foreground"
+            title={sub.senderEmail}
+          >
             {sub.senderEmail}
           </p>
         </div>
       </div>
 
-      <div className="flex h-full min-w-[480px] flex-1 items-center">
-        <div className={cn("flex shrink-0 items-center pl-4", METRICS_GAP_CLASS)}>
+      <div className="flex h-full min-w-0 flex-1 items-center justify-end">
+        <div className={cn("flex shrink-0 items-center pl-2 sm:pl-4", METRICS_GAP_CLASS)}>
           <LastReceivedStatBadge
             date={sub.lastReceivedAt}
             width={metricWidths.received}
@@ -165,14 +169,14 @@ export function SubscriptionDesktopRow({
           />
         </div>
 
-        <div className="flex h-full min-w-0 flex-1 items-center justify-center self-stretch px-3 sm:px-4">
+        <div className="hidden min-[1120px]:flex h-full shrink-0 items-center justify-center self-stretch px-2 sm:px-3">
           <WavyDashedLine
             orientation="vertical"
             length={SUBSCRIPTION_ROW_HEIGHT_PX}
           />
         </div>
 
-        <div className="flex h-full shrink-0 items-center justify-end gap-2.5 self-stretch bg-muted/[0.12] py-0 pr-2.5">
+        <div className="flex h-full shrink-0 items-center justify-end gap-1.5 sm:gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-1.5 pr-2.5">
           <SubscriptionRowActions
             sub={sub}
             onBriefing={onBriefing}

@@ -44,7 +44,7 @@ export function OpportunityCardBadges({
           divider="pipe"
           truncateValue
           selected={isSelected}
-          className="max-w-[220px]"
+          className="max-w-[200px] shrink sm:max-w-[240px]"
           valueClassName="font-medium text-foreground/80"
         />
         <MetaChip
@@ -59,25 +59,30 @@ export function OpportunityCardBadges({
               ? "success"
               : "default"
           }
-          valueClassName="font-medium"
+          className="shrink-0"
+          valueClassName="font-semibold"
         />
       </div>
 
-      <div className="flex shrink-0 items-center gap-3 whitespace-nowrap text-muted-foreground">
+      <div className="flex shrink-0 items-center gap-2.5 whitespace-nowrap ml-auto">
         {postedRaw ? (
           <>
             <LabelTooltip label={`Posted: ${postedRaw}`} side="top">
-              <span className="inline-flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-                <span>{postedRaw}</span>
+              <span className="inline-flex items-center gap-1 text-muted-foreground/50">
+                <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+                <span className="whitespace-nowrap">{postedRaw}</span>
               </span>
             </LabelTooltip>
-            <span className="text-muted-foreground/40" aria-hidden>
+            <span className="text-muted-foreground/60" aria-hidden>
               ·
             </span>
           </>
         ) : null}
-        <ReceivedMeta date={receivedAt} className="text-[11px]" />
+        <ReceivedMeta
+          date={receivedAt}
+          className="text-muted-foreground/70 text-[11px] whitespace-nowrap"
+          iconClassName="text-muted-foreground/70"
+        />
       </div>
     </div>
   );

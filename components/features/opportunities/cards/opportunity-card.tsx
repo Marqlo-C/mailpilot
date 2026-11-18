@@ -85,6 +85,8 @@ export type OpportunityCardProps = {
   isSelected?: boolean;
   /** Most recently toggled checkbox in the shared selection set. */
   isLastClicked?: boolean;
+  /** Whether the user is actively in multi-select mode. */
+  isMultiSelect?: boolean;
   /** Whether embedded vector AI scoring is active. */
   isEmbeddedAiEnabled?: boolean;
   /** Whether autonomous email dispatch is active. */
@@ -145,6 +147,7 @@ export function OpportunityCard({
   retentionDays = 30,
   isSelected = false,
   isLastClicked = false,
+  isMultiSelect = false,
   isEmbeddedAiEnabled,
   isAutoDispatchEnabled: _isAutoDispatchEnabled,
   onToggleSelect,
@@ -394,11 +397,11 @@ export function OpportunityCard({
       {...itemRest}
       style={itemStyle}
       className={cn(
-        "group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card transition-all duration-200 select-none",
+        "group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card transition-all duration-200 select-none active:scale-[0.99]",
         belowThreshold && !userArchived && "opacity-90",
         isSelected
           ? cn(SELECT_HIGHLIGHT_CLASSNAME, SELECT_HIGHLIGHT_FILL_CLASSNAME)
-          : "border border-border/80 shadow-lg hover:border-border hover:shadow-xl"
+          : "border border-border/80 shadow-md hover:border-border hover:shadow-xl shadow-[0_2px_8px_rgba(0,0,0,0.04),inset_0_1px_0_0_rgba(255,255,255,0.6)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.25),inset_0_1px_0_0_rgba(255,255,255,0.06)]"
       )}
     >
       {showInsertBefore ? (
@@ -407,100 +410,103 @@ export function OpportunityCard({
           aria-hidden
         />
       ) : null}
-      {/* Top-right utility cluster: Score MetaChip + Channel icon */}
-      <div
-        className={cn(
-          "absolute top-4 right-4 sm:top-5 sm:right-5 z-10 flex items-center gap-2 select-none",
-          isSelected && "opacity-55"
-        )}
-      >
-        {isApplied ? (
-          <MetaChip
-            title={appliedDate ? new Date(appliedDate).toLocaleString() : "Applied"}
-            value={`Applied ${appliedLabel}`}
-            valueClassName="text-muted-foreground font-medium"
-            selected={isSelected}
-          />
-        ) : (
-          <MetaChip
-            title={opportunity.matchReason ?? undefined}
-            value={`${score}%`}
-            valueClassName={
-              isSelected
-                ? "bg-muted/50 text-muted-foreground"
-                : cn(scoreTone(score), "font-bold")
-            }
-            selected={isSelected}
-          />
-        )}
 
-        <LabelTooltip label={classifyLabel} side="top">
-          <div className="inline-flex h-6 w-6 shrink-0 cursor-default items-center justify-center rounded-md border border-border/40 bg-card shadow-xs transition-colors">
-            {isQuickApply ? (
-              <Zap
-                className={cn(
-                  "h-3.5 w-3.5 fill-current/20 transition-colors",
-                  isSelected
-                    ? "text-muted-foreground"
-                    : scoreIconColor(score, isApplied)
-                )}
-              />
-            ) : isDirectEmail ? (
-              <Mail
-                className={cn(
-                  "h-3.5 w-3.5 transition-colors",
-                  isSelected
-                    ? "text-muted-foreground"
-                    : scoreIconColor(score, isApplied)
-                )}
-              />
-            ) : (
-              <ArrowUpRight
-                className={cn(
-                  "h-3.5 w-3.5 transition-colors",
-                  isSelected
-                    ? "text-muted-foreground"
-                    : scoreIconColor(score, isApplied)
-                )}
-              />
+      {/* Header: logo + company & role title (flexed left) and Score MetaChip + Channel icon (in-flow right) */}
+      <div className="flex items-start justify-between gap-3 p-4 pb-3 sm:p-5 sm:pb-3.5">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <CompanyLogo
+            src={companyLogoSrc}
+            name={opportunity.company}
+            size="jobCard"
+          />
+          <div
+            className={cn(
+              "min-w-0 flex-1",
+              isSelected && "text-muted-foreground"
             )}
+          >
+            <h3
+              className={cn(
+                "truncate text-base font-semibold leading-snug",
+                isSelected ? "text-muted-foreground" : "text-foreground"
+              )}
+              title={opportunity.title}
+            >
+              {opportunity.title}
+            </h3>
+            <div className="mt-1 flex h-4 items-center gap-1.5">
+              <h4
+                className={cn(
+                  "truncate text-xs font-medium capitalize leading-none",
+                  isSelected ? "text-muted-foreground" : "text-foreground/80"
+                )}
+              >
+                {opportunity.company}
+              </h4>
+              {statusTag}
+            </div>
           </div>
-        </LabelTooltip>
-      </div>
+        </div>
 
-      {/* Header: logo + company & role title */}
-      <div className="flex items-center gap-3 pl-4 pt-4 pb-3 pr-4 sm:pl-5 sm:pt-5 sm:pr-5">
-        <CompanyLogo
-          src={companyLogoSrc}
-          name={opportunity.company}
-          size="jobCard"
-        />
+        {/* Top-right utility cluster: Score MetaChip + Channel icon */}
         <div
           className={cn(
-            "min-w-0 flex-1 pr-32 sm:pr-36",
-            isSelected && "text-muted-foreground"
+            "flex shrink-0 items-center gap-2 select-none pt-0.5",
+            isSelected && "opacity-55"
           )}
         >
-          <h3
-            className={cn(
-              "truncate text-base font-semibold leading-snug",
-              isSelected ? "text-muted-foreground" : "text-foreground"
-            )}
-            title={opportunity.title}
-          >
-            {opportunity.title}
-          </h3>
-          <div className="mt-1 flex h-4 items-center gap-1.5">
-            <h4
-              className={cn(
-                "truncate text-xs font-medium capitalize leading-none",
-                isSelected ? "text-muted-foreground" : "text-foreground/80"
+          {isApplied ? (
+            <MetaChip
+              title={appliedDate ? new Date(appliedDate).toLocaleString() : "Applied"}
+              value={`Applied ${appliedLabel}`}
+              valueClassName="text-muted-foreground font-medium"
+              selected={isSelected}
+            />
+          ) : (
+            <MetaChip
+              title={opportunity.matchReason ?? undefined}
+              value={`${score}%`}
+              valueClassName={
+                isSelected
+                  ? "bg-muted/50 text-muted-foreground"
+                  : cn(scoreTone(score), "font-bold")
+              }
+              selected={isSelected}
+            />
+          )}
+
+          <LabelTooltip label={classifyLabel} side="top">
+            <div className="inline-flex h-6 w-6 shrink-0 cursor-default items-center justify-center rounded-md border border-border/40 bg-card shadow-xs transition-colors">
+              {isQuickApply ? (
+                <Zap
+                  className={cn(
+                    "h-3.5 w-3.5 fill-current/20 transition-colors",
+                    isSelected
+                      ? "text-muted-foreground"
+                      : scoreIconColor(score, isApplied)
+                  )}
+                />
+              ) : isDirectEmail ? (
+                <Mail
+                  className={cn(
+                    "h-3.5 w-3.5 transition-colors",
+                    isSelected
+                      ? "text-muted-foreground"
+                      : scoreIconColor(score, isApplied)
+                  )}
+                />
+              ) : (
+                <ArrowUpRight
+                  className={cn(
+                    "h-3.5 w-3.5 transition-colors",
+                    isSelected
+                      ? "text-muted-foreground"
+                      : scoreIconColor(score, isApplied)
+                  )}
+                />
               )}
-            >
-              {opportunity.company}
-            </h4>
-            {statusTag}
-          </div>
+            </div>
+          </LabelTooltip>
         </div>
       </div>
 
@@ -531,6 +537,7 @@ export function OpportunityCard({
           applyUrl={validApplyUrl}
           open={descriptionOpen}
           onOpenChange={setDescriptionOpen}
+          isMultiSelect={isMultiSelect}
         />
 
         {opportunity.matchReason ? (
@@ -580,13 +587,13 @@ export function OpportunityCard({
                     onPointerDown={(e) => {
                       e.stopPropagation();
                     }}
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="relative inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring before:absolute before:-inset-2 before:content-['']"
                     aria-label={rationaleExpanded ? "Collapse insight" : "Expand insight"}
                     aria-expanded={rationaleExpanded}
                   >
                     <ChevronDown
                       className={cn(
-                        "size-3.5 transition-transform duration-200",
+                        "size-3.5 transition-transform duration-200 ease-out",
                         rationaleExpanded && "rotate-180"
                       )}
                     />
@@ -595,7 +602,7 @@ export function OpportunityCard({
               </div>
               <p
                 className={cn(
-                  "text-[11px] leading-relaxed text-foreground/75 dark:text-foreground/80",
+                  "text-[11px] leading-relaxed text-foreground/75 dark:text-foreground/80 transition-all duration-200",
                   !rationaleExpanded && "line-clamp-2"
                 )}
               >
@@ -610,11 +617,11 @@ export function OpportunityCard({
       {/* pr matches action gap-2 so ⋮ sits evenly vs left button and card edge */}
       <div className="mt-auto flex flex-col">
         <WavyDashedLine orientation="horizontal" cutoffFill />
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/90 py-2.5 pl-4 pr-2 sm:pl-5">
-            <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/90 px-4 py-3 sm:px-4 sm:py-3.5">
+            <div className="flex min-w-0 items-center gap-2">
               {onToggleSelect ? (
                 <label
-                  className="m-0 inline-flex cursor-pointer items-center p-0"
+                  className="relative m-0 inline-flex cursor-pointer items-center justify-center p-0 touch-manipulation before:absolute before:-inset-3 before:content-['']"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Checkbox
@@ -634,7 +641,7 @@ export function OpportunityCard({
               ) : null}
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
               <OpportunityCardActions
                 variant={variant}
                 actionsLocked={actionsLocked}

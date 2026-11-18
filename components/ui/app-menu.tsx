@@ -39,8 +39,8 @@ export const appMenuClassNames = {
     triggerMeta:
       "flex h-6 w-full cursor-pointer items-center justify-between gap-1.5 rounded-md border border-border/50 bg-card px-2 text-[11px] font-medium text-foreground shadow-md outline-none transition-colors hover:bg-card focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
     content:
-      "z-50 min-w-[8rem] overflow-hidden rounded-lg border border-border/50 bg-card p-1 text-foreground shadow-md",
-    item: "cursor-pointer justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium text-foreground/80 focus:bg-muted focus:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-3.5",
+      "z-50 min-w-[8.5rem] overflow-hidden rounded-xl border border-border/60 bg-card/95 backdrop-blur-md p-1.5 text-foreground shadow-xl shadow-black/8",
+    item: "cursor-pointer justify-between gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground/85 transition-colors focus:bg-muted focus:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4",
     itemMeta:
       "cursor-pointer justify-between gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-foreground/80 focus:bg-muted focus:text-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:!size-2.5",
     label: "px-2.5 py-1.5 text-xs font-semibold text-foreground",
@@ -57,8 +57,8 @@ export const appMenuClassNames = {
     triggerMeta:
       "flex h-6 w-full cursor-pointer items-center justify-between gap-1.5 rounded-md border border-white/10 bg-[#282c30] px-2 text-[11px] font-medium text-[#e4f7f3] shadow-none outline-none transition-colors hover:bg-[#353a40] focus-visible:ring-1 focus-visible:ring-white/20 disabled:cursor-not-allowed disabled:opacity-50",
     content:
-      "z-[160] min-w-[8rem] overflow-hidden rounded-lg border border-white/10 bg-[hsl(var(--sidebar-panel))] p-1 text-[#e4f7f3] shadow-md",
-    item: "cursor-pointer justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium text-[#e4f7f3]/80 focus:bg-white/10 focus:text-[#e4f7f3] data-[highlighted]:bg-white/10 data-[highlighted]:text-[#e4f7f3] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-3.5",
+      "z-[160] min-w-[8.5rem] overflow-hidden rounded-xl border border-white/10 bg-[hsl(var(--sidebar-panel))]/95 backdrop-blur-md p-1.5 text-[#e4f7f3] shadow-2xl shadow-black/40",
+    item: "cursor-pointer justify-between gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[#e4f7f3]/85 transition-colors focus:bg-white/10 focus:text-[#e4f7f3] data-[highlighted]:bg-white/10 data-[highlighted]:text-[#e4f7f3] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4",
     itemMeta:
       "cursor-pointer justify-between gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-[#e4f7f3]/80 focus:bg-white/10 focus:text-[#e4f7f3] data-[highlighted]:bg-white/10 data-[highlighted]:text-[#e4f7f3] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:!size-2.5",
     label: "px-2.5 py-1.5 text-xs font-semibold text-[#e4f7f3]",

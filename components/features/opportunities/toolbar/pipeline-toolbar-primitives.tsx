@@ -63,7 +63,7 @@ export function ToolbarHalf({
   return (
     <div
       className={cn(
-        "flex min-w-full flex-1 items-center gap-3 min-[820px]:min-w-0 min-[820px]:basis-0",
+        "flex min-w-full flex-1 items-center gap-3 min-[744px]:min-w-0 min-[744px]:basis-0",
         className
       )}
     >
@@ -531,8 +531,18 @@ export function ToolbarSearch({
               style={{
                 position: "fixed",
                 top: panelBox.top,
-                left: panelBox.left + panelBox.width,
+                left:
+                  typeof window !== "undefined"
+                    ? Math.max(
+                        12,
+                        Math.min(
+                          panelBox.left + panelBox.width,
+                          window.innerWidth - 12
+                        )
+                      )
+                    : panelBox.left + panelBox.width,
                 transform: "translateX(-100%)",
+                maxWidth: "calc(100vw - 24px)",
               }}
             >
               {children}
