@@ -1,9 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  ClipboardList,
+  Radar,
+  Send,
+  Volume2,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ConsoleMetricItem, MetricTone } from "./metrics";
+
+const METRIC_ICONS: Record<ConsoleMetricItem["id"], LucideIcon> = {
+  leads: Radar,
+  action: ClipboardList,
+  applied: Send,
+  subscriptions: Volume2,
+};
 
 const TONE_CLASSES: Record<
   MetricTone,
@@ -58,7 +72,7 @@ export function ConsoleMetricsGrid({
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {metrics.map((metric) => {
-        const Icon = metric.icon;
+        const Icon = METRIC_ICONS[metric.id] ?? ArrowRight;
         const tone = metric.tone ?? "default";
         const toneStyle = TONE_CLASSES[tone];
 

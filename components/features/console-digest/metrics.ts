@@ -1,23 +1,17 @@
 import type { JobApplication, JobOpportunity, Subscription } from "@prisma/client";
-import {
-  ClipboardList,
-  Radar,
-  Send,
-  Volume2,
-} from "lucide-react";
-import type { ComponentType } from "react";
 import { isUserArchived } from "@/lib/opportunities/lifecycle";
 import { sortOpportunities } from "@/lib/opportunities/sorting";
 import { subscriptionClutterScore } from "@/lib/subscriptions/filters";
 
 export type MetricTone = "emerald" | "amber" | "blue" | "rose" | "default";
 
+export type ConsoleMetricId = "leads" | "action" | "applied" | "subscriptions";
+
 export interface ConsoleMetricItem {
-  id: "leads" | "action" | "applied" | "subscriptions";
+  id: ConsoleMetricId;
   label: string;
   value: number;
   hint: string;
-  icon: ComponentType<{ className?: string }>;
   href: string;
   badge?: string;
   tone?: MetricTone;
@@ -93,7 +87,6 @@ export function computeConsoleMetrics(
       label: "Leads",
       value: leadCount,
       hint: "In Job Radar",
-      icon: Radar,
       href: "/jobs",
       tone: "emerald",
       badge: leadCount > 0 ? "Radar Active" : undefined,
@@ -103,7 +96,6 @@ export function computeConsoleMetrics(
       label: "Action Required",
       value: actionTotal,
       hint: actionTotal === 1 ? "1 item waiting on you" : `${actionTotal} waiting on you`,
-      icon: ClipboardList,
       href: "/jobs",
       tone: "amber",
       badge: actionTotal > 0 ? "Needs Triage" : "All Clear",
@@ -113,7 +105,6 @@ export function computeConsoleMetrics(
       label: "Dispatched / Applied",
       value: appliedCount,
       hint: "Already sent & tracking",
-      icon: Send,
       href: "/jobs",
       tone: "blue",
       badge: appliedCount > 0 ? `${appliedCount} In-Flight` : undefined,
@@ -126,7 +117,6 @@ export function computeConsoleMetrics(
         activeSubscriptions.length === 1
           ? "1 total subscription"
           : `${activeSubscriptions.length} total subscriptions`,
-      icon: Volume2,
       href: "/subscriptions",
       tone: "rose",
       badge: loudCount > 0 ? `${loudCount} Running Loud` : "Quiet Inbox",
