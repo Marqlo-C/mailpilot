@@ -106,7 +106,7 @@ export function SubscriptionDesktopRow({
           <WavyDashedLine orientation="horizontal" />
         </div>
       ) : null}
-      <div className="flex h-full flex-1 min-w-0 items-center gap-3 pl-3 pr-2">
+      <div className="flex h-full w-1/2 min-w-0 items-center gap-3 pl-3 pr-3">
         <input
           type="checkbox"
           checked={selected}
@@ -146,7 +146,7 @@ export function SubscriptionDesktopRow({
         </div>
       </div>
 
-      <div className="flex h-full shrink-0 items-center">
+      <div className="flex h-full w-1/2 min-w-0 items-center">
         <div className={cn("flex shrink-0 items-center pl-4", METRICS_GAP_CLASS)}>
           <LastReceivedStatBadge
             date={sub.lastReceivedAt}
