@@ -29,7 +29,7 @@ export function ConsoleDigestCards({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
-            <h2 className="text-base font-semibold">Action queue</h2>
+            <h2 className="font-brand text-base font-bold tracking-tight">Action queue</h2>
             <CardDescription>Drafts and follow-ups waiting on you</CardDescription>
           </div>
           <DigestLink href="/jobs">Job Radar</DigestLink>
@@ -61,7 +61,7 @@ export function ConsoleDigestCards({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
-            <h2 className="text-base font-semibold">Loudest senders</h2>
+            <h2 className="font-brand text-base font-bold tracking-tight">Loudest senders</h2>
             <CardDescription>Subscribed by noise level</CardDescription>
           </div>
           <DigestLink href="/subscriptions">Subscriptions</DigestLink>

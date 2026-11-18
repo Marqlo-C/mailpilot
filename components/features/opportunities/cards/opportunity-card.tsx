@@ -10,8 +10,10 @@ import {
 import { useRouter } from "next/navigation";
 import type { JobOpportunity } from "@prisma/client";
 import {
+  ArrowUpRight,
+  ChevronDown,
+  ChevronUp,
   Clock,
-  ExternalLink,
   Mail,
   Sparkle,
   Sparkles,
@@ -37,6 +39,8 @@ import { OpportunityCardActions } from "./subcomponents/opportunity-card-actions
 import { OpportunityCardDescription } from "./subcomponents/opportunity-card-description";
 import { OpportunityCardMenu } from "./subcomponents/opportunity-card-menu";
 import { CompanyLogo } from "@/components/ui/logo-frame";
+import { Checkbox } from "@/components/ui/checkbox";
+import { MetaChip } from "@/components/ui/tactile/meta-chip";
 import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/styles/score-percent";
 import {
   PRIMARY_ACTION_BTN_CLASSNAME,
@@ -108,12 +112,25 @@ export type OpportunityCardProps = {
 
 function scoreTone(score: number): string {
   if (score >= 80) {
-    return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+    return "bg-[hsl(174_22%_92%)] text-[#147a76] dark:bg-[hsl(174_28%_22%/0.55)] dark:text-[#5eead4]";
   }
   if (score >= 60) {
-    return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
+    return "bg-[hsl(28_70%_48%/0.14)] text-[hsl(28_62%_36%)] dark:bg-[hsl(28_70%_48%/0.2)] dark:text-[hsl(28_75%_68%)]";
   }
   return "bg-muted/60 text-muted-foreground";
+}
+
+function scoreIconColor(score: number, isApplied?: boolean): string {
+  if (isApplied) {
+    return "text-muted-foreground";
+  }
+  if (score >= 80) {
+    return "text-[#147a76] dark:text-[#5eead4]";
+  }
+  if (score >= 60) {
+    return "text-[hsl(28_62%_36%)] dark:text-[hsl(28_75%_68%)]";
+  }
+  return "text-muted-foreground";
 }
 
 /**
@@ -148,6 +165,7 @@ export function OpportunityCard({
   const router = useRouter();
   const [actionPending, startTransition] = useTransition();
   const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const [rationaleExpanded, setRationaleExpanded] = useState(false);
   const busy = pending || actionPending;
   const actionsLocked = busy || isSelected;
 
@@ -241,8 +259,8 @@ export function OpportunityCard({
 
   const restoreLabel =
     opportunity.previousStatus === "APPLIED"
-      ? "Restore to Applied"
-      : "Restore to Active";
+      ? "Put Back to Applied"
+      : "Put Back to Leads";
 
   const isDev = process.env.NODE_ENV === "development";
   const [isReprocessing, setIsReprocessing] = useState(false);
@@ -320,27 +338,18 @@ export function OpportunityCard({
       </span>
     ) : null;
 
-  const isVectorClassification = Boolean(
-    opportunity.matchReason &&
-    /semantic vector|vector crossover|transferable competencies/i.test(
-      opportunity.matchReason
-    )
+  const isLongReason = Boolean(
+    opportunity.matchReason && opportunity.matchReason.length > 80
   );
-  const showVectorBadge =
-    process.env.NODE_ENV === "development" &&
-    isEmbeddedAiEnabled !== false &&
-    isVectorClassification;
-  const vectorBadge = showVectorBadge ? (
-    <span
-      className={cn(
-        statusPillClass,
-        "border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium"
-      )}
-      title="Evaluated via Embedded Vector AI (Dev-only indicator)"
-    >
-      Vector AI
-    </span>
-  ) : null;
+
+  const sparklesGradId = `sparkles-grad-${opportunity.id}`;
+  const scoreColorHex = isApplied
+    ? "#94a3b8"
+    : score >= 80
+      ? "#1ab5af"
+      : score >= 60
+        ? "#f59e0b"
+        : "#94a3b8";
 
   const validApplyUrl =
     opportunity.applyUrl && /^https?:\/\//i.test(opportunity.applyUrl.trim())
@@ -398,100 +407,100 @@ export function OpportunityCard({
           aria-hidden
         />
       ) : null}
-      {/* Top-left: bare select checkbox */}
-      {onToggleSelect ? (
-        <label className="absolute top-2.5 left-3 z-10 m-0 flex cursor-pointer items-center p-0">
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={() => onToggleSelect(opportunity.id)}
-            className={selectCheckboxClassName({
-              lastClicked: isLastClicked,
-              className: "h-3.5 w-3.5 shrink-0 cursor-pointer",
-            })}
-            aria-label={`Select ${opportunity.title}`}
-          />
-        </label>
-      ) : null}
-
-      {/* Top-right: classification + match score / applied date corner pill */}
+      {/* Top-right utility cluster: Score MetaChip + Channel icon */}
       <div
         className={cn(
-          "absolute top-0 right-0 z-10 inline-flex h-[27px] select-none items-stretch overflow-hidden rounded-bl-xl border-b border-l border-border/70 bg-secondary/35 backdrop-blur-sm",
+          "absolute top-4 right-4 sm:top-5 sm:right-5 z-10 flex items-center gap-2 select-none",
           isSelected && "opacity-55"
         )}
       >
+        {isApplied ? (
+          <MetaChip
+            title={appliedDate ? new Date(appliedDate).toLocaleString() : "Applied"}
+            value={`Applied ${appliedLabel}`}
+            valueClassName="text-muted-foreground font-medium"
+            selected={isSelected}
+          />
+        ) : (
+          <MetaChip
+            title={opportunity.matchReason ?? undefined}
+            value={`${score}%`}
+            valueClassName={
+              isSelected
+                ? "bg-muted/50 text-muted-foreground"
+                : cn(scoreTone(score), "font-bold")
+            }
+            selected={isSelected}
+          />
+        )}
+
         <LabelTooltip label={classifyLabel} side="top">
-          <div className="inline-flex items-center gap-1 px-2.5 text-[11px] font-medium text-muted-foreground">
+          <div className="inline-flex h-6 w-6 shrink-0 cursor-default items-center justify-center rounded-md border border-border/40 bg-card shadow-xs transition-colors">
             {isQuickApply ? (
-              <Zap className="h-3 w-3 fill-amber-500/20 text-amber-500" />
+              <Zap
+                className={cn(
+                  "h-3.5 w-3.5 fill-current/20 transition-colors",
+                  isSelected
+                    ? "text-muted-foreground"
+                    : scoreIconColor(score, isApplied)
+                )}
+              />
             ) : isDirectEmail ? (
-              <Mail className="h-3 w-3 text-muted-foreground/80" />
+              <Mail
+                className={cn(
+                  "h-3.5 w-3.5 transition-colors",
+                  isSelected
+                    ? "text-muted-foreground"
+                    : scoreIconColor(score, isApplied)
+                )}
+              />
             ) : (
-              <ExternalLink className="h-3 w-3 text-muted-foreground/80" />
+              <ArrowUpRight
+                className={cn(
+                  "h-3.5 w-3.5 transition-colors",
+                  isSelected
+                    ? "text-muted-foreground"
+                    : scoreIconColor(score, isApplied)
+                )}
+              />
             )}
-            <span>{classifyLabel}</span>
           </div>
         </LabelTooltip>
-        <div className="my-1 w-px bg-border/70" />
-        {isApplied ? (
-          <LabelTooltip
-            label={
-              appliedDate
-                ? new Date(appliedDate).toLocaleString()
-                : "Applied"
-            }
-            side="top"
-          >
-            <div className="inline-flex items-center gap-1 px-2.5 text-[11px] font-medium text-muted-foreground">
-              Applied {appliedLabel}
-            </div>
-          </LabelTooltip>
-        ) : (
-          <LabelTooltip
-            label={opportunity.matchReason ?? null}
-            side="top"
-          >
-            <div
-              className={cn(
-                "inline-flex items-center px-2.5",
-                SCORE_PERCENT_CLASSNAME,
-                isSelected
-                  ? "bg-muted/50 text-muted-foreground"
-                  : scoreTone(score)
-              )}
-            >
-              {score}%
-            </div>
-          </LabelTooltip>
-        )}
       </div>
 
-      {/* Header: logo + role with clearance below corner pills */}
-      <div className="flex items-center gap-2.5 px-6 pt-9 pb-3 sm:px-7">
+      {/* Header: logo + company & role title */}
+      <div className="flex items-center gap-3 pl-4 pt-4 pb-3 pr-4 sm:pl-5 sm:pt-5 sm:pr-5">
         <CompanyLogo
           src={companyLogoSrc}
           name={opportunity.company}
-          size="lg"
+          size="jobCard"
         />
         <div
-          className={cn("min-w-0 flex-1", isSelected && "text-muted-foreground")}
+          className={cn(
+            "min-w-0 flex-1 pr-32 sm:pr-36",
+            isSelected && "text-muted-foreground"
+          )}
         >
-          <div className="flex h-4 items-center gap-1.5">
-            <h4 className="truncate text-[11px] font-semibold uppercase leading-none tracking-wide text-muted-foreground">
-              {opportunity.company}
-            </h4>
-            {statusTag}
-            {vectorBadge}
-          </div>
           <h3
             className={cn(
-              "mt-0.5 truncate text-base font-semibold leading-snug",
+              "truncate text-base font-semibold leading-snug",
               isSelected ? "text-muted-foreground" : "text-foreground"
             )}
+            title={opportunity.title}
           >
             {opportunity.title}
           </h3>
+          <div className="mt-1 flex h-4 items-center gap-1.5">
+            <h4
+              className={cn(
+                "truncate text-xs font-medium capitalize leading-none",
+                isSelected ? "text-muted-foreground" : "text-foreground/80"
+              )}
+            >
+              {opportunity.company}
+            </h4>
+            {statusTag}
+          </div>
         </div>
       </div>
 
@@ -508,7 +517,7 @@ export function OpportunityCard({
       {/* 4. Content body — description aligns with first metadata pill; AI row keeps tighter inset */}
       <div
         className={cn(
-          "flex flex-1 flex-col justify-start py-3.5",
+          "flex flex-1 flex-col justify-start pt-2.5 pb-3",
           isSelected && "opacity-55"
         )}
       >
@@ -525,27 +534,71 @@ export function OpportunityCard({
         />
 
         {opportunity.matchReason ? (
-          <div className="mt-auto flex items-start gap-2 px-3.5 pt-3">
+          <div className="mt-auto flex items-start gap-2 px-2.5 pt-3 sm:px-3">
             <WavyDashedFrame
               data-match-reason-box=""
-              className="w-full rounded-lg bg-muted/20 p-2.5 dark:bg-muted/10"
+              className="w-full min-h-[4.875rem] rounded-lg bg-muted/20 px-2.5 py-2.5 sm:px-3 dark:bg-muted/10"
             >
-              <p className="min-h-[3lh] text-[11px] leading-relaxed text-muted-foreground/80">
-                {hasRichDescription ? (
-                  <span title="Full spec heuristic evaluation" className="mr-1.5 inline-flex h-[1lh] items-center align-bottom">
-                    <Sparkles
-                      aria-label="Full spec heuristic evaluation"
-                      className="h-3 w-3 text-blue-500"
-                    />
+              <div className="flex items-center justify-between gap-1.5 pb-1.5">
+                <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                  {hasRichDescription ? (
+                    <span title="Full spec heuristic evaluation" className="inline-flex items-center">
+                      <svg className="absolute h-0 w-0 overflow-hidden" aria-hidden="true" focusable="false">
+                        <defs>
+                          <linearGradient id={sparklesGradId} x1="90%" y1="10%" x2="10%" y2="90%">
+                            <stop offset="0%" stopColor="#3b82f6" />
+                            <stop offset="100%" stopColor={scoreColorHex} />
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                      <Sparkles
+                        aria-label="Full spec heuristic evaluation"
+                        className="size-3.5 shrink-0"
+                        stroke={`url(#${sparklesGradId})`}
+                      />
+                    </span>
+                  ) : (
+                    <span title="Slim title & leveling evaluation" className="inline-flex items-center">
+                      <Sparkle
+                        aria-label="Slim title & leveling evaluation"
+                        className="size-3.5 text-muted-foreground/80 shrink-0"
+                      />
+                    </span>
+                  )}
+                  <span className="font-brand text-xs font-semibold tracking-tight text-muted-foreground/90 dark:text-foreground/90">
+                    Why it fits...
                   </span>
-                ) : (
-                  <span title="Slim title & leveling evaluation" className="mr-1.5 inline-flex h-[1lh] items-center align-bottom">
-                    <Sparkle
-                      aria-label="Slim title & leveling evaluation"
-                      className="h-3 w-3 text-muted-foreground/80"
+                </div>
+                {isLongReason ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setRationaleExpanded((prev) => !prev);
+                    }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    aria-label={rationaleExpanded ? "Collapse insight" : "Expand insight"}
+                    aria-expanded={rationaleExpanded}
+                  >
+                    <ChevronDown
+                      className={cn(
+                        "size-3.5 transition-transform duration-200",
+                        rationaleExpanded && "rotate-180"
+                      )}
                     />
-                  </span>
+                  </button>
+                ) : null}
+              </div>
+              <p
+                className={cn(
+                  "text-[11px] leading-relaxed text-foreground/75 dark:text-foreground/80",
+                  !rationaleExpanded && "line-clamp-2"
                 )}
+              >
                 {opportunity.matchReason}
               </p>
             </WavyDashedFrame>
@@ -557,8 +610,22 @@ export function OpportunityCard({
       {/* pr matches action gap-2 so ⋮ sits evenly vs left button and card edge */}
       <div className="mt-auto flex flex-col">
         <WavyDashedLine orientation="horizontal" cutoffFill />
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/90 py-3 pl-4 pr-2 sm:pl-5">
-            <div className="flex min-w-0 items-center">
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/90 py-2.5 pl-4 pr-2 sm:pl-5">
+            <div className="flex min-w-0 items-center gap-2.5">
+              {onToggleSelect ? (
+                <label
+                  className="m-0 inline-flex cursor-pointer items-center p-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    checked={isSelected}
+                    onChange={() => onToggleSelect(opportunity.id)}
+                    className={isLastClicked ? "mp-select-checkbox-last-clicked" : undefined}
+                    aria-label={`Select ${opportunity.title}`}
+                  />
+                </label>
+              ) : null}
+
               {variant === "history" && dismissed ? (
                 <span className="inline-flex items-center gap-1 px-1 text-[11px] text-muted-foreground">
                   <Clock className="h-3 w-3" />

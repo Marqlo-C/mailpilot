@@ -1,8 +1,32 @@
-export function EmptyState({ title, body }: { title: string; body: string }) {
+import * as React from "react";
+import {
+  EmptyState as CompositeEmptyState,
+  type EmptyStateProps,
+} from "@/components/ui/composites/empty-state";
+
+export interface SubscriptionEmptyStateProps
+  extends Omit<EmptyStateProps, "description"> {
+  /** Optional body copy alias for backward compatibility. */
+  body?: React.ReactNode;
+  /** Secondary explanatory description. */
+  description?: React.ReactNode;
+}
+
+/**
+ * Subscriptions domain wrapper around the centralized EmptyState composite.
+ * Preserves the `{ title, body }` contract used in subscriptions tab panes.
+ */
+export function EmptyState({
+  body,
+  description,
+  size = "lg",
+  ...props
+}: SubscriptionEmptyStateProps) {
   return (
-    <div className="rounded-lg border border-dashed border-border px-6 py-16 text-center">
-      <p className="font-medium">{title}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{body}</p>
-    </div>
+    <CompositeEmptyState
+      size={size}
+      description={description ?? body}
+      {...props}
+    />
   );
 }

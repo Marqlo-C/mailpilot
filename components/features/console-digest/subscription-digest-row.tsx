@@ -1,6 +1,5 @@
-import Link from "next/link";
 import type { Subscription } from "@prisma/client";
-import { CompanyLogo } from "@/components/ui/logo-frame";
+import { DigestRowItem } from "./digest-row-item";
 import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/styles/score-percent";
 import { faviconUrlForDomain, getCleanDomain } from "@/lib/utils/domain";
 import {
@@ -26,33 +25,24 @@ export function SubscriptionDigestRow({
   const domain = getCleanDomain(subscription.senderEmail);
   const tier = clutterScoreTier(clutter);
   return (
-    <Link
+    <DigestRowItem
       href="/subscriptions"
-      className="flex items-center gap-3 rounded-md border border-border px-3 py-2 hover:bg-muted/40"
-    >
-      <CompanyLogo
-        src={domain ? faviconUrlForDomain(domain) : null}
-        name={subscription.senderName ?? subscription.senderEmail}
-        size="md"
-      />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">
-          {subscription.senderName ?? "—"}
-        </p>
-        <p className="truncate text-xs text-muted-foreground">
-          {subscription.senderEmail}
-        </p>
-      </div>
-      <span
-        title="Clutter score"
-        className={cn(
-          "inline-flex h-[30px] shrink-0 items-center justify-center rounded-md px-2",
-          SCORE_PERCENT_CLASSNAME,
-          CLUTTER_VALUE_CLASSES[tier]
-        )}
-      >
-        {clutter}%
-      </span>
-    </Link>
+      logoSrc={domain ? faviconUrlForDomain(domain) : null}
+      logoName={subscription.senderName ?? subscription.senderEmail}
+      title={subscription.senderName ?? "—"}
+      subtitle={subscription.senderEmail}
+      metricBadge={
+        <span
+          title="Clutter score"
+          className={cn(
+            "inline-flex h-[30px] shrink-0 items-center justify-center rounded-md px-2",
+            SCORE_PERCENT_CLASSNAME,
+            CLUTTER_VALUE_CLASSES[tier]
+          )}
+        >
+          {clutter}%
+        </span>
+      }
+    />
   );
 }

@@ -12,14 +12,14 @@ export type CheckboxProps = Omit<
   onCheckedChange?: (checked: boolean) => void;
 };
 
-/** Project select checkbox: teal fill, white check, 14px box. */
+/** Project select checkbox: teal fill, white check, 16px box. */
 export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
   ({ className, onCheckedChange, onChange, ...props }, ref) => (
     <input
       ref={ref}
       type="checkbox"
       className={selectCheckboxClassName({
-        className: cn("h-3.5 w-3.5 shrink-0 cursor-pointer", className),
+        className: cn("size-4 shrink-0 cursor-pointer", className),
       })}
       onChange={(event) => {
         onChange?.(event);

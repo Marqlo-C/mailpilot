@@ -330,4 +330,31 @@ describe("AccountSwitcher Sidebar Flyout", () => {
     expect(openFlyout).not.toBeNull();
     expect(openFlyout.style.left).toContain("calc(100% +");
   });
+
+  it("renders compact mode with avatar-only trigger button and accounts indicator", async () => {
+    await act(async () => {
+      env.root.render(
+        React.createElement(AccountSwitcher, {
+          accounts: mockAccounts,
+          activeAccountId: "acc_1",
+          compact: true,
+        })
+      );
+    });
+
+    const compactButton = findNode(
+      env.container,
+      (n) =>
+        n.tagName === "BUTTON" &&
+        n.attributes?.["aria-label"]?.includes("Account menu for")
+    );
+    expect(compactButton).not.toBeNull();
+
+    // Verify indicator dot exists for multiple accounts
+    const accountIndicator = findNode(
+      compactButton,
+      (n) => n.attributes?.["title"] === "2 connected accounts"
+    );
+    expect(accountIndicator).not.toBeNull();
+  });
 });

@@ -36,7 +36,7 @@ export function ReceivedMeta({
     );
   }
 
-  const label = formatRelativeTime(date, { addSuffix: true }) ?? emptyLabel;
+  const label = formatRelativeTime(date, { addSuffix: false }) ?? emptyLabel;
 
   return (
     <LabelTooltip label={`${titlePrefix}: ${label}`} side="top">

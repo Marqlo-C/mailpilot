@@ -1,5 +1,6 @@
 import { JobsRadar } from "@/components/features/opportunities/toolbar/jobs-radar";
 import { SyncControls } from "@/components/features/opportunities/sync-controls";
+import { EmptyState } from "@/components/ui/composites";
 import { getMasterProfile } from "@/app/actions/profile";
 import {
   getActiveAccount,
@@ -53,12 +54,11 @@ export default async function JobsPage({
         <div className="mb-3 flex justify-end">
           <SyncControls accountId={null} />
         </div>
-        <div className="rounded-lg border border-dashed border-border px-6 py-16 text-center">
-          <p className="font-medium">Connect a Gmail account first</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Job classification starts once an inbox is linked.
-          </p>
-        </div>
+        <EmptyState
+          size="lg"
+          title="Connect a Gmail account first"
+          description="Job classification starts once an inbox is linked."
+        />
       </div>
     );
   }

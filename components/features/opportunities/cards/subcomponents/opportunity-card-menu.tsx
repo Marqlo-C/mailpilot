@@ -2,15 +2,15 @@
 
 import type { JobOpportunity } from "@prisma/client";
 import {
-  AlignLeft,
   Archive,
+  Ban,
   ExternalLink,
+  Eye,
   Mail,
   RotateCw,
   Send,
-  ThumbsDown,
+  SquarePen,
   Trash2,
-  XCircle,
 } from "lucide-react";
 
 import {
@@ -54,6 +54,8 @@ export type OpportunityCardMenuProps = {
   onReprocess: () => void;
 };
 
+const menuItemClass = "justify-start gap-2.5 cursor-pointer";
+
 export function OpportunityCardMenu({
   variant,
   actionsLocked,
@@ -94,9 +96,10 @@ export function OpportunityCardMenu({
             <AppMenuItem
               disabled={actionsLocked}
               onClick={onDescriptionOpen}
+              className={menuItemClass}
             >
-              <AlignLeft className="mr-2 h-4 w-4" />
-              Full Description
+              <Eye className="h-4 w-4 shrink-0" />
+              <span>Quick Look</span>
             </AppMenuItem>
           ) : null}
           {variant === "leads" && canEmail ? (
@@ -105,16 +108,18 @@ export function OpportunityCardMenu({
               <AppMenuItem
                 disabled={actionsLocked}
                 onClick={onReviewDraft}
+                className={menuItemClass}
               >
-                <Mail className="mr-2 h-4 w-4" />
-                Review Draft
+                <SquarePen className="h-4 w-4 shrink-0" />
+                <span>Edit Draft</span>
               </AppMenuItem>
               <AppMenuItem
                 disabled={actionsLocked}
                 onClick={onSendNow}
+                className={menuItemClass}
               >
-                <Send className="mr-2 h-4 w-4" />
-                Send Now
+                <Send className="h-4 w-4 shrink-0" />
+                <span>Send Now</span>
               </AppMenuItem>
               <AppMenuSeparator />
             </>
@@ -123,20 +128,21 @@ export function OpportunityCardMenu({
             <AppMenuItem
               disabled={actionsLocked}
               onClick={onViewOriginalEmail}
+              className={menuItemClass}
             >
-              <Mail className="mr-2 h-4 w-4" />
-              Inbox Message
+              <Mail className="h-4 w-4 shrink-0" />
+              <span>Show Original Email</span>
             </AppMenuItem>
           ) : null}
           {(variant === "applied" || variant === "action") && validApplyUrl ? (
-            <AppMenuItem asChild disabled={actionsLocked}>
+            <AppMenuItem asChild disabled={actionsLocked} className={menuItemClass}>
               <a
                 href={validApplyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <ExternalLink className="mr-2 h-4 w-4" />
-                View Posting
+                <ExternalLink className="h-4 w-4 shrink-0" />
+                <span>Open Link</span>
               </a>
             </AppMenuItem>
           ) : null}
@@ -144,17 +150,19 @@ export function OpportunityCardMenu({
             <AppMenuItem
               disabled={actionsLocked}
               onClick={onArchive}
+              className={menuItemClass}
             >
-              <Archive className="mr-2 h-4 w-4" />
-              Archive
+              <Archive className="h-4 w-4 shrink-0" />
+              <span>Archive</span>
             </AppMenuItem>
           )}
           <AppMenuItem
             disabled={actionsLocked}
             onClick={onDismiss}
+            className={menuItemClass}
           >
-            <XCircle className="mr-2 h-4 w-4" />
-            Dismiss
+            <Trash2 className="h-4 w-4 shrink-0" />
+            <span>Move to Trash</span>
           </AppMenuItem>
           {onLessLikeThis ? (
             <>
@@ -162,10 +170,13 @@ export function OpportunityCardMenu({
               <AppMenuItem
                 disabled={actionsLocked}
                 onClick={onLessLikeThis}
-                className="text-amber-600 focus:bg-amber-50 focus:text-amber-600 dark:text-amber-400 dark:focus:bg-amber-950/50 dark:focus:text-amber-400"
+                className={cn(
+                  menuItemClass,
+                  "text-amber-600 focus:bg-amber-50 focus:text-amber-600 dark:text-amber-400 dark:focus:bg-amber-950/50 dark:focus:text-amber-400"
+                )}
               >
-                <ThumbsDown className="mr-2 h-4 w-4" />
-                Less like this
+                <Ban className="h-4 w-4 shrink-0" />
+                <span>Block Role Title</span>
               </AppMenuItem>
             </>
           ) : null}
@@ -175,12 +186,15 @@ export function OpportunityCardMenu({
               <AppMenuItem
                 disabled={actionsLocked || isReprocessing}
                 onClick={onReprocess}
-                className="text-cyan-600 focus:bg-cyan-50 focus:text-cyan-600 dark:text-cyan-400 dark:focus:bg-cyan-950/50 dark:focus:text-cyan-400"
+                className={cn(
+                  menuItemClass,
+                  "text-cyan-600 focus:bg-cyan-50 focus:text-cyan-600 dark:text-cyan-400 dark:focus:bg-cyan-950/50 dark:focus:text-cyan-400"
+                )}
               >
                 <RotateCw
-                  className={cn("mr-2 h-4 w-4", isReprocessing && "animate-spin")}
+                  className={cn("h-4 w-4 shrink-0", isReprocessing && "animate-spin")}
                 />
-                Re-sync Email (Dev)
+                <span>Re-analyze Email (Dev)</span>
               </AppMenuItem>
             </>
           ) : null}
@@ -207,9 +221,10 @@ export function OpportunityCardMenu({
           <AppMenuItem
             disabled={actionsLocked}
             onClick={onDescriptionOpen}
+            className={menuItemClass}
           >
-            <AlignLeft className="mr-2 h-4 w-4" />
-            Full Description
+            <Eye className="h-4 w-4 shrink-0" />
+            <span>Quick Look</span>
           </AppMenuItem>
         ) : null}
         {hasDescription && (opportunity.isArchived || dismissed) ? (
@@ -219,19 +234,23 @@ export function OpportunityCardMenu({
           <AppMenuItem
             disabled={actionsLocked}
             onClick={onDismiss}
+            className={menuItemClass}
           >
-            <XCircle className="mr-2 h-4 w-4" />
-            Dismiss
+            <Trash2 className="h-4 w-4 shrink-0" />
+            <span>Move to Trash</span>
           </AppMenuItem>
         ) : null}
         {dismissed ? (
           <AppMenuItem
             disabled={actionsLocked}
             onClick={onDelete}
-            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+            className={cn(
+              menuItemClass,
+              "text-destructive focus:bg-destructive/10 focus:text-destructive"
+            )}
           >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete
+            <Trash2 className="h-4 w-4 shrink-0" />
+            <span>Delete Immediately</span>
           </AppMenuItem>
         ) : null}
         {isDev && opportunity.emailMessageId ? (
@@ -240,12 +259,15 @@ export function OpportunityCardMenu({
             <AppMenuItem
               disabled={actionsLocked || isReprocessing}
               onClick={onReprocess}
-              className="text-cyan-600 focus:bg-cyan-50 focus:text-cyan-600 dark:text-cyan-400 dark:focus:bg-cyan-950/50 dark:focus:text-cyan-400"
+              className={cn(
+                menuItemClass,
+                "text-cyan-600 focus:bg-cyan-50 focus:text-cyan-600 dark:text-cyan-400 dark:focus:bg-cyan-950/50 dark:focus:text-cyan-400"
+              )}
             >
               <RotateCw
-                className={cn("mr-2 h-4 w-4", isReprocessing && "animate-spin")}
+                className={cn("h-4 w-4 shrink-0", isReprocessing && "animate-spin")}
               />
-              Re-sync Email (Dev)
+              <span>Re-analyze Email (Dev)</span>
             </AppMenuItem>
           </>
         ) : null}

@@ -256,10 +256,11 @@ html[data-mp-toolbar="dark"] [data-mp-toolbar-field] [role="group"] button:hover
 /*
  * Command deck underside fade. Padding reserves an empty band below meta so
  * the toolbar/meta stay opaque and cards at rest sit fully under the band
- * (not inside the mask). Softens only as the list scrolls up underneath.
+ * (not inside the mask). Softens seamlessly as the list scrolls up underneath
+ * without harsh banding.
  */
 .scroll-edge-out {
-  --scroll-edge-fade: 0.625rem;
+  --scroll-edge-fade: 0.875rem;
   padding-bottom: var(--scroll-edge-fade);
   -webkit-mask-image: linear-gradient(
     to bottom,

@@ -63,7 +63,7 @@ export function ToolbarHalf({
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-1 basis-0 items-center gap-3",
+        "flex min-w-full flex-1 items-center gap-3 min-[820px]:min-w-0 min-[820px]:basis-0",
         className
       )}
     >
@@ -132,7 +132,7 @@ export function ToolbarSelectAll({
   return (
     <label
       className={cn(
-        "inline-flex shrink-0 items-center",
+        "relative inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-black/5 dark:hover:bg-white/5 before:absolute before:-inset-1.5 before:content-['']",
         disabled ? "cursor-not-allowed opacity-35" : "cursor-pointer"
       )}
     >
@@ -178,7 +178,8 @@ export function ToolbarScoreSlider({
       htmlFor={inputId}
       className="flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs font-medium text-foreground/75 transition-colors hover:text-foreground"
     >
-      {label}
+      <span className="hidden min-[360px]:inline">{label}</span>
+      <span className="min-[360px]:hidden">Match:</span>
     </label>
   );
 
@@ -442,9 +443,9 @@ export function ToolbarSearch({
     }
   }
 
-  /** Clear / mic / filters — ellipsis-menu ghost fill, circular. */
+  /** Clear / mic / filters — ghost fill, circular with min 44px hit-target padding. */
   const trailingGhostActionClassName =
-    "inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]";
+    "relative inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))] before:absolute before:-inset-2 before:content-['']";
 
   return (
     <div

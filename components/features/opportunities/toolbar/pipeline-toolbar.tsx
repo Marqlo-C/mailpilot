@@ -123,7 +123,7 @@ export function PipelineToolbar({
                 onCommit={onMinScoreCommit}
               />
             </ToolbarHalf>
-            <ToolbarDivider />
+            <ToolbarDivider className="hidden min-[820px]:block" />
             <ToolbarHalf>
               <ToolbarSearch
                 searchQuery={searchQuery}

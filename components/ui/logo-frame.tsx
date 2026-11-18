@@ -14,26 +14,40 @@ export { logoInitials } from "@/lib/utils/company-logo";
  *
  * - sm → 32px (`size-8`)
  * - md → 36px (`size-9`) — subscription cards
- * - lg → 40px (`size-10`) — job cards, settings feature marks
+ * - lg → 40px (`size-10`) — settings feature marks, dialog marks
+ * - jobCard → 48px (`size-12`) — dedicated job opportunity card mark
+ * - xl → 56px (`size-14`) — large modal / dialog marks
  */
 const SIZE_CONFIG = {
   sm: {
-    outer: "size-8 rounded-lg p-0.5",
-    inner: "rounded-[0.375rem]",
+    outer: "size-8 rounded-lg p-[1px]",
+    inner: "rounded-[7px]",
     text: "text-[10px]",
     icon: "size-3.5",
   },
   md: {
-    outer: "size-9 rounded-xl p-0.5",
-    inner: "rounded-[0.625rem]",
+    outer: "size-9 rounded-xl p-[1px]",
+    inner: "rounded-[11px]",
     text: "text-xs",
     icon: "size-4",
   },
   lg: {
-    outer: "size-10 rounded-xl p-0.5",
-    inner: "rounded-[0.625rem]",
+    outer: "size-10 rounded-xl p-[1px]",
+    inner: "rounded-[11px]",
     text: "text-sm",
     icon: "size-5",
+  },
+  jobCard: {
+    outer: "size-12 rounded-xl p-[1px]",
+    inner: "rounded-[11px]",
+    text: "text-sm font-semibold",
+    icon: "size-5",
+  },
+  xl: {
+    outer: "size-14 rounded-2xl p-[1px]",
+    inner: "rounded-[15px]",
+    text: "text-base font-semibold",
+    icon: "size-6",
   },
 } as const;
 

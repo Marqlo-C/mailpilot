@@ -32,6 +32,8 @@ type AccountSwitcherProps = {
   surface?: "header" | "sidebar";
   /** Collapsed sidebar: icon trigger only. */
   collapsed?: boolean;
+  /** Compact header mode: avatar trigger only with connected accounts indicator. */
+  compact?: boolean;
 };
 
 export function AccountSwitcher({
@@ -40,6 +42,7 @@ export function AccountSwitcher({
   activeEmail,
   surface = "header",
   collapsed = false,
+  compact = false,
 }: AccountSwitcherProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -250,27 +253,45 @@ export function AccountSwitcher({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="max-w-[260px] justify-between gap-2"
-          disabled={pending}
-        >
-          <span className="flex min-w-0 items-center gap-2">
-            <Avatar className="h-4 w-4 shrink-0">
-              {active?.picture ? (
-                <AvatarImage src={active.picture} alt="" referrerPolicy="no-referrer" />
-              ) : null}
-              <AvatarFallback className="bg-transparent">
-                <UserCog className="h-3.5 w-3.5" />
-              </AvatarFallback>
-            </Avatar>
-            <span className="truncate">{label}</span>
-          </span>
-          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
-        </Button>
+        {compact ? (
+          <button
+            type="button"
+            className="group relative flex size-8 shrink-0 items-center justify-center rounded-[22%] border border-white/10 bg-white/10 p-0 text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            aria-label={`Account menu for ${label}`}
+            title={label}
+            disabled={pending}
+          >
+            {avatar}
+            {accounts.length > 1 && (
+              <span
+                className="absolute -bottom-0.5 -right-0.5 flex size-2.5 items-center justify-center rounded-full bg-teal-400 ring-2 ring-[#181e26]"
+                title={`${accounts.length} connected accounts`}
+              />
+            )}
+          </button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="max-w-[260px] justify-between gap-2"
+            disabled={pending}
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <Avatar className="h-4 w-4 shrink-0">
+                {active?.picture ? (
+                  <AvatarImage src={active.picture} alt="" referrerPolicy="no-referrer" />
+                ) : null}
+                <AvatarFallback className="bg-transparent">
+                  <UserCog className="h-3.5 w-3.5" />
+                </AvatarFallback>
+              </Avatar>
+              <span className="truncate">{label}</span>
+            </span>
+            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+          </Button>
+        )}
       </DropdownMenuTrigger>
-      <AppMenuContent surface="light" side="bottom" align="end" className="w-72">
+      <AppMenuContent surface={compact ? "dark" : "light"} side="bottom" align="end" className="w-72">
         <AppMenuLabel>Connected accounts</AppMenuLabel>
         <AppMenuSeparator />
         {accounts.length === 0 ? (
@@ -303,6 +324,7 @@ export function AccountSwitcher({
               <Check
                 className={cn(
                   "h-4 w-4 shrink-0",
+                  compact ? "text-teal-400" : "text-primary",
                   account.id === activeAccountId ? "opacity-100" : "opacity-0"
                 )}
               />
@@ -320,7 +342,7 @@ export function AccountSwitcher({
         </AppMenuItem>
         <AppMenuSeparator />
         <AppMenuItem
-          className="text-destructive focus:text-destructive"
+          className={cn(compact ? "text-rose-400 focus:text-rose-300" : "text-destructive focus:text-destructive")}
           onSelect={() => {
             startTransition(async () => {
               await logoutSession();

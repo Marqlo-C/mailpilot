@@ -83,7 +83,7 @@ export function DialogIdentityHeader({
       <div className="flex items-start gap-3">
         {mark}
         <div className="-mt-0.5 flex min-w-0 flex-col">
-          <DialogTitle className="text-lg font-semibold leading-tight tracking-tight">
+          <DialogTitle className="font-brand text-lg font-bold leading-tight tracking-tight">
             {title}
           </DialogTitle>
           {primary || secondary ? (

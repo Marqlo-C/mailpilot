@@ -416,7 +416,7 @@ export function SyncTelemetry({
               </span>
               {compact ? null : (
                 <span className={restLabelClass}>
-                  <span className="tabular-nums">{pendingCount}</span>{" "}
+                  <span className="tabular-nums font-semibold">{pendingCount}</span>{" "}
                   {pendingCount === 1 ? "email" : "emails"} awaiting Ace
                 </span>
               )}
@@ -441,7 +441,7 @@ export function SyncTelemetry({
               </span>
               {compact ? null : (
                 <span className={restLabelClass}>
-                  <span className="tabular-nums">{pendingCount}</span>{" "}
+                  <span className="tabular-nums font-semibold">{pendingCount}</span>{" "}
                   {pendingCount === 1 ? "email" : "emails"} awaiting Ace
                 </span>
               )}
@@ -460,7 +460,7 @@ export function SyncTelemetry({
             )}
           >
             <span className="relative flex h-1.5 w-1.5 shrink-0">
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.5)]" />
             </span>
             {compact ? null : (
               <span className={restLabelClass}>Inbox up to date</span>

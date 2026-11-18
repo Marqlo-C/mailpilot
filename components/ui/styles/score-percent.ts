@@ -4,4 +4,4 @@
  * class literals live under components/ for Tailwind content scanning.
  */
 export const SCORE_PERCENT_CLASSNAME =
-  "text-xs font-bold tracking-tight tabular-nums";
+  "font-brand text-xs font-bold tracking-tight tabular-nums";

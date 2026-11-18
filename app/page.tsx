@@ -1,5 +1,6 @@
 import { COLORED_WORDMARK_SRC, Wordmark } from "@/components/brand/logo";
 import { SyncControls } from "@/components/features/opportunities/sync-controls";
+import { EmptyState } from "@/components/ui/composites";
 import {
   getActiveAccount,
   getJobOpportunitiesForAccount,
@@ -46,12 +47,11 @@ export default async function ConsolePage() {
       </div>
 
       {!active ? (
-        <div className="rounded-lg border border-dashed border-border px-6 py-16 text-center">
-          <p className="font-medium">Connect a Gmail account first</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Job Radar and Subscriptions fill in once an inbox is linked.
-          </p>
-        </div>
+        <EmptyState
+          size="lg"
+          title="Connect a Gmail account first"
+          description="Job Radar and Subscriptions fill in once an inbox is linked."
+        />
       ) : (
         <>
           <ConsoleMetricsGrid metrics={metrics} />

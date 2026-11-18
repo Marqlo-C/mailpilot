@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { addExcludedTitle, removeExcludedTitle } from "@/app/actions/settings";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 import { LogoFrameIcon } from "@/components/ui/logo-frame";
+import { EmptyState } from "@/components/ui/composites";
 import {
   SettingsFeatureCard,
   SettingsStatusPill,
@@ -70,7 +71,7 @@ export function ExcludedTitlesCard({
     <SettingsFeatureCard
       logo={<LogoFrameIcon icon={ShieldBan} />}
       title="Roles to hide"
-      subtitle="Titles you marked “Less like this.” Matching listings are soft-hidden on Job Radar."
+      subtitle="Titles you blocked. Matching listings are soft-hidden on Job Radar."
       statusBadge={
         <SettingsStatusPill count={count} hasItems={count > 0}>
           {count === 0 ? "None" : `${count} hidden`}
@@ -88,10 +89,12 @@ export function ExcludedTitlesCard({
         ) : null}
 
         {excludedTitles.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border/80 px-4 py-6 text-center text-xs text-muted-foreground">
-            Nothing excluded yet. On any opportunity card, open the ⋮ menu and
-            choose &quot;Less like this&quot; — or add a title below.
-          </p>
+          <EmptyState
+            size="sm"
+            title="Nothing excluded yet"
+            description="On any opportunity card, open the ⋮ menu and choose &quot;Block Role Title&quot; — or add a title below."
+            className="border-border/80"
+          />
         ) : (
           <div className="flex flex-wrap gap-2">
             {excludedTitles.map((title) => (

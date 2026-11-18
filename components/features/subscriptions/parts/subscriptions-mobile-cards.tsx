@@ -38,6 +38,7 @@ export function ActiveMobileCards({
   resolveBriefing,
   onViewLastBriefing,
   onViewLastEmail,
+  className,
 }: {
   subscriptions: Subscription[];
   selectedIds: string[];
@@ -51,6 +52,7 @@ export function ActiveMobileCards({
   resolveBriefing: (sub: Subscription) => ResolvedBriefing | null;
   onViewLastBriefing: (briefing: ResolvedBriefing) => void;
   onViewLastEmail: (sub: Subscription) => void;
+  className?: string;
 }) {
   const metricWidths = useMemo(
     () => computeMetricColumnWidths(subscriptions),
@@ -63,7 +65,7 @@ export function ActiveMobileCards({
   );
 
   return (
-    <ul className="md:hidden" data-dnd-list>
+    <ul className={cn("min-[744px]:hidden", className)} data-dnd-list>
       {subscriptions.map((sub, index) => {
         const clutter = clutterForSub(sub);
         const briefing = resolveBriefing(sub);

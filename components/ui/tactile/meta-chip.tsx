@@ -24,14 +24,13 @@ const META_CHIP_ICON_RAIL_CLASSNAME = {
 /** Outline /40 → pipe /80, same hue token as the shell border. */
 const META_CHIP_PIPE_CLASSNAME = {
   default: "text-border/80",
-  success:
-    "text-emerald-200/80 dark:text-emerald-800/80",
+  success: "text-border/80",
 } as const;
 
 const META_CHIP_TONE_SHELL_CLASSNAME = {
   default: "",
   success:
-    "border-emerald-200/40 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-400",
+    "border-border/40 bg-muted/50 text-emerald-700 dark:border-border/40 dark:bg-muted/50 dark:text-emerald-400",
 } as const;
 
 export type MetaChipIconSize = keyof typeof META_CHIP_ICON_CLASSNAME;

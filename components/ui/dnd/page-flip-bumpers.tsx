@@ -48,7 +48,7 @@ export function PageFlipBumpers({
 
   return createPortal(
     <div
-      className="pointer-events-none fixed top-[4.25rem] z-[70] md:top-0"
+      className="pointer-events-none fixed top-14 z-[70] lg:top-0"
       style={{
         left: "var(--app-sidebar-width, 0px)",
         right: 0,

@@ -106,7 +106,7 @@ export function SubscriptionDesktopRow({
           <WavyDashedLine orientation="horizontal" />
         </div>
       ) : null}
-      <div className="flex h-full w-1/2 min-w-0 items-center gap-3 pl-3 pr-3">
+      <div className="flex h-full flex-1 min-w-0 items-center gap-3 pl-3 pr-2">
         <input
           type="checkbox"
           checked={selected}
@@ -146,7 +146,7 @@ export function SubscriptionDesktopRow({
         </div>
       </div>
 
-      <div className="flex h-full w-1/2 min-w-0 items-center">
+      <div className="flex h-full shrink-0 items-center">
         <div className={cn("flex shrink-0 items-center pl-4", METRICS_GAP_CLASS)}>
           <LastReceivedStatBadge
             date={sub.lastReceivedAt}
@@ -199,6 +199,7 @@ export function ActiveDesktopTable({
   resolveBriefing,
   onViewLastBriefing,
   onViewLastEmail,
+  className,
 }: {
   subscriptions: Subscription[];
   selectedIds: string[];
@@ -212,6 +213,7 @@ export function ActiveDesktopTable({
   resolveBriefing: (sub: Subscription) => ResolvedBriefing | null;
   onViewLastBriefing: (briefing: ResolvedBriefing) => void;
   onViewLastEmail: (sub: Subscription) => void;
+  className?: string;
 }) {
   const metricWidths = useMemo(
     () => computeMetricColumnWidths(subscriptions),
@@ -233,8 +235,9 @@ export function ActiveDesktopTable({
     <div
       data-dnd-list
       className={cn(
-        "relative hidden w-full overflow-hidden rounded-xl border-0 bg-card shadow-lg transition-[box-shadow] duration-200 hover:shadow-xl md:block",
-        selectionTouchesShell ? "ring-0" : "ring-1 ring-border/80"
+        "relative hidden w-full overflow-hidden rounded-xl border-0 bg-card shadow-lg transition-[box-shadow] duration-200 hover:shadow-xl min-[744px]:block",
+        selectionTouchesShell ? "ring-0" : "ring-1 ring-border/80",
+        className
       )}
     >
       {subscriptions.map((sub, index) => {

@@ -11,3 +11,4 @@ export * from "./view-email-dialog";
 export * from "./tactile-toast-item";
 export * from "./tactile-toast-stack";
 export * from "./dynamic-status-pill";
+export * from "./empty-state";

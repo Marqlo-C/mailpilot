@@ -179,7 +179,7 @@ export function OpportunitiesBulkBar({
                 className={BULK_ACTION_BTN_CLASSNAME}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Mark Applied
+                Mark as Applied
                 <BulkActionCount count={selectedIds.length} />
               </button>
             </>

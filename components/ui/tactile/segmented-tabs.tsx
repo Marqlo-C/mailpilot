@@ -25,21 +25,23 @@ export const tabRailRowClassName =
   "mb-4 flex w-full flex-wrap items-center justify-between gap-3";
 
 /**
- * Sticky command deck. On desktop the negative margin cancels main's top
- * padding, then 4px drops the rail just under the sidebar's top.
+ * Sticky command deck. On tablet portrait (and mobile) it sticks under the
+ * h-14 (3.5rem) top bar at `top-14`. On desktop (`lg:`) the top bar is hidden
+ * and the command deck sticks at `top-0`.
  */
 export const commandDeckClassName =
-  "scroll-edge-out sticky flow-root top-[4.25rem] z-30 -mx-4 -mt-4 rounded-b-2xl bg-canvas-fixed px-4 pt-4 md:top-0 md:-mx-6 md:-mt-[9px] md:px-6 md:pt-1";
+  "scroll-edge-out sticky flow-root top-14 z-30 -mx-4 -mt-4 rounded-b-2xl bg-canvas-fixed px-4 pt-4 min-[744px]:-mx-6 min-[744px]:px-6 lg:top-0 lg:-mt-[9px] lg:pt-1";
 
-/** 18px inset each side — rail, Sync, toolbar, and full-deck bodies share this. */
-export const commandDeckColumnClassName = "mx-auto w-[calc(100%-36px)]";
+/** Rail, Sync, toolbar, and full-deck bodies share this outer column. */
+export const commandDeckColumnClassName =
+  "mx-auto w-[calc(100%-16px)] sm:w-[calc(100%-24px)] md:w-[calc(100%-32px)]";
 
 /**
  * Listing under the sticky deck. Stays below `.scroll-edge-out`’s fade
- * padding so cards aren’t masked at rest. Inset vs the wider rail/toolbar column.
+ * padding so cards aren’t masked at rest. Strictly inset vs the wider rail/toolbar column across all viewports.
  */
 export const commandDeckBodyClassName =
-  "relative z-0 mx-auto w-full max-w-6xl";
+  "relative z-0 mx-auto w-[calc(100%-36px)] sm:w-[calc(100%-48px)] md:w-[calc(100%-56px)] max-w-6xl";
 
 /** Body aligned to the rail + action / toolbar column (Settings). */
 export const commandDeckWideBodyClassName = cn(
@@ -85,7 +87,74 @@ export function CommandDeckFrame({
       >
         {children}
       </div>
+      <CommandDeckBottomCutoff bodyWidth={bodyWidth} />
     </>
+  );
+}
+
+/**
+ * Bottom scroll cutoff that lifts the card stream entry threshold off the
+ * bottom of the screen and curves upward at the edges mirroring the
+ * rounded-2xl (16px) corners of the cards, without drawing a hard visible
+ * container or solid box around the area.
+ */
+export function CommandDeckBottomCutoff({
+  bodyWidth = "listing",
+}: {
+  bodyWidth?: "listing" | "deck";
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none sticky bottom-0 z-20 -mx-4 -mb-6 flex flex-col select-none min-[744px]:-mx-6 min-[744px]:-mb-8"
+    >
+      {/* 16px corner row: curves up at the outer edges of the card column */}
+      <div className="flex w-full items-end h-4">
+        {/* Left canvas wing outside card column */}
+        <div className="flex-1 h-full bg-canvas-fixed" />
+
+        {/* Center column aligned exactly to the cards */}
+        <div
+          className={cn(
+            "relative flex items-end h-full shrink-0",
+            bodyWidth === "deck"
+              ? "w-[calc(100%-16px)] sm:w-[calc(100%-24px)] md:w-[calc(100%-32px)]"
+              : "w-[calc(100%-36px)] sm:w-[calc(100%-48px)] md:w-[calc(100%-56px)] max-w-6xl"
+          )}
+        >
+          {/* Bottom-left curve: curves UP into the card column mirroring card corner */}
+          <div
+            className="size-4 shrink-0 bg-canvas-fixed"
+            style={{
+              maskImage:
+                "radial-gradient(circle 16px at 16px 0, transparent 0, transparent 15.5px, black 16.5px)",
+              WebkitMaskImage:
+                "radial-gradient(circle 16px at 16px 0, transparent 0, transparent 15.5px, black 16.5px)",
+            }}
+          />
+
+          {/* Open center where cards show through */}
+          <div className="flex-1 h-full" />
+
+          {/* Bottom-right curve: curves UP into the card column mirroring card corner */}
+          <div
+            className="size-4 shrink-0 bg-canvas-fixed"
+            style={{
+              maskImage:
+                "radial-gradient(circle 16px at 0 0, transparent 0, transparent 15.5px, black 16.5px)",
+              WebkitMaskImage:
+                "radial-gradient(circle 16px at 0 0, transparent 0, transparent 15.5px, black 16.5px)",
+            }}
+          />
+        </div>
+
+        {/* Right canvas wing outside card column */}
+        <div className="flex-1 h-full bg-canvas-fixed" />
+      </div>
+
+      {/* Base cutoff band lifting the scroll area 8px off the bottom of the viewport */}
+      <div className="h-2 w-full bg-canvas-fixed" />
+    </div>
   );
 }
 
@@ -203,7 +272,7 @@ export function useTabRailClasses() {
 
 /** Base pill chrome for tab counts and toolbar number fields. */
 export const TAB_COUNT_BADGE_CLASSNAME =
-  "rounded-md px-1.5 py-0.5 text-[10px] font-bold leading-none bg-[hsl(var(--tab-rail-chip))] text-foreground/80";
+  "font-brand rounded-md px-1.5 py-0.5 text-[10px] font-bold leading-none bg-[hsl(var(--tab-rail-chip))] text-foreground/80";
 
 type TabCountBadgeProps = {
   count: number;

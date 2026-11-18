@@ -1,4 +1,5 @@
 export { DigestLink } from "./digest-link";
+export { DigestRowItem, type DigestRowItemProps } from "./digest-row-item";
 export { OpportunityDigestRow } from "./opportunity-digest-row";
 export { ApplicationDigestRow } from "./application-digest-row";
 export {

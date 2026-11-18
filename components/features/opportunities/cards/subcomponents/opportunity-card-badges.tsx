@@ -31,7 +31,7 @@ export function OpportunityCardBadges({
   return (
     <div
       className={cn(
-        "flex w-full min-w-0 items-center justify-between gap-2 px-6 py-1 text-[11px] select-none sm:px-7",
+        "flex w-full min-w-0 items-center justify-between gap-2 px-5 py-1 text-[11px] select-none sm:px-6",
         isSelected && "opacity-55"
       )}
     >

@@ -48,7 +48,7 @@ export function OpportunityCardDescription({
           onClick={() => onOpenChange(true)}
           disabled={!modalBody}
           className={cn(
-            "min-h-[2.5rem] w-full px-6 text-left text-xs leading-relaxed text-foreground/80 sm:px-7 dark:text-foreground/85",
+            "min-h-[2.5rem] w-full px-6 text-left text-xs leading-relaxed text-foreground/80 sm:px-8 dark:text-foreground/85",
             "line-clamp-2 transition-colors",
             modalBody
               ? "cursor-pointer hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"

@@ -44,7 +44,8 @@ export const RowMenuTrigger = React.forwardRef<
       // Avoid size="icon" (h-9 w-9) — tall thin kebab: h-8 × half-width.
       className={cn(
         // Invert of primary CTA (Unsubscribe): mint fill, dark shell dots.
-        "h-8 w-4 min-w-4 shrink-0 rounded-lg border-0 bg-[#e4f7f3] p-0 text-[#181e26] shadow-none hover:bg-[#181e26] hover:text-[#e4f7f3] [&_svg]:size-4",
+        // Touch target ergonomics: 44px min touch target on coarse pointers with hit area expansion.
+        "relative touch-manipulation h-8 w-4 min-w-4 shrink-0 rounded-lg border-0 bg-[#e4f7f3] p-0 text-[#181e26] shadow-none hover:bg-[#181e26] hover:text-[#e4f7f3] [@media(pointer:coarse)]:min-h-[44px] [@media(pointer:coarse)]:min-w-[32px] before:absolute before:left-1/2 before:top-1/2 before:h-full before:min-h-[44px] before:w-full before:min-w-[44px] before:-translate-x-1/2 before:-translate-y-1/2 before:content-[''] [&_svg]:size-4",
         className
       )}
       {...props}

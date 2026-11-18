@@ -9,6 +9,7 @@ import {
   Undo2,
 } from "lucide-react";
 import type { OpportunityCardVariant } from "./opportunity-card-menu";
+import { cn } from "@/lib/utils";
 
 export type OpportunityCardActionsProps = {
   variant: OpportunityCardVariant;
@@ -25,6 +26,15 @@ export type OpportunityCardActionsProps = {
   onRestore: () => void;
 };
 
+/**
+ * Touch target ergonomics:
+ * On fine pointer (desktop mouse), maintains dense, crisp UI footprint.
+ * On coarse pointer (tablet / mobile), enforces minimum 44px touch target
+ * with hit area expansion via pseudo-element.
+ */
+const TOUCH_TARGET_ACTION_CLASSNAME =
+  "relative touch-manipulation [@media(pointer:coarse)]:min-h-[44px] [@media(pointer:coarse)]:px-3.5 before:absolute before:inset-0 before:top-1/2 before:min-h-[44px] before:w-full before:min-w-full before:-translate-y-1/2 before:content-['']";
+
 export function OpportunityCardActions({
   variant,
   actionsLocked,
@@ -39,6 +49,9 @@ export function OpportunityCardActions({
   onSendNow,
   onRestore,
 }: OpportunityCardActionsProps) {
+  const primaryClass = cn(primaryBtnClass, TOUCH_TARGET_ACTION_CLASSNAME);
+  const secondaryClass = cn(secondaryBtnClass, TOUCH_TARGET_ACTION_CLASSNAME);
+
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {/* Secondary (left of primary) */}
@@ -47,10 +60,10 @@ export function OpportunityCardActions({
           type="button"
           disabled={actionsLocked}
           onClick={onMarkApplied}
-          className={secondaryBtnClass}
+          className={secondaryClass}
         >
           <CheckCircle2 className="h-3.5 w-3.5" />
-          <span>Mark Applied</span>
+          <span>Mark as Applied</span>
         </button>
       ) : null}
 
@@ -59,17 +72,17 @@ export function OpportunityCardActions({
           type="button"
           disabled={actionsLocked}
           onClick={onReviewDraft}
-          className={secondaryBtnClass}
+          className={secondaryClass}
         >
           <Mail className="h-3.5 w-3.5" />
-          <span>Review Draft</span>
+          <span>Edit Draft</span>
         </button>
       ) : null}
 
       {variant === "history" && validApplyUrl ? (
         actionsLocked ? (
-          <span className={secondaryBtnClass} aria-disabled>
-            <span>View Posting</span>
+          <span className={secondaryClass} aria-disabled>
+            <span>Open Link</span>
             <ExternalLink className="h-3.5 w-3.5" />
           </span>
         ) : (
@@ -77,9 +90,9 @@ export function OpportunityCardActions({
             href={validApplyUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={secondaryBtnClass}
+            className={secondaryClass}
           >
-            <span>View Posting</span>
+            <span>Open Link</span>
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
         )
@@ -92,15 +105,15 @@ export function OpportunityCardActions({
             type="button"
             disabled={actionsLocked}
             onClick={onReviewDraft}
-            className={primaryBtnClass}
+            className={primaryClass}
           >
             <Mail className="h-3.5 w-3.5" />
-            <span>Draft Reply</span>
+            <span>Reply</span>
           </button>
         ) : validApplyUrl ? (
           actionsLocked ? (
-            <span className={primaryBtnClass} aria-disabled>
-              <span>View Posting</span>
+            <span className={primaryClass} aria-disabled>
+              <span>Apply</span>
               <ExternalLink className="h-3.5 w-3.5" />
             </span>
           ) : (
@@ -108,14 +121,14 @@ export function OpportunityCardActions({
               href={validApplyUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className={primaryBtnClass}
+              className={primaryClass}
             >
-              <span>View Posting</span>
+              <span>Apply</span>
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
           )
         ) : (
-          <span className="inline-flex items-center rounded-lg border border-border/40 bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground/60">
+          <span className="inline-flex items-center rounded-lg border border-border/40 bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground/60 [@media(pointer:coarse)]:min-h-[44px]">
             No link detected
           </span>
         )
@@ -126,10 +139,10 @@ export function OpportunityCardActions({
           type="button"
           disabled={actionsLocked}
           onClick={onUnmarkApplied}
-          className={primaryBtnClass}
+          className={primaryClass}
         >
           <Undo2 className="h-3.5 w-3.5" />
-          <span>Mark Unapplied</span>
+          <span>Move to Leads</span>
         </button>
       ) : null}
 
@@ -139,15 +152,15 @@ export function OpportunityCardActions({
             type="button"
             disabled={actionsLocked}
             onClick={onSendNow}
-            className={primaryBtnClass}
+            className={primaryClass}
           >
             <Send className="h-3.5 w-3.5" />
             <span>Send</span>
           </button>
         ) : validApplyUrl ? (
           actionsLocked ? (
-            <span className={primaryBtnClass} aria-disabled>
-              <span>View Posting</span>
+            <span className={primaryClass} aria-disabled>
+              <span>Apply</span>
               <ExternalLink className="h-3.5 w-3.5" />
             </span>
           ) : (
@@ -155,9 +168,9 @@ export function OpportunityCardActions({
               href={validApplyUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className={primaryBtnClass}
+              className={primaryClass}
             >
-              <span>View Posting</span>
+              <span>Apply</span>
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
           )
@@ -169,7 +182,7 @@ export function OpportunityCardActions({
           type="button"
           disabled={actionsLocked}
           onClick={onRestore}
-          className={primaryBtnClass}
+          className={primaryClass}
         >
           <RotateCcw className="h-3.5 w-3.5" />
           <span>{restoreLabel}</span>

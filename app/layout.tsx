@@ -14,6 +14,7 @@ import {
 } from "@/lib/data";
 import { readServerUiPreferences } from "@/lib/utils/ui/ui-preferences-server";
 import { AppToaster } from "@/components/ui/app-toaster";
+import { MobileOrientationGate } from "@/components/layout/mobile-orientation-gate";
 
 import "./globals.css";
 
@@ -54,6 +55,7 @@ export default async function RootLayout({
         <body
           className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}
         >
+          <MobileOrientationGate />
           {children}
           <AppToaster />
         </body>
@@ -111,6 +113,7 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}
       >
+        <MobileOrientationGate />
         <AppShell
           accounts={accounts}
           activeAccountId={active?.id ?? null}

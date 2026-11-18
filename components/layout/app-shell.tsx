@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
   PanelLeft,
   PanelLeftClose,
@@ -12,13 +11,14 @@ import { useEffect } from "react";
 import { Logo, NavLogo } from "@/components/brand/logo";
 import { AccountSwitcher } from "@/components/layout/account-switcher";
 import { GlobalSyncTracker } from "@/components/layout/global-sync-tracker";
-import { SidebarNav, SIDEBAR_NAV, SIDEBAR_PRIMARY_NAV, SIDEBAR_SETTINGS_NAV } from "@/components/layout/sidebar-nav";
+import { SidebarNav, SIDEBAR_PRIMARY_NAV, SIDEBAR_SETTINGS_NAV } from "@/components/layout/sidebar-nav";
 import {
   SidebarCollapseProvider,
   useSidebarCollapse,
 } from "@/components/layout/sidebar-collapse-provider";
 import { SidebarFlyoutProvider } from "@/components/layout/sidebar-flyout-provider";
 import { SidebarQuickActions } from "@/components/layout/sidebar-quick-actions";
+import { TabletNavDrawer } from "@/components/layout/tablet-nav-drawer";
 import { SyncStatusProvider } from "@/components/layout/sync-status-provider";
 import { BulkActionsOpenProvider } from "@/components/ui/composites/bulk-actions-flyout";
 import { CurvedCardDivider } from "@/components/ui/tactile/nested-settings-card";
@@ -31,8 +31,8 @@ import { cn } from "@/lib/utils";
 import type { AccountSummary, SidebarTabCounts } from "@/lib/data";
 import type { ServerUiPreferences } from "@/lib/utils/ui/ui-preferences-server";
 
-/** Mobile top bar. Desktop pages no longer share this band. */
-const SHELL_TOP_BAND_CLASS = "flex h-[4.25rem] shrink-0 items-center";
+/** Mobile and portrait tablet top bar. Desktop pages no longer share this band. */
+const SHELL_TOP_BAND_CLASS = "flex h-14 shrink-0 items-center";
 
 /**
  * Brand row above the curved divider. `py-2` keeps the mark optically
@@ -48,7 +48,7 @@ const SHELL_HAIRLINE_CLASS = "mx-3 border-b border-white/[0.06]";
  */
 /** Wider than listing `max-w-6xl` so tab rail, Sync, and filter toolbar share one outer column. */
 const SHELL_MAIN_CLASS =
-  "mx-auto w-full max-w-[79.2rem] flex-1 px-4 pt-4 pb-6 md:px-6 md:pb-8 md:pt-[9px]";
+  "mx-auto w-full max-w-[79.2rem] flex-1 px-4 pt-4 pb-6 min-[744px]:px-6 min-[744px]:pb-8 lg:pt-[9px]";
 
 type AppShellProps = {
   accounts: AccountSummary[];
@@ -81,8 +81,8 @@ function AppShellInner({
   isDev,
   children,
 }: AppShellProps) {
-  const pathname = usePathname();
-  const { collapsed, setCollapsed, toggleSidebar } = useSidebarCollapse();
+  const { collapsed, setCollapsed, toggleSidebar, setTabletDrawerOpen } =
+    useSidebarCollapse();
   /** Desktop sidebar widths: expanded w-64 (256px), collapsed w-[64px]. */
   const sidebarWidthPx = collapsed ? 64 : 256;
   /** Left float inset (ml equivalent). Content centering starts after this gap. */
@@ -91,24 +91,18 @@ function AppShellInner({
   useEffect(() => {
     const root = document.documentElement;
     const sync = () => {
-      const desktop = window.matchMedia("(min-width: 768px)").matches;
+      const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
       root.style.setProperty(
         "--app-sidebar-width",
-        desktop ? `${sidebarOffsetPx}px` : "0px"
-      );
-      // Mobile bottom nav: icon + label + py-2.5 ≈ 4.5rem; clear fixed overlays.
-      root.style.setProperty(
-        "--app-mobile-bottom-inset",
-        desktop ? "0px" : "4.5rem"
+        isDesktop ? `${sidebarOffsetPx}px` : "0px"
       );
     };
     sync();
-    const mq = window.matchMedia("(min-width: 768px)");
-    mq.addEventListener("change", sync);
+    const mqDesktop = window.matchMedia("(min-width: 1024px)");
+    mqDesktop.addEventListener("change", sync);
     return () => {
-      mq.removeEventListener("change", sync);
+      mqDesktop.removeEventListener("change", sync);
       root.style.removeProperty("--app-sidebar-width");
-      root.style.removeProperty("--app-mobile-bottom-inset");
     };
   }, [sidebarOffsetPx]);
 
@@ -132,14 +126,23 @@ function AppShellInner({
       initialVariant={initialUiPreferences?.toolbar}
     >
     <SidebarFlyoutProvider>
-    <div className="min-h-screen md:flex md:h-dvh md:min-h-0 md:overflow-hidden md:py-1.5 md:pl-1.5">
+    <div className="min-h-screen min-[744px]:flex min-[744px]:h-dvh min-[744px]:min-h-0 min-[744px]:overflow-hidden lg:p-1.5">
       <GlobalSyncTracker />
       <AppToaster />
 
-      {/* Desktop sidebar */}
+      {/* Off-canvas sidebar drawer for tablet portrait (744px to 1023px) */}
+      <TabletNavDrawer
+        accounts={accounts}
+        activeAccountId={activeAccountId}
+        activeEmail={activeEmail}
+        tabCounts={tabCounts}
+        isDev={isDev}
+      />
+
+      {/* Desktop persistent sidebar (docked in landscape / desktop mode >=1024px) */}
       <aside
         className={cn(
-          "sticky top-1.5 z-40 hidden h-[calc(100dvh-0.75rem)] shrink-0 cursor-pointer flex-col rounded-2xl text-[hsl(var(--sidebar-foreground))] transition-[width] duration-200 md:flex",
+          "sticky top-1.5 z-40 hidden h-[calc(100dvh-0.75rem)] shrink-0 cursor-pointer flex-col rounded-2xl text-[hsl(var(--sidebar-foreground))] transition-[width] duration-200 lg:flex",
           darkPlateClassName,
           collapsed ? "w-[64px]" : "w-64"
         )}
@@ -243,73 +246,61 @@ function AppShellInner({
         </div>
       </aside>
 
-      <div className="relative flex min-w-0 flex-1 flex-col md:min-h-0">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col pb-20 md:overflow-y-auto md:overscroll-y-contain md:pb-0 md:scroll-smooth">
-          {/* Mobile top bar. Desktop sync status sits beside Job Radar. */}
-        <header
-          className={cn(
-            SHELL_TOP_BAND_CLASS,
-            "sticky top-0 z-30 justify-between gap-3 border-b border-border/80 bg-gradient-to-b from-card from-55% via-card/70 to-card/30 px-4 backdrop-blur-md md:hidden"
-          )}
-        >
-          <div className="shrink-0 md:hidden">
-            <span className="inline-flex items-center gap-2 text-foreground">
-              <Logo variant="icon" size="sm" showWordmark={false} priority />
-              <span className="hidden font-semibold tracking-tight sm:inline">
-                MailPilot
-              </span>
-            </span>
-          </div>
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <SyncTelemetry
-              connected={Boolean(activeAccountId)}
-              className="max-w-full"
-            />
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <AccountSwitcher
-              accounts={accounts}
-              activeAccountId={activeAccountId}
-              activeEmail={activeEmail}
-            />
-          </div>
-        </header>
+      <div className="relative flex min-w-0 flex-1 flex-col min-[744px]:min-h-0 lg:h-[calc(100dvh-0.75rem)]">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col min-[744px]:overflow-y-auto min-[744px]:overscroll-y-contain min-[744px]:scroll-smooth">
+          {/* Top bar for mobile and portrait tablet. In desktop mode (>=1024px), sidebar is docked so top bar is hidden. */}
+          <header
+            className={cn(
+              "sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 min-[744px]:px-6 lg:hidden",
+              darkPlateClassName
+            )}
+          >
+            {/* Left: Brand icon mark + wordmark link, with drawer toggle squircle button */}
+            <div className="flex shrink-0 items-center gap-2.5 sm:gap-3">
+              <button
+                type="button"
+                onClick={() => setTabletDrawerOpen(true)}
+                className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-white shadow-xs transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-95 before:absolute before:-inset-1.5 before:content-['']"
+                title="Open navigation menu"
+                aria-label="Open navigation menu"
+              >
+                <PanelLeftOpen className="size-4" />
+              </button>
+              <Link
+                href="/jobs"
+                className="inline-flex items-center gap-2 text-[#e4f7f3] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <Logo variant="icon" size="sm" showWordmark={false} priority />
+                <span className="font-semibold tracking-tight text-[#e4f7f3]">
+                  MailPilot
+                </span>
+              </Link>
+            </div>
+
+            {/* Right: Grouped telemetry capsule and compact account switcher */}
+            <div className="flex shrink-0 items-center gap-2.5 sm:gap-3">
+              <div className="inline-flex min-w-0 items-center rounded-full border border-teal-500/20 bg-teal-950/30 px-3 py-1 text-teal-200 shadow-sm backdrop-blur-xs transition-colors hover:border-teal-500/30">
+                <SyncTelemetry
+                  connected={Boolean(activeAccountId)}
+                  surface="sidebar"
+                  panel
+                  className="shrink-0 text-teal-200"
+                />
+              </div>
+              <AccountSwitcher
+                accounts={accounts}
+                activeAccountId={activeAccountId}
+                activeEmail={activeEmail}
+                compact
+              />
+            </div>
+          </header>
 
           <main className={SHELL_MAIN_CLASS}>
             {children}
           </main>
         </div>
       </div>
-
-      {/* Mobile bottom nav */}
-      <nav
-        data-mobile-bottom-nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-md md:hidden"
-      >
-        <ul className="grid grid-cols-4">
-          {SIDEBAR_NAV.map((item) => {
-            const active =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(item.href);
-            const Icon = item.icon;
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    "flex flex-col items-center gap-1 px-2 py-2.5 text-[11px] font-medium",
-                    active ? "text-primary" : "text-muted-foreground"
-                  )}
-                >
-                  <Icon className="h-5 w-5" />
-                  {item.label === "Job Radar" ? "Jobs" : item.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
     </div>
     </SidebarFlyoutProvider>
     </ToolbarThemeProvider>

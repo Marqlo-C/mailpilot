@@ -49,7 +49,7 @@ export default async function LoginPage({
                   />
                 </span>
               </div>
-              <h1 className="mt-3 text-xl font-semibold tracking-tight">
+              <h1 className="font-brand mt-3 text-2xl font-bold tracking-tight">
                 We&apos;re so glad you made it! But...
               </h1>
               <p className="mx-auto mt-3 w-[100%] rounded-lg border border-dashed border-[#ffab72] bg-[#ffab72]/9 px-3 py-2 text-justify text-[10px] leading-relaxed text-muted-foreground">
@@ -76,7 +76,7 @@ export default async function LoginPage({
             ) : null}
 
             <div className="space-y-2.5">
-              <h2 className="text-center text-sm font-semibold tracking-tight">
+              <h2 className="font-brand text-center text-sm font-semibold tracking-tight">
                 Sign In or Create an Account
               </h2>
               <GoogleSignInButton href={href} />

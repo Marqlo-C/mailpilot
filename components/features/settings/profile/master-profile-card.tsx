@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { UserRound } from "lucide-react";
 import { SettingsSectionCard } from "@/components/ui/tactile";
+import { EmptyState } from "@/components/ui/composites";
 import { ManualProfileEditor } from "./manual-profile-editor";
 import { ProfileRevisionsMenu } from "@/components/features/profile/profile-revisions-menu";
 import { SETTINGS_CARD_CLASSNAME } from "@/lib/utils/navigation/settings-chrome";
@@ -197,12 +198,11 @@ export function MasterProfileCard({
           Connect a Gmail account to manage your master profile.
         </p>
       ) : !profile ? (
-        <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center">
-          <p className="font-medium">No profile data yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Click Edit Fields or Import Resume to begin.
-          </p>
-        </div>
+        <EmptyState
+          size="md"
+          title="No profile data yet"
+          description="Click Edit Fields or Import Resume to begin."
+        />
       ) : (
         <div className="space-y-4">
           {/* Top Identity Window */}

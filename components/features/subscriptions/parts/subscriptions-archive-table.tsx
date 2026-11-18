@@ -124,7 +124,7 @@ export function ArchiveDesktopRow({
           <WavyDashedLine orientation="horizontal" />
         </div>
       ) : null}
-      <div className="flex h-full w-1/2 min-w-0 items-center gap-3 pl-3 pr-3">
+      <div className="flex h-full flex-1 min-w-0 items-center gap-3 pl-3 pr-2">
         <CompanyLogo
           src={senderLogoSrc(entry.senderEmail)}
           name={entry.senderName ?? entry.senderEmail}
@@ -140,7 +140,7 @@ export function ArchiveDesktopRow({
         </div>
       </div>
 
-      <div className="flex h-full w-1/2 min-w-0 items-center">
+      <div className="flex h-full shrink-0 items-center">
         <div className={cn("flex shrink-0 items-center pl-4", METRICS_GAP_CLASS)}>
           <LastReceivedStatBadge
             date={entry.lastReceivedAt}
@@ -176,12 +176,14 @@ export function ArchiveDesktopTable({
   pending,
   onCleanup,
   onDeleteRecord,
+  className,
 }: {
   entries: ArchiveEntry[];
   cleanupPendingKey: string | null;
   pending: boolean;
   onCleanup: (entry: ArchiveEntry) => void;
   onDeleteRecord: (entry: ArchiveEntry) => void;
+  className?: string;
 }) {
   const metricWidths = useMemo(
     () =>
@@ -192,7 +194,12 @@ export function ArchiveDesktopTable({
   );
 
   return (
-    <div className="hidden w-full overflow-hidden rounded-xl border border-border/80 bg-card shadow-md transition-shadow duration-200 hover:shadow-lg md:block">
+    <div
+      className={cn(
+        "hidden w-full overflow-hidden rounded-xl border border-border/80 bg-card shadow-md transition-shadow duration-200 hover:shadow-lg min-[744px]:block",
+        className
+      )}
+    >
       {entries.map((entry, index) => (
         <ArchiveDesktopRow
           key={entry.key}
@@ -214,12 +221,14 @@ export function ArchiveMobileCards({
   pending,
   onCleanup,
   onDeleteRecord,
+  className,
 }: {
   entries: ArchiveEntry[];
   cleanupPendingKey: string | null;
   pending: boolean;
   onCleanup: (entry: ArchiveEntry) => void;
   onDeleteRecord: (entry: ArchiveEntry) => void;
+  className?: string;
 }) {
   const metricWidths = useMemo(
     () =>
@@ -230,7 +239,7 @@ export function ArchiveMobileCards({
   );
 
   return (
-    <ul className="space-y-3 md:hidden">
+    <ul className={cn("space-y-3 min-[744px]:hidden", className)}>
       {entries.map((entry) => {
         const clutter = clutterForArchiveEntry(entry);
         return (

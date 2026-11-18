@@ -24,7 +24,7 @@ export function ConsoleMetricsGrid({
                 <Icon className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-semibold tracking-tight">
+                <p className="font-brand text-3xl font-bold tracking-tight text-foreground">
                   {metric.value}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">

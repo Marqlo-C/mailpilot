@@ -173,7 +173,7 @@ export function WavySlider({
     <div
       ref={trackRef}
       className={cn(
-        "group relative flex h-8 shrink-0 select-none items-center",
+        "group relative flex h-8 shrink-0 select-none items-center touch-none",
         widthClassName,
         disabled && "pointer-events-none opacity-50",
         className
@@ -304,7 +304,7 @@ export function WavySlider({
             commitFromEvent(e.currentTarget);
           }
         }}
-        className="absolute inset-0 z-20 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+        className="absolute -inset-y-1.5 inset-x-0 z-20 h-[calc(100%+12px)] w-full cursor-pointer opacity-0 disabled:cursor-not-allowed touch-none"
       />
     </div>
   );
