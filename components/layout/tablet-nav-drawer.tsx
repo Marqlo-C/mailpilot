@@ -30,8 +30,8 @@ export type TabletNavDrawerProps = {
 };
 
 /**
- * Off-canvas overlay drawer for portrait tablet mode (744px to 1023px).
- * Dismisses cleanly on backdrop click, Escape key, or route navigation.
+ * Universal off-canvas overlay drawer for mobile (<744px) and portrait tablet (744px to 1023px) screens.
+ * Dismisses cleanly on tap-backdrop, Escape key, or route navigation.
  */
 export function TabletNavDrawer({
   accounts,
@@ -60,6 +60,16 @@ export function TabletNavDrawer({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [tabletDrawerOpen, setTabletDrawerOpen]);
 
+  // Prevent background body scroll while drawer is open
+  useEffect(() => {
+    if (!tabletDrawerOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [tabletDrawerOpen]);
+
   if (!tabletDrawerOpen) {
     return null;
   }
@@ -73,7 +83,7 @@ export function TabletNavDrawer({
     >
       {/* Backdrop scrim */}
       <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 animate-in fade-in"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 animate-in fade-in cursor-pointer select-none"
         onClick={() => setTabletDrawerOpen(false)}
         aria-hidden="true"
       />
@@ -97,7 +107,7 @@ export function TabletNavDrawer({
             <button
               type="button"
               onClick={() => setTabletDrawerOpen(false)}
-              className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-white shadow-xs transition-colors hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-95 before:absolute before:-inset-1.5 before:content-['']"
+              className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-white shadow-xs transition-colors hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-95 before:absolute before:-inset-2 before:content-['']"
               title="Close navigation"
               aria-label="Close navigation"
             >
@@ -107,7 +117,7 @@ export function TabletNavDrawer({
           <CurvedCardDivider radius={16} className="mb-0 text-white/10" />
         </div>
 
-        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain scroll-smooth">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain scroll-smooth [-webkit-overflow-scrolling:touch]">
           <SidebarNav
             collapsed={false}
             activeAccountId={activeAccountId}
@@ -133,7 +143,7 @@ export function TabletNavDrawer({
           <div className="min-h-2 flex-1" />
         </div>
 
-        <div className="relative z-10 border-t border-white/[0.06] px-3 pb-2.5 pt-2">
+        <div className="relative z-10 border-t border-white/[0.06] px-3 pb-[calc(0.625rem+env(safe-area-inset-bottom,0px))] pt-2">
           <AccountSwitcher
             accounts={accounts}
             activeAccountId={activeAccountId}

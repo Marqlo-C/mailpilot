@@ -31,8 +31,9 @@ import { cn } from "@/lib/utils";
 import type { AccountSummary, SidebarTabCounts } from "@/lib/data";
 import type { ServerUiPreferences } from "@/lib/utils/ui/ui-preferences-server";
 
-/** Mobile and portrait tablet top bar. Desktop pages no longer share this band. */
-const SHELL_TOP_BAND_CLASS = "flex h-14 shrink-0 items-center";
+/** Mobile and portrait tablet top bar. Desktop pages no longer share this band. Compacts to h-11 on short landscape viewports. */
+const SHELL_TOP_BAND_CLASS =
+  "flex h-14 [@media(max-height:520px)]:h-11 shrink-0 items-center";
 
 /**
  * Brand row above the curved divider. `py-2` keeps the mark optically
@@ -248,10 +249,10 @@ function AppShellInner({
 
       <div className="relative flex min-w-0 flex-1 flex-col min-[744px]:min-h-0 lg:h-[calc(100dvh-0.75rem)]">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col min-[744px]:overflow-y-auto min-[744px]:overscroll-y-contain min-[744px]:scroll-smooth">
-          {/* Top bar for mobile and portrait tablet. In desktop mode (>=1024px), sidebar is docked so top bar is hidden. */}
+          {/* Top bar for mobile and portrait tablet. In desktop mode (>=1024px), sidebar is docked so top bar is hidden. Compacts on short viewports (<520px). */}
           <header
             className={cn(
-              "sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 min-[744px]:px-6 lg:hidden",
+              "sticky top-0 z-30 flex h-14 [@media(max-height:520px)]:h-11 shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 min-[744px]:px-6 lg:hidden",
               darkPlateClassName
             )}
           >
@@ -260,7 +261,7 @@ function AppShellInner({
               <button
                 type="button"
                 onClick={() => setTabletDrawerOpen(true)}
-                className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-white shadow-xs transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-95 before:absolute before:-inset-1.5 before:content-['']"
+                className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-white shadow-xs transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-95 before:absolute before:-inset-2 before:content-['']"
                 title="Open navigation menu"
                 aria-label="Open navigation menu"
               >

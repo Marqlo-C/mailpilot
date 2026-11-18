@@ -26,11 +26,11 @@ export const tabRailRowClassName =
 
 /**
  * Sticky command deck. On tablet portrait (and mobile) it sticks under the
- * h-14 (3.5rem) top bar at `top-14`. On desktop (`lg:`) the top bar is hidden
- * and the command deck sticks at `top-0`.
+ * h-14 (3.5rem) top bar at `top-14` (or `top-11` on short landscape viewports). On desktop (`lg:`)
+ * the top bar is hidden and the command deck sticks at `top-0`.
  */
 export const commandDeckClassName =
-  "scroll-edge-out sticky flow-root top-14 z-30 -mx-4 -mt-4 rounded-b-2xl bg-canvas-fixed px-4 pt-4 min-[744px]:-mx-6 min-[744px]:px-6 lg:top-0 lg:-mt-[9px] lg:pt-1";
+  "scroll-edge-out sticky flow-root top-14 [@media(max-height:520px)]:top-11 z-30 -mx-4 -mt-4 rounded-b-2xl bg-canvas-fixed px-4 pt-4 min-[744px]:-mx-6 min-[744px]:px-6 lg:top-0 lg:-mt-[9px] lg:pt-1";
 
 /** Rail, Sync, toolbar, and full-deck bodies share this outer column. */
 export const commandDeckColumnClassName =
@@ -166,10 +166,10 @@ export const tabRailInactiveTextClassName = {
 
 /** Light rail — near-white plate above the page, white selected chip, same teal edge. */
 export const lightRailListClassName =
-  "inline-flex h-auto w-auto items-center justify-start gap-2.5 self-start rounded-xl border border-border bg-[hsl(var(--tab-rail-light))] p-1 pr-3 text-foreground/60 shadow-md";
+  "inline-flex h-auto w-auto max-w-full items-center justify-start gap-2.5 self-start overflow-x-auto overscroll-x-contain no-scrollbar scroll-smooth [-webkit-overflow-scrolling:touch] rounded-xl border border-border bg-[hsl(var(--tab-rail-light))] p-1 pr-3 text-foreground/60 shadow-md";
 
 export const lightRailTriggerClassName = cn(
-  "group relative inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow-none transition-all data-[state=active]:bg-[hsl(var(--tab-rail-light-highlight))] data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:hover:bg-foreground/[0.06] data-[state=inactive]:hover:text-foreground data-[state=active]:before:pointer-events-none data-[state=active]:before:absolute data-[state=active]:before:-right-2 data-[state=active]:before:bottom-1 data-[state=active]:before:top-1 data-[state=active]:before:w-[3px] data-[state=active]:before:rounded-r-full data-[state=active]:before:bg-[#1ab5af] data-[state=active]:before:shadow-[2px_0_6px_rgba(26,181,175,0.35)] data-[state=active]:before:content-['']",
+  "group relative inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow-none transition-all data-[state=active]:bg-[hsl(var(--tab-rail-light-highlight))] data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:hover:bg-foreground/[0.06] data-[state=inactive]:hover:text-foreground data-[state=active]:before:pointer-events-none data-[state=active]:before:absolute data-[state=active]:before:-right-2 data-[state=active]:before:bottom-1 data-[state=active]:before:top-1 data-[state=active]:before:w-[3px] data-[state=active]:before:rounded-r-full data-[state=active]:before:bg-[#1ab5af] data-[state=active]:before:shadow-[2px_0_6px_rgba(26,181,175,0.35)] data-[state=active]:before:content-['']",
   tabRailInactiveTextClassName.light
 );
 
@@ -179,12 +179,12 @@ export const darkPlateClassName =
 
 /** Dark rail — same solid plate as the sidebar, with mint labels. */
 export const darkRailListClassName = cn(
-  "inline-flex h-auto w-auto items-center justify-start gap-2.5 self-start rounded-xl p-1 pr-3 text-[#e4f7f3]",
+  "inline-flex h-auto w-auto max-w-full items-center justify-start gap-2.5 self-start overflow-x-auto overscroll-x-contain no-scrollbar scroll-smooth [-webkit-overflow-scrolling:touch] rounded-xl p-1 pr-3 text-[#e4f7f3]",
   darkPlateClassName
 );
 
 export const darkRailTriggerClassName = cn(
-  "group relative inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow-none transition-all data-[state=active]:bg-[hsl(var(--sidebar-highlight))] data-[state=active]:font-semibold data-[state=active]:text-[#e4f7f3] data-[state=inactive]:hover:bg-white/10 data-[state=inactive]:hover:text-[#e4f7f3] data-[state=active]:before:pointer-events-none data-[state=active]:before:absolute data-[state=active]:before:-right-2 data-[state=active]:before:bottom-1 data-[state=active]:before:top-1 data-[state=active]:before:w-[3px] data-[state=active]:before:rounded-r-full data-[state=active]:before:bg-[#1ab5af] data-[state=active]:before:shadow-[2px_0_6px_rgba(26,181,175,0.35)] data-[state=active]:before:content-['']",
+  "group relative inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow-none transition-all data-[state=active]:bg-[hsl(var(--sidebar-highlight))] data-[state=active]:font-semibold data-[state=active]:text-[#e4f7f3] data-[state=inactive]:hover:bg-white/10 data-[state=inactive]:hover:text-[#e4f7f3] data-[state=active]:before:pointer-events-none data-[state=active]:before:absolute data-[state=active]:before:-right-2 data-[state=active]:before:bottom-1 data-[state=active]:before:top-1 data-[state=active]:before:w-[3px] data-[state=active]:before:rounded-r-full data-[state=active]:before:bg-[#1ab5af] data-[state=active]:before:shadow-[2px_0_6px_rgba(26,181,175,0.35)] data-[state=active]:before:content-['']",
   tabRailInactiveTextClassName.dark
 );
 

@@ -131,6 +131,7 @@ type Pending =
   | {
       kind: "longpress";
       pointerId: number;
+      pointerType: string;
       originId: string;
       x: number;
       y: number;
@@ -139,12 +140,14 @@ type Pending =
   | {
       kind: "paint";
       pointerId: number;
+      pointerType: string;
       visited: Set<string>;
       mode: "add" | "remove";
     }
   | {
       kind: "drag";
       pointerId: number;
+      pointerType: string;
       movedIds: string[];
       originId: string;
     };
@@ -466,7 +469,13 @@ export function useCardListGestures({
   }, [clearPendingTimer, clearPageFlip, clearAutoScroll]);
 
   const startDrag = useCallback(
-    (pointerId: number, originId: string, x: number, y: number) => {
+    (
+      pointerId: number,
+      originId: string,
+      x: number,
+      y: number,
+      pointerType: string = "mouse"
+    ) => {
       const selectedSet = new Set(selectedRef.current);
       // Only selected cards drag; block order follows the filtered list.
       if (!selectedSet.has(originId)) return;
@@ -476,6 +485,7 @@ export function useCardListGestures({
       pendingRef.current = {
         kind: "drag",
         pointerId,
+        pointerType,
         movedIds,
         originId,
       };
@@ -579,6 +589,7 @@ export function useCardListGestures({
           pendingRef.current = {
             kind: "paint",
             pointerId: pending.pointerId,
+            pointerType: pending.pointerType,
             visited: new Set<string>([id]),
             mode: "add",
           };
@@ -587,7 +598,15 @@ export function useCardListGestures({
 
         // Longer hold → drag only from a selected card (moves entire selection).
         if (!selectedRef.current.includes(id)) {
-          pendingRef.current = null;
+          // In multi-select mode, holding on an unselected card arms paint-add
+          onPaintSelect(id, "add");
+          pendingRef.current = {
+            kind: "paint",
+            pointerId: pending.pointerId,
+            pointerType: pending.pointerType,
+            visited: new Set<string>([id]),
+            mode: "add",
+          };
           return;
         }
 
@@ -604,12 +623,19 @@ export function useCardListGestures({
         } catch {
           // Ignore capture failures.
         }
-        startDrag(pending.pointerId, id, pending.x, pending.y);
+        startDrag(
+          pending.pointerId,
+          id,
+          pending.x,
+          pending.y,
+          pending.pointerType
+        );
       }, holdMs);
 
       pendingRef.current = {
         kind: "longpress",
         pointerId: event.pointerId,
+        pointerType: event.pointerType,
         originId: id,
         x: event.clientX,
         y: event.clientY,
@@ -627,8 +653,27 @@ export function useCardListGestures({
       if (pending.kind === "longpress") {
         const dx = event.clientX - pending.x;
         const dy = event.clientY - pending.y;
-        if (Math.hypot(dx, dy) > DND_MOVE_CANCEL_PX) {
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > DND_MOVE_CANCEL_PX) {
           clearTimeout(pending.timer);
+
+          // Touch Ergonomics & Pan-Y Isolation:
+          // On touch devices, vertical movement is natural page scrolling (touch-action: pan-y).
+          // We must NOT hijack vertical thumb scrolling into paint-select.
+          // For touch pointers, only intentional horizontal gestures (|dx| > |dy|)
+          // initiate paint-select in selection mode; vertical thumb scrolling yields
+          // to native scrolling without selecting cards.
+          const isTouch =
+            pending.pointerType === "touch" || event.pointerType === "touch";
+          const isVerticalScroll = isTouch && Math.abs(dy) > Math.abs(dx);
+
+          if (isVerticalScroll) {
+            // Cancel pending gesture and allow natural vertical page scroll to proceed
+            pendingRef.current = null;
+            return;
+          }
+
           if (selectionModeRef.current) {
             const visited = new Set<string>([pending.originId]);
             const originSelected = selectedRef.current.includes(
@@ -649,6 +694,7 @@ export function useCardListGestures({
             pendingRef.current = {
               kind: "paint",
               pointerId: event.pointerId,
+              pointerType: pending.pointerType,
               visited,
               mode,
             };
@@ -748,16 +794,32 @@ export function useCardListGestures({
     [clearAutoScroll, endDrag, onDropZone, onReorder, onToggleSelect]
   );
 
+  const onPointerCancel = useCallback(
+    (event: PointerEvent) => {
+      const pending = pendingRef.current;
+      if (!pending || pending.pointerId !== event.pointerId) return;
+
+      clearPendingTimer();
+      clearAutoScroll();
+      clearPageFlip();
+      pendingRef.current = null;
+      if (dragRef.current) {
+        endDrag();
+      }
+    },
+    [clearAutoScroll, clearPageFlip, clearPendingTimer, endDrag]
+  );
+
   useEffect(() => {
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("pointercancel", onPointerUp);
+    window.addEventListener("pointercancel", onPointerCancel);
     return () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerCancel);
     };
-  }, [onPointerMove, onPointerUp]);
+  }, [onPointerMove, onPointerUp, onPointerCancel]);
 
   const shouldIgnoreEmptySpaceExit = useCallback(
     (target: EventTarget | null) => {
@@ -820,7 +882,7 @@ export function useCardListGestures({
         onPointerDown: (event: ReactPointerEvent) =>
           onPointerDownItem(event, id),
         style: {
-          touchAction: "pan-y" as const,
+          touchAction: drag?.active ? ("none" as const) : ("pan-y" as const),
           // Pass hits through moved cards so insert targeting stays stable
           // while the list reflows under the live preview.
           pointerEvents: isMoved ? ("none" as const) : undefined,
