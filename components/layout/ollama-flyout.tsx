@@ -15,6 +15,10 @@ import {
 } from "@/components/layout/sidebar-flyout-chrome";
 import { DEV_OLLAMA_MODEL_STORAGE_KEY } from "@/components/features/settings/ai-models";
 import { LoadSkeletonStack } from "@/components/ui/composites/load-skeleton-stack";
+import {
+  StatusDot,
+  type StatusDotTone,
+} from "@/components/ui/composites/status-dot";
 import { cn } from "@/lib/utils";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 import { toast } from "sonner";
@@ -359,14 +363,16 @@ export function OllamaFlyout({ accountId }: { accountId: string }) {
     })();
   }
 
-  const statusTone =
+  const statusTone: StatusDotTone =
     connection === "connected"
-      ? "bg-emerald-400"
+      ? "ok"
       : connection === "checking"
-        ? "bg-sky-300"
+        ? "busy"
         : connection === "idle"
-          ? "bg-white/50"
-          : "bg-[#c21f10]";
+          ? "idle"
+          : connection === "offline"
+            ? "offline"
+            : "error";
 
   if (loading && !status) {
     return (
@@ -388,9 +394,10 @@ export function OllamaFlyout({ accountId }: { accountId: string }) {
       <div className="space-y-1 px-0.5">
         <p className="text-[13px] font-semibold text-[#e4f7f3]">Local Ollama</p>
         <div className="flex items-center gap-2">
-          <span
-            className={cn("size-2 shrink-0 rounded-full", statusTone)}
-            aria-hidden
+          <StatusDot
+            tone={statusTone}
+            size="md"
+            ping={connection === "checking"}
           />
           <p className="min-w-0 flex-1 truncate text-[11px] text-[#e4f7f3]/60">
             {message ?? "Ready to check"}

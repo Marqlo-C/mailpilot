@@ -2,7 +2,14 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { JobApplication } from "@/lib/generated/prisma/client";
-import { Mail, RefreshCw, Send, Sparkles } from "lucide-react";
+import {
+  BotMessageSquare,
+  Mail,
+  RotateCcw,
+  Send,
+  Sparkles,
+  Type,
+} from "lucide-react";
 import { Loader } from "@/components/ui/loader";
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { toast } from "sonner";
@@ -19,6 +26,7 @@ import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shel
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
 import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
@@ -158,7 +166,7 @@ export function DraftReviewDialog({
         setRecipient(result.data.recipient);
       }
       setError(null);
-      toast.success("Draft regenerated");
+      toast.success("Draft rewritten");
     });
   }
 
@@ -230,63 +238,58 @@ export function DraftReviewDialog({
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-lg border bg-card">
-            <div className="flex items-center gap-2 border-b px-3 py-2">
-              <Label
-                htmlFor="draft-to"
-                className="w-16 shrink-0 select-none text-xs font-medium text-muted-foreground"
-              >
-                To:
-              </Label>
-              <input
-                id="draft-to"
-                type="email"
-                placeholder="recruiter@company.com"
-                value={recipient}
-                disabled={busy}
-                onChange={(e) => setRecipient(e.target.value)}
-                className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none focus:outline-none focus:ring-0 disabled:opacity-50"
-              />
-            </div>
-            <div className="flex items-center gap-2 border-b px-3 py-2">
-              <Label
-                htmlFor="draft-subject"
-                className="w-16 shrink-0 select-none text-xs font-medium text-muted-foreground"
-              >
-                Subject:
-              </Label>
-              <input
-                id="draft-subject"
-                value={subject}
-                disabled={busy}
-                onChange={(e) => setSubject(e.target.value)}
-                className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none focus:outline-none focus:ring-0 disabled:opacity-50"
-              />
-            </div>
-            <div className="space-y-2 p-3">
-              <Label htmlFor="draft-body" className="sr-only">
-                Message
-              </Label>
-              <textarea
-                id="draft-body"
-                className="min-h-56 w-full resize-none border-0 bg-transparent p-0 text-sm leading-relaxed outline-none focus:outline-none focus-visible:ring-0 disabled:opacity-50"
-                value={body}
-                disabled={busy}
-                onChange={(e) => setBody(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Written as you (the applicant) to the hiring team. Keep it
-                short, human, and grounded in your real skills.
-              </p>
-            </div>
+          <div className="flex flex-col gap-2">
+            <Input
+              id="draft-to"
+              type="email"
+              leadingIcon={Mail}
+              clearable
+              onClear={() => setRecipient("")}
+              placeholder="recruiter@company.com"
+              aria-label="To"
+              value={recipient}
+              disabled={busy}
+              onChange={(e) => setRecipient(e.target.value)}
+            />
+            <Input
+              id="draft-subject"
+              leadingIcon={Type}
+              clearable
+              onClear={() => setSubject("")}
+              placeholder="Subject"
+              aria-label="Subject"
+              value={subject}
+              disabled={busy}
+              onChange={(e) => setSubject(e.target.value)}
+            />
+            <Input
+              id="draft-body"
+              multiline
+              rows={10}
+              placeholder="Write your message…"
+              aria-label="Message"
+              value={body}
+              disabled={busy}
+              onChange={(e) => setBody(e.target.value)}
+              inputClassName="min-h-56 resize-none text-sm leading-relaxed"
+            />
+            <p className="text-xs text-muted-foreground">
+              Written as you (the applicant) to the hiring team. Keep it
+              short, human, and grounded in your real skills.
+            </p>
           </div>
           <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
             <Label htmlFor="draft-refine" className="text-xs">
               Refine with AI
             </Label>
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <Input
                 id="draft-refine"
+                leadingIcon={BotMessageSquare}
+                leadingIconClassName="size-[18px]"
+                clearable
+                onClear={() => setRefineInstruction("")}
+                className="flex-1"
                 placeholder="e.g., Make it punchier, mention FastAPI, sound more casual..."
                 value={refineInstruction}
                 onChange={(e) => setRefineInstruction(e.target.value)}
@@ -297,38 +300,36 @@ export function DraftReviewDialog({
                     handleRefine();
                   }
                 }}
+                trailing={
+                  <FieldTrailingButton
+                    aria-label="Refine"
+                    disabled={busy || !refineInstruction.trim()}
+                    onClick={handleRefine}
+                  >
+                    {refining ? (
+                      <Loader size="sm" />
+                    ) : (
+                      <Sparkles className="size-3.5" aria-hidden />
+                    )}
+                  </FieldTrailingButton>
+                }
               />
-              <div className="flex shrink-0 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={busy}
-                  onClick={handleRetry}
-                  title="Generate a fresh draft"
-                >
-                  {retrying ? (
-                    <Loader size="sm" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  Retry
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={busy || !refineInstruction.trim()}
-                  onClick={handleRefine}
-                >
-                  {refining ? (
-                    <Loader size="sm" />
-                  ) : (
-                    <Sparkles className="h-4 w-4" />
-                  )}
-                  Refine
-                </Button>
-              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                disabled={busy}
+                onClick={handleRetry}
+                title="Rewrite this draft"
+              >
+                {retrying ? (
+                  <Loader size="sm" />
+                ) : (
+                  <RotateCcw className="h-4 w-4" />
+                )}
+                Rewrite
+              </Button>
             </div>
           </div>
           {error ? (

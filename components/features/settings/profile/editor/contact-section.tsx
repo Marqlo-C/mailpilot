@@ -36,11 +36,12 @@ export function ContactField({
         </Label>
         <Input
           id={id}
+          variant="bare"
           type={type}
           value={value}
           placeholder="—"
           onChange={(e) => onChange(e.target.value)}
-          className="h-auto truncate border-0 bg-transparent px-0 py-0 text-[11px] text-muted-foreground shadow-none focus-visible:ring-0"
+          inputClassName="truncate"
         />
       </div>
     </div>
@@ -94,10 +95,12 @@ export function ContactSection({
         >
           Summary
         </Label>
-        <textarea
+        <Input
           id="summary"
+          multiline
+          variant="bare"
           placeholder="No professional summary added"
-          className="min-h-20 w-full resize-y bg-transparent text-xs leading-relaxed text-foreground/85 placeholder:text-xs placeholder:italic placeholder:text-muted-foreground focus-visible:outline-none"
+          inputClassName="placeholder:italic"
           value={form.summary ?? ""}
           onChange={(e) =>
             setForm((f) => ({ ...f, summary: e.target.value || null }))
@@ -127,10 +130,10 @@ export function ContactSection({
                   </h5>
                   <Input
                     id={key}
+                    variant="bare"
                     type="url"
                     value={url}
                     placeholder="Not linked"
-                    className="h-auto border-0 bg-transparent px-0 py-0 text-[11px] text-muted-foreground shadow-none focus-visible:ring-0"
                     onChange={(e) =>
                       setForm((f) => ({
                         ...f,

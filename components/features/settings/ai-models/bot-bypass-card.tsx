@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Worm, X } from "lucide-react";
+import { Check, KeyRound, Undo2, Worm } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
+import { Input } from "@/components/ui/input";
+import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
 import { toast } from "sonner";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 
@@ -25,8 +27,6 @@ import {
   SettingsSectionCard,
 } from "@/components/ui/tactile/nested-settings-card";
 import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
-import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
-import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
 import type { HasDataUsage, ScrapingAntUsage } from "@/lib/validations/rules.schema";
 import { cn } from "@/lib/utils";
 
@@ -343,92 +343,74 @@ export function BotBypassCard({
                     :
                   </p>
 
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/50 bg-card pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow">
-                      <KeyRound
-                        className="pointer-events-none size-4 shrink-0 text-foreground/45"
-                        aria-hidden
-                      />
-                      <input
-                        id="scrapingant-api-key"
-                        type="password"
-                        aria-label={
-                          maskedScrapingAntKey
-                            ? "Replace ScrapingAnt API key"
-                            : "ScrapingAnt API key"
-                        }
-                        placeholder="ant-..."
-                        autoFocus={Boolean(
-                          maskedScrapingAntKey && isReplacingScrapingAntKey
-                        )}
-                        value={scrapingAntApiKeyInput}
-                        disabled={disabled || isSavingScrapingAntKey}
-                        onChange={(e) =>
-                          setScrapingAntApiKeyInput(e.target.value)
-                        }
-                        className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 font-mono text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
-                        autoComplete="off"
-                        spellCheck={false}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleSaveScrapingAntKey();
-                          } else if (
-                            e.key === "Escape" &&
-                            isReplacingScrapingAntKey
-                          ) {
-                            setIsReplacingScrapingAntKey(false);
-                            setScrapingAntApiKeyInput("");
-                          }
-                        }}
-                      />
-                      {scrapingAntApiKeyInput ? (
-                        <button
-                          type="button"
-                          aria-label="Clear API key input"
-                          onClick={() => setScrapingAntApiKeyInput("")}
-                          className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
-                        >
-                          <X className="size-4" aria-hidden />
-                        </button>
-                      ) : null}
-                    </div>
-                    {maskedScrapingAntKey && isReplacingScrapingAntKey && (
-                      <button
-                        type="button"
-                        className={cn(
-                          SECONDARY_ACTION_BTN_CLASSNAME,
-                          "shrink-0"
-                        )}
-                        disabled={disabled || isSavingScrapingAntKey}
-                        onClick={() => {
-                          setIsReplacingScrapingAntKey(false);
-                          setScrapingAntApiKeyInput("");
-                        }}
-                      >
-                        Cancel
-                      </button>
+                  <Input
+                    id="scrapingant-api-key"
+                    type="password"
+                    mono
+                    leadingIcon={KeyRound}
+                    clearable
+                    onClear={() => setScrapingAntApiKeyInput("")}
+                    aria-label={
+                      maskedScrapingAntKey
+                        ? "Replace ScrapingAnt API key"
+                        : "ScrapingAnt API key"
+                    }
+                    placeholder="ant-..."
+                    autoFocus={Boolean(
+                      maskedScrapingAntKey && isReplacingScrapingAntKey
                     )}
-                    <button
-                      type="button"
-                      className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "shrink-0")}
-                      disabled={
-                        disabled ||
-                        isSavingScrapingAntKey ||
-                        !scrapingAntApiKeyInput.trim()
+                    value={scrapingAntApiKeyInput}
+                    disabled={disabled || isSavingScrapingAntKey}
+                    onChange={(e) =>
+                      setScrapingAntApiKeyInput(e.target.value)
+                    }
+                    autoComplete="off"
+                    spellCheck={false}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSaveScrapingAntKey();
+                      } else if (
+                        e.key === "Escape" &&
+                        isReplacingScrapingAntKey
+                      ) {
+                        setIsReplacingScrapingAntKey(false);
+                        setScrapingAntApiKeyInput("");
                       }
-                      onClick={handleSaveScrapingAntKey}
-                    >
-                      {isSavingScrapingAntKey ? (
-                        <>
-                          <Loader size="sm" />
-                          <span>Saving…</span>
-                        </>
-                      ) : (
-                        "Save"
-                      )}
-                    </button>
-                  </div>
+                    }}
+                    trailing={
+                      <>
+                        {maskedScrapingAntKey &&
+                        isReplacingScrapingAntKey ? (
+                          <FieldTrailingButton
+                            aria-label="Cancel key replace"
+                            disabled={disabled || isSavingScrapingAntKey}
+                            onClick={() => {
+                              setIsReplacingScrapingAntKey(false);
+                              setScrapingAntApiKeyInput("");
+                            }}
+                          >
+                            <Undo2 className="size-3.5" aria-hidden />
+                          </FieldTrailingButton>
+                        ) : null}
+                        <FieldTrailingButton
+                          aria-label="Save ScrapingAnt API key"
+                          disabled={
+                            disabled ||
+                            isSavingScrapingAntKey ||
+                            !scrapingAntApiKeyInput.trim()
+                          }
+                          onClick={handleSaveScrapingAntKey}
+                        >
+                          {isSavingScrapingAntKey ? (
+                            <Loader size="sm" />
+                          ) : (
+                            <Check className="size-3.5" aria-hidden />
+                          )}
+                        </FieldTrailingButton>
+                      </>
+                    }
+                  />
                 </div>
               )}
 
@@ -499,92 +481,71 @@ export function BotBypassCard({
                     :
                   </p>
 
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/50 bg-card pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow">
-                      <KeyRound
-                        className="pointer-events-none size-4 shrink-0 text-foreground/45"
-                        aria-hidden
-                      />
-                      <input
-                        id="hasdata-api-key"
-                        type="password"
-                        aria-label={
-                          maskedHasDataKey
-                            ? "Replace HasData API key"
-                            : "HasData API key"
-                        }
-                        placeholder="hd-..."
-                        autoFocus={Boolean(
-                          maskedHasDataKey && isReplacingHasDataKey
-                        )}
-                        value={hasDataApiKeyInput}
-                        disabled={disabled || isSavingHasDataKey}
-                        onChange={(e) =>
-                          setHasDataApiKeyInput(e.target.value)
-                        }
-                        className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 font-mono text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
-                        autoComplete="off"
-                        spellCheck={false}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleSaveHasDataKey();
-                          } else if (
-                            e.key === "Escape" &&
-                            isReplacingHasDataKey
-                          ) {
-                            setIsReplacingHasDataKey(false);
-                            setHasDataApiKeyInput("");
-                          }
-                        }}
-                      />
-                      {hasDataApiKeyInput ? (
-                        <button
-                          type="button"
-                          aria-label="Clear API key input"
-                          onClick={() => setHasDataApiKeyInput("")}
-                          className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
-                        >
-                          <X className="size-4" aria-hidden />
-                        </button>
-                      ) : null}
-                    </div>
-                    {maskedHasDataKey && isReplacingHasDataKey && (
-                      <button
-                        type="button"
-                        className={cn(
-                          SECONDARY_ACTION_BTN_CLASSNAME,
-                          "shrink-0"
-                        )}
-                        disabled={disabled || isSavingHasDataKey}
-                        onClick={() => {
-                          setIsReplacingHasDataKey(false);
-                          setHasDataApiKeyInput("");
-                        }}
-                      >
-                        Cancel
-                      </button>
+                  <Input
+                    id="hasdata-api-key"
+                    type="password"
+                    mono
+                    leadingIcon={KeyRound}
+                    clearable
+                    onClear={() => setHasDataApiKeyInput("")}
+                    aria-label={
+                      maskedHasDataKey
+                        ? "Replace HasData API key"
+                        : "HasData API key"
+                    }
+                    placeholder="hd-..."
+                    autoFocus={Boolean(
+                      maskedHasDataKey && isReplacingHasDataKey
                     )}
-                    <button
-                      type="button"
-                      className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "shrink-0")}
-                      disabled={
-                        disabled ||
-                        isSavingHasDataKey ||
-                        !hasDataApiKeyInput.trim()
+                    value={hasDataApiKeyInput}
+                    disabled={disabled || isSavingHasDataKey}
+                    onChange={(e) => setHasDataApiKeyInput(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSaveHasDataKey();
+                      } else if (
+                        e.key === "Escape" &&
+                        isReplacingHasDataKey
+                      ) {
+                        setIsReplacingHasDataKey(false);
+                        setHasDataApiKeyInput("");
                       }
-                      onClick={handleSaveHasDataKey}
-                    >
-                      {isSavingHasDataKey ? (
-                        <>
-                          <Loader size="sm" />
-                          <span>Saving…</span>
-                        </>
-                      ) : (
-                        "Save"
-                      )}
-                    </button>
-                  </div>
+                    }}
+                    trailing={
+                      <>
+                        {maskedHasDataKey && isReplacingHasDataKey ? (
+                          <FieldTrailingButton
+                            aria-label="Cancel key replace"
+                            disabled={disabled || isSavingHasDataKey}
+                            onClick={() => {
+                              setIsReplacingHasDataKey(false);
+                              setHasDataApiKeyInput("");
+                            }}
+                          >
+                            <Undo2 className="size-3.5" aria-hidden />
+                          </FieldTrailingButton>
+                        ) : null}
+                        <FieldTrailingButton
+                          aria-label="Save HasData API key"
+                          disabled={
+                            disabled ||
+                            isSavingHasDataKey ||
+                            !hasDataApiKeyInput.trim()
+                          }
+                          onClick={handleSaveHasDataKey}
+                        >
+                          {isSavingHasDataKey ? (
+                            <Loader size="sm" />
+                          ) : (
+                            <Check className="size-3.5" aria-hidden />
+                          )}
+                        </FieldTrailingButton>
+                      </>
+                    }
+                  />
                 </div>
               )}
 

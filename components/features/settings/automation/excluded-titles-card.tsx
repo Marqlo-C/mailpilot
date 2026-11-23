@@ -13,8 +13,8 @@ import {
   SettingsFeatureCard,
   SettingsStatusPill,
 } from "@/components/ui/tactile/nested-settings-card";
-import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
-import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
 
 type ExcludedTitlesCardProps = {
   accountId: string | null;
@@ -117,34 +117,32 @@ export function ExcludedTitlesCard({
           </div>
         )}
 
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <input
-            id="excluded-title-input"
-            value={draft}
-            disabled={disabled}
-            placeholder='e.g. "Sales Representative"'
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleAdd();
-              }
-            }}
-            className="h-8 flex-1 rounded-lg border border-border/60 bg-card px-3 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-border focus:ring-1 focus:ring-ring"
-          />
-          <button
-            type="button"
-            disabled={disabled || !draft.trim()}
-            onClick={handleAdd}
-            className={cn(
-              PRIMARY_ACTION_BTN_CLASSNAME,
-              "shrink-0 gap-1.5 px-3 text-xs"
-            )}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Add title</span>
-          </button>
-        </div>
+        <Input
+          id="excluded-title-input"
+          leadingIcon={ShieldBan}
+          clearable
+          onClear={() => setDraft("")}
+          value={draft}
+          disabled={disabled}
+          placeholder='e.g. "Sales Representative"'
+          aria-label="Role title to hide"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleAdd();
+            }
+          }}
+          trailing={
+            <FieldTrailingButton
+              aria-label="Add title"
+              disabled={disabled || !draft.trim()}
+              onClick={handleAdd}
+            >
+              <Plus className="size-3.5" aria-hidden />
+            </FieldTrailingButton>
+          }
+        />
       </div>
     </SettingsFeatureCard>
   );

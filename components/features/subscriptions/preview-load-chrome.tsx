@@ -74,7 +74,8 @@ export function PreviewLoadChrome({
       <div
         className={cn(
           loading && "hidden",
-          !loading && "animate-in fade-in-0 duration-300"
+          !loading &&
+            "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300"
         )}
       >
         {children}

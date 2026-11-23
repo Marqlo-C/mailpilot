@@ -43,7 +43,7 @@ export function LastBriefingIconButton({
           "inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold transition-colors",
           disabled
             ? "pointer-events-none text-muted-foreground"
-            : "text-[#129f96] hover:bg-[#129f96]/10 hover:text-[#0f8f87]"
+            : "text-primary hover:bg-primary/10 hover:text-primary"
         )}
       >
         <Eye className="size-3" />

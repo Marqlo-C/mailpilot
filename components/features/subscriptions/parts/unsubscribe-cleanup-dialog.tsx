@@ -142,7 +142,7 @@ export function UnsubscribeCleanupDialog({
                     className={cn(
                       "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
                       selectedOption
-                        ? "border-[#1ab5af] bg-[#1ab5af]"
+                        ? "border-brand bg-brand"
                         : "border-muted-foreground/40"
                     )}
                     aria-hidden

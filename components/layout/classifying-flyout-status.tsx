@@ -8,6 +8,7 @@ import {
   useSyncStatus,
 } from "@/components/layout/sync-status-provider";
 import { BULK_FLYOUT_PILL_CLASSNAME } from "@/components/ui/composites/bulk-actions-flyout";
+import { StatusDot } from "@/components/ui/composites/status-dot";
 import { NumberTicker } from "@/components/ui/number-ticker";
 import { cn } from "@/lib/utils";
 
@@ -71,10 +72,7 @@ function StatusBody({
   if (isSyncing) {
     return (
       <div className="flex items-center gap-2">
-        <span className="relative flex h-1.5 w-1.5 shrink-0">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75" />
-          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-400" />
-        </span>
+        <StatusDot tone="busy" />
         <span className="whitespace-nowrap text-[#e4f7f3]">
           {queuedMode ? (
             progress ? (

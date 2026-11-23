@@ -13,7 +13,9 @@ import { useRouter } from "next/navigation";
 import type { JobApplication, JobOpportunity } from "@/lib/generated/prisma/client";
 import {
   Archive,
+  Bell,
   ExternalLink,
+  Inbox,
   Mail,
   Send,
 } from "lucide-react";
@@ -32,6 +34,7 @@ import { formatToastError } from "@/lib/utils/ui/toast-format";
 import { updateMatchThreshold } from "@/app/actions/profile";
 import { DraftReviewDialog } from "@/components/features/opportunities/dialogs/draft-review-dialog";
 import { OpportunityDraftDialog } from "@/components/features/opportunities/dialogs/opportunity-draft-dialog";
+import { EmptyState } from "@/components/ui/composites/empty-state";
 import { ViewEmailDialog } from "@/components/ui/composites/view-email-dialog";
 import { OpportunitiesView } from "@/components/features/opportunities/views/opportunities-view";
 import { SyncControls } from "@/components/features/opportunities/sync-controls";
@@ -479,7 +482,7 @@ export function JobsRadar({
                     className={cn(
                       segmentedTabsTriggerClassName,
                       dragDropZone === "leads" &&
-                        "ring-2 ring-[#1ab5af]/70 ring-offset-2 ring-offset-background"
+                        "ring-2 ring-brand/70 ring-offset-2 ring-offset-background"
                     )}
                   >
                     <span>{JOB_RADAR_TAB_LABEL.leads}</span>
@@ -499,7 +502,7 @@ export function JobsRadar({
                     className={cn(
                       segmentedTabsTriggerClassName,
                       dragDropZone === "applied" &&
-                        "ring-2 ring-[#1ab5af]/70 ring-offset-2 ring-offset-background"
+                        "ring-2 ring-brand/70 ring-offset-2 ring-offset-background"
                     )}
                   >
                     <span>{JOB_RADAR_TAB_LABEL.applied}</span>
@@ -559,7 +562,11 @@ export function JobsRadar({
 
         <TabsContent value="leads" className="relative z-0 mt-0 space-y-3">
           {leadCount === 0 && !hasOpportunityLeads ? (
-            <EmptyState text="No leads in the queue yet." />
+            <EmptyState
+              icon={Inbox}
+              title="No leads in the queue yet"
+              description="Synced roles that meet your match threshold show up here."
+            />
           ) : (
             <div className="space-y-4">
               {showOpportunityDeck && deckVariant === "leads" ? (
@@ -571,7 +578,11 @@ export function JobsRadar({
 
         <TabsContent value="applied" className="relative z-0 mt-0 space-y-4">
           {appliedCount === 0 ? (
-            <EmptyState text="No active applications waiting for a response." />
+            <EmptyState
+              icon={Send}
+              title="No active applications"
+              description="Roles you've marked applied wait here for a response."
+            />
           ) : (
             <>
               {showOpportunityDeck && deckVariant === "applied" ? (
@@ -628,7 +639,11 @@ export function JobsRadar({
 
         <TabsContent value="action" className="relative z-0 mt-0 space-y-4">
           {actionCount === 0 ? (
-            <EmptyState text="Nothing needs your attention right now." />
+            <EmptyState
+              icon={Bell}
+              title="Nothing needs your attention"
+              description="Assessments, deadlines, and follow-ups land in this tab."
+            />
           ) : (
             <>
               {showOpportunityDeck && deckVariant === "action" ? (
@@ -712,7 +727,11 @@ export function JobsRadar({
 
         <TabsContent value="history" className="relative z-0 mt-0 space-y-4">
           {historyCount === 0 ? (
-            <EmptyState text="No history yet." />
+            <EmptyState
+              icon={Archive}
+              title="No history yet"
+              description="Archived, rejected, and offered roles collect here."
+            />
           ) : (
             <>
               {showOpportunityDeck && deckVariant === "history" ? (
@@ -809,10 +828,3 @@ export function JobsRadar({
   );
 }
 
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
-      {text}
-    </div>
-  );
-}

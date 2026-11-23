@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { Layout, LayoutChangedMeta } from "react-resizable-panels";
 import { useHydrated } from "./use-hydrated";
 
 export const DRAFT_SPLIT_STORAGE_KEY = "mp-draft-email-resume-split";
 export const DRAFT_SPLIT_DEFAULT = 48;
 export const DRAFT_SPLIT_MIN = 28;
 export const DRAFT_SPLIT_MAX = 72;
+
+export const DRAFT_SPLIT_PANEL_EMAIL = "draft-email";
+export const DRAFT_SPLIT_PANEL_RESUME = "draft-resume";
+
+/** Tailwind `lg` — draft dual-pane resize only applies at this breakpoint. */
+const DRAFT_SPLIT_MQ = "(min-width: 1024px)";
 
 export function readDraftSplitPct(): number {
   if (typeof window === "undefined") return DRAFT_SPLIT_DEFAULT;
@@ -35,89 +42,48 @@ export function writeDraftSplitPct(pct: number) {
   }
 }
 
+function clampEmailPct(pct: number): number {
+  return Math.min(DRAFT_SPLIT_MAX, Math.max(DRAFT_SPLIT_MIN, pct));
+}
+
+/**
+ * Desktop dual-pane layout for the opportunity draft dialog.
+ * Persists email panel %; double-click reset is built into shadcn `ResizableHandle`.
+ */
 export function useDraftSplitPane() {
   const hydrated = useHydrated();
-  const [customSplitPct, setCustomSplitPct] = useState<number | null>(null);
-  const emailSplitPct =
-    customSplitPct ?? (hydrated ? readDraftSplitPct() : DRAFT_SPLIT_DEFAULT);
-  const [splitDragging, setSplitDragging] = useState(false);
-  const splitRowRef = useRef<HTMLDivElement>(null);
-  const emailSplitPctRef = useRef(emailSplitPct);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
-    emailSplitPctRef.current = emailSplitPct;
-  }, [emailSplitPct]);
+    const mq = window.matchMedia(DRAFT_SPLIT_MQ);
+    const sync = () => setIsDesktop(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
-  useEffect(() => {
-    if (!splitDragging) return;
+  const emailSplitPct = hydrated ? readDraftSplitPct() : DRAFT_SPLIT_DEFAULT;
 
-    function onPointerMove(event: PointerEvent) {
-      const row = splitRowRef.current;
-      if (!row) return;
-      const rect = row.getBoundingClientRect();
-      if (rect.width <= 0) return;
-      const next = Math.min(
-        DRAFT_SPLIT_MAX,
-        Math.max(
-          DRAFT_SPLIT_MIN,
-          ((event.clientX - rect.left) / rect.width) * 100
-        )
-      );
-      emailSplitPctRef.current = next;
-      setCustomSplitPct(next);
-    }
+  const defaultLayout = useMemo<Layout>(
+    () => ({
+      [DRAFT_SPLIT_PANEL_EMAIL]: emailSplitPct,
+      [DRAFT_SPLIT_PANEL_RESUME]: 100 - emailSplitPct,
+    }),
+    [emailSplitPct]
+  );
 
-    function onPointerUp() {
-      setSplitDragging(false);
-      writeDraftSplitPct(emailSplitPctRef.current);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    }
-
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("pointercancel", onPointerUp);
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-  }, [splitDragging]);
-
-  const adjustSplitBy = (delta: number) => {
-    setCustomSplitPct((prev) => {
-      const base = prev ?? emailSplitPctRef.current;
-      const next = Math.min(
-        DRAFT_SPLIT_MAX,
-        Math.max(DRAFT_SPLIT_MIN, base + delta)
-      );
-      emailSplitPctRef.current = next;
-      writeDraftSplitPct(next);
-      return next;
-    });
-  };
-
-  const onSplitKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
-      return;
-    }
-    event.preventDefault();
-    const delta = event.key === "ArrowLeft" ? -2 : 2;
-    adjustSplitBy(delta);
+  const onLayoutChanged = (layout: Layout, meta: LayoutChangedMeta) => {
+    if (!meta.isUserInteraction) return;
+    const next = layout[DRAFT_SPLIT_PANEL_EMAIL];
+    if (typeof next !== "number" || !Number.isFinite(next)) return;
+    writeDraftSplitPct(clampEmailPct(next));
   };
 
   return {
-    emailSplitPct,
-    setEmailSplitPct: setCustomSplitPct,
-    splitDragging,
-    setSplitDragging,
-    splitRowRef,
-    onSplitKeyDown,
-    adjustSplitBy,
+    /** True only after hydrate when viewport ≥ lg. */
+    isDesktopSplit: hydrated && isDesktop,
+    defaultLayout,
+    onLayoutChanged,
     minSplit: DRAFT_SPLIT_MIN,
     maxSplit: DRAFT_SPLIT_MAX,
   };

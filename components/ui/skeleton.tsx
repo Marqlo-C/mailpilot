@@ -27,7 +27,7 @@ export function Skeleton({
       <span
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-0 -translate-x-full animate-skeleton-shimmer bg-gradient-to-r from-transparent via-foreground/10 to-transparent",
+          "pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-foreground/10 to-transparent motion-safe:animate-skeleton-shimmer",
           shimmerClassName
         )}
       />

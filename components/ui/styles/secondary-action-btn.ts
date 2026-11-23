@@ -8,6 +8,8 @@
  * Tailwind needs full class literals below for scanning (do not interpolate hex).
  */
 
+import { PRESS_SCALE_BTN, PRESS_SCALE_CHIP } from "./press-feedback";
+
 /** Unsubscribe shell — secondary rest ink (border + label). */
 export const SECONDARY_ACTION_INK = "#181e26";
 /** Unsubscribe mint label — secondary hover fill. */
@@ -24,8 +26,10 @@ const SECONDARY_ACTION_TONE = {
     "group-data-[state=active]:bg-[#181e26]/12 group-data-[state=active]:text-[#181e26]",
 } as const;
 
-const FLYOUT_TEXT_LAYOUT =
-  "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50";
+const FLYOUT_TEXT_LAYOUT = [
+  "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50",
+  PRESS_SCALE_CHIP,
+].join(" ");
 
 /** Destructive secondary tone — outline CTAs (row Delete Snapshot). */
 const SECONDARY_DESTRUCTIVE_ACTION_TONE = {
@@ -41,8 +45,10 @@ const SECONDARY_DESTRUCTIVE_ACTION_TONE = {
   darkHoverBg: "dark:hover:bg-[#fb6230]/15",
 } as const;
 
-const SECONDARY_OUTLINE_LAYOUT =
-  "inline-flex items-center justify-center gap-1.5 rounded-lg border bg-transparent px-3 py-1.5 text-xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-50";
+const SECONDARY_OUTLINE_LAYOUT = [
+  "inline-flex items-center justify-center gap-1.5 rounded-lg border bg-transparent px-3 py-1.5 text-xs font-medium disabled:pointer-events-none disabled:opacity-50",
+  PRESS_SCALE_BTN,
+].join(" ");
 
 export const SECONDARY_ACTION_BTN_CLASSNAME = [
   SECONDARY_OUTLINE_LAYOUT,

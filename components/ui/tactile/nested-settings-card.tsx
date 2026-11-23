@@ -146,7 +146,9 @@ export function NestedSettingsCard({
         className={cn(
           styles.container,
           "overflow-hidden [container-type:inline-size]",
-          mounted ? "transition-all duration-200" : "transition-none",
+          mounted
+            ? "transition-all duration-200 ease-apple-out"
+            : "transition-none",
           className
         )}
       >

@@ -10,6 +10,11 @@ import {
 } from "react";
 import { ChevronDown, ChevronUp, Percent } from "lucide-react";
 
+import {
+  FIELD_INPUT_CLASSNAME,
+  FIELD_SHELL_CLASSNAME,
+  FIELD_SHELL_PAD_COMPACT_CLASSNAME,
+} from "@/components/ui/styles/field-chrome";
 import { cn } from "@/lib/utils";
 
 function digitCountForRange(min: number, max: number): number {
@@ -201,8 +206,10 @@ export function NumericField({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={cn(
-        "inline-flex h-8 shrink-0 items-center gap-0.5 rounded-lg border border-border/50 bg-card/75 pl-2 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow",
-        percent ? "pr-1.5" : "pr-2",
+        FIELD_SHELL_CLASSNAME,
+        "inline-flex w-auto shrink-0 gap-0.5",
+        FIELD_SHELL_PAD_COMPACT_CLASSNAME,
+        percent && "pr-1.5",
         disabled && "opacity-50",
         className
       )}
@@ -228,7 +235,8 @@ export function NumericField({
         aria-valuenow={value}
         style={{ width: `${digits}ch` }}
         className={cn(
-          "h-full border-0 bg-transparent py-0 text-center text-xs font-medium tabular-nums text-foreground shadow-none outline-none focus:outline-none focus:ring-0 disabled:cursor-not-allowed",
+          FIELD_INPUT_CLASSNAME,
+          "flex-none text-center font-medium tabular-nums",
           inputClassName
         )}
       />

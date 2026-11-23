@@ -44,9 +44,9 @@ export const SUBSCRIPTION_CARD_SHELL_CLASS =
 export const SUBSCRIPTION_CARD_SURFACE_CLASS =
   "rounded-xl border bg-card p-4 shadow-md border-border/80 transition-[border-color,box-shadow] duration-200 hover:border-border hover:shadow-lg";
 
-/** Desktop table row hover — same family, background tint instead of shadow. */
+/** Desktop table row hover + subtle press — tint instead of container shadow. */
 export const SUBSCRIPTION_ROW_HOVER_CLASS =
-  "transition-colors duration-200 hover:bg-muted/30";
+  "transition-colors duration-150 ease-apple-snappy hover:bg-muted/30 motion-safe:active:bg-muted/45";
 
 export function senderLogoSrc(email: string): string | null {
   const domain = getCleanDomain(email);

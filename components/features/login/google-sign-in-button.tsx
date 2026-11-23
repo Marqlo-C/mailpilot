@@ -43,11 +43,11 @@ export function GoogleSignInButton({ href }: { href: string }) {
         if (pending) return;
         setPending(true);
       }}
-      className="group relative flex h-11 w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-[#181e26] text-sm font-medium text-white shadow-sm aria-disabled:pointer-events-none aria-disabled:opacity-70"
+      className="group relative flex h-11 w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-[hsl(var(--sidebar-panel))] text-sm font-medium text-[#e4f7f3] shadow-sm aria-disabled:pointer-events-none aria-disabled:opacity-70"
     >
       <span
         aria-hidden
-        className="absolute inset-y-0 left-0 w-0 bg-[#2dcdc8] transition-[width] duration-300 ease-out group-hover:w-full"
+        className="absolute inset-y-0 left-0 w-0 bg-brand transition-[width] duration-300 ease-out group-hover:w-full"
       />
       <span className="relative z-10 inline-flex items-center gap-2.5">
         {pending ? (

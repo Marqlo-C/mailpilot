@@ -203,7 +203,7 @@ export function ArchiveDesktopTable({
   return (
     <div
       className={cn(
-        "hidden w-full overflow-hidden rounded-xl border border-border/80 bg-card shadow-md transition-shadow duration-200 hover:shadow-lg min-[744px]:block",
+        "hidden w-full overflow-hidden rounded-xl border border-border/80 bg-card shadow-md min-[744px]:block",
         className
       )}
     >

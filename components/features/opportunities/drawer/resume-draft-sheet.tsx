@@ -3,8 +3,21 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 
+import {
+  AppMenuContent,
+  AppMenuItem,
+} from "@/components/ui/app-menu";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Loader } from "@/components/ui/loader";
+import {
+  lightRailListClassName,
+  lightRailTriggerClassName,
+} from "@/components/ui/tactile/segmented-tabs";
 import { skillCategoryLabel } from "@/lib/profile/skill-groups";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/resume-draft";
 import { cn } from "@/lib/utils";
@@ -104,7 +117,8 @@ export function ResumeDraftSheet({
     const viewport = viewportRef.current;
     if (!viewport) return;
     const measure = () => {
-      const available = viewport.clientWidth - 32;
+      // Equal desk inset (p-3 = 12px each side).
+      const available = viewport.clientWidth - 24;
       if (available <= 0) return;
       setFitScale(Math.min(1, available / SHEET_WIDTH));
     };
@@ -522,9 +536,16 @@ export function ResumeDraftSheet({
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-x-hidden">
-      <div className="flex w-full max-w-full shrink-0 items-center justify-end gap-2 border-b border-border/60 bg-card px-3 py-2 text-xs">
-        <div className="mr-auto inline-flex rounded-md border border-border bg-card p-0.5">
+    <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-lg">
+      <div className="flex w-full max-w-full shrink-0 items-center justify-end gap-2 rounded-t-lg border-b border-border/60 bg-card/80 px-3 py-2 text-xs backdrop-blur-sm">
+        <div
+          className={cn(
+            lightRailListClassName,
+            "mr-auto h-8 max-w-none gap-1 rounded-lg p-0.5 pr-3 shadow-sm"
+          )}
+          role="radiogroup"
+          aria-label="Resume zoom"
+        >
           {(
             [
               ["fit", "Fit"],
@@ -536,36 +557,50 @@ export function ResumeDraftSheet({
             <button
               key={label}
               type="button"
-              aria-pressed={zoomChoice === value}
+              role="radio"
+              aria-checked={zoomChoice === value}
+              data-state={zoomChoice === value ? "active" : "inactive"}
               onClick={() => setZoomChoice(value)}
-              className={cn(
-                "rounded px-2 py-0.5 text-xs font-medium",
-                zoomChoice === value
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+              className={cn(lightRailTriggerClassName, "px-2.5 py-1 text-xs")}
             >
               {label}
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          disabled={disabled || exporting}
-          onClick={() => onExport("pdf")}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
-        >
-          {exporting ? <Loader size="sm" /> : null}
-          {exporting ? "Exporting…" : "Export PDF"}
-        </button>
-        <button
-          type="button"
-          disabled={disabled || exporting}
-          onClick={() => onExport("docx")}
-          className="rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
-        >
-          Export DOCX
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={disabled || exporting}
+              className="h-8 gap-1.5 px-2.5"
+              aria-label={
+                exporting ? "Preparing resume file" : "Save As"
+              }
+            >
+              {exporting ? <Loader size="sm" /> : null}
+              {exporting ? "Preparing…" : "Download"}
+              {!exporting ? (
+                <ChevronDown className="size-3.5 opacity-70" aria-hidden />
+              ) : null}
+            </Button>
+          </DropdownMenuTrigger>
+          <AppMenuContent align="end" className="min-w-0 w-max">
+            <AppMenuItem
+              disabled={disabled || exporting}
+              onClick={() => onExport("pdf")}
+            >
+              PDF
+            </AppMenuItem>
+            <AppMenuItem
+              disabled={disabled || exporting}
+              onClick={() => onExport("docx")}
+            >
+              DOCX
+            </AppMenuItem>
+          </AppMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Tiny progressive fade under the buttons in the space before resume begins */}
@@ -576,7 +611,7 @@ export function ResumeDraftSheet({
 
       <div
         ref={viewportRef}
-        className="flex h-full min-h-0 w-full max-w-full flex-1 overflow-auto bg-slate-100/70 dark:bg-zinc-900/60 p-4"
+        className="flex h-full min-h-0 w-full max-w-full flex-1 overflow-auto bg-slate-100/70 dark:bg-zinc-900/60 p-3"
       >
         <div
           className="mx-auto shrink-0"
@@ -587,7 +622,7 @@ export function ResumeDraftSheet({
         >
           <div
             ref={pagesContainerRef}
-            className="flex flex-col gap-6 origin-top-left transition-transform duration-150 ease-out"
+            className="flex flex-col gap-6 origin-top-left transition-transform duration-150 ease-apple-snappy"
             style={{
               width: SHEET_WIDTH,
               transform: `scale(${zoom})`,

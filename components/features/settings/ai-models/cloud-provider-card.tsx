@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Cloud, Cpu, CpuAi, KeyRound, Redo2, Trash2, X } from "lucide-react";
+import { Check, Cloud, Cpu, CpuAi, KeyRound, Redo2, Trash2, Undo2 } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
+import { Input } from "@/components/ui/input";
+import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
 import { toast } from "sonner";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 
@@ -27,8 +29,6 @@ import {
   SettingsSectionCard,
 } from "@/components/ui/tactile/nested-settings-card";
 import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
-import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
-import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
 import { cn } from "@/lib/utils";
 
 const PROVIDER_LABELS: Record<CloudLlmProvider, string> = {
@@ -378,66 +378,49 @@ export function CloudProviderCard({
                 </code>
               </p>
             </div>
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/50 bg-card pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow">
-                <Cpu
-                  className="pointer-events-none size-4 shrink-0 text-foreground/45"
-                  aria-hidden
-                />
-                <input
-                  id="cloud-model"
-                  type="text"
-                  aria-label="Model Name Override"
-                  placeholder={
-                    PROVIDER_ENDPOINTS[cloudProvider]?.defaultModel ??
-                    "default model"
-                  }
-                  value={cloudModelOverride}
-                  disabled={disabled}
-                  onChange={(e) => setCloudModelOverride(e.target.value)}
-                  className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 font-mono text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
-                  autoComplete="off"
-                  spellCheck={false}
-                  onKeyDown={(e) => {
-                    if (
-                      e.key === "Enter" &&
-                      cloudModelOverride.trim() !== activeProviderSavedModel
-                    ) {
-                      e.preventDefault();
-                      handleSaveModelOverride();
-                    }
-                  }}
-                />
-                {cloudModelOverride ? (
-                  <button
-                    type="button"
-                    aria-label="Clear model override input"
-                    onClick={() => setCloudModelOverride("")}
-                    className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
-                  >
-                    <X className="size-4" aria-hidden />
-                  </button>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "shrink-0")}
-                disabled={
-                  disabled ||
-                  cloudModelOverride.trim() === activeProviderSavedModel
+            <Input
+              id="cloud-model"
+              type="text"
+              mono
+              leadingIcon={Cpu}
+              clearable
+              onClear={() => setCloudModelOverride("")}
+              aria-label="Model Name Override"
+              placeholder={
+                PROVIDER_ENDPOINTS[cloudProvider]?.defaultModel ??
+                "default model"
+              }
+              value={cloudModelOverride}
+              disabled={disabled}
+              onChange={(e) => setCloudModelOverride(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              onKeyDown={(e) => {
+                if (
+                  e.key === "Enter" &&
+                  cloudModelOverride.trim() !== activeProviderSavedModel
+                ) {
+                  e.preventDefault();
+                  handleSaveModelOverride();
                 }
-                onClick={handleSaveModelOverride}
-              >
-                {pending ? (
-                  <>
+              }}
+              trailing={
+                <FieldTrailingButton
+                  aria-label="Save model override"
+                  disabled={
+                    disabled ||
+                    cloudModelOverride.trim() === activeProviderSavedModel
+                  }
+                  onClick={handleSaveModelOverride}
+                >
+                  {pending ? (
                     <Loader size="sm" />
-                    <span>Saving…</span>
-                  </>
-                ) : (
-                  "Save"
-                )}
-              </button>
-            </div>
+                  ) : (
+                    <Check className="size-3.5" aria-hidden />
+                  )}
+                </FieldTrailingButton>
+              }
+            />
           </div>
 
           {/* API Key Input */}
@@ -490,82 +473,66 @@ export function CloudProviderCard({
             </div>
 
             {(!maskedApiKey || isEditingKey) && (
-              <div className="flex min-w-0 flex-1 items-center gap-2 animate-in fade-in-50 duration-150">
-                <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/50 bg-card pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow">
-                  <KeyRound
-                    className="pointer-events-none size-4 shrink-0 text-foreground/45"
-                    aria-hidden
-                  />
-                  <input
-                    id="cloud-api-key"
-                    type="password"
-                    aria-label={
-                      maskedApiKey
-                        ? `Replace ${cloudProvider} API key`
-                        : `${cloudProvider} API key`
-                    }
-                    placeholder={
-                      maskedApiKey ??
-                      `Enter ${cloudProvider} API key (e.g. sk-...)`
-                    }
-                    autoFocus={Boolean(maskedApiKey && isEditingKey)}
-                    value={apiKeyInput}
-                    disabled={disabled}
-                    onChange={(e) => setApiKeyInput(e.target.value)}
-                    className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 font-mono text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
-                    autoComplete="off"
-                    spellCheck={false}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleSaveKey();
-                      } else if (e.key === "Escape" && maskedApiKey) {
-                        setIsEditingKey(false);
-                        setApiKeyInput("");
-                      }
-                    }}
-                  />
-                  {apiKeyInput ? (
-                    <button
-                      type="button"
-                      aria-label="Clear API key input"
-                      onClick={() => setApiKeyInput("")}
-                      className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
-                    >
-                      <X className="size-4" aria-hidden />
-                    </button>
-                  ) : null}
-                </div>
-
-                {maskedApiKey && isEditingKey && (
-                  <button
-                    type="button"
-                    className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "shrink-0")}
-                    disabled={disabled}
-                    onClick={() => {
+              <div className="animate-in fade-in-50 duration-150">
+                <Input
+                  id="cloud-api-key"
+                  type="password"
+                  mono
+                  leadingIcon={KeyRound}
+                  clearable
+                  onClear={() => setApiKeyInput("")}
+                  aria-label={
+                    maskedApiKey
+                      ? `Replace ${cloudProvider} API key`
+                      : `${cloudProvider} API key`
+                  }
+                  placeholder={
+                    maskedApiKey ??
+                    `Enter ${cloudProvider} API key (e.g. sk-...)`
+                  }
+                  autoFocus={Boolean(maskedApiKey && isEditingKey)}
+                  value={apiKeyInput}
+                  disabled={disabled}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSaveKey();
+                    } else if (e.key === "Escape" && maskedApiKey) {
                       setIsEditingKey(false);
                       setApiKeyInput("");
-                    }}
-                  >
-                    Cancel
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "shrink-0")}
-                  disabled={disabled || !apiKeyInput.trim()}
-                  onClick={handleSaveKey}
-                >
-                  {pending ? (
+                    }
+                  }}
+                  trailing={
                     <>
-                      <Loader size="sm" />
-                      <span>Saving…</span>
+                      {maskedApiKey && isEditingKey ? (
+                        <FieldTrailingButton
+                          aria-label="Cancel key replace"
+                          disabled={disabled}
+                          onClick={() => {
+                            setIsEditingKey(false);
+                            setApiKeyInput("");
+                          }}
+                        >
+                          <Undo2 className="size-3.5" aria-hidden />
+                        </FieldTrailingButton>
+                      ) : null}
+                      <FieldTrailingButton
+                        aria-label="Save API key"
+                        disabled={disabled || !apiKeyInput.trim()}
+                        onClick={handleSaveKey}
+                      >
+                        {pending ? (
+                          <Loader size="sm" />
+                        ) : (
+                          <Check className="size-3.5" aria-hidden />
+                        )}
+                      </FieldTrailingButton>
                     </>
-                  ) : (
-                    "Save"
-                  )}
-                </button>
+                  }
+                />
               </div>
             )}
           </div>

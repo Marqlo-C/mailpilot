@@ -45,7 +45,7 @@ export function DigestRowItem({
   return (
     <div
       className={cn(
-        "group relative flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-card/40 p-2.5 transition-all duration-150 hover:border-primary/40 hover:bg-muted/40 hover:shadow-2xs active:scale-[0.99] sm:px-3 sm:py-2.5",
+        "group relative flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-card/40 p-2.5 transition-all duration-150 ease-apple-snappy hover:border-primary/40 hover:bg-muted/40 hover:shadow-2xs motion-safe:active:scale-[0.99] sm:px-3 sm:py-2.5",
         className
       )}
     >

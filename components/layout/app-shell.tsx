@@ -169,7 +169,7 @@ function AppShellInner({
       {/* Desktop persistent sidebar (docked in landscape / desktop mode >=1024px) */}
       <aside
         className={cn(
-          "sticky top-1.5 z-40 hidden h-[calc(100dvh-0.75rem)] shrink-0 cursor-pointer flex-col rounded-2xl text-[hsl(var(--sidebar-foreground))] transition-[width] duration-200 lg:flex",
+          "sticky top-1.5 z-40 hidden h-[calc(100dvh-0.75rem)] shrink-0 cursor-pointer flex-col rounded-2xl text-[hsl(var(--sidebar-foreground))] transition-[width] duration-200 ease-apple-out lg:flex",
           darkPlateClassName,
           collapsed ? "w-[64px]" : "w-64"
         )}

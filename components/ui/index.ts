@@ -23,6 +23,7 @@ export * from "./text-shimmer";
 export * from "./skeleton";
 export * from "./number-ticker";
 export * from "./reasoning";
+export * from "./resizable";
 
 export * from "./styles";
 export * from "./tactile";

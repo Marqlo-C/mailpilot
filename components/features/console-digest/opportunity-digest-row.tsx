@@ -51,7 +51,7 @@ export function OpportunityDigestRow({
           href={actionHref}
           target={hasExternalUrl ? "_blank" : undefined}
           rel={hasExternalUrl ? "noreferrer noopener" : undefined}
-          className="inline-flex h-7 items-center justify-center gap-1 rounded-md border border-primary/25 bg-primary/10 px-2.5 text-xs font-semibold text-primary shadow-2xs transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-95"
+          className="inline-flex h-7 items-center justify-center gap-1 rounded-md border border-primary/25 bg-primary/10 px-2.5 text-xs font-semibold text-primary shadow-2xs transition-[transform,colors] duration-150 ease-apple-snappy hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring motion-safe:active:scale-95"
           onClick={(e) => {
             // Allow direct click without triggering parent row link
             e.stopPropagation();

@@ -20,7 +20,7 @@ export default async function LoginPage({
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
       <LoginBackgroundVideo />
 
-      <div className="relative z-10 w-full max-w-sm animate-in fade-in zoom-in-95 duration-700 ease-out">
+      <div className="relative z-10 w-full max-w-sm motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-700 motion-safe:ease-out">
         <div className="mx-auto w-full max-w-sm overflow-hidden rounded-2xl border bg-card shadow-xl">
           <div className="space-y-5 px-6 pb-3 pt-6 sm:px-8 sm:pb-3 sm:pt-8">
             <div className="text-center">
@@ -52,16 +52,17 @@ export default async function LoginPage({
               <h1 className="font-brand mt-3 text-2xl font-bold tracking-tight">
                 We&apos;re so glad you made it! But...
               </h1>
-              <p className="mx-auto mt-3 w-[100%] rounded-lg border border-dashed border-[#ffab72] bg-[#ffab72]/9 px-3 py-2 text-justify text-[10px] leading-relaxed text-muted-foreground">
-                <span className="block text-center text-[sm] font-medium text-foreground mb-0.5">
-                  NOTICE (Early-Access Build) :
+              <p className="mx-auto mt-3 w-full rounded-lg border border-dashed border-brand/40 bg-brand/10 px-3 py-2 text-justify text-[10px] leading-relaxed text-muted-foreground">
+                <span className="mb-0.5 block text-center text-sm font-medium text-foreground">
+                  NOTICE (Early-Access Build)
                 </span>{" "}
-                At this time, Mail Pilot is restricted to authorized accounts only. Please contact the{" "}
+                At this time, Mail Pilot is restricted to authorized accounts
+                only. Please contact the{" "}
                 <a
                   href={BRANDING.developerGithubUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-medium text-muted-foreground underline underline-offset-2 transition-colors hover:text-muted-foreground/80"
+                  className="font-medium text-primary underline underline-offset-2 transition-colors hover:text-primary/80"
                 >
                   developer
                 </a>{" "}
@@ -89,11 +90,11 @@ export default async function LoginPage({
                 href={BRANDING.repositoryUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group relative flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-[#24292f] text-sm font-medium text-white shadow-sm"
+                className="group relative flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-[hsl(var(--sidebar-panel))] text-sm font-medium text-[#e4f7f3] shadow-sm"
               >
                 <span
                   aria-hidden
-                  className="absolute inset-y-0 left-0 w-0 bg-[#9a2a84] transition-[width] duration-300 ease-out group-hover:w-full"
+                  className="absolute inset-y-0 left-0 w-0 bg-brand transition-[width] duration-300 ease-out group-hover:w-full"
                 />
                 <span className="relative z-10 inline-flex items-center gap-2.5">
                   <svg

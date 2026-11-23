@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useId,
-  type CSSProperties,
-} from "react";
+import { useEffect, useId } from "react";
 import type { JobOpportunity } from "@/lib/generated/prisma/client";
 
 import { Loader } from "@/components/ui/loader";
@@ -18,13 +14,22 @@ import { useSidebarCollapse } from "@/components/layout/sidebar-collapse-provide
 import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
 import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 import { ViewEmailDialog } from "@/components/ui/composites/view-email-dialog";
-import { useDraftSplitPane } from "@/hooks/use-draft-split-pane";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
+import {
+  DRAFT_SPLIT_DEFAULT,
+  DRAFT_SPLIT_PANEL_EMAIL,
+  DRAFT_SPLIT_PANEL_RESUME,
+  useDraftSplitPane,
+} from "@/hooks/use-draft-split-pane";
 import {
   useDraftPdf,
   formatSize,
   estimateBase64Bytes,
 } from "@/hooks/use-draft-pdf";
-import { cn } from "@/lib/utils";
 import {
   EmailEditorPanel,
   ResumePreviewPanel,
@@ -67,15 +72,8 @@ export function OpportunityDraftDialog({
     onCompleted,
   });
 
-  const {
-    emailSplitPct,
-    splitDragging,
-    setSplitDragging,
-    splitRowRef,
-    onSplitKeyDown,
-    minSplit,
-    maxSplit,
-  } = useDraftSplitPane();
+  const { isDesktopSplit, defaultLayout, onLayoutChanged, minSplit, maxSplit } =
+    useDraftSplitPane();
 
   const { resumePdfUrl } = useDraftPdf(flow.resume?.pdfBase64);
 
@@ -96,13 +94,80 @@ export function OpportunityDraftDialog({
     ? formatSize(estimateBase64Bytes(flow.resume.pdfBase64))
     : null;
 
+  const splitEmbedded = flow.attachResume && isDesktopSplit;
+
+  const emailPanel = (
+    <EmailEditorPanel
+      attachResume={flow.attachResume}
+      embedded={splitEmbedded}
+      recipient={flow.recipient}
+      setRecipient={flow.setRecipient}
+      subject={flow.subject}
+      setSubject={flow.setSubject}
+      baselineRecipient={flow.baselineRecipient}
+      baselineSubject={flow.baselineSubject}
+      onRevertRecipient={flow.revertRecipient}
+      onRevertSubject={flow.revertSubject}
+      originalEmail={flow.originalEmail}
+      onViewOriginalEmail={() => flow.setViewOriginalEmailOpen(true)}
+      body={flow.body}
+      setBody={flow.setBody}
+      extraFiles={flow.extraFiles}
+      removeFile={flow.removeFile}
+      handleFileSelect={flow.handleFileSelect}
+      fileInputId={fileInputId}
+      emailBusy={flow.emailBusy}
+      emailBusyLabel={flow.emailBusyLabel}
+      onCancelEmailTask={flow.handleCancelEmailTask}
+    />
+  );
+
+  const resumePanel = flow.attachResume ? (
+    <ResumePreviewPanel
+      resumeBusy={flow.resumeBusy}
+      resumeBusyLabel={flow.resumeBusyLabel}
+      exporting={flow.exporting}
+      resume={flow.resume}
+      resumeError={flow.resumeError}
+      resumePdfUrl={resumePdfUrl}
+      resumeStateLoaded={flow.resumeStateLoaded}
+      embedded={splitEmbedded}
+      onCancelTask={() => flow.handleCancelTask(TASK_RESUME)}
+      onRetry={() => void flow.generateResume()}
+      onCommit={(nodeId, content) => {
+        if (!opportunity) return;
+        void flow.persistDraftChange(() =>
+          updateResumeDraftNodeAction(opportunity.id, nodeId, {
+            content,
+          })
+        );
+      }}
+      onToggle={(nodeId, selected) => {
+        if (!opportunity) return;
+        void flow.persistDraftChange(() =>
+          updateResumeDraftNodeAction(opportunity.id, nodeId, {
+            selected,
+          })
+        );
+      }}
+      onMove={(nodeId, direction) => {
+        if (!opportunity) return;
+        void flow.persistDraftChange(() =>
+          reorderResumeDraftNodeAction(opportunity.id, nodeId, direction)
+        );
+      }}
+      onRefine={flow.handleRefineResumeNode}
+      onExport={flow.handleExportResume}
+    />
+  ) : null;
+
   return (
     <ActionDialogShell
       open={open}
       onOpenChange={flow.handleDialogOpenChange}
       pending={flow.pending}
       size={flow.attachResume ? "xl" : "lg"}
-      contentClassName="h-[88vh] max-h-[900px] w-full transition-all duration-300 ease-in-out"
+      contentClassName="h-[88vh] max-h-[900px] w-full transition-all duration-200 ease-apple-out"
       bodyClassName="flex flex-col overflow-hidden p-0"
       identity={{
         title: "Responding to:",
@@ -126,9 +191,10 @@ export function OpportunityDraftDialog({
           showComposerActions={flow.showComposerActions}
           isSaveDraftDisabled={flow.isSaveDraftDisabled}
           onSaveDraft={() => flow.persistThen("gmail-draft")}
-          pending={flow.pending}
+          isSavingDraft={flow.isSavingDraft}
           isSendDisabled={flow.isSendDisabled}
           onSend={() => flow.persistThen("send")}
+          isSending={flow.isSending}
           sendDisabledReason={flow.sendDisabledReason}
         />
       }
@@ -150,126 +216,51 @@ export function OpportunityDraftDialog({
               />
             </div>
           ) : null}
-          {/* Tier 2: main split — drag the gutter to resize email vs resume */}
-          <div
-            ref={splitRowRef}
-            className={cn(
-              "flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col gap-4 overflow-x-hidden px-6 py-4",
-              flow.attachResume && "lg:flex-row lg:gap-0",
-              !splitDragging && "transition-[gap] duration-300 ease-in-out"
-            )}
-            style={
-              flow.attachResume
-                ? ({
-                    ["--draft-email-split"]: `${emailSplitPct}%`,
-                  } as CSSProperties)
-                : undefined
-            }
-          >
-            {/* Left: seamless email composer */}
-            <EmailEditorPanel
-              attachResume={flow.attachResume}
-              recipient={flow.recipient}
-              setRecipient={flow.setRecipient}
-              subject={flow.subject}
-              setSubject={flow.setSubject}
-              originalEmail={flow.originalEmail}
-              onViewOriginalEmail={() => flow.setViewOriginalEmailOpen(true)}
-              body={flow.body}
-              setBody={flow.setBody}
-              extraFiles={flow.extraFiles}
-              removeFile={flow.removeFile}
-              handleFileSelect={flow.handleFileSelect}
-              fileInputId={fileInputId}
-              emailBusy={flow.emailBusy}
-              emailBusyLabel={flow.emailBusyLabel}
-              onCancelEmailTask={flow.handleCancelEmailTask}
-            />
 
-            {/* Split resize handle: appears on lg screens when resume preview is mounted */}
-            {flow.attachResume ? (
-              <div
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Resize email and resume panes"
-                aria-valuemin={minSplit}
-                aria-valuemax={maxSplit}
-                aria-valuenow={Math.round(emailSplitPct)}
-                tabIndex={0}
-                className={cn(
-                  "group relative hidden w-4 shrink-0 cursor-col-resize touch-none lg:block",
-                  splitDragging && "bg-border/40"
-                )}
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  setSplitDragging(true);
-                }}
-                onKeyDown={onSplitKeyDown}
+          <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col px-6 py-4">
+            {flow.attachResume && isDesktopSplit ? (
+              <ResizablePanelGroup
+                id="mp-draft-email-resume"
+                orientation="horizontal"
+                className="min-h-0 flex-1 gap-0"
+                // Library defaults overflow:hidden on the group — that clips
+                // plate box-shadows. style wins over the inline default.
+                style={{ overflow: "visible" }}
+                defaultLayout={defaultLayout}
+                onLayoutChanged={onLayoutChanged}
               >
-                <span
-                  aria-hidden
-                  className={cn(
-                    "absolute inset-y-3 left-1/2 w-px -translate-x-1/2 rounded-full bg-border transition-colors",
-                    splitDragging
-                      ? "bg-[#129f96]"
-                      : "group-hover:bg-[#129f96]/70 group-focus-visible:bg-[#129f96]"
-                  )}
+                <ResizablePanel
+                  id={DRAFT_SPLIT_PANEL_EMAIL}
+                  defaultSize={`${DRAFT_SPLIT_DEFAULT}%`}
+                  minSize={`${minSplit}%`}
+                  maxSize={`${maxSplit}%`}
+                  className="flex min-h-0 min-w-0 flex-col"
+                  style={{ overflow: "visible" }}
+                >
+                  {emailPanel}
+                </ResizablePanel>
+                <ResizableHandle
+                  aria-label="Resize email and resume panes"
+                  title="Drag to resize · Double-click to reset"
                 />
-                <span
-                  aria-hidden
-                  className={cn(
-                    "absolute left-1/2 top-1/2 h-8 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border/80",
-                    splitDragging && "bg-[#129f96]"
-                  )}
-                />
+                <ResizablePanel
+                  id={DRAFT_SPLIT_PANEL_RESUME}
+                  minSize={`${100 - maxSplit}%`}
+                  maxSize={`${100 - minSplit}%`}
+                  className="flex min-h-0 min-w-0 flex-col"
+                  style={{ overflow: "visible" }}
+                >
+                  {resumePanel}
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            ) : (
+              <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col gap-4">
+                {emailPanel}
+                {resumePanel}
               </div>
-            ) : null}
-
-            {/* Right: auto-tailored resume preview */}
-            {flow.attachResume ? (
-              <ResumePreviewPanel
-                resumeBusy={flow.resumeBusy}
-                resumeBusyLabel={flow.resumeBusyLabel}
-                exporting={flow.exporting}
-                resume={flow.resume}
-                resumeError={flow.resumeError}
-                resumePdfUrl={resumePdfUrl}
-                resumeStateLoaded={flow.resumeStateLoaded}
-                onCancelTask={() => flow.handleCancelTask(TASK_RESUME)}
-                onRetry={() => void flow.generateResume()}
-                onCommit={(nodeId, content) => {
-                  if (!opportunity) return;
-                  void flow.persistDraftChange(() =>
-                    updateResumeDraftNodeAction(opportunity.id, nodeId, {
-                      content,
-                    })
-                  );
-                }}
-                onToggle={(nodeId, selected) => {
-                  if (!opportunity) return;
-                  void flow.persistDraftChange(() =>
-                    updateResumeDraftNodeAction(opportunity.id, nodeId, {
-                      selected,
-                    })
-                  );
-                }}
-                onMove={(nodeId, direction) => {
-                  if (!opportunity) return;
-                  void flow.persistDraftChange(() =>
-                    reorderResumeDraftNodeAction(
-                      opportunity.id,
-                      nodeId,
-                      direction
-                    )
-                  );
-                }}
-                onRefine={flow.handleRefineResumeNode}
-                onExport={flow.handleExportResume}
-              />
-            ) : null}
+            )}
           </div>
 
-          {/* Tier 3: unified Ace AI bar */}
           <RefinePanel
             attachResume={flow.attachResume}
             effectiveRefineTarget={flow.effectiveRefineTarget}
@@ -302,7 +293,6 @@ export function OpportunityDraftDialog({
             }
           />
 
-          {/* Tier 4: configuration strip */}
           <DraftFooterControls
             attachResume={flow.attachResume}
             handleAttachResumeChange={flow.handleAttachResumeChange}

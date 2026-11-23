@@ -16,9 +16,12 @@ export type OpportunityDraftFooterActionsProps = {
   showComposerActions: boolean;
   isSaveDraftDisabled: boolean;
   onSaveDraft: () => void;
-  pending: boolean;
+  /** True only while Save Draft is the in-flight action. */
+  isSavingDraft: boolean;
   isSendDisabled: boolean;
   onSend: () => void;
+  /** True only while Send is the in-flight action. */
+  isSending: boolean;
   sendDisabledReason?: string | null;
 };
 
@@ -29,9 +32,10 @@ export function OpportunityDraftFooterActions({
   showComposerActions,
   isSaveDraftDisabled,
   onSaveDraft,
-  pending,
+  isSavingDraft,
   isSendDisabled,
   onSend,
+  isSending,
   sendDisabledReason,
 }: OpportunityDraftFooterActionsProps) {
   if (!showComposerActions) return null;
@@ -44,7 +48,7 @@ export function OpportunityDraftFooterActions({
         onClick={onSaveDraft}
         className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
       >
-        {pending ? (
+        {isSavingDraft ? (
           <Loader size="sm" />
         ) : (
           <Mail className="h-3.5 w-3.5" />
@@ -62,7 +66,7 @@ export function OpportunityDraftFooterActions({
                 onClick={onSend}
                 className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
               >
-                {pending ? (
+                {isSending ? (
                   <Loader size="sm" />
                 ) : (
                   <Send className="h-3.5 w-3.5" />

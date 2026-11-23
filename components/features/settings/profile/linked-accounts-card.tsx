@@ -113,12 +113,12 @@ export function LinkedAccountsCard({
                     </h5>
                     <Input
                       id={key}
+                      variant="bare"
                       type="url"
                       inputMode="url"
                       placeholder="Not linked"
                       value={url}
                       disabled={disabled}
-                      className="h-auto border-0 bg-transparent px-0 py-0 text-[11px] text-muted-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-0"
                       onChange={(e) =>
                         setForm((prev) => ({ ...prev, [key]: e.target.value }))
                       }

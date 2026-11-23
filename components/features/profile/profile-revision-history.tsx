@@ -264,11 +264,12 @@ export function ProfileRevisionHistory({
                 title={
                   editing ? (
                     <Input
+                      variant="bare"
                       autoFocus
                       value={draft}
                       aria-label="Revision name"
                       // Match level-3 title (`text-[13px]`).
-                      className="h-7 w-full text-[13px] font-semibold tracking-tight"
+                      inputClassName="text-[13px] font-semibold tracking-tight text-foreground"
                       onChange={(event) => setDraft(event.target.value)}
                       onBlur={() => void commitEdit(item)}
                       onKeyDown={(event) => {

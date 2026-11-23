@@ -31,6 +31,9 @@ const config: Config = {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
         },
+        brand: {
+          DEFAULT: "hsl(var(--brand))",
+        },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
@@ -65,6 +68,10 @@ const config: Config = {
       },
       boxShadow: {
         xs: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+      },
+      transitionTimingFunction: {
+        "apple-out": "var(--ease-apple-out)",
+        "apple-snappy": "var(--ease-apple-snappy)",
       },
       keyframes: {
         // prompt-kit Loader `wave` variant

@@ -53,7 +53,7 @@ export function WaveLoader({
       role="status"
       aria-live="polite"
       className={cn(
-        "inline-flex items-center gap-0.5 text-primary",
+        "mp-loader-wave inline-flex items-center gap-0.5 text-primary",
         CONTAINER_SIZES[size],
         className
       )}
@@ -63,7 +63,7 @@ export function WaveLoader({
         <div
           key={i}
           className={cn(
-            "animate-[wave_1s_ease-in-out_infinite] rounded-full bg-current",
+            "rounded-full bg-current motion-safe:animate-[wave_1s_ease-in-out_infinite]",
             BAR_WIDTHS[size]
           )}
           style={{

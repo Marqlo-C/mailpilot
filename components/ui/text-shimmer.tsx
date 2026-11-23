@@ -37,7 +37,7 @@ export function TextShimmer({
   return (
     <Component
       className={cn(
-        "inline-block bg-[length:200%_auto] bg-clip-text font-medium text-transparent animate-shimmer",
+        "inline-block bg-[length:200%_auto] bg-clip-text font-medium text-transparent motion-safe:animate-shimmer",
         className
       )}
       style={{

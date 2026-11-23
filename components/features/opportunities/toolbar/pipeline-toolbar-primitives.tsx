@@ -8,13 +8,17 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { Layers, ListFilter, Mic, Search, X } from "lucide-react";
+import { Layers, ListFilter, Mic, Search } from "lucide-react";
 
 import { useHydrated } from "@/hooks/use-hydrated";
 import { ToolbarMenuSelect } from "@/components/ui/app-menu";
 import { SELECT_CHECKBOX_CLASSNAME } from "@/components/ui/styles/select-checkbox";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import { NumericField } from "@/components/ui/tactile/numeric-field";
+import {
+  FieldTrailingButton,
+  TextField,
+} from "@/components/ui/tactile/text-field";
 import { WavySlider } from "@/components/ui/tactile/wavy-slider";
 import type {
   HistoryStatusFilter,
@@ -443,10 +447,6 @@ export function ToolbarSearch({
     }
   }
 
-  /** Clear / mic / filters — ghost fill, circular with min 44px hit-target padding. */
-  const trailingGhostActionClassName =
-    "relative inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-muted/70 text-[hsl(var(--sidebar))] shadow-none transition-colors hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))] before:absolute before:-inset-2 before:content-['']";
-
   return (
     <div
       ref={rootRef}
@@ -457,67 +457,49 @@ export function ToolbarSearch({
       )}
       style={{ flexBasis: preferredInputBasis }}
     >
-      <div
-        data-mp-toolbar-field=""
-        className="flex h-8 w-full items-center gap-1.5 rounded-lg border border-border/50 bg-card/75 pl-3 pr-1.5 text-foreground/75 shadow-sm transition-[box-shadow,border-color] focus-within:border-border focus-within:shadow"
-      >
-        <Search
-          className="pointer-events-none size-4 shrink-0 text-foreground/45"
-          aria-hidden
-        />
-        <input
-          type="text"
-          placeholder={listening ? "Listening..." : placeholder}
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="h-full min-w-0 flex-1 border-0 bg-transparent py-0 text-xs shadow-none placeholder:text-foreground/45 focus:outline-none focus:ring-0"
-          aria-label={ariaLabel}
-        />
-        <div className="flex shrink-0 items-center gap-0.5">
-          {searchQuery ? (
-            <button
-              type="button"
-              aria-label="Clear search"
-              onClick={() => onSearchChange("")}
-              className={trailingGhostActionClassName}
-            >
-              <X className="size-4" aria-hidden />
-            </button>
-          ) : null}
-          {speechSupported ? (
-            <button
-              type="button"
-              aria-pressed={listening}
-              aria-label={
-                listening ? "Stop voice search" : "Start voice search"
-              }
-              onClick={toggleVoiceSearch}
-              className={cn(
-                trailingGhostActionClassName,
-                listening &&
-                  "bg-destructive/15 text-destructive hover:bg-destructive hover:text-destructive-foreground"
-              )}
-            >
-              <Mic className="size-4" aria-hidden />
-            </button>
-          ) : null}
-          {hasFilters ? (
-            <button
-              type="button"
-              aria-expanded={filtersOpen}
-              aria-label={filtersOpen ? "Hide filters" : "Show filters"}
-              onClick={() => setFiltersOpen((open) => !open)}
-              className={cn(
-                trailingGhostActionClassName,
-                filtersOpen &&
-                  "bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
-              )}
-            >
-              <ListFilter className="size-4" aria-hidden />
-            </button>
-          ) : null}
-        </div>
-      </div>
+      <TextField
+        leadingIcon={Search}
+        placeholder={listening ? "Listening..." : placeholder}
+        value={searchQuery}
+        onChange={(e) => onSearchChange(e.target.value)}
+        aria-label={ariaLabel}
+        clearable
+        onClear={() => onSearchChange("")}
+        trailing={
+          <>
+            {speechSupported ? (
+              <FieldTrailingButton
+                aria-pressed={listening}
+                aria-label={
+                  listening ? "Stop voice search" : "Start voice search"
+                }
+                onClick={toggleVoiceSearch}
+                className={
+                  listening
+                    ? "bg-destructive/15 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    : undefined
+                }
+              >
+                <Mic className="size-4" aria-hidden />
+              </FieldTrailingButton>
+            ) : null}
+            {hasFilters ? (
+              <FieldTrailingButton
+                aria-expanded={filtersOpen}
+                aria-label={filtersOpen ? "Hide filters" : "Show filters"}
+                onClick={() => setFiltersOpen((open) => !open)}
+                className={
+                  filtersOpen
+                    ? "bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar))] hover:text-[hsl(var(--sidebar-foreground))]"
+                    : undefined
+                }
+              >
+                <ListFilter className="size-4" aria-hidden />
+              </FieldTrailingButton>
+            ) : null}
+          </>
+        }
+      />
       {hasFilters && filtersOpen && panelBox
         ? createPortal(
             <div
@@ -686,7 +668,7 @@ export function ToolbarTelemetry({
         <button
           type="button"
           onClick={onResetFilters}
-          className="ml-1.5 cursor-pointer text-[11px] font-medium text-[#129f96] underline underline-offset-2 hover:text-[#0f8f87]"
+          className="ml-1.5 cursor-pointer text-[11px] font-medium text-primary underline underline-offset-2 hover:text-primary/90"
         >
           Reset
         </button>

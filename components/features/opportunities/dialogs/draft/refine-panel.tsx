@@ -1,9 +1,20 @@
 import React from "react";
-import { RotateCcw, Sparkles, WandSparkles } from "lucide-react";
+import {
+  BotMessageSquare,
+  RotateCcw,
+  Sparkles,
+  WandSparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
-import { cn } from "@/lib/utils";
+import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
+import { SegmentedControl } from "@/components/ui/tactile/segmented-tabs";
+
+const ACE_TARGET_OPTIONS = [
+  { value: "email" as const, label: "Email" },
+  { value: "resume" as const, label: "Resume" },
+];
 
 export function RefinePanel({
   attachResume,
@@ -46,62 +57,61 @@ export function RefinePanel({
   return (
     <div className="flex flex-none items-center gap-3 border-t bg-muted/20 px-6 py-2">
       {attachResume ? (
-        <div
-          className="inline-flex h-8 shrink-0 items-center rounded-md border border-border/60 bg-card p-0.5"
-          role="group"
-          aria-label="Ace AI target"
-        >
-          <button
-            type="button"
-            className={cn(
-              "rounded px-2.5 py-1 text-xs font-medium transition-colors",
-              effectiveRefineTarget === "email"
-                ? "bg-muted text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            onClick={() => setRefineTarget("email")}
-            disabled={aceBusy}
-          >
-            Email
-          </button>
-          <button
-            type="button"
-            className={cn(
-              "rounded px-2.5 py-1 text-xs font-medium transition-colors",
-              effectiveRefineTarget === "resume"
-                ? "bg-muted text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            onClick={() => setRefineTarget("resume")}
-            disabled={aceBusy}
-          >
-            Resume
-          </button>
-        </div>
+        <SegmentedControl
+          size="sm"
+          label="Ace AI target"
+          value={effectiveRefineTarget}
+          onChange={setRefineTarget}
+          options={ACE_TARGET_OPTIONS}
+          disabled={aceBusy}
+          className="shrink-0"
+        />
       ) : null}
 
       <Input
         id="opp-ace-refine"
+        leadingIcon={BotMessageSquare}
+        // Optical match to Search — glyph reads smaller in the same size-4 box.
+        leadingIconClassName="size-[18px]"
+        clearable={!refiningTarget}
+        onClear={() => setRefinePrompt("")}
         placeholder={refinePlaceholder}
         value={refinePrompt}
         onChange={(e) => setRefinePrompt(e.target.value)}
         disabled={aceBusy}
-        className="h-8 flex-1 bg-card text-xs"
+        className="flex-1"
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
             handleUnifiedRefine();
           }
         }}
+        trailing={
+          refiningTarget ? (
+            <CancelTaskButton
+              title="Cancel refine"
+              onCancel={onCancelRefine}
+              className="text-[hsl(var(--sidebar))] hover:bg-muted/80"
+            />
+          ) : (
+            <FieldTrailingButton
+              aria-label="Refine"
+              disabled={refineDisabled}
+              onClick={handleUnifiedRefine}
+            >
+              <WandSparkles className="size-3.5" aria-hidden />
+            </FieldTrailingButton>
+          )
+        }
       />
 
       {regeneratingTarget ? (
         <div className="inline-flex h-8 shrink-0 items-center gap-1">
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="h-8 gap-1 px-2.5 text-xs"
+            className="h-8 shrink-0 gap-1.5 px-2.5"
             disabled
           >
             {showGenerateResume ? (
@@ -113,9 +123,7 @@ export function RefinePanel({
           </Button>
           <CancelTaskButton
             title={
-              showGenerateResume
-                ? "Cancel generation"
-                : "Cancel regeneration"
+              showGenerateResume ? "Stop Creating" : "Stop Rewriting"
             }
             onCancel={onCancelRegenerate}
           />
@@ -123,9 +131,9 @@ export function RefinePanel({
       ) : (
         <Button
           type="button"
-          variant="ghost"
+          variant="outline"
           size="sm"
-          className="h-8 shrink-0 gap-1 px-2.5 text-xs"
+          className="h-8 shrink-0 gap-1.5 px-2.5"
           disabled={aceBusy}
           onClick={handleUnifiedRegenerate}
           title={primaryActionTitle}
@@ -136,37 +144,6 @@ export function RefinePanel({
             <RotateCcw className="h-3.5 w-3.5" />
           )}
           {primaryActionLabel}
-        </Button>
-      )}
-
-      {refiningTarget ? (
-        <div className="inline-flex h-8 shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="h-8 gap-1 px-2.5 text-xs"
-            disabled
-          >
-            <WandSparkles className="h-3.5 w-3.5" />
-            Refine
-          </Button>
-          <CancelTaskButton
-            title="Cancel refine"
-            onCancel={onCancelRefine}
-          />
-        </div>
-      ) : (
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          className="h-8 shrink-0 gap-1 px-2.5 text-xs"
-          disabled={refineDisabled}
-          onClick={handleUnifiedRefine}
-        >
-          <WandSparkles className="h-3.5 w-3.5" />
-          Refine
         </Button>
       )}
     </div>

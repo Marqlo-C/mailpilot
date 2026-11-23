@@ -6,17 +6,14 @@ export const SETTINGS_CARD_CLASSNAME =
   "border-border/50 bg-card/80 shadow-md backdrop-blur-sm transition-shadow hover:shadow-md";
 
 /**
- * Soft teal for Level 1 section icons (between brand `#1ab5af` and teal-600).
- * Same ink as toolbar Reset / View Snapshot links.
- * Keep the hex literal in the Tailwind class so JIT can see it.
+ * Soft teal for Level 1 section icons — `primary` token (same ink as toolbar links).
  */
-export const SETTINGS_SECTION_ICON_COLOR = "#129f96";
 export const SETTINGS_SECTION_ICON_CLASSNAME =
-  "text-[#129f96] [&_svg]:!text-[#129f96]";
+  "text-primary [&_svg]:!text-primary";
 
 /** Nested control rows inside settings cards. */
 export const SETTINGS_ROW_CLASSNAME =
-  "rounded-lg border border-border/50 bg-card/70 p-3";
+  "rounded-lg border border-border/50 bg-card/70 p-3 transition-colors duration-150 ease-apple-snappy hover:bg-muted/20 motion-safe:active:bg-muted/35";
 
 /**
  * @deprecated Prefer {@link AppMenuSelect} (`surface="light"`).

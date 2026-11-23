@@ -21,6 +21,7 @@ import {
   BULK_FLYOUT_PILL_CLASSNAME,
   BulkActionSeparator,
 } from "@/components/ui/composites/bulk-actions-flyout";
+import { StatusDot } from "@/components/ui/composites/status-dot";
 import type {
   TactileToastRecord,
   TactileToastType,
@@ -56,12 +57,7 @@ function ToastTypeIcon({
 
   switch (type) {
     case "loading":
-      return (
-        <span className="relative flex h-2 w-2 shrink-0">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-sky-400" />
-        </span>
-      );
+      return <StatusDot tone="busy" size="md" />;
     case "success":
       return (
         <CheckCircle2
@@ -191,7 +187,7 @@ export function TactileToastItem({
                 }}
                 className={cn(
                   BULK_ACTION_BTN_CLASSNAME,
-                  "h-7 rounded-lg px-2 text-xs font-semibold text-[#1ab5af] hover:text-[#e4f7f3]"
+                  "h-7 rounded-lg px-2 text-xs font-semibold text-brand hover:text-[#e4f7f3]"
                 )}
               >
                 {action.label}

@@ -287,7 +287,7 @@ export function SidebarNav({
                   className={cn(
                     NAV_EDGE_MARK_CLASS,
                     NAV_EDGE_MARK_EXPANDED,
-                    "bg-[#1ab5af] shadow-[2px_0_6px_rgba(26,181,175,0.35)]"
+                    "bg-brand shadow-[2px_0_6px_hsl(var(--brand)/0.35)]"
                   )}
                   aria-hidden="true"
                 />
@@ -337,7 +337,7 @@ export function SidebarNav({
                         className={cn(
                           "size-4 shrink-0 transition-colors",
                           active
-                            ? "text-[#1ab5af]"
+                            ? "text-brand"
                             : open
                               ? "text-[#e4f7f3]"
                               : "text-[#e4f7f3]/60 group-hover/nav:text-[#e4f7f3]"

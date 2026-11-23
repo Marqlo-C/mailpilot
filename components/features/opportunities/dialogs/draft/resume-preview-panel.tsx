@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { FileText } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,20 @@ import { ResumeDraftSheet } from "@/components/features/opportunities/drawer/res
 import { ResumeStrategyPanel } from "@/components/features/opportunities/drawer/subcomponents/resume-strategy-panel";
 import { useContentSettleKey } from "@/hooks/use-content-settle-key";
 import type { OpportunityResumePreview } from "@/app/actions/opportunities";
+import { cn } from "@/lib/utils";
+import {
+  COMPOSER_SPLIT_PLATE_CLASSNAME,
+  COMPOSER_SPLIT_PLATE_FOCUS_CLASSNAME,
+} from "@/components/ui/styles/field-chrome";
 import { DraftPaneBusyOverlay } from "./draft-pane-busy-overlay";
+
+function isResumeEditTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target.getAttribute("contenteditable") === "true"
+  );
+}
 
 export function ResumePreviewPanel({
   resumeBusy,
@@ -19,6 +32,7 @@ export function ResumePreviewPanel({
   resumeError,
   resumePdfUrl,
   resumeStateLoaded,
+  embedded = false,
   onCancelTask,
   onRetry,
   onCommit,
@@ -35,6 +49,11 @@ export function ResumePreviewPanel({
   resumeError: string | null;
   resumePdfUrl: string | null;
   resumeStateLoaded: boolean;
+  /**
+   * Desktop split: plate border lifts while a contenteditable resume line is
+   * focused (same chrome as email body → plate).
+   */
+  embedded?: boolean;
   onCancelTask: () => void;
   onRetry: () => void;
   onCommit: (nodeId: string, content: string) => void;
@@ -46,23 +65,44 @@ export function ResumePreviewPanel({
   const showEmptyGenerateState = resumeBusy && !resume;
   const showContentOverlay = resumeBusy && Boolean(resume);
   const settleKey = useContentSettleKey(resumeBusy);
+  const [editingFocused, setEditingFocused] = useState(false);
 
+  // Shell mirrors EmailEditorPanel: plate on the outer node, clip on an inner
+  // wrapper only — so box-shadow isn’t eaten by overflow on the same element.
   return (
-    <div className="relative mt-0 flex h-full min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden overflow-hidden rounded-lg border border-border/60 bg-muted/10 pt-0 duration-300 animate-in fade-in-0 slide-in-from-right-4 lg:min-w-0">
+    <div
+      className={cn(
+        "relative flex h-full min-h-0 min-w-0 w-full max-w-full flex-col lg:min-h-0",
+        COMPOSER_SPLIT_PLATE_CLASSNAME,
+        embedded && editingFocused && COMPOSER_SPLIT_PLATE_FOCUS_CLASSNAME
+      )}
+      onFocusCapture={(event) => {
+        if (isResumeEditTarget(event.target)) setEditingFocused(true);
+      }}
+      onBlurCapture={(event) => {
+        const root = event.currentTarget;
+        requestAnimationFrame(() => {
+          const active = document.activeElement;
+          setEditingFocused(
+            root.contains(active) && isResumeEditTarget(active)
+          );
+        });
+      }}
+    >
       <div
         key={settleKey}
-        className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col gap-2 overflow-x-hidden overflow-hidden p-0 animate-in fade-in-0 duration-300"
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300"
       >
         {showEmptyGenerateState ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-3 text-sm">
             <div className="flex items-center gap-2">
               <Loader size="md" />
               <TextShimmer>
-                {resumeBusyLabel ?? "Tailoring resume…"}
+                {resumeBusyLabel ?? "Creating resume…"}
               </TextShimmer>
             </div>
             <CancelTaskButton
-              title="Cancel generation"
+              title="Stop Creating"
               onCancel={onCancelTask}
             />
           </div>
@@ -113,7 +153,7 @@ export function ResumePreviewPanel({
               </p>
               <p className="max-w-sm text-xs text-muted-foreground">
                 Select &apos;Resume&apos; in the toolbar below and click
-                &apos;Generate&apos; to tailor a PDF for this opportunity.
+                &apos;Create&apos; to tailor a PDF for this opportunity.
                 Nothing runs until you ask.
               </p>
             </div>

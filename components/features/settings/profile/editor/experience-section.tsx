@@ -105,8 +105,10 @@ export function ExperienceEditor({
               )}
             >
               <BulletSquircle />
-              <input
-                className="min-w-0 flex-1 bg-transparent text-sm leading-5 outline-none"
+              <Input
+                variant="bare"
+                className="min-w-0 flex-1"
+                inputClassName="text-sm leading-5 text-foreground"
                 value={bullet.rawText}
                 onChange={(e) =>
                   onChange({

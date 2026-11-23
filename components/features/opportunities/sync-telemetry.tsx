@@ -22,6 +22,7 @@ import {
 import { useSidebarFlyout } from "@/components/layout/sidebar-flyout-provider";
 import { useFlyoutPresence } from "@/components/ui/composites/bulk-actions-flyout";
 import { ConfirmActionDialog } from "@/components/ui/composites/confirm-action-dialog";
+import { StatusDot } from "@/components/ui/composites/status-dot";
 import { NumberTicker } from "@/components/ui/number-ticker";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -313,7 +314,7 @@ export function SyncTelemetry({
                 forceOpen && "mp-flyout-chunk"
               )}
             >
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#e4f7f3]/50" />
+              <StatusDot tone="idle" />
               {compact ? null : (
                 <span className={restLabelClass}>Offline</span>
               )}
@@ -380,10 +381,7 @@ export function SyncTelemetry({
               (forceOpen || panel || showTelemetryActions) && "mp-flyout-chunk"
             )}
           >
-            <span className="relative flex h-1.5 w-1.5 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-500 opacity-75" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
-            </span>
+            <StatusDot tone="busy" />
             {compact ? null : (
               <span className={restLabelClass}>{syncingLabel}</span>
             )}
@@ -419,10 +417,7 @@ export function SyncTelemetry({
                 (forceOpen || panel) && "mp-flyout-chunk"
               )}
             >
-              <span className="relative flex h-1.5 w-1.5 shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#c21f10] opacity-75 dark:bg-[#fb6230]" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#c21f10] dark:bg-[#fb6230]" />
-              </span>
+              <StatusDot tone="error" />
               {compact ? null : (
                 <span className={restLabelClass}>
                   <span className="tabular-nums font-semibold">{pendingCount}</span>{" "}
@@ -444,10 +439,7 @@ export function SyncTelemetry({
                 forceOpen && "mp-flyout-chunk"
               )}
             >
-              <span className="relative flex h-1.5 w-1.5 shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#c21f10] opacity-75 dark:bg-[#fb6230]" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#c21f10] dark:bg-[#fb6230]" />
-              </span>
+              <StatusDot tone="error" />
               {compact ? null : (
                 <span className={restLabelClass}>
                   <span className="tabular-nums font-semibold">{pendingCount}</span>{" "}
@@ -468,9 +460,7 @@ export function SyncTelemetry({
               forceOpen && "mp-flyout-chunk"
             )}
           >
-            <span className="relative flex h-1.5 w-1.5 shrink-0">
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.5)]" />
-            </span>
+            <StatusDot tone="ok" ping={false} />
             {compact ? null : (
               <span className={restLabelClass}>Inbox up to date</span>
             )}
@@ -505,32 +495,22 @@ export function SyncStatusDot({
   className?: string;
 }) {
   const { isSyncing, pendingCount } = useSyncStatus();
-  const blinking = connected && (isSyncing || pendingCount > 0);
   const tone = !connected
-    ? "bg-white/70 opacity-60"
+    ? "offline"
     : isSyncing
-      ? "bg-sky-500"
+      ? "busy"
       : pendingCount > 0
-        ? "bg-[#c21f10] dark:bg-[#fb6230]"
-        : "bg-emerald-500";
+        ? "error"
+        : "ok";
 
   return (
-    <span
+    <StatusDot
+      tone={tone}
+      ping={connected && (isSyncing || pendingCount > 0)}
       className={cn(
-        "pointer-events-none absolute -right-1.5 -top-1.5 flex h-1.5 w-1.5",
+        "pointer-events-none absolute -right-1.5 -top-1.5",
         className
       )}
-      aria-hidden
-    >
-      {blinking ? (
-        <span
-          className={cn(
-            "absolute inline-flex h-full w-full animate-ping rounded-full opacity-75",
-            tone
-          )}
-        />
-      ) : null}
-      <span className={cn("relative inline-flex h-1.5 w-1.5 rounded-full", tone)} />
-    </span>
+    />
   );
 }

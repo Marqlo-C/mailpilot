@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Save, Trash2 } from "lucide-react";
+import { KeyRound, Save, Trash2 } from "lucide-react";
 import {
   clearCustomLlmKey,
   clearHasDataApiKey,
@@ -14,12 +14,13 @@ import {
   type ApiKeyStatus,
 } from "@/app/actions/settings";
 import {
-  FLYOUT_FIELD_CLASS,
   FLYOUT_LABEL_CLASS,
-  FlyoutIconPill,
   FlyoutSelect,
 } from "@/components/layout/sidebar-flyout-chrome";
 import { LoadSkeletonStack } from "@/components/ui/composites/load-skeleton-stack";
+import { Input } from "@/components/ui/input";
+import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
+import { Loader } from "@/components/ui/loader";
 import {
   CLOUD_LLM_PROVIDERS,
   type CloudLlmProvider,
@@ -385,31 +386,52 @@ function KeyRow({
       <span className="max-w-[4.25rem] truncate text-center text-[10px] leading-none text-[#e4f7f3]/45">
         {masked ? masked : "None saved"}
       </span>
-      <input
-        id={id}
-        type="password"
-        autoComplete="off"
-        value={value}
-        disabled={pending}
-        placeholder={masked ? "Replace" : "Paste key"}
-        onChange={(event) => onChange(event.target.value)}
-        className={FLYOUT_FIELD_CLASS}
-      />
-      <FlyoutIconPill
-        matchPairWidth
-        primary={{
-          icon: Save,
-          label: "Save key",
-          onClick: onSave,
-          disabled: pending,
-        }}
-        secondary={{
-          icon: Trash2,
-          label: hasSavedKey ? "Delete key" : "No key saved",
-          onClick: onClear,
-          disabled: pending || !hasSavedKey,
-        }}
-      />
+      <div className="col-span-2 min-w-0">
+        <Input
+          id={id}
+          variant="sidebar"
+          type="password"
+          mono
+          leadingIcon={KeyRound}
+          clearable
+          onClear={() => onChange("")}
+          autoComplete="off"
+          value={value}
+          disabled={pending}
+          placeholder={masked ? "Replace" : "Paste key"}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && value.trim()) {
+              event.preventDefault();
+              onSave();
+            }
+          }}
+          trailing={
+            <>
+              <FieldTrailingButton
+                tone="sidebar"
+                aria-label="Save key"
+                disabled={pending || !value.trim()}
+                onClick={onSave}
+              >
+                {pending ? (
+                  <Loader size="sm" className="text-[#e4f7f3]/80" />
+                ) : (
+                  <Save className="size-3.5" aria-hidden />
+                )}
+              </FieldTrailingButton>
+              <FieldTrailingButton
+                tone="sidebar"
+                aria-label={hasSavedKey ? "Delete key" : "No key saved"}
+                disabled={pending || !hasSavedKey}
+                onClick={onClear}
+              >
+                <Trash2 className="size-3.5" aria-hidden />
+              </FieldTrailingButton>
+            </>
+          }
+        />
+      </div>
     </div>
   );
 }

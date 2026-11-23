@@ -12,8 +12,10 @@ import {
   getDevCachedResumeInfo,
   importGitHubProjects,
 } from "@/app/actions/profile";
-import { FLYOUT_FIELD_CLASS, FLYOUT_LABEL_CLASS } from "@/components/layout/sidebar-flyout-chrome";
+import { FLYOUT_LABEL_CLASS } from "@/components/layout/sidebar-flyout-chrome";
 import { getDevOllamaModelOverride } from "@/components/features/settings/ai-models";
+import { Input } from "@/components/ui/input";
+import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
 import { WaveToggle } from "@/components/ui/tactile/wave-toggle";
 import type { DevCachedResumeMetadata } from "@/lib/profile/dev-resume-cache";
 import { cn } from "@/lib/utils";
@@ -212,7 +214,7 @@ export function ResumeUploadFlyout({ accountId }: { accountId: string }) {
         </button>
       ) : selectedFile ? (
         <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-2.5 py-2">
-          <FileText className="size-4 shrink-0 text-[#1ab5af]" aria-hidden />
+          <FileText className="size-4 shrink-0 text-brand" aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[12px] font-medium text-[#e4f7f3]">
               {selectedFile.name}
@@ -272,43 +274,44 @@ export function ResumeUploadFlyout({ accountId }: { accountId: string }) {
         <label htmlFor="sidebar-github-handle" className={FLYOUT_LABEL_CLASS}>
           GitHub (optional)
         </label>
-        <div className="flex items-center gap-1.5">
-          <input
-            id="sidebar-github-handle"
-            type="text"
-            autoComplete="off"
-            value={githubInput}
-            disabled={pending}
-            placeholder="octocat or profile URL"
-            onChange={(event) => setGithubInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (
-                event.key === "Enter" &&
-                !selectedFile &&
-                !useCachedResume
-              ) {
-                event.preventDefault();
-                onSyncGitHub();
-              }
-            }}
-            className={cn(FLYOUT_FIELD_CLASS, "min-w-0 flex-1")}
-          />
-          <button
-            type="button"
-            disabled={pending || !githubInput.trim()}
-            onClick={onSyncGitHub}
-            title="Sync GitHub only"
-            aria-label="Sync GitHub only"
-            className={ACTION_BTN_CLASS}
-          >
-            {pending ? (
-              <Loader size="sm" aria-hidden />
-            ) : (
-              <FolderGit2 className="size-3.5" aria-hidden />
-            )}
-            Sync
-          </button>
-        </div>
+        <Input
+          id="sidebar-github-handle"
+          variant="sidebar"
+          type="text"
+          leadingIcon={FolderGit2}
+          clearable
+          onClear={() => setGithubInput("")}
+          autoComplete="off"
+          value={githubInput}
+          disabled={pending}
+          placeholder="octocat or profile URL"
+          onChange={(event) => setGithubInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (
+              event.key === "Enter" &&
+              !selectedFile &&
+              !useCachedResume
+            ) {
+              event.preventDefault();
+              onSyncGitHub();
+            }
+          }}
+          trailing={
+            <FieldTrailingButton
+              tone="sidebar"
+              aria-label="Sync GitHub only"
+              title="Sync GitHub only"
+              disabled={pending || !githubInput.trim()}
+              onClick={onSyncGitHub}
+            >
+              {pending ? (
+                <Loader size="sm" className="text-[#e4f7f3]/80" aria-hidden />
+              ) : (
+                <FolderGit2 className="size-3.5" aria-hidden />
+              )}
+            </FieldTrailingButton>
+          }
+        />
       </div>
 
       <div className="flex items-start justify-between gap-2 rounded-xl border border-white/10 px-2.5 py-2">

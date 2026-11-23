@@ -16,3 +16,4 @@ export * from "./diff-kind-mark";
 export * from "./slidable-badge-row";
 export * from "./stamp-frame";
 export * from "./numeric-field";
+export * from "./text-field";

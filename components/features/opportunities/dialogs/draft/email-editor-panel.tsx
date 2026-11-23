@@ -1,7 +1,13 @@
-import React, { type ChangeEvent } from "react";
-import { FileText, Mail, Paperclip, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import React, { useState, type ChangeEvent } from "react";
+import { FileText, Mail, Paperclip, Type, Undo2, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  COMPOSER_SPLIT_PLATE_CLASSNAME,
+  COMPOSER_SPLIT_PLATE_FOCUS_CLASSNAME,
+  FIELD_SHELL_MULTILINE_CLASSNAME,
+  FIELD_TEXTAREA_CLASSNAME,
+} from "@/components/ui/styles/field-chrome";
+import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
 import { formatSize } from "@/hooks/use-draft-pdf";
 import { useContentSettleKey } from "@/hooks/use-content-settle-key";
 import type { OriginalEmailPreview } from "@/app/actions/opportunities";
@@ -10,10 +16,15 @@ import { DraftPaneBusyOverlay } from "./draft-pane-busy-overlay";
 
 export function EmailEditorPanel({
   attachResume,
+  embedded = false,
   recipient,
   setRecipient,
   subject,
   setSubject,
+  baselineRecipient,
+  baselineSubject,
+  onRevertRecipient,
+  onRevertSubject,
   originalEmail,
   onViewOriginalEmail,
   body,
@@ -27,10 +38,19 @@ export function EmailEditorPanel({
   onCancelEmailTask,
 }: {
   attachResume: boolean;
+  /**
+   * Desktop split: this panel owns the plate; body has no nested shell — the
+   * plate border is the body field chrome and lifts on body focus.
+   */
+  embedded?: boolean;
   recipient: string;
   setRecipient: (value: string) => void;
   subject: string;
   setSubject: (value: string) => void;
+  baselineRecipient: string;
+  baselineSubject: string;
+  onRevertRecipient: () => void;
+  onRevertSubject: () => void;
   originalEmail: OriginalEmailPreview | null;
   onViewOriginalEmail: () => void;
   body: string;
@@ -45,130 +65,170 @@ export function EmailEditorPanel({
   onCancelEmailTask: () => void;
 }) {
   const settleKey = useContentSettleKey(emailBusy);
+  const recipientDirty = recipient !== baselineRecipient;
+  const subjectDirty = subject !== baselineSubject;
+  const [bodyFocused, setBodyFocused] = useState(false);
+
+  const bodyBlock = (
+    <div
+      className={cn(
+        "relative min-h-0 flex-1 flex-col",
+        embedded
+          ? "flex overflow-hidden"
+          : cn(
+              FIELD_SHELL_MULTILINE_CLASSNAME,
+              "flex flex-col p-0",
+              emailBusy && "opacity-50"
+            )
+      )}
+    >
+      <label htmlFor="opp-draft-body" className="sr-only">
+        Body
+      </label>
+      <textarea
+        id="opp-draft-body"
+        className={cn(
+          FIELD_TEXTAREA_CLASSNAME,
+          "min-h-0 flex-1 resize-none px-3 pb-10 pt-2 text-sm leading-relaxed",
+          embedded && "bg-transparent"
+        )}
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        onFocus={() => setBodyFocused(true)}
+        onBlur={() => setBodyFocused(false)}
+        disabled={emailBusy}
+        placeholder="Write your message…"
+      />
+      <div className="pointer-events-none absolute bottom-2 left-2 right-2 flex items-end justify-between gap-2">
+        {extraFiles.length > 0 ? (
+          <ul className="pointer-events-auto flex min-w-0 flex-1 flex-wrap gap-1.5">
+            {extraFiles.map((file, index) => (
+              <li
+                key={`${file.name}-${file.size}-${index}`}
+                className="inline-flex max-w-[160px] items-center gap-1.5 rounded-md border border-border/50 bg-card/95 px-2 py-1 text-xs shadow-sm"
+              >
+                <FileText className="size-3.5 shrink-0 text-foreground/45" />
+                <span className="truncate">
+                  {file.name} ({formatSize(file.size)})
+                </span>
+                <FieldTrailingButton
+                  aria-label={`Remove ${file.name}`}
+                  disabled={emailBusy}
+                  onClick={() => removeFile(index)}
+                  className="size-5 before:-inset-1"
+                >
+                  <X className="size-3" aria-hidden />
+                </FieldTrailingButton>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <span />
+        )}
+        <div className="pointer-events-auto flex shrink-0 items-center">
+          <input
+            id={fileInputId}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={handleFileSelect}
+            disabled={emailBusy}
+          />
+          <FieldTrailingButton
+            title="Attach file"
+            aria-label="Attach file"
+            disabled={emailBusy}
+            onClick={() => {
+              document.getElementById(fileInputId)?.click();
+            }}
+          >
+            <Paperclip className="size-4" aria-hidden />
+          </FieldTrailingButton>
+        </div>
+      </div>
+    </div>
+  );
+
+  const fields = (
+    <div
+      key={settleKey}
+      className={cn(
+        "flex min-h-0 flex-1 flex-col gap-2 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300",
+        embedded && "p-3"
+      )}
+    >
+      <Input
+        id="opp-draft-to"
+        type="email"
+        leadingIcon={Mail}
+        placeholder="recruiter@company.com"
+        aria-label="To"
+        value={recipient}
+        onChange={(e) => setRecipient(e.target.value)}
+        disabled={emailBusy}
+        trailing={
+          recipientDirty ? (
+            <FieldTrailingButton
+              title="Revert to original"
+              aria-label="Revert recipient"
+              disabled={emailBusy}
+              onClick={onRevertRecipient}
+            >
+              <Undo2 className="size-3.5" aria-hidden />
+            </FieldTrailingButton>
+          ) : null
+        }
+      />
+
+      <Input
+        id="opp-draft-subject"
+        leadingIcon={Type}
+        placeholder="Subject"
+        aria-label="Subject"
+        value={subject}
+        onChange={(e) => setSubject(e.target.value)}
+        disabled={emailBusy}
+        trailing={
+          <>
+            {subjectDirty ? (
+              <FieldTrailingButton
+                title="Revert to original"
+                aria-label="Revert subject"
+                disabled={emailBusy}
+                onClick={onRevertSubject}
+              >
+                <Undo2 className="size-3.5" aria-hidden />
+              </FieldTrailingButton>
+            ) : null}
+            {originalEmail ? (
+              <FieldTrailingButton
+                title="View original email"
+                aria-label="View original email"
+                disabled={emailBusy}
+                onClick={onViewOriginalEmail}
+              >
+                <Mail className="size-4" aria-hidden />
+              </FieldTrailingButton>
+            ) : null}
+          </>
+        }
+      />
+
+      {bodyBlock}
+    </div>
+  );
 
   return (
     <div
       className={cn(
-        "relative flex h-full min-h-0 min-w-0 w-full max-w-full flex-col divide-y overflow-x-hidden overflow-hidden rounded-lg border bg-card text-sm focus-within:ring-1 focus-within:ring-ring lg:min-h-0",
-        attachResume &&
-          "lg:max-w-full lg:shrink-0 lg:grow-0 lg:[flex-basis:var(--draft-email-split)]"
+        "relative flex h-full min-h-0 min-w-0 w-full max-w-full flex-col lg:min-h-0",
+        attachResume && "lg:max-w-full",
+        COMPOSER_SPLIT_PLATE_CLASSNAME,
+        embedded && bodyFocused && COMPOSER_SPLIT_PLATE_FOCUS_CLASSNAME
       )}
     >
-      <div
-        key={settleKey}
-        className="flex min-h-0 flex-1 flex-col divide-y animate-in fade-in-0 duration-300"
-      >
-        <div className="flex flex-none items-center px-3 py-2">
-          <Label
-            htmlFor="opp-draft-to"
-            className="w-16 shrink-0 select-none text-xs font-medium text-muted-foreground"
-          >
-            To:
-          </Label>
-          <input
-            id="opp-draft-to"
-            type="email"
-            placeholder="recruiter@company.com"
-            value={recipient}
-            onChange={(e) => setRecipient(e.target.value)}
-            disabled={emailBusy}
-            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-foreground outline-none ring-0 focus:outline-none focus:ring-0 disabled:opacity-50"
-          />
-        </div>
-
-        <div className="flex flex-none items-center justify-between gap-2 px-3 py-2">
-          <div className="flex min-w-0 flex-1 items-center">
-            <Label
-              htmlFor="opp-draft-subject"
-              className="w-16 shrink-0 select-none text-xs font-medium text-muted-foreground"
-            >
-              Subject:
-            </Label>
-            <input
-              id="opp-draft-subject"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              disabled={emailBusy}
-              className="min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-sm text-foreground outline-none ring-0 focus:outline-none focus:ring-0 disabled:opacity-50"
-            />
-          </div>
-          {originalEmail ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onViewOriginalEmail}
-              className="h-7 shrink-0 gap-1.5 rounded-md bg-muted/40 px-2.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="hidden sm:inline">View original email</span>
-            </Button>
-          ) : null}
-        </div>
-
-        <div className="relative flex min-h-0 flex-1 flex-col">
-          <Label htmlFor="opp-draft-body" className="sr-only">
-            Body
-          </Label>
-          <textarea
-            id="opp-draft-body"
-            className="min-h-0 w-full flex-1 resize-none overflow-y-auto border-0 bg-transparent p-3 pb-10 text-sm leading-relaxed outline-none focus:outline-none focus-visible:ring-0 disabled:opacity-50"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            disabled={emailBusy}
-          />
-          <div className="pointer-events-none absolute bottom-2 left-2 right-2 flex items-end justify-between gap-2">
-            {extraFiles.length > 0 ? (
-              <ul className="pointer-events-auto flex min-w-0 flex-1 flex-wrap gap-1.5">
-                {extraFiles.map((file, index) => (
-                  <li
-                    key={`${file.name}-${file.size}-${index}`}
-                    className="inline-flex max-w-[160px] items-center gap-1.5 rounded-md border border-border/60 bg-background/95 px-2 py-1 text-xs shadow-sm"
-                  >
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span className="truncate">
-                      {file.name} ({formatSize(file.size)})
-                    </span>
-                    <button
-                      type="button"
-                      className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      onClick={() => removeFile(index)}
-                      disabled={emailBusy}
-                      aria-label={`Remove ${file.name}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <span />
-            )}
-            <div className="pointer-events-auto flex shrink-0 items-center">
-              <input
-                id={fileInputId}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleFileSelect}
-                disabled={emailBusy}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                title="Attach file"
-                disabled={emailBusy}
-                className="h-7 w-7 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
-                onClick={() => {
-                  document.getElementById(fileInputId)?.click();
-                }}
-              >
-                <Paperclip className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
-        </div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg">
+        {fields}
       </div>
 
       {emailBusy ? (

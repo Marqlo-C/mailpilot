@@ -6,6 +6,7 @@ import {
   type OpportunityCardProps,
   type OpportunityCardVariant,
 } from "@/components/features/opportunities/cards/opportunity-card";
+import { EmptyState } from "@/components/ui/composites/empty-state";
 
 export type OpportunitiesGridProps = {
   opportunities: JobOpportunity[];
@@ -59,11 +60,7 @@ export function OpportunitiesGrid({
   onLessLikeThis,
 }: OpportunitiesGridProps) {
   if (opportunities.length === 0) {
-    return (
-      <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
-        {emptyText}
-      </div>
-    );
+    return <EmptyState title={emptyText} />;
   }
 
   const isMultiSelect = selectedIds.length > 0;
@@ -106,7 +103,7 @@ export function OpportunitiesGrid({
       ))}
       {marker.insertAfterLast ? (
         <div
-          className="pointer-events-none col-span-full h-0.5 bg-[#1ab5af]"
+          className="pointer-events-none col-span-full h-0.5 bg-brand"
           aria-hidden
         />
       ) : null}

@@ -2,7 +2,9 @@ import { Compass, ExternalLink, RefreshCw } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
 
 import { Badge } from "@/components/ui/badge";
+import { StatusDot } from "@/components/ui/composites/status-dot";
 import {
+  darkPlateClassName,
   darkRailListClassName,
   darkRailTriggerClassName,
   lightRailListClassName,
@@ -42,10 +44,20 @@ export function SidePanelHeader({
   onExtractFromTab,
   onSelectTab,
 }: SidePanelHeaderProps) {
+  const connectionTone = checkingSession
+    ? "busy"
+    : session?.ok
+      ? "ok"
+      : "error";
+
   return (
     <>
-      {/* MailPilot Top Navigation Deck */}
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border/80 bg-[#181e26] text-white px-3 shadow-xs">
+      <header
+        className={cn(
+          "flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-3 text-[#e4f7f3]",
+          darkPlateClassName
+        )}
+      >
         <div className="flex items-center gap-2">
           <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-[22%]">
             <img
@@ -62,41 +74,31 @@ export function SidePanelHeader({
                 className="pointer-events-none h-[54px] w-auto max-w-none object-contain"
               />
             </span>
-            <span
-              className="-ml-0.5 font-sans text-sm font-semibold tracking-tight select-none text-[#fdad76]"
-              style={{ color: "#fdad76" }}
-            >
+            <span className="-ml-0.5 select-none font-sans text-sm font-semibold tracking-tight text-brand">
               +
             </span>
           </div>
           <Badge
             variant="outline"
-            className="h-4 px-1.5 py-0 text-[10px] font-medium border-white/20 bg-white/5 text-[#e4f7f3]"
+            className="h-4 border-white/20 bg-white/5 px-1.5 py-0 text-[10px] font-medium text-[#e4f7f3]"
           >
             Companion
           </Badge>
         </div>
 
-        {/* Connected Indicator & Environment Tab Rail */}
         <div className="flex items-center gap-2">
-          <div
-            title={
-              session?.ok
-                ? `Connected as ${session.profile?.fullName || session.account?.email}`
-                : "Not connected to MailPilot"
-            }
-            className={cn(
-              "h-2.5 w-2.5 rounded-full transition-all",
-              checkingSession
-                ? "bg-white/40 animate-pulse"
-                : session?.ok
-                ? "bg-emerald-400 ring-2 ring-emerald-400/20"
-                : "bg-destructive ring-2 ring-destructive/20"
-            )}
+          <StatusDot
+            tone={connectionTone}
+            size="md"
+            ping={checkingSession}
+            className="shrink-0"
           />
 
           <div
-            className={cn(darkRailListClassName, "p-0.5 pr-3 gap-2 rounded-lg shadow-sm")}
+            className={cn(
+              darkRailListClassName,
+              "gap-2 rounded-lg p-0.5 pr-3 shadow-sm"
+            )}
             data-mp-tab-rail=""
             role="radiogroup"
             aria-label="Environment"
@@ -106,7 +108,10 @@ export function SidePanelHeader({
               role="radio"
               aria-checked={env === "dev"}
               data-state={env === "dev" ? "active" : "inactive"}
-              className={cn(darkRailTriggerClassName, "px-2 py-0.5 text-[11px] rounded-md")}
+              className={cn(
+                darkRailTriggerClassName,
+                "rounded-md px-2 py-0.5 text-[11px]"
+              )}
               onClick={() => onSwitchEnvironment("dev")}
             >
               Dev :3000
@@ -116,7 +121,10 @@ export function SidePanelHeader({
               role="radio"
               aria-checked={env === "prod"}
               data-state={env === "prod" ? "active" : "inactive"}
-              className={cn(darkRailTriggerClassName, "px-2 py-0.5 text-[11px] rounded-md")}
+              className={cn(
+                darkRailTriggerClassName,
+                "rounded-md px-2 py-0.5 text-[11px]"
+              )}
               onClick={() => onSwitchEnvironment("prod")}
             >
               Production
@@ -125,10 +133,9 @@ export function SidePanelHeader({
         </div>
       </header>
 
-      {/* Account Session Header Strip */}
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-border/50 bg-card/75 px-3 text-xs shadow-2xs backdrop-blur-md">
         {checkingSession ? (
-          <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <Loader size="sm" /> Verifying session…
           </span>
         ) : session?.ok ? (
@@ -137,47 +144,57 @@ export function SidePanelHeader({
               {session.account?.picture ? (
                 <img
                   src={session.account.picture}
-                  alt={session.profile?.fullName || session.account?.name || "Account"}
+                  alt={
+                    session.profile?.fullName ||
+                    session.account?.name ||
+                    "Account"
+                  }
                   referrerPolicy="no-referrer"
                   className="h-full w-full object-cover"
                 />
               ) : (
                 <span className="flex h-full w-full items-center justify-center bg-primary/10 text-[9px] font-bold text-primary">
-                  {session.profile?.fullName?.[0] || session.account?.name?.[0] || "U"}
+                  {session.profile?.fullName?.[0] ||
+                    session.account?.name?.[0] ||
+                    "U"}
                 </span>
               )}
             </span>
-            <span className="truncate font-medium text-foreground text-xs">
+            <span className="truncate text-xs font-medium text-foreground">
               {session.profile?.fullName || session.account?.name}
             </span>
-            {session.account?.email && (
+            {session.account?.email ? (
               <>
-                <span className="h-3 w-px bg-border/60 shrink-0" aria-hidden="true" />
-                <span className="truncate text-muted-foreground text-[11px]">
+                <span
+                  className="h-3 w-px shrink-0 bg-border/60"
+                  aria-hidden="true"
+                />
+                <span className="truncate text-[11px] text-muted-foreground">
                   {session.account.email}
                 </span>
               </>
-            )}
+            ) : null}
             <button
               type="button"
               onClick={onRefreshSession}
               title="Refresh connection"
-              className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground transition-colors ml-0.5 cursor-pointer"
+              className="ml-0.5 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               <RefreshCw className="h-3 w-3" />
             </button>
           </div>
         ) : (
           <div className="flex w-full items-center justify-between">
-            <span className="text-destructive font-medium text-xs">
-              Not authenticated ({env === "dev" ? "localhost:3000" : "Production"})
+            <span className="text-xs font-medium text-destructive">
+              Not authenticated (
+              {env === "dev" ? "localhost:3000" : "Production"})
             </span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={onRefreshSession}
                 title="Retry connection"
-                className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <RefreshCw className="h-3 w-3" />
               </button>
@@ -185,7 +202,7 @@ export function SidePanelHeader({
                 href={baseUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-1 font-medium text-xs"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
               >
                 Sign in <ExternalLink className="h-3 w-3" />
               </a>
@@ -193,13 +210,13 @@ export function SidePanelHeader({
           </div>
         )}
 
-        <div className="flex items-center gap-2 shrink-0">
-          {(activeTab === "job" || !preview) && (
+        <div className="flex shrink-0 items-center gap-2">
+          {activeTab === "job" || !preview ? (
             <button
               type="button"
               onClick={onExtractFromTab}
               disabled={isExtracting}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-input/60 bg-card px-2.5 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer disabled:pointer-events-none disabled:opacity-50"
+              className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-input/60 bg-card px-2.5 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
               title="Import job details from the active browser tab"
             >
               {isExtracting ? (
@@ -209,11 +226,14 @@ export function SidePanelHeader({
               )}
               <span>{isExtracting ? "Importing…" : "Import from Tab"}</span>
             </button>
-          )}
+          ) : null}
 
-          {preview && (
+          {preview ? (
             <div
-              className={cn(lightRailListClassName, "p-0.5 pr-2.5 gap-2 rounded-lg shadow-2xs self-center")}
+              className={cn(
+                lightRailListClassName,
+                "gap-2 self-center rounded-lg p-0.5 pr-2.5 shadow-2xs"
+              )}
               role="tablist"
               aria-label="View Navigation"
             >
@@ -222,7 +242,10 @@ export function SidePanelHeader({
                 role="tab"
                 aria-selected={activeTab === "job"}
                 data-state={activeTab === "job" ? "active" : "inactive"}
-                className={cn(lightRailTriggerClassName, "px-2 py-0.5 text-[11px] rounded-md")}
+                className={cn(
+                  lightRailTriggerClassName,
+                  "rounded-md px-2 py-0.5 text-[11px]"
+                )}
                 onClick={() => onSelectTab("job")}
               >
                 Job
@@ -232,13 +255,16 @@ export function SidePanelHeader({
                 role="tab"
                 aria-selected={activeTab === "draft"}
                 data-state={activeTab === "draft" ? "active" : "inactive"}
-                className={cn(lightRailTriggerClassName, "px-2 py-0.5 text-[11px] rounded-md")}
+                className={cn(
+                  lightRailTriggerClassName,
+                  "rounded-md px-2 py-0.5 text-[11px]"
+                )}
                 onClick={() => onSelectTab("draft")}
               >
                 Draft
               </button>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </>

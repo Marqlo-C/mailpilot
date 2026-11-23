@@ -12,8 +12,7 @@ import { cn } from "@/lib/utils";
 export const FLYOUT_LABEL_CLASS =
   "text-[10px] font-semibold uppercase tracking-wide text-stone-500";
 
-export const FLYOUT_FIELD_CLASS =
-  "h-8 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-xs text-[#e4f7f3] shadow-none outline-none placeholder:text-[#e4f7f3]/35 focus-visible:ring-1 focus-visible:ring-[#1ab5af]/60 disabled:opacity-50";
+export { FIELD_SIDEBAR_CLASSNAME as FLYOUT_FIELD_CLASS } from "@/components/ui/styles/field-chrome";
 
 const PILL_SHELL_CLASS =
   "inline-flex h-8 shrink-0 items-center overflow-hidden rounded-full bg-white/10 shadow-none";

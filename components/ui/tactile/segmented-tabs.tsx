@@ -169,7 +169,7 @@ export const lightRailListClassName =
   "inline-flex h-auto w-auto max-w-full items-center justify-start gap-2.5 self-start overflow-x-auto overscroll-x-contain no-scrollbar scroll-smooth [-webkit-overflow-scrolling:touch] rounded-xl border border-border bg-[hsl(var(--tab-rail-light))] p-1 pr-3 text-foreground/60 shadow-md";
 
 export const lightRailTriggerClassName = cn(
-  "group relative inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow-none transition-all data-[state=active]:bg-[hsl(var(--tab-rail-light-highlight))] data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:hover:bg-foreground/[0.06] data-[state=inactive]:hover:text-foreground data-[state=active]:before:pointer-events-none data-[state=active]:before:absolute data-[state=active]:before:-right-2 data-[state=active]:before:bottom-1 data-[state=active]:before:top-1 data-[state=active]:before:w-[3px] data-[state=active]:before:rounded-r-full data-[state=active]:before:bg-[#1ab5af] data-[state=active]:before:shadow-[2px_0_6px_rgba(26,181,175,0.35)] data-[state=active]:before:content-['']",
+  "group relative inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow-none transition-all duration-150 ease-apple-snappy motion-safe:active:scale-[0.98] data-[state=active]:bg-[hsl(var(--tab-rail-light-highlight))] data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:hover:bg-foreground/[0.06] data-[state=inactive]:hover:text-foreground data-[state=active]:before:pointer-events-none data-[state=active]:before:absolute data-[state=active]:before:-right-2 data-[state=active]:before:bottom-1 data-[state=active]:before:top-1 data-[state=active]:before:w-[3px] data-[state=active]:before:rounded-r-full data-[state=active]:before:bg-brand data-[state=active]:before:shadow-[2px_0_6px_hsl(var(--brand)/0.35)] data-[state=active]:before:content-['']",
   tabRailInactiveTextClassName.light
 );
 
@@ -184,7 +184,7 @@ export const darkRailListClassName = cn(
 );
 
 export const darkRailTriggerClassName = cn(
-  "group relative inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow-none transition-all data-[state=active]:bg-[hsl(var(--sidebar-highlight))] data-[state=active]:font-semibold data-[state=active]:text-[#e4f7f3] data-[state=inactive]:hover:bg-white/10 data-[state=inactive]:hover:text-[#e4f7f3] data-[state=active]:before:pointer-events-none data-[state=active]:before:absolute data-[state=active]:before:-right-2 data-[state=active]:before:bottom-1 data-[state=active]:before:top-1 data-[state=active]:before:w-[3px] data-[state=active]:before:rounded-r-full data-[state=active]:before:bg-[#1ab5af] data-[state=active]:before:shadow-[2px_0_6px_rgba(26,181,175,0.35)] data-[state=active]:before:content-['']",
+  "group relative inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow-none transition-all duration-150 ease-apple-snappy motion-safe:active:scale-[0.98] data-[state=active]:bg-[hsl(var(--sidebar-highlight))] data-[state=active]:font-semibold data-[state=active]:text-[#e4f7f3] data-[state=inactive]:hover:bg-white/10 data-[state=inactive]:hover:text-[#e4f7f3] data-[state=active]:before:pointer-events-none data-[state=active]:before:absolute data-[state=active]:before:-right-2 data-[state=active]:before:bottom-1 data-[state=active]:before:top-1 data-[state=active]:before:w-[3px] data-[state=active]:before:rounded-r-full data-[state=active]:before:bg-brand data-[state=active]:before:shadow-[2px_0_6px_hsl(var(--brand)/0.35)] data-[state=active]:before:content-['']",
   tabRailInactiveTextClassName.dark
 );
 
@@ -292,5 +292,84 @@ export function TabCountBadge({
       {count}
       {suffix}
     </span>
+  );
+}
+
+export type SegmentedControlOption<T extends string> = {
+  value: T;
+  label: ReactNode;
+};
+
+type SegmentedControlProps<T extends string> = {
+  value: T;
+  onChange: (next: T) => void;
+  options: readonly SegmentedControlOption<T>[];
+  /** Accessible name for the radiogroup. */
+  label: string;
+  disabled?: boolean;
+  /**
+   * `sm` — dense toolbar chips (Ace Email/Resume).
+   * `md` — full tab-rail language (settings appearance, etc.).
+   */
+  size?: "sm" | "md";
+  className?: string;
+};
+
+/**
+ * Compact radiogroup that reuses the light/dark tab-rail chip language so
+ * two-option toggles match Jobs/Settings rails instead of ad-hoc border pills.
+ */
+export function SegmentedControl<T extends string>({
+  value,
+  onChange,
+  options,
+  label,
+  disabled = false,
+  size = "md",
+  className,
+}: SegmentedControlProps<T>) {
+  const tabRail = useTabRailClasses();
+  // Compact controls sit on light dialog/toolbar chrome — always match the
+  // light zoom/rail language, never the dark Jobs/Settings page rail.
+  const listClassName =
+    size === "sm" ? lightRailListClassName : tabRail.listClassName;
+  const triggerClassName =
+    size === "sm" ? lightRailTriggerClassName : tabRail.triggerClassName;
+
+  const isCompact = size === "sm";
+
+  return (
+    <div
+      className={cn(
+        listClassName,
+        // pr-3 + overflow-visible: active teal edge sits at -right-2 (same as full rail).
+        isCompact &&
+          "h-8 max-w-none gap-1 overflow-visible rounded-lg p-0.5 pr-3 shadow-sm",
+        className
+      )}
+      // Compact dialog controls must stay light — omit data-mp-tab-rail so
+      // html[data-mp-tab-rail=dark] CSS does not force the navy page rail.
+      {...(!isCompact ? { "data-mp-tab-rail": "" } : {})}
+      role="radiogroup"
+      aria-label={label}
+    >
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          data-state={value === option.value ? "active" : "inactive"}
+          className={cn(
+            triggerClassName,
+            isCompact && "px-2.5 py-1 text-xs"
+          )}
+          disabled={disabled}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   );
 }

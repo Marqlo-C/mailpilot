@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { TextCursorInput, type LucideIcon } from "lucide-react";
 import type { ProfileSnapshotData } from "@/components/features/settings/profile";
 import { extractPlatformLinks } from "@/lib/profile/profile-consolidation";
 import { skillGroupsFromUnknown } from "@/lib/profile/skill-groups";
@@ -82,11 +83,13 @@ export function Field({
   value,
   onChange,
   type = "text",
+  leadingIcon = TextCursorInput,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
+  leadingIcon?: LucideIcon;
 }) {
   const id = useMemo(() => label.toLowerCase().replace(/\s+/g, "-"), [label]);
   return (
@@ -95,8 +98,11 @@ export function Field({
       <Input
         id={id}
         type={type}
+        leadingIcon={leadingIcon}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        clearable
+        onClear={() => onChange("")}
       />
     </div>
   );

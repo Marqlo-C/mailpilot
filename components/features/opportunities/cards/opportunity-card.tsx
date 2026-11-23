@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/styles/secondary-action-btn";
 import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 import { isKnownJobDomain } from "@/lib/constants/job-sources";
+import { BRAND_TEAL } from "@/lib/constants/wave-geometry";
 import { canDraftDirectEmail } from "@/lib/opportunities/application-method";
 import {
   daysRemainingUntilPurge,
@@ -349,7 +350,7 @@ export function OpportunityCard({
   const scoreColorHex = isApplied
     ? "#94a3b8"
     : score >= 80
-      ? "#1ab5af"
+      ? BRAND_TEAL
       : score >= 60
         ? "#f59e0b"
         : "#94a3b8";
@@ -397,7 +398,7 @@ export function OpportunityCard({
       {...itemRest}
       style={itemStyle}
       className={cn(
-        "group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card transition-all duration-200 select-none active:scale-[0.99]",
+        "group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-card transition-all duration-200 ease-apple-snappy select-none motion-safe:active:scale-[0.99]",
         belowThreshold && !userArchived && "opacity-90",
         isSelected
           ? cn(SELECT_HIGHLIGHT_CLASSNAME, SELECT_HIGHLIGHT_FILL_CLASSNAME)
@@ -406,7 +407,7 @@ export function OpportunityCard({
     >
       {showInsertBefore ? (
         <div
-          className="pointer-events-none absolute inset-x-3 top-0 z-20 h-0.5 bg-[#1ab5af]"
+          className="pointer-events-none absolute inset-x-3 top-0 z-20 h-0.5 bg-brand"
           aria-hidden
         />
       ) : null}

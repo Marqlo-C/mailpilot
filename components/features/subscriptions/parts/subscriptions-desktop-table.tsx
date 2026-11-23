@@ -36,7 +36,7 @@ type BindItem = ReturnType<typeof useCardListGestures>["bindItem"];
 export function InsertMarker({ className }: { className?: string }) {
   return (
     <div
-      className={cn("pointer-events-none h-0.5 w-full bg-[#1ab5af]", className)}
+      className={cn("pointer-events-none h-0.5 w-full bg-brand", className)}
       aria-hidden
     />
   );

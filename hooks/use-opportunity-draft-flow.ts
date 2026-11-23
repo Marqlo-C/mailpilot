@@ -78,6 +78,10 @@ export function useOpportunityDraftFlow({
   onCompleted,
 }: UseOpportunityDraftFlowProps) {
   const [pending, startTransition] = useTransition();
+  /** Which footer CTA started the in-flight persist — scopes loaders to one button. */
+  const [submitAction, setSubmitAction] = useState<
+    "gmail-draft" | "send" | null
+  >(null);
   const {
     startTask,
     finishTask,
@@ -93,6 +97,9 @@ export function useOpportunityDraftFlow({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [recipient, setRecipient] = useState("");
+  /** Last server-sourced To/Subject — revert target after local edits. */
+  const [baselineRecipient, setBaselineRecipient] = useState("");
+  const [baselineSubject, setBaselineSubject] = useState("");
   const [refineTarget, setRefineTarget] = useState<"email" | "resume">("email");
   const [refinePrompt, setRefinePrompt] = useState("");
   const [resumeAction, setResumeAction] = useState<
@@ -126,7 +133,10 @@ export function useOpportunityDraftFlow({
       setRefinePrompt("");
       setRefineTarget("email");
       setResumeAction(null);
-      setRecipient(opportunity.recipientEmail ?? "");
+      const nextRecipient = opportunity.recipientEmail ?? "";
+      setRecipient(nextRecipient);
+      setBaselineRecipient(nextRecipient);
+      setBaselineSubject("");
       setOriginalEmail(null);
       setViewOriginalEmailOpen(false);
       setExtraFiles([]);
@@ -159,11 +169,14 @@ export function useOpportunityDraftFlow({
           draftResult.ok ? "Empty draft" : formatToastError(draftResult.error)
         );
       } else {
-        setSubject(draftResult.data.subject);
+        const nextSubject = draftResult.data.subject;
+        const nextRecipient =
+          draftResult.data.recipient ?? opportunity.recipientEmail ?? "";
+        setSubject(nextSubject);
+        setBaselineSubject(nextSubject);
         setBody(draftResult.data.body);
-        setRecipient(
-          draftResult.data.recipient ?? opportunity.recipientEmail ?? ""
-        );
+        setRecipient(nextRecipient);
+        setBaselineRecipient(nextRecipient);
         setOriginalEmail(draftResult.data.originalEmail);
       }
 
@@ -247,14 +260,14 @@ export function useOpportunityDraftFlow({
         }
         applyResumeResult(result.data);
         toast.success(
-          wasRegenerate ? "Resume regenerated" : "Resume generated"
+          wasRegenerate ? "Resume rewritten" : "Resume created"
         );
       } catch (error) {
         if (isAbortError(error) || signal.aborted) return;
         const message =
-          error instanceof Error ? error.message : "Failed to generate resume";
+          error instanceof Error ? error.message : "Failed to create resume";
         setResumeError(message);
-        toast.error(formatToastError(error, "Failed to generate resume"));
+        toast.error(formatToastError(error, "Failed to create resume"));
       } finally {
         finishTask(TASK_RESUME, signal);
         setResumeAction((current) =>
@@ -333,56 +346,63 @@ export function useOpportunityDraftFlow({
   function persistThen(action: "gmail-draft" | "send") {
     if (!opportunity) return;
     if (action === "send" && attachResume && !resume?.pdfBase64) {
-      toast.error("Generate resume or detach PDF");
+      toast.error("Create a resume or detach the PDF");
       return;
     }
+    setSubmitAction(action);
     startTransition(async () => {
-      const saved = await saveOpportunityDraftEdits(opportunity.id, {
-        subject,
-        body,
-        recipientEmail: recipient,
-      });
-      if (!saved.ok) {
-        toast.error(formatToastError(saved.error));
-        return;
-      }
-
-      let attachments: DraftAttachmentInput[] | undefined;
       try {
-        attachments =
-          extraFiles.length > 0
-            ? await Promise.all(extraFiles.map(fileToAttachment))
-            : undefined;
-      } catch {
-        toast.error("Failed to read attachments");
-        return;
-      }
-
-      const shouldAttachResume = attachResume && Boolean(resume?.pdfBase64);
-      const result = await sendOpportunityApplication(
-        opportunity.id,
-        action === "gmail-draft",
-        attachments,
-        {
-          experiences: resume?.experiences ?? [],
-          projects: resume?.projects ?? [],
-          tailoredSummary: includeSummary
-            ? (resume?.tailoredSummary ?? null)
-            : null,
-          tailoredSkills: resume?.tailoredSkills,
-          includeSummary,
-          attachResume: shouldAttachResume,
+        const saved = await saveOpportunityDraftEdits(opportunity.id, {
+          subject,
+          body,
+          recipientEmail: recipient,
+        });
+        if (!saved.ok) {
+          toast.error(formatToastError(saved.error));
+          return;
         }
-      );
-      if (!result.ok) {
-        toast.error(formatToastError(result.error));
-        return;
+
+        let attachments: DraftAttachmentInput[] | undefined;
+        try {
+          attachments =
+            extraFiles.length > 0
+              ? await Promise.all(extraFiles.map(fileToAttachment))
+              : undefined;
+        } catch {
+          toast.error("Failed to read attachments");
+          return;
+        }
+
+        const shouldAttachResume = attachResume && Boolean(resume?.pdfBase64);
+        const result = await sendOpportunityApplication(
+          opportunity.id,
+          action === "gmail-draft",
+          attachments,
+          {
+            experiences: resume?.experiences ?? [],
+            projects: resume?.projects ?? [],
+            tailoredSummary: includeSummary
+              ? (resume?.tailoredSummary ?? null)
+              : null,
+            tailoredSkills: resume?.tailoredSkills,
+            includeSummary,
+            attachResume: shouldAttachResume,
+          }
+        );
+        if (!result.ok) {
+          toast.error(formatToastError(result.error));
+          return;
+        }
+        toast.success(
+          action === "gmail-draft"
+            ? "Saved to Gmail drafts"
+            : "Application sent"
+        );
+        onOpenChange(false);
+        onCompleted?.();
+      } finally {
+        setSubmitAction(null);
       }
-      toast.success(
-        action === "gmail-draft" ? "Saved to Gmail drafts" : "Application sent"
-      );
-      onOpenChange(false);
-      onCompleted?.();
     });
   }
 
@@ -404,6 +424,7 @@ export function useOpportunityDraftFlow({
           return;
         }
         setSubject(result.data.subject);
+        setBaselineSubject(result.data.subject);
         setBody(result.data.body);
         setRefinePrompt("");
         emailSnapshotRef.current = null;
@@ -443,13 +464,15 @@ export function useOpportunityDraftFlow({
           return;
         }
         setSubject(result.data.subject);
+        setBaselineSubject(result.data.subject);
         setBody(result.data.body);
         if (result.data.recipient) {
           setRecipient(result.data.recipient);
+          setBaselineRecipient(result.data.recipient);
         }
         setError(null);
         emailSnapshotRef.current = null;
-        toast.success("Draft regenerated");
+        toast.success("Draft rewritten");
       } catch (error) {
         if (isAbortError(error) || signal.aborted) {
           const snapshot = emailSnapshotRef.current;
@@ -460,7 +483,7 @@ export function useOpportunityDraftFlow({
           emailSnapshotRef.current = null;
           return;
         }
-        toast.error(formatToastError(error, "Failed to regenerate draft"));
+        toast.error(formatToastError(error, "Failed to rewrite draft"));
       } finally {
         finishTask(TASK_EMAIL_DRAFT, signal);
       }
@@ -511,12 +534,12 @@ export function useOpportunityDraftFlow({
   );
   const showGenerateResume =
     effectiveRefineTarget === "resume" && !hasTailoredResume;
-  const primaryActionLabel = showGenerateResume ? "Generate" : "Regenerate";
+  const primaryActionLabel = showGenerateResume ? "Create" : "Rewrite";
   const primaryActionTitle = showGenerateResume
-    ? "Generate a tailored resume"
+    ? "Create a tailored resume"
     : effectiveRefineTarget === "email"
-      ? "Generate a fresh draft"
-      : "Regenerate tailored resume";
+      ? "Rewrite this draft"
+      : "Rewrite tailored resume";
 
   function handleUnifiedRegenerate() {
     if (effectiveRefineTarget === "email") {
@@ -555,7 +578,7 @@ export function useOpportunityDraftFlow({
     (effectiveRefineTarget === "resume" && !hasTailoredResume);
 
   const emailBusyLabel = retrying
-    ? "Regenerating email…"
+    ? "Rewriting email…"
     : refining
       ? "Refining email…"
       : null;
@@ -566,22 +589,23 @@ export function useOpportunityDraftFlow({
       : resumeAction === "node"
         ? "Updating resume…"
         : hasTailoredResume
-          ? "Regenerating resume…"
-          : "Tailoring resume…";
+          ? "Rewriting resume…"
+          : "Creating resume…";
 
   const isGeneratingResume = resumeBusy || exporting;
   const isGeneratingEmail = emailBusy;
-  const isSending = pending;
+  const isSavingDraft = pending && submitAction === "gmail-draft";
+  const isSending = pending && submitAction === "send";
   const isAwaitingResume =
     attachResume && !hasTailoredResume && !resumeBusy;
   const isSendDisabled =
-    isSending || isGeneratingResume || isGeneratingEmail || isAwaitingResume;
+    pending || isGeneratingResume || isGeneratingEmail || isAwaitingResume;
   const sendDisabledReason = exporting
     ? "Finish exporting before sending."
     : resumeBusy
-      ? "Generating tailored resume..."
+      ? "Creating tailored resume…"
       : isAwaitingResume
-        ? "Generate and review your tailored resume before sending, or uncheck 'Attach Auto-Tailored Resume'."
+        ? "Create and review your tailored resume before sending, or uncheck 'Attach Auto-Tailored Resume'."
         : isGeneratingEmail
           ? "Finish the current email task before sending."
           : null;
@@ -676,6 +700,10 @@ export function useOpportunityDraftFlow({
     setBody,
     recipient,
     setRecipient,
+    baselineRecipient,
+    baselineSubject,
+    revertRecipient: () => setRecipient(baselineRecipient),
+    revertSubject: () => setSubject(baselineSubject),
     refineTarget,
     setRefineTarget,
     refinePrompt,
@@ -708,6 +736,8 @@ export function useOpportunityDraftFlow({
     isSendDisabled,
     sendDisabledReason,
     isSaveDraftDisabled,
+    isSavingDraft,
+    isSending,
     showComposerActions,
     handleUnifiedRegenerate,
     handleUnifiedRefine,

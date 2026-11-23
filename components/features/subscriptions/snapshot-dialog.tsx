@@ -256,7 +256,7 @@ export function SnapshotDialog({
         <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 px-3.5 py-2.5">
             <div className="flex items-center gap-2 text-xs font-medium text-foreground/80">
-              <CalendarDays className="size-3.5 text-[#1ab5af]" />
+              <CalendarDays className="size-3.5 text-brand" />
               <span>Date range</span>
               <span className="rounded-md bg-[hsl(var(--tab-rail-chip))] px-1.5 py-0.5 text-[10px] font-bold leading-none text-foreground/70">
                 max {MAX_BRIEFING_DAYS}d
@@ -274,7 +274,7 @@ export function SnapshotDialog({
                     className={cn(
                       "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
                       active
-                        ? "bg-[#1ab5af] text-white"
+                        ? "bg-brand text-white"
                         : "bg-muted/70 text-foreground/70 hover:bg-muted hover:text-foreground"
                     )}
                   >

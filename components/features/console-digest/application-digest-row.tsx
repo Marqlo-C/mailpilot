@@ -37,7 +37,7 @@ export function ApplicationDigestRow({ job }: { job: JobApplication }) {
           href={actionHref}
           target={hasActionUrl ? "_blank" : undefined}
           rel={hasActionUrl ? "noreferrer noopener" : undefined}
-          className="inline-flex h-7 items-center justify-center gap-1 rounded-md border border-border bg-background/80 px-2.5 text-xs font-medium text-foreground shadow-2xs transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-95"
+          className="inline-flex h-7 items-center justify-center gap-1 rounded-md border border-border bg-background/80 px-2.5 text-xs font-medium text-foreground shadow-2xs transition-[transform,colors] duration-150 ease-apple-snappy hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring motion-safe:active:scale-95"
           onClick={(e) => {
             e.stopPropagation();
           }}

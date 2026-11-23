@@ -58,7 +58,7 @@ const TRIAGE_CARD_SURFACE =
 const CLUTTER_DOT_CLASSES = {
   high: "bg-[#c21f10]",
   mid: "bg-[hsl(28_70%_48%)]",
-  low: "bg-[#1ab5af]",
+  low: "bg-brand",
 } as const;
 
 const MATCH_DOT_CLASSES = {

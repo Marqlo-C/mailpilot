@@ -4,6 +4,8 @@
  * Keep as the single source of truth — flyout chips reuse the same shell tone.
  */
 
+import { PRESS_SCALE_BTN, PRESS_SCALE_CHIP } from "./press-feedback";
+
 /** Dark primary shell — filled CTAs + flyout text/hover. */
 const PRIMARY_ACTION_TONE = {
   shellBorder: "border-[#181e26]",
@@ -21,11 +23,15 @@ const PRIMARY_ACTION_TONE = {
   flyoutCountActive:
     "group-data-[state=active]:bg-[#e4f7f3]/15 group-data-[state=active]:text-[#e4f7f3]",
 } as const;
-const PRIMARY_FILLED_LAYOUT =
-  "inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-50";
+const PRIMARY_FILLED_LAYOUT = [
+  "inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium disabled:pointer-events-none disabled:opacity-50",
+  PRESS_SCALE_BTN,
+].join(" ");
 
-const FLYOUT_TEXT_LAYOUT =
-  "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50";
+const FLYOUT_TEXT_LAYOUT = [
+  "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50",
+  PRESS_SCALE_CHIP,
+].join(" ");
 
 /** Fill, edge, and label shared with Disconnect and other filled primary actions. */
 export const PRIMARY_ACTION_SURFACE_CLASSNAME = [

@@ -46,7 +46,7 @@ export function DraftFooterControls({
           </Label>
         </div>
         {attachResume && resume ? (
-          <div className="inline-flex min-w-0 max-w-[240px] items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-xs">
+          <div className="inline-flex min-w-0 max-w-[240px] items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-xs transition-transform duration-150 ease-apple-snappy motion-safe:active:scale-[0.98]">
             <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <span className="truncate">
               {resume.filename}
@@ -54,7 +54,7 @@ export function DraftFooterControls({
             </span>
             <button
               type="button"
-              className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="rounded p-0.5 text-muted-foreground transition-transform duration-150 ease-apple-snappy hover:bg-muted hover:text-foreground motion-safe:active:scale-95"
               onClick={() => handleAttachResumeChange(false)}
               disabled={locked}
               aria-label="Remove resume attachment"

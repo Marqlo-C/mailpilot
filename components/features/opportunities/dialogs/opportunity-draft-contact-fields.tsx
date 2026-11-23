@@ -45,11 +45,13 @@ export function OpportunityDraftContactFields({
       <Input
         id="draft-recipient"
         type="email"
+        leadingIcon={Mail}
+        clearable
+        onClear={() => setRecipient("")}
         placeholder="recipient@company.com"
         value={recipient}
         onChange={(e) => setRecipient(e.target.value)}
         disabled={busy}
-        className="h-8 text-xs font-mono"
       />
     </div>
   );

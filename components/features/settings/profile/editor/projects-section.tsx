@@ -44,8 +44,9 @@ export function ProjectPointsEditor({
         <div key={bulletIndex} className={BULLET_ROW_CLASSNAME}>
           <BulletSquircle />
           <Input
+            variant="bare"
             value={bullet}
-            className="h-auto py-0 text-sm leading-5"
+            inputClassName="text-sm leading-5 text-foreground"
             onChange={(e) =>
               onChange({
                 description,

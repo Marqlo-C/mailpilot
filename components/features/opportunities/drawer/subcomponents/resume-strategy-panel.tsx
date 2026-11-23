@@ -23,7 +23,7 @@ export function ResumeStrategyPanel({
   strategyRationale: ResumeDraftStrategyRationale;
 }) {
   return (
-    <div className="w-full max-w-full shrink-0 border-t border-border/60 bg-card px-2 py-1.5">
+    <div className="w-full max-w-full shrink-0 rounded-b-lg border-t border-border/60 bg-card px-2 py-1.5">
       <Reasoning
         defaultOpen={false}
         className="w-full max-w-full rounded-md border border-border/50"
