@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, Send } from "lucide-react";
+import { FilePenLine, Send } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
 import { ACTION_CTA_CLUSTER_GAP_CLASSNAME } from "@/components/ui/styles/action-button-styles";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
@@ -47,7 +47,7 @@ export function OpportunityDraftFooterActions({
         {isSavingDraft ? (
           <Loader size="sm" />
         ) : (
-          <Mail className="h-3.5 w-3.5" />
+          <FilePenLine className="h-3.5 w-3.5" />
         )}
         <span>Save Draft</span>
       </button>

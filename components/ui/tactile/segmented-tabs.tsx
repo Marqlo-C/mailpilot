@@ -342,9 +342,9 @@ export function SegmentedControl<T extends string>({
     <div
       className={cn(
         listClassName,
-        // pr-3 + overflow-visible: active teal edge sits at -right-2 (same as full rail).
+        // Dense sm rail: gap-2 + -right-1.5 edge (full rail keeps gap-2.5 / -right-2).
         isCompact &&
-          "h-8 max-w-none gap-1 overflow-visible rounded-lg p-0.5 pr-3 shadow-sm",
+          "h-8 max-w-none gap-2 overflow-visible rounded-lg p-0.5 pr-2.5 shadow-sm",
         className
       )}
       // Compact dialog controls must stay light — omit data-mp-tab-rail so
@@ -362,7 +362,8 @@ export function SegmentedControl<T extends string>({
           data-state={value === option.value ? "active" : "inactive"}
           className={cn(
             triggerClassName,
-            isCompact && "px-2.5 py-1 text-xs"
+            isCompact &&
+              "px-2 py-1 text-xs data-[state=active]:before:-right-1.5"
           )}
           disabled={disabled}
           onClick={() => onChange(option.value)}

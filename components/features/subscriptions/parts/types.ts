@@ -86,7 +86,8 @@ export function computeMetricColumnWidths(
   for (const item of items) {
     maxEmailChars = Math.max(maxEmailChars, String(item.emailCount).length);
   }
-  const clutterCh = 3.75;
+  // Duplet Rounded figures run wider than Geist; keep "100%" on one line.
+  const clutterCh = 4.75;
   const emailsCh = Math.max(5.25, maxEmailChars + 2.75);
   const receivedCh = 6.25;
   return {

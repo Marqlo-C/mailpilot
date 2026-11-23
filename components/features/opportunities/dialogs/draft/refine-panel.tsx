@@ -111,15 +111,16 @@ export function RefinePanel({
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 shrink-0 gap-1.5 px-2.5"
+            className="h-8 w-8 shrink-0 px-0 [&_svg]:size-3.5"
             disabled
+            aria-label={primaryActionLabel}
+            title={primaryActionTitle ?? primaryActionLabel}
           >
             {showGenerateResume ? (
-              <Sparkles className="h-3.5 w-3.5" />
+              <Sparkles aria-hidden />
             ) : (
-              <RotateCcw className="h-3.5 w-3.5" />
+              <RotateCcw aria-hidden />
             )}
-            {primaryActionLabel}
           </Button>
           <CancelTaskButton
             tone="light"
@@ -134,17 +135,17 @@ export function RefinePanel({
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 shrink-0 gap-1.5 px-2.5"
+          className="h-8 w-8 shrink-0 px-0 [&_svg]:size-3.5"
           disabled={aceBusy}
           onClick={handleUnifiedRegenerate}
-          title={primaryActionTitle}
+          aria-label={primaryActionLabel}
+          title={primaryActionTitle ?? primaryActionLabel}
         >
           {showGenerateResume ? (
-            <Sparkles className="h-3.5 w-3.5" />
+            <Sparkles aria-hidden />
           ) : (
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw aria-hidden />
           )}
-          {primaryActionLabel}
         </Button>
       )}
     </div>

@@ -162,7 +162,7 @@ export function MetaChip({
         ) : null}
         <span
           className={cn(
-            "max-w-full min-w-0 text-center",
+            "max-w-full min-w-0 whitespace-nowrap text-center",
             truncateValue && "truncate",
             pipe && !valueClassName && !success && "text-muted-foreground"
           )}

@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronUp,
   CircleArrowDown,
+  Maximize,
   Sparkles,
   Summary,
 } from "lucide-react";
@@ -41,11 +42,19 @@ import {
 } from "@/lib/resume-draft/layout.schema";
 
 const ZOOM_OPTIONS = [
-  { value: "fit", label: "Fit" },
-  { value: "0.85", label: "85%" },
-  { value: "1", label: "100%" },
-  { value: "1.25", label: "125%" },
-] as const;
+  {
+    value: "fit" as const,
+    label: (
+      <>
+        <Maximize className="size-3.5" aria-hidden />
+        <span className="sr-only">Fit</span>
+      </>
+    ),
+  },
+  { value: "0.85" as const, label: "85%" },
+  { value: "1" as const, label: "100%" },
+  { value: "1.25" as const, label: "125%" },
+];
 
 type ZoomChoice = (typeof ZOOM_OPTIONS)[number]["value"];
 
