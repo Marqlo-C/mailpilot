@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
+  Check,
   CircleArrowDown,
   Gauge,
   Maximize,
   MessageSquare,
   MessageSquareMore,
+  BotMessageSquare,
   Summary,
 } from "lucide-react";
 
@@ -21,12 +23,14 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Loader } from "@/components/ui/loader";
 import {
   DASHED_BORDER_RING_PARENT_SVG_CLASSNAME,
   DASHED_OUTLINE_STROKE_CLASSNAME,
   DashedBorderRing,
 } from "@/components/ui/tactile/dashed-border-ring";
+import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
 import { SegmentedControl } from "@/components/ui/tactile/segmented-tabs";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/resume-draft";
@@ -130,6 +134,7 @@ export function ResumeDraftSheet({
 
   const notesPanelRef = useRef<HTMLDivElement>(null);
   const notesTriggerRef = useRef<HTMLButtonElement>(null);
+  const refinePanelRef = useRef<HTMLFormElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const pagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -167,6 +172,28 @@ export function ResumeDraftSheet({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [notesOpen]);
+
+  useEffect(() => {
+    if (!refineFor) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (refinePanelRef.current?.contains(target)) return;
+      // Line-chrome refine control lives in a portal; ignore clicks that open/retarget.
+      if (
+        target instanceof Element &&
+        target.closest("[data-resume-line-toolbar]")
+      ) {
+        return;
+      }
+      setInstruction("");
+      setRefineFor(null);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    };
+  }, [refineFor]);
 
   const zoom = zoomChoice === "fit" ? fitScale : Number(zoomChoice);
 
@@ -231,7 +258,7 @@ export function ResumeDraftSheet({
 
   useIsomorphicLayoutEffect(() => {
     remeasure();
-  }, [blocks, refineFor, remeasure]);
+  }, [blocks, remeasure]);
 
   useEffect(() => {
     if (typeof document !== "undefined" && document.fonts?.ready) {
@@ -242,8 +269,8 @@ export function ResumeDraftSheet({
   }, [remeasure]);
 
   const pages = useMemo(
-    () => partitionBlocksIntoPages(blocks, blockHeights, refineFor),
-    [blocks, blockHeights, refineFor]
+    () => partitionBlocksIntoPages(blocks, blockHeights, null),
+    [blocks, blockHeights]
   );
 
   const displayPages = pages.length > 0 ? pages : [[]];
@@ -251,55 +278,17 @@ export function ResumeDraftSheet({
   const totalCanvasHeight =
     totalPages * PAGE_HEIGHT + Math.max(0, totalPages - 1) * PAGE_GAP;
 
-  function refineForm(nodeId: string) {
-    if (refineFor !== nodeId) return null;
-    return (
-      <form
-        className="mt-1 flex w-full min-w-0 gap-1"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const next = instruction.trim();
-          if (!next) return;
-          onRefine(nodeId, next);
-          setInstruction("");
-          setRefineFor(null);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            setInstruction("");
-            setRefineFor(null);
-          }
-        }}
-      >
-        <input
-          value={instruction}
-          onChange={(event) => setInstruction(event.target.value)}
-          placeholder="Rewrite this line…"
-          disabled={disabled}
-          autoFocus
-          className="min-w-0 flex-1 rounded border border-[#D1D5DB] px-1.5 py-0.5 text-xs outline-none"
-        />
-        <button
-          type="submit"
-          disabled={disabled || !instruction.trim()}
-          className="rounded bg-[#111827] px-1.5 py-0.5 text-xs text-white disabled:opacity-40"
-        >
-          Apply
-        </button>
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => {
-            setInstruction("");
-            setRefineFor(null);
-          }}
-          className="rounded border border-[#D1D5DB] px-1.5 py-0.5 text-xs text-[#6b7280] hover:text-[#111827]"
-        >
-          Cancel
-        </button>
-      </form>
-    );
+  function dismissRefine() {
+    setInstruction("");
+    setRefineFor(null);
+  }
+
+  function submitRefine() {
+    if (!refineFor) return;
+    const next = instruction.trim();
+    if (!next) return;
+    onRefine(refineFor, next);
+    dismissRefine();
   }
 
   function renderBlock(block: DraftBlock) {
@@ -328,9 +317,6 @@ export function ResumeDraftSheet({
             disabled={disabled}
             isIncluded={isIncluded}
             onCommit={onCommit}
-            refineSlot={block.nodes.map((node) => (
-              <div key={`${node.id}-refine`}>{refineForm(node.id)}</div>
-            ))}
           />
         </div>
       );
@@ -346,7 +332,6 @@ export function ResumeDraftSheet({
           disabled={disabled}
           included={isIncluded(node)}
           onCommit={onCommit}
-          refineSlot={refineForm(node.id)}
         />
       </div>
     );
@@ -358,7 +343,7 @@ export function ResumeDraftSheet({
     for (const block of pageBlocks) {
       used +=
         blockHeights[getBlockId(block)] ??
-        estimateBlockHeight(block, refineFor);
+        estimateBlockHeight(block, null);
     }
     const pct = Math.min(
       100,
@@ -411,16 +396,17 @@ export function ResumeDraftSheet({
     draft.nodes,
     draft.updatedAt,
     includeSummary,
-    refineFor,
     totalPages,
   ]);
 
   return (
     <ResumeLineChromeProvider
       disabled={disabled}
+      pinnedId={refineFor}
       onToggle={onToggle}
       onMove={onMove}
       onRefineOpen={(nodeId) => {
+        setNotesOpen(false);
         setRefineFor(nodeId);
         setInstruction("");
       }}
@@ -529,7 +515,10 @@ export function ResumeDraftSheet({
                 DASHED_BORDER_RING_PARENT_SVG_CLASSNAME,
                 notesOpen && "border-transparent"
               )}
-              onClick={() => setNotesOpen((open) => !open)}
+              onClick={() => {
+                dismissRefine();
+                setNotesOpen((open) => !open);
+              }}
             >
               <Bot strokeWidth={1.5} aria-hidden />
               <MessageSquare
@@ -622,6 +611,61 @@ export function ResumeDraftSheet({
               strategyRationale={strategyRationale}
             />
           </div>
+        ) : null}
+
+        {refineFor ? (
+          <form
+            ref={refinePanelRef}
+            role="dialog"
+            aria-label="Ask Ace to refine this line"
+            className={cn(
+              appMenuClassNames.light.content,
+              "absolute left-3 right-3 top-full z-30 mt-1.5 flex items-center gap-1.5 bg-card p-2 backdrop-blur-none"
+            )}
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitRefine();
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                dismissRefine();
+              }
+            }}
+          >
+            <Input
+              leadingIcon={BotMessageSquare}
+              leadingIconClassName="size-[18px]"
+              placeholder="Ask Ace to refine this line (e.g., tighter, stronger verb, more impact)…"
+              value={instruction}
+              onChange={(event) => setInstruction(event.target.value)}
+              disabled={disabled}
+              autoFocus
+              clearable
+              onClear={() => setInstruction("")}
+              className="min-w-0 flex-1"
+              aria-label="Ask Ace to refine this line"
+              trailing={
+                <FieldTrailingButton
+                  type="submit"
+                  aria-label="Apply rewrite"
+                  disabled={disabled || !instruction.trim()}
+                >
+                  <Check className="size-3.5" aria-hidden />
+                </FieldTrailingButton>
+              }
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0"
+              disabled={disabled}
+              onClick={dismissRefine}
+            >
+              Cancel
+            </Button>
+          </form>
         ) : null}
       </div>
 

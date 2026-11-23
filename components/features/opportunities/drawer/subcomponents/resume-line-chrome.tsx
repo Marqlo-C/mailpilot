@@ -18,7 +18,7 @@ import {
   ChevronUp,
   Minus,
   Plus,
-  Sparkles,
+  WandSparkles,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -33,6 +33,8 @@ type ResumeLineChromeContextValue = {
   disabled?: boolean;
   activeId: string | null;
   editingId: string | null;
+  /** Stays highlighted while rewrite popover is open (not hover-dependent). */
+  pinnedId: string | null;
   registerTarget: (nodeId: string, el: HTMLElement | null) => void;
   setLineMeta: (nodeId: string, meta: LineMeta) => void;
   onTargetEnter: (nodeId: string) => void;
@@ -75,12 +77,15 @@ function clearTimer(ref: { current: number | null }) {
  */
 export function ResumeLineChromeProvider({
   disabled,
+  pinnedId = null,
   onToggle,
   onMove,
   onRefineOpen,
   children,
 }: {
   disabled?: boolean;
+  /** Line kept highlighted while an external rewrite UI is open. */
+  pinnedId?: string | null;
   onToggle: (nodeId: string, selected: boolean) => void;
   onMove: (nodeId: string, direction: "up" | "down") => void;
   onRefineOpen: (nodeId: string) => void;
@@ -305,6 +310,7 @@ export function ResumeLineChromeProvider({
       disabled,
       activeId,
       editingId,
+      pinnedId,
       registerTarget,
       setLineMeta,
       onTargetEnter,
@@ -320,6 +326,7 @@ export function ResumeLineChromeProvider({
       onEditStart,
       onTargetEnter,
       onTargetLeave,
+      pinnedId,
       registerTarget,
       setLineMeta,
     ]
@@ -391,7 +398,7 @@ export function ResumeLineChromeProvider({
                 label={`Refine ${label}`}
                 onClick={() => onRefineOpen(activeId)}
               >
-                <Sparkles className="size-3" aria-hidden />
+                <WandSparkles className="size-3" aria-hidden />
               </ToolbarIcon>
             </div>
           </div>,
@@ -448,7 +455,8 @@ export function useResumeLineTarget(
       onEditEnd: () => chrome.onEditEnd(nodeId),
     },
     highlighted:
-      chrome.activeId === nodeId && chrome.editingId !== nodeId,
+      chrome.editingId !== nodeId &&
+      (chrome.activeId === nodeId || chrome.pinnedId === nodeId),
   };
 }
 
