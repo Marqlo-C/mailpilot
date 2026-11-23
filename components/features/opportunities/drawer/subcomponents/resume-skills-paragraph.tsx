@@ -76,8 +76,6 @@ function SkillGroupSpan({
       <span
         {...targetProps}
         className={cn(
-          "rounded-sm box-decoration-clone transition-colors",
-          highlighted && "bg-[#111827]/[0.05]",
           !included && "opacity-40 line-through decoration-[#9ca3af]"
         )}
       >
@@ -92,7 +90,10 @@ function SkillGroupSpan({
           onEditStart={editProps.onEditStart}
           onEditEnd={editProps.onEditEnd}
           onCommit={(next) => onCommit(node.id, next)}
-          className="font-normal text-slate-700 outline-none focus:bg-[#f8fafc]"
+          className={cn(
+            "inline rounded-sm box-decoration-clone font-normal text-slate-700 outline-none transition-colors focus:bg-[#f8fafc]",
+            highlighted && "bg-[#111827]/[0.05]"
+          )}
         />
       </span>
     </span>

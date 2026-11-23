@@ -86,10 +86,7 @@ export function ResumeDraftNodeBlock({
       ) : null}
       <div
         {...targetProps}
-        className={cn(
-          "relative rounded-sm transition-colors",
-          highlighted && "bg-[#111827]/[0.05]"
-        )}
+        className="relative"
         style={{
           marginBottom: bullet
             ? `${RESUME_SPACING.bulletSpacing.px}px`
@@ -151,10 +148,12 @@ export function ResumeDraftNodeBlock({
               onEditEnd={editProps.onEditEnd}
               onCommit={(next) => onCommit(node.id, next)}
               className={cn(
-                "min-w-0 whitespace-pre-wrap break-normal outline-none focus:bg-[#f8fafc]",
+                // Inline + box-decoration-clone: wash follows glyph runs, not the
+                // full flex line box (multiline bullets used to paint trailing empty).
+                "inline max-w-full whitespace-pre-wrap break-normal rounded-sm box-decoration-clone outline-none transition-colors focus:bg-[#f8fafc]",
+                highlighted && "bg-[#111827]/[0.05]",
                 role && !isExperience && "font-bold",
-                node.type === "header" &&
-                  "font-bold leading-tight text-center",
+                node.type === "header" && "font-bold leading-tight text-center",
                 node.type !== "header" &&
                   node.section === "contact" &&
                   "tracking-tight text-[#374151] text-center",
