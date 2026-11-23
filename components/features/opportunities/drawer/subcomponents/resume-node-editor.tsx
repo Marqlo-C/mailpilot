@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { ResumeDraftNode } from "@/lib/resume-draft";
 import { skillCategoryLabel } from "@/lib/profile/skill-groups";
 import { formatEducationDates } from "@/lib/utils/format";
@@ -48,6 +48,9 @@ export function EditableLine({
   onCommit,
   as = "div",
   renderHtml,
+  commitOnEnter = false,
+  onEditStart,
+  onEditEnd,
 }: {
   value: string;
   disabled?: boolean;
@@ -56,25 +59,41 @@ export function EditableLine({
   onCommit: (next: string) => void;
   as?: "div" | "span";
   renderHtml?: (val: string) => string;
+  /** Blur (and commit) on Enter instead of inserting a newline. */
+  commitOnEnter?: boolean;
+  onEditStart?: () => void;
+  onEditEnd?: () => void;
 }) {
   const ref = useRef<HTMLElement>(null);
-  const assign = (el: HTMLElement | null) => {
+  const valueRef = useRef(value);
+  const renderHtmlRef = useRef(renderHtml);
+  /** Holds post-blur text until the saved `value` prop catches up — prevents a pre-edit flash. */
+  const pendingCommitRef = useRef<string | null>(null);
+  valueRef.current = value;
+  renderHtmlRef.current = renderHtml;
+
+  function writeDom(el: HTMLElement, text: string) {
+    const html = renderHtmlRef.current;
+    if (html) el.innerHTML = html(text);
+    else if (el.textContent !== text) el.textContent = text;
+  }
+
+  // Stable ref callback so parent re-renders (toolbar chrome) don't remount and
+  // rewrite the DOM from a still-stale `value` prop mid-save.
+  const assign = useCallback((el: HTMLElement | null) => {
     ref.current = el;
     if (!el || document.activeElement === el) return;
-    if (renderHtml) {
-      el.innerHTML = renderHtml(value);
-    } else {
-      if (el.textContent !== value) el.textContent = value;
-    }
-  };
+    writeDom(el, pendingCommitRef.current ?? valueRef.current);
+  }, []);
+
   useEffect(() => {
     const el = ref.current;
     if (!el || document.activeElement === el) return;
-    if (renderHtml) {
-      el.innerHTML = renderHtml(value);
-    } else {
-      if (el.textContent !== value) el.textContent = value;
+    if (pendingCommitRef.current !== null) {
+      if (value !== pendingCommitRef.current) return;
+      pendingCommitRef.current = null;
     }
+    writeDom(el, value);
   }, [value, renderHtml]);
 
   const Tag = as;
@@ -82,22 +101,33 @@ export function EditableLine({
     <Tag
       ref={assign}
       role="textbox"
-      aria-multiline="true"
+      aria-multiline={commitOnEnter ? "false" : "true"}
       contentEditable={!disabled}
       suppressContentEditableWarning
       className={className}
       style={style}
       onFocus={(event) => {
         if (renderHtml) {
-          event.currentTarget.textContent = value;
+          event.currentTarget.textContent =
+            pendingCommitRef.current ?? valueRef.current;
         }
+        onEditStart?.();
       }}
       onBlur={(event) => {
         const next = event.currentTarget.textContent ?? "";
-        if (next !== value) onCommit(next);
-        if (renderHtml) {
-          event.currentTarget.innerHTML = renderHtml(next);
+        if (next !== valueRef.current) {
+          pendingCommitRef.current = next;
+          onCommit(next);
+        } else {
+          pendingCommitRef.current = null;
         }
+        writeDom(event.currentTarget, next);
+        onEditEnd?.();
+      }}
+      onKeyDown={(event) => {
+        if (!commitOnEnter || event.key !== "Enter") return;
+        event.preventDefault();
+        event.currentTarget.blur();
       }}
     />
   );

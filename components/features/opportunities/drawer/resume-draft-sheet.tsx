@@ -3,11 +3,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
-  ChevronDown,
-  ChevronUp,
   CircleArrowDown,
   Maximize,
-  Sparkles,
   Summary,
 } from "lucide-react";
 
@@ -17,7 +14,6 @@ import {
   AppMenuItem,
 } from "@/components/ui/app-menu";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -25,18 +21,11 @@ import {
 import { Loader } from "@/components/ui/loader";
 import { SegmentedControl } from "@/components/ui/tactile/segmented-tabs";
 import { LabelTooltip } from "@/components/ui/tooltip";
-import { skillCategoryLabel } from "@/lib/profile/skill-groups";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/resume-draft";
 import type { StrategyRationale } from "@/lib/validations/resume-draft.schema";
 import { cn } from "@/lib/utils";
 import {
-  formatEducationDates,
-  parseContactHeaderItems,
-  sanitizeResumeContactLine,
-} from "@/lib/utils/format";
-import {
   RESUME_FONTS,
-  RESUME_PAGE_GEOMETRY,
   RESUME_SPACING,
   RESUME_TYPOGRAPHY,
 } from "@/lib/resume-draft/layout.schema";
@@ -74,14 +63,9 @@ import {
   getEntityTotalHeight,
   partitionBlocksIntoPages,
 } from "./subcomponents/resume-draft-layout";
-import {
-  EditableLine,
-  datesFor,
-  skillLabel,
-  projectTrailing,
-  renderEducationHtml,
-  renderExperienceHtml,
-} from "./subcomponents/resume-node-editor";
+import { ResumeDraftNodeBlock } from "./subcomponents/resume-draft-node-block";
+import { ResumeLineChromeProvider } from "./subcomponents/resume-line-chrome";
+import { ResumeSkillsParagraph } from "./subcomponents/resume-skills-paragraph";
 import { ResumeStrategyPanel } from "./subcomponents/resume-strategy-panel";
 
 export {
@@ -187,6 +171,17 @@ export function ResumeDraftSheet({
     }
     return all;
   }, [draft, includeSummary]);
+  const selectedIds = useMemo(
+    () =>
+      new Set(draft.nodes.filter((node) => node.selected).map((node) => node.id)),
+    [draft.nodes]
+  );
+  /** Matches export: excluded if self or parent is unchecked. */
+  function isIncluded(node: ResumeDraftNode): boolean {
+    if (!node.selected) return false;
+    if (node.parentId && !selectedIds.has(node.parentId)) return false;
+    return true;
+  }
   const firstHeadingBlock = blocks.find(
     (b) => b.kind === "skills" || (b.kind === "node" && Boolean(b.heading))
   );
@@ -246,43 +241,6 @@ export function ResumeDraftSheet({
   const totalPages = displayPages.length;
   const totalCanvasHeight =
     totalPages * PAGE_HEIGHT + Math.max(0, totalPages - 1) * PAGE_GAP;
-
-  function lineTools(nodeId: string) {
-    return (
-      <div className="pointer-events-none absolute right-0 top-0 z-10 flex bg-white/95 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
-        <button
-          type="button"
-          disabled={disabled}
-          aria-label="Move line up"
-          onClick={() => onMove(nodeId, "up")}
-          className="text-[#6b7280] hover:text-[#111827]"
-        >
-          <ChevronUp className="h-3 w-3" />
-        </button>
-        <button
-          type="button"
-          disabled={disabled}
-          aria-label="Move line down"
-          onClick={() => onMove(nodeId, "down")}
-          className="text-[#6b7280] hover:text-[#111827]"
-        >
-          <ChevronDown className="h-3 w-3" />
-        </button>
-        <button
-          type="button"
-          disabled={disabled}
-          aria-label="Refine this line"
-          onClick={() => {
-            setRefineFor(nodeId);
-            setInstruction("");
-          }}
-          className="text-[#6b7280] hover:text-[#111827]"
-        >
-          <Sparkles className="h-3 w-3" />
-        </button>
-      </div>
-    );
-  }
 
   function refineForm(nodeId: string) {
     if (refineFor !== nodeId) return null;
@@ -356,256 +314,31 @@ export function ResumeDraftSheet({
           >
             Skills
           </h3>
-          <div className="group relative">
-            <div className="absolute -left-6 top-[2px] flex flex-col gap-px">
-              {block.nodes.map((node) => (
-                <Checkbox
-                  key={node.id}
-                  checked={node.selected}
-                  disabled={disabled}
-                  aria-label={`Include ${skillLabel(node) ?? "skill group"} in export`}
-                  onCheckedChange={(checked) => onToggle(node.id, checked)}
-                  className="h-3 w-3 opacity-40 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-                  style={{ backgroundSize: "0.55rem 0.55rem" }}
-                />
-              ))}
-            </div>
-            <p
-              className="font-normal text-[#111827]"
-              style={{
-                fontSize: `${RESUME_TYPOGRAPHY.skills.px}px`,
-                lineHeight: RESUME_TYPOGRAPHY.skills.lineHeight,
-              }}
-            >
-              {block.nodes.map((node, skillIndex) => {
-                const label = skillLabel(node);
-                return (
-                  <span
-                    key={node.id}
-                    className={cn(!node.selected && "opacity-40")}
-                  >
-                    {skillIndex > 0 ? <span> • </span> : null}
-                    {label ? (
-                      <span className="font-bold text-slate-900">
-                        {label}:{" "}
-                      </span>
-                    ) : null}
-                    <EditableLine
-                      as="span"
-                      value={node.content}
-                      disabled={disabled}
-                      onCommit={(next) => onCommit(node.id, next)}
-                      className="font-normal text-slate-700 outline-none focus:bg-[#f8fafc]"
-                    />
-                  </span>
-                );
-              })}
-            </p>
-            <div className="pointer-events-none absolute right-0 top-0 z-10 flex gap-1 bg-white/95 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
-              {block.nodes.map((node) => (
-                <button
-                  key={node.id}
-                  type="button"
-                  disabled={disabled}
-                  aria-label={`Refine ${skillLabel(node) ?? "skill group"}`}
-                  onClick={() => {
-                    setRefineFor(node.id);
-                    setInstruction("");
-                  }}
-                  className="text-[#6b7280] hover:text-[#111827]"
-                >
-                  <Sparkles className="h-3 w-3" />
-                </button>
-              ))}
-            </div>
-            {block.nodes.map((node) => (
+          <ResumeSkillsParagraph
+            nodes={block.nodes}
+            disabled={disabled}
+            isIncluded={isIncluded}
+            onCommit={onCommit}
+            refineSlot={block.nodes.map((node) => (
               <div key={`${node.id}-refine`}>{refineForm(node.id)}</div>
             ))}
-          </div>
+          />
         </div>
       );
     }
 
     const { node, heading } = block;
-    const bullet =
-      node.type === "experience_bullet" || node.type === "project_bullet";
-    const role =
-      node.type === "experience_header" || node.type === "project_header";
-    const isEducation = node.type === "education_item";
-    const isExperience = node.type === "experience_header";
-    const trailing = datesFor(node) ?? projectTrailing(node);
-    const content =
-      isEducation && trailing && node.content.endsWith(` (${trailing})`)
-        ? node.content.slice(0, -` (${trailing})`.length).trim()
-        : isExperience && node.content.includes(" · ")
-          ? node.content.split(/\s*·\s*/).join(" | ")
-          : node.content;
     return (
-      <div
-        key={blockId}
-        data-draft-block-id={blockId}
-        className="min-w-0 max-w-full flow-root"
-        style={{
-          marginTop:
-            role && !heading
-              ? `${RESUME_SPACING.roleToRole.px}px`
-              : isEducation && !heading
-                ? `${RESUME_SPACING.degreeToDegree.px}px`
-                : undefined,
-        }}
-      >
-        {heading ? (
-          <h3
-            className={SECTION_HEADING_CLASS}
-            style={{
-              fontSize: `${RESUME_TYPOGRAPHY.heading.px}px`,
-              marginTop: isFirstHeading ? 0 : `${RESUME_SPACING.sectionBefore.px}px`,
-              marginBottom: `${RESUME_SPACING.sectionHeadingBottom.px}px`,
-            }}
-          >
-            {heading}
-          </h3>
-        ) : null}
-        <div
-          className="group relative"
-          style={{
-            marginBottom: bullet
-              ? `${RESUME_SPACING.bulletSpacing.px}px`
-              : role
-                ? `${RESUME_SPACING.roleTitleToFirstBullet.px}px`
-                : undefined,
-          }}
-        >
-          <Checkbox
-            checked={node.selected}
-            disabled={disabled}
-            aria-label="Include line in export"
-            onCheckedChange={(checked) => onToggle(node.id, checked)}
-            className={cn(
-              "absolute -left-6 h-3.5 w-3.5 opacity-40 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
-              node.type === "header" ? "top-2" : "top-[2px]"
-            )}
-          />
-          <div
-            className={cn(
-              "min-w-0",
-              !node.selected && "opacity-40",
-              bullet && "flex items-start",
-              (role || isEducation) && "flex items-baseline justify-between",
-              node.type === "header" && "text-center"
-            )}
-            style={{
-              marginLeft: bullet ? `${RESUME_SPACING.bulletMarginLeft.px}px` : undefined,
-              gap: (role || isEducation) ? `${RESUME_SPACING.roleTitleToTrailingGap.px}px` : undefined,
-            }}
-          >
-            {bullet ? (
-              <span
-                aria-hidden="true"
-                style={{
-                  width: `${RESUME_SPACING.bulletMarkerWidth.px}px`,
-                  flexShrink: 0,
-                  fontSize: `${RESUME_TYPOGRAPHY.bullet.px}px`,
-                  lineHeight: RESUME_TYPOGRAPHY.bullet.lineHeight,
-                  userSelect: "none",
-                }}
-              >
-                •
-              </span>
-            ) : null}
-            <div className={cn("min-w-0", (bullet || role || isEducation) && "flex-1")}>
-              <EditableLine
-                value={content}
-                disabled={disabled}
-                renderHtml={
-                  isEducation
-                    ? renderEducationHtml
-                    : isExperience
-                      ? renderExperienceHtml
-                      : undefined
-                }
-                onCommit={(next) => onCommit(node.id, next)}
-                className={cn(
-                  "min-w-0 whitespace-pre-wrap break-normal outline-none focus:bg-[#f8fafc]",
-                  role && !isExperience && "font-bold",
-                  node.type === "header" &&
-                    "font-bold leading-tight text-center",
-                  node.type !== "header" &&
-                    node.section === "contact" &&
-                    "tracking-tight text-[#374151] text-center",
-                  node.section === "summary" && "text-[#111827]",
-                  bullet && "text-[#111827]"
-                )}
-                style={{
-                  fontSize:
-                    role
-                      ? `${RESUME_TYPOGRAPHY.roleTitle.px}px`
-                      : isEducation
-                        ? `${RESUME_TYPOGRAPHY.educationTitle.px}px`
-                        : node.type === "header"
-                          ? `${RESUME_TYPOGRAPHY.name.px}px`
-                          : node.section === "contact"
-                            ? `${RESUME_TYPOGRAPHY.contact.px}px`
-                            : node.section === "summary"
-                              ? `${RESUME_TYPOGRAPHY.summary.px}px`
-                              : bullet
-                                ? `${RESUME_TYPOGRAPHY.bullet.px}px`
-                                : `${RESUME_TYPOGRAPHY.body.px}px`,
-                  lineHeight:
-                    node.section === "summary" || bullet || isEducation
-                      ? RESUME_TYPOGRAPHY.body.lineHeight
-                      : undefined,
-                }}
-              />
-            </div>
-            {trailing ? (
-              <span
-                className="shrink-0 text-right text-[#4B5563]"
-                style={{ fontSize: `${RESUME_TYPOGRAPHY.muted.px}px` }}
-              >
-                {trailing}
-              </span>
-            ) : null}
-          </div>
-          {node.type === "header" &&
-          typeof node.metadata?.contactLine === "string" &&
-          node.metadata.contactLine ? (
-            <p
-              className="text-center leading-tight tracking-tight text-[#374151]"
-              style={{
-                fontSize: `${RESUME_TYPOGRAPHY.contact.px}px`,
-                marginTop: `${RESUME_SPACING.nameToContact.px}px`,
-                marginBottom: `${RESUME_SPACING.contactToFirstSection.px}px`,
-              }}
-            >
-              {parseContactHeaderItems(node.metadata.contactLine).map(
-                (item, idx) => (
-                  <span key={idx} className="inline-block whitespace-nowrap">
-                    {idx > 0 && (
-                      <span className="mx-1 text-muted-foreground/60 select-none">
-                        |
-                      </span>
-                    )}
-                    {item.href ? (
-                      <a
-                        href={item.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#1F2937] no-underline hover:text-foreground"
-                      >
-                        {item.label}
-                      </a>
-                    ) : (
-                      <span>{item.label}</span>
-                    )}
-                  </span>
-                )
-              )}
-            </p>
-          ) : null}
-          {refineForm(node.id)}
-          {lineTools(node.id)}
-        </div>
+      <div key={blockId} data-draft-block-id={blockId}>
+        <ResumeDraftNodeBlock
+          node={node}
+          heading={heading}
+          isFirstHeading={isFirstHeading}
+          disabled={disabled}
+          included={isIncluded(node)}
+          onCommit={onCommit}
+          refineSlot={refineForm(node.id)}
+        />
       </div>
     );
   }
@@ -614,6 +347,15 @@ export function ResumeDraftSheet({
     totalPages === 1 ? "1 page" : `${totalPages} pages`;
 
   return (
+    <ResumeLineChromeProvider
+      disabled={disabled}
+      onToggle={onToggle}
+      onMove={onMove}
+      onRefineOpen={(nodeId) => {
+        setRefineFor(nodeId);
+        setInstruction("");
+      }}
+    >
     <div className="relative flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-lg">
       {/* py-3 matches email pane field inset so To and this rail share one horizon. */}
       <div className="relative z-20 flex w-full max-w-full shrink-0 items-center gap-2 rounded-t-lg border-b border-border/60 bg-card/80 px-3 py-3 text-xs backdrop-blur-sm">
@@ -787,5 +529,6 @@ export function ResumeDraftSheet({
         </div>
       </div>
     </div>
+    </ResumeLineChromeProvider>
   );
 }

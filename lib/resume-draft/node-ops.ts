@@ -28,6 +28,39 @@ export function activeResumeNodes(draft: TailoredResumeDraft): ResumeDraftNode[]
 }
 
 /**
+ * Patches a draft node. Selection cascades both ways for role/project entries:
+ * - Deselecting (or selecting) a parent applies the same flag to every child.
+ * - Re-including a child also re-includes its parent so the entry can export.
+ */
+export function patchResumeDraftNode(
+  draft: TailoredResumeDraft,
+  nodeId: string,
+  patch: { content?: string; selected?: boolean }
+): TailoredResumeDraft | null {
+  const target = draft.nodes.find((item) => item.id === nodeId);
+  if (!target) return null;
+  const parentIdToRestore =
+    patch.selected === true && target.parentId ? target.parentId : null;
+  const nodes = draft.nodes.map((item) => {
+    if (item.id === nodeId) {
+      return {
+        ...item,
+        content: patch.content !== undefined ? patch.content : item.content,
+        selected: patch.selected !== undefined ? patch.selected : item.selected,
+      };
+    }
+    if (patch.selected !== undefined && item.parentId === nodeId) {
+      return { ...item, selected: patch.selected };
+    }
+    if (parentIdToRestore && item.id === parentIdToRestore) {
+      return { ...item, selected: true };
+    }
+    return item;
+  });
+  return touchDraft({ ...draft, nodes });
+}
+
+/**
  * Reorders a node up or down within its sibling cluster of the same type and parent.
  */
 export function moveResumeNode(

@@ -5,6 +5,7 @@ import {
   digestTailoredResume,
   draftToPdfInput,
   moveResumeNode,
+  patchResumeDraftNode,
   refineResumeLine,
   storedResumeDraftSchema,
 } from "@/lib/resume-draft";
@@ -517,18 +518,11 @@ export async function updateResumeDraftNode(
   patch: { content?: string; selected?: boolean }
 ): Promise<OpportunityResumePreview> {
   const { draft } = await loadStoredDraft(accountId, opportunityId);
-  const nodes = draft.nodes.map((item) => {
-    if (item.id !== nodeId) return item;
-    return {
-      ...item,
-      content: patch.content !== undefined ? patch.content : item.content,
-      selected: patch.selected !== undefined ? patch.selected : item.selected,
-    };
-  });
-  if (!nodes.some((item) => item.id === nodeId)) {
+  const next = patchResumeDraftNode(draft, nodeId, patch);
+  if (!next) {
     throw new Error("Resume line not found");
   }
-  return saveDraft(accountId, opportunityId, { ...draft, nodes });
+  return saveDraft(accountId, opportunityId, next);
 }
 
 export async function reorderResumeDraftNode(

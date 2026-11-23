@@ -19,9 +19,9 @@ export type LoaderProps = {
 } & Omit<HTMLAttributes<HTMLDivElement>, "children">;
 
 const BAR_WIDTHS: Record<LoaderSize, string> = {
-  sm: "w-0.5",
-  md: "w-0.5",
-  lg: "w-1",
+  sm: "w-[1.5px]",
+  md: "w-[1.5px]",
+  lg: "w-0.5",
 };
 
 const CONTAINER_SIZES: Record<LoaderSize, string> = {
@@ -53,7 +53,7 @@ export function WaveLoader({
       role="status"
       aria-live="polite"
       className={cn(
-        "mp-loader-wave inline-flex items-center gap-0.5 text-primary",
+        "mp-loader-wave inline-flex items-center gap-0.5 text-current",
         CONTAINER_SIZES[size],
         className
       )}
