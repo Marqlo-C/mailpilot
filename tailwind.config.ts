@@ -94,11 +94,16 @@ const config: Config = {
           "0%": { transform: "translateX(-100%)" },
           "100%": { transform: "translateX(100%)" },
         },
+        // Matches WAVE_CYCLE_MS (1900) — dashed AI frame crawl
+        "wavy-dash": {
+          to: { strokeDashoffset: "-24" },
+        },
       },
       animation: {
         wave: "wave 1s ease-in-out infinite",
         shimmer: "shimmer 4s infinite linear",
         "skeleton-shimmer": "skeleton-shimmer 1.4s ease-in-out infinite",
+        "wavy-dash": "wavy-dash 1.9s linear infinite",
       },
     },
   },

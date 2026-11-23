@@ -4,7 +4,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import {
   Bot,
   CircleArrowDown,
+  Gauge,
   Maximize,
+  MessageSquare,
+  MessageSquareMore,
   Summary,
 } from "lucide-react";
 
@@ -19,11 +22,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Loader } from "@/components/ui/loader";
+import {
+  DASHED_BORDER_RING_PARENT_SVG_CLASSNAME,
+  DASHED_OUTLINE_STROKE_CLASSNAME,
+  DashedBorderRing,
+} from "@/components/ui/tactile/dashed-border-ring";
 import { SegmentedControl } from "@/components/ui/tactile/segmented-tabs";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/resume-draft";
 import type { StrategyRationale } from "@/lib/validations/resume-draft.schema";
 import { cn } from "@/lib/utils";
+import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import {
   RESUME_FONTS,
   RESUME_SPACING,
@@ -343,8 +352,68 @@ export function ResumeDraftSheet({
     );
   }
 
-  const pageCountLabel =
-    totalPages === 1 ? "1 page" : `${totalPages} pages`;
+  const draftInsights = useMemo(() => {
+    const pageBlocks = displayPages[0] ?? [];
+    let used = 0;
+    for (const block of pageBlocks) {
+      used +=
+        blockHeights[getBlockId(block)] ??
+        estimateBlockHeight(block, refineFor);
+    }
+    const pct = Math.min(
+      100,
+      Math.max(0, Math.round((used / PRINTABLE_HEIGHT) * 100))
+    );
+    const spilled = totalPages > 1;
+    const lengthLabel = spilled ? `${totalPages} pages` : `${pct}% full`;
+    const lengthDetail = spilled
+      ? "A bit long for one page. Remove or shorten a few lines."
+      : "How much of the page this resume uses.";
+
+    const selected = new Set(
+      draft.nodes.filter((node) => node.selected).map((node) => node.id)
+    );
+    const exportText = draft.nodes
+      .filter((node) => {
+        if (!node.selected) return false;
+        if (node.parentId && !selected.has(node.parentId)) return false;
+        if (includeSummary === false && node.section === "summary") return false;
+        return true;
+      })
+      .map((node) => node.content)
+      .join(" ");
+    const words = (exportText.match(/[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?/g) ?? [])
+      .length;
+
+    const updatedAt = (() => {
+      const parsed = new Date(draft.updatedAt);
+      if (Number.isNaN(parsed.getTime())) return null;
+      return formatDistanceToNow(parsed, { addSuffix: true });
+    })();
+
+    const rows: { label: string; value: string }[] = [
+      { label: "Length", value: lengthLabel },
+      { label: "Words", value: words.toLocaleString() },
+    ];
+    if (updatedAt) {
+      rows.push({ label: "Updated", value: updatedAt });
+    }
+
+    return {
+      lengthLabel,
+      lengthDetail,
+      spilled,
+      rows,
+    };
+  }, [
+    blockHeights,
+    displayPages,
+    draft.nodes,
+    draft.updatedAt,
+    includeSummary,
+    refineFor,
+    totalPages,
+  ]);
 
   return (
     <ResumeLineChromeProvider
@@ -358,7 +427,7 @@ export function ResumeDraftSheet({
     >
     <div className="relative flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-lg">
       {/* py-3 matches email pane field inset so To and this rail share one horizon. */}
-      <div className="relative z-20 flex w-full max-w-full shrink-0 items-center gap-2 rounded-t-lg border-b border-border/60 bg-card/80 px-3 py-3 text-xs backdrop-blur-sm">
+      <div className="relative z-20 flex w-full max-w-full shrink-0 items-center gap-2 overflow-visible rounded-t-lg border-b border-border/60 bg-card/80 px-3 py-3 text-xs backdrop-blur-sm">
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <SegmentedControl
             size="sm"
@@ -367,21 +436,9 @@ export function ResumeDraftSheet({
             onChange={setZoomChoice}
             options={ZOOM_OPTIONS}
           />
-          <LabelTooltip
-            label="Estimated length from the current draft — not a setting. Edit content to change page count."
-            side="bottom"
-            contentClassName="max-w-[16rem] text-left"
-          >
-            <span
-              className="shrink-0 tabular-nums text-muted-foreground"
-              aria-live="polite"
-            >
-              {pageCountLabel}
-            </span>
-          </LabelTooltip>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5 overflow-visible">
           {typeof includeSummary === "boolean" && onIncludeSummaryChange ? (
             <LabelTooltip
               label={
@@ -409,6 +466,55 @@ export function ResumeDraftSheet({
               </Button>
             </LabelTooltip>
           ) : null}
+          {typeof includeSummary === "boolean" && onIncludeSummaryChange ? (
+            <span
+              aria-hidden
+              className="mx-0.5 h-4 w-px shrink-0 self-center bg-border/70"
+            />
+          ) : null}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label={`Draft details: ${draftInsights.lengthLabel}`}
+                title="Draft details"
+                className={cn(
+                  "h-8 w-8 px-0 [&_svg]:size-3.5",
+                  draftInsights.spilled &&
+                    "border-amber-600/40 text-amber-700 hover:text-amber-800"
+                )}
+              >
+                <Gauge aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <AppMenuContent align="end" className="w-[15.5rem]">
+              <div className="space-y-2.5 px-2.5 py-1.5">
+                <div>
+                  <p className="text-xs font-semibold tabular-nums text-foreground">
+                    {draftInsights.lengthLabel}
+                  </p>
+                  <p className="mt-0.5 text-xs font-normal leading-snug text-muted-foreground">
+                    {draftInsights.lengthDetail}
+                  </p>
+                </div>
+                <dl className="space-y-1.5 border-t border-border/50 pt-2">
+                  {draftInsights.rows.map((row) => (
+                    <div
+                      key={row.label}
+                      className="flex items-baseline justify-between gap-3 text-xs"
+                    >
+                      <dt className="text-muted-foreground">{row.label}</dt>
+                      <dd className="shrink-0 tabular-nums font-medium text-foreground">
+                        {row.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </AppMenuContent>
+          </DropdownMenu>
           {strategyRationale ? (
             <Button
               ref={notesTriggerRef}
@@ -418,10 +524,50 @@ export function ResumeDraftSheet({
               aria-expanded={notesOpen}
               aria-label="Tailoring notes"
               title="Tailoring notes"
-              className="h-8 w-8 px-0 [&_svg]:size-[1.125rem]"
+              className={cn(
+                "group relative h-8 w-8 overflow-visible border border-input px-0 motion-safe:active:scale-100 [&_svg]:size-[19px] [&_svg.notes-msg]:!size-[14px]",
+                DASHED_BORDER_RING_PARENT_SVG_CLASSNAME,
+                notesOpen && "border-transparent"
+              )}
               onClick={() => setNotesOpen((open) => !open)}
             >
               <Bot strokeWidth={1.5} aria-hidden />
+              <MessageSquare
+                strokeWidth={1.9}
+                aria-hidden
+                className={cn(
+                  "notes-msg pointer-events-none absolute -right-1 -top-1 !size-[14px] transition-[fill] duration-150 ease-apple-snappy",
+                  notesOpen
+                    ? cn(
+                        "fill-secondary group-hover:fill-secondary/80",
+                        DASHED_OUTLINE_STROKE_CLASSNAME
+                      )
+                    : "fill-card text-foreground/40 group-hover:fill-accent"
+                )}
+              />
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 [mask-image:linear-gradient(to_top_right,#000_70%,transparent_92%)] [-webkit-mask-image:linear-gradient(to_top_right,#000_70%,transparent_92%)]"
+              >
+                <MessageSquare
+                  strokeWidth={1.9}
+                  className={cn(
+                    "notes-msg absolute -right-1 -top-1 !size-[14px] transition-[fill] duration-150 ease-apple-snappy",
+                    notesOpen
+                      ? cn(
+                          "fill-secondary group-hover:fill-secondary/80",
+                          DASHED_OUTLINE_STROKE_CLASSNAME
+                        )
+                      : "fill-card text-foreground group-hover:fill-accent"
+                  )}
+                />
+              </span>
+              <MessageSquareMore
+                strokeWidth={1.9}
+                aria-hidden
+                className="notes-msg pointer-events-none absolute -right-1 -top-1 !size-[14px] text-foreground [&_path:first-child]:opacity-0"
+              />
+              {notesOpen ? <DashedBorderRing cutout="top-right" /> : null}
             </Button>
           ) : null}
           <DropdownMenu>

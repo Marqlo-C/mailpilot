@@ -612,6 +612,7 @@ html[data-mp-toolbar="dark"] [data-mp-toolbar-field] [role="group"] button:hover
   /* Loader / shimmer / enter animations (also gated via motion-safe: in components). */
   .animate-shimmer,
   .animate-skeleton-shimmer,
+  .animate-wavy-dash,
   .mp-loader-wave > *,
   .animate-in {
     animation: none !important;

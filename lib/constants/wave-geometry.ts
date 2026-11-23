@@ -163,14 +163,15 @@ function wavySidePath(
 
 /**
  * Closed rounded-rectangle outline whose straight sides use the slider wave.
- * Coordinates are CSS pixels. The wave stays inside the box.
+ * Coordinates are CSS pixels. Default inset keeps the wave inside the box;
+ * pass a small `inset` (≈ stroke/2) to ride the outer edge.
  */
 export function buildWavyRoundedRectPath(
   widthPx: number,
   heightPx: number,
-  radius = 8
+  radius = 8,
+  inset = WAVE_SLIDER_AMP_Y
 ): string {
-  const inset = WAVE_SLIDER_AMP_Y;
   if (widthPx < inset * 2 + 8 || heightPx < inset * 2 + 8) return "";
 
   const w = widthPx - inset * 2;

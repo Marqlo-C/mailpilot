@@ -15,7 +15,15 @@ import {
 } from "@/lib/constants/wave-geometry";
 import { cn } from "@/lib/utils";
 
-type WavyDashedFrameProps = HTMLAttributes<HTMLDivElement>;
+type WavyDashedFrameProps = HTMLAttributes<HTMLDivElement> & {
+  /** Corner radius in CSS px (default 8). Use 6 for `rounded-md`. */
+  radius?: number;
+  /**
+   * Inset of the path from the measured box edge.
+   * Omit for the default inside-the-box wave; `~1` rides the outer border.
+   */
+  pathInset?: number;
+};
 
 /**
  * Rounded frame whose dashed stroke follows the same wave as the slider.
@@ -25,6 +33,8 @@ type WavyDashedFrameProps = HTMLAttributes<HTMLDivElement>;
 export function WavyDashedFrame({
   className,
   children,
+  radius,
+  pathInset,
   ...rest
 }: WavyDashedFrameProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -51,8 +61,8 @@ export function WavyDashedFrame({
   }, []);
 
   const d = useMemo(
-    () => buildWavyRoundedRectPath(size.w, size.h),
-    [size]
+    () => buildWavyRoundedRectPath(size.w, size.h, radius, pathInset),
+    [size, radius, pathInset]
   );
 
   return (
