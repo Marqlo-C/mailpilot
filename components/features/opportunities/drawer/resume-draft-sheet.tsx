@@ -1,9 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import {
+  Bot,
+  ChevronDown,
+  ChevronUp,
+  CircleArrowDown,
+  Sparkles,
+  Summary,
+} from "lucide-react";
 
 import {
+  appMenuClassNames,
   AppMenuContent,
   AppMenuItem,
 } from "@/components/ui/app-menu";
@@ -14,12 +22,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Loader } from "@/components/ui/loader";
-import {
-  lightRailListClassName,
-  lightRailTriggerClassName,
-} from "@/components/ui/tactile/segmented-tabs";
+import { SegmentedControl } from "@/components/ui/tactile/segmented-tabs";
+import { LabelTooltip } from "@/components/ui/tooltip";
 import { skillCategoryLabel } from "@/lib/profile/skill-groups";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/resume-draft";
+import type { StrategyRationale } from "@/lib/validations/resume-draft.schema";
 import { cn } from "@/lib/utils";
 import {
   formatEducationDates,
@@ -32,6 +39,15 @@ import {
   RESUME_SPACING,
   RESUME_TYPOGRAPHY,
 } from "@/lib/resume-draft/layout.schema";
+
+const ZOOM_OPTIONS = [
+  { value: "fit", label: "Fit" },
+  { value: "0.85", label: "85%" },
+  { value: "1", label: "100%" },
+  { value: "1.25", label: "125%" },
+] as const;
+
+type ZoomChoice = (typeof ZOOM_OPTIONS)[number]["value"];
 
 import {
   SHEET_WIDTH,
@@ -88,6 +104,8 @@ export function ResumeDraftSheet({
   onExport,
   exporting,
   strategyRationale,
+  includeSummary,
+  onIncludeSummaryChange,
 }: {
   draft: TailoredResumeDraft;
   disabled?: boolean;
@@ -97,19 +115,19 @@ export function ResumeDraftSheet({
   onMove: (nodeId: string, direction: "up" | "down") => void;
   onRefine: (nodeId: string, instruction: string) => void;
   onExport: (format: "pdf" | "docx") => void;
-  strategyRationale?: {
-    roleFitAnalysis: string;
-    selectedSkillsReasoning: string;
-    featuredExperiencesReasoning: string;
-    featuredProjectsReasoning: string;
-  } | null;
+  strategyRationale?: StrategyRationale | null;
+  includeSummary?: boolean;
+  onIncludeSummaryChange?: (include: boolean) => void;
 }) {
   const [refineFor, setRefineFor] = useState<string | null>(null);
   const [instruction, setInstruction] = useState("");
-  const [zoomChoice, setZoomChoice] = useState<"fit" | 0.85 | 1 | 1.25>("fit");
+  const [zoomChoice, setZoomChoice] = useState<ZoomChoice>("fit");
   const [fitScale, setFitScale] = useState(0.7);
   const [blockHeights, setBlockHeights] = useState<Record<string, number>>({});
+  const [notesOpen, setNotesOpen] = useState(false);
 
+  const notesPanelRef = useRef<HTMLDivElement>(null);
+  const notesTriggerRef = useRef<HTMLButtonElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const pagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -128,9 +146,38 @@ export function ResumeDraftSheet({
     return () => observer.disconnect();
   }, []);
 
-  const zoom = zoomChoice === "fit" ? fitScale : zoomChoice;
+  useEffect(() => {
+    if (!notesOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (notesPanelRef.current?.contains(target)) return;
+      if (notesTriggerRef.current?.contains(target)) return;
+      setNotesOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setNotesOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [notesOpen]);
 
-  const blocks = useMemo(() => buildBlocks(draft), [draft]);
+  const zoom = zoomChoice === "fit" ? fitScale : Number(zoomChoice);
+
+  const blocks = useMemo(() => {
+    const all = buildBlocks(draft);
+    if (includeSummary === false) {
+      return all.filter(
+        (block) =>
+          !(block.kind === "node" && block.node.section === "summary")
+      );
+    }
+    return all;
+  }, [draft, includeSummary]);
   const firstHeadingBlock = blocks.find(
     (b) => b.kind === "skills" || (b.kind === "node" && Boolean(b.heading))
   );
@@ -193,7 +240,7 @@ export function ResumeDraftSheet({
 
   function lineTools(nodeId: string) {
     return (
-      <div className="pointer-events-none absolute right-0 top-0 z-10 flex bg-white/95 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
+      <div className="pointer-events-none absolute right-0 top-0 z-10 flex bg-white/95 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
         <button
           type="button"
           disabled={disabled}
@@ -241,20 +288,39 @@ export function ResumeDraftSheet({
           setInstruction("");
           setRefineFor(null);
         }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            setInstruction("");
+            setRefineFor(null);
+          }
+        }}
       >
         <input
           value={instruction}
           onChange={(event) => setInstruction(event.target.value)}
           placeholder="Rewrite this line…"
           disabled={disabled}
-          className="min-w-0 flex-1 rounded border border-[#D1D5DB] px-1.5 py-0.5 text-[9pt] outline-none"
+          autoFocus
+          className="min-w-0 flex-1 rounded border border-[#D1D5DB] px-1.5 py-0.5 text-xs outline-none"
         />
         <button
           type="submit"
           disabled={disabled || !instruction.trim()}
-          className="rounded bg-[#111827] px-1.5 py-0.5 text-[9pt] text-white disabled:opacity-40"
+          className="rounded bg-[#111827] px-1.5 py-0.5 text-xs text-white disabled:opacity-40"
         >
           Apply
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => {
+            setInstruction("");
+            setRefineFor(null);
+          }}
+          className="rounded border border-[#D1D5DB] px-1.5 py-0.5 text-xs text-[#6b7280] hover:text-[#111827]"
+        >
+          Cancel
         </button>
       </form>
     );
@@ -290,8 +356,8 @@ export function ResumeDraftSheet({
                   disabled={disabled}
                   aria-label={`Include ${skillLabel(node) ?? "skill group"} in export`}
                   onCheckedChange={(checked) => onToggle(node.id, checked)}
-                  className="h-2 w-2 opacity-40 transition-opacity group-hover:opacity-100"
-                  style={{ backgroundSize: "0.4rem 0.4rem" }}
+                  className="h-3 w-3 opacity-40 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                  style={{ backgroundSize: "0.55rem 0.55rem" }}
                 />
               ))}
             </div>
@@ -326,7 +392,7 @@ export function ResumeDraftSheet({
                 );
               })}
             </p>
-            <div className="pointer-events-none absolute right-0 top-0 z-10 flex gap-1 bg-white/95 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
+            <div className="pointer-events-none absolute right-0 top-0 z-10 flex gap-1 bg-white/95 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
               {block.nodes.map((node) => (
                 <button
                   key={node.id}
@@ -407,7 +473,7 @@ export function ResumeDraftSheet({
             aria-label="Include line in export"
             onCheckedChange={(checked) => onToggle(node.id, checked)}
             className={cn(
-              "absolute -left-6 h-3.5 w-3.5 opacity-40 transition-opacity group-hover:opacity-100",
+              "absolute -left-6 h-3.5 w-3.5 opacity-40 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
               node.type === "header" ? "top-2" : "top-[2px]"
             )}
           />
@@ -516,7 +582,7 @@ export function ResumeDraftSheet({
                         href={item.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#1F2937] dark:text-zinc-200 no-underline hover:text-foreground"
+                        className="text-[#1F2937] no-underline hover:text-foreground"
                       >
                         {item.label}
                       </a>
@@ -535,83 +601,136 @@ export function ResumeDraftSheet({
     );
   }
 
-  return (
-    <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-lg">
-      <div className="flex w-full max-w-full shrink-0 items-center justify-end gap-2 rounded-t-lg border-b border-border/60 bg-card/80 px-3 py-2 text-xs backdrop-blur-sm">
-        <div
-          className={cn(
-            lightRailListClassName,
-            "mr-auto h-8 max-w-none gap-1 rounded-lg p-0.5 pr-3 shadow-sm"
-          )}
-          role="radiogroup"
-          aria-label="Resume zoom"
-        >
-          {(
-            [
-              ["fit", "Fit"],
-              [0.85, "85%"],
-              [1, "100%"],
-              [1.25, "125%"],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={label}
-              type="button"
-              role="radio"
-              aria-checked={zoomChoice === value}
-              data-state={zoomChoice === value ? "active" : "inactive"}
-              onClick={() => setZoomChoice(value)}
-              className={cn(lightRailTriggerClassName, "px-2.5 py-1 text-xs")}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={disabled || exporting}
-              className="h-8 gap-1.5 px-2.5"
-              aria-label={
-                exporting ? "Preparing resume file" : "Save As"
-              }
-            >
-              {exporting ? <Loader size="sm" /> : null}
-              {exporting ? "Preparing…" : "Download"}
-              {!exporting ? (
-                <ChevronDown className="size-3.5 opacity-70" aria-hidden />
-              ) : null}
-            </Button>
-          </DropdownMenuTrigger>
-          <AppMenuContent align="end" className="min-w-0 w-max">
-            <AppMenuItem
-              disabled={disabled || exporting}
-              onClick={() => onExport("pdf")}
-            >
-              PDF
-            </AppMenuItem>
-            <AppMenuItem
-              disabled={disabled || exporting}
-              onClick={() => onExport("docx")}
-            >
-              DOCX
-            </AppMenuItem>
-          </AppMenuContent>
-        </DropdownMenu>
-      </div>
+  const pageCountLabel =
+    totalPages === 1 ? "1 page" : `${totalPages} pages`;
 
-      {/* Tiny progressive fade under the buttons in the space before resume begins */}
-      <div
-        className="pointer-events-none h-2.5 w-full shrink-0 -mb-2.5 z-10 bg-gradient-to-b from-card to-transparent"
-        aria-hidden="true"
-      />
+  return (
+    <div className="relative flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-lg">
+      {/* py-3 matches email pane field inset so To and this rail share one horizon. */}
+      <div className="relative z-20 flex w-full max-w-full shrink-0 items-center gap-2 rounded-t-lg border-b border-border/60 bg-card/80 px-3 py-3 text-xs backdrop-blur-sm">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <SegmentedControl
+            size="sm"
+            label="Resume zoom"
+            value={zoomChoice}
+            onChange={setZoomChoice}
+            options={ZOOM_OPTIONS}
+          />
+          <LabelTooltip
+            label="Estimated length from the current draft — not a setting. Edit content to change page count."
+            side="bottom"
+            contentClassName="max-w-[16rem] text-left"
+          >
+            <span
+              className="shrink-0 tabular-nums text-muted-foreground"
+              aria-live="polite"
+            >
+              {pageCountLabel}
+            </span>
+          </LabelTooltip>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          {typeof includeSummary === "boolean" && onIncludeSummaryChange ? (
+            <LabelTooltip
+              label={
+                includeSummary
+                  ? "Hide summary section"
+                  : "Show summary section"
+              }
+              side="bottom"
+            >
+              <Button
+                type="button"
+                variant={includeSummary ? "secondary" : "outline"}
+                size="sm"
+                disabled={disabled}
+                aria-pressed={includeSummary}
+                aria-label={
+                  includeSummary
+                    ? "Hide summary section"
+                    : "Show summary section"
+                }
+                className="h-8 w-8 px-0 [&_svg]:size-3.5"
+                onClick={() => onIncludeSummaryChange(!includeSummary)}
+              >
+                <Summary aria-hidden />
+              </Button>
+            </LabelTooltip>
+          ) : null}
+          {strategyRationale ? (
+            <Button
+              ref={notesTriggerRef}
+              type="button"
+              variant={notesOpen ? "secondary" : "outline"}
+              size="sm"
+              aria-expanded={notesOpen}
+              aria-label="Tailoring notes"
+              title="Tailoring notes"
+              className="h-8 w-8 px-0 [&_svg]:size-[1.125rem]"
+              onClick={() => setNotesOpen((open) => !open)}
+            >
+              <Bot strokeWidth={1.5} aria-hidden />
+            </Button>
+          ) : null}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={disabled || exporting}
+                className="h-8 w-8 px-0 [&_svg]:size-3.5"
+                aria-label={
+                  exporting ? "Preparing resume file" : "Download resume"
+                }
+                title={exporting ? "Preparing…" : "Download"}
+              >
+                {exporting ? (
+                  <Loader size="sm" />
+                ) : (
+                  <CircleArrowDown aria-hidden />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <AppMenuContent align="end" className="min-w-0 w-max">
+              <AppMenuItem
+                disabled={disabled || exporting}
+                onClick={() => onExport("pdf")}
+              >
+                PDF
+              </AppMenuItem>
+              <AppMenuItem
+                disabled={disabled || exporting}
+                onClick={() => onExport("docx")}
+              >
+                DOCX
+              </AppMenuItem>
+            </AppMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {notesOpen && strategyRationale ? (
+          <div
+            ref={notesPanelRef}
+            role="dialog"
+            aria-label="Tailoring notes"
+            className={cn(
+              appMenuClassNames.light.content,
+              "absolute left-3 right-3 top-full z-30 mt-1.5 max-h-[min(24rem,70vh)] overflow-hidden bg-card p-0 backdrop-blur-none"
+            )}
+          >
+            <ResumeStrategyPanel
+              mode="popover"
+              strategyRationale={strategyRationale}
+            />
+          </div>
+        ) : null}
+      </div>
 
       <div
         ref={viewportRef}
-        className="flex h-full min-h-0 w-full max-w-full flex-1 overflow-auto bg-slate-100/70 dark:bg-zinc-900/60 p-3"
+        className="flex h-full min-h-0 w-full max-w-full flex-1 overflow-auto bg-background/75 p-3"
       >
         <div
           className="mx-auto shrink-0"
@@ -631,7 +750,7 @@ export function ResumeDraftSheet({
             {displayPages.map((pageBlocks, pageIndex) => (
               <div
                 key={pageIndex}
-                className="relative overflow-hidden bg-white text-[#111827] shadow-lg rounded-sm"
+                className="relative overflow-hidden rounded-sm bg-white text-[#111827] shadow-lg ring-1 ring-black/5"
                 style={{
                   width: `${SHEET_WIDTH}px`,
                   height: `${PAGE_HEIGHT}px`,
@@ -653,23 +772,11 @@ export function ResumeDraftSheet({
                 >
                   {pageBlocks.map((block) => renderBlock(block))}
                 </div>
-                <div
-                  className="absolute text-[10px] text-muted-foreground/60 select-none"
-                  style={{
-                    bottom: "12px",
-                    right: `${PAGE_PADDING_X}px`,
-                  }}
-                >
-                  Page {pageIndex + 1} of {totalPages}
-                </div>
               </div>
             ))}
           </div>
         </div>
       </div>
-      {strategyRationale ? (
-        <ResumeStrategyPanel strategyRationale={strategyRationale} />
-      ) : null}
     </div>
   );
 }

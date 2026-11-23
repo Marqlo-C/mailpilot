@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 /** Shared shell for job meta chips + subscription metric pills. */
 export const META_CHIP_SHELL_CLASSNAME =
-  "inline-flex h-6 shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/40";
+  "font-wordmark inline-flex h-6 shrink-0 cursor-default items-stretch overflow-hidden rounded-md border border-border/40";
 
 /** Lucide sizes for the icon rail — pass with {@link MetaChipProps.iconSize}. */
 export const META_CHIP_ICON_CLASSNAME = {

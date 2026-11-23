@@ -10,9 +10,15 @@
 import { PRIMARY_ACTION_SURFACE_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { cn } from "@/lib/utils";
 
+/**
+ * Horizontal gap between sibling labeled CTAs — dialog footers, card actions,
+ * subscription row actions. Keep in lockstep with Ace / composer field gaps.
+ */
+export const ACTION_CTA_CLUSTER_GAP_CLASSNAME = "gap-2";
+
 /** Base geometry matching the tab rail height and standard telemetry & sync icons. */
 export const BOXY_ACTION_BTN_BASE =
-  "inline-flex items-center justify-center h-8 px-3.5 text-xs font-medium rounded-lg border gap-2 shadow-md transition-colors shrink-0 cursor-pointer disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-3.5 [&_svg]:shrink-0";
+  "inline-flex items-center justify-center h-8 px-3 text-xs font-medium rounded-md border gap-2 shadow-md transition-colors shrink-0 cursor-pointer disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-3.5 [&_svg]:shrink-0";
 
 /**
  * Secondary variant: clean border and card surface.

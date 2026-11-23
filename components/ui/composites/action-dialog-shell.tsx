@@ -11,6 +11,7 @@ import {
   DialogIdentityHeader,
   type DialogIdentityHeaderProps,
 } from "@/components/ui/composites/dialog-identity-header";
+import { ACTION_CTA_CLUSTER_GAP_CLASSNAME } from "@/components/ui/styles/action-button-styles";
 import { cn } from "@/lib/utils";
 
 /**
@@ -35,7 +36,7 @@ export type ActionDialogShellProps = {
   /** Dialog width token. */
   size?: keyof typeof SIZE_CLASS;
   /**
-   * Identity header props — present-progressive title + primary • secondary.
+   * Identity header props — title + primary • secondary.
    * See DialogIdentityHeader.
    */
   identity: DialogIdentityHeaderProps;
@@ -51,6 +52,8 @@ export type ActionDialogShellProps = {
   primaryAction?: ReactNode;
   /** Optional ⋮ overflow trigger (right of primary). */
   overflowMenu?: ReactNode;
+  /** Leading footer slot (e.g. attach toggles) — sits left of Cancel/actions. */
+  leadingFooter?: ReactNode;
   contentClassName?: string;
   /** Override the scrollable middle wrapper (e.g. flush custom layouts). */
   bodyClassName?: string;
@@ -76,6 +79,7 @@ export function ActionDialogShell({
   secondaryAction,
   primaryAction,
   overflowMenu,
+  leadingFooter,
   contentClassName,
   bodyClassName,
 }: ActionDialogShellProps) {
@@ -97,32 +101,44 @@ export function ActionDialogShell({
 
         <div
           className={cn(
-            "min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-4",
+            "min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-4",
             bodyClassName
           )}
         >
           {children}
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border/60 bg-muted/20 px-6 py-3">
-          {showCancel ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-9"
-              disabled={pending}
-              onClick={() => {
-                if (onCancel) onCancel();
-                else onOpenChange(false);
-              }}
-            >
-              {cancelLabel}
-            </Button>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border/60 bg-muted/20 px-5 py-3">
+          {leadingFooter ? (
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              {leadingFooter}
+            </div>
           ) : null}
-          {secondaryAction}
-          {primaryAction}
-          {overflowMenu}
+          <div
+            className={cn(
+              "ml-auto flex flex-wrap items-center justify-end",
+              ACTION_CTA_CLUSTER_GAP_CLASSNAME
+            )}
+          >
+            {showCancel ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8"
+                disabled={pending}
+                onClick={() => {
+                  if (onCancel) onCancel();
+                  else onOpenChange(false);
+                }}
+              >
+                {cancelLabel}
+              </Button>
+            ) : null}
+            {secondaryAction}
+            {primaryAction}
+            {overflowMenu}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

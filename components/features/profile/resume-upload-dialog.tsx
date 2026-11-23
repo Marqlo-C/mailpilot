@@ -271,15 +271,13 @@ export function ResumeUploadDialog({
         pending={pending}
         size="md"
         identity={{
-          title: editMode
-            ? "Editing master profile:"
-            : "Importing resume for:",
+          title: editMode ? "Edit Profile" : "Import Resume",
           primary: "Master Profile",
           emphasize: "primary",
           logo: (
             <LogoFrameIcon
               icon={editMode ? FileText : CloudUpload}
-              size="lg"
+              size="jobCard"
             />
           ),
         }}
@@ -289,7 +287,7 @@ export function ResumeUploadDialog({
               type="button"
               disabled={!draft || pending}
               onClick={onSave}
-              className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+              className={cn(PRIMARY_ACTION_BTN_CLASSNAME)}
             >
               {pending ? (
                 <Loader size="sm" />
@@ -301,7 +299,7 @@ export function ResumeUploadDialog({
               type="button"
               disabled={!canParse || pending}
               onClick={handleSubmit}
-              className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+              className={cn(PRIMARY_ACTION_BTN_CLASSNAME)}
             >
               <span>
                 {pending
@@ -318,7 +316,7 @@ export function ResumeUploadDialog({
             <Button
               type="button"
               variant="outline"
-              className="h-9"
+              className="h-8"
               disabled={pending}
               onClick={handleSubmit}
             >

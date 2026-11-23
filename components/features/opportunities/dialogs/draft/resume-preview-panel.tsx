@@ -4,6 +4,7 @@ import { Loader } from "@/components/ui/loader";
 import { Button } from "@/components/ui/button";
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
+import { EmptyState } from "@/components/ui/composites/empty-state";
 import { LoadSkeletonStack } from "@/components/ui/composites/load-skeleton-stack";
 import { ResumeDraftSheet } from "@/components/features/opportunities/drawer/resume-draft-sheet";
 import { ResumeStrategyPanel } from "@/components/features/opportunities/drawer/subcomponents/resume-strategy-panel";
@@ -33,6 +34,8 @@ export function ResumePreviewPanel({
   resumePdfUrl,
   resumeStateLoaded,
   embedded = false,
+  includeSummary,
+  onIncludeSummaryChange,
   onCancelTask,
   onRetry,
   onCommit,
@@ -54,6 +57,8 @@ export function ResumePreviewPanel({
    * focused (same chrome as email body → plate).
    */
   embedded?: boolean;
+  includeSummary?: boolean;
+  onIncludeSummaryChange?: (include: boolean) => void;
   onCancelTask: () => void;
   onRetry: () => void;
   onCommit: (nodeId: string, content: string) => void;
@@ -67,8 +72,6 @@ export function ResumePreviewPanel({
   const settleKey = useContentSettleKey(resumeBusy);
   const [editingFocused, setEditingFocused] = useState(false);
 
-  // Shell mirrors EmailEditorPanel: plate on the outer node, clip on an inner
-  // wrapper only — so box-shadow isn’t eaten by overflow on the same element.
   return (
     <div
       className={cn(
@@ -102,6 +105,7 @@ export function ResumePreviewPanel({
               </TextShimmer>
             </div>
             <CancelTaskButton
+              tone="light"
               title="Stop Creating"
               onCancel={onCancelTask}
             />
@@ -125,6 +129,8 @@ export function ResumePreviewPanel({
             strategyRationale={resume.strategyRationale}
             disabled={resumeBusy}
             exporting={exporting}
+            includeSummary={includeSummary}
+            onIncludeSummaryChange={onIncludeSummaryChange}
             onCommit={onCommit}
             onToggle={onToggle}
             onMove={onMove}
@@ -140,24 +146,31 @@ export function ResumePreviewPanel({
             />
             {resume.strategyRationale ? (
               <ResumeStrategyPanel
+                mode="collapsible"
+                dock="bottom"
                 strategyRationale={resume.strategyRationale}
               />
             ) : null}
           </>
         ) : resumeStateLoaded ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-            <FileText className="h-10 w-10 text-muted-foreground/50" />
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-foreground">
-                No Auto-Tailored Resume Yet
-              </p>
-              <p className="max-w-sm text-xs text-muted-foreground">
-                Select &apos;Resume&apos; in the toolbar below and click
-                &apos;Create&apos; to tailor a PDF for this opportunity.
-                Nothing runs until you ask.
-              </p>
-            </div>
-          </div>
+          <EmptyState
+            size="sm"
+            icon={FileText}
+            title="No tailored resume yet"
+            description="Create a tailored PDF for this opportunity. Nothing runs until you ask."
+            className="m-3 flex-1 border-0 bg-transparent"
+            action={
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={resumeBusy || exporting}
+                onClick={onRetry}
+              >
+                Create Tailored Resume
+              </Button>
+            }
+          />
         ) : (
           <div className="flex flex-1 items-center justify-center p-6">
             <LoadSkeletonStack

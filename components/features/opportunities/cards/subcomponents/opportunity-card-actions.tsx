@@ -8,6 +8,7 @@ import {
   Send,
   Undo2,
 } from "lucide-react";
+import { ACTION_CTA_CLUSTER_GAP_CLASSNAME } from "@/components/ui/styles/action-button-styles";
 import type { OpportunityCardVariant } from "./opportunity-card-menu";
 import { cn } from "@/lib/utils";
 
@@ -52,7 +53,12 @@ export function OpportunityCardActions({
   const secondaryClass = cn(secondaryBtnClass, TOUCH_TARGET_ACTION_CLASSNAME);
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-end",
+        ACTION_CTA_CLUSTER_GAP_CLASSNAME
+      )}
+    >
       {/* Secondary (left of primary) */}
       {variant === "leads" ? (
         <button

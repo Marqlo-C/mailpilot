@@ -15,8 +15,8 @@ type ConfirmActionDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /**
-   * Present-progressive identity title, e.g. "Deleting record for:".
-   * See DialogIdentityHeader title syntax.
+   * Short noun/imperative sheet title, e.g. "Delete", "Clear Queue".
+   * See DialogIdentityHeader.
    */
   title: string;
   primary: string;
@@ -71,7 +71,7 @@ export function ConfirmActionDialog({
         logoSrc,
         logoName: logoName ?? primary,
         logo,
-        logoSize: "lg",
+        logoSize: "jobCard",
       }}
       cancelLabel={cancelLabel}
       primaryAction={
@@ -79,12 +79,11 @@ export function ConfirmActionDialog({
           type="button"
           disabled={pending}
           onClick={onConfirm}
-          className={cn(
+          className={
             destructive
               ? PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME
-              : PRIMARY_ACTION_BTN_CLASSNAME,
-            "h-9 px-3.5"
-          )}
+              : PRIMARY_ACTION_BTN_CLASSNAME
+          }
         >
           {pending ? (
             <Loader size="sm" />

@@ -24,7 +24,7 @@ const PRIMARY_ACTION_TONE = {
     "group-data-[state=active]:bg-[#e4f7f3]/15 group-data-[state=active]:text-[#e4f7f3]",
 } as const;
 const PRIMARY_FILLED_LAYOUT = [
-  "inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border px-3 text-xs font-medium disabled:pointer-events-none disabled:opacity-50",
   PRESS_SCALE_BTN,
 ].join(" ");
 
@@ -63,7 +63,7 @@ export const PRIMARY_ACTION_FLYOUT_COUNT_CLASSNAME = [
 
 /** Selected/highlighted row CTAs — #9FCFD2 fill; outline/label match muted secondary. */
 export const PRIMARY_ACTION_BTN_MUTED_CLASSNAME =
-  "inline-flex items-center justify-center gap-1.5 rounded-md border border-[#899499] bg-[#9FCFD2] px-3 py-1.5 text-xs font-medium text-[#899499] pointer-events-none";
+  "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-[#899499] bg-[#9FCFD2] px-3 text-xs font-medium text-[#899499] pointer-events-none";
 
 /** Destructive filled tone — Delete Emails / Delete Record. */
 const PRIMARY_DESTRUCTIVE_ACTION_TONE = {

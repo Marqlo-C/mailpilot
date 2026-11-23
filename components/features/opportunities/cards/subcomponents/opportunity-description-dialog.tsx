@@ -37,12 +37,10 @@ export function OpportunityDescriptionDialog({
       size="md"
       showCancel={false}
       identity={{
-        title: "Viewing job description for:",
-        primary: title,
-        secondary: company,
+        title,
+        primary: company,
         logoSrc: logoSrc ?? undefined,
         logoName: company,
-        emphasize: "primary",
       }}
       secondaryAction={
         applyUrl ? (
@@ -50,7 +48,7 @@ export function OpportunityDescriptionDialog({
             href={applyUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "h-9 gap-1.5 px-3.5")}
+            className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "gap-1.5")}
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Open posting
@@ -61,7 +59,7 @@ export function OpportunityDescriptionDialog({
         <button
           type="button"
           onClick={() => onOpenChange(false)}
-          className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+          className={cn(PRIMARY_ACTION_BTN_CLASSNAME)}
         >
           Close
         </button>

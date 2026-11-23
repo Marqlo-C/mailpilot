@@ -27,10 +27,9 @@ export type ViewEmailDialogProps = {
   /** Lookup latest message from this sender when `messageId` is absent. */
   senderEmail?: string | null;
   senderName?: string | null;
-  identityTitle?: string;
   /**
-   * When true, identity primary/secondary are sender email/name
-   * (Subscriptions “Latest Message”). Otherwise subject/from (Job Radar).
+   * When true, subtitle is sender email/name (Subscriptions).
+   * Otherwise subtitle is from (Job Radar). Title is always the subject.
    */
   identityEmphasizeSender?: boolean;
   initialSubject?: string | null;
@@ -53,7 +52,6 @@ export function ViewEmailDialog({
   messageId = null,
   senderEmail = null,
   senderName = null,
-  identityTitle = "Viewing original email:",
   identityEmphasizeSender = false,
   initialSubject = null,
   initialFrom = null,
@@ -137,20 +135,19 @@ export function ViewEmailDialog({
 
   const identity = identityEmphasizeSender
     ? {
-        title: identityTitle,
+        title: resolvedSubject,
         primary: senderEmail || resolvedFrom || "sender",
         secondary: senderName,
         logoSrc: senderLogoSrc(logoEmail),
         logoName: senderName ?? senderEmail ?? "sender",
-        logoSize: "lg" as const,
+        logoSize: "jobCard" as const,
       }
     : {
-        title: identityTitle,
-        primary: resolvedSubject,
-        secondary: resolvedFrom,
+        title: resolvedSubject,
+        primary: resolvedFrom || "",
         logoSrc: senderLogoSrc(logoEmail),
         logoName: resolvedFrom || "Email",
-        logoSize: "lg" as const,
+        logoSize: "jobCard" as const,
       };
 
   return (
@@ -164,7 +161,7 @@ export function ViewEmailDialog({
         <button
           type="button"
           onClick={() => onOpenChange(false)}
-          className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+          className={cn(PRIMARY_ACTION_BTN_CLASSNAME)}
         >
           Close
         </button>

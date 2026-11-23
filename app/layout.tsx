@@ -95,7 +95,7 @@ export default async function RootLayout({
     >
       <head>
         <PreHydrationExtensionGuard />
-        {/* Sidebar "Mail Pilot" wordmark — preload so Duplet is ready before paint. */}
+        {/* Wordmark / numerals / pills — preload Rounded so it is ready before paint. */}
         <link
           rel="preload"
           href="/fonts/DupletRounded-Bold-BF6606345a47d2e.woff2"

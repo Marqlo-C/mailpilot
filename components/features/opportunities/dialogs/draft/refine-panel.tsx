@@ -55,7 +55,7 @@ export function RefinePanel({
   onCancelRefine: () => void;
 }) {
   return (
-    <div className="flex flex-none items-center gap-3 border-t bg-muted/20 px-6 py-2">
+    <div className="flex flex-none flex-wrap items-center gap-2 bg-muted/20 px-5 py-1.5 sm:flex-nowrap">
       {attachResume ? (
         <SegmentedControl
           size="sm"
@@ -79,7 +79,7 @@ export function RefinePanel({
         value={refinePrompt}
         onChange={(e) => setRefinePrompt(e.target.value)}
         disabled={aceBusy}
-        className="flex-1"
+        className="min-w-[12rem] flex-1"
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
@@ -89,9 +89,9 @@ export function RefinePanel({
         trailing={
           refiningTarget ? (
             <CancelTaskButton
+              tone="light"
               title="Cancel refine"
               onCancel={onCancelRefine}
-              className="text-[hsl(var(--sidebar))] hover:bg-muted/80"
             />
           ) : (
             <FieldTrailingButton
@@ -122,6 +122,7 @@ export function RefinePanel({
             {primaryActionLabel}
           </Button>
           <CancelTaskButton
+            tone="light"
             title={
               showGenerateResume ? "Stop Creating" : "Stop Rewriting"
             }

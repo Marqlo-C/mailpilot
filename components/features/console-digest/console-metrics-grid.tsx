@@ -116,7 +116,7 @@ export function ConsoleMetricsGrid({
 
               {/* Card Body: Large Tabular Metric */}
               <div className="relative my-3">
-                <p className="font-brand text-3xl font-bold tracking-tight text-foreground sm:text-4xl tabular-nums">
+                <p className="font-wordmark text-3xl font-bold tracking-tight text-foreground sm:text-4xl tabular-nums">
                   {metric.value}
                 </p>
               </div>

@@ -81,7 +81,7 @@ export function SubscriptionViewDialogs({
             actions.setDeleteRecordTarget(null);
           }
         }}
-        title="Deleting record for:"
+        title="Delete"
         primary={actions.deleteRecordTarget?.senderEmail ?? "sender"}
         secondary={actions.deleteRecordTarget?.senderName ?? null}
         logoSrc={

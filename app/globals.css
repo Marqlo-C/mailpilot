@@ -18,7 +18,7 @@
   font-display: block;
 }
 
-/* Brand wordmark face (sidebar Mail Pilot accent, digests).
+/* Wordmark-only face (sidebar / digest "Mail Pilot").
  * `block` avoids FOUT/reflow — swap was resizing the sidebar wordmark on load. */
 @font-face {
   font-family: "Duplet Rounded";
@@ -36,8 +36,14 @@
   font-display: block;
 }
 
-/* SSOT for Duplet wordmark / brand accents — matches @font-face family name. */
+/* SSOT: title role (dialogs, empty states, console/login headers).
+ * Same family as UI body — personality lives on `font-wordmark` instead. */
 .font-brand {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* SSOT: Duplet Rounded — wordmark, numerals, info pills. */
+.font-wordmark {
   font-family: "Duplet Rounded", ui-sans-serif, system-ui, sans-serif;
 }
 

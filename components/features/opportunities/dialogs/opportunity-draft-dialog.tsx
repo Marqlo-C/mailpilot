@@ -34,7 +34,6 @@ import {
   EmailEditorPanel,
   ResumePreviewPanel,
   RefinePanel,
-  DraftFooterControls,
 } from "./draft";
 import {
   useOpportunityDraftFlow,
@@ -42,8 +41,8 @@ import {
   TASK_EMAIL_REFINE,
   TASK_EMAIL_DRAFT,
 } from "@/hooks/use-opportunity-draft-flow";
-import { OpportunityDraftFooterActions } from "./opportunity-draft-footer-actions";
 import { OpportunityDraftCompensationFields } from "./opportunity-draft-compensation-fields";
+import { OpportunityDraftFooterActions } from "./opportunity-draft-footer-actions";
 
 type OpportunityDraftDialogProps = {
   open: boolean;
@@ -99,6 +98,12 @@ export function OpportunityDraftDialog({
   const emailPanel = (
     <EmailEditorPanel
       attachResume={flow.attachResume}
+      onAttachResumeChange={
+        flow.showComposerActions ? flow.handleAttachResumeChange : undefined
+      }
+      attachLocked={flow.resumeBusy || flow.exporting}
+      resume={flow.resume}
+      resumeSizeLabel={resumeSizeLabel}
       embedded={splitEmbedded}
       recipient={flow.recipient}
       setRecipient={flow.setRecipient}
@@ -132,6 +137,8 @@ export function OpportunityDraftDialog({
       resumePdfUrl={resumePdfUrl}
       resumeStateLoaded={flow.resumeStateLoaded}
       embedded={splitEmbedded}
+      includeSummary={flow.includeSummary}
+      onIncludeSummaryChange={flow.setIncludeSummary}
       onCancelTask={() => flow.handleCancelTask(TASK_RESUME)}
       onRetry={() => void flow.generateResume()}
       onCommit={(nodeId, content) => {
@@ -168,12 +175,10 @@ export function OpportunityDraftDialog({
       pending={flow.pending}
       size={flow.attachResume ? "xl" : "lg"}
       contentClassName="h-[88vh] max-h-[900px] w-full transition-all duration-200 ease-apple-out"
-      bodyClassName="flex flex-col overflow-hidden p-0"
+      bodyClassName="flex min-h-0 flex-col overflow-y-auto p-0 lg:overflow-hidden"
       identity={{
-        title: "Responding to:",
-        primary: opportunity?.title ?? "Draft",
-        secondary: opportunity?.company ?? null,
-        emphasize: "secondary",
+        title: opportunity?.title ?? "Draft",
+        primary: opportunity?.company ?? "",
         logoSrc: opportunity
           ? opportunity.logoUrl ||
             getCompanyLogoUrl(
@@ -182,7 +187,14 @@ export function OpportunityDraftDialog({
             )
           : null,
         logoName: opportunity?.company,
-        logoSize: "lg",
+        logoSize: "jobCard",
+        meta:
+          opportunity?.salary || opportunity?.location ? (
+            <OpportunityDraftCompensationFields
+              salary={opportunity?.salary}
+              location={opportunity?.location}
+            />
+          ) : null,
       }}
       onCancel={() => flow.handleDialogOpenChange(false)}
       secondaryAction={null}
@@ -205,19 +217,10 @@ export function OpportunityDraftDialog({
           <TextShimmer>Preparing draft…</TextShimmer>
         </div>
       ) : flow.error ? (
-        <p className="flex-1 px-6 py-8 text-sm text-destructive">{flow.error}</p>
+        <p className="flex-1 px-5 py-8 text-sm text-destructive">{flow.error}</p>
       ) : (
         <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden">
-          {opportunity?.salary || opportunity?.location ? (
-            <div className="px-6 pt-3">
-              <OpportunityDraftCompensationFields
-                salary={opportunity?.salary}
-                location={opportunity?.location}
-              />
-            </div>
-          ) : null}
-
-          <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col px-6 py-4">
+          <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col px-5 pb-2 pt-4">
             {flow.attachResume && isDesktopSplit ? (
               <ResizablePanelGroup
                 id="mp-draft-email-resume"
@@ -254,7 +257,7 @@ export function OpportunityDraftDialog({
                 </ResizablePanel>
               </ResizablePanelGroup>
             ) : (
-              <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col gap-4">
+              <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col gap-4 overflow-y-auto lg:overflow-hidden">
                 {emailPanel}
                 {resumePanel}
               </div>
@@ -293,15 +296,6 @@ export function OpportunityDraftDialog({
             }
           />
 
-          <DraftFooterControls
-            attachResume={flow.attachResume}
-            handleAttachResumeChange={flow.handleAttachResumeChange}
-            locked={flow.resumeBusy || flow.exporting}
-            resume={flow.resume}
-            resumeSizeLabel={resumeSizeLabel}
-            includeSummary={flow.includeSummary}
-            setIncludeSummary={flow.setIncludeSummary}
-          />
         </div>
       )}
       <ViewEmailDialog

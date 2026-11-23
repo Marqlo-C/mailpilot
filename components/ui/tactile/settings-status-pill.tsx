@@ -25,7 +25,8 @@ export const NESTED_PILL_TYPOGRAPHY = {
     dot: "size-1",
   },
   4: {
-    container: "rounded-md border border-border/60 text-muted-foreground px-1.5 py-0.5 text-[9.5px] gap-1 tracking-tight",
+    container:
+      "font-wordmark rounded-md border border-border/60 text-muted-foreground px-1.5 py-0.5 text-[9.5px] gap-1 tracking-tight",
     dot: "size-1",
   },
 } as const;

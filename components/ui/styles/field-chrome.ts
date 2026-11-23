@@ -36,11 +36,11 @@ export const FIELD_SHELL_PAD_COMPACT_CLASSNAME = "pl-2 pr-2";
 
 /** Transparent text control inside the shell. */
 export const FIELD_INPUT_CLASSNAME =
-  "h-full min-w-0 flex-1 border-0 bg-transparent py-0 text-xs text-foreground shadow-none outline-none placeholder:text-foreground/45 focus:outline-none focus:ring-0 disabled:cursor-not-allowed";
+  "h-full min-w-0 flex-1 border-0 bg-transparent py-0 text-xs text-foreground shadow-none outline-none placeholder:text-muted-foreground focus:outline-none focus:ring-0 disabled:cursor-not-allowed";
 
 /** Leading Lucide (or similar) icon inside the shell. */
 export const FIELD_LEADING_ICON_CLASSNAME =
-  "pointer-events-none size-4 shrink-0 text-foreground/45";
+  "pointer-events-none size-4 shrink-0 text-muted-foreground";
 
 /**
  * Clear / mic / filter / save ghosts — circular muted fill with 44px hit padding.
@@ -80,4 +80,4 @@ export const FIELD_SIDEBAR_SHELL_MULTILINE_CLASSNAME =
   "flex min-h-20 w-full min-w-0 items-start rounded-lg border border-white/10 bg-[#282c30] px-3 py-2 text-[#e4f7f3] shadow-none transition-colors focus-within:ring-1 focus-within:ring-white/20";
 
 export const FIELD_TEXTAREA_CLASSNAME =
-  "min-h-[4.5rem] w-full min-w-0 flex-1 resize-y border-0 bg-transparent py-0 text-xs leading-relaxed text-foreground shadow-none outline-none placeholder:text-foreground/45 focus:outline-none focus:ring-0 disabled:cursor-not-allowed";
+  "min-h-[4.5rem] w-full min-w-0 flex-1 resize-y border-0 bg-transparent py-0 text-xs leading-relaxed text-foreground shadow-none outline-none placeholder:text-muted-foreground focus:outline-none focus:ring-0 disabled:cursor-not-allowed";

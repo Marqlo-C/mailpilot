@@ -45,7 +45,7 @@ export function SnapshotPreviewDialog({
       identity={(() => {
         if (!viewingBriefing) {
           return {
-            title: "Viewing snap for:",
+            title: "Snapshot",
             primary: "No snapshot available",
           };
         }
@@ -57,14 +57,14 @@ export function SnapshotPreviewDialog({
           )?.senderName ?? null;
         const multi = emails.length > 1;
         return {
-          title: "Viewing snap for:",
+          title: "Snapshot",
           primary: multi ? `${emails.length} senders` : firstEmail,
           secondary: multi
             ? new Date(viewingBriefing.generatedAt).toLocaleString()
             : firstName,
           logo: (
             <DialogIdentityLogoStack
-              size="lg"
+              size="jobCard"
               items={emails.map((email) => ({
                 key: email,
                 src: senderLogoSrc(email),
@@ -86,10 +86,7 @@ export function SnapshotPreviewDialog({
             if (!viewingBriefing) return;
             onDelete(viewingBriefing);
           }}
-          className={cn(
-            SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME,
-            "h-9 px-3.5"
-          )}
+          className={SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME}
         >
           {deletePending ? (
             <Loader size="sm" />
@@ -104,7 +101,7 @@ export function SnapshotPreviewDialog({
           type="button"
           disabled={!viewingBriefing || briefingPending}
           onClick={onNewBriefing}
-          className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+          className={cn(PRIMARY_ACTION_BTN_CLASSNAME)}
         >
           <CirclePlus className="h-3.5 w-3.5" />
           <span>New</span>

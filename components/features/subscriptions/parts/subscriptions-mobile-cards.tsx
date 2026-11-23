@@ -9,6 +9,7 @@ import {
 import type { useCardListGestures } from "@/hooks/use-card-list-gestures";
 import { cn } from "@/lib/utils";
 import {
+  METRICS_GAP_CLASS,
   SUBSCRIPTION_CARD_SHELL_CLASS,
   SUBSCRIPTION_CARD_SURFACE_CLASS,
   clutterForSub,
@@ -149,7 +150,12 @@ export function ActiveMobileCards({
                 widths={metricWidths}
                 selected={selected}
               />
-              <div className="-mr-1.5 flex shrink-0 items-center justify-end gap-2.5">
+              <div
+                className={cn(
+                  "-mr-1.5 flex shrink-0 items-center justify-end",
+                  METRICS_GAP_CLASS
+                )}
+              >
                 <SubscriptionRowActions
                   sub={sub}
                   onBriefing={onBriefing}

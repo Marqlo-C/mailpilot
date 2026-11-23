@@ -164,7 +164,12 @@ export function ArchiveDesktopRow({
           />
         </div>
 
-        <div className="flex h-full shrink-0 items-center justify-end gap-1.5 sm:gap-2.5 self-stretch bg-muted/[0.12] py-0 pl-1.5 pr-2.5">
+        <div
+          className={cn(
+            "flex h-full shrink-0 items-center justify-end self-stretch bg-muted/[0.12] py-0 pl-1.5 pr-2.5",
+            METRICS_GAP_CLASS
+          )}
+        >
           <ArchiveRowActions
             entry={entry}
             pending={pending}

@@ -19,6 +19,11 @@ type CancelTaskButtonProps = {
    */
   icon?: LucideIcon;
   iconClassName?: string;
+  /**
+   * `dark` = sidebar/toast (white/10 hover). `light` = dialog/card surfaces
+   * (muted hover). Defaults to dark for flyout callers.
+   */
+  tone?: "light" | "dark";
 };
 
 /** Circular control for abortable tasks or destructive clears. */
@@ -30,6 +35,7 @@ export function CancelTaskButton({
   spinMs = 500,
   icon: Icon = X,
   iconClassName,
+  tone = "dark",
 }: CancelTaskButtonProps) {
   const [rotationDeg, setRotationDeg] = useState(0);
 
@@ -46,7 +52,10 @@ export function CancelTaskButton({
         aria-label={title}
         disabled={disabled}
         className={cn(
-          "rounded-full p-1 text-current transition-colors hover:bg-white/10 disabled:pointer-events-none disabled:opacity-50",
+          "rounded-full p-1 text-current transition-colors disabled:pointer-events-none disabled:opacity-50",
+          tone === "light"
+            ? "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+            : "hover:bg-white/10",
           className
         )}
       >

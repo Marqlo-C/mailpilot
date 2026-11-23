@@ -11,9 +11,14 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      spacing: {
+        /** Midpoint between h-7 (28px) and h-8 (32px) — filled CTA height. */
+        7.5: "1.875rem",
+      },
       fontFamily: {
         sans: ["var(--font-geist-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
-        brand: ["'Duplet Rounded'", "ui-sans-serif", "system-ui", "sans-serif"],
+        brand: ["var(--font-geist-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        wordmark: ["'Duplet Rounded'", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["var(--font-geist-mono)", "ui-monospace", "monospace"],
       },
       colors: {

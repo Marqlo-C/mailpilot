@@ -2,14 +2,10 @@
 
 import { Mail, Send } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
+import { ACTION_CTA_CLUSTER_GAP_CLASSNAME } from "@/components/ui/styles/action-button-styles";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { LabelTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export type OpportunityDraftFooterActionsProps = {
@@ -41,12 +37,12 @@ export function OpportunityDraftFooterActions({
   if (!showComposerActions) return null;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className={cn("flex items-center", ACTION_CTA_CLUSTER_GAP_CLASSNAME)}>
       <button
         type="button"
         disabled={isSaveDraftDisabled}
         onClick={onSaveDraft}
-        className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+        className={cn(SECONDARY_ACTION_BTN_CLASSNAME)}
       >
         {isSavingDraft ? (
           <Loader size="sm" />
@@ -56,32 +52,23 @@ export function OpportunityDraftFooterActions({
         <span>Save Draft</span>
       </button>
 
-      <TooltipProvider delayDuration={200}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex">
-              <button
-                type="button"
-                disabled={isSendDisabled}
-                onClick={onSend}
-                className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
-              >
-                {isSending ? (
-                  <Loader size="sm" />
-                ) : (
-                  <Send className="h-3.5 w-3.5" />
-                )}
-                <span>Send</span>
-              </button>
-            </span>
-          </TooltipTrigger>
-          {sendDisabledReason ? (
-            <TooltipContent side="top" className="text-center">
-              {sendDisabledReason}
-            </TooltipContent>
-          ) : null}
-        </Tooltip>
-      </TooltipProvider>
+      <LabelTooltip label={sendDisabledReason} side="top">
+        <span className="inline-flex">
+          <button
+            type="button"
+            disabled={isSendDisabled}
+            onClick={onSend}
+            className={cn(PRIMARY_ACTION_BTN_CLASSNAME)}
+          >
+            {isSending ? (
+              <Loader size="sm" />
+            ) : (
+              <Send className="h-3.5 w-3.5" />
+            )}
+            <span>Send</span>
+          </button>
+        </span>
+      </LabelTooltip>
     </div>
   );
 }

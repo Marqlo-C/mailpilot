@@ -169,12 +169,12 @@ export function SnapshotDialog({
       pending={pending}
       size="lg"
       identity={{
-        title: "Creating snapshot for:",
+        title: "New Snapshot",
         primary: identityPrimary,
         secondary: identitySecondary,
         logo: (
           <DialogIdentityLogoStack
-            size="lg"
+            size="jobCard"
             items={senders.map((sub) => ({
               key: sub.id,
               src: senderLogoSrc(sub.senderEmail),
@@ -194,7 +194,7 @@ export function SnapshotDialog({
               endDate: toYmd(range.to),
             });
           }}
-          className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+          className={cn(PRIMARY_ACTION_BTN_CLASSNAME)}
         >
           {pending ? (
             <Loader size="sm" />

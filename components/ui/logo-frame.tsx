@@ -14,9 +14,9 @@ export { logoInitials } from "@/lib/utils/company-logo";
  *
  * - sm → 32px (`size-8`)
  * - md → 36px (`size-9`) — subscription cards
- * - lg → 40px (`size-10`) — settings feature marks, dialog marks
- * - jobCard → 48px (`size-12`) — dedicated job opportunity card mark
- * - xl → 56px (`size-14`) — large modal / dialog marks
+ * - lg → 40px (`size-10`) — settings feature marks
+ * - jobCard → 48px (`size-12`) — job cards + dialog identity marks
+ * - xl → 56px (`size-14`) — large modal marks
  */
 const SIZE_CONFIG = {
   sm: {

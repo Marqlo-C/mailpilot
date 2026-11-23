@@ -4,11 +4,10 @@ import { useEffect, useState, useTransition } from "react";
 import type { JobApplication } from "@/lib/generated/prisma/client";
 import {
   BotMessageSquare,
-  Mail,
   RotateCcw,
-  Send,
   Sparkles,
   Type,
+  Mail,
 } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
 import { TextShimmer } from "@/components/ui/text-shimmer";
@@ -27,10 +26,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
-import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
-import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
 import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
-import { cn } from "@/lib/utils";
+import { OpportunityDraftFooterActions } from "./opportunity-draft-footer-actions";
 
 type DraftReviewDialogProps = {
   open: boolean;
@@ -187,48 +184,24 @@ export function DraftReviewDialog({
       size="lg"
       contentClassName="h-[88vh] max-h-[900px] w-full"
       identity={{
-        title: "Responding to:",
-        primary: roleTitle,
-        secondary: companyName,
-        emphasize: "secondary",
+        title: roleTitle,
+        primary: companyName,
         logoSrc: getCompanyLogoUrl(companyName),
         logoName: companyName,
-        logoSize: "lg",
+        logoSize: "jobCard",
       }}
       onCancel={() => onOpenChange(false)}
-      secondaryAction={
-        showComposerActions ? (
-          <button
-            type="button"
-            disabled={!canPersist}
-            onClick={() => persistThen("gmail-draft")}
-            className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
-          >
-            {pending ? (
-              <Loader size="sm" />
-            ) : (
-              <Mail className="h-3.5 w-3.5" />
-            )}
-            <span>Save Draft</span>
-          </button>
-        ) : null
-      }
+      secondaryAction={null}
       primaryAction={
-        showComposerActions ? (
-          <button
-            type="button"
-            disabled={!canPersist}
-            onClick={() => persistThen("send")}
-            className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
-          >
-            {pending ? (
-              <Loader size="sm" />
-            ) : (
-              <Send className="h-3.5 w-3.5" />
-            )}
-            <span>Send</span>
-          </button>
-        ) : null
+        <OpportunityDraftFooterActions
+          showComposerActions={showComposerActions}
+          isSaveDraftDisabled={!canPersist}
+          onSaveDraft={() => persistThen("gmail-draft")}
+          isSavingDraft={pending}
+          isSendDisabled={!canPersist}
+          onSend={() => persistThen("send")}
+          isSending={pending}
+        />
       }
     >
       {loadingDraft ? (

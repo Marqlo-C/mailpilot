@@ -472,7 +472,7 @@ export function SyncTelemetry({
         onOpenChange={(open) => {
           if (!open && !flushing) setConfirmFlush(false);
         }}
-        title="Clearing emails from queue:"
+        title="Clear Queue"
         primary={`${flushCount} ${flushCount === 1 ? "email" : "emails"}`}
         logo={<Logo variant="icon" size="md" showWordmark={false} />}
         description="We’ll skip Ace review for these emails and let them expire naturally. Don’t worry—any emails tied to your active jobs will stay right where they are."

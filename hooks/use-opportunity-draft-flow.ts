@@ -42,9 +42,9 @@ export const TASK_EMAIL_REFINE = "email-refine";
 export const TASK_EMAIL_DRAFT = "email-draft";
 
 export const EMAIL_REFINE_PLACEHOLDER =
-  "Ask Ace AI to refine email (e.g., make it more concise, emphasize relevant experience, adjust tone)…";
+  "Ask Ace to refine email (e.g., make it more concise, emphasize relevant experience, adjust tone)…";
 export const RESUME_REFINE_PLACEHOLDER =
-  "Ask Ace AI to refine resume (e.g., highlight key skills, focus on impact metrics, adjust project focus)…";
+  "Ask Ace to refine resume (e.g., highlight key skills, focus on impact metrics, adjust project focus)…";
 
 async function fileToAttachment(file: File): Promise<DraftAttachmentInput> {
   const buffer = await file.arrayBuffer();
@@ -605,7 +605,7 @@ export function useOpportunityDraftFlow({
     : resumeBusy
       ? "Creating tailored resume…"
       : isAwaitingResume
-        ? "Create and review your tailored resume before sending, or uncheck 'Attach Auto-Tailored Resume'."
+        ? "Create and review your tailored resume before sending, or turn off Include tailored resume."
         : isGeneratingEmail
           ? "Finish the current email task before sending."
           : null;

@@ -23,7 +23,7 @@ export function DraftPaneBusyOverlay({
         <Loader size="md" />
         <TextShimmer>{label}</TextShimmer>
       </div>
-      <CancelTaskButton title={cancelTitle} onCancel={onCancel} />
+      <CancelTaskButton tone="light" title={cancelTitle} onCancel={onCancel} />
     </div>
   );
 }

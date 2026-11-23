@@ -15,14 +15,13 @@ import { cn } from "@/lib/utils";
 
 export type DialogIdentityHeaderProps = {
   /**
-   * Present-progressive action title ending with a colon.
-   * Examples: "Responding to:", "Creating snapshot for:",
-   * "Viewing snap for:", "Unsubscribing from:".
+   * Sheet title — the subject of the dialog (role, subject line, or a short
+   * noun/imperative like "Unsubscribe", "New Snapshot", "Edit Profile").
    */
   title: string;
-  /** Emphasized identity (company, sender name, role title, …) */
+  /** Subtitle identity (company, sender, count, …) */
   primary: string;
-  /** Muted second piece after the dot (email, company, …) */
+  /** Muted second piece after the dot (name, date, …) */
   secondary?: string | null;
   logoSrc?: string | null;
   logoName?: string;
@@ -30,21 +29,24 @@ export type DialogIdentityHeaderProps = {
   /** Replace the default CompanyLogo (e.g. stacked marks for batch). */
   logo?: ReactNode;
   /**
-   * Which identity piece gets `text-foreground` emphasis.
-   * Default `secondary` — e.g. email • Name, or role • Company.
+   * Which subtitle piece gets `text-foreground` (optional).
+   * Default `secondary` when both pieces exist (e.g. email • Name).
+   * Omit / leave default when the title already carries the lead and the
+   * subtitle should stay muted (e.g. company under a job title).
    */
   emphasize?: "primary" | "secondary";
+  /** Optional meta row under primary • secondary (salary, location, …). */
+  meta?: ReactNode;
   className?: string;
 };
 
 /**
  * Shared popup chrome for identity-led dialogs:
- * `[logo]  <Action statement>:`
+ * `[logo]  <Title>`
  * `        primary • secondary`
  *
- * Title syntax: present-progressive verb phrase + trailing colon
- * (e.g. "Responding to:", "Creating snapshot for:", "Unsubscribing from:").
- * Prefer action-in-progress wording over noun labels ("Create Snapshot").
+ * Prefer the thing itself as title (role, subject, "Unsubscribe") over
+ * progressive chrome ("Responding to:", "Unsubscribing from:").
  */
 export function DialogIdentityHeader({
   title,
@@ -52,9 +54,10 @@ export function DialogIdentityHeader({
   secondary,
   logoSrc = null,
   logoName,
-  logoSize = "lg",
+  logoSize = "jobCard",
   logo,
   emphasize = "secondary",
+  meta,
   className,
 }: DialogIdentityHeaderProps) {
   const mark =
@@ -62,12 +65,11 @@ export function DialogIdentityHeader({
     (logoName ? (
       <CompanyLogo src={logoSrc} name={logoName} size={logoSize} />
     ) : null);
-  // When there's no secondary line, always emphasize the primary.
-  const emphasizePrimary =
-    emphasize === "primary" || !secondary;
-  const primaryClass = emphasizePrimary
-    ? "min-w-0 break-words text-foreground"
-    : "min-w-0 break-words";
+  // Title already owns the lead; only lift subtitle ink when callers opt in.
+  const primaryClass =
+    emphasize === "primary"
+      ? "min-w-0 break-words text-foreground"
+      : "min-w-0 break-words";
   const secondaryClass =
     emphasize === "secondary"
       ? "min-w-0 break-words text-foreground"
@@ -76,26 +78,43 @@ export function DialogIdentityHeader({
   return (
     <DialogHeader
       className={cn(
-        "shrink-0 space-y-0 border-b border-border/60 px-6 pb-3 pt-4 pr-12 text-left",
+        "shrink-0 space-y-0 border-b border-border/60 px-5 pb-3 pt-4 pr-12 text-left",
         className
       )}
     >
-      <div className="flex items-start gap-3">
-        {mark}
-        <div className="-mt-0.5 flex min-w-0 flex-col">
-          <DialogTitle className="font-brand text-lg font-bold leading-tight tracking-tight">
+      <div className="flex items-center gap-3">
+        {mark ? <div className="flex shrink-0 items-center self-center">{mark}</div> : null}
+        <div className="flex min-w-0 flex-1 flex-col justify-center">
+          <DialogTitle className="font-brand text-xl font-semibold leading-tight tracking-tight">
             {title}
           </DialogTitle>
-          {primary || secondary ? (
-            <DialogDescription className="mt-0.5 flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs font-medium text-muted-foreground">
-              <span className={primaryClass}>{primary}</span>
-              {secondary ? (
+          {primary || secondary || meta ? (
+            <div className="mt-0.5 flex min-h-5 min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+              {primary || secondary ? (
+                <DialogDescription className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-medium leading-none text-muted-foreground">
+                  <span className={primaryClass}>{primary}</span>
+                  {secondary ? (
+                    <>
+                      <span className="shrink-0 text-muted-foreground/60">•</span>
+                      <span className={secondaryClass}>{secondary}</span>
+                    </>
+                  ) : null}
+                </DialogDescription>
+              ) : null}
+              {meta ? (
                 <>
-                  <span className="shrink-0 text-muted-foreground/60">•</span>
-                  <span className={secondaryClass}>{secondary}</span>
+                  {primary || secondary ? (
+                    <span
+                      className="shrink-0 text-[11px] font-medium leading-none text-muted-foreground/60"
+                      aria-hidden
+                    >
+                      •
+                    </span>
+                  ) : null}
+                  <div className="min-w-0 shrink-0">{meta}</div>
                 </>
               ) : null}
-            </DialogDescription>
+            </div>
           ) : null}
         </div>
       </div>
@@ -106,7 +125,7 @@ export function DialogIdentityHeader({
 /** Overlapping CompanyLogo stack for multi-sender popups. */
 export function DialogIdentityLogoStack({
   items,
-  size = "lg",
+  size = "jobCard",
   max = 3,
 }: {
   items: { key: string; src: string | null; name: string }[];

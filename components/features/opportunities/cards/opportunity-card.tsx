@@ -577,7 +577,7 @@ export function OpportunityCard({
                       />
                     </span>
                   )}
-                  <span className="font-brand text-xs font-semibold tracking-tight text-muted-foreground/90 dark:text-foreground/90">
+                  <span className="font-wordmark text-xs font-semibold tracking-tight text-muted-foreground/90 dark:text-foreground/90">
                     Why it fits...
                   </span>
                 </div>

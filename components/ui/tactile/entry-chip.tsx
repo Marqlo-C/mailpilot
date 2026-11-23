@@ -9,7 +9,7 @@ import { formatStatusPillTitle } from "@/lib/utils/format";
  * {@link SettingsStatusPill} chrome.
  */
 export const ENTRY_CHIP_CLASSNAME =
-  "inline-flex h-5 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-border/60 px-2 text-[10px] font-medium leading-none text-muted-foreground";
+  "font-wordmark inline-flex h-5 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-border/60 px-2 text-[10px] font-medium leading-none text-muted-foreground";
 
 export type EntryChipProps = HTMLAttributes<HTMLSpanElement> & {
   children: ReactNode;

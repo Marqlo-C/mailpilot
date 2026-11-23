@@ -1,4 +1,5 @@
 import type { Subscription } from "@/lib/generated/prisma/client";
+import { ACTION_CTA_CLUSTER_GAP_CLASSNAME } from "@/components/ui/styles/action-button-styles";
 import { faviconUrlForDomain, getCleanDomain } from "@/lib/utils/domain";
 import {
   effectiveSubscriptionClutterScore,
@@ -26,8 +27,8 @@ export const CLUTTER_VALUE_CLASSES: Record<ClutterScoreTier, string> = {
 export const SELECT_MUTED_PILL_VALUE_CLASSNAME =
   "bg-muted/50 text-muted-foreground";
 
-/** Same gap as Send Snapshot ↔ Unsubscribe (`gap-2.5`). */
-export const METRICS_GAP_CLASS = "gap-2.5";
+/** Same gap as Send Snapshot ↔ Unsubscribe (CTA cluster SSOT). */
+export const METRICS_GAP_CLASS = ACTION_CTA_CLUSTER_GAP_CLASSNAME;
 
 /** Desktop row height — was `h-16` (64px); +2px. Class literal for Tailwind. */
 export const SUBSCRIPTION_ROW_HEIGHT_PX = 66;

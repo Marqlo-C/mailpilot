@@ -46,7 +46,7 @@ const SECONDARY_DESTRUCTIVE_ACTION_TONE = {
 } as const;
 
 const SECONDARY_OUTLINE_LAYOUT = [
-  "inline-flex items-center justify-center gap-1.5 rounded-lg border bg-transparent px-3 py-1.5 text-xs font-medium disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border bg-transparent px-3 text-xs font-medium disabled:pointer-events-none disabled:opacity-50",
   PRESS_SCALE_BTN,
 ].join(" ");
 
@@ -73,7 +73,7 @@ export const SECONDARY_ACTION_FLYOUT_COUNT_CLASSNAME = [
 
 /** Gray outline secondary — selected/locked row CTAs. */
 export const SECONDARY_ACTION_BTN_MUTED_CLASSNAME =
-  "inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#899499] bg-transparent px-3 py-1.5 text-xs font-medium text-[#899499] pointer-events-none";
+  "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-[#899499] bg-transparent px-3 text-xs font-medium text-[#899499] pointer-events-none";
 
 export const SECONDARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME = [
   SECONDARY_OUTLINE_LAYOUT,

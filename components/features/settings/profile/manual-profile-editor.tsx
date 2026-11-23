@@ -121,10 +121,10 @@ export function ManualProfileEditor({
         pending={pending}
         size="lg"
         identity={{
-          title: "Editing master profile:",
+          title: "Edit Profile",
           primary: form.fullName.trim() || "Master Profile",
           emphasize: "primary",
-          logo: <LogoFrameIcon icon={Pencil} size="lg" />,
+          logo: <LogoFrameIcon icon={Pencil} size="jobCard" />,
         }}
         showCancel
         cancelLabel="Cancel"
@@ -139,7 +139,7 @@ export function ManualProfileEditor({
               <Button
                 type="button"
                 variant="ghost"
-                className="h-9 text-destructive"
+                className="h-8 text-destructive"
                 disabled={pending || !profile}
                 onClick={() => setConfirmReset(true)}
               >
@@ -159,7 +159,7 @@ export function ManualProfileEditor({
             <Button
               type="button"
               variant="destructive"
-              className="h-9"
+              className="h-8"
               disabled={pending}
               onClick={clearProfile}
             >
@@ -173,7 +173,7 @@ export function ManualProfileEditor({
               type="button"
               disabled={pending}
               onClick={submit}
-              className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+              className={cn(PRIMARY_ACTION_BTN_CLASSNAME)}
             >
               {pending ? (
                 <Loader size="sm" />

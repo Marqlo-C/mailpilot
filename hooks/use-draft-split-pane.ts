@@ -6,8 +6,13 @@ import { useHydrated } from "./use-hydrated";
 
 export const DRAFT_SPLIT_STORAGE_KEY = "mp-draft-email-resume-split";
 export const DRAFT_SPLIT_DEFAULT = 48;
+/** Email floor — keeps To/Subject usable when dragging toward the resume. */
 export const DRAFT_SPLIT_MIN = 28;
-export const DRAFT_SPLIT_MAX = 72;
+/**
+ * Email ceiling (= resume floor). ~34% resume keeps zoom rail + icon cluster
+ * and a readable Fit page when dragging the resize bar.
+ */
+export const DRAFT_SPLIT_MAX = 66;
 
 export const DRAFT_SPLIT_PANEL_EMAIL = "draft-email";
 export const DRAFT_SPLIT_PANEL_RESUME = "draft-resume";

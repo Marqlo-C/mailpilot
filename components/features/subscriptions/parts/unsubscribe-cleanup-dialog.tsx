@@ -65,14 +65,14 @@ export function UnsubscribeCleanupDialog({
       pending={pending}
       size="sm"
       identity={{
-        title: "Unsubscribing from:",
+        title: "Unsubscribe",
         primary: batchConfirmOpen
           ? `${selectedIds.length} selected sender${selectedIds.length === 1 ? "" : "s"}`
           : (selected?.senderEmail ?? "sender"),
         secondary: batchConfirmOpen ? null : (selected?.senderName ?? null),
         logo: batchConfirmOpen ? (
           <DialogIdentityLogoStack
-            size="lg"
+            size="jobCard"
             items={selectedSubscriptions.map((sub) => ({
               key: sub.id,
               src: senderLogoSrc(sub.senderEmail),
@@ -83,7 +83,7 @@ export function UnsubscribeCleanupDialog({
           <CompanyLogo
             src={senderLogoSrc(selected.senderEmail)}
             name={selected.senderName ?? selected.senderEmail}
-            size="lg"
+            size="jobCard"
           />
         ) : undefined,
       }}
@@ -93,7 +93,7 @@ export function UnsubscribeCleanupDialog({
           type="button"
           disabled={pending}
           onClick={onConfirm}
-          className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
+          className={cn(PRIMARY_ACTION_BTN_CLASSNAME)}
         >
           {pending ? (
             <Loader size="sm" />

@@ -26,7 +26,6 @@ export function EmailPreviewDialog({
       messageId={messageId}
       senderEmail={senderEmail}
       senderName={senderName}
-      identityTitle="Viewing latest message from:"
       identityEmphasizeSender
     />
   );

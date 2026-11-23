@@ -272,7 +272,7 @@ export function useTabRailClasses() {
 
 /** Base pill chrome for tab counts and toolbar number fields. */
 export const TAB_COUNT_BADGE_CLASSNAME =
-  "font-brand rounded-md px-1.5 py-0.5 text-[10px] font-bold leading-none bg-[hsl(var(--tab-rail-chip))] text-foreground/80";
+  "font-wordmark rounded-md px-1.5 py-0.5 text-[10px] font-bold leading-none tabular-nums bg-[hsl(var(--tab-rail-chip))] text-foreground/80";
 
 type TabCountBadgeProps = {
   count: number;
