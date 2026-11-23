@@ -1,4 +1,4 @@
-import type { JobOpportunity } from "@prisma/client";
+import type { JobOpportunity } from "@/lib/generated/prisma/client";
 
 import { isUserArchived } from "@/lib/opportunities/lifecycle";
 

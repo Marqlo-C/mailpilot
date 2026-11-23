@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+
+import { useHydrated } from "@/hooks/use-hydrated";
 
 import { DND_PAGE_EDGE_PX } from "@/lib/utils/dnd/constants";
 import { cn } from "@/lib/utils";
@@ -33,10 +34,7 @@ export function PageFlipBumpers({
   totalPages: number;
   dropZone?: string | null;
 }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useHydrated();
 
   if (!active || totalPages <= 1 || dropZone || !mounted || typeof document === "undefined") {
     return null;

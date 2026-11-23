@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+
+import { Loader } from "@/components/ui/loader";
 
 function GoogleGlyph({ className }: { className?: string }) {
   return (
@@ -50,7 +51,7 @@ export function GoogleSignInButton({ href }: { href: string }) {
       />
       <span className="relative z-10 inline-flex items-center gap-2.5">
         {pending ? (
-          <Loader2 className="size-4 animate-spin" aria-hidden />
+          <Loader size="sm" aria-hidden />
         ) : (
           <GoogleGlyph className="size-5" />
         )}

@@ -1,7 +1,8 @@
 "use client";
 
-import type { Subscription } from "@prisma/client";
-import { Loader2, UserRoundMinus } from "lucide-react";
+import type { Subscription } from "@/lib/generated/prisma/client";
+import { UserRoundMinus } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { SnapshotIcon } from "@/components/ui/icons/snapshot-icon";
 import {
   BULK_ACTION_BTN_CLASSNAME,
@@ -55,7 +56,7 @@ export function SubscriptionBulkBar({
           className={BULK_ACTION_BTN_CLASSNAME}
         >
           {pending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader size="sm" />
           ) : (
             <UserRoundMinus className="h-3.5 w-3.5" />
           )}
@@ -81,7 +82,7 @@ export function SubscriptionBulkBar({
           className={BULK_ACTION_BTN_CLASSNAME}
         >
           {briefingPending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader size="sm" />
           ) : null}
           Send
           <BulkActionCount count={selectedIds.length} />
@@ -97,7 +98,7 @@ export function SubscriptionBulkBar({
               className={BULK_ACTION_DISMISS_BTN_CLASSNAME}
             >
               {deletePending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader size="sm" />
               ) : null}
               Delete
               <BulkActionCount

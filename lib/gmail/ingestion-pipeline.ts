@@ -1,5 +1,5 @@
 import type { gmail_v1 } from "googleapis";
-import type { JobOpportunity } from "@prisma/client";
+import type { JobOpportunity } from "@/lib/generated/prisma/client";
 import { type classifyJobEmail } from "@/lib/ai";
 import { resolveApplicationType } from "@/lib/opportunities/application-method";
 import {

@@ -228,7 +228,6 @@ export function AppMenuSelect({
   // stretch wider via `w-full` / flex — never shrink below content.
   useLayoutEffect(() => {
     if (!matchTriggerWidth) {
-      setMenuWidthPx(undefined);
       return;
     }
     const root = measureRef.current;
@@ -243,6 +242,8 @@ export function AppMenuSelect({
     const next = widest > 0 ? Math.ceil(widest + 10) : undefined;
     setMenuWidthPx((prev) => (prev === next ? prev : next));
   }, [options, size, surface, placeholder, matchTriggerWidth]);
+
+  const effectiveMenuWidthPx = matchTriggerWidth ? menuWidthPx : undefined;
 
   // Default: fill parent (`w-full`). Opt into content-hug with `w-auto`
   // (toolbar filters / page size) — measured minWidth still floors the bar.
@@ -289,8 +290,8 @@ export function AppMenuSelect({
             disabled={disabled || options.length === 0}
             aria-label={ariaLabel}
             style={
-              menuWidthPx != null
-                ? ({ minWidth: menuWidthPx } as const)
+              effectiveMenuWidthPx != null
+                ? ({ minWidth: effectiveMenuWidthPx } as const)
                 : undefined
             }
             className={cn(

@@ -147,9 +147,9 @@ function createMockEnvironment() {
     Element: MockElement,
     HTMLIFrameElement: MockIFrame,
     ResizeObserver: MockResizeObserver,
-    setTimeout: (fn: Function, ms: number) => setTimeout(fn, ms),
+    setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms),
     clearTimeout: (id: NodeJS.Timeout) => clearTimeout(id),
-    requestAnimationFrame: (cb: Function) => setTimeout(cb, 16),
+    requestAnimationFrame: (cb: () => void) => setTimeout(cb, 16),
     cancelAnimationFrame: (id: any) => clearTimeout(id),
     getComputedStyle: () => ({
       fontWeight: "400",

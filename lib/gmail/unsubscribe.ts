@@ -1,5 +1,5 @@
 import type { gmail_v1 } from "googleapis";
-import type { Subscription } from "@prisma/client";
+import type { Subscription } from "@/lib/generated/prisma/client";
 
 import { rethrowIfInsufficientScope } from "@/lib/gmail/google";
 import { safeFetch, SsrfError } from "@/lib/core/ssrf";

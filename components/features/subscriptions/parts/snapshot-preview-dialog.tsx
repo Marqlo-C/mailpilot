@@ -1,5 +1,6 @@
-import type { Subscription } from "@prisma/client";
-import { CirclePlus, Loader2, Trash2 } from "lucide-react";
+import type { Subscription } from "@/lib/generated/prisma/client";
+import { CirclePlus, Trash2 } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
 import { DialogIdentityLogoStack } from "@/components/ui/composites/dialog-identity-header";
 import {
@@ -91,7 +92,7 @@ export function SnapshotPreviewDialog({
           )}
         >
           {deletePending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader size="sm" />
           ) : (
             <Trash2 className="h-3.5 w-3.5" />
           )}

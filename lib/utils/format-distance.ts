@@ -74,7 +74,7 @@ export function formatRelativeTime(
   }
 
   // 2. Strip leading "Posted: ", "Posted ", "Reposted: ", "Reposted "
-  let cleaned = raw
+  const cleaned = raw
     .replace(/^(?:reposted|posted)\s*[:\s-]*\s*/i, "")
     .replace(/\s*ago\s*$/i, "")
     .trim();

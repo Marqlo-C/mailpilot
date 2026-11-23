@@ -123,6 +123,11 @@ export const accountRulesSchema = z.object({
    */
   encryptedBridgeSecret: z.string().nullable().default(null),
   /**
+   * AES-256-GCM encrypted ephemeral bearer token required by the local Ollama
+   * authenticating reverse proxy tunnel (`scripts/ollama-bridge.mjs`).
+   */
+  encryptedTunnelToken: z.string().nullable().default(null),
+  /**
    * Optional secret required by the Ollama terminal bridge when registering a
    * Cloudflare Quick Tunnel URL against this account (legacy fallback).
    */

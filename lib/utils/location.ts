@@ -133,7 +133,7 @@ export function parseLocation(raw: string | null | undefined): ParsedLocation {
     }
   }
 
-  let cleaned = raw
+  const cleaned = raw
     .replace(/^locations?[:\s]*/i, "")
     .replace(/^locations?([A-Z])/i, "$1")
     .trim();

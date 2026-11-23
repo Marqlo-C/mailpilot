@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { z } from "zod";
 
 import { cleanEmailPayload } from "@/lib/ai/email-cleaner";

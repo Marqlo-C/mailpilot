@@ -1,6 +1,7 @@
 "use client";
 
-import { Loader2, Rocket } from "lucide-react";
+import { Rocket } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { Button } from "@/components/ui/button";
 import { SettingsStepCard } from "@/components/ui/tactile/nested-settings-card";
 
@@ -40,7 +41,7 @@ export function StepGettingStarted({
           }}
         >
           {checkingLocalOllama ? (
-            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+            <Loader size="sm" className="text-muted-foreground" />
           ) : (
             <Rocket className="size-3.5 text-muted-foreground" />
           )}

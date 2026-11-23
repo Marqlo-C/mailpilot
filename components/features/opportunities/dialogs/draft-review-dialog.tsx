@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import type { JobApplication } from "@prisma/client";
-import { Loader2, Mail, RefreshCw, Send, Sparkles } from "lucide-react";
+import type { JobApplication } from "@/lib/generated/prisma/client";
+import { Mail, RefreshCw, Send, Sparkles } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
+import { TextShimmer } from "@/components/ui/text-shimmer";
 import { toast } from "sonner";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 
@@ -48,13 +50,23 @@ export function DraftReviewDialog({
   const [refineInstruction, setRefineInstruction] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const activeDraftKey = open && application ? application.id : null;
+  const [prevActiveDraftKey, setPrevActiveDraftKey] = useState<string | null>(
+    null
+  );
+  if (prevActiveDraftKey !== activeDraftKey) {
+    setPrevActiveDraftKey(activeDraftKey);
+    if (activeDraftKey) {
+      setLoadingDraft(true);
+      setError(null);
+      setRefineInstruction("");
+    }
+  }
+
   useEffect(() => {
     if (!open || !application) return;
 
     let cancelled = false;
-    setLoadingDraft(true);
-    setError(null);
-    setRefineInstruction("");
 
     void (async () => {
       const result = await prepareDraftForReview(application.id);
@@ -185,7 +197,7 @@ export function DraftReviewDialog({
             className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
           >
             {pending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader size="sm" />
             ) : (
               <Mail className="h-3.5 w-3.5" />
             )}
@@ -202,7 +214,7 @@ export function DraftReviewDialog({
             className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
           >
             {pending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader size="sm" />
             ) : (
               <Send className="h-3.5 w-3.5" />
             )}
@@ -212,9 +224,9 @@ export function DraftReviewDialog({
       }
     >
       {loadingDraft ? (
-        <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Preparing draft…
+        <div className="flex items-center justify-center gap-2 py-16 text-sm">
+          <Loader size="md" />
+          <TextShimmer>Preparing draft…</TextShimmer>
         </div>
       ) : (
         <div className="space-y-4">
@@ -296,7 +308,7 @@ export function DraftReviewDialog({
                   title="Generate a fresh draft"
                 >
                   {retrying ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader size="sm" />
                   ) : (
                     <RefreshCw className="h-4 w-4" />
                   )}
@@ -310,7 +322,7 @@ export function DraftReviewDialog({
                   onClick={handleRefine}
                 >
                   {refining ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader size="sm" />
                   ) : (
                     <Sparkles className="h-4 w-4" />
                   )}

@@ -10,7 +10,8 @@ import {
   useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
-import type { Subscription } from "@prisma/client";
+import { useHydrated } from "@/hooks/use-hydrated";
+import type { Subscription } from "@/lib/generated/prisma/client";
 import { toast } from "sonner";
 import type { CleanupAction } from "@/lib/gmail/unsubscribe";
 import {
@@ -64,11 +65,29 @@ export function useSubscriptionsActions({
   const [viewingBriefing, setViewingBriefing] =
     useState<ResolvedBriefing | null>(null);
   const [briefingPreviewLoading, setBriefingPreviewLoading] = useState(false);
+  const hydrated = useHydrated();
   const [selectedEmailSub, setSelectedEmailSub] =
     useState<Subscription | null>(null);
-  const [localBriefings, setLocalBriefings] = useState<
-    Record<string, LocalBriefingRecord>
-  >({});
+  const [localBriefingsOverride, setLocalBriefingsOverride] = useState<{
+    accountId: string;
+    records: Record<string, LocalBriefingRecord>;
+  } | null>(null);
+
+  const localBriefings = useMemo<Record<string, LocalBriefingRecord>>(() => {
+    if (!hydrated) return {};
+    if (localBriefingsOverride?.accountId === accountId) {
+      return localBriefingsOverride.records;
+    }
+    return listLocalBriefings(accountId);
+  }, [hydrated, localBriefingsOverride, accountId]);
+
+  const setLocalBriefings = useCallback(
+    (records: Record<string, LocalBriefingRecord>) => {
+      setLocalBriefingsOverride({ accountId, records });
+    },
+    [accountId]
+  );
+
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [cleanupPending, setCleanupPending] = useState<string | null>(null);
@@ -81,28 +100,31 @@ export function useSubscriptionsActions({
   const unsubscribeDialogOpen = Boolean(selected) || batchConfirmOpen;
   const requestUnsubscribeRef = useRef<(ids: string[]) => void>(() => {});
 
-  useLayoutEffect(() => {
-    setLocalBriefings(listLocalBriefings(accountId));
-  }, [accountId]);
-
-  useEffect(() => {
+  const [prevDialogOpen, setPrevDialogOpen] = useState(unsubscribeDialogOpen);
+  if (prevDialogOpen !== unsubscribeDialogOpen) {
+    setPrevDialogOpen(unsubscribeDialogOpen);
     if (unsubscribeDialogOpen) {
       setCleanupChoice("NONE");
       setError(null);
     }
-  }, [unsubscribeDialogOpen]);
+  }
+
+  const viewingBriefingId = viewingBriefing?.id ?? null;
+  const [prevViewingBriefingId, setPrevViewingBriefingId] = useState<
+    string | null
+  >(null);
+  if (prevViewingBriefingId !== viewingBriefingId) {
+    setPrevViewingBriefingId(viewingBriefingId);
+    setBriefingPreviewLoading(Boolean(viewingBriefingId));
+  }
 
   useEffect(() => {
-    if (!viewingBriefing) {
-      setBriefingPreviewLoading(false);
-      return;
-    }
-    setBriefingPreviewLoading(true);
+    if (!viewingBriefingId) return;
     const fallback = window.setTimeout(() => {
       setBriefingPreviewLoading(false);
     }, 2000);
     return () => window.clearTimeout(fallback);
-  }, [viewingBriefing?.id]);
+  }, [viewingBriefingId]);
 
   const resolveBriefingForSub = useCallback(
     (sub: Subscription): ResolvedBriefing | null => {
@@ -225,7 +247,14 @@ export function useSubscriptionsActions({
         setBriefingPending(false);
       }
     },
-    [briefingTargets, briefingPending, accountId, setSelectedIds, router]
+    [
+      briefingTargets,
+      briefingPending,
+      accountId,
+      setSelectedIds,
+      setLocalBriefings,
+      router,
+    ]
   );
 
   const deleteBriefingsForSubscriptions = useCallback(
@@ -269,7 +298,7 @@ export function useSubscriptionsActions({
         setDeletePending(false);
       }
     },
-    [deletePending, accountId, router]
+    [deletePending, accountId, setLocalBriefings, router]
   );
 
   const closeUnsubscribeDialog = useCallback(() => {
@@ -306,7 +335,9 @@ export function useSubscriptionsActions({
     },
     [active, setSelectionMode, setSelectedIds]
   );
-  requestUnsubscribeRef.current = requestUnsubscribe;
+  useLayoutEffect(() => {
+    requestUnsubscribeRef.current = requestUnsubscribe;
+  }, [requestUnsubscribe]);
 
   const runUnsubscribe = useCallback(
     (cleanup: CleanupAction) => {
@@ -404,7 +435,7 @@ export function useSubscriptionsActions({
       toast.success("Record deleted");
       router.refresh();
     });
-  }, [deleteRecordTarget, accountId, router]);
+  }, [deleteRecordTarget, accountId, setLocalBriefings, router]);
 
   return {
     selected,

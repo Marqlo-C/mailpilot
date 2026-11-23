@@ -95,7 +95,6 @@ export function WavySliderDual({
   const waveRafRef = useRef<number | null>(null);
   const interactingRef = useRef(false);
   const [trackWidth, setTrackWidth] = useState(0);
-  const [waving, setWaving] = useState(false);
 
   useEffect(() => {
     const el = trackRef.current;
@@ -148,7 +147,7 @@ export function WavySliderDual({
     }
     const g = waveGroupRef.current;
     if (g) g.setAttribute("transform", "translate(0 0)");
-    setWaving(false);
+    trackRef.current?.removeAttribute("data-waving");
   }
 
   function startWave(currentValue: number) {
@@ -162,7 +161,7 @@ export function WavySliderDual({
       cancelAnimationFrame(waveRafRef.current);
       waveRafRef.current = null;
     }
-    setWaving(true);
+    trackRef.current?.setAttribute("data-waving", "true");
     const start = performance.now();
     const tick = (now: number) => {
       const g = waveGroupRef.current;
@@ -218,7 +217,6 @@ export function WavySliderDual({
         disabled && "pointer-events-none opacity-50",
         className
       )}
-      data-waving={waving ? "true" : undefined}
       data-wave-style="dual"
     >
       <div

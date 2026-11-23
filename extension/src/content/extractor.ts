@@ -1,3 +1,4 @@
+/// <reference types="chrome" />
 import type { ExtractedJobContext } from "../lib/types";
 import {
   cleanTitleAndCompany,

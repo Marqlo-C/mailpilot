@@ -62,36 +62,42 @@ export function AutomationCard({
   const disabled = !accountId || pending;
   const autoSend = rules.applicationMode === "AUTO_SEND";
 
-  useEffect(() => {
+  const [prevAccountId, setPrevAccountId] = useState(accountId);
+  if (prevAccountId !== accountId) {
+    setPrevAccountId(accountId);
     const stored = loadStoredAutomationAccordion(accountId);
-    setAccordion((prev) => {
-      if (
-        prev.matchOpen === stored.matchOpen &&
-        prev.syncOpen === stored.syncOpen &&
-        prev.excludedOpen === stored.excludedOpen &&
-        prev.retentionOpen === stored.retentionOpen &&
-        prev.lifecycleOpen === stored.lifecycleOpen
-      ) {
-        return prev;
-      }
-      return stored;
-    });
-    saveStoredAutomationAccordion(accountId, stored);
+    setAccordion(stored);
+  }
+
+  useEffect(() => {
+    saveStoredAutomationAccordion(accountId, loadStoredAutomationAccordion(accountId));
   }, [accountId]);
 
-  useEffect(() => {
+  const [prevMatchThreshold, setPrevMatchThreshold] = useState(matchThreshold);
+  if (prevMatchThreshold !== matchThreshold) {
+    setPrevMatchThreshold(matchThreshold);
     setThreshold(matchThreshold ?? DEFAULT_MATCH_THRESHOLD);
-  }, [matchThreshold]);
+  }
 
-  useEffect(() => {
+  const [prevRuleNumbers, setPrevRuleNumbers] = useState({
+    maxAutoSendsPerDay: rules.maxAutoSendsPerDay,
+    syncMaxMessages: rules.syncMaxMessages,
+    pendingAiDrainLimit: rules.pendingAiDrainLimit,
+  });
+  if (
+    prevRuleNumbers.maxAutoSendsPerDay !== rules.maxAutoSendsPerDay ||
+    prevRuleNumbers.syncMaxMessages !== rules.syncMaxMessages ||
+    prevRuleNumbers.pendingAiDrainLimit !== rules.pendingAiDrainLimit
+  ) {
+    setPrevRuleNumbers({
+      maxAutoSendsPerDay: rules.maxAutoSendsPerDay,
+      syncMaxMessages: rules.syncMaxMessages,
+      pendingAiDrainLimit: rules.pendingAiDrainLimit,
+    });
     setMaxAutoSends(rules.maxAutoSendsPerDay);
     setSyncMaxMessages(rules.syncMaxMessages);
     setPendingAiDrain(rules.pendingAiDrainLimit);
-  }, [
-    rules.maxAutoSendsPerDay,
-    rules.syncMaxMessages,
-    rules.pendingAiDrainLimit,
-  ]);
+  }
 
   function toggleSection(key: keyof AccordionState) {
     setAccordion((prev) => {

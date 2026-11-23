@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { getActiveAccount } from "@/lib/data";
 import { persistProfileScopedRules } from "@/lib/profile/persistent-profile";
 import { prisma } from "@/lib/core/prisma";

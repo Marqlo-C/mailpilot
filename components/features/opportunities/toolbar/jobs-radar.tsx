@@ -3,14 +3,14 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
-import type { JobApplication, JobOpportunity } from "@prisma/client";
+import type { JobApplication, JobOpportunity } from "@/lib/generated/prisma/client";
 import {
   Archive,
   ExternalLink,
@@ -43,7 +43,8 @@ import {
   clearSidebarPageTab,
   peekSidebarPageTab,
   persistActivePageTab,
-  readActivePageTab,
+  resolveInitialPageTab,
+  subscribePageTabs,
 } from "@/lib/utils/navigation/page-tabs";
 import { faviconUrlForDomain } from "@/lib/utils/domain";
 import {
@@ -150,10 +151,39 @@ export function JobsRadar({
   const [draftOpportunity, setDraftOpportunity] =
     useState<JobOpportunity | null>(null);
   const [threshold, setThreshold] = useState(matchThreshold);
-  const [activeTab, setActiveTab] = useState<string>(() => initialTab ?? "leads");
-  const [sort, setSort] = useState(
-    () => TAB_SORT_CONFIG[tabKeyFromValue(initialTab ?? "leads")].defaultSort
+  const [prevMatchThreshold, setPrevMatchThreshold] = useState(matchThreshold);
+  if (prevMatchThreshold !== matchThreshold) {
+    setPrevMatchThreshold(matchThreshold);
+    setThreshold(matchThreshold);
+  }
+  const jobRadarTabValues = useMemo(
+    () => JOB_RADAR_PAGE_TABS.map((item) => item.value),
+    []
   );
+  const fallbackTab = initialTab ?? "leads";
+  const activeTab: string = useSyncExternalStore(
+    subscribePageTabs,
+    () =>
+      resolveInitialPageTab({
+        href: "/jobs",
+        allowed: jobRadarTabValues,
+        fallback: fallbackTab,
+        accountId,
+      }),
+    () => fallbackTab
+  );
+  const [sort, setSort] = useState(
+    () => TAB_SORT_CONFIG[tabKeyFromValue(fallbackTab)].defaultSort
+  );
+  const [prevActiveTab, setPrevActiveTab] = useState(activeTab);
+  if (prevActiveTab !== activeTab) {
+    setPrevActiveTab(activeTab);
+    const nextConfig = TAB_SORT_CONFIG[tabKeyFromValue(activeTab)];
+    const allowed = nextConfig.options.map((o) => o.value);
+    if (!allowed.includes(sort)) {
+      setSort(nextConfig.defaultSort);
+    }
+  }
   const [dragDropZone, setDragDropZone] = useState<string | null>(null);
   const suppressTabChangeRef = useRef(false);
 
@@ -178,13 +208,8 @@ export function JobsRadar({
     }
   }, []);
 
-  useEffect(() => {
-    setThreshold(matchThreshold);
-  }, [matchThreshold]);
-
   function handleTabChange(nextTab: string) {
     if (suppressTabChangeRef.current) return;
-    setActiveTab(nextTab);
     persistActivePageTab("/jobs", nextTab, accountId);
     const nextConfig = TAB_SORT_CONFIG[tabKeyFromValue(nextTab)];
     const allowed = nextConfig.options.map((o) => o.value);
@@ -193,33 +218,13 @@ export function JobsRadar({
     }
   }
 
-  useLayoutEffect(() => {
-    const pending = peekSidebarPageTab(
-      "/jobs",
-      JOB_RADAR_PAGE_TABS.map((item) => item.value)
-    );
-    if (pending) {
-      setActiveTab(pending);
-      setSort(TAB_SORT_CONFIG[tabKeyFromValue(pending)].defaultSort);
-      persistActivePageTab("/jobs", pending, accountId);
-      const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
-      return () => window.clearTimeout(clearId);
-    }
-
-    const saved = readActivePageTab(
-      "/jobs",
-      JOB_RADAR_PAGE_TABS.map((item) => item.value),
-      accountId
-    );
-    if (saved && saved !== activeTab) {
-      setActiveTab(saved);
-      const nextConfig = TAB_SORT_CONFIG[tabKeyFromValue(saved)];
-      const allowed = nextConfig.options.map((o) => o.value);
-      if (!allowed.includes(sort)) {
-        setSort(nextConfig.defaultSort);
-      }
-    }
-  }, [accountId, activeTab, sort]);
+  useEffect(() => {
+    const pending = peekSidebarPageTab("/jobs", jobRadarTabValues);
+    if (!pending) return;
+    persistActivePageTab("/jobs", pending, accountId);
+    const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
+    return () => window.clearTimeout(clearId);
+  }, [accountId, jobRadarTabValues, activeTab]);
 
   const handleDragZoneChange = useCallback((zoneId: string | null) => {
     setDragDropZone(zoneId);

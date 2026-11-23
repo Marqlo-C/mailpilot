@@ -24,6 +24,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -192,8 +193,6 @@ export function useCardListGestures({
   /** Clear sticky insert once after an edge page flip. */
   const ignorePrevInsertRef = useRef(false);
 
-  dragRef.current = drag;
-
   const selectedRef = useRef(selectedIds);
   const selectionModeRef = useRef(selectionMode);
   const pageIdsRef = useRef(pageItemIds);
@@ -201,12 +200,15 @@ export function useCardListGestures({
   const rulesRef = useRef(rules);
   const pageMetaRef = useRef({ currentPage, totalPages, pageSize });
 
-  selectedRef.current = selectedIds;
-  selectionModeRef.current = selectionMode;
-  pageIdsRef.current = pageItemIds;
-  fullIdsRef.current = fullItemIds;
-  rulesRef.current = rules;
-  pageMetaRef.current = { currentPage, totalPages, pageSize };
+  useLayoutEffect(() => {
+    dragRef.current = drag;
+    selectedRef.current = selectedIds;
+    selectionModeRef.current = selectionMode;
+    pageIdsRef.current = pageItemIds;
+    fullIdsRef.current = fullItemIds;
+    rulesRef.current = rules;
+    pageMetaRef.current = { currentPage, totalPages, pageSize };
+  });
 
   const clearPageFlip = useCallback(() => {
     if (pageFlipTimerRef.current) {
@@ -347,7 +349,7 @@ export function useCardListGestures({
       const pending = pendingRef.current;
       if (pending?.kind !== "paint") return;
       const scroller = getDragScrollElement();
-      let x = clientX;
+      const x = clientX;
       let y = clientY;
       if (scroller) {
         const band = getAutoScrollBand(scroller);

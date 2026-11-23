@@ -137,7 +137,7 @@ function createMockEnvironment() {
     document: doc,
     Element: MockElement,
     HTMLIFrameElement: MockIFrame,
-    setTimeout: (fn: Function, ms: number) => setTimeout(fn, ms),
+    setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms),
     clearTimeout: (id: NodeJS.Timeout) => clearTimeout(id),
     addEventListener: () => {},
     removeEventListener: () => {},

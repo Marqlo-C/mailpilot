@@ -1,6 +1,6 @@
 "use client";
 
-import type { Subscription } from "@prisma/client";
+import type { Subscription } from "@/lib/generated/prisma/client";
 import { TabsContent } from "@/components/ui/tabs";
 import { PipelinePaginationFooter } from "@/components/ui/composites/pipeline-pagination";
 import {

@@ -2,12 +2,15 @@
 
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
-import type { Subscription, SubscriptionHistory } from "@prisma/client";
+import { useHydrated } from "@/hooks/use-hydrated";
+import type { Subscription, SubscriptionHistory } from "@/lib/generated/prisma/client";
 
 import { DragGhost } from "@/components/ui/dnd/drag-ghost";
 import { PageFlipBumpers } from "@/components/ui/dnd/page-flip-bumpers";
@@ -45,7 +48,8 @@ import {
   clearSidebarPageTab,
   peekSidebarPageTab,
   persistActivePageTab,
-  readActivePageTab,
+  resolveInitialPageTab,
+  subscribePageTabs,
 } from "@/lib/utils/navigation/page-tabs";
 
 const SUBSCRIPTIONS_PAGE_SIZE_KEY = "mailpilot_subscriptions_per_page";
@@ -67,10 +71,31 @@ export function SubscriptionsView({
   latestBriefing = null,
   initialTab,
 }: SubscriptionsViewProps) {
-  const [activeTab, setActiveTab] = useState<SubscriptionTab>(
-    () => (initialTab as SubscriptionTab) ?? "active"
+  const hydrated = useHydrated();
+  const subscriptionTabValues = useMemo(
+    () => SUBSCRIPTION_PAGE_TABS.map((item) => item.value),
+    []
   );
-  const [clutterThreshold, setClutterThresholdState] = useState(0);
+  const fallbackTab = (initialTab as SubscriptionTab) ?? "active";
+  const activeTab: SubscriptionTab = useSyncExternalStore(
+    subscribePageTabs,
+    () =>
+      resolveInitialPageTab({
+        href: "/subscriptions",
+        allowed: subscriptionTabValues,
+        fallback: fallbackTab,
+        accountId,
+      }),
+    () => fallbackTab
+  );
+  const [customClutter, setCustomClutter] = useState<{
+    accountId: string;
+    value: number;
+  } | null>(null);
+  const clutterThreshold =
+    customClutter?.accountId === accountId
+      ? customClutter.value
+      : (hydrated ? readClutterThreshold(accountId) : null) ?? 0;
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] =
     useState<SubscriptionCategoryFilter>("all");
@@ -102,6 +127,25 @@ export function SubscriptionsView({
   });
 
   const {
+    archive,
+    filteredActive,
+    filteredArchive,
+    filteredActiveIds,
+  } = useSubscriptionsData({
+    subscriptions,
+    history,
+    active,
+    clutterThreshold,
+    searchQuery,
+    categoryFilter,
+    sortOption,
+    customOrder,
+  });
+  useLayoutEffect(() => {
+    filteredActiveIdsRef.current = filteredActiveIds;
+  }, [filteredActiveIds]);
+
+  const {
     selectedIds,
     setSelectedIds,
     selectionMode,
@@ -116,7 +160,7 @@ export function SubscriptionsView({
     selectedSubscriptions,
   } = useSubscriptionsSelection({
     activeItems: active,
-    filteredActiveIds: filteredActiveIdsRef,
+    filteredActiveIds,
   });
 
   const actions = useSubscriptionsActions({
@@ -129,45 +173,33 @@ export function SubscriptionsView({
     clearSelection,
     latestBriefing,
   });
-  requestUnsubscribeRef.current = actions.requestUnsubscribe;
-
-  // Hydrate before paint so the clutter slider thumb isn't at 0 on first frame.
   useLayoutEffect(() => {
-    const stored = readClutterThreshold(accountId);
-    if (stored != null) {
-      setClutterThresholdState(stored);
-    }
-  }, [accountId]);
+    requestUnsubscribeRef.current = actions.requestUnsubscribe;
+  }, [actions.requestUnsubscribe]);
 
   function setClutterThreshold(value: number) {
     const next = Math.max(0, Math.min(100, Math.round(value)));
-    setClutterThresholdState(next);
+    setCustomClutter({ accountId, value: next });
     persistClutterThreshold(accountId, next);
   }
 
-  useLayoutEffect(() => {
+  const [prevActiveTab, setPrevActiveTab] = useState(activeTab);
+  if (prevActiveTab !== activeTab) {
+    setPrevActiveTab(activeTab);
+    setSelectedIds([]);
+    setSelectionMode(false);
+  }
+
+  useEffect(() => {
     const pending = peekSidebarPageTab(
       "/subscriptions",
-      SUBSCRIPTION_PAGE_TABS.map((item) => item.value)
+      subscriptionTabValues
     );
-    if (pending) {
-      setActiveTab(pending);
-      persistActivePageTab("/subscriptions", pending, accountId);
-      clearSelection();
-      const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
-      return () => window.clearTimeout(clearId);
-    }
-
-    const saved = readActivePageTab(
-      "/subscriptions",
-      SUBSCRIPTION_PAGE_TABS.map((item) => item.value),
-      accountId
-    );
-    if (saved && saved !== activeTab) {
-      setActiveTab(saved);
-      clearSelection();
-    }
-  }, [accountId, activeTab, clearSelection]);
+    if (!pending) return;
+    persistActivePageTab("/subscriptions", pending, accountId);
+    const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
+    return () => window.clearTimeout(clearId);
+  }, [accountId, subscriptionTabValues, activeTab]);
 
   const changeSortOption = useCallback(
     (sort: SubscriptionSortOption) => {
@@ -200,23 +232,6 @@ export function SubscriptionsView({
     },
     [clearSelection]
   );
-
-  const {
-    archive,
-    filteredActive,
-    filteredArchive,
-    filteredActiveIds,
-  } = useSubscriptionsData({
-    subscriptions,
-    history,
-    active,
-    clutterThreshold,
-    searchQuery,
-    categoryFilter,
-    sortOption,
-    customOrder,
-  });
-  filteredActiveIdsRef.current = filteredActiveIds;
 
   const toolbarTotal =
     activeTab === "active" ? active.length : history.length;
@@ -357,7 +372,6 @@ export function SubscriptionsView({
         value={activeTab}
         onValueChange={(value) => {
           if (suppressTabChangeRef.current) return;
-          setActiveTab(value as SubscriptionTab);
           persistActivePageTab("/subscriptions", value, accountId);
           clearSelection();
         }}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 
 export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -41,19 +41,17 @@ export function downloadBase64File(
 }
 
 export function useDraftPdf(pdfBase64?: string | null) {
-  const [resumePdfUrl, setResumePdfUrl] = useState<string | null>(null);
+  const resumePdfUrl = useMemo(
+    () => (pdfBase64 ? pdfBase64ToBlobUrl(pdfBase64) : null),
+    [pdfBase64]
+  );
 
   useEffect(() => {
-    if (!pdfBase64) {
-      setResumePdfUrl(null);
-      return;
-    }
-    const url = pdfBase64ToBlobUrl(pdfBase64);
-    setResumePdfUrl(url);
+    if (!resumePdfUrl) return;
     return () => {
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(resumePdfUrl);
     };
-  }, [pdfBase64]);
+  }, [resumePdfUrl]);
 
   return {
     resumePdfUrl,

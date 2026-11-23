@@ -1,10 +1,5 @@
-import {
-  BriefcasePlus,
-  CircleDollarSign,
-  Loader2,
-  MapPin,
-  Sparkles,
-} from "lucide-react";
+import { BriefcasePlus, CircleDollarSign, MapPin, Sparkles } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -255,7 +250,7 @@ export function JobDetailsView({
           >
             {isTailoring ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin text-[#e4f7f3]" />
+                <Loader size="sm" className="text-[#e4f7f3]" />
                 <span>Tailoring with Ace AI…</span>
               </>
             ) : (

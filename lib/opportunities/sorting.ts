@@ -1,4 +1,4 @@
-import type { JobApplication, JobOpportunity } from "@prisma/client";
+import type { JobApplication, JobOpportunity } from "@/lib/generated/prisma/client";
 
 export type OpportunitySortOption =
   | "match-desc"

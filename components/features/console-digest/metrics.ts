@@ -1,4 +1,4 @@
-import type { JobApplication, JobOpportunity, Subscription } from "@prisma/client";
+import type { JobApplication, JobOpportunity, Subscription } from "@/lib/generated/prisma/client";
 import { isUserArchived } from "@/lib/opportunities/lifecycle";
 import { sortOpportunities } from "@/lib/opportunities/sorting";
 import { subscriptionClutterScore } from "@/lib/subscriptions/filters";

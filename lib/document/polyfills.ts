@@ -1,7 +1,44 @@
 /**
- * Server-side stubs for browser geometry APIs.
- * pdf-parse / pdf.js (and similar) reference DOMMatrix during module evaluation.
+ * Server-side stubs for browser geometry APIs and Node 20 -> Next.js 16 compatibility.
+ * - `ArrayBuffer.prototype.detached` is required by React 19.3 Flight serialization
+ *   (Node 20 lacks it natively; added in Node 21+).
+ * - Filters upstream `DEP0108` (`zlib.bytesRead`) deprecation warnings emitted by HTTP stack.
+ * - `pdf-parse` / `pdf.js` reference `DOMMatrix` / `DOMPoint` during module evaluation.
  */
+if (
+  typeof ArrayBuffer !== "undefined" &&
+  !Object.prototype.hasOwnProperty.call(ArrayBuffer.prototype, "detached")
+) {
+  Object.defineProperty(ArrayBuffer.prototype, "detached", {
+    configurable: true,
+    enumerable: false,
+    get(this: ArrayBuffer): boolean {
+      return false;
+    },
+  });
+}
+
+if (typeof process !== "undefined" && typeof process.emitWarning === "function") {
+  const originalEmitWarning = process.emitWarning.bind(process);
+  const patchedEmitWarning = ((
+    warning: string | Error,
+    ...args: unknown[]
+  ): void => {
+    const code =
+      typeof args[0] === "object" && args[0] !== null && "code" in args[0]
+        ? (args[0] as { code?: string }).code
+        : typeof args[1] === "string"
+          ? args[1]
+          : (warning as { code?: string })?.code;
+    const msg = typeof warning === "string" ? warning : warning?.message ?? "";
+    if (code === "DEP0108" || msg.includes("zlib.bytesRead")) {
+      return;
+    }
+    (originalEmitWarning as (...a: unknown[]) => void)(warning, ...args);
+  }) as typeof process.emitWarning;
+  process.emitWarning = patchedEmitWarning;
+}
+
 if (typeof window === "undefined") {
   if (typeof globalThis.DOMMatrix === "undefined") {
     class DOMMatrixMock {

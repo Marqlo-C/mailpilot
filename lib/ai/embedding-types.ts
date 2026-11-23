@@ -19,6 +19,8 @@ export interface EmbeddingDriverConfig {
   apiKey?: string;
   /** Base URL override (e.g. custom Ollama endpoint or OpenAI-compatible proxy) */
   baseUrl?: string;
+  /** Optional bearer token for authenticating local Ollama reverse proxy tunnels */
+  authToken?: string;
   /** Output vector dimension (for Matryoshka models supporting dimension scaling) */
   dimensions?: number;
   /** Contextual task type for retrieval vs. similarity */

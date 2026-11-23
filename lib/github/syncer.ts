@@ -189,8 +189,8 @@ export async function syncGitHubProjects(
     ]);
     const rawReadme = readme ?? readmeLower;
 
-    let detectedDeps: string[] = [];
-    let detectedManifestPaths: string[] = [];
+    const detectedDeps: string[] = [];
+    const detectedManifestPaths: string[] = [];
     let hasMonorepo = false;
     let newEtag: string | undefined = undefined;
 

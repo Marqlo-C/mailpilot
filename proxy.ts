@@ -35,7 +35,7 @@ function isProtectedPath(pathname: string): boolean {
  * Route guard: require `mailpilot_session` for app shells; send anonymous
  * users to `/login`. Authenticated users hitting `/login` go home.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const session = request.cookies.get(SESSION_COOKIE)?.value?.trim();
   const hasSession = Boolean(session);

@@ -19,6 +19,7 @@ import {
   FlyoutIconPill,
   FlyoutSelect,
 } from "@/components/layout/sidebar-flyout-chrome";
+import { LoadSkeletonStack } from "@/components/ui/composites/load-skeleton-stack";
 import {
   CLOUD_LLM_PROVIDERS,
   type CloudLlmProvider,
@@ -83,9 +84,10 @@ export function ApiKeysFlyout({ accountId }: { accountId: string }) {
   const [hasDataKey, setHasDataKey] = useState("");
   const [loading, setLoading] = useState(!cached);
   const [pending, startTransition] = useTransition();
+  const [prevAccountId, setPrevAccountId] = useState(accountId);
 
-  useEffect(() => {
-    let cancelled = false;
+  if (prevAccountId !== accountId) {
+    setPrevAccountId(accountId);
     const hit = cachedApiKeyStatus(accountId);
     if (hit) {
       setStatus(hit);
@@ -94,6 +96,11 @@ export function ApiKeysFlyout({ accountId }: { accountId: string }) {
     } else {
       setLoading(true);
     }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    const hit = cachedApiKeyStatus(accountId);
 
     void loadApiKeyStatus(accountId).then((data) => {
       if (cancelled) return;
@@ -236,8 +243,8 @@ export function ApiKeysFlyout({ accountId }: { accountId: string }) {
 
   if (loading && !status) {
     return (
-      <div className="w-72 px-2.5 py-3 text-xs text-[#e4f7f3]/60">
-        Loading keys…
+      <div className="w-72 px-2.5 py-4">
+        <LoadSkeletonStack message="Loading keys…" tone="sidebar" />
       </div>
     );
   }

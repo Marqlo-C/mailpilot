@@ -1,13 +1,8 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
-import {
-  CircleCheck,
-  Loader2,
-  Pencil,
-  RotateCcw,
-  RotateCcwClock,
-} from "lucide-react";
+import { CircleCheck, Pencil, RotateCcw, RotateCcwClock } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { toast } from "sonner";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 
@@ -336,7 +331,7 @@ export function ProfileRevisionHistory({
                         onClick={() => onRestore(item)}
                       >
                         {pending ? (
-                          <Loader2 className="size-3 animate-spin" />
+                          <Loader size="sm" />
                         ) : (
                           <RotateCcw className="size-3" />
                         )}

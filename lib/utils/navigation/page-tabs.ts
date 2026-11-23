@@ -22,6 +22,24 @@ import {
 } from "lucide-react";
 
 const SIDEBAR_PAGE_TAB_KEY = "mailpilot.sidebarPageTab";
+export const PAGE_TAB_CHANGE_EVENT = "mailpilot_page_tab_change";
+
+function notifyPageTabChange(): void {
+  if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+    return;
+  }
+  window.dispatchEvent(new Event(PAGE_TAB_CHANGE_EVENT));
+}
+
+/** Subscribe to client page-tab navigation and storage updates. */
+export function subscribePageTabs(onStoreChange: () => void): () => void {
+  window.addEventListener(PAGE_TAB_CHANGE_EVENT, onStoreChange);
+  window.addEventListener("storage", onStoreChange);
+  return () => {
+    window.removeEventListener(PAGE_TAB_CHANGE_EVENT, onStoreChange);
+    window.removeEventListener("storage", onStoreChange);
+  };
+}
 
 export const JOB_RADAR_TAB_LABEL = {
   leads: "Leads",
@@ -111,11 +129,13 @@ export function rememberSidebarPageTab(href: string, tab: string): void {
   if (typeof window === "undefined") return;
   const payload: StoredSidebarPageTab = { href, tab };
   sessionStorage.setItem(SIDEBAR_PAGE_TAB_KEY, JSON.stringify(payload));
+  notifyPageTabChange();
 }
 
 export function clearSidebarPageTab(): void {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(SIDEBAR_PAGE_TAB_KEY);
+  notifyPageTabChange();
 }
 
 /**
@@ -188,6 +208,8 @@ export function persistActivePageTab(
   } catch {
     // Ignore cookie errors
   }
+
+  notifyPageTabChange();
 }
 
 /**

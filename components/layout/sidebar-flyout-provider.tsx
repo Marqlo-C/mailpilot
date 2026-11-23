@@ -72,7 +72,9 @@ export function SidebarFlyoutProvider({ children }: { children: ReactNode }) {
   const openTimerRef = useRef<number | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const pinnedRef = useRef(false);
-  pinnedRef.current = pinned;
+  useEffect(() => {
+    pinnedRef.current = pinned;
+  }, [pinned]);
 
   const closeNow = useCallback(() => {
     clearTimer(openTimerRef);

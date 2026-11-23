@@ -105,6 +105,7 @@ export type OllamaGenerationOptions = {
   num_ctx?: number;
   num_predict?: number;
   temperature?: number;
+  authToken?: string | null;
 };
 
 /**
@@ -168,13 +169,40 @@ export function resolveOllamaBaseUrl(configured?: string | null): string {
 }
 
 /**
+ * Verifies that `targetUrl` strictly matches the account's registered `localOllamaUrl`
+ * (preventing prefix-spoofed hostnames or arbitrary URL overrides from leaking `tunnelToken`).
+ */
+export function isSameRegisteredOllamaUrl(
+  targetUrl?: string | null,
+  registeredUrl?: string | null
+): boolean {
+  const targetTrimmed = targetUrl?.trim();
+  const registeredTrimmed = registeredUrl?.trim();
+  if (!targetTrimmed || !registeredTrimmed) {
+    return false;
+  }
+  try {
+    const a = new URL(normalizeOllamaBaseUrl(targetTrimmed));
+    const b = new URL(normalizeOllamaBaseUrl(registeredTrimmed));
+    return (
+      a.protocol === b.protocol &&
+      a.hostname.toLowerCase() === b.hostname.toLowerCase() &&
+      a.port === b.port &&
+      a.pathname.replace(/\/+$/, "") === b.pathname.replace(/\/+$/, "")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Pings /api/tags with a timeout and validates that the response
  * contains a valid Ollama models array.
  */
 export async function probeOllamaTags(
   baseUrl: string,
   timeoutMs: number = 5000,
-  opts?: { skipCircuitBreaker?: boolean }
+  opts?: { skipCircuitBreaker?: boolean; authToken?: string | null }
 ): Promise<{ models: string[] }> {
   const base = normalizeOllamaBaseUrl(baseUrl);
 
@@ -187,6 +215,7 @@ export async function probeOllamaTags(
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const cleanAuthToken = opts?.authToken?.trim();
 
   let res: Response;
   try {
@@ -197,6 +226,7 @@ export async function probeOllamaTags(
       headers: {
         Accept: "application/json",
         "User-Agent": "MailPilot-OllamaProbe/1.0",
+        ...(cleanAuthToken ? { Authorization: `Bearer ${cleanAuthToken}` } : {}),
       },
     });
   } catch (error) {
@@ -249,7 +279,12 @@ export async function probeOllamaTags(
  */
 export async function probeOllamaTagsWithRetry(
   baseUrl: string,
-  opts?: { timeoutMs?: number; attempts?: number; gapMs?: number }
+  opts?: {
+    timeoutMs?: number;
+    attempts?: number;
+    gapMs?: number;
+    authToken?: string | null;
+  }
 ): Promise<{ models: string[] }> {
   resetOllamaCircuit(baseUrl);
   const timeoutMs = opts?.timeoutMs ?? 12_000;
@@ -261,6 +296,7 @@ export async function probeOllamaTagsWithRetry(
     try {
       return await probeOllamaTags(baseUrl, timeoutMs, {
         skipCircuitBreaker: true,
+        authToken: opts?.authToken,
       });
     } catch (error) {
       lastError = error;
@@ -330,14 +366,16 @@ export async function callOllamaJson(
   userPrompt: string,
   model?: string | null,
   options?: OllamaGenerationOptions,
-  devModelOverride?: string | null
+  devModelOverride?: string | null,
+  authToken?: string | null
 ): Promise<Record<string, unknown> | null> {
   const resolvedModel = resolveOllamaModel(model, devModelOverride);
   const payloadChars = systemPrompt.length + userPrompt.length;
   const timeouts = computeOllamaTimeouts(payloadChars);
+  const effectiveAuthToken = authToken ?? options?.authToken ?? null;
 
   // Strict probe: HTTP 200 alone is not enough — must look like Ollama /api/tags.
-  await probeOllamaTags(baseUrl, 5000);
+  await probeOllamaTags(baseUrl, 5000, { authToken: effectiveAuthToken });
 
   const maxAttempts = 2;
   let lastError: unknown;
@@ -354,7 +392,8 @@ export async function callOllamaJson(
         systemPrompt,
         userPrompt,
         timeouts,
-        options
+        options,
+        effectiveAuthToken
       );
 
       if (result) {
@@ -382,7 +421,8 @@ async function callOllamaGenerateOnce(
   systemPrompt: string,
   userPrompt: string,
   timeouts: { idleTimeoutMs: number; hardCapMs: number },
-  options?: OllamaGenerationOptions
+  options?: OllamaGenerationOptions,
+  authToken?: string | null
 ): Promise<Record<string, unknown> | null> {
   const startTime = Date.now();
   const promptChars = systemPrompt.length + userPrompt.length;
@@ -399,7 +439,6 @@ async function callOllamaGenerateOnce(
   });
 
   const controller = new AbortController();
-  let hardCapTimer: NodeJS.Timeout | undefined;
   let idleTimer: NodeJS.Timeout | undefined;
   let abortedReason: "hard_cap" | "idle_timeout" | null = null;
 
@@ -411,7 +450,7 @@ async function callOllamaGenerateOnce(
     }, timeouts.idleTimeoutMs);
   };
 
-  hardCapTimer = setTimeout(() => {
+  const hardCapTimer = setTimeout(() => {
     abortedReason = "hard_cap";
     controller.abort();
   }, timeouts.hardCapMs);
@@ -420,11 +459,15 @@ async function callOllamaGenerateOnce(
 
   let chunkCount = 0;
   let accumulated = "";
+  const cleanAuthToken = (authToken ?? options?.authToken)?.trim();
 
   try {
     const response = await fetch(`${baseUrl}/api/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(cleanAuthToken ? { Authorization: `Bearer ${cleanAuthToken}` } : {}),
+      },
       signal: controller.signal,
       body: JSON.stringify({
         model,

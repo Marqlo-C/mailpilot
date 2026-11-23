@@ -1,6 +1,6 @@
 "use client";
 
-import type { JobOpportunity } from "@prisma/client";
+import type { JobOpportunity } from "@/lib/generated/prisma/client";
 import {
   Archive,
   Ban,
@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RowMenuTrigger } from "@/components/ui/composites/row-menu-trigger";
+import { Loader } from "@/components/ui/loader";
 import { cn } from "@/lib/utils";
 
 export type OpportunityCardVariant =
@@ -191,9 +192,11 @@ export function OpportunityCardMenu({
                   "text-cyan-600 focus:bg-cyan-50 focus:text-cyan-600 dark:text-cyan-400 dark:focus:bg-cyan-950/50 dark:focus:text-cyan-400"
                 )}
               >
-                <RotateCw
-                  className={cn("h-4 w-4 shrink-0", isReprocessing && "animate-spin")}
-                />
+                {isReprocessing ? (
+                  <Loader size="sm" className="shrink-0 text-cyan-600 dark:text-cyan-400" />
+                ) : (
+                  <RotateCw className="h-4 w-4 shrink-0" />
+                )}
                 <span>Re-analyze Email (Dev)</span>
               </AppMenuItem>
             </>
@@ -264,9 +267,11 @@ export function OpportunityCardMenu({
                 "text-cyan-600 focus:bg-cyan-50 focus:text-cyan-600 dark:text-cyan-400 dark:focus:bg-cyan-950/50 dark:focus:text-cyan-400"
               )}
             >
-              <RotateCw
-                className={cn("h-4 w-4 shrink-0", isReprocessing && "animate-spin")}
-              />
+              {isReprocessing ? (
+                <Loader size="sm" className="shrink-0 text-cyan-600 dark:text-cyan-400" />
+              ) : (
+                <RotateCw className="h-4 w-4 shrink-0" />
+              )}
               <span>Re-analyze Email (Dev)</span>
             </AppMenuItem>
           </>

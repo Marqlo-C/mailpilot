@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { CalendarDays, Loader2, Send } from "lucide-react";
+import { CalendarDays, Send } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import type { DateRange } from "react-day-picker";
 
 import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
@@ -94,13 +95,16 @@ export function SnapshotDialog({
   const [month, setMonth] = useState<Date>(today);
   const [rangeWarning, setRangeWarning] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const next = defaultRange();
-    setRange(next);
-    setMonth(next.to ?? today);
-    setRangeWarning(null);
-  }, [open, today]);
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    if (open) {
+      const next = defaultRange();
+      setRange(next);
+      setMonth(next.to ?? today);
+      setRangeWarning(null);
+    }
+  }
 
   function applyPreset(days: number) {
     const next = rangeEndingToday(days);
@@ -193,7 +197,7 @@ export function SnapshotDialog({
           className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
         >
           {pending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader size="sm" />
           ) : (
             <Send className="h-3.5 w-3.5" />
           )}

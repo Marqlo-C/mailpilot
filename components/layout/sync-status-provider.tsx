@@ -89,7 +89,9 @@ export function SyncStatusProvider({
   const wasSyncingRef = useRef(initialIsSyncing);
   const syncKindRef = useRef<SyncKind | null>(null);
   const pendingCountRef = useRef(initialPendingClassificationCount);
-  pendingCountRef.current = pendingCount;
+  useEffect(() => {
+    pendingCountRef.current = pendingCount;
+  }, [pendingCount]);
 
   const clearProgress = useCallback((options?: { preserveOpportunities?: boolean }) => {
     setLastSyncProcessed(null);
@@ -102,39 +104,57 @@ export function SyncStatusProvider({
     setSyncKind(null);
   }, []);
 
-  const prevAccountIdRef = useRef(accountId);
-  const prevInitialIsSyncingRef = useRef(initialIsSyncing);
-
-  useEffect(() => {
-    const accountChanged = prevAccountIdRef.current !== accountId;
+  const [prevSyncContext, setPrevSyncContext] = useState({
+    accountId,
+    initialIsSyncing,
+  });
+  if (
+    prevSyncContext.accountId !== accountId ||
+    prevSyncContext.initialIsSyncing !== initialIsSyncing
+  ) {
+    const accountChanged = prevSyncContext.accountId !== accountId;
     const initialSyncingChanged =
-      prevInitialIsSyncingRef.current !== initialIsSyncing;
-    prevAccountIdRef.current = accountId;
-    prevInitialIsSyncingRef.current = initialIsSyncing;
+      prevSyncContext.initialIsSyncing !== initialIsSyncing;
+    setPrevSyncContext({ accountId, initialIsSyncing });
 
     if (accountChanged) {
       setIsSyncing(initialIsSyncing);
-      wasSyncingRef.current = initialIsSyncing;
       if (!initialIsSyncing) {
         setShowForceReset(false);
-        clearProgress();
+        setLastSyncProcessed(null);
+        setTotalToProcess(null);
+        setLastSyncPendingProcessed(null);
+        setSyncPendingTotal(null);
+        setOpportunitiesAdded(null);
+        setSyncKind(null);
       }
     } else if (initialSyncingChanged) {
       if (initialIsSyncing) {
         setIsSyncing(true);
-        wasSyncingRef.current = true;
       } else if (!justFinished) {
         setIsSyncing(false);
-        wasSyncingRef.current = false;
         setShowForceReset(false);
-        clearProgress();
+        setLastSyncProcessed(null);
+        setTotalToProcess(null);
+        setLastSyncPendingProcessed(null);
+        setSyncPendingTotal(null);
+        setOpportunitiesAdded(null);
+        setSyncKind(null);
       }
     }
-  }, [accountId, initialIsSyncing, justFinished, clearProgress]);
+  }
 
   useEffect(() => {
+    wasSyncingRef.current = isSyncing;
+  }, [isSyncing]);
+
+  const [prevInitialPending, setPrevInitialPending] = useState(
+    initialPendingClassificationCount
+  );
+  if (prevInitialPending !== initialPendingClassificationCount) {
+    setPrevInitialPending(initialPendingClassificationCount);
     setPendingCount(initialPendingClassificationCount);
-  }, [initialPendingClassificationCount]);
+  }
 
   const markSyncStarted = useCallback((kind: SyncKind = "inbox") => {
     wasSyncingRef.current = true;
@@ -167,6 +187,17 @@ export function SyncStatusProvider({
     return () => window.removeEventListener(SYNC_STARTED_EVENT, handleSyncStart);
   }, [markSyncStarted]);
 
+  const pollingKey = accountId && isSyncing ? accountId : null;
+  const [prevPollingKey, setPrevPollingKey] = useState<string | null>(
+    pollingKey
+  );
+  if (prevPollingKey !== pollingKey) {
+    setPrevPollingKey(pollingKey);
+    if (pollingKey) {
+      setShowForceReset(false);
+    }
+  }
+
   useEffect(() => {
     if (!accountId || !isSyncing) {
       disposePollRef.current?.();
@@ -174,7 +205,6 @@ export function SyncStatusProvider({
       return;
     }
 
-    setShowForceReset(false);
     let consecutiveErrors = 0;
 
     disposePollRef.current = startSyncStatusBackoffPoll({

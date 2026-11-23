@@ -45,13 +45,12 @@ export function GlobalSyncTracker() {
   const retractFast = phase === "out" && selectionRequested;
 
   const [showCancel, setShowCancel] = useState(false);
-  useEffect(() => {
-    if (isSyncing || justFinished) {
-      setShowCancel(true);
-    } else if (!mounted) {
-      setShowCancel(false);
-    }
-  }, [isSyncing, justFinished, mounted]);
+  const cancelActive = isSyncing || justFinished;
+  if (cancelActive && !showCancel) {
+    setShowCancel(true);
+  } else if (!cancelActive && !mounted && showCancel) {
+    setShowCancel(false);
+  }
 
   useEffect(() => {
     setSyncTrackerMounted(mounted);

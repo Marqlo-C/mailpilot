@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Standard tagged union returned by all Next.js 15 Server Actions.
+ * Standard tagged union returned by all Next.js 16 Server Actions.
  * Guarantees a deterministic contract across the mutation boundary:
  * callers inspect `result.success` to branch on success data or failure message.
  * Also provides `ok` for full backward compatibility across callers.

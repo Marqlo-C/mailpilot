@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { Subscription } from "@prisma/client";
+import type { Subscription } from "@/lib/generated/prisma/client";
 import { CompanyLogo } from "@/components/ui/logo-frame";
 import { selectCheckboxClassName } from "@/components/ui/styles/select-checkbox";
 import {

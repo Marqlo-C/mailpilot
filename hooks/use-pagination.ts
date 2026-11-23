@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
@@ -30,6 +30,8 @@ type UsePaginationOptions = {
   pageSizeOptions?: readonly number[];
 };
 
+const PAGINATION_STORAGE_EVENT = "mailpilot_pagination_storage";
+
 export function usePagination({
   storageKey,
   totalItems,
@@ -38,49 +40,55 @@ export function usePagination({
   pageSizeOptions = PAGE_SIZE_OPTIONS,
 }: UsePaginationOptions) {
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSizeState] = useState<number>(defaultPageSize);
 
-  // Hydrate page size after mount (SSR-safe).
-  useEffect(() => {
-    try {
-      const stored = parsePageSize(
-        localStorage.getItem(storageKey),
-        defaultPageSize,
-        pageSizeOptions
-      );
-      setPageSizeState(stored);
-    } catch {
-      // Ignore private-mode / blocked storage.
-    }
-  }, [storageKey, defaultPageSize, pageSizeOptions]);
+  const subscribe = useCallback((onStoreChange: () => void) => {
+    window.addEventListener("storage", onStoreChange);
+    window.addEventListener(PAGINATION_STORAGE_EVENT, onStoreChange);
+    return () => {
+      window.removeEventListener("storage", onStoreChange);
+      window.removeEventListener(PAGINATION_STORAGE_EVENT, onStoreChange);
+    };
+  }, []);
+
+  const pageSize = useSyncExternalStore(
+    subscribe,
+    () => {
+      try {
+        return parsePageSize(
+          localStorage.getItem(storageKey),
+          defaultPageSize,
+          pageSizeOptions
+        );
+      } catch {
+        return defaultPageSize;
+      }
+    },
+    () => defaultPageSize
+  );
 
   // Reset to first page when filters / tab context change.
   const resetSignal = JSON.stringify(resetDeps);
-  useEffect(() => {
+  const [prevResetSignal, setPrevResetSignal] = useState(resetSignal);
+  if (prevResetSignal !== resetSignal) {
+    setPrevResetSignal(resetSignal);
     setCurrentPage(1);
-  }, [resetSignal]);
+  }
 
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize) || 1);
-
-  // Clamp page when the filtered list shrinks.
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
+  const effectivePage = Math.min(currentPage, totalPages);
 
   function setPageSize(next: number) {
     const size = parsePageSize(String(next), defaultPageSize, pageSizeOptions);
-    setPageSizeState(size);
     setCurrentPage(1);
     try {
       localStorage.setItem(storageKey, String(size));
+      window.dispatchEvent(new Event(PAGINATION_STORAGE_EVENT));
     } catch {
       // Ignore write failures.
     }
   }
 
-  const startIndex = (currentPage - 1) * pageSize;
+  const startIndex = (effectivePage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
 
   const slice = useMemo(
@@ -92,7 +100,7 @@ export function usePagination({
   );
 
   return {
-    currentPage,
+    currentPage: effectivePage,
     setCurrentPage,
     pageSize,
     setPageSize,

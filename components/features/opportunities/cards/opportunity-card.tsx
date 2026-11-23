@@ -8,7 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useRouter } from "next/navigation";
-import type { JobOpportunity } from "@prisma/client";
+import type { JobOpportunity } from "@/lib/generated/prisma/client";
 import {
   ArrowUpRight,
   ChevronDown,
@@ -41,7 +41,7 @@ import { OpportunityCardMenu } from "./subcomponents/opportunity-card-menu";
 import { CompanyLogo } from "@/components/ui/logo-frame";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MetaChip } from "@/components/ui/tactile/meta-chip";
-import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/styles/score-percent";
+import { NumberTicker } from "@/components/ui/number-ticker";
 import {
   PRIMARY_ACTION_BTN_CLASSNAME,
   PRIMARY_ACTION_BTN_MUTED_CLASSNAME,
@@ -465,7 +465,11 @@ export function OpportunityCard({
           ) : (
             <MetaChip
               title={opportunity.matchReason ?? undefined}
-              value={`${score}%`}
+              value={
+                <>
+                  <NumberTicker value={score} />%
+                </>
+              }
               valueClassName={
                 isSelected
                   ? "bg-muted/50 text-muted-foreground"

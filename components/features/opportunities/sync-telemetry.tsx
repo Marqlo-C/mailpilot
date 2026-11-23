@@ -22,6 +22,7 @@ import {
 import { useSidebarFlyout } from "@/components/layout/sidebar-flyout-provider";
 import { useFlyoutPresence } from "@/components/ui/composites/bulk-actions-flyout";
 import { ConfirmActionDialog } from "@/components/ui/composites/confirm-action-dialog";
+import { NumberTicker } from "@/components/ui/number-ticker";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
@@ -157,17 +158,17 @@ export function SyncTelemetry({
   }
 
   /** Sidebar during sync: Ace queued slice only (not full inbox total). */
-  const aceQueuedProgressLabel = useMemo(() => {
+  const aceQueuedProgress = useMemo(() => {
     if (!isSyncing) return null;
 
     if (syncKind === "queued") {
-      const processed = lastSyncPendingProcessed ?? lastSyncProcessed;
-      const total = syncPendingTotal ?? totalToProcess;
+      const processed = lastSyncPendingProcessed;
+      const total = syncPendingTotal;
       if (processed != null && processed > 0) {
-        if (total != null && total >= processed) {
-          return `${processed} / ${total}`;
-        }
-        return `${processed}`;
+        return {
+          processed,
+          total: total != null && total >= processed ? total : null,
+        };
       }
       return null;
     }
@@ -182,7 +183,7 @@ export function SyncTelemetry({
       processed > 0 &&
       processed < total
     ) {
-      return `${processed} / ${total}`;
+      return { processed, total };
     }
     if (total != null && total > 0 && processed === 0) {
       return null; // "Ace reviewing queued…" until first tick
@@ -193,8 +194,6 @@ export function SyncTelemetry({
     syncKind,
     lastSyncPendingProcessed,
     syncPendingTotal,
-    lastSyncProcessed,
-    totalToProcess,
   ]);
 
   if (overlay && !panel && !presence.mounted) return null;
@@ -215,8 +214,12 @@ export function SyncTelemetry({
   const statusLabel = !connected
     ? "Offline"
     : isSyncing
-      ? aceQueuedProgressLabel
-        ? `Ace reviewing ${aceQueuedProgressLabel}`
+      ? aceQueuedProgress
+        ? `Ace reviewing ${aceQueuedProgress.processed}${
+            aceQueuedProgress.total != null
+              ? ` / ${aceQueuedProgress.total}`
+              : ""
+          }`
         : syncKind === "queued" || (syncPendingTotal && syncPendingTotal > 0)
           ? "Ace reviewing"
           : "Sorting inbox"
@@ -224,10 +227,16 @@ export function SyncTelemetry({
         ? `${pendingCount} ${pendingCount === 1 ? "email" : "emails"} awaiting Ace`
         : "Inbox up to date";
 
-  const syncingLabel = aceQueuedProgressLabel ? (
+  const syncingLabel = aceQueuedProgress ? (
     <>
       Ace reviewing{" "}
-      <span className="tabular-nums">{aceQueuedProgressLabel}</span>…
+      <span className="inline-flex items-baseline gap-1 tabular-nums">
+        <NumberTicker value={aceQueuedProgress.processed} />
+        {aceQueuedProgress.total != null ? (
+          <span>/ {aceQueuedProgress.total}</span>
+        ) : null}
+      </span>
+      …
     </>
   ) : syncKind === "queued" ||
     (syncPendingTotal != null &&

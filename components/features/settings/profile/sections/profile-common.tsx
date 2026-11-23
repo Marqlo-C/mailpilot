@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Badge } from "@/components/ui/badge";
+import { useHydrated } from "@/hooks/use-hydrated";
 import {
   NestedCardLevel,
   SettingsStatusPill,
@@ -77,27 +78,22 @@ export function SectionCountPill({
 
 /** Last master-profile save, rendered in the browser's timezone. */
 export function ProfileUpdatedStamp({ iso }: { iso: string }) {
-  const [label, setLabel] = useState<string | null>(null);
+  const hydrated = useHydrated();
+  if (!hydrated) return null;
 
-  useEffect(() => {
-    const parsed = new Date(iso);
-    if (!Number.isFinite(parsed.getTime())) {
-      setLabel(null);
-      return;
-    }
-    setLabel(
-      parsed.toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        timeZoneName: "short",
-      })
-    );
-  }, [iso]);
+  const parsed = new Date(iso);
+  if (!Number.isFinite(parsed.getTime())) {
+    return null;
+  }
 
-  if (!label) return null;
+  const label = parsed.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
 
   return (
     <span className="shrink-0 text-[11px] text-muted-foreground">

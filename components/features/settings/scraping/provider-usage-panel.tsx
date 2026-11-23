@@ -1,16 +1,8 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import {
-  ExternalLink,
-  Info,
-  KeyRound,
-  Loader2,
-  Redo2,
-  RefreshCw,
-  Trash2,
-  type LucideIcon,
-} from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { ExternalLink, Info, KeyRound, Redo2, RefreshCw, Trash2, type LucideIcon } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { toast } from "sonner";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 import { Button } from "@/components/ui/button";
@@ -131,7 +123,7 @@ function KeyActions({
             aria-label="Delete active key"
           >
             {isDeletingKey ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-500" />
+              <Loader size="sm" className="text-rose-500" />
             ) : (
               <Trash2 className="h-3.5 w-3.5" />
             )}
@@ -177,19 +169,23 @@ export function ProviderUsagePanel<T extends { fetchedAt: string }>({
   normalizeUsage,
 }: ProviderUsagePanelProps<T>) {
   const [usage, setUsage] = useState<T | null>(initialUsage);
+  const [prevInitialUsage, setPrevInitialUsage] = useState<T | null>(
+    initialUsage
+  );
   const [isRefreshing, startRefresh] = useTransition();
-  const [hasAutoFetched, setHasAutoFetched] = useState(false);
+  const hasAutoFetchedRef = useRef(false);
 
   // Sync state if server passes updated initialUsage
-  useEffect(() => {
+  if (prevInitialUsage !== initialUsage) {
+    setPrevInitialUsage(initialUsage);
     if (initialUsage) {
       setUsage(initialUsage);
     }
-  }, [initialUsage]);
+  }
 
   // Auto-refresh on mount if usage is null or older than 4 hours
   useEffect(() => {
-    if (!accountId || !maskedApiKey || hasAutoFetched) return;
+    if (!accountId || !maskedApiKey || hasAutoFetchedRef.current) return;
 
     const fourHoursMs = 4 * 60 * 60 * 1000;
     const isStale =
@@ -197,7 +193,7 @@ export function ProviderUsagePanel<T extends { fetchedAt: string }>({
       Date.now() - new Date(usage.fetchedAt).getTime() > fourHoursMs;
 
     if (isStale) {
-      setHasAutoFetched(true);
+      hasAutoFetchedRef.current = true;
       startRefresh(async () => {
         const res = await fetchAction(accountId, false);
         if (res.ok && res.data) {
@@ -205,7 +201,7 @@ export function ProviderUsagePanel<T extends { fetchedAt: string }>({
         }
       });
     }
-  }, [accountId, maskedApiKey, usage, hasAutoFetched, fetchAction]);
+  }, [accountId, maskedApiKey, usage, fetchAction]);
 
   function handleManualRefresh() {
     if (!accountId) return;
@@ -255,7 +251,7 @@ export function ProviderUsagePanel<T extends { fetchedAt: string }>({
             aria-label="Fetch plan and credit balance"
           >
             {isRefreshing ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              <Loader size="sm" className="text-primary" />
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
@@ -330,7 +326,7 @@ export function ProviderUsagePanel<T extends { fetchedAt: string }>({
             aria-label={`Refresh ${providerName} plan and credit balance`}
           >
             {isRefreshing ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              <Loader size="sm" className="text-primary" />
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}

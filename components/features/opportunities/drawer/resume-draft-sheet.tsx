@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { Loader } from "@/components/ui/loader";
 import { skillCategoryLabel } from "@/lib/profile/skill-groups";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/resume-draft";
 import { cn } from "@/lib/utils";
@@ -116,13 +117,12 @@ export function ResumeDraftSheet({
   const zoom = zoomChoice === "fit" ? fitScale : zoomChoice;
 
   const blocks = useMemo(() => buildBlocks(draft), [draft]);
-  const firstHeadingBlockId = useMemo(() => {
-    for (const b of blocks) {
-      if (b.kind === "skills") return getBlockId(b);
-      if (b.kind === "node" && b.heading) return getBlockId(b);
-    }
-    return null;
-  }, [blocks]);
+  const firstHeadingBlock = blocks.find(
+    (b) => b.kind === "skills" || (b.kind === "node" && Boolean(b.heading))
+  );
+  const firstHeadingBlockId = firstHeadingBlock
+    ? getBlockId(firstHeadingBlock)
+    : null;
 
   const remeasure = useCallback(() => {
     const container = pagesContainerRef.current;
@@ -553,8 +553,9 @@ export function ResumeDraftSheet({
           type="button"
           disabled={disabled || exporting}
           onClick={() => onExport("pdf")}
-          className="rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
         >
+          {exporting ? <Loader size="sm" /> : null}
           {exporting ? "Exporting…" : "Export PDF"}
         </button>
         <button

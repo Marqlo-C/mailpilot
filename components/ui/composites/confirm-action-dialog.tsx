@@ -1,7 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 
 import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
 import {
@@ -86,7 +87,7 @@ export function ConfirmActionDialog({
           )}
         >
           {pending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader size="sm" />
           ) : destructive ? (
             <Trash2 className="h-3.5 w-3.5" />
           ) : null}

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/core/prisma";
+import { decryptToken } from "@/lib/core/crypto";
 import { mergeRulesWithPermanentSettings } from "@/lib/profile/persistent-profile";
 import { parseAccountRules, type AccountRules } from "@/lib/validations/rules.schema";
 import {
@@ -12,6 +13,7 @@ import {
 import {
   callOllamaJson,
   isOllamaCircuitTripped,
+  isSameRegisteredOllamaUrl,
   tripOllamaCircuit,
   resolveOllamaModel,
   OllamaUnreachableError,
@@ -221,6 +223,7 @@ export async function callLLMWithFallback(
     let localOllamaUrl = options.localOllamaUrl;
     let ollamaModel = options.ollamaModel;
     let fetchedRules: Partial<AccountRules> | null = null;
+    let registeredOllamaUrl: string | null = null;
 
     if (options.accountId?.trim()) {
       try {
@@ -229,6 +232,9 @@ export async function callLLMWithFallback(
           select: { localOllamaUrl: true, ollamaModel: true, rules: true },
         });
         if (settings) {
+          if (settings.localOllamaUrl) {
+            registeredOllamaUrl = settings.localOllamaUrl;
+          }
           if (!localOllamaUrl && settings.localOllamaUrl) {
             localOllamaUrl = settings.localOllamaUrl;
           }
@@ -249,6 +255,23 @@ export async function callLLMWithFallback(
 
     const baseUrl = resolveOllamaBaseUrl(localOllamaUrl);
     const effectiveRules = options.accountRules ?? fetchedRules;
+    const expectedRegisteredUrl =
+      registeredOllamaUrl ?? effectiveRules?.localOllamaUrl ?? null;
+
+    let ollamaAuthToken: string | null = null;
+    if (
+      effectiveRules?.encryptedTunnelToken &&
+      expectedRegisteredUrl &&
+      isSameRegisteredOllamaUrl(baseUrl, expectedRegisteredUrl)
+    ) {
+      try {
+        ollamaAuthToken = decryptToken(
+          effectiveRules.encryptedTunnelToken
+        ).trim();
+      } catch {
+        ollamaAuthToken = null;
+      }
+    }
     const allowFallback = isCloudFallbackEnabled(options, effectiveRules);
     const resolvedModel = resolveOllamaModel(
       ollamaModel,
@@ -323,7 +346,8 @@ export async function callLLMWithFallback(
         options.userPrompt,
         resolvedModel,
         options.ollamaOptions,
-        options.devModelOverride
+        options.devModelOverride,
+        ollamaAuthToken
       );
 
       if (result) {

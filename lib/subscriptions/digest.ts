@@ -209,7 +209,7 @@ function parseFromEmail(fromRaw: string): { name: string; email: string } {
 
 /** Strip tracking chrome / bot boilerplate / leaked URLs before summarizing. */
 export function cleanDigestSummaryText(raw: string): string {
-  let text = raw
+  const text = raw
     .replace(/data:[a-z0-9+.-]+\/[a-z0-9+.-]+;base64,[a-z0-9+/=\s]+/gi, " ")
     .replace(/\[[^\]]{0,12}\]:\s*#[0-9a-f]{6,}\b/gi, " ")
     .replace(/\{?\s*"?[a-f0-9]{32,}"?\s*\}?/gi, " ")

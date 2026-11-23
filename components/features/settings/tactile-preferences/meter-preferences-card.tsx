@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { Waves } from "lucide-react";
 
 import { AppearanceModeToggle } from "@/components/features/settings/tactile-preferences/appearance-mode-toggle";
@@ -21,39 +21,22 @@ export function MeterPreferencesCard({
   accountId: string | null;
   initialVariant?: WavyMeterVariant;
 }) {
-  const [variant, setVariantState] = useState<WavyMeterVariant>(
-    () => initialVariant ?? readWavyMeterPreference(accountId)
+  const subscribe = useCallback((onStoreChange: () => void) => {
+    window.addEventListener(WAVY_METER_CHANGE_EVENT, onStoreChange);
+    window.addEventListener("storage", onStoreChange);
+    return () => {
+      window.removeEventListener(WAVY_METER_CHANGE_EVENT, onStoreChange);
+      window.removeEventListener("storage", onStoreChange);
+    };
+  }, []);
+  const variant = useSyncExternalStore(
+    subscribe,
+    () => readWavyMeterPreference(accountId),
+    () => initialVariant ?? "light"
   );
   const saved = Boolean(accountId);
 
-  useEffect(() => {
-    const current = readWavyMeterPreference(accountId);
-    setVariantState((prev) => (prev === current ? prev : current));
-
-    const sync = (e?: Event) => {
-      const customEvent = e as
-        | CustomEvent<{
-            variant?: WavyMeterVariant;
-            accountId?: string | null;
-          }>
-        | undefined;
-      if (customEvent?.detail?.variant) {
-        setVariantState(customEvent.detail.variant);
-        return;
-      }
-      setVariantState(readWavyMeterPreference(accountId));
-    };
-
-    window.addEventListener(WAVY_METER_CHANGE_EVENT, sync);
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener(WAVY_METER_CHANGE_EVENT, sync);
-      window.removeEventListener("storage", sync);
-    };
-  }, [accountId]);
-
   function handleSelect(next: WavyMeterVariant) {
-    setVariantState(next);
     persistWavyMeterPreference(accountId, next);
   }
 

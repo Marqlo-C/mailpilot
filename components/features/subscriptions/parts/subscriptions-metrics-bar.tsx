@@ -1,6 +1,7 @@
 import { History, Mail } from "lucide-react";
 import { formatDistanceToNow } from "@/lib/utils/format-distance";
 import { clutterScoreTier } from "@/lib/subscriptions/filters";
+import { NumberTicker } from "@/components/ui/number-ticker";
 import {
   META_CHIP_ICON_CLASSNAME,
   MetaChip,
@@ -33,7 +34,11 @@ export function ClutterStatBadge({
   return (
     <MetaChip
       title="Noise level"
-      value={`${score}%`}
+      value={
+        <>
+          <NumberTicker value={score} />%
+        </>
+      }
       valueClassName={
         selected
           ? SELECT_MUTED_PILL_VALUE_CLASSNAME
@@ -59,7 +64,7 @@ export function EmailsStatBadge({
       title="Email volume"
       icon={<Mail className={META_CHIP_ICON_CLASSNAME.sm} aria-hidden />}
       iconSize="sm"
-      value={String(count)}
+      value={<NumberTicker value={count} />}
       valueClassName="font-medium"
       width={width}
       selected={selected}

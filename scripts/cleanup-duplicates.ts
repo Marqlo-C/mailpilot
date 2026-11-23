@@ -1,8 +1,5 @@
-import { PrismaClient } from "@prisma/client";
-
+import { prisma } from "../lib/core/prisma";
 import { isGenericTitle } from "../lib/gmail/application-parser";
-
-const prisma = new PrismaClient();
 
 /**
  * One-shot cleanup: merge generic/placeholder duplicates per company and

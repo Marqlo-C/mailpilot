@@ -14,7 +14,8 @@ import * as dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 dotenv.config({ path: ".env" });
 
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@/lib/generated/prisma/client";
+import { prisma as defaultPrisma } from "../lib/core/prisma";
 
 export interface CleanRulesResult {
   accountId: string;
@@ -63,7 +64,7 @@ export async function cleanDeveloperRules(options?: {
   targetEmail?: string;
   prisma?: PrismaClient;
 }): Promise<CleanRulesResult[]> {
-  const prismaClient = options?.prisma ?? new PrismaClient();
+  const prismaClient = options?.prisma ?? defaultPrisma;
   const targetEmail =
     options?.targetEmail?.trim() ||
     process.env.TARGET_EMAIL ||

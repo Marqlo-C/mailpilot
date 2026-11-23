@@ -168,11 +168,17 @@ export function CanonicalSectionLayoutCard({
     setSelectedIds([]);
   }, [markLastClicked]);
 
-  useEffect(() => {
-    if (!isOrderingInteractive && selectedIds.length > 0) {
-      clearSelection();
+  const [prevOrderingInteractive, setPrevOrderingInteractive] = useState(
+    isOrderingInteractive
+  );
+  if (prevOrderingInteractive !== isOrderingInteractive) {
+    setPrevOrderingInteractive(isOrderingInteractive);
+    if (!isOrderingInteractive) {
+      setSelectionMode(false);
+      setSelectedIds([]);
+      markLastClicked(null);
     }
-  }, [isOrderingInteractive, selectedIds.length, clearSelection]);
+  }
 
   const gestureRules: CardListGestureRules = useMemo(
     () => ({

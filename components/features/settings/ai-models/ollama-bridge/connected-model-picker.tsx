@@ -1,6 +1,7 @@
 "use client";
 
-import { Cpu, Globe, Loader2, RefreshCw } from "lucide-react";
+import { Cpu, Globe, RefreshCw } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { Badge } from "@/components/ui/badge";
 import { AppMenuSelect } from "@/components/ui/app-menu";
 import { Button } from "@/components/ui/button";
@@ -165,7 +166,7 @@ export function ConnectedModelPicker({
               aria-label="Refresh models"
             >
               {verifying ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                <Loader size="sm" className="text-primary" />
               ) : (
                 <RefreshCw className="h-3.5 w-3.5" />
               )}

@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/lib/generated/prisma/client";
 
 import { getAuthenticatedAccountId } from "@/lib/core/auth";
+import { decryptToken } from "@/lib/core/crypto";
 import { prisma } from "@/lib/core/prisma";
+import { isSameRegisteredOllamaUrl } from "@/lib/ai";
 import { accountRulesSchema, parseAccountRules } from "@/lib/validations/rules.schema";
 
 export const dynamic = "force-dynamic";
@@ -80,11 +82,28 @@ export async function POST(request: Request) {
     }
 
     // Ping Ollama tags with snappy 2.5s timeout for fast UI feedback
+    const currentRules = parseAccountRules(account.settings?.rules);
+    const registeredUrl = account.settings?.localOllamaUrl?.trim() ?? null;
+    let tunnelToken: string | null = null;
+
+    if (
+      currentRules.encryptedTunnelToken &&
+      registeredUrl &&
+      isSameRegisteredOllamaUrl(targetUrl, registeredUrl)
+    ) {
+      try {
+        tunnelToken = decryptToken(currentRules.encryptedTunnelToken).trim();
+      } catch {
+        tunnelToken = null;
+      }
+    }
+
     const endpoint = `${targetUrl.replace(/\/+$/, "")}/api/tags`;
-    const fetchHeaders = {
+    const fetchHeaders: Record<string, string> = {
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       Accept: "application/json",
+      ...(tunnelToken ? { Authorization: `Bearer ${tunnelToken}` } : {}),
     };
 
     let res: Response | null = null;
@@ -151,7 +170,6 @@ export async function POST(request: Request) {
       })
       .filter((name: string | null): name is string => Boolean(name));
 
-    const currentRules = parseAccountRules(account.settings?.rules);
     const updatedRules = accountRulesSchema.parse({
       ...currentRules,
       bridgeConnected: true,

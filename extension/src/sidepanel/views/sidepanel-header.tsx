@@ -1,9 +1,5 @@
-import {
-  Compass,
-  ExternalLink,
-  Loader2,
-  RefreshCw,
-} from "lucide-react";
+import { Compass, ExternalLink, RefreshCw } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -133,7 +129,7 @@ export function SidePanelHeader({
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-border/50 bg-card/75 px-3 text-xs shadow-2xs backdrop-blur-md">
         {checkingSession ? (
           <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
-            <Loader2 className="h-3 w-3 animate-spin" /> Verifying session…
+            <Loader size="sm" /> Verifying session…
           </span>
         ) : session?.ok ? (
           <div className="flex items-center gap-2 overflow-hidden">
@@ -207,7 +203,7 @@ export function SidePanelHeader({
               title="Import job details from the active browser tab"
             >
               {isExtracting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader size="sm" />
               ) : (
                 <Compass className="h-3.5 w-3.5 text-primary" />
               )}

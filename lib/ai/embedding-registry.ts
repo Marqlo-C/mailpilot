@@ -8,6 +8,7 @@
  * ============================================================================
  */
 
+import { decryptToken } from "@/lib/core/crypto";
 import type { AccountRules } from "@/lib/validations/rules.schema";
 import type {
   EmbeddingDriverConfig,
@@ -141,10 +142,16 @@ export async function callOllamaEmbedding(
 
   for (const text of texts) {
     const { signal, clear } = createSafeTimeoutSignal(config.timeoutMs);
+    const cleanAuthToken = config.authToken?.trim();
     try {
       const response = await fetch(`${baseUrl}/api/embeddings`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(cleanAuthToken
+            ? { Authorization: `Bearer ${cleanAuthToken}` }
+            : {}),
+        },
         body: JSON.stringify({ model, prompt: text }),
         signal,
         cache: "no-store",
@@ -473,12 +480,25 @@ export function resolveEmbeddingConfig(
   const model = rules?.embeddingModel?.trim() || getDefaultModelForProvider(provider);
 
   switch (provider) {
-    case "local_ollama":
+    case "local_ollama": {
+      let authToken: string | undefined;
+      if (rules?.encryptedTunnelToken) {
+        try {
+          const decrypted = decryptToken(rules.encryptedTunnelToken).trim();
+          if (decrypted) {
+            authToken = decrypted;
+          }
+        } catch {
+          authToken = undefined;
+        }
+      }
       return {
         provider: "local_ollama",
         model,
         baseUrl: resolveOllamaBaseUrl(rules?.localOllamaUrl),
+        ...(authToken ? { authToken } : {}),
       };
+    }
 
     case "openai": {
       const decryptedKey = resolveDecryptedAccountKey(rules);

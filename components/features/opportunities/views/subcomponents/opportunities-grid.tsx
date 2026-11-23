@@ -1,5 +1,5 @@
 import type React from "react";
-import type { JobOpportunity } from "@prisma/client";
+import type { JobOpportunity } from "@/lib/generated/prisma/client";
 
 import {
   OpportunityCard,

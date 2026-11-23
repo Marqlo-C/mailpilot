@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { History, Loader2, RotateCcwClock } from "lucide-react";
+import { History, RotateCcwClock } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { toast } from "sonner";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 
@@ -31,6 +32,22 @@ type ProfileRevisionsMenuProps = {
   revisionStamp?: string;
 };
 
+async function fetchProfileHistoryItems(
+  accountId: string
+): Promise<ProfileHistoryItem[] | null> {
+  try {
+    const res = await fetch(
+      `/api/profile/history?accountId=${encodeURIComponent(accountId)}`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const body = (await res.json()) as { items?: ProfileHistoryItem[] };
+    return Array.isArray(body.items) ? body.items : [];
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Current profile plus up to three earlier copies.
  */
@@ -43,32 +60,28 @@ export function ProfileRevisionsMenu({
   const [items, setItems] = useState<ProfileHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [pending, startTransition] = useTransition();
-  const hasItems = useRef(false);
   const requestId = useRef(0);
-  hasItems.current = items.length > 0;
 
   const loadRevisions = useCallback(async () => {
     const id = ++requestId.current;
-    if (!hasItems.current) setLoading(true);
-    try {
-      const res = await fetch(
-        `/api/profile/history?accountId=${encodeURIComponent(accountId)}`,
-        { cache: "no-store" }
-      );
-      if (id !== requestId.current) return;
-      if (!res.ok) return;
-      const body = (await res.json()) as { items?: ProfileHistoryItem[] };
-      setItems(Array.isArray(body.items) ? body.items : []);
-    } catch {
-      // A newer load supersedes this one.
-    } finally {
-      if (id === requestId.current) setLoading(false);
+    const nextItems = await fetchProfileHistoryItems(accountId);
+    if (id !== requestId.current) return;
+    if (nextItems !== null) {
+      setItems(nextItems);
     }
+    setLoading(false);
   }, [accountId]);
 
   useEffect(() => {
-    void loadRevisions();
-  }, [open, loadRevisions, revisionStamp]);
+    const id = ++requestId.current;
+    void fetchProfileHistoryItems(accountId).then((nextItems) => {
+      if (id !== requestId.current) return;
+      if (nextItems !== null) {
+        setItems(nextItems);
+      }
+      setLoading(false);
+    });
+  }, [open, accountId, revisionStamp]);
 
   const latest = items[0];
   const latestTitle = latest ? parseRevisionSummary(latest.summary).title : "";
@@ -120,7 +133,15 @@ export function ProfileRevisionsMenu({
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen && items.length === 0) {
+          setLoading(true);
+        }
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -130,7 +151,7 @@ export function ProfileRevisionsMenu({
           className="h-8 max-w-sm gap-1.5 px-3 text-xs font-medium [&_svg]:!size-3.5"
         >
           {pending || revisionsPending ? (
-            <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
+            <Loader size="sm" className="shrink-0 text-muted-foreground" />
           ) : (
             <History className="size-3.5 shrink-0 text-muted-foreground" />
           )}
@@ -157,7 +178,7 @@ export function ProfileRevisionsMenu({
         <div className="space-y-2.5 bg-muted/10 p-3.5">
           {loading && items.length === 0 ? (
             <div className="flex items-center gap-2 py-1 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader size="sm" />
               Loading revisions…
             </div>
           ) : (

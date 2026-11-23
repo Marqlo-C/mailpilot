@@ -11,8 +11,15 @@ import {
   SESSION_COOKIE,
 } from "@/lib/core/constants";
 import { getGmailClientForAccount } from "@/lib/gmail/google";
-import { normalizeOllamaBaseUrl, ollamaBaseUrlFromEnv, probeOllamaTags } from "@/lib/ai";
+import { decryptToken } from "@/lib/core/crypto";
+import {
+  isSameRegisteredOllamaUrl,
+  normalizeOllamaBaseUrl,
+  ollamaBaseUrlFromEnv,
+  probeOllamaTags,
+} from "@/lib/ai";
 import { processInboxDelta } from "@/lib/gmail/sync";
+import { parseAccountRules } from "@/lib/validations/rules.schema";
 import {
   accountIdParamSchema,
   actionError,
@@ -169,9 +176,24 @@ export async function pingOllama(
   const settings = await getAccountOllamaSettings(parsed.data);
   const raw = url?.trim() || settings?.localOllamaUrl || ollamaBaseUrlFromEnv();
   const base = normalizeOllamaBaseUrl(raw);
+  const registeredUrl = settings?.localOllamaUrl?.trim() ?? null;
+  const rules = parseAccountRules(settings?.rules);
+
+  let authToken: string | null = null;
+  if (
+    rules.encryptedTunnelToken &&
+    registeredUrl &&
+    isSameRegisteredOllamaUrl(base, registeredUrl)
+  ) {
+    try {
+      authToken = decryptToken(rules.encryptedTunnelToken).trim();
+    } catch {
+      authToken = null;
+    }
+  }
 
   try {
-    const { models } = await probeOllamaTags(base, 5000);
+    const { models } = await probeOllamaTags(base, 5000, { authToken });
     await updateOllamaSettings(parsed.data, base, models);
     return actionSuccess({ models });
   } catch (error) {

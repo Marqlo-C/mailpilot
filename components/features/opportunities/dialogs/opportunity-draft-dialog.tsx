@@ -5,8 +5,10 @@ import {
   useId,
   type CSSProperties,
 } from "react";
-import type { JobOpportunity } from "@prisma/client";
-import { Loader2 } from "lucide-react";
+import type { JobOpportunity } from "@/lib/generated/prisma/client";
+
+import { Loader } from "@/components/ui/loader";
+import { TextShimmer } from "@/components/ui/text-shimmer";
 
 import {
   reorderResumeDraftNodeAction,
@@ -132,9 +134,9 @@ export function OpportunityDraftDialog({
       }
     >
       {flow.loadingDraft ? (
-        <div className="flex flex-1 items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Preparing draft…
+        <div className="flex flex-1 items-center justify-center gap-2 py-16 text-sm">
+          <Loader size="md" />
+          <TextShimmer>Preparing draft…</TextShimmer>
         </div>
       ) : flow.error ? (
         <p className="flex-1 px-6 py-8 text-sm text-destructive">{flow.error}</p>
@@ -179,7 +181,9 @@ export function OpportunityDraftDialog({
               removeFile={flow.removeFile}
               handleFileSelect={flow.handleFileSelect}
               fileInputId={fileInputId}
-              busy={flow.busy}
+              emailBusy={flow.emailBusy}
+              emailBusyLabel={flow.emailBusyLabel}
+              onCancelEmailTask={flow.handleCancelEmailTask}
             />
 
             {/* Split resize handle: appears on lg screens when resume preview is mounted */}
@@ -225,12 +229,11 @@ export function OpportunityDraftDialog({
             {flow.attachResume ? (
               <ResumePreviewPanel
                 resumeBusy={flow.resumeBusy}
+                resumeBusyLabel={flow.resumeBusyLabel}
+                exporting={flow.exporting}
                 resume={flow.resume}
                 resumeError={flow.resumeError}
-                busy={flow.busy}
                 resumePdfUrl={resumePdfUrl}
-                showRationale={flow.showRationale}
-                setShowRationale={flow.setShowRationale}
                 resumeStateLoaded={flow.resumeStateLoaded}
                 onCancelTask={() => flow.handleCancelTask(TASK_RESUME)}
                 onRetry={() => void flow.generateResume()}
@@ -271,7 +274,7 @@ export function OpportunityDraftDialog({
             attachResume={flow.attachResume}
             effectiveRefineTarget={flow.effectiveRefineTarget}
             setRefineTarget={flow.setRefineTarget}
-            busy={flow.busy}
+            aceBusy={flow.aceBusy}
             refinePlaceholder={flow.refinePlaceholder}
             refinePrompt={flow.refinePrompt}
             setRefinePrompt={flow.setRefinePrompt}
@@ -303,7 +306,7 @@ export function OpportunityDraftDialog({
           <DraftFooterControls
             attachResume={flow.attachResume}
             handleAttachResumeChange={flow.handleAttachResumeChange}
-            busy={flow.busy}
+            locked={flow.resumeBusy || flow.exporting}
             resume={flow.resume}
             resumeSizeLabel={resumeSizeLabel}
             includeSummary={flow.includeSummary}

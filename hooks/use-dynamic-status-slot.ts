@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useOptionalSyncStatus } from "@/components/layout/sync-status-provider";
 import {
   useTactileToasts,
@@ -53,9 +59,14 @@ export function useDynamicStatusSlot(
   const [isRolling, setIsRolling] = useState(false);
 
   const activeToastRef = useRef<TactileToastRecord | null>(null);
-  activeToastRef.current = activeToast;
+  useLayoutEffect(() => {
+    activeToastRef.current = activeToast;
+  }, [activeToast]);
 
   const dismissedIdsRef = useRef<Set<string | number>>(new Set());
+  const [dismissedIds, setDismissedIds] = useState<Set<string | number>>(
+    () => new Set()
+  );
   const rollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const dwellTimerRef = useRef<NodeJS.Timeout | null>(null);
   const remainingTimeRef = useRef<{ remainingMs: number; startTime: number } | null>(null);
@@ -86,6 +97,11 @@ export function useDynamicStatusSlot(
 
     clearDwellTimer();
     dismissedIdsRef.current.add(current.id);
+    setDismissedIds((prev) => {
+      const next = new Set(prev);
+      next.add(current.id);
+      return next;
+    });
     dismissToast(current.id);
 
     const nextPending = toasts.filter(
@@ -186,8 +202,28 @@ export function useDynamicStatusSlot(
 
   const showSync = mode === "sync";
   const showToast = mode === "toast" || mode === "toast-over-sync";
+  const [prevToasts, setPrevToasts] = useState(toasts);
+  if (prevToasts !== toasts) {
+    setPrevToasts(toasts);
+    const currentToastIds = new Set(toasts.map((t) => t.id));
+    let changed = false;
+    for (const id of dismissedIds) {
+      if (!currentToastIds.has(id)) {
+        changed = true;
+        break;
+      }
+    }
+    if (changed) {
+      const next = new Set<string | number>();
+      for (const id of dismissedIds) {
+        if (currentToastIds.has(id)) next.add(id);
+      }
+      setDismissedIds(next);
+    }
+  }
+
   const candidateCount = toasts.filter(
-    (t) => !dismissedIdsRef.current.has(t.id) && t.phase !== "out"
+    (t) => !dismissedIds.has(t.id) && t.phase !== "out"
   ).length;
 
   return {

@@ -1,4 +1,4 @@
-import type { Subscription } from "@prisma/client";
+import type { Subscription } from "@/lib/generated/prisma/client";
 import { faviconUrlForDomain, getCleanDomain } from "@/lib/utils/domain";
 import {
   effectiveSubscriptionClutterScore,

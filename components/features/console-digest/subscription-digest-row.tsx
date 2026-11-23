@@ -1,6 +1,6 @@
 "use client";
 
-import type { Subscription } from "@prisma/client";
+import type { Subscription } from "@/lib/generated/prisma/client";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { DigestRowItem } from "./digest-row-item";

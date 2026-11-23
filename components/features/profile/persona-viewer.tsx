@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import {
   collectRolesFromFacts,
@@ -87,11 +87,15 @@ export function PersonaViewer({ accountId, profile }: PersonaViewerProps) {
   const rolesAnalyzed = collectRolesFromFacts(
     extractPersonaFacts(profile)
   ).length;
-  const [open, setOpen] = useState<PersonaPanels>(DEFAULT_PANELS);
+  const [prevAccountId, setPrevAccountId] = useState(accountId);
+  const [open, setOpen] = useState<PersonaPanels>(() =>
+    loadPersonaPanels(accountId)
+  );
 
-  useEffect(() => {
+  if (prevAccountId !== accountId) {
+    setPrevAccountId(accountId);
     setOpen(loadPersonaPanels(accountId));
-  }, [accountId]);
+  }
 
   function toggle(panel: keyof PersonaPanels) {
     setOpen((current) => {

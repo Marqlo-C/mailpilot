@@ -1,7 +1,7 @@
 import {
   type Subscription,
   type SubscriptionHistory,
-} from "@prisma/client";
+} from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/core/prisma";
 
 export type LatestBriefingPreview = {

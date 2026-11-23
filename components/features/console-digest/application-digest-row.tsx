@@ -1,6 +1,6 @@
 "use client";
 
-import type { JobApplication } from "@prisma/client";
+import type { JobApplication } from "@/lib/generated/prisma/client";
 import Link from "next/link";
 import { ArrowRight, ExternalLink } from "lucide-react";
 import { DigestRowItem } from "./digest-row-item";

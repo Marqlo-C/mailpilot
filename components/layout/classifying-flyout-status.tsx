@@ -8,6 +8,7 @@ import {
   useSyncStatus,
 } from "@/components/layout/sync-status-provider";
 import { BULK_FLYOUT_PILL_CLASSNAME } from "@/components/ui/composites/bulk-actions-flyout";
+import { NumberTicker } from "@/components/ui/number-ticker";
 import { cn } from "@/lib/utils";
 
 type ClassifyingFlyoutStatusProps = {
@@ -22,26 +23,51 @@ type ClassifyingFlyoutStatusProps = {
 type StatusSnapshot = {
   isSyncing: boolean;
   queuedMode: boolean;
-  syncProgress: string | null;
+  progressProcessed: number | null;
+  progressTotal: number | null;
   opportunitiesAdded: number | null;
   showCount: boolean;
 };
 
-function formatRatio(processed: number | null, total: number | null): string | null {
+function resolveProgress(
+  processed: number | null,
+  total: number | null
+): { processed: number; total: number | null } | null {
   if (processed == null || processed <= 0) return null;
   if (total != null && total >= processed) {
-    return `${processed} / ${total}`;
+    return { processed, total };
   }
-  return `${processed}`;
+  return { processed, total: null };
+}
+
+function ProgressRatio({
+  processed,
+  total,
+}: {
+  processed: number;
+  total: number | null;
+}) {
+  return (
+    <span className="inline-flex items-baseline gap-1 font-semibold tabular-nums">
+      <NumberTicker value={processed} />
+      {total != null ? <span>/ {total}</span> : null}
+    </span>
+  );
 }
 
 function StatusBody({
   isSyncing,
   queuedMode,
-  syncProgress,
+  progressProcessed,
+  progressTotal,
   opportunitiesAdded,
   showCount,
 }: StatusSnapshot) {
+  const progress =
+    progressProcessed != null
+      ? { processed: progressProcessed, total: progressTotal }
+      : null;
+
   if (isSyncing) {
     return (
       <div className="flex items-center gap-2">
@@ -51,22 +77,16 @@ function StatusBody({
         </span>
         <span className="whitespace-nowrap text-[#e4f7f3]">
           {queuedMode ? (
-            syncProgress ? (
+            progress ? (
               <>
-                Ace reviewing{" "}
-                <span className="font-semibold tabular-nums">
-                  {syncProgress}
-                </span>{" "}
-                queued…
+                Ace reviewing <ProgressRatio {...progress} /> queued…
               </>
             ) : (
               "Ace reviewing queued emails…"
             )
-          ) : syncProgress ? (
+          ) : progress ? (
             <>
-              Sorting inbox{" "}
-              <span className="font-semibold tabular-nums">{syncProgress}</span>
-              …
+              Sorting inbox <ProgressRatio {...progress} />…
             </>
           ) : (
             "Sorting inbox…"
@@ -117,7 +137,14 @@ function StatusBody({
               hasAdded ? "text-emerald-300" : "text-[#e4f7f3]"
             )}
           >
-            {hasAdded ? `+${count}` : "0"}
+            {hasAdded ? (
+              <>
+                +
+                <NumberTicker value={count} />
+              </>
+            ) : (
+              "0"
+            )}
           </span>{" "}
           {count === 1 ? "opportunity" : "opportunities"} added
         </span>
@@ -147,14 +174,23 @@ export function ClassifyingFlyoutStatus({
   const [showCount, setShowCount] = useState(false);
 
   const [latchedCount, setLatchedCount] = useState<number | null>(null);
-
-  useEffect(() => {
+  const [prevAddedKey, setPrevAddedKey] = useState({
+    opportunitiesAdded,
+    isSyncing,
+    justFinished,
+  });
+  if (
+    prevAddedKey.opportunitiesAdded !== opportunitiesAdded ||
+    prevAddedKey.isSyncing !== isSyncing ||
+    prevAddedKey.justFinished !== justFinished
+  ) {
+    setPrevAddedKey({ opportunitiesAdded, isSyncing, justFinished });
     if (typeof opportunitiesAdded === "number") {
       setLatchedCount(opportunitiesAdded);
     } else if (!isSyncing && !justFinished) {
       setLatchedCount(null);
     }
-  }, [opportunitiesAdded, isSyncing, justFinished]);
+  }
 
   const effectiveOpportunitiesAdded =
     typeof opportunitiesAdded === "number"
@@ -163,55 +199,59 @@ export function ClassifyingFlyoutStatus({
 
   const isActivelySyncing = isSyncing && !justFinished;
 
-  useEffect(() => {
-    if (isActivelySyncing) {
+  const [prevCountGate, setPrevCountGate] = useState({
+    isActivelySyncing,
+    justFinished,
+  });
+  if (
+    prevCountGate.isActivelySyncing !== isActivelySyncing ||
+    prevCountGate.justFinished !== justFinished
+  ) {
+    setPrevCountGate({ isActivelySyncing, justFinished });
+    if (isActivelySyncing || !justFinished) {
       setShowCount(false);
-      return;
     }
-    if (justFinished) {
-      const timer = setTimeout(() => {
-        setShowCount(true);
-      }, 1800);
-      return () => clearTimeout(timer);
-    }
-    setShowCount(false);
+  }
+
+  useEffect(() => {
+    if (isActivelySyncing || !justFinished) return;
+    const timer = setTimeout(() => {
+      setShowCount(true);
+    }, 1800);
+    return () => clearTimeout(timer);
   }, [isActivelySyncing, justFinished]);
 
   const active = isSyncing || justFinished;
   const queuedMode = syncKind === "queued";
-  const syncProgress = queuedMode
-    ? formatRatio(lastSyncPendingProcessed, syncPendingTotal) ??
-      formatRatio(lastSyncProcessed, totalToProcess)
-    : formatRatio(lastSyncProcessed, totalToProcess);
+  // Never cross-fall back between inbox and Ace counters — that made the
+  // numerator jump backward (e.g. 4 → 1) and the ticker count down.
+  const progress = queuedMode
+    ? resolveProgress(lastSyncPendingProcessed, syncPendingTotal)
+    : resolveProgress(lastSyncProcessed, totalToProcess);
 
   const live: StatusSnapshot | null = active
     ? {
         isSyncing: isActivelySyncing,
         queuedMode,
-        syncProgress,
+        progressProcessed: progress?.processed ?? null,
+        progressTotal: progress?.total ?? null,
         opportunitiesAdded: effectiveOpportunitiesAdded,
         showCount,
       }
     : null;
   const [lingering, setLingering] = useState<StatusSnapshot | null>(null);
 
-  useEffect(() => {
-    if (!active) return;
-    setLingering({
-      isSyncing: isActivelySyncing,
-      queuedMode,
-      syncProgress,
-      opportunitiesAdded: effectiveOpportunitiesAdded,
-      showCount,
-    });
-  }, [
-    active,
-    isActivelySyncing,
-    queuedMode,
-    syncProgress,
-    effectiveOpportunitiesAdded,
-    showCount,
-  ]);
+  if (
+    live &&
+    (lingering?.isSyncing !== live.isSyncing ||
+      lingering?.queuedMode !== live.queuedMode ||
+      lingering?.progressProcessed !== live.progressProcessed ||
+      lingering?.progressTotal !== live.progressTotal ||
+      lingering?.opportunitiesAdded !== live.opportunitiesAdded ||
+      lingering?.showCount !== live.showCount)
+  ) {
+    setLingering(live);
+  }
 
   const snapshot = live ?? (linger ? lingering : null);
   if (!snapshot) return null;

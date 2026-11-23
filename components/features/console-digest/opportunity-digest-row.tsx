@@ -1,9 +1,10 @@
 "use client";
 
-import type { JobOpportunity } from "@prisma/client";
+import type { JobOpportunity } from "@/lib/generated/prisma/client";
 import Link from "next/link";
 import { ArrowRight, ExternalLink } from "lucide-react";
 import { DigestRowItem } from "./digest-row-item";
+import { NumberTicker } from "@/components/ui/number-ticker";
 import { SCORE_PERCENT_CLASSNAME } from "@/components/ui/styles/score-percent";
 import { getCompanyLogoUrl } from "@/lib/utils/company-logo";
 import { scoreTone } from "@/lib/utils/format";
@@ -41,7 +42,7 @@ export function OpportunityDigestRow({
               scoreTone(score)
             )}
           >
-            {score}%
+            <NumberTicker value={score} />%
           </span>
         </div>
       }

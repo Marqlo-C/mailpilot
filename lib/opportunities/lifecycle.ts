@@ -1,4 +1,4 @@
-import type { JobOpportunity } from "@prisma/client";
+import type { JobOpportunity } from "@/lib/generated/prisma/client";
 
 /**
  * User-initiated archive: isArchived + previousStatus set, still not DISMISSED.

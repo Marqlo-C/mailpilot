@@ -3,7 +3,7 @@ import {
   type Account,
   type AccountSettings,
   Prisma,
-} from "@prisma/client";
+} from "@/lib/generated/prisma/client";
 
 import { getAuthenticatedAccountId, getSessionToken } from "@/lib/core/auth";
 import { ACTIVE_ACCOUNT_COOKIE } from "@/lib/core/constants";

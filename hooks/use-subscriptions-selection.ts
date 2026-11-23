@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useLastClickedId } from "./use-last-clicked-id";
 
 export interface UseSubscriptionsSelectionOptions<T extends { id: string }> {
@@ -16,31 +16,24 @@ export function useSubscriptionsSelection<T extends { id: string }>({
   const [selectionMode, setSelectionMode] = useState(false);
 
   const activeIds = useMemo(() => {
-    return Array.isArray(filteredActiveIds)
-      ? filteredActiveIds
-      : filteredActiveIds?.current ?? [];
-  }, [filteredActiveIds]);
+    if (Array.isArray(filteredActiveIds)) {
+      return filteredActiveIds;
+    }
+    return activeItems.map((item) => item.id);
+  }, [filteredActiveIds, activeItems]);
+
+  const visibleIdSet = useMemo(() => new Set(activeIds), [activeIds]);
+  const effectiveSelectedIds = useMemo(
+    () => selectedIds.filter((id) => visibleIdSet.has(id)),
+    [selectedIds, visibleIdSet]
+  );
+  const effectiveSelectionMode =
+    selectionMode && effectiveSelectedIds.length > 0;
 
   const { lastClickedId, markLastClicked } = useLastClickedId(
-    selectedIds,
+    effectiveSelectedIds,
     activeIds
   );
-
-  // Keep selection synchronized with currently visible items.
-  useEffect(() => {
-    const visibleIds = new Set(activeIds);
-    setSelectedIds((prev) => {
-      const next = prev.filter((id) => visibleIds.has(id));
-      return next.length === prev.length ? prev : next;
-    });
-  }, [activeIds]);
-
-  // Never stay in selectionMode with zero ids.
-  useEffect(() => {
-    if (selectedIds.length === 0 && selectionMode) {
-      setSelectionMode(false);
-    }
-  }, [selectedIds.length, selectionMode]);
 
   const clearSelection = useCallback(() => {
     setSelectedIds([]);
@@ -91,7 +84,8 @@ export function useSubscriptionsSelection<T extends { id: string }>({
     (pageIds: string[]) => {
       markLastClicked(null);
       const isAllSelected =
-        pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+        pageIds.length > 0 &&
+        pageIds.every((id) => effectiveSelectedIds.includes(id));
       if (isAllSelected) {
         clearSelection();
         return;
@@ -99,24 +93,25 @@ export function useSubscriptionsSelection<T extends { id: string }>({
       setSelectionMode(true);
       setSelectedIds(pageIds);
     },
-    [clearSelection, markLastClicked, selectedIds]
+    [clearSelection, markLastClicked, effectiveSelectedIds]
   );
 
   const isAllSelected = useCallback(
     (pageIds: string[]) =>
-      pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id)),
-    [selectedIds]
+      pageIds.length > 0 &&
+      pageIds.every((id) => effectiveSelectedIds.includes(id)),
+    [effectiveSelectedIds]
   );
 
   const selectedSubscriptions = useMemo(
-    () => activeItems.filter((item) => selectedIds.includes(item.id)),
-    [activeItems, selectedIds]
+    () => activeItems.filter((item) => effectiveSelectedIds.includes(item.id)),
+    [activeItems, effectiveSelectedIds]
   );
 
   return {
-    selectedIds,
+    selectedIds: effectiveSelectedIds,
     setSelectedIds,
-    selectionMode,
+    selectionMode: effectiveSelectionMode,
     setSelectionMode,
     lastClickedId,
     markLastClicked,

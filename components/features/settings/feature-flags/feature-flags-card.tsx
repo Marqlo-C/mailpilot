@@ -124,12 +124,15 @@ export function FeatureFlagsCard({
     [rules]
   );
 
+  const [prevEffectiveBase, setPrevEffectiveBase] =
+    React.useState(effectiveBase);
   const [optimisticFlags, setOptimisticFlags] =
     React.useState<Record<FeatureFlagKey, boolean>>(effectiveBase);
 
-  React.useEffect(() => {
+  if (prevEffectiveBase !== effectiveBase) {
+    setPrevEffectiveBase(effectiveBase);
     setOptimisticFlags(effectiveBase);
-  }, [effectiveBase]);
+  }
 
   const activeKillSwitchCount = React.useMemo(() => {
     if (!killSwitches) return 0;

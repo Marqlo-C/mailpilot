@@ -1,6 +1,6 @@
 import { google, gmail_v1 } from "googleapis";
 import type { OAuth2Client } from "google-auth-library";
-import type { Account } from "@prisma/client";
+import type { Account } from "@/lib/generated/prisma/client";
 
 import { decryptToken, encryptToken } from "@/lib/core/crypto";
 import { prisma } from "@/lib/core/prisma";

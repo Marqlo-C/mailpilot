@@ -1,6 +1,7 @@
 "use client";
 
-import { Loader2, Wifi } from "lucide-react";
+import { Wifi } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { Button } from "@/components/ui/button";
 import { SettingsStepCard } from "@/components/ui/tactile/nested-settings-card";
 import {
@@ -66,7 +67,7 @@ export function StepConnectionCheck({
           }}
         >
           {verifying ? (
-            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+            <Loader size="sm" className="text-muted-foreground" />
           ) : (
             <Wifi className="size-3.5 text-muted-foreground" />
           )}

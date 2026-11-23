@@ -44,7 +44,7 @@ export async function getSessionToken(): Promise<string | null> {
 
 /**
  * True when a non-empty `mailpilot_session` cookie is present.
- * Used by middleware-compatible callers; DB validation happens in data layer.
+ * Used by proxy-compatible callers; DB validation happens in data layer.
  */
 export function isSessionTokenPresent(token: string | null | undefined): boolean {
   return Boolean(token && token.trim().length > 0);

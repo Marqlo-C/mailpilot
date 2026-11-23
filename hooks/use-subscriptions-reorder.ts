@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useHydrated } from "@/hooks/use-hydrated";
 import type { SubscriptionSortOption } from "@/lib/subscriptions/filters";
 import { mergeFilteredOrderIntoCustom } from "@/lib/utils/dnd/reorder";
 import {
@@ -24,13 +25,28 @@ export function useSubscriptionsReorder({
   onSortOptionChange,
   onRequestUnsubscribe,
 }: UseSubscriptionsReorderOptions) {
-  const [customOrder, setCustomOrder] = useState<string[]>([]);
-  const suppressTabChangeRef = useRef(false);
+  const hydrated = useHydrated();
+  const [customOrderOverride, setCustomOrderOverride] = useState<{
+    accountId: string;
+    order: string[];
+  } | null>(null);
 
-  // Hydrate custom order from local storage on mount / account change
-  useLayoutEffect(() => {
-    setCustomOrder(readCustomOrder(accountId));
-  }, [accountId]);
+  const customOrder = useMemo<string[]>(() => {
+    if (!hydrated) return [];
+    if (customOrderOverride?.accountId === accountId) {
+      return customOrderOverride.order;
+    }
+    return readCustomOrder(accountId);
+  }, [hydrated, customOrderOverride, accountId]);
+
+  const setCustomOrder = useCallback(
+    (order: string[]) => {
+      setCustomOrderOverride({ accountId, order });
+    },
+    [accountId]
+  );
+
+  const suppressTabChangeRef = useRef(false);
 
   const handleReorder = useCallback(
     (nextFullIds: string[], _movedIds: string[]) => {
@@ -49,7 +65,14 @@ export function useSubscriptionsReorder({
         onSortOptionChange("custom");
       }
     },
-    [accountId, customOrder, filteredActiveIds, onSortOptionChange, sortOption]
+    [
+      accountId,
+      customOrder,
+      filteredActiveIds,
+      onSortOptionChange,
+      setCustomOrder,
+      sortOption,
+    ]
   );
 
   const handleDropZone = useCallback(

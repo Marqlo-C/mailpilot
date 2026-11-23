@@ -1,6 +1,6 @@
 "use client";
 
-import type { Subscription } from "@prisma/client";
+import type { Subscription } from "@/lib/generated/prisma/client";
 import { SnapshotDialog } from "@/components/features/subscriptions/snapshot-dialog";
 import { EmailPreviewDialog } from "@/components/features/subscriptions/email-preview-dialog";
 import { ConfirmActionDialog } from "@/components/ui/composites/confirm-action-dialog";

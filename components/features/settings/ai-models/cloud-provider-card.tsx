@@ -2,16 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Cloud,
-  Cpu,
-  CpuAi,
-  KeyRound,
-  Loader2,
-  Redo2,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Cloud, Cpu, CpuAi, KeyRound, Redo2, Trash2, X } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { toast } from "sonner";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 
@@ -117,14 +109,32 @@ export function CloudProviderCard({
     savedCloudModelProvider
   );
 
-  useEffect(() => {
+  const [prevAllowCloudFallback, setPrevAllowCloudFallback] = useState(
+    initialAllowCloudFallback
+  );
+  if (prevAllowCloudFallback !== initialAllowCloudFallback) {
+    setPrevAllowCloudFallback(initialAllowCloudFallback);
     setAllowCloudFallback(initialAllowCloudFallback);
     if (!initialAllowCloudFallback) {
       setCloudSubOpen(false);
     }
-  }, [initialAllowCloudFallback]);
+  }
 
-  useEffect(() => {
+  const [prevCloudProps, setPrevCloudProps] = useState({
+    initialCloudProvider,
+    initialCloudModel,
+    initialCloudModelProvider,
+  });
+  if (
+    prevCloudProps.initialCloudProvider !== initialCloudProvider ||
+    prevCloudProps.initialCloudModel !== initialCloudModel ||
+    prevCloudProps.initialCloudModelProvider !== initialCloudModelProvider
+  ) {
+    setPrevCloudProps({
+      initialCloudProvider,
+      initialCloudModel,
+      initialCloudModelProvider,
+    });
     const nextProvider = initialCloudProvider ?? "OPENROUTER";
     const nextModel = initialCloudModel ?? null;
     const nextModelProvider =
@@ -135,14 +145,16 @@ export function CloudProviderCard({
     setCloudModelOverride(
       resolveScopedModelInput(nextProvider, nextModel, nextModelProvider)
     );
-  }, [initialCloudProvider, initialCloudModel, initialCloudModelProvider]);
+  }
 
-  useEffect(() => {
+  const [prevMaskedApiKey, setPrevMaskedApiKey] = useState(initialMaskedApiKey);
+  if (prevMaskedApiKey !== initialMaskedApiKey) {
+    setPrevMaskedApiKey(initialMaskedApiKey);
     setMaskedApiKey(initialMaskedApiKey ?? null);
     if (!initialMaskedApiKey) {
       setIsEditingKey(true);
     }
-  }, [initialMaskedApiKey]);
+  }
 
   function handleSaveModelOverride() {
     if (!accountId) return;
@@ -418,7 +430,7 @@ export function CloudProviderCard({
               >
                 {pending ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <Loader size="sm" />
                     <span>Saving…</span>
                   </>
                 ) : (
@@ -547,7 +559,7 @@ export function CloudProviderCard({
                 >
                   {pending ? (
                     <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Loader size="sm" />
                       <span>Saving…</span>
                     </>
                   ) : (

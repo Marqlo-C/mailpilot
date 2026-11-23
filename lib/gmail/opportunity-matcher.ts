@@ -1,4 +1,4 @@
-import type { JobOpportunity } from "@prisma/client";
+import type { JobOpportunity } from "@/lib/generated/prisma/client";
 import type { gmail_v1 } from "googleapis";
 
 import { prisma } from "@/lib/core/prisma";

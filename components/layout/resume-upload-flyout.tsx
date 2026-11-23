@@ -2,13 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  CloudUpload,
-  FileText,
-  FolderGit2,
-  Loader2,
-  X,
-} from "lucide-react";
+import { CloudUpload, FileText, FolderGit2, X } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { toast } from "sonner";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 
@@ -46,13 +41,20 @@ export function ResumeUploadFlyout({ accountId }: { accountId: string }) {
   const [cachedResume, setCachedResume] =
     useState<DevCachedResumeMetadata | null>(null);
   const [useCachedResume, setUseCachedResume] = useState(false);
-  const [loadingCacheInfo, setLoadingCacheInfo] = useState(false);
+  const [loadingCacheInfo, setLoadingCacheInfo] = useState(isDev);
   const [pending, startTransition] = useTransition();
+  const [prevAccountId, setPrevAccountId] = useState(accountId);
+
+  if (prevAccountId !== accountId) {
+    setPrevAccountId(accountId);
+    if (isDev) {
+      setLoadingCacheInfo(true);
+    }
+  }
 
   useEffect(() => {
     if (!isDev) return;
     let cancelled = false;
-    setLoadingCacheInfo(true);
     void getDevCachedResumeInfo(accountId)
       .then((res) => {
         if (cancelled) return;
@@ -300,7 +302,7 @@ export function ResumeUploadFlyout({ accountId }: { accountId: string }) {
             className={ACTION_BTN_CLASS}
           >
             {pending ? (
-              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              <Loader size="sm" aria-hidden />
             ) : (
               <FolderGit2 className="size-3.5" aria-hidden />
             )}
@@ -388,7 +390,7 @@ export function ResumeUploadFlyout({ accountId }: { accountId: string }) {
         className={PRIMARY_BTN_CLASS}
       >
         {pending ? (
-          <Loader2 className="size-3.5 animate-spin" aria-hidden />
+          <Loader size="sm" aria-hidden />
         ) : (
           <CloudUpload className="size-3.5" aria-hidden />
         )}

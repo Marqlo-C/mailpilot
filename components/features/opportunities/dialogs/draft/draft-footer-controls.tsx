@@ -8,7 +8,7 @@ import type { OpportunityResumePreview } from "@/app/actions/opportunities";
 export function DraftFooterControls({
   attachResume,
   handleAttachResumeChange,
-  busy,
+  locked,
   resume,
   resumeSizeLabel,
   includeSummary,
@@ -16,7 +16,8 @@ export function DraftFooterControls({
 }: {
   attachResume: boolean;
   handleAttachResumeChange: (attach: boolean) => void;
-  busy: boolean;
+  /** Lock attach/summary while the resume pane is generating or exporting. */
+  locked: boolean;
   resume: OpportunityResumePreview | null;
   resumeSizeLabel: string | null;
   includeSummary: boolean;
@@ -31,7 +32,7 @@ export function DraftFooterControls({
             id="attach-resume"
             checked={attachResume}
             onChange={(e) => handleAttachResumeChange(e.target.checked)}
-            disabled={busy}
+            disabled={locked}
             className={selectCheckboxClassName({
               className:
                 "h-3.5 w-3.5 shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
@@ -55,7 +56,7 @@ export function DraftFooterControls({
               type="button"
               className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
               onClick={() => handleAttachResumeChange(false)}
-              disabled={busy}
+              disabled={locked}
               aria-label="Remove resume attachment"
               title="Do not attach resume"
             >
@@ -71,7 +72,7 @@ export function DraftFooterControls({
             id="opp-include-summary"
             checked={includeSummary}
             onCheckedChange={setIncludeSummary}
-            disabled={busy}
+            disabled={locked}
           />
           <Label
             htmlFor="opp-include-summary"

@@ -8,13 +8,8 @@ import {
   type ReactElement,
 } from "react";
 import { useRouter } from "next/navigation";
-import {
-  CloudUpload,
-  FileText,
-  FolderGit2,
-  Loader2,
-  X,
-} from "lucide-react";
+import { CloudUpload, FileText, FolderGit2, X } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { toast } from "sonner";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 
@@ -297,7 +292,7 @@ export function ResumeUploadDialog({
               className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
             >
               {pending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader size="sm" />
               ) : null}
               <span>Save Master Profile</span>
             </button>
@@ -438,7 +433,7 @@ export function ResumeUploadDialog({
                 className="shrink-0"
               >
                 {pending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader size="sm" />
                 ) : (
                   <FolderGit2 className="h-4 w-4" />
                 )}

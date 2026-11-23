@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Loader2, RefreshCw } from "lucide-react";
+import { Bot, RefreshCw } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { toast } from "sonner";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
+import { useHydrated } from "@/hooks/use-hydrated";
 
 import {
   updateBridgeSecret,
@@ -118,7 +120,9 @@ export function AiModelsCard({
   const [url, setUrl] = useState(localOllamaUrl);
   const [selectedModel, setSelectedModel] = useState(ollamaModel);
   const [devModels, setDevModels] = useState<string[]>([]);
-  const [devSelectedModel, setDevSelectedModel] = useState("");
+  const [devSelectedModel, setDevSelectedModel] = useState(
+    () => getDevOllamaModelOverride() ?? ""
+  );
   const [devModelUrl, setDevModelUrl] = useState("");
   const [devModelMessage, setDevModelMessage] = useState<string | null>(null);
   const [checkingDevModels, setCheckingDevModels] = useState(false);
@@ -136,7 +140,7 @@ export function AiModelsCard({
   const [copiedOsCommand, setCopiedOsCommand] = useState<"mac" | "win" | null>(
     null
   );
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHydrated();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -223,20 +227,34 @@ export function AiModelsCard({
   const disabled = !accountId || pending;
   const hasSecret = bridgeSecret.trim().length > 0;
 
-  useEffect(() => {
+  const [prevUseOllama, setPrevUseOllama] = useState(useOllama);
+  if (prevUseOllama !== useOllama) {
+    setPrevUseOllama(useOllama);
     if (!useOllama) {
       setOllamaSubOpen(false);
       setStep1Open(false);
       setStep2Open(false);
       setStep3Open(false);
     }
-  }, [useOllama]);
+  }
 
-  useEffect(() => {
+  const [prevBridgeSecret, setPrevBridgeSecret] = useState(initialBridgeSecret);
+  if (prevBridgeSecret !== initialBridgeSecret) {
+    setPrevBridgeSecret(initialBridgeSecret);
     setBridgeSecret(initialBridgeSecret);
-  }, [initialBridgeSecret]);
+  }
 
-  useEffect(() => {
+  const [prevConnProps, setPrevConnProps] = useState({
+    localOllamaUrl,
+    initialConnected,
+    initialModels,
+  });
+  if (
+    prevConnProps.localOllamaUrl !== localOllamaUrl ||
+    prevConnProps.initialConnected !== initialConnected ||
+    prevConnProps.initialModels !== initialModels
+  ) {
+    setPrevConnProps({ localOllamaUrl, initialConnected, initialModels });
     setUrl(localOllamaUrl);
     setConnectionStatus(
       deriveConnectionStatus(initialConnected, localOllamaUrl)
@@ -246,31 +264,25 @@ export function AiModelsCard({
     } else if (!initialConnected) {
       setModels([]);
     }
-  }, [localOllamaUrl, initialConnected, initialModels]);
+  }
+
+  const [prevAccountId, setPrevAccountId] = useState(accountId);
+  if (prevAccountId !== accountId) {
+    setPrevAccountId(accountId);
+    const restored = loadStoredOllamaAccordion(accountId);
+    if (useOllama) {
+      setOllamaSubOpen(restored.ollamaSubOpen);
+      setStep1Open(restored.step1Open);
+      setStep2Open(restored.step2Open);
+      setStep3Open(restored.step3Open);
+    }
+  }
 
   useEffect(() => {
-    setMounted(true);
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(DEV_OLLAMA_MODEL_STORAGE_KEY);
-        if (stored) {
-          setDevSelectedModel(stored);
-        }
-      } catch {
-        // ignore localStorage error
-      }
-
-      const restored = loadStoredOllamaAccordion(accountId);
-      accordionStateRef.current = restored;
-      if (useOllama) {
-        setOllamaSubOpen(restored.ollamaSubOpen);
-        setStep1Open(restored.step1Open);
-        setStep2Open(restored.step2Open);
-        setStep3Open(restored.step3Open);
-      }
-      saveStoredOllamaAccordion(accountId, restored);
-    }
-  }, [accountId, useOllama]);
+    const restored = loadStoredOllamaAccordion(accountId);
+    accordionStateRef.current = restored;
+    saveStoredOllamaAccordion(accountId, restored);
+  }, [accountId]);
 
   const origin =
     serverOrigin ||
@@ -718,7 +730,7 @@ export function AiModelsCard({
               >
                 {checkingDevModels ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader size="sm" />
                     Checking…
                   </>
                 ) : (

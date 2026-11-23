@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import ReactDOMServer from "react-dom/server";
-import type { JobApplication, JobOpportunity, Subscription } from "@prisma/client";
+import type { JobApplication, JobOpportunity, Subscription } from "@/lib/generated/prisma/client";
 import {
   computeConsoleMetrics,
   ConsoleMetricsGrid,

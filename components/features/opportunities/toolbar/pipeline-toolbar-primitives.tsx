@@ -10,6 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { Layers, ListFilter, Mic, Search, X } from "lucide-react";
 
+import { useHydrated } from "@/hooks/use-hydrated";
 import { ToolbarMenuSelect } from "@/components/ui/app-menu";
 import { SELECT_CHECKBOX_CLASSNAME } from "@/components/ui/styles/select-checkbox";
 import { LabelTooltip } from "@/components/ui/tooltip";
@@ -271,8 +272,9 @@ export function ToolbarSearch({
   children?: ReactNode;
   className?: string;
 }) {
+  const hydrated = useHydrated();
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [speechSupported, setSpeechSupported] = useState(false);
+  const speechSupported = hydrated && Boolean(getSpeechRecognitionCtor());
   const [listening, setListening] = useState(false);
   const [panelBox, setPanelBox] = useState<{
     top: number;
@@ -285,17 +287,15 @@ export function ToolbarSearch({
   const onSearchChangeRef = useRef(onSearchChange);
   const hasFilters = Boolean(children);
 
-  onSearchChangeRef.current = onSearchChange;
+  useLayoutEffect(() => {
+    onSearchChangeRef.current = onSearchChange;
+  }, [onSearchChange]);
 
   // Prefer a readable search width without hogging the toolbar (long
   // conversational placeholders must not inflate flex-basis / crush Select All).
   // Chrome allowance: leading icon + trailing mic/filter circles + padding.
   const basisChars = Math.min(placeholder.length, 28);
   const preferredInputBasis = `calc(${basisChars}ch + 6.5rem)`;
-
-  useEffect(() => {
-    setSpeechSupported(Boolean(getSpeechRecognitionCtor()));
-  }, []);
 
   useEffect(() => {
     return () => {

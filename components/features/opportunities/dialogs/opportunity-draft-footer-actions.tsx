@@ -1,6 +1,7 @@
 "use client";
 
-import { Loader2, Mail, Send } from "lucide-react";
+import { Mail, Send } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { PRIMARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/primary-action-btn";
 import { SECONDARY_ACTION_BTN_CLASSNAME } from "@/components/ui/styles/secondary-action-btn";
 import {
@@ -44,7 +45,7 @@ export function OpportunityDraftFooterActions({
         className={cn(SECONDARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
       >
         {pending ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <Loader size="sm" />
         ) : (
           <Mail className="h-3.5 w-3.5" />
         )}
@@ -62,7 +63,7 @@ export function OpportunityDraftFooterActions({
                 className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
               >
                 {pending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader size="sm" />
                 ) : (
                   <Send className="h-3.5 w-3.5" />
                 )}

@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, Copy, KeyRound, Loader2, ShieldUser } from "lucide-react";
+import { Check, Copy, KeyRound, ShieldUser } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SettingsStepCard } from "@/components/ui/tactile/nested-settings-card";
@@ -53,7 +54,7 @@ export function StepBridgeCommands({
           }}
         >
           {pending ? (
-            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+            <Loader size="sm" className="text-muted-foreground" />
           ) : (
             <KeyRound className="size-3.5 text-muted-foreground" />
           )}

@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Loader2, Worm, X } from "lucide-react";
+import { KeyRound, Worm, X } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { toast } from "sonner";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 
@@ -92,27 +93,41 @@ export function BotBypassCard({
 
   const disabled = !accountId || pending;
 
-  useEffect(() => {
+  const [prevBypassProps, setPrevBypassProps] = useState({
+    initialEnableWebScrapingProxies,
+    initialMaskedScrapingAntApiKey,
+    initialMaskedJinaApiKey,
+    initialScrapingAntUsage,
+    initialMaskedHasDataApiKey,
+    initialHasDataUsage,
+  });
+  if (
+    prevBypassProps.initialEnableWebScrapingProxies !==
+      initialEnableWebScrapingProxies ||
+    prevBypassProps.initialMaskedScrapingAntApiKey !==
+      initialMaskedScrapingAntApiKey ||
+    prevBypassProps.initialMaskedJinaApiKey !== initialMaskedJinaApiKey ||
+    prevBypassProps.initialScrapingAntUsage !== initialScrapingAntUsage ||
+    prevBypassProps.initialMaskedHasDataApiKey !==
+      initialMaskedHasDataApiKey ||
+    prevBypassProps.initialHasDataUsage !== initialHasDataUsage
+  ) {
+    setPrevBypassProps({
+      initialEnableWebScrapingProxies,
+      initialMaskedScrapingAntApiKey,
+      initialMaskedJinaApiKey,
+      initialScrapingAntUsage,
+      initialMaskedHasDataApiKey,
+      initialHasDataUsage,
+    });
     setEnableWebScrapingProxies(initialEnableWebScrapingProxies);
-  }, [initialEnableWebScrapingProxies]);
-
-  useEffect(() => {
     setMaskedScrapingAntKey(
       initialMaskedScrapingAntApiKey ?? initialMaskedJinaApiKey ?? null
     );
-  }, [initialMaskedScrapingAntApiKey, initialMaskedJinaApiKey]);
-
-  useEffect(() => {
     setScrapingAntUsage(initialScrapingAntUsage);
-  }, [initialScrapingAntUsage]);
-
-  useEffect(() => {
     setMaskedHasDataKey(initialMaskedHasDataApiKey);
-  }, [initialMaskedHasDataApiKey]);
-
-  useEffect(() => {
     setHasDataUsage(initialHasDataUsage);
-  }, [initialHasDataUsage]);
+  }
 
   function handleSaveScrapingAntKey() {
     if (!accountId) return;
@@ -406,7 +421,7 @@ export function BotBypassCard({
                     >
                       {isSavingScrapingAntKey ? (
                         <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <Loader size="sm" />
                           <span>Saving…</span>
                         </>
                       ) : (
@@ -562,7 +577,7 @@ export function BotBypassCard({
                     >
                       {isSavingHasDataKey ? (
                         <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <Loader size="sm" />
                           <span>Saving…</span>
                         </>
                       ) : (

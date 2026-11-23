@@ -1,5 +1,6 @@
-import type { Subscription } from "@prisma/client";
-import { Loader2, UserRoundMinus } from "lucide-react";
+import type { Subscription } from "@/lib/generated/prisma/client";
+import { UserRoundMinus } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { ActionDialogShell } from "@/components/ui/composites/action-dialog-shell";
 import { CompanyLogo } from "@/components/ui/logo-frame";
 import { DialogIdentityLogoStack } from "@/components/ui/composites/dialog-identity-header";
@@ -95,7 +96,7 @@ export function UnsubscribeCleanupDialog({
           className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
         >
           {pending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader size="sm" />
           ) : (
             <UserRoundMinus className="h-3.5 w-3.5" />
           )}

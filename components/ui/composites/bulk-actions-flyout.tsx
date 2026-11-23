@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type AnimationEvent,
@@ -229,39 +230,45 @@ export function useBulkActionsHandoff() {
 
 /** Same enter/exit timing as the selection flyout. */
 export function useFlyoutPresence(open: boolean) {
-  const [mounted, setMounted] = useState(false);
+  const [mounted, setMounted] = useState(open);
   const [phase, setPhase] = useState<FlyoutPhase>("prep");
   const phaseRef = useRef<FlyoutPhase>("prep");
   const mountedRef = useRef(false);
   const openRef = useRef(open);
-  phaseRef.current = phase;
-  mountedRef.current = mounted;
-  openRef.current = open;
+  useLayoutEffect(() => {
+    phaseRef.current = phase;
+    mountedRef.current = mounted;
+    openRef.current = open;
+  });
+
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    if (open) {
+      if (!(mounted && (phase === "in" || phase === "idle"))) {
+        setMounted(true);
+        setPhase("prep");
+      }
+    } else if (mounted && phase !== "out") {
+      setPhase("out");
+    }
+  }
 
   useEffect(() => {
-    if (open) {
-      if (
-        mountedRef.current &&
-        (phaseRef.current === "in" || phaseRef.current === "idle")
-      ) {
-        return;
-      }
-      setMounted(true);
-      setPhase("prep");
-      const reduced =
-        typeof window !== "undefined" &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      if (reduced) {
-        setPhase("idle");
-        return;
-      }
-      const timer = window.setTimeout(() => {
-        if (phaseRef.current === "prep") setPhase("in");
-      }, 16);
-      return () => window.clearTimeout(timer);
-    }
-    if (mountedRef.current && phaseRef.current !== "out") setPhase("out");
-  }, [open]);
+    if (!open || phase !== "prep") return;
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timer = window.setTimeout(
+      () => {
+        if (phaseRef.current === "prep") {
+          setPhase(reduced ? "idle" : "in");
+        }
+      },
+      reduced ? 0 : 16
+    );
+    return () => window.clearTimeout(timer);
+  }, [open, phase]);
 
   function onAnimationEnd(event: AnimationEvent<HTMLDivElement>) {
     if (event.target !== event.currentTarget) return;
@@ -328,7 +335,7 @@ export function BulkActionsFlyout({
   // Selection hits 0 on the same render that starts leave — phase is still
   // idle/in that frame, so gate on selectedCount (not phase) or we'd freeze
   // the already-collapsed Snapshot / Delete / counts chrome.
-  const lingerRef = useRef({
+  const liveSnapshot = {
     children,
     trailing,
     status,
@@ -336,19 +343,21 @@ export function BulkActionsFlyout({
     stopLabel,
     syncActive,
     onStopSync,
-  });
-  if (selectedCount > 0) {
-    lingerRef.current = {
-      children,
-      trailing,
-      status,
-      chooseOnCancel,
-      stopLabel,
-      syncActive,
-      onStopSync,
-    };
+  };
+  const [frozenSnapshot, setFrozenSnapshot] = useState(liveSnapshot);
+  if (
+    selectedCount > 0 &&
+    (frozenSnapshot.children !== children ||
+      frozenSnapshot.trailing !== trailing ||
+      frozenSnapshot.status !== status ||
+      frozenSnapshot.chooseOnCancel !== chooseOnCancel ||
+      frozenSnapshot.stopLabel !== stopLabel ||
+      frozenSnapshot.syncActive !== syncActive ||
+      frozenSnapshot.onStopSync !== onStopSync)
+  ) {
+    setFrozenSnapshot(liveSnapshot);
   }
-  const shown = lingerRef.current;
+  const shown = selectedCount > 0 ? liveSnapshot : frozenSnapshot;
 
   useEffect(() => {
     if (selectedCount > 0) cancelPendingRef.current = false;

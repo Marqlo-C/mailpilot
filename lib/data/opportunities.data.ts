@@ -1,4 +1,4 @@
-import { type JobApplication, type JobOpportunity } from "@prisma/client";
+import { type JobApplication, type JobOpportunity } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/core/prisma";
 
 /**

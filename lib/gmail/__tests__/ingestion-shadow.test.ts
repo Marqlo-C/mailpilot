@@ -3,7 +3,7 @@ import { persistClassifiedEmail } from "../ingestion-pipeline";
 import * as shadowModule from "@/lib/services/shadow-evaluation.service";
 import { prisma } from "@/lib/core/prisma";
 import { parseAccountRules, type AccountRules } from "@/lib/validations/rules.schema";
-import type { JobOpportunity } from "@prisma/client";
+import type { JobOpportunity } from "@/lib/generated/prisma/client";
 
 describe("Ingestion Pipeline Shadow Mode Integration", () => {
   const originalEnv = { ...process.env };

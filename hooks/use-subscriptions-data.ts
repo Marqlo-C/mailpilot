@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { Subscription, SubscriptionHistory } from "@prisma/client";
+import type { Subscription, SubscriptionHistory } from "@/lib/generated/prisma/client";
 import type { DragGhostStackItem } from "@/components/ui/dnd/drag-ghost";
 import { orderItemsByIds } from "@/lib/utils/dnd/reorder";
 import {
@@ -204,12 +204,13 @@ export function useDragGhostData(
     });
   }, [drag, filteredActive, active]);
 
+  const previewFullIds = drag?.previewFullIds;
   const displayActive = useMemo(() => {
-    if (drag?.previewFullIds) {
-      return orderItemsByIds(filteredActive, drag.previewFullIds);
+    if (previewFullIds) {
+      return orderItemsByIds(filteredActive, previewFullIds);
     }
     return filteredActive;
-  }, [drag?.previewFullIds, filteredActive]);
+  }, [previewFullIds, filteredActive]);
 
   return { dragLabel, dragStackItems, displayActive };
 }

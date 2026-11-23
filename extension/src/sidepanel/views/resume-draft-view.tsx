@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { Loader } from "@/components/ui/loader";
 import { ResumeDraftSheet } from "@/components/features/opportunities/drawer/resume-draft-sheet";
 import { cn } from "@/lib/utils";
 import type { TailoredResumeDraft } from "@/lib/resume-draft";
@@ -70,7 +71,11 @@ export function ResumeDraftView({
             className="inline-flex h-7 items-center gap-1.5 rounded-md border border-input/60 bg-card px-2.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer disabled:pointer-events-none disabled:opacity-50"
             title="Regenerate Tailored Resume"
           >
-            <RotateCcw className={cn("h-3 w-3", isTailoring && "animate-spin")} />
+            {isTailoring ? (
+              <Loader size="sm" />
+            ) : (
+              <RotateCcw className="h-3 w-3" />
+            )}
             <span>{isTailoring ? "Regenerating…" : "Regenerate"}</span>
           </button>
         </div>

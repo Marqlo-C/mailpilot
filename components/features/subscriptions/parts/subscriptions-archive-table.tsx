@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { DatabaseX, Loader2, Trash2 } from "lucide-react";
+import { DatabaseX, Trash2 } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { CompanyLogo } from "@/components/ui/logo-frame";
 import { WavyDashedLine } from "@/components/ui/tactile/wavy-dashed-line";
 import { RowMenuTrigger } from "@/components/ui/composites/row-menu-trigger";
@@ -49,7 +50,7 @@ export function ArchiveCleanupButton({
       className={cn(PRIMARY_DESTRUCTIVE_ACTION_BTN_CLASSNAME, "h-8 shrink-0")}
     >
       {pending ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <Loader size="sm" />
       ) : (
         <Trash2 className="h-3.5 w-3.5" />
       )}

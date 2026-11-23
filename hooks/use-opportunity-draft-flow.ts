@@ -8,7 +8,7 @@ import {
   useTransition,
   type ChangeEvent,
 } from "react";
-import type { JobOpportunity } from "@prisma/client";
+import type { JobOpportunity } from "@/lib/generated/prisma/client";
 import { toast } from "sonner";
 import {
   generateOpportunityResumeAction,
@@ -37,6 +37,7 @@ import { downloadBase64File } from "@/hooks/use-draft-pdf";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 
 export const TASK_RESUME = "resume-generation";
+export const TASK_RESUME_EXPORT = "resume-export";
 export const TASK_EMAIL_REFINE = "email-refine";
 export const TASK_EMAIL_DRAFT = "email-draft";
 
@@ -95,7 +96,7 @@ export function useOpportunityDraftFlow({
   const [refineTarget, setRefineTarget] = useState<"email" | "resume">("email");
   const [refinePrompt, setRefinePrompt] = useState("");
   const [resumeAction, setResumeAction] = useState<
-    "regenerate" | "refine" | null
+    "regenerate" | "refine" | "node" | null
   >(null);
   const [error, setError] = useState<string | null>(null);
   const [originalEmail, setOriginalEmail] =
@@ -107,32 +108,41 @@ export function useOpportunityDraftFlow({
   const [resumeStateLoaded, setResumeStateLoaded] = useState(false);
   const [includeSummary, setIncludeSummary] = useState(true);
   const [attachResume, setAttachResume] = useState(true);
-  const [showRationale, setShowRationale] = useState(false);
-
   const resumeBusy = isTaskActive(TASK_RESUME);
+  const exporting = isTaskActive(TASK_RESUME_EXPORT);
   const refining = isTaskActive(TASK_EMAIL_REFINE);
   const retrying = isTaskActive(TASK_EMAIL_DRAFT);
+  const emailBusy = refining || retrying;
+
+  const activeOpportunityKey = open && opportunity ? opportunity.id : null;
+  const [prevOpportunityKey, setPrevOpportunityKey] = useState<string | null>(
+    null
+  );
+  if (prevOpportunityKey !== activeOpportunityKey) {
+    setPrevOpportunityKey(activeOpportunityKey);
+    if (activeOpportunityKey && opportunity) {
+      setLoadingDraft(true);
+      setError(null);
+      setRefinePrompt("");
+      setRefineTarget("email");
+      setResumeAction(null);
+      setRecipient(opportunity.recipientEmail ?? "");
+      setOriginalEmail(null);
+      setViewOriginalEmailOpen(false);
+      setExtraFiles([]);
+      setResume(null);
+      setResumeError(null);
+      setResumeStateLoaded(false);
+      setIncludeSummary(false);
+      setAttachResume(true);
+    }
+  }
 
   useEffect(() => {
     if (!open || !opportunity) return;
 
     let cancelled = false;
     cancelAll();
-    setLoadingDraft(true);
-    setError(null);
-    setRefinePrompt("");
-    setRefineTarget("email");
-    setResumeAction(null);
-    setRecipient(opportunity.recipientEmail ?? "");
-    setOriginalEmail(null);
-    setViewOriginalEmailOpen(false);
-    setExtraFiles([]);
-    setResume(null);
-    setResumeError(null);
-    setResumeStateLoaded(false);
-    setIncludeSummary(false);
-    setAttachResume(true);
-    setShowRationale(false);
 
     void (async () => {
       const [draftResult, resumeResult] = await Promise.all([
@@ -472,6 +482,16 @@ export function useOpportunityDraftFlow({
     cancelTask(taskId);
   }
 
+  function handleCancelEmailTask() {
+    if (retrying) {
+      handleCancelTask(TASK_EMAIL_DRAFT);
+      return;
+    }
+    if (refining) {
+      handleCancelTask(TASK_EMAIL_REFINE);
+    }
+  }
+
   function handleDialogOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
       cancelAll();
@@ -514,7 +534,8 @@ export function useOpportunityDraftFlow({
     handleResumeRefine();
   }
 
-  const busy = pending || refining || retrying || loadingDraft || resumeBusy;
+  /** AI work on either pane — locks starting another Ace action, not the idle pane. */
+  const aceBusy = emailBusy || resumeBusy;
   const regeneratingTarget =
     effectiveRefineTarget === "email"
       ? retrying
@@ -522,36 +543,56 @@ export function useOpportunityDraftFlow({
   const refiningTarget =
     effectiveRefineTarget === "email"
       ? refining
-      : resumeBusy && resumeAction === "refine";
+      : resumeBusy && (resumeAction === "refine" || resumeAction === "node");
   const refinePlaceholder =
     effectiveRefineTarget === "email"
       ? EMAIL_REFINE_PLACEHOLDER
       : RESUME_REFINE_PLACEHOLDER;
   const refineDisabled =
-    busy ||
+    aceBusy ||
+    exporting ||
     !refinePrompt.trim() ||
     (effectiveRefineTarget === "resume" && !hasTailoredResume);
 
-  const isGeneratingResume = resumeBusy;
-  const isGeneratingEmail = refining || retrying;
+  const emailBusyLabel = retrying
+    ? "Regenerating email…"
+    : refining
+      ? "Refining email…"
+      : null;
+  const resumeBusyLabel = !resumeBusy
+    ? null
+    : resumeAction === "refine"
+      ? "Refining resume…"
+      : resumeAction === "node"
+        ? "Updating resume…"
+        : hasTailoredResume
+          ? "Regenerating resume…"
+          : "Tailoring resume…";
+
+  const isGeneratingResume = resumeBusy || exporting;
+  const isGeneratingEmail = emailBusy;
   const isSending = pending;
   const isAwaitingResume =
-    attachResume && !hasTailoredResume && !isGeneratingResume;
+    attachResume && !hasTailoredResume && !resumeBusy;
   const isSendDisabled =
     isSending || isGeneratingResume || isGeneratingEmail || isAwaitingResume;
-  const sendDisabledReason = isGeneratingResume
-    ? "Generating tailored resume..."
-    : isAwaitingResume
-      ? "Generate and review your tailored resume before sending, or uncheck 'Attach Auto-Tailored Resume'."
-      : isGeneratingEmail
-        ? "Finish the current email task before sending."
-        : null;
-  const isSaveDraftDisabled = pending || loadingDraft || refining || retrying;
+  const sendDisabledReason = exporting
+    ? "Finish exporting before sending."
+    : resumeBusy
+      ? "Generating tailored resume..."
+      : isAwaitingResume
+        ? "Generate and review your tailored resume before sending, or uncheck 'Attach Auto-Tailored Resume'."
+        : isGeneratingEmail
+          ? "Finish the current email task before sending."
+          : null;
+  const isSaveDraftDisabled = pending || loadingDraft || emailBusy;
   const showComposerActions = !loadingDraft && !error;
+  const busy = pending || emailBusy || loadingDraft || resumeBusy || exporting;
 
   const handleRefineResumeNode = useCallback(
     (nodeId: string, instruction: string) => {
       if (!opportunity) return;
+      setResumeAction("node");
       const signal = startTask(TASK_RESUME);
       void (async () => {
         try {
@@ -572,6 +613,7 @@ export function useOpportunityDraftFlow({
           toast.error(formatToastError(error, "Failed to refine line"));
         } finally {
           finishTask(TASK_RESUME, signal);
+          setResumeAction((current) => (current === "node" ? null : current));
         }
       })();
     },
@@ -581,7 +623,7 @@ export function useOpportunityDraftFlow({
   const handleExportResume = useCallback(
     (format: "pdf" | "docx") => {
       if (!opportunity) return;
-      const signal = startTask(TASK_RESUME);
+      const signal = startTask(TASK_RESUME_EXPORT);
       void (async () => {
         try {
           const result = await abortablePromise(
@@ -617,7 +659,7 @@ export function useOpportunityDraftFlow({
           if (isAbortError(error) || signal.aborted) return;
           toast.error(formatToastError(error, "Failed to export resume"));
         } finally {
-          finishTask(TASK_RESUME, signal);
+          finishTask(TASK_RESUME_EXPORT, signal);
         }
       })();
     },
@@ -648,9 +690,12 @@ export function useOpportunityDraftFlow({
     includeSummary,
     setIncludeSummary,
     attachResume,
-    showRationale,
-    setShowRationale,
     resumeBusy,
+    exporting,
+    emailBusy,
+    emailBusyLabel,
+    resumeBusyLabel,
+    aceBusy,
     busy,
     effectiveRefineTarget,
     showGenerateResume,
@@ -670,6 +715,7 @@ export function useOpportunityDraftFlow({
     removeFile,
     persistThen,
     handleCancelTask,
+    handleCancelEmailTask,
     handleDialogOpenChange,
     handleAttachResumeChange,
     handleRefineResumeNode,

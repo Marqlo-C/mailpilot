@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { ToggleRight } from "lucide-react";
 
 import { AppearanceModeToggle } from "@/components/features/settings/tactile-preferences/appearance-mode-toggle";
@@ -24,40 +24,23 @@ export function TogglePreferencesCard({
   accountId: string | null;
   initialVariant?: WaveToggleVariant;
 }) {
-  const [variant, setVariantState] = useState<WaveToggleVariant>(
-    () => initialVariant ?? readWaveTogglePreference(accountId)
+  const subscribe = useCallback((onStoreChange: () => void) => {
+    window.addEventListener(WAVE_TOGGLE_CHANGE_EVENT, onStoreChange);
+    window.addEventListener("storage", onStoreChange);
+    return () => {
+      window.removeEventListener(WAVE_TOGGLE_CHANGE_EVENT, onStoreChange);
+      window.removeEventListener("storage", onStoreChange);
+    };
+  }, []);
+  const variant = useSyncExternalStore(
+    subscribe,
+    () => readWaveTogglePreference(accountId),
+    () => initialVariant ?? "dark"
   );
   const [previewChecked, setPreviewChecked] = useState(true);
   const saved = Boolean(accountId);
 
-  useEffect(() => {
-    const current = readWaveTogglePreference(accountId);
-    setVariantState((prev) => (prev === current ? prev : current));
-
-    const sync = (e?: Event) => {
-      const customEvent = e as
-        | CustomEvent<{
-            variant?: WaveToggleVariant;
-            accountId?: string | null;
-          }>
-        | undefined;
-      if (customEvent?.detail?.variant) {
-        setVariantState(customEvent.detail.variant);
-        return;
-      }
-      setVariantState(readWaveTogglePreference(accountId));
-    };
-
-    window.addEventListener(WAVE_TOGGLE_CHANGE_EVENT, sync);
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener(WAVE_TOGGLE_CHANGE_EVENT, sync);
-      window.removeEventListener("storage", sync);
-    };
-  }, [accountId]);
-
   function handleSelect(next: WaveToggleVariant) {
-    setVariantState(next);
     persistWaveTogglePreference(accountId, next);
   }
 

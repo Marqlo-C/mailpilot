@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 /**
  * Tracks the most recently toggled select checkbox id.
@@ -14,24 +14,28 @@ export function useLastClickedId(
   markLastClicked: (id: string | null) => void;
 } {
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
+  const isEmpty = selectedIds.length === 0;
+  const [prevEmpty, setPrevEmpty] = useState(isEmpty);
+  if (prevEmpty !== isEmpty) {
+    setPrevEmpty(isEmpty);
+    if (isEmpty) {
+      setLastClickedId(null);
+    }
+  }
+
   const visibleKey = visibleIds.join("\0");
   const visibleSet = useMemo(
     () => new Set(visibleKey ? visibleKey.split("\0") : []),
     [visibleKey]
   );
 
-  useEffect(() => {
-    if (selectedIds.length === 0) {
-      setLastClickedId(null);
-    }
-  }, [selectedIds.length]);
-
-  useEffect(() => {
-    setLastClickedId((prev) => (prev && visibleSet.has(prev) ? prev : null));
-  }, [visibleSet]);
+  const effectiveLastClickedId =
+    !isEmpty && lastClickedId && visibleSet.has(lastClickedId)
+      ? lastClickedId
+      : null;
 
   return {
-    lastClickedId,
+    lastClickedId: effectiveLastClickedId,
     markLastClicked: setLastClickedId,
   };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useHydrated } from "./use-hydrated";
 
 export const DRAFT_SPLIT_STORAGE_KEY = "mp-draft-email-resume-split";
 export const DRAFT_SPLIT_DEFAULT = 48;
@@ -35,16 +36,13 @@ export function writeDraftSplitPct(pct: number) {
 }
 
 export function useDraftSplitPane() {
-  const [emailSplitPct, setEmailSplitPct] = useState(DRAFT_SPLIT_DEFAULT);
+  const hydrated = useHydrated();
+  const [customSplitPct, setCustomSplitPct] = useState<number | null>(null);
+  const emailSplitPct =
+    customSplitPct ?? (hydrated ? readDraftSplitPct() : DRAFT_SPLIT_DEFAULT);
   const [splitDragging, setSplitDragging] = useState(false);
   const splitRowRef = useRef<HTMLDivElement>(null);
   const emailSplitPctRef = useRef(emailSplitPct);
-
-  useEffect(() => {
-    const next = readDraftSplitPct();
-    setEmailSplitPct(next);
-    emailSplitPctRef.current = next;
-  }, []);
 
   useEffect(() => {
     emailSplitPctRef.current = emailSplitPct;
@@ -66,7 +64,7 @@ export function useDraftSplitPane() {
         )
       );
       emailSplitPctRef.current = next;
-      setEmailSplitPct(next);
+      setCustomSplitPct(next);
     }
 
     function onPointerUp() {
@@ -91,10 +89,11 @@ export function useDraftSplitPane() {
   }, [splitDragging]);
 
   const adjustSplitBy = (delta: number) => {
-    setEmailSplitPct((prev) => {
+    setCustomSplitPct((prev) => {
+      const base = prev ?? emailSplitPctRef.current;
       const next = Math.min(
         DRAFT_SPLIT_MAX,
-        Math.max(DRAFT_SPLIT_MIN, prev + delta)
+        Math.max(DRAFT_SPLIT_MIN, base + delta)
       );
       emailSplitPctRef.current = next;
       writeDraftSplitPct(next);
@@ -113,7 +112,7 @@ export function useDraftSplitPane() {
 
   return {
     emailSplitPct,
-    setEmailSplitPct,
+    setEmailSplitPct: setCustomSplitPct,
     splitDragging,
     setSplitDragging,
     splitRowRef,

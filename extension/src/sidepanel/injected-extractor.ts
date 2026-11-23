@@ -5,7 +5,6 @@ import type { ExtractedJobContext } from "../lib/types";
  * Must remain completely self-contained with zero external closure dependencies.
  */
           export function injectedExtractionScript() {
-            // @ts-ignore
             const doc = document;
             const href = window.location.href;
 

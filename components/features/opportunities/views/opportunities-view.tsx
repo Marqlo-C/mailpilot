@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import type { JobOpportunity } from "@prisma/client";
+import type { JobOpportunity } from "@/lib/generated/prisma/client";
 import { toast } from "sonner";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 
@@ -187,28 +187,26 @@ export function OpportunitiesView({
     () => orderedOpportunities.map((o) => o.id),
     [orderedOpportunities]
   );
+  const visibleIdSet = useMemo(
+    () => new Set(filteredOpportunityIds),
+    [filteredOpportunityIds]
+  );
+  const effectiveSelectedIds = useMemo(
+    () => selectedIds.filter((id) => visibleIdSet.has(id)),
+    [selectedIds, visibleIdSet]
+  );
+  const effectiveSelectionMode =
+    selectionMode && effectiveSelectedIds.length > 0;
+
   const { lastClickedId, markLastClicked } = useLastClickedId(
-    selectedIds,
+    effectiveSelectedIds,
     filteredOpportunityIds
   );
 
-  useEffect(() => {
-    const visibleIds = new Set(filteredOpportunityIds);
-    setSelectedIds((prev) => {
-      const next = prev.filter((id) => visibleIds.has(id));
-      return next.length === prev.length ? prev : next;
-    });
-  }, [filteredOpportunityIds]);
-
-  useEffect(() => {
-    if (selectedIds.length === 0 && selectionMode) {
-      setSelectionMode(false);
-    }
-  }, [selectedIds.length, selectionMode]);
-
   const selectedRecords = useMemo(
-    () => orderedOpportunities.filter((o) => selectedIds.includes(o.id)),
-    [orderedOpportunities, selectedIds]
+    () =>
+      orderedOpportunities.filter((o) => effectiveSelectedIds.includes(o.id)),
+    [orderedOpportunities, effectiveSelectedIds]
   );
   const archivedSelectedIds = useMemo(
     () => selectedRecords.filter((o) => isUserArchived(o)).map((o) => o.id),
@@ -233,11 +231,11 @@ export function OpportunitiesView({
     });
   }
 
-  function clearSelection() {
+  const clearSelection = useCallback(() => {
     markLastClicked(null);
     setSelectionMode(false);
     setSelectedIds([]);
-  }
+  }, [markLastClicked, setSelectionMode, setSelectedIds]);
 
   const enterSelectionMode = useCallback(
     (id: string) => {
@@ -245,7 +243,7 @@ export function OpportunitiesView({
       setSelectionMode(true);
       setSelectedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
     },
-    [markLastClicked]
+    [markLastClicked, setSelectionMode, setSelectedIds]
   );
 
   const paintSelect = useCallback(
@@ -262,14 +260,17 @@ export function OpportunitiesView({
         return next;
       });
     },
-    [markLastClicked]
+    [markLastClicked, setSelectionMode, setSelectedIds]
   );
 
-  function afterBatch(message: string) {
-    toast.success(message);
-    clearSelection();
-    router.refresh();
-  }
+  const afterBatch = useCallback(
+    (message: string) => {
+      toast.success(message);
+      clearSelection();
+      router.refresh();
+    },
+    [clearSelection, router]
+  );
 
   const visibleCount = orderedOpportunities.length;
   const totalCount = opportunities.length + hiddenCount;
@@ -360,14 +361,14 @@ export function OpportunitiesView({
         afterBatch(message);
       });
     },
-    [jobsTabKey, suppressTabChangeRef]
+    [afterBatch, jobsTabKey, startBatch, suppressTabChangeRef]
   );
 
   const { drag, bindItem, onBackgroundPointerDown } = useCardListGestures({
     pageItemIds: paginatedIds,
     fullItemIds: filteredOpportunityIds,
-    selectedIds,
-    selectionMode: selectionMode || selectedIds.length > 0,
+    selectedIds: effectiveSelectedIds,
+    selectionMode: effectiveSelectionMode || effectiveSelectedIds.length > 0,
     onEnterSelectionMode: enterSelectionMode,
     onToggleSelect: toggleSelect,
     onPaintSelect: paintSelect,
@@ -390,7 +391,7 @@ export function OpportunitiesView({
       clearSelection();
       setCurrentPage(page);
     },
-    [setCurrentPage]
+    [clearSelection, setCurrentPage]
   );
 
   const changePageSize = useCallback(
@@ -398,7 +399,7 @@ export function OpportunitiesView({
       clearSelection();
       setPageSize(size);
     },
-    [setPageSize]
+    [clearSelection, setPageSize]
   );
 
   const dragLabel = useMemo(() => {
@@ -431,12 +432,13 @@ export function OpportunitiesView({
     });
   }, [drag, orderedOpportunities]);
 
+  const previewFullIds = drag?.previewFullIds;
   const displayOpportunities = useMemo(() => {
-    if (drag?.previewFullIds) {
-      return orderItemsByIds(orderedOpportunities, drag.previewFullIds);
+    if (previewFullIds) {
+      return orderItemsByIds(orderedOpportunities, previewFullIds);
     }
     return orderedOpportunities;
-  }, [drag?.previewFullIds, orderedOpportunities]);
+  }, [previewFullIds, orderedOpportunities]);
 
   const paginatedJobs = slice(displayOpportunities);
   const pageOpportunityIds = useMemo(
@@ -445,7 +447,7 @@ export function OpportunitiesView({
   );
   const isAllSelected =
     pageOpportunityIds.length > 0 &&
-    pageOpportunityIds.every((id) => selectedIds.includes(id));
+    pageOpportunityIds.every((id) => effectiveSelectedIds.includes(id));
 
   function handleSelectAll() {
     markLastClicked(null);
@@ -474,7 +476,7 @@ export function OpportunitiesView({
       activeTab={activeTab}
       totalCount={totalCount}
       visibleCount={visibleCount}
-      selectedCount={selectedIds.length}
+      selectedCount={effectiveSelectedIds.length}
       isAllSelected={isAllSelected}
       onToggleSelectAll={handleSelectAll}
       minScore={matchThreshold}
@@ -537,7 +539,7 @@ export function OpportunitiesView({
         matchThreshold={matchThreshold}
         busy={busy}
         retentionDays={retentionDays}
-        selectedIds={selectedIds}
+        selectedIds={effectiveSelectedIds}
         lastClickedId={lastClickedId}
         isEmbeddedAiEnabled={isEmbeddedAiEnabled}
         isAutoDispatchEnabled={isAutoDispatchEnabled}
@@ -563,7 +565,7 @@ export function OpportunitiesView({
 
       <OpportunitiesBulkBar
         variant={variant}
-        selectedIds={selectedIds}
+        selectedIds={effectiveSelectedIds}
         archivedSelectedIds={archivedSelectedIds}
         dismissedSelectedIds={dismissedSelectedIds}
         busy={busy}

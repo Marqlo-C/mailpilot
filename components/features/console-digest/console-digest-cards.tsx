@@ -1,6 +1,6 @@
 "use client";
 
-import type { JobApplication, JobOpportunity } from "@prisma/client";
+import type { JobApplication, JobOpportunity } from "@/lib/generated/prisma/client";
 import { CheckCircle2, Inbox, Radio, Sparkles } from "lucide-react";
 import {
   Card,

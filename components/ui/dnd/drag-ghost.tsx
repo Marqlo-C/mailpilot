@@ -9,6 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { useHydrated } from "@/hooks/use-hydrated";
 import { CompanyLogo } from "@/components/ui/logo-frame";
 import {
   DND_GHOST_POINTER_GRACE_PX,
@@ -245,15 +246,13 @@ export function DragGhost({
   const grabRef = useRef<DragGrabGeometry | null>(grab);
   const currentRef = useRef({ x: 0, y: 0 });
   const rafRef = useRef<number | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHydrated();
   const [stackWidth, setStackWidth] = useState(STACK_CARD_W_FALLBACK);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  pointerRef.current = { x: pointerX, y: pointerY };
-  grabRef.current = grab;
+  useLayoutEffect(() => {
+    pointerRef.current = { x: pointerX, y: pointerY };
+    grabRef.current = grab;
+  });
 
   const stacking = active && (outsideList || Boolean(dropZone));
 
@@ -277,7 +276,6 @@ export function DragGhost({
   // Hug front content width so the right edge meets the CTA stubs (name is capped).
   useLayoutEffect(() => {
     if (!active || !stacking) {
-      setStackWidth(STACK_CARD_W_FALLBACK);
       return;
     }
     const el = stackAnchorRef.current;
@@ -364,7 +362,7 @@ export function DragGhost({
     name: fallbackName,
     logoSrc: null,
   };
-  const cardW = stacking ? stackWidth : STACK_CARD_W_FALLBACK;
+  const cardW = active && stacking ? stackWidth : STACK_CARD_W_FALLBACK;
 
   return createPortal(
     <div

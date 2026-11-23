@@ -1,5 +1,5 @@
 import type { gmail_v1 } from "googleapis";
-import type { Account, AccountSettings, JobOpportunity } from "@prisma/client";
+import type { Account, AccountSettings, JobOpportunity } from "@/lib/generated/prisma/client";
 import { GaxiosError } from "gaxios";
 
 import {

@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/core/prisma";
 import { encryptPhoneAtRest, decryptPhoneAtRest } from "@/lib/core/crypto";
 import { synthesizeCandidatePersona } from "@/lib/persona";

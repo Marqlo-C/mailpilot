@@ -51,6 +51,25 @@ const SHELL_HAIRLINE_CLASS = "mx-3 border-b border-white/[0.06]";
 const SHELL_MAIN_CLASS =
   "mx-auto w-full max-w-[79.2rem] flex-1 px-4 pt-4 pb-6 min-[744px]:px-6 min-[744px]:pb-8 lg:pt-[9px]";
 
+import {
+  parkExtensionNodesOutsideBodyBeforeHydration,
+  restoreParkedExtensionNodesToBody,
+} from "@/instrumentation-client";
+
+const APP_SHELL_ROOT_ID = "mailpilot-app-shell";
+
+/**
+ * Rendered inside `<head>` in `RootLayout` so React hydrates and executes this
+ * client component while the hydration cursor is still in `<head>`, BEFORE React
+ * steps into `<body>` and latches `document.body.firstChild`.
+ */
+export function PreHydrationExtensionGuard() {
+  if (typeof document !== "undefined") {
+    parkExtensionNodesOutsideBodyBeforeHydration();
+  }
+  return null;
+}
+
 type AppShellProps = {
   accounts: AccountSummary[];
   activeAccountId: string | null;
@@ -64,6 +83,9 @@ type AppShellProps = {
 };
 
 export function AppShell(props: AppShellProps) {
+  if (typeof document !== "undefined") {
+    parkExtensionNodesOutsideBodyBeforeHydration();
+  }
   return (
     <SidebarCollapseProvider>
       <AppShellInner {...props} />
@@ -90,6 +112,7 @@ function AppShellInner({
   const sidebarOffsetPx = sidebarWidthPx + 6;
 
   useEffect(() => {
+    restoreParkedExtensionNodesToBody();
     const root = document.documentElement;
     const sync = () => {
       const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
@@ -127,7 +150,10 @@ function AppShellInner({
       initialVariant={initialUiPreferences?.toolbar}
     >
     <SidebarFlyoutProvider>
-    <div className="min-h-screen min-[744px]:flex min-[744px]:h-dvh min-[744px]:min-h-0 min-[744px]:overflow-hidden lg:p-1.5">
+    <div
+      id={APP_SHELL_ROOT_ID}
+      className="min-h-screen min-[744px]:flex min-[744px]:h-dvh min-[744px]:min-h-0 min-[744px]:overflow-hidden lg:p-1.5"
+    >
       <GlobalSyncTracker />
       <AppToaster />
 

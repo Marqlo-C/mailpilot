@@ -9,7 +9,7 @@
  * ============================================================================
  */
 
-import type { JobOpportunity } from "@prisma/client";
+import type { JobOpportunity } from "@/lib/generated/prisma/client";
 import type { ApplicationType } from "@/lib/opportunities/application-method";
 import type {
   ClassificationMethod,

@@ -1,6 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "../../lib/core/prisma";
 
 /**
  * Revert alert leads that were falsely marked APPLIED, remove placeholders,

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CloudDownload, Loader2 } from "lucide-react";
+import { CloudDownload } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { toast } from "sonner";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 
@@ -83,7 +84,7 @@ export function ExportMasterProfileButton({
       onClick={handleExport}
     >
       {isExporting ? (
-        <Loader2 className="size-3.5 shrink-0 animate-spin" />
+        <Loader size="sm" className="shrink-0" />
       ) : (
         <CloudDownload className="size-3.5 shrink-0" />
       )}

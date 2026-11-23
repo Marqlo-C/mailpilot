@@ -209,7 +209,7 @@ export function clampPdfContentToPhysicalCeiling(params: {
 
   // Overflow detected: clamp gracefully
   let clampedProjects = [...params.projects];
-  let clampedExperiences = [...params.experiences];
+  const clampedExperiences = [...params.experiences];
 
   // 1. If single-page and candidate has both jobs and projects, clamp projects to top 2 with max 3 bullets
   if (params.targetPages === 1 && clampedExperiences.length > 0 && clampedProjects.length > 2) {

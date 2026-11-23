@@ -47,21 +47,14 @@ export function OutboundTailoringCard({
       () => initialAccordion ?? loadStoredOutboundAccordion(accountId)
     );
 
+  const [prevAccountId, setPrevAccountId] = useState(accountId);
+  if (prevAccountId !== accountId) {
+    setPrevAccountId(accountId);
+    setAccordionState(loadStoredOutboundAccordion(accountId));
+  }
+
   useEffect(() => {
-    const stored = loadStoredOutboundAccordion(accountId);
-    setAccordionState((prev) => {
-      if (
-        prev.metricOpen === stored.metricOpen &&
-        prev.orderingOpen === stored.orderingOpen &&
-        prev.inclusionOpen === stored.inclusionOpen &&
-        prev.budgetOpen === stored.budgetOpen &&
-        prev.layoutOpen === stored.layoutOpen
-      ) {
-        return prev;
-      }
-      return stored;
-    });
-    saveStoredOutboundAccordion(accountId, stored);
+    saveStoredOutboundAccordion(accountId, loadStoredOutboundAccordion(accountId));
   }, [accountId]);
 
   const [enableAiTailoringDefaults, setEnableAiTailoringDefaults] = useState(
@@ -104,7 +97,9 @@ export function OutboundTailoringCard({
     }
   );
 
-  useEffect(() => {
+  const [prevRules, setPrevRules] = useState(rules);
+  if (prevRules !== rules) {
+    setPrevRules(rules);
     setEnableAiTailoringDefaults(rules.enableAiTailoringDefaults ?? true);
     setInventMetrics(rules.inventMetrics ?? false);
     setSectionOrderingMode(rules.sectionOrderingMode ?? "AI_OPTIMAL");
@@ -114,7 +109,7 @@ export function OutboundTailoringCard({
     if (rules.canonicalSectionVisibility) {
       setVisibility(rules.canonicalSectionVisibility);
     }
-  }, [rules]);
+  }
 
   // Notice: pending is ONLY used to disable interactive inputs to prevent duplicate submissions;
   // it is NEVER passed to collapse the cards, eliminating the jarring collapse/expand glitch!

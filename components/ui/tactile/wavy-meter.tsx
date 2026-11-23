@@ -137,42 +137,23 @@ export function WavyMeter({
 
   const [trackWidth, setTrackWidth] = React.useState(0);
   const [trackHeight, setTrackHeight] = React.useState(14);
-  const [activeVariant, setActiveVariant] = React.useState<WavyMeterVariant>(
-    variant === "dark" ? "dark" : "light"
-  );
-
-  // Keep activeVariant in sync with prop and global preference changes after hydration
-  React.useEffect(() => {
-    if (variant === "light" || variant === "dark") {
-      setActiveVariant(variant);
-      return;
-    }
-
-    const sync = (e?: Event) => {
-      const customEvent = e as CustomEvent<{
-        variant?: WavyMeterVariant;
-        accountId?: string | null;
-      }> | undefined;
-      if (
-        customEvent?.detail?.variant &&
-        (!customEvent.detail.accountId ||
-          !accountId ||
-          customEvent.detail.accountId === accountId)
-      ) {
-        setActiveVariant(customEvent.detail.variant);
-        return;
-      }
-      setActiveVariant(readWavyMeterPreference(accountId));
-    };
-
-    sync();
-    window.addEventListener(WAVY_METER_CHANGE_EVENT, sync);
-    window.addEventListener("storage", sync);
+  const subscribeWavyMeter = React.useCallback((onStoreChange: () => void) => {
+    window.addEventListener(WAVY_METER_CHANGE_EVENT, onStoreChange);
+    window.addEventListener("storage", onStoreChange);
     return () => {
-      window.removeEventListener(WAVY_METER_CHANGE_EVENT, sync);
-      window.removeEventListener("storage", sync);
+      window.removeEventListener(WAVY_METER_CHANGE_EVENT, onStoreChange);
+      window.removeEventListener("storage", onStoreChange);
     };
-  }, [variant, accountId]);
+  }, []);
+
+  const activeVariant = React.useSyncExternalStore(
+    subscribeWavyMeter,
+    () =>
+      variant === "light" || variant === "dark"
+        ? variant
+        : readWavyMeterPreference(accountId),
+    () => (variant === "dark" ? "dark" : "light")
+  );
 
   const rawPercent =
     max > min ? ((value - min) / (max - min)) * 100 : 0;

@@ -1,3 +1,4 @@
+import "./lib/document/polyfills";
 import type { NextConfig } from "next";
 
 const pdfkitAssets = [

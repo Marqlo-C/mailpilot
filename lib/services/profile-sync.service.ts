@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/core/prisma";
-import { extractTextFromFile } from "@/lib/document/document-parser";
+import {
+  extractTextFromFile,
+  MAX_DOCUMENT_BYTES,
+} from "@/lib/document/document-parser";
 import { syncGitHubProjects, normalizeGitHubUsername } from "@/lib/github";
 import { parseLinkedInArchive } from "@/lib/profile/linkedin-archive-parser";
 import {
@@ -72,6 +75,14 @@ export async function extractResumeDraft(
 
     const name = file.name.toLowerCase();
     const type = file.type.toLowerCase();
+    if (!Number.isFinite(file.size) || file.size <= 0) {
+      throw new Error("Uploaded resume file is empty (0 bytes).");
+    }
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      throw new Error(
+        "Uploaded resume file exceeds the maximum allowed size of 5 MB."
+      );
+    }
     const buffer = Buffer.from(await file.arrayBuffer());
 
     if (name.endsWith(".zip") || type === "application/zip" || type === "application/x-zip-compressed") {

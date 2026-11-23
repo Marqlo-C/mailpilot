@@ -22,6 +22,7 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Loader } from "@/components/ui/loader";
 import { cn } from "@/lib/utils";
 import { useRailAction, useRailActionToneClass } from "@/components/ui/rail-action";
 
@@ -97,7 +98,11 @@ export function SyncControls({
         data-mp-rail-action=""
         onClick={() => runSync(false)}
       >
-        <RefreshCw className={cn("h-4 w-4", pending && "animate-spin")} />
+        {pending ? (
+          <Loader size="sm" />
+        ) : (
+          <RefreshCw className="h-4 w-4" />
+        )}
         {pending ? "Starting…" : "Sync Inbox"}
       </Button>
       <DropdownMenu>

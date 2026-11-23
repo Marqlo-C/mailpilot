@@ -58,29 +58,23 @@ export function ViewEmailDialog({
   initialSubject = null,
   initialFrom = null,
 }: ViewEmailDialogProps) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [email, setEmail] = useState<EmailPreviewData | null>(null);
+  const fetchKey = open
+    ? messageId
+      ? `id:${messageId}`
+      : senderEmail
+        ? `from:${senderEmail}`
+        : null
+    : null;
+  const [fetchResult, setFetchResult] = useState<{
+    key: string;
+    email: EmailPreviewData | null;
+    error: string | null;
+  } | null>(null);
 
   useEffect(() => {
-    if (!open) {
-      setEmail(null);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-    if (!messageId && !senderEmail) {
-      setError("No message to load");
-      setEmail(null);
-      setLoading(false);
-      return;
-    }
+    if (!fetchKey) return;
 
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setEmail(null);
-
     const params = new URLSearchParams();
     if (messageId) params.set("id", messageId);
     else if (senderEmail) params.set("from", senderEmail);
@@ -100,26 +94,41 @@ export function ViewEmailDialog({
           throw new Error(json.error ?? "Failed to load email");
         }
         if (cancelled) return;
-        setEmail({
-          subject: json.subject ?? "(No subject)",
-          from: json.from ?? senderEmail ?? "Unknown sender",
-          date: json.date ?? "",
-          htmlBody: json.htmlBody,
-          snippet: json.snippet ?? "",
+        setFetchResult({
+          key: fetchKey,
+          email: {
+            subject: json.subject ?? "(No subject)",
+            from: json.from ?? senderEmail ?? "Unknown sender",
+            date: json.date ?? "",
+            htmlBody: json.htmlBody,
+            snippet: json.snippet ?? "",
+          },
+          error: null,
         });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load email");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        setFetchResult({
+          key: fetchKey,
+          email: null,
+          error: err instanceof Error ? err.message : "Failed to load email",
+        });
       });
 
     return () => {
       cancelled = true;
     };
-  }, [open, messageId, senderEmail]);
+  }, [fetchKey, messageId, senderEmail]);
+
+  const settled = fetchKey !== null && fetchResult?.key === fetchKey;
+  const loading = fetchKey !== null && !settled;
+  const email = settled ? fetchResult.email : null;
+  const error =
+    open && !fetchKey
+      ? "No message to load"
+      : settled
+        ? fetchResult.error
+        : null;
 
   const resolvedFrom = email?.from || initialFrom || senderEmail || null;
   const resolvedSubject =

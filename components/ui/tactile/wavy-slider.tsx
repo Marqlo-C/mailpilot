@@ -61,7 +61,6 @@ export function WavySlider({
   const waveRafRef = useRef<number | null>(null);
   const interactingRef = useRef(false);
   const [trackWidth, setTrackWidth] = useState(0);
-  const [waving, setWaving] = useState(false);
 
   useLayoutEffect(() => {
     const el = trackRef.current;
@@ -111,7 +110,7 @@ export function WavySlider({
       waveRafRef.current = null;
     }
     applyWavePhase(0);
-    setWaving(false);
+    trackRef.current?.removeAttribute("data-waving");
   }
 
   function startWave(currentValue: number) {
@@ -127,7 +126,7 @@ export function WavySlider({
       waveRafRef.current = null;
     }
 
-    setWaving(true);
+    trackRef.current?.setAttribute("data-waving", "true");
     const tick = (now: number) => {
       // Globally synchronized phase; full period so the loop seams invisibly.
       // Active + inactive share phase so the thumb join stays continuous.
@@ -178,7 +177,6 @@ export function WavySlider({
         disabled && "pointer-events-none opacity-50",
         className
       )}
-      data-waving={waving ? "true" : undefined}
     >
       {/* Finish end cap — same diameter as the thumb; sits above the wave */}
       <div

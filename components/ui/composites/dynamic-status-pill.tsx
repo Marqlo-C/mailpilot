@@ -2,8 +2,7 @@
 
 import {
   isValidElement,
-  useEffect,
-  useRef,
+  useState,
   type ReactNode,
 } from "react";
 import {
@@ -114,14 +113,14 @@ export function DynamicStatusPill({
   } = slot;
 
   // Latch toast reference so track does not flash empty during 300ms roll-out
-  const lastToastRef = useRef<TactileToastRecord | null>(activeToast);
-  useEffect(() => {
-    if (activeToast) {
-      lastToastRef.current = activeToast;
-    }
-  }, [activeToast]);
+  const [lastToast, setLastToast] = useState<TactileToastRecord | null>(
+    activeToast
+  );
+  if (activeToast && activeToast !== lastToast) {
+    setLastToast(activeToast);
+  }
 
-  const displayedToast = activeToast ?? lastToastRef.current;
+  const displayedToast = activeToast ?? lastToast;
 
   if (!hasActiveContent && !linger) {
     return null;

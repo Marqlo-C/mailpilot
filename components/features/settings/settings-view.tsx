@@ -1,6 +1,12 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useState, useTransition } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 import { LogOut, PlusCircle, Terminal } from "lucide-react";
 
 import { logoutSession } from "@/app/actions/auth";
@@ -27,6 +33,7 @@ import {
   tabRailRowClassName,
   useTabRailClasses,
 } from "@/components/ui/tactile/segmented-tabs";
+import { Loader } from "@/components/ui/loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AccountSummary } from "@/lib/data";
 import {
@@ -34,7 +41,8 @@ import {
   clearSidebarPageTab,
   peekSidebarPageTab,
   persistActivePageTab,
-  readActivePageTab,
+  resolveInitialPageTab,
+  subscribePageTabs,
   type SettingsPageTab,
 } from "@/lib/utils/navigation/page-tabs";
 import { cn } from "@/lib/utils";
@@ -85,10 +93,6 @@ export function SettingsView({
   serverOrigin,
   killSwitches,
 }: SettingsViewProps) {
-  const [tab, setTab] = useState<SettingsPageTab>(() => initialTab ?? "accounts");
-  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(
-    () => new Set([initialTab ?? "accounts"])
-  );
   const [isLoggingOut, startLogoutTransition] = useTransition();
   const {
     listClassName: segmentedTabsListClassName,
@@ -96,31 +100,40 @@ export function SettingsView({
   } = useTabRailClasses();
   const railActionClass = useRailActionClass();
   const settingsTabs = useMemo(() => getSettingsPageTabs(isDev), [isDev]);
-
-  useLayoutEffect(() => {
-    const allowed = settingsTabs.map((item) => item.value);
-    const pending = peekSidebarPageTab(
-      "/settings",
-      allowed
-    );
-    if (pending) {
-      setTab(pending as SettingsPageTab);
-      setVisitedTabs((prev) => new Set(prev).add(pending));
-      persistActivePageTab("/settings", pending, activeAccountId);
-      const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
-      return () => window.clearTimeout(clearId);
+  const allowedTabs = useMemo(
+    () => settingsTabs.map((item) => item.value as SettingsPageTab),
+    [settingsTabs]
+  );
+  const fallbackTab: SettingsPageTab = initialTab ?? "accounts";
+  const tab = useSyncExternalStore(
+    subscribePageTabs,
+    () =>
+      resolveInitialPageTab({
+        href: "/settings",
+        allowed: allowedTabs,
+        fallback: fallbackTab,
+        accountId: activeAccountId,
+      }),
+    () => fallbackTab
+  );
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(
+    () => new Set([fallbackTab])
+  );
+  const [prevTab, setPrevTab] = useState(tab);
+  if (prevTab !== tab) {
+    setPrevTab(tab);
+    if (!visitedTabs.has(tab)) {
+      setVisitedTabs((prev) => new Set(prev).add(tab));
     }
+  }
 
-    const saved = readActivePageTab(
-      "/settings",
-      allowed,
-      activeAccountId
-    );
-    if (saved && saved !== tab) {
-      setTab(saved as SettingsPageTab);
-      setVisitedTabs((prev) => new Set(prev).add(saved));
-    }
-  }, [activeAccountId, tab, settingsTabs]);
+  useEffect(() => {
+    const pending = peekSidebarPageTab("/settings", allowedTabs);
+    if (!pending) return;
+    persistActivePageTab("/settings", pending, activeAccountId);
+    const clearId = window.setTimeout(() => clearSidebarPageTab(), 0);
+    return () => window.clearTimeout(clearId);
+  }, [activeAccountId, allowedTabs, tab]);
 
   function handleLogout() {
     startLogoutTransition(async () => {
@@ -134,7 +147,6 @@ export function SettingsView({
         onValueChange={(value) => {
           const next = settingsTabs.find((item) => item.value === value);
           if (next) {
-            setTab(next.value as SettingsPageTab);
             setVisitedTabs((prev) => new Set(prev).add(next.value));
             persistActivePageTab("/settings", next.value, activeAccountId);
           }
@@ -192,7 +204,11 @@ export function SettingsView({
                 onClick={handleLogout}
                 className={BOXY_ACTION_BTN_DESTRUCTIVE}
               >
-                <LogOut className="size-3.5 shrink-0" />
+                {isLoggingOut ? (
+                  <Loader size="sm" className="shrink-0" />
+                ) : (
+                  <LogOut className="size-3.5 shrink-0" />
+                )}
                 {isLoggingOut ? "Logging out…" : "Log Out Session"}
               </button>
             </div>

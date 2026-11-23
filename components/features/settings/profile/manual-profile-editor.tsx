@@ -2,7 +2,8 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { toast } from "sonner";
 
 import { resetMasterProfile, updateMasterProfile } from "@/app/actions/profile";
@@ -163,7 +164,7 @@ export function ManualProfileEditor({
               onClick={clearProfile}
             >
               {pending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader size="sm" />
               ) : null}
               Clear profile
             </Button>
@@ -175,7 +176,7 @@ export function ManualProfileEditor({
               className={cn(PRIMARY_ACTION_BTN_CLASSNAME, "h-9 px-3.5")}
             >
               {pending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader size="sm" />
               ) : null}
               <span>Save profile</span>
             </button>

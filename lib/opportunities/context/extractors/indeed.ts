@@ -267,7 +267,7 @@ export function extractIndeedSemanticDom(
   }
 
   const structured = parseStructuredJobSections(rawDescHtml);
-  let finalDescription = structured.fullReconstructedMarkdown || rawDescHtml.replace(/<[^>]+>/g, " ").trim();
+  const finalDescription = structured.fullReconstructedMarkdown || rawDescHtml.replace(/<[^>]+>/g, " ").trim();
 
   if (!salary && finalDescription) {
     salary = extractSalaryFromText(finalDescription) || undefined;

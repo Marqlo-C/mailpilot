@@ -279,7 +279,7 @@ export async function executeShadowEvaluation(
 /**
  * Dispatches a shadow evaluation non-blockingly in the background.
  *
- * Utilizes Next.js 15 `after()` when inside a serverless request scope,
+ * Utilizes Next.js 16 `after()` when inside a serverless request scope,
  * seamlessly falling back to an unhandled asynchronous Promise when outside
  * request context (such as during test execution or scheduled scripts).
  *

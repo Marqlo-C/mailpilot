@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import { useSidebarFlyout } from "@/components/layout/sidebar-flyout-provider";
 import { AppMenuSelect } from "@/components/ui/app-menu";
+import { Loader } from "@/components/ui/loader";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -62,13 +63,16 @@ export function FlyoutIconPill({
               matchPairWidth ? "h-8 w-full" : "size-8"
             )}
           >
-            <PrimaryIcon
-              className={cn(
-                "size-3.5",
-                primary.busy && "animate-spin",
-                primary.iconClassName
-              )}
-            />
+            {primary.busy ? (
+              <Loader
+                size="sm"
+                className={cn("text-[#e4f7f3]/80", primary.iconClassName)}
+              />
+            ) : (
+              <PrimaryIcon
+                className={cn("size-3.5", primary.iconClassName)}
+              />
+            )}
           </button>
         </LabelTooltip>
       </div>
@@ -86,13 +90,16 @@ export function FlyoutIconPill({
           onClick={primary.onClick}
           className={cn(PILL_BTN_CLASS, "size-8 rounded-l-full")}
         >
-          <PrimaryIcon
-            className={cn(
-              "size-3.5",
-              primary.busy && "animate-spin",
-              primary.iconClassName
-            )}
-          />
+          {primary.busy ? (
+            <Loader
+              size="sm"
+              className={cn("text-[#e4f7f3]/80", primary.iconClassName)}
+            />
+          ) : (
+            <PrimaryIcon
+              className={cn("size-3.5", primary.iconClassName)}
+            />
+          )}
         </button>
       </LabelTooltip>
       <span
@@ -107,13 +114,16 @@ export function FlyoutIconPill({
           onClick={secondary.onClick}
           className={cn(PILL_BTN_CLASS, "size-8 rounded-r-full")}
         >
-          <SecondaryIcon
-            className={cn(
-              "size-3.5",
-              secondary.busy && "animate-spin",
-              secondary.iconClassName
-            )}
-          />
+          {secondary.busy ? (
+            <Loader
+              size="sm"
+              className={cn("text-[#e4f7f3]/80", secondary.iconClassName)}
+            />
+          ) : (
+            <SecondaryIcon
+              className={cn("size-3.5", secondary.iconClassName)}
+            />
+          )}
         </button>
       </LabelTooltip>
     </div>

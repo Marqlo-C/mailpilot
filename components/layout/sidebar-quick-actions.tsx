@@ -1,14 +1,8 @@
 "use client";
 
 import { forwardRef, useEffect, useState, type ReactNode } from "react";
-import {
-  CloudDownload,
-  CloudUpload,
-  Cpu,
-  KeyRound,
-  Loader2,
-  type LucideIcon,
-} from "lucide-react";
+import { CloudDownload, CloudUpload, Cpu, KeyRound, type LucideIcon } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 
 import {
   ApiKeysFlyout,
@@ -75,7 +69,7 @@ const QuickActionButton = forwardRef<
         )}
       >
         {pending ? (
-          <Loader2 className="size-4 shrink-0 animate-spin" />
+          <Loader size="sm" className="shrink-0" />
         ) : (
           <Icon className="size-4 shrink-0 transition-colors group-hover/action:text-[#e4f7f3]" />
         )}

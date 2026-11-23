@@ -1,4 +1,4 @@
-import type { Subscription } from "@prisma/client";
+import type { Subscription } from "@/lib/generated/prisma/client";
 import { Eye, Mail, UserRoundMinus } from "lucide-react";
 import { CreateSnapshotButton } from "@/components/ui/composites/create-snapshot-button";
 import { RowMenuTrigger } from "@/components/ui/composites/row-menu-trigger";

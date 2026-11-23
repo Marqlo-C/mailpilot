@@ -33,7 +33,9 @@ export function SidebarCollapseProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [tabletDrawerOpen, setTabletDrawerOpen] = useState(false);
   const collapsedRef = useRef(collapsed);
-  collapsedRef.current = collapsed;
+  useEffect(() => {
+    collapsedRef.current = collapsed;
+  }, [collapsed]);
   const draftOwnedCollapseRef = useRef(false);
 
   const toggleSidebar = useCallback(() => {

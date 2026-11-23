@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Wifi } from "lucide-react";
+import { Wifi } from "lucide-react";
 import {
   readOllamaStatus,
   updateOllamaModel,
@@ -14,6 +14,7 @@ import {
   FlyoutSelect,
 } from "@/components/layout/sidebar-flyout-chrome";
 import { DEV_OLLAMA_MODEL_STORAGE_KEY } from "@/components/features/settings/ai-models";
+import { LoadSkeletonStack } from "@/components/ui/composites/load-skeleton-stack";
 import { cn } from "@/lib/utils";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
 import { toast } from "sonner";
@@ -142,26 +143,26 @@ export function OllamaFlyout({ accountId }: { accountId: string }) {
     if (stored && initialDevModels.includes(stored)) return stored;
     return initialDevModels[0] ?? "";
   });
+  const [prevAccountId, setPrevAccountId] = useState(accountId);
 
-  useEffect(() => {
-    let cancelled = false;
+  if (prevAccountId !== accountId) {
+    setPrevAccountId(accountId);
     const hit = cachedOllamaStatus(accountId);
     const priorCheck = cachedLiveCheck(accountId);
     const priorDev = cachedDevModels(accountId);
     if (priorDev.length > 0) {
       setDevModels(priorDev);
       const stored = readStoredDevModel();
-      setDevSelectedModel((prev) => {
-        if (prev && priorDev.includes(prev)) return prev;
-        if (stored && priorDev.includes(stored)) return stored;
-        return priorDev[0] ?? "";
-      });
+      if (!devSelectedModel || !priorDev.includes(devSelectedModel)) {
+        setDevSelectedModel(
+          stored && priorDev.includes(stored) ? stored : (priorDev[0] ?? "")
+        );
+      }
     }
     if (hit) {
       const view = applyOllamaStatus(hit);
       setStatus(hit);
       setSelectedModel(hit.ollamaModel);
-      // Keep the last verify snapshot; only fall back to stored models.
       if (priorCheck) {
         setConnection(priorCheck.connection);
         setMessage(priorCheck.message);
@@ -177,6 +178,12 @@ export function OllamaFlyout({ accountId }: { accountId: string }) {
     } else {
       setLoading(true);
     }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    const hit = cachedOllamaStatus(accountId);
+    const priorCheck = cachedLiveCheck(accountId);
 
     void loadOllamaStatus(accountId).then((data) => {
       if (cancelled) return;
@@ -363,8 +370,8 @@ export function OllamaFlyout({ accountId }: { accountId: string }) {
 
   if (loading && !status) {
     return (
-      <div className="w-64 px-2.5 py-3 text-xs text-[#e4f7f3]/60">
-        Loading Ollama…
+      <div className="w-64 px-2.5 py-4">
+        <LoadSkeletonStack message="Loading Ollama…" tone="sidebar" />
       </div>
     );
   }
@@ -411,14 +418,14 @@ export function OllamaFlyout({ accountId }: { accountId: string }) {
           <FlyoutIconPill
             matchPairWidth={false}
             primary={{
-              icon: connection === "checking" ? Loader2 : Wifi,
+              icon: Wifi,
+              busy: connection === "checking",
               label:
                 connection === "checking"
                   ? "Checking connection"
                   : "Check connection",
               onClick: () => void checkConnection(),
               disabled: pending || connection === "checking",
-              busy: connection === "checking",
             }}
           />
         </div>
@@ -453,13 +460,13 @@ export function OllamaFlyout({ accountId }: { accountId: string }) {
           <FlyoutIconPill
             matchPairWidth={false}
             primary={{
-              icon: checkingDevModels ? Loader2 : Wifi,
+              icon: Wifi,
+              busy: checkingDevModels,
               label: checkingDevModels
                 ? "Checking local models"
                 : "Check local models",
               onClick: checkDevModels,
               disabled: pending || checkingDevModels,
-              busy: checkingDevModels,
             }}
           />
         </div>

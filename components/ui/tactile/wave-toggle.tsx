@@ -74,41 +74,23 @@ export function WaveToggle({
   const waveGroupRef = React.useRef<SVGGElement>(null);
   const waveRafRef = React.useRef<number | null>(null);
 
-  const [activeVariant, setActiveVariant] = React.useState<WaveToggleVariant>(
-    variant === "light" ? "light" : "dark"
-  );
-
-  React.useEffect(() => {
-    if (variant === "light" || variant === "dark") {
-      setActiveVariant(variant);
-      return;
-    }
-
-    setActiveVariant(readWaveTogglePreference(accountId));
-
-    const sync = (e: Event) => {
-      const customEvent = e as CustomEvent<{
-        variant?: WaveToggleVariant;
-        accountId?: string | null;
-      }>;
-      if (
-        !customEvent.detail?.accountId ||
-        !accountId ||
-        customEvent.detail.accountId === accountId
-      ) {
-        setActiveVariant(
-          customEvent.detail?.variant ?? readWaveTogglePreference(accountId)
-        );
-      }
-    };
-
-    window.addEventListener(WAVE_TOGGLE_CHANGE_EVENT, sync);
-    window.addEventListener("storage", sync);
+  const subscribeWaveToggle = React.useCallback((onStoreChange: () => void) => {
+    window.addEventListener(WAVE_TOGGLE_CHANGE_EVENT, onStoreChange);
+    window.addEventListener("storage", onStoreChange);
     return () => {
-      window.removeEventListener(WAVE_TOGGLE_CHANGE_EVENT, sync);
-      window.removeEventListener("storage", sync);
+      window.removeEventListener(WAVE_TOGGLE_CHANGE_EVENT, onStoreChange);
+      window.removeEventListener("storage", onStoreChange);
     };
-  }, [variant, accountId]);
+  }, []);
+
+  const activeVariant = React.useSyncExternalStore(
+    subscribeWaveToggle,
+    () =>
+      variant === "light" || variant === "dark"
+        ? variant
+        : readWaveTogglePreference(accountId),
+    () => (variant === "light" ? "light" : "dark")
+  );
 
   const theme = activeVariant === "light" ? LIGHT_THEME : DARK_THEME;
 

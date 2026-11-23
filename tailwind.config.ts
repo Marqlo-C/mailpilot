@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 const config: Config = {
   darkMode: ["class"],
@@ -65,9 +66,31 @@ const config: Config = {
       boxShadow: {
         xs: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
       },
+      keyframes: {
+        // prompt-kit Loader `wave` variant
+        wave: {
+          "0%, 100%": { transform: "scaleY(1)" },
+          "50%": { transform: "scaleY(0.6)" },
+        },
+        // prompt-kit TextShimmer
+        shimmer: {
+          "0%": { backgroundPosition: "200% 50%" },
+          "100%": { backgroundPosition: "-200% 50%" },
+        },
+        // Shared skeleton sweep (placeholder bars)
+        "skeleton-shimmer": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
+      },
+      animation: {
+        wave: "wave 1s ease-in-out infinite",
+        shimmer: "shimmer 4s infinite linear",
+        "skeleton-shimmer": "skeleton-shimmer 1.4s ease-in-out infinite",
+      },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 };
 
 export default config;

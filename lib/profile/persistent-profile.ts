@@ -4,7 +4,7 @@ import {
   type PermanentSettings,
   type PersistentProfile,
   Prisma,
-} from "@prisma/client";
+} from "@/lib/generated/prisma/client";
 
 import { prisma } from "@/lib/core/prisma";
 import { DEFAULT_MATCH_THRESHOLD } from "@/lib/validations/profile.schema";

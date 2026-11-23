@@ -1,5 +1,5 @@
 import React from "react";
-import { Loader2, RotateCcw, Sparkles, WandSparkles } from "lucide-react";
+import { RotateCcw, Sparkles, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
@@ -9,7 +9,7 @@ export function RefinePanel({
   attachResume,
   effectiveRefineTarget,
   setRefineTarget,
-  busy,
+  aceBusy,
   refinePlaceholder,
   refinePrompt,
   setRefinePrompt,
@@ -27,7 +27,8 @@ export function RefinePanel({
   attachResume: boolean;
   effectiveRefineTarget: "email" | "resume";
   setRefineTarget: (target: "email" | "resume") => void;
-  busy: boolean;
+  /** True while any Ace email/resume generation is running. */
+  aceBusy: boolean;
   refinePlaceholder: string;
   refinePrompt: string;
   setRefinePrompt: (val: string) => void;
@@ -59,7 +60,7 @@ export function RefinePanel({
                 : "text-muted-foreground hover:text-foreground"
             )}
             onClick={() => setRefineTarget("email")}
-            disabled={busy}
+            disabled={aceBusy}
           >
             Email
           </button>
@@ -72,7 +73,7 @@ export function RefinePanel({
                 : "text-muted-foreground hover:text-foreground"
             )}
             onClick={() => setRefineTarget("resume")}
-            disabled={busy}
+            disabled={aceBusy}
           >
             Resume
           </button>
@@ -84,7 +85,7 @@ export function RefinePanel({
         placeholder={refinePlaceholder}
         value={refinePrompt}
         onChange={(e) => setRefinePrompt(e.target.value)}
-        disabled={busy}
+        disabled={aceBusy}
         className="h-8 flex-1 bg-card text-xs"
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -103,7 +104,11 @@ export function RefinePanel({
             className="h-8 gap-1 px-2.5 text-xs"
             disabled
           >
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            {showGenerateResume ? (
+              <Sparkles className="h-3.5 w-3.5" />
+            ) : (
+              <RotateCcw className="h-3.5 w-3.5" />
+            )}
             {primaryActionLabel}
           </Button>
           <CancelTaskButton
@@ -121,7 +126,7 @@ export function RefinePanel({
           variant="ghost"
           size="sm"
           className="h-8 shrink-0 gap-1 px-2.5 text-xs"
-          disabled={busy}
+          disabled={aceBusy}
           onClick={handleUnifiedRegenerate}
           title={primaryActionTitle}
         >
@@ -143,7 +148,7 @@ export function RefinePanel({
             className="h-8 gap-1 px-2.5 text-xs"
             disabled
           >
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <WandSparkles className="h-3.5 w-3.5" />
             Refine
           </Button>
           <CancelTaskButton

@@ -12,6 +12,7 @@ import {
 import { SETTINGS_SECTION_ICON_CLASSNAME } from "@/lib/utils/navigation/settings-chrome";
 import { ENTRY_CHIP_CLASSNAME } from "@/components/ui/tactile/entry-chip";
 import { formatStatusPillTitle } from "@/lib/utils/format";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { SLIDABLE_BADGE_ROW_LEADING_OFFSET_PX } from "./slidable-badge-row";
 
 import {
@@ -107,11 +108,7 @@ export function NestedSettingsCard({
   contentClassName,
 }: NestedSettingsCardProps) {
   const styles = NESTED_CARD_TYPOGRAPHY[level];
-  const [mounted, setMounted] = React.useState(false);
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useHydrated();
 
   const handleHeaderClick = (e: React.MouseEvent) => {
     // Prevent collapsing when clicking interactive controls in trailing/leading slots

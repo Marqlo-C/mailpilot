@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { z } from "zod";
 import crypto from "crypto";
 
@@ -10,7 +10,7 @@ import {
   parseAccountRules,
 } from "@/lib/validations/rules.schema";
 import { bridgeBodySchema } from "@/lib/validations/settings.schema";
-import { decryptToken } from "@/lib/core/crypto";
+import { decryptToken, encryptToken } from "@/lib/core/crypto";
 
 /** Strictly validate Cloudflare Quick Tunnel hostnames (SSRF guard). */
 const CLOUDFLARE_TUNNEL_REGEX =
@@ -49,6 +49,10 @@ export async function POST(request: Request) {
         typeof (raw as { ollamaUrl?: unknown }).ollamaUrl === "string"
           ? (raw as { ollamaUrl: string }).ollamaUrl.trim()
           : (raw as { ollamaUrl?: unknown }).ollamaUrl,
+      tunnelToken:
+        typeof (raw as { tunnelToken?: unknown }).tunnelToken === "string"
+          ? (raw as { tunnelToken: string }).tunnelToken.trim()
+          : (raw as { tunnelToken?: unknown }).tunnelToken,
     });
 
     if (!parsed.success) {
@@ -63,8 +67,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const { email, ollamaUrl, action, bridgeSecret, models: clientModels } =
-      parsed.data;
+    const {
+      email,
+      ollamaUrl,
+      action,
+      bridgeSecret,
+      tunnelToken,
+      models: clientModels,
+    } = parsed.data;
 
     // Case-insensitive lookup — terminal email casing must match the same Account
     // the Settings UI session uses via accountId.
@@ -132,6 +142,7 @@ export async function POST(request: Request) {
           ...rules,
           availableModels: [],
           bridgeConnected: false,
+          encryptedTunnelToken: null,
         });
 
         await prisma.accountSettings.update({
@@ -174,6 +185,7 @@ export async function POST(request: Request) {
         const probe = await probeOllamaTagsWithRetry(normalizedUrl, {
           timeoutMs: 12_000,
           attempts: 3,
+          authToken: tunnelToken,
         });
         models = probe.models;
         connected = true;
@@ -191,6 +203,7 @@ export async function POST(request: Request) {
       ...rules,
       availableModels: models,
       bridgeConnected: connected,
+      encryptedTunnelToken: tunnelToken ? encryptToken(tunnelToken) : null,
       embeddingProvider:
         connected && rules.embeddingProvider === "disabled"
           ? "local_ollama"

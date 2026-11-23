@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { z } from "zod";
 import { getActiveAccount } from "@/lib/data";
 import {
