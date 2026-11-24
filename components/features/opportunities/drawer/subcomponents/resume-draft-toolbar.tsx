@@ -111,10 +111,17 @@ export function ResumeDraftToolbar({
           value={zoomChoice}
           onChange={onZoomChange}
           options={ZOOM_OPTIONS}
+          disabled={disabled}
+          className={cn(disabled && "pointer-events-none")}
         />
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5 overflow-visible">
+      <div
+        className={cn(
+          "flex shrink-0 items-center gap-1.5 overflow-visible",
+          disabled && "pointer-events-none"
+        )}
+      >
         {showSummaryToggle ? (
           <LabelTooltip
             label={
@@ -154,11 +161,14 @@ export function ResumeDraftToolbar({
               type="button"
               variant="outline"
               size="sm"
+              disabled={disabled}
               aria-label={`Draft details: ${draftInsights.lengthLabel}`}
               title="Draft details"
               className={cn(
                 "h-8 w-8 px-0 [&_svg]:size-3.5",
-                draftInsights.spilled &&
+                // Skip spill chrome while locked — remasure after regen can flash amber.
+                !disabled &&
+                  draftInsights.spilled &&
                   "border-amber-600/40 text-amber-700 hover:text-amber-800"
               )}
             >
@@ -197,6 +207,7 @@ export function ResumeDraftToolbar({
             type="button"
             variant={notesOpen ? "secondary" : "outline"}
             size="sm"
+            disabled={disabled}
             aria-expanded={notesOpen}
             aria-label="Tailoring notes"
             title="Tailoring notes"

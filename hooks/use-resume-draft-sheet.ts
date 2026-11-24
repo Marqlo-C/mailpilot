@@ -217,10 +217,14 @@ export function useResumeDraftSheet({
     [blockHeights, displayPages, draft, includeSummary, totalPages]
   );
 
-  function dismissRefine() {
+  const dismissRefine = useCallback(() => {
     setInstruction("");
     setRefineFor(null);
-  }
+  }, []);
+
+  const closeNotes = useCallback(() => {
+    setNotesOpen(false);
+  }, []);
 
   function submitRefine() {
     if (!refineFor) return;
@@ -263,5 +267,6 @@ export function useResumeDraftSheet({
     submitRefine,
     openRefine,
     toggleNotes,
+    closeNotes,
   };
 }

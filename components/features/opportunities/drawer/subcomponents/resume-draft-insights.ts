@@ -42,7 +42,10 @@ export function computeResumeDraftInsights({
     100,
     Math.max(0, Math.round((used / PRINTABLE_HEIGHT) * 100))
   );
-  const spilled = totalPages > 1;
+  // Estimates alone can over-paginate for a frame after rewrite — only trust
+  // spill once real block heights exist.
+  const hasMeasuredHeights = Object.keys(blockHeights).length > 0;
+  const spilled = hasMeasuredHeights && totalPages > 1;
   const lengthLabel = spilled ? `${totalPages} pages` : `${pct}% full`;
   const lengthDetail = spilled
     ? "A bit long for one page. Remove or shorten a few lines."

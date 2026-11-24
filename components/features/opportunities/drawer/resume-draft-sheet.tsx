@@ -1,5 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
+
+import { ResumeDraftBusySkeleton } from "@/components/features/opportunities/drawer/subcomponents/resume-draft-busy-skeleton";
+import { BusyStatusChip } from "@/components/ui/composites/busy-status-chip";
 import { ResumeDraftCanvas } from "@/components/features/opportunities/drawer/subcomponents/resume-draft-canvas";
 import { ResumeDraftToolbar } from "@/components/features/opportunities/drawer/subcomponents/resume-draft-toolbar";
 import { ResumeLineChromeProvider } from "@/components/features/opportunities/drawer/subcomponents/resume-line-chrome";
@@ -26,6 +30,7 @@ export {
 export function ResumeDraftSheet({
   draft,
   disabled,
+  busyLabel = null,
   onCommit,
   onToggle,
   onMove,
@@ -38,6 +43,8 @@ export function ResumeDraftSheet({
 }: {
   draft: TailoredResumeDraft;
   disabled?: boolean;
+  /** Skeleton the page only; real toolbar stays (like email To/Subject). */
+  busyLabel?: string | null;
   exporting?: boolean;
   onCommit: (nodeId: string, content: string) => void;
   onToggle: (nodeId: string, selected: boolean) => void;
@@ -53,6 +60,12 @@ export function ResumeDraftSheet({
     includeSummary,
     onRefine,
   });
+
+  useEffect(() => {
+    if (!disabled && !busyLabel) return;
+    sheet.closeNotes();
+    sheet.dismissRefine();
+  }, [busyLabel, disabled, sheet.closeNotes, sheet.dismissRefine]);
 
   return (
     <ResumeLineChromeProvider
@@ -85,17 +98,26 @@ export function ResumeDraftSheet({
           onSubmitRefine={sheet.submitRefine}
           onDismissRefine={sheet.dismissRefine}
         />
-        <ResumeDraftCanvas
-          viewportRef={sheet.viewportRef}
-          pagesContainerRef={sheet.pagesContainerRef}
-          zoom={sheet.zoom}
-          totalCanvasHeight={sheet.totalCanvasHeight}
-          displayPages={sheet.displayPages}
-          firstHeadingBlockId={sheet.firstHeadingBlockId}
-          disabled={disabled}
-          isIncluded={sheet.isIncluded}
-          onCommit={onCommit}
-        />
+        {busyLabel ? (
+          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+            <ResumeDraftBusySkeleton className="h-full" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-3">
+              <BusyStatusChip label={busyLabel} />
+            </div>
+          </div>
+        ) : (
+          <ResumeDraftCanvas
+            viewportRef={sheet.viewportRef}
+            pagesContainerRef={sheet.pagesContainerRef}
+            zoom={sheet.zoom}
+            totalCanvasHeight={sheet.totalCanvasHeight}
+            displayPages={sheet.displayPages}
+            firstHeadingBlockId={sheet.firstHeadingBlockId}
+            disabled={disabled}
+            isIncluded={sheet.isIncluded}
+            onCommit={onCommit}
+          />
+        )}
       </div>
     </ResumeLineChromeProvider>
   );

@@ -1,29 +1,29 @@
 import type { ReactNode } from "react";
 
-import { Loader } from "@/components/ui/loader";
-import { TextShimmer } from "@/components/ui/text-shimmer";
-import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
+import { ResumeDraftBusySkeleton } from "@/components/features/opportunities/drawer/subcomponents/resume-draft-busy-skeleton";
+import { BusyStatusChip } from "@/components/ui/composites/busy-status-chip";
 
-/** Shared veil for email + resume pane waits — same tint/blur on both sides. */
-export const DRAFT_PANE_BUSY_OVERLAY_CLASSNAME =
-  "absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/75 backdrop-blur-[2px]";
+/** @deprecated Prefer {@link BusyStatusChip}. */
+export { BusyStatusChip as DraftBusyStatusChip } from "@/components/ui/composites/busy-status-chip";
 
+/**
+ * Full-pane resume wait when no sheet chrome exists yet (first create).
+ * With a draft, {@link ResumeDraftSheet} keeps the real toolbar and skeletons
+ * the page only.
+ */
 export function DraftPaneBusyOverlay({
   label,
-  cancelTitle,
-  onCancel,
 }: {
   label: string;
-  cancelTitle: string;
-  onCancel: () => void;
 }): ReactNode {
   return (
-    <div className={DRAFT_PANE_BUSY_OVERLAY_CLASSNAME}>
-      <div className="flex items-center gap-2 text-sm">
-        <Loader size="md" />
-        <TextShimmer>{label}</TextShimmer>
+    <div className="absolute inset-0 z-10">
+      <div className="absolute inset-0 overflow-hidden">
+        <ResumeDraftBusySkeleton className="h-full" />
       </div>
-      <CancelTaskButton tone="light" title={cancelTitle} onCancel={onCancel} />
+      <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-3">
+        <BusyStatusChip label={label} />
+      </div>
     </div>
   );
 }

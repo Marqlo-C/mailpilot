@@ -123,7 +123,6 @@ export function OpportunityDraftDialog({
       fileInputId={fileInputId}
       emailBusy={flow.emailBusy}
       emailBusyLabel={flow.emailBusyLabel}
-      onCancelEmailTask={flow.handleCancelEmailTask}
     />
   );
 
@@ -139,7 +138,6 @@ export function OpportunityDraftDialog({
       embedded={splitEmbedded}
       includeSummary={flow.includeSummary}
       onIncludeSummaryChange={flow.setIncludeSummary}
-      onCancelTask={() => flow.handleCancelTask(TASK_RESUME)}
       onRetry={() => void flow.generateResume()}
       onCommit={(nodeId, content) => {
         if (!opportunity) return;

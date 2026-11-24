@@ -362,11 +362,15 @@ export function SegmentedControl<T extends string>({
           data-state={value === option.value ? "active" : "inactive"}
           className={cn(
             triggerClassName,
+            "disabled:pointer-events-none disabled:opacity-50",
             isCompact &&
               "px-2 py-1 text-xs data-[state=active]:before:-right-1.5"
           )}
           disabled={disabled}
-          onClick={() => onChange(option.value)}
+          onClick={() => {
+            if (disabled) return;
+            onChange(option.value);
+          }}
         >
           {option.label}
         </button>

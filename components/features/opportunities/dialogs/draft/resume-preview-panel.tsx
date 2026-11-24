@@ -1,9 +1,6 @@
 import React, { useState } from "react";
 import { FileText } from "lucide-react";
-import { Loader } from "@/components/ui/loader";
 import { Button } from "@/components/ui/button";
-import { TextShimmer } from "@/components/ui/text-shimmer";
-import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
 import { EmptyState } from "@/components/ui/composites/empty-state";
 import { LoadSkeletonStack } from "@/components/ui/composites/load-skeleton-stack";
 import { ResumeDraftSheet } from "@/components/features/opportunities/drawer/resume-draft-sheet";
@@ -36,7 +33,6 @@ export function ResumePreviewPanel({
   embedded = false,
   includeSummary,
   onIncludeSummaryChange,
-  onCancelTask,
   onRetry,
   onCommit,
   onToggle,
@@ -59,7 +55,6 @@ export function ResumePreviewPanel({
   embedded?: boolean;
   includeSummary?: boolean;
   onIncludeSummaryChange?: (include: boolean) => void;
-  onCancelTask: () => void;
   onRetry: () => void;
   onCommit: (nodeId: string, content: string) => void;
   onToggle: (nodeId: string, selected: boolean) => void;
@@ -68,7 +63,6 @@ export function ResumePreviewPanel({
   onExport: (format: "pdf" | "docx") => void;
 }) {
   const showEmptyGenerateState = resumeBusy && !resume;
-  const showContentOverlay = resumeBusy && Boolean(resume);
   const settleKey = useContentSettleKey(resumeBusy);
   const [editingFocused, setEditingFocused] = useState(false);
 
@@ -97,17 +91,9 @@ export function ResumePreviewPanel({
         className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300"
       >
         {showEmptyGenerateState ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-3 text-sm">
-            <div className="flex items-center gap-2">
-              <Loader size="md" />
-              <TextShimmer>
-                {resumeBusyLabel ?? "Creating resume…"}
-              </TextShimmer>
-            </div>
-            <CancelTaskButton
-              tone="light"
-              title="Stop Creating"
-              onCancel={onCancelTask}
+          <div className="relative min-h-0 flex-1">
+            <DraftPaneBusyOverlay
+              label={resumeBusyLabel ?? "Creating resume…"}
             />
           </div>
         ) : resumeError && !resume ? (
@@ -128,6 +114,11 @@ export function ResumePreviewPanel({
             draft={resume.draft}
             strategyRationale={resume.strategyRationale}
             disabled={resumeBusy}
+            busyLabel={
+              resumeBusy
+                ? (resumeBusyLabel ?? "Working on resume…")
+                : null
+            }
             exporting={exporting}
             includeSummary={includeSummary}
             onIncludeSummaryChange={onIncludeSummaryChange}
@@ -180,14 +171,6 @@ export function ResumePreviewPanel({
           </div>
         )}
       </div>
-
-      {showContentOverlay ? (
-        <DraftPaneBusyOverlay
-          label={resumeBusyLabel ?? "Working on resume…"}
-          cancelTitle="Cancel resume task"
-          onCancel={onCancelTask}
-        />
-      ) : null}
     </div>
   );
 }

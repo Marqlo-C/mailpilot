@@ -16,7 +16,8 @@ import type {
 } from "@/app/actions/opportunities";
 import { cn } from "@/lib/utils";
 import { DraftAttachControls } from "./draft-attach-controls";
-import { DraftPaneBusyOverlay } from "./draft-pane-busy-overlay";
+import { BusyStatusChip } from "@/components/ui/composites/busy-status-chip";
+import { EmailDraftBusySkeleton } from "./draft-pane-busy-skeletons";
 
 export function EmailEditorPanel({
   attachResume,
@@ -43,7 +44,6 @@ export function EmailEditorPanel({
   fileInputId,
   emailBusy,
   emailBusyLabel,
-  onCancelEmailTask,
 }: {
   attachResume: boolean;
   onAttachResumeChange?: (attach: boolean) => void;
@@ -74,7 +74,6 @@ export function EmailEditorPanel({
   /** True only while this email pane is regenerating or refining. */
   emailBusy: boolean;
   emailBusyLabel: string | null;
-  onCancelEmailTask: () => void;
 }) {
   const settleKey = useContentSettleKey(emailBusy);
   const recipientDirty = recipient !== baselineRecipient;
@@ -89,28 +88,49 @@ export function EmailEditorPanel({
       <label htmlFor="opp-draft-body" className="sr-only">
         Body
       </label>
-      <textarea
-        id="opp-draft-body"
+      {emailBusy ? (
+        <>
+          {/* Ace rewrites body only — To/Subject stay; letter-shaped lines. */}
+          <EmailDraftBusySkeleton />
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-3">
+            <BusyStatusChip
+              label={emailBusyLabel ?? "Working on email…"}
+            />
+          </div>
+        </>
+      ) : (
+        <textarea
+          id="opp-draft-body"
+          className={cn(
+            FIELD_TEXTAREA_CLASSNAME,
+            // Extra x-inset clears the plate’s rounded corners; text-xs matches field SSOT.
+            "min-h-0 flex-1 resize-none bg-transparent px-5 pb-11 pt-2 text-xs leading-relaxed"
+          )}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          onFocus={() => setBodyFocused(true)}
+          onBlur={() => setBodyFocused(false)}
+          placeholder="Write your message…"
+        />
+      )}
+      {/* Attach chrome stays like To/Subject — visible but locked while busy. */}
+      <div
         className={cn(
-          FIELD_TEXTAREA_CLASSNAME,
-          // Extra x-inset clears the plate’s rounded corners; text-xs matches field SSOT.
-          "min-h-0 flex-1 resize-none bg-transparent px-5 pb-11 pt-2 text-xs leading-relaxed",
+          "pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3",
           emailBusy && "opacity-50"
         )}
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        onFocus={() => setBodyFocused(true)}
-        onBlur={() => setBodyFocused(false)}
-        disabled={emailBusy}
-        placeholder="Write your message…"
-      />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3">
-        <div className="pointer-events-auto flex min-w-0 flex-1 flex-wrap items-center gap-2">
+      >
+        <div
+          className={cn(
+            "flex min-w-0 flex-1 flex-wrap items-center gap-2",
+            !emailBusy && "pointer-events-auto"
+          )}
+        >
           {showResumeAttach ? (
             <DraftAttachControls
               attachResume={attachResume}
               onAttachChange={onAttachResumeChange}
-              locked={attachLocked}
+              locked={attachLocked || emailBusy}
               resume={resume}
               resumeSizeLabel={resumeSizeLabel}
             />
@@ -126,7 +146,12 @@ export function EmailEditorPanel({
             />
           ))}
         </div>
-        <div className="pointer-events-auto flex shrink-0 items-center">
+        <div
+          className={cn(
+            "flex shrink-0 items-center",
+            !emailBusy && "pointer-events-auto"
+          )}
+        >
           <input
             id={fileInputId}
             type="file"
@@ -164,6 +189,7 @@ export function EmailEditorPanel({
           aria-label="To"
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
+          // Header stays readable during body rewrite; lock edits mid-flight.
           disabled={emailBusy}
           trailing={
             recipientDirty ? (
@@ -230,14 +256,6 @@ export function EmailEditorPanel({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg">
         {fields}
       </div>
-
-      {emailBusy ? (
-        <DraftPaneBusyOverlay
-          label={emailBusyLabel ?? "Working on email…"}
-          cancelTitle="Cancel email task"
-          onCancel={onCancelEmailTask}
-        />
-      ) : null}
     </div>
   );
 }
