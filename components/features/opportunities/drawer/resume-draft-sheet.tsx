@@ -1,85 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import {
-  Bot,
-  Check,
-  CircleArrowDown,
-  Gauge,
-  Maximize,
-  MessageSquare,
-  MessageSquareMore,
-  BotMessageSquare,
-  Summary,
-} from "lucide-react";
-
-import {
-  appMenuClassNames,
-  AppMenuContent,
-  AppMenuItem,
-} from "@/components/ui/app-menu";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Loader } from "@/components/ui/loader";
-import {
-  DASHED_BORDER_RING_PARENT_SVG_CLASSNAME,
-  DASHED_OUTLINE_STROKE_CLASSNAME,
-  DashedBorderRing,
-} from "@/components/ui/tactile/dashed-border-ring";
-import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
-import { SegmentedControl } from "@/components/ui/tactile/segmented-tabs";
-import { LabelTooltip } from "@/components/ui/tooltip";
-import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/resume-draft";
+import { ResumeDraftCanvas } from "@/components/features/opportunities/drawer/subcomponents/resume-draft-canvas";
+import { ResumeDraftToolbar } from "@/components/features/opportunities/drawer/subcomponents/resume-draft-toolbar";
+import { ResumeLineChromeProvider } from "@/components/features/opportunities/drawer/subcomponents/resume-line-chrome";
+import { useResumeDraftSheet } from "@/hooks/use-resume-draft-sheet";
+import type { TailoredResumeDraft } from "@/lib/resume-draft";
 import type { StrategyRationale } from "@/lib/validations/resume-draft.schema";
-import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "@/lib/utils/format-distance";
-import {
-  RESUME_FONTS,
-  RESUME_SPACING,
-  RESUME_TYPOGRAPHY,
-} from "@/lib/resume-draft/layout.schema";
-
-const ZOOM_OPTIONS = [
-  {
-    value: "fit" as const,
-    label: (
-      <>
-        <Maximize className="size-3.5" aria-hidden />
-        <span className="sr-only">Fit</span>
-      </>
-    ),
-  },
-  { value: "0.85" as const, label: "85%" },
-  { value: "1" as const, label: "100%" },
-  { value: "1.25" as const, label: "125%" },
-];
-
-type ZoomChoice = (typeof ZOOM_OPTIONS)[number]["value"];
-
-import {
-  SHEET_WIDTH,
-  PAGE_HEIGHT,
-  PAGE_PADDING_TOP,
-  PAGE_PADDING_BOTTOM,
-  PAGE_PADDING_X,
-  PRINTABLE_HEIGHT,
-  PAGE_GAP,
-  SECTION_HEADING_CLASS,
-  type DraftBlock,
-  getBlockId,
-  estimateBlockHeight,
-  buildBlocks,
-  getEntityTotalHeight,
-  partitionBlocksIntoPages,
-} from "./subcomponents/resume-draft-layout";
-import { ResumeDraftNodeBlock } from "./subcomponents/resume-draft-node-block";
-import { ResumeLineChromeProvider } from "./subcomponents/resume-line-chrome";
-import { ResumeSkillsParagraph } from "./subcomponents/resume-skills-paragraph";
-import { ResumeStrategyPanel } from "./subcomponents/resume-strategy-panel";
 
 export {
   SHEET_WIDTH,
@@ -95,10 +21,7 @@ export {
   buildBlocks,
   getEntityTotalHeight,
   partitionBlocksIntoPages,
-};
-
-const useIsomorphicLayoutEffect =
-  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+} from "./subcomponents/resume-draft-layout";
 
 export function ResumeDraftSheet({
   draft,
@@ -125,600 +48,55 @@ export function ResumeDraftSheet({
   includeSummary?: boolean;
   onIncludeSummaryChange?: (include: boolean) => void;
 }) {
-  const [refineFor, setRefineFor] = useState<string | null>(null);
-  const [instruction, setInstruction] = useState("");
-  const [zoomChoice, setZoomChoice] = useState<ZoomChoice>("fit");
-  const [fitScale, setFitScale] = useState(0.7);
-  const [blockHeights, setBlockHeights] = useState<Record<string, number>>({});
-  const [notesOpen, setNotesOpen] = useState(false);
-
-  const notesPanelRef = useRef<HTMLDivElement>(null);
-  const notesTriggerRef = useRef<HTMLButtonElement>(null);
-  const refinePanelRef = useRef<HTMLFormElement>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const pagesContainerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    const measure = () => {
-      // Equal desk inset (p-3 = 12px each side).
-      const available = viewport.clientWidth - 24;
-      if (available <= 0) return;
-      setFitScale(Math.min(1, available / SHEET_WIDTH));
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(viewport);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!notesOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (notesPanelRef.current?.contains(target)) return;
-      if (notesTriggerRef.current?.contains(target)) return;
-      setNotesOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setNotesOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown, true);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [notesOpen]);
-
-  useEffect(() => {
-    if (!refineFor) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (refinePanelRef.current?.contains(target)) return;
-      // Line-chrome refine control lives in a portal; ignore clicks that open/retarget.
-      if (
-        target instanceof Element &&
-        target.closest("[data-resume-line-toolbar]")
-      ) {
-        return;
-      }
-      setInstruction("");
-      setRefineFor(null);
-    };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown, true);
-    };
-  }, [refineFor]);
-
-  const zoom = zoomChoice === "fit" ? fitScale : Number(zoomChoice);
-
-  const blocks = useMemo(() => {
-    const all = buildBlocks(draft);
-    if (includeSummary === false) {
-      return all.filter(
-        (block) =>
-          !(block.kind === "node" && block.node.section === "summary")
-      );
-    }
-    return all;
-  }, [draft, includeSummary]);
-  const selectedIds = useMemo(
-    () =>
-      new Set(draft.nodes.filter((node) => node.selected).map((node) => node.id)),
-    [draft.nodes]
-  );
-  /** Matches export: excluded if self or parent is unchecked. */
-  function isIncluded(node: ResumeDraftNode): boolean {
-    if (!node.selected) return false;
-    if (node.parentId && !selectedIds.has(node.parentId)) return false;
-    return true;
-  }
-  const firstHeadingBlock = blocks.find(
-    (b) => b.kind === "skills" || (b.kind === "node" && Boolean(b.heading))
-  );
-  const firstHeadingBlockId = firstHeadingBlock
-    ? getBlockId(firstHeadingBlock)
-    : null;
-
-  const remeasure = useCallback(() => {
-    const container = pagesContainerRef.current;
-    if (!container) return;
-
-    const elements = container.querySelectorAll<HTMLElement>(
-      "[data-draft-block-id]"
-    );
-    let hasChanged = false;
-    const nextHeights: Record<string, number> = {};
-
-    elements.forEach((el) => {
-      const id = el.getAttribute("data-draft-block-id");
-      if (!id) return;
-      // offsetHeight provides unscaled CSS pixels independent of zoom transforms.
-      // Include vertical margins (marginTop + marginBottom) so layout matches physical point geometry.
-      const comp = window.getComputedStyle(el);
-      const marginTop = parseFloat(comp.marginTop) || 0;
-      const marginBottom = parseFloat(comp.marginBottom) || 0;
-      const measured = Math.ceil(el.offsetHeight + marginTop + marginBottom);
-      nextHeights[id] = measured;
-      const previous = blockHeights[id];
-      if (previous === undefined || Math.abs(previous - measured) > 1) {
-        hasChanged = true;
-      }
-    });
-
-    if (hasChanged || Object.keys(blockHeights).length !== Object.keys(nextHeights).length) {
-      setBlockHeights(nextHeights);
-    }
-  }, [blockHeights]);
-
-  useIsomorphicLayoutEffect(() => {
-    remeasure();
-  }, [blocks, remeasure]);
-
-  useEffect(() => {
-    if (typeof document !== "undefined" && document.fonts?.ready) {
-      document.fonts.ready.then(() => {
-        remeasure();
-      });
-    }
-  }, [remeasure]);
-
-  const pages = useMemo(
-    () => partitionBlocksIntoPages(blocks, blockHeights, null),
-    [blocks, blockHeights]
-  );
-
-  const displayPages = pages.length > 0 ? pages : [[]];
-  const totalPages = displayPages.length;
-  const totalCanvasHeight =
-    totalPages * PAGE_HEIGHT + Math.max(0, totalPages - 1) * PAGE_GAP;
-
-  function dismissRefine() {
-    setInstruction("");
-    setRefineFor(null);
-  }
-
-  function submitRefine() {
-    if (!refineFor) return;
-    const next = instruction.trim();
-    if (!next) return;
-    onRefine(refineFor, next);
-    dismissRefine();
-  }
-
-  function renderBlock(block: DraftBlock) {
-    const blockId = getBlockId(block);
-    const isFirstHeading = blockId === firstHeadingBlockId;
-
-    if (block.kind === "skills") {
-      return (
-        <div
-          key={blockId}
-          data-draft-block-id={blockId}
-          className="min-w-0 max-w-full flow-root"
-        >
-          <h3
-            className={SECTION_HEADING_CLASS}
-            style={{
-              fontSize: `${RESUME_TYPOGRAPHY.heading.px}px`,
-              marginTop: isFirstHeading ? 0 : `${RESUME_SPACING.sectionBefore.px}px`,
-              marginBottom: `${RESUME_SPACING.sectionHeadingBottom.px}px`,
-            }}
-          >
-            Skills
-          </h3>
-          <ResumeSkillsParagraph
-            nodes={block.nodes}
-            disabled={disabled}
-            isIncluded={isIncluded}
-            onCommit={onCommit}
-          />
-        </div>
-      );
-    }
-
-    const { node, heading } = block;
-    return (
-      <div key={blockId} data-draft-block-id={blockId}>
-        <ResumeDraftNodeBlock
-          node={node}
-          heading={heading}
-          isFirstHeading={isFirstHeading}
-          disabled={disabled}
-          included={isIncluded(node)}
-          onCommit={onCommit}
-        />
-      </div>
-    );
-  }
-
-  const draftInsights = useMemo(() => {
-    const pageBlocks = displayPages[0] ?? [];
-    let used = 0;
-    for (const block of pageBlocks) {
-      used +=
-        blockHeights[getBlockId(block)] ??
-        estimateBlockHeight(block, null);
-    }
-    const pct = Math.min(
-      100,
-      Math.max(0, Math.round((used / PRINTABLE_HEIGHT) * 100))
-    );
-    const spilled = totalPages > 1;
-    const lengthLabel = spilled ? `${totalPages} pages` : `${pct}% full`;
-    const lengthDetail = spilled
-      ? "A bit long for one page. Remove or shorten a few lines."
-      : "How much of the page this resume uses.";
-
-    const selected = new Set(
-      draft.nodes.filter((node) => node.selected).map((node) => node.id)
-    );
-    const exportText = draft.nodes
-      .filter((node) => {
-        if (!node.selected) return false;
-        if (node.parentId && !selected.has(node.parentId)) return false;
-        if (includeSummary === false && node.section === "summary") return false;
-        return true;
-      })
-      .map((node) => node.content)
-      .join(" ");
-    const words = (exportText.match(/[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?/g) ?? [])
-      .length;
-
-    const updatedAt = (() => {
-      const parsed = new Date(draft.updatedAt);
-      if (Number.isNaN(parsed.getTime())) return null;
-      return formatDistanceToNow(parsed, { addSuffix: true });
-    })();
-
-    const rows: { label: string; value: string }[] = [
-      { label: "Length", value: lengthLabel },
-      { label: "Words", value: words.toLocaleString() },
-    ];
-    if (updatedAt) {
-      rows.push({ label: "Updated", value: updatedAt });
-    }
-
-    return {
-      lengthLabel,
-      lengthDetail,
-      spilled,
-      rows,
-    };
-  }, [
-    blockHeights,
-    displayPages,
-    draft.nodes,
-    draft.updatedAt,
+  const sheet = useResumeDraftSheet({
+    draft,
     includeSummary,
-    totalPages,
-  ]);
+    onRefine,
+  });
 
   return (
     <ResumeLineChromeProvider
       disabled={disabled}
-      pinnedId={refineFor}
+      pinnedId={sheet.refineFor}
       onToggle={onToggle}
       onMove={onMove}
-      onRefineOpen={(nodeId) => {
-        setNotesOpen(false);
-        setRefineFor(nodeId);
-        setInstruction("");
-      }}
+      onRefineOpen={sheet.openRefine}
     >
-    <div className="relative flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-lg">
-      {/* py-3 matches email pane field inset so To and this rail share one horizon. */}
-      <div className="relative z-20 flex w-full max-w-full shrink-0 items-center gap-2 overflow-visible rounded-t-lg border-b border-border/60 bg-card/80 px-3 py-3 text-xs backdrop-blur-sm">
-        <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <SegmentedControl
-            size="sm"
-            label="Resume zoom"
-            value={zoomChoice}
-            onChange={setZoomChoice}
-            options={ZOOM_OPTIONS}
-          />
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1.5 overflow-visible">
-          {typeof includeSummary === "boolean" && onIncludeSummaryChange ? (
-            <LabelTooltip
-              label={
-                includeSummary
-                  ? "Hide summary section"
-                  : "Show summary section"
-              }
-              side="bottom"
-            >
-              <Button
-                type="button"
-                variant={includeSummary ? "secondary" : "outline"}
-                size="sm"
-                disabled={disabled}
-                aria-pressed={includeSummary}
-                aria-label={
-                  includeSummary
-                    ? "Hide summary section"
-                    : "Show summary section"
-                }
-                className="h-8 w-8 px-0 [&_svg]:size-3.5"
-                onClick={() => onIncludeSummaryChange(!includeSummary)}
-              >
-                <Summary aria-hidden />
-              </Button>
-            </LabelTooltip>
-          ) : null}
-          {typeof includeSummary === "boolean" && onIncludeSummaryChange ? (
-            <span
-              aria-hidden
-              className="mx-0.5 h-4 w-px shrink-0 self-center bg-border/70"
-            />
-          ) : null}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                aria-label={`Draft details: ${draftInsights.lengthLabel}`}
-                title="Draft details"
-                className={cn(
-                  "h-8 w-8 px-0 [&_svg]:size-3.5",
-                  draftInsights.spilled &&
-                    "border-amber-600/40 text-amber-700 hover:text-amber-800"
-                )}
-              >
-                <Gauge aria-hidden />
-              </Button>
-            </DropdownMenuTrigger>
-            <AppMenuContent align="end" className="w-[15.5rem]">
-              <div className="space-y-2.5 px-2.5 py-1.5">
-                <div>
-                  <p className="text-xs font-semibold tabular-nums text-foreground">
-                    {draftInsights.lengthLabel}
-                  </p>
-                  <p className="mt-0.5 text-xs font-normal leading-snug text-muted-foreground">
-                    {draftInsights.lengthDetail}
-                  </p>
-                </div>
-                <dl className="space-y-1.5 border-t border-border/50 pt-2">
-                  {draftInsights.rows.map((row) => (
-                    <div
-                      key={row.label}
-                      className="flex items-baseline justify-between gap-3 text-xs"
-                    >
-                      <dt className="text-muted-foreground">{row.label}</dt>
-                      <dd className="shrink-0 tabular-nums font-medium text-foreground">
-                        {row.value}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-            </AppMenuContent>
-          </DropdownMenu>
-          {strategyRationale ? (
-            <Button
-              ref={notesTriggerRef}
-              type="button"
-              variant={notesOpen ? "secondary" : "outline"}
-              size="sm"
-              aria-expanded={notesOpen}
-              aria-label="Tailoring notes"
-              title="Tailoring notes"
-              className={cn(
-                "group relative h-8 w-8 overflow-visible border border-input px-0 motion-safe:active:scale-100 [&_svg]:size-[19px] [&_svg.notes-msg]:!size-[14px]",
-                DASHED_BORDER_RING_PARENT_SVG_CLASSNAME,
-                notesOpen && "border-transparent"
-              )}
-              onClick={() => {
-                dismissRefine();
-                setNotesOpen((open) => !open);
-              }}
-            >
-              <Bot strokeWidth={1.5} aria-hidden />
-              <MessageSquare
-                strokeWidth={1.9}
-                aria-hidden
-                className={cn(
-                  "notes-msg pointer-events-none absolute -right-1 -top-1 !size-[14px] transition-[fill] duration-150 ease-apple-snappy",
-                  notesOpen
-                    ? cn(
-                        "fill-secondary group-hover:fill-secondary/80",
-                        DASHED_OUTLINE_STROKE_CLASSNAME
-                      )
-                    : "fill-card text-foreground/40 group-hover:fill-accent"
-                )}
-              />
-              <span
-                aria-hidden
-                className="pointer-events-none absolute inset-0 [mask-image:linear-gradient(to_top_right,#000_70%,transparent_92%)] [-webkit-mask-image:linear-gradient(to_top_right,#000_70%,transparent_92%)]"
-              >
-                <MessageSquare
-                  strokeWidth={1.9}
-                  className={cn(
-                    "notes-msg absolute -right-1 -top-1 !size-[14px] transition-[fill] duration-150 ease-apple-snappy",
-                    notesOpen
-                      ? cn(
-                          "fill-secondary group-hover:fill-secondary/80",
-                          DASHED_OUTLINE_STROKE_CLASSNAME
-                        )
-                      : "fill-card text-foreground group-hover:fill-accent"
-                  )}
-                />
-              </span>
-              <MessageSquareMore
-                strokeWidth={1.9}
-                aria-hidden
-                className="notes-msg pointer-events-none absolute -right-1 -top-1 !size-[14px] text-foreground [&_path:first-child]:opacity-0"
-              />
-              {notesOpen ? <DashedBorderRing cutout="top-right" /> : null}
-            </Button>
-          ) : null}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={disabled || exporting}
-                className="h-8 w-8 px-0 [&_svg]:size-3.5"
-                aria-label={
-                  exporting ? "Preparing resume file" : "Download resume"
-                }
-                title={exporting ? "Preparing…" : "Download"}
-              >
-                {exporting ? (
-                  <Loader size="sm" />
-                ) : (
-                  <CircleArrowDown aria-hidden />
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <AppMenuContent align="end" className="min-w-0 w-max">
-              <AppMenuItem
-                disabled={disabled || exporting}
-                onClick={() => onExport("pdf")}
-              >
-                PDF
-              </AppMenuItem>
-              <AppMenuItem
-                disabled={disabled || exporting}
-                onClick={() => onExport("docx")}
-              >
-                DOCX
-              </AppMenuItem>
-            </AppMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {notesOpen && strategyRationale ? (
-          <div
-            ref={notesPanelRef}
-            role="dialog"
-            aria-label="Tailoring notes"
-            className={cn(
-              appMenuClassNames.light.content,
-              "absolute left-3 right-3 top-full z-30 mt-1.5 max-h-[min(24rem,70vh)] overflow-hidden bg-card p-0 backdrop-blur-none"
-            )}
-          >
-            <ResumeStrategyPanel
-              mode="popover"
-              strategyRationale={strategyRationale}
-            />
-          </div>
-        ) : null}
-
-        {refineFor ? (
-          <form
-            ref={refinePanelRef}
-            role="dialog"
-            aria-label="Ask Ace to refine this line"
-            className={cn(
-              appMenuClassNames.light.content,
-              "absolute left-3 right-3 top-full z-30 mt-1.5 flex items-center gap-1.5 bg-card p-2 backdrop-blur-none"
-            )}
-            onSubmit={(event) => {
-              event.preventDefault();
-              submitRefine();
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                dismissRefine();
-              }
-            }}
-          >
-            <Input
-              leadingIcon={BotMessageSquare}
-              leadingIconClassName="size-[18px]"
-              placeholder="Ask Ace to refine this line (e.g., tighter, stronger verb, more impact)…"
-              value={instruction}
-              onChange={(event) => setInstruction(event.target.value)}
-              disabled={disabled}
-              autoFocus
-              clearable
-              onClear={() => setInstruction("")}
-              className="min-w-0 flex-1"
-              aria-label="Ask Ace to refine this line"
-              trailing={
-                <FieldTrailingButton
-                  type="submit"
-                  aria-label="Apply rewrite"
-                  disabled={disabled || !instruction.trim()}
-                >
-                  <Check className="size-3.5" aria-hidden />
-                </FieldTrailingButton>
-              }
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 shrink-0"
-              disabled={disabled}
-              onClick={dismissRefine}
-            >
-              Cancel
-            </Button>
-          </form>
-        ) : null}
+      <div className="relative flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-lg">
+        {/* py-3 matches email pane field inset so To and this rail share one horizon. */}
+        <ResumeDraftToolbar
+          disabled={disabled}
+          exporting={exporting}
+          zoomChoice={sheet.zoomChoice}
+          onZoomChange={sheet.setZoomChoice}
+          includeSummary={includeSummary}
+          onIncludeSummaryChange={onIncludeSummaryChange}
+          draftInsights={sheet.draftInsights}
+          strategyRationale={strategyRationale}
+          notesOpen={sheet.notesOpen}
+          onToggleNotes={sheet.toggleNotes}
+          notesTriggerRef={sheet.notesTriggerRef}
+          notesPanelRef={sheet.notesPanelRef}
+          onExport={onExport}
+          refineFor={sheet.refineFor}
+          instruction={sheet.instruction}
+          onInstructionChange={sheet.setInstruction}
+          refinePanelRef={sheet.refinePanelRef}
+          onSubmitRefine={sheet.submitRefine}
+          onDismissRefine={sheet.dismissRefine}
+        />
+        <ResumeDraftCanvas
+          viewportRef={sheet.viewportRef}
+          pagesContainerRef={sheet.pagesContainerRef}
+          zoom={sheet.zoom}
+          totalCanvasHeight={sheet.totalCanvasHeight}
+          displayPages={sheet.displayPages}
+          firstHeadingBlockId={sheet.firstHeadingBlockId}
+          disabled={disabled}
+          isIncluded={sheet.isIncluded}
+          onCommit={onCommit}
+        />
       </div>
-
-      <div
-        ref={viewportRef}
-        className="flex h-full min-h-0 w-full max-w-full flex-1 overflow-auto bg-background/75 p-3"
-      >
-        <div
-          className="mx-auto shrink-0"
-          style={{
-            width: SHEET_WIDTH * zoom,
-            height: totalCanvasHeight * zoom,
-          }}
-        >
-          <div
-            ref={pagesContainerRef}
-            className="flex flex-col gap-6 origin-top-left transition-transform duration-150 ease-apple-snappy"
-            style={{
-              width: SHEET_WIDTH,
-              transform: `scale(${zoom})`,
-            }}
-          >
-            {displayPages.map((pageBlocks, pageIndex) => (
-              <div
-                key={pageIndex}
-                className="relative overflow-hidden rounded-sm bg-white text-[#111827] shadow-lg ring-1 ring-black/5"
-                style={{
-                  width: `${SHEET_WIDTH}px`,
-                  height: `${PAGE_HEIGHT}px`,
-                  maxHeight: `${PAGE_HEIGHT}px`,
-                  paddingTop: `${PAGE_PADDING_TOP}px`,
-                  paddingBottom: `${PAGE_PADDING_BOTTOM}px`,
-                  paddingLeft: `${PAGE_PADDING_X}px`,
-                  paddingRight: `${PAGE_PADDING_X}px`,
-                  fontFamily: RESUME_FONTS.fallbackCss,
-                  fontSize: `${RESUME_TYPOGRAPHY.body.px}px`,
-                  lineHeight: RESUME_TYPOGRAPHY.body.lineHeight,
-                }}
-              >
-                <div
-                  className="w-full"
-                  style={{
-                    maxHeight: `${PRINTABLE_HEIGHT}px`,
-                  }}
-                >
-                  {pageBlocks.map((block) => renderBlock(block))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
     </ResumeLineChromeProvider>
   );
 }

@@ -1,13 +1,9 @@
-import React from "react";
-import {
-  BotMessageSquare,
-  RotateCcw,
-  Sparkles,
-  WandSparkles,
-} from "lucide-react";
+import React, { useState } from "react";
+import { BotMessageSquare, WandSparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CancelTaskButton } from "@/components/ui/composites/cancel-task-button";
+import { AceRegenIcon } from "@/components/ui/icons/ace-regen-icon";
 import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
 import { SegmentedControl } from "@/components/ui/tactile/segmented-tabs";
 
@@ -54,6 +50,9 @@ export function RefinePanel({
   onCancelRegenerate: () => void;
   onCancelRefine: () => void;
 }) {
+  const [cancelSpinDeg, setCancelSpinDeg] = useState(0);
+  const stopLabel = showGenerateResume ? "Stop Creating" : "Stop Rewriting";
+
   return (
     <div className="flex flex-none flex-wrap items-center gap-2 bg-muted/20 px-5 py-1.5 sm:flex-nowrap">
       {attachResume ? (
@@ -106,46 +105,43 @@ export function RefinePanel({
       />
 
       {regeneratingTarget ? (
-        <div className="inline-flex h-8 shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 shrink-0 px-0 [&_svg]:size-3.5"
-            disabled
-            aria-label={primaryActionLabel}
-            title={primaryActionTitle ?? primaryActionLabel}
-          >
-            {showGenerateResume ? (
-              <Sparkles aria-hidden />
-            ) : (
-              <RotateCcw aria-hidden />
-            )}
-          </Button>
-          <CancelTaskButton
-            tone="light"
-            title={
-              showGenerateResume ? "Stop Creating" : "Stop Rewriting"
-            }
-            onCancel={onCancelRegenerate}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 w-8 shrink-0 px-0"
+          onClick={() => {
+            setCancelSpinDeg((deg) => deg - 360);
+            onCancelRegenerate();
+          }}
+          aria-label={stopLabel}
+          title={stopLabel}
+        >
+          <X
+            className="size-4"
+            aria-hidden
+            style={{
+              transform: `rotate(${cancelSpinDeg}deg)`,
+              transition:
+                "transform 500ms cubic-bezier(0.33, 0.1, 0.2, 1)",
+            }}
           />
-        </div>
+        </Button>
       ) : (
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 w-8 shrink-0 px-0 [&_svg]:size-3.5"
+          className="h-8 w-8 shrink-0 overflow-visible px-0 [&_svg]:size-[17px] [&_svg]:overflow-visible"
           disabled={aceBusy}
           onClick={handleUnifiedRegenerate}
           aria-label={primaryActionLabel}
           title={primaryActionTitle ?? primaryActionLabel}
         >
-          {showGenerateResume ? (
-            <Sparkles aria-hidden />
-          ) : (
-            <RotateCcw aria-hidden />
-          )}
+          <AceRegenIcon
+            target={effectiveRefineTarget}
+            create={showGenerateResume}
+          />
         </Button>
       )}
     </div>

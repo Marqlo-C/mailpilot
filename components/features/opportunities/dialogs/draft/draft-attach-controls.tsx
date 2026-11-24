@@ -1,9 +1,8 @@
 "use client";
 
-import { FileText } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import { AttachmentChip } from "@/components/ui/composites/attachment-chip";
+import { FileSparklesIcon } from "@/components/ui/icons/file-sparkles-icon";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import type { OpportunityResumePreview } from "@/app/actions/opportunities";
 import { cn } from "@/lib/utils";
@@ -41,10 +40,14 @@ export function DraftAttachControls({
           disabled={locked}
           aria-pressed={attachResume}
           aria-label={tip}
-          className="size-7 px-0"
+          className="size-7 overflow-visible px-0 [&_svg]:size-[16px] [&_svg]:overflow-visible"
           onClick={() => onAttachChange(!attachResume)}
         >
-          <FileText className="size-3.5" aria-hidden />
+          <FileSparklesIcon
+            width={16}
+            height={16}
+            className="shrink-0 overflow-visible"
+          />
         </Button>
       </LabelTooltip>
       {attachResume && resume ? (
