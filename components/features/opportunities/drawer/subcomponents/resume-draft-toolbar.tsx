@@ -3,7 +3,6 @@
 import type { RefObject } from "react";
 import {
   Bot,
-  Check,
   CircleArrowDown,
   Gauge,
   Maximize,
@@ -11,6 +10,7 @@ import {
   MessageSquareMore,
   BotMessageSquare,
   Summary,
+  WandSparkles,
 } from "lucide-react";
 
 import {
@@ -346,10 +346,10 @@ export function ResumeDraftToolbar({
             trailing={
               <FieldTrailingButton
                 type="submit"
-                aria-label="Apply rewrite"
+                aria-label="Refine line"
                 disabled={disabled || !instruction.trim()}
               >
-                <Check className="size-3.5" aria-hidden />
+                <WandSparkles className="size-3.5" aria-hidden />
               </FieldTrailingButton>
             }
           />
