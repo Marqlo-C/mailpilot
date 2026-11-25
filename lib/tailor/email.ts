@@ -27,6 +27,8 @@ export type DraftContextualEmailParams = {
     roleLabel?: string | null;
   };
   inboundSnippet: string;
+  /** Original inbound email subject — used for deterministic `Re:` reply subjects. */
+  inboundSubject?: string | null;
   customInstruction?: string;
   llmConfig: {
     provider: LlmProvider;
@@ -46,9 +48,33 @@ export type ContextualDraftResult = {
 };
 
 export const contextualDraftSchema = z.object({
+  // Subject is deterministic (inbound Re: / role fallback) — LLM subject is ignored.
   subject: z.string().optional(),
   body: z.string().min(1),
 });
+
+/**
+ * Build a reply subject without the LLM.
+ * Prefer inbound subject with a single `Re:` prefix; fall back to role @ company.
+ */
+export function buildReplySubject(input: {
+  inboundSubject?: string | null;
+  roleLabel?: string | null;
+  companyName: string;
+}): string {
+  const inbound = input.inboundSubject?.trim();
+  if (inbound) {
+    const stripped = inbound.replace(/^(?:(?:re|fw|fwd)\s*:\s*)+/i, "").trim();
+    const core = stripped || inbound;
+    return scrubDraftPunctuation(`Re: ${core}`);
+  }
+
+  const role = input.roleLabel?.trim();
+  const company = input.companyName.trim() || "Company";
+  return scrubDraftPunctuation(
+    role ? `Re: ${role} at ${company}` : `Re: role at ${company}`
+  );
+}
 
 export const BANNED_PHRASES = [
   "i am excited to apply",
@@ -102,10 +128,10 @@ STYLE GUARDRAILS:
 1. NO GREETING: Output ONLY the body paragraphs.
 2. SIGN-OFF INTEGRITY: Do not include an ending sign-off or closing signature.
 3. NO CORPORATE SLOP: Never use corporate filler phrases.
+4. NO SUBJECT: Do not invent or return an email subject — subject is set outside the model.
 
 Return ONLY valid JSON:
 {
-  "subject": "Re: [Contextual subject]",
   "body": "[Body paragraphs only. No greeting. No sign-off.]"
 }`;
 
@@ -272,14 +298,11 @@ CANDIDATE PERSONA (mandatory — adapt voice; do not override with fake seniorit
       });
 
   const cleanedBody = sanitizeDraft(rawBody);
-  const roleLabel = input.sender.roleLabel?.trim();
-  const defaultSubject = roleLabel
-    ? `Re: ${roleLabel} at ${input.sender.companyName}`
-    : `Re: role at ${input.sender.companyName}`;
-
-  const subject = scrubDraftPunctuation(
-    (parsed?.success && parsed.data.subject?.trim()) || defaultSubject
-  );
+  const subject = buildReplySubject({
+    inboundSubject: input.inboundSubject,
+    roleLabel: input.sender.roleLabel,
+    companyName: input.sender.companyName,
+  });
 
   return {
     subject,

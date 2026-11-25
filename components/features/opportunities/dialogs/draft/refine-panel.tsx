@@ -54,7 +54,7 @@ export function RefinePanel({
   const stopLabel = showGenerateResume ? "Stop Creating" : "Stop Rewriting";
 
   return (
-    <div className="flex flex-none flex-wrap items-center gap-2 bg-muted/20 px-5 py-1.5 sm:flex-nowrap">
+    <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap">
       {attachResume ? (
         <SegmentedControl
           size="sm"

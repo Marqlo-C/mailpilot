@@ -78,7 +78,7 @@ export function DialogIdentityHeader({
   return (
     <DialogHeader
       className={cn(
-        "shrink-0 space-y-0 border-b border-border/60 px-5 pb-3 pt-4 pr-12 text-left",
+        "shrink-0 space-y-0 border-b border-border/60 px-4 pb-4 pt-4 pr-12 text-left",
         className
       )}
     >

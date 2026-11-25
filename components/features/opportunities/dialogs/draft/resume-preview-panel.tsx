@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, type Ref } from "react";
 import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/composites/empty-state";
@@ -39,6 +39,12 @@ export function ResumePreviewPanel({
   onMove,
   onRefine,
   onExport,
+  toolbarRef,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  onEditModeChange,
 }: {
   resumeBusy: boolean;
   resumeBusyLabel: string | null;
@@ -61,6 +67,13 @@ export function ResumePreviewPanel({
   onMove: (nodeId: string, direction: "up" | "down") => void;
   onRefine: (nodeId: string, instruction: string) => void;
   onExport: (format: "pdf" | "docx") => void;
+  toolbarRef?: Ref<HTMLDivElement>;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  /** Desktop split: Ace-on-line or contenteditable focus → expand resume. */
+  onEditModeChange?: (active: boolean) => void;
 }) {
   const showEmptyGenerateState = resumeBusy && !resume;
   const settleKey = useContentSettleKey(resumeBusy);
@@ -127,6 +140,13 @@ export function ResumePreviewPanel({
             onMove={onMove}
             onRefine={onRefine}
             onExport={onExport}
+            toolbarRef={toolbarRef}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onUndo={onUndo}
+            onRedo={onRedo}
+            lineEditing={editingFocused}
+            onEditModeChange={onEditModeChange}
           />
         ) : resume && resumePdfUrl ? (
           <>

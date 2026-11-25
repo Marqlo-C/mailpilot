@@ -1,6 +1,34 @@
 /**
  * Shared helpers for cleaning inbound email identity / persona signals.
+ * Keep this module free of Node/Prisma imports — client components parse From headers too.
  */
+
+export type SenderInfo = {
+  name: string | null;
+  email: string;
+};
+
+/**
+ * Parses `Name <email@domain>` / bare email From headers.
+ */
+export function parseFromHeader(from: string): SenderInfo | null {
+  const angle = from.match(/^(.*?)\s*<([^>]+)>\s*$/);
+  if (angle) {
+    const rawName = angle[1]?.trim().replace(/^["']|["']$/g, "") ?? "";
+    const email = angle[2]?.trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      return null;
+    }
+    return { name: rawName.length > 0 ? rawName : null, email };
+  }
+
+  const bare = from.trim().toLowerCase();
+  if (!bare.includes("@")) {
+    return null;
+  }
+
+  return { name: null, email: bare };
+}
 
 const TITLE_TOKENS = new Set(
   [
@@ -93,10 +121,20 @@ function emailLocalPart(fromEmail?: string | null): string | null {
   return local || null;
 }
 
+function isGenericMailboxLocal(local: string | null): boolean {
+  if (!local) return false;
+  return GENERIC_MAILBOXES.has(local.replace(/[._+-]/g, ""));
+}
+
 /**
- * Extract a human first name for greetings. Prefers a professional sign-off in
- * the email body/snippet (handles shared aliases like recruiting@company.com),
- * then From display name, then a person-like email local-part.
+ * Extract a human first name for greetings.
+ *
+ * Priority (cheap reject first, then high-precision sources):
+ * 1. Generic mailbox local-part → null (marketing / shared inboxes)
+ * 2. Professional sign-off in body tail (`Best,\nAlex`)
+ * 3. From / recipient display name (titles stripped)
+ * 4. Person-like email local-part (`alex@…`, `jane.doe@…`)
+ *
  * Returns null for handles, generic inboxes, or unparseable names.
  */
 export function cleanRecruiterFirstName(
@@ -105,6 +143,11 @@ export function cleanRecruiterFirstName(
   bodyOrSnippet?: string | null
 ): string | null {
   const local = emailLocalPart(fromEmail);
+
+  // Hard reject: never greet noreply/jobs/talent blast addresses by name.
+  if (isGenericMailboxLocal(local)) {
+    return null;
+  }
 
   const fromSignoff = firstNameFromSignoff(bodyOrSnippet);
   if (fromSignoff) return fromSignoff;
@@ -129,10 +172,10 @@ export function cleanRecruiterFirstName(
       .filter((p) => !TITLE_TOKENS.has(p.toLowerCase()));
 
     const first = parts[0] ?? "";
+    // Matching the email local-part is a positive person signal (alex@ → Alex).
     if (
       first &&
       !looksLikeHandle(first) &&
-      first.toLowerCase() !== local &&
       !GENERIC_MAILBOXES.has(first.toLowerCase())
     ) {
       return capitalizeWord(first);
@@ -140,20 +183,17 @@ export function cleanRecruiterFirstName(
   }
 
   if (local) {
-    if (GENERIC_MAILBOXES.has(local.replace(/[._+-]/g, ""))) {
-      return null;
-    }
-
     // firstname.lastname / firstname_lastname / firstname-lastname
     const dotted = local.match(/^([a-z]{2,24})[._-]([a-z]{2,24})$/i);
     if (dotted?.[1] && !looksLikeHandle(dotted[1])) {
       return capitalizeWord(dotted[1]);
     }
 
-    // Reject bare handles like qtrain3 or single opaque tokens
+    // Bare person-like local (alex@…) — reject digit-y / opaque handles.
     if (looksLikeHandle(local) || GENERIC_MAILBOXES.has(local)) {
       return null;
     }
+    return capitalizeWord(local);
   }
 
   return null;

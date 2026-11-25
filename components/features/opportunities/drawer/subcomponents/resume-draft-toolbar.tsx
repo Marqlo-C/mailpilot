@@ -1,6 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
+import type { Ref, RefObject } from "react";
 import {
   Bot,
   CircleArrowDown,
@@ -9,7 +9,9 @@ import {
   MessageSquare,
   MessageSquareMore,
   BotMessageSquare,
+  Redo2,
   Summary,
+  Undo2,
   WandSparkles,
 } from "lucide-react";
 
@@ -75,7 +77,22 @@ export type ResumeDraftToolbarProps = {
   refinePanelRef: RefObject<HTMLFormElement | null>;
   onSubmitRefine: () => void;
   onDismissRefine: () => void;
+  /** Root strip — used to measure intrinsic min width for the draft split. */
+  toolbarRef?: Ref<HTMLDivElement>;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 };
+
+function ToolbarDivider() {
+  return (
+    <span
+      aria-hidden
+      className="mx-0.5 h-4 w-px shrink-0 self-center bg-border/70"
+    />
+  );
+}
 
 /** Zoom + summary/gauge/notes/export controls and refine / notes popovers. */
 export function ResumeDraftToolbar({
@@ -98,13 +115,56 @@ export function ResumeDraftToolbar({
   refinePanelRef,
   onSubmitRefine,
   onDismissRefine,
+  toolbarRef,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
 }: ResumeDraftToolbarProps) {
   const showSummaryToggle =
     typeof includeSummary === "boolean" && Boolean(onIncludeSummaryChange);
+  const showHistory = typeof onUndo === "function" && typeof onRedo === "function";
 
   return (
-    <div className="relative z-20 flex w-full max-w-full shrink-0 items-center gap-2 overflow-visible rounded-t-lg border-b border-border/60 bg-card/80 px-3 py-3 text-xs backdrop-blur-sm">
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+    <div
+      ref={toolbarRef}
+      className="relative z-20 flex w-full max-w-full shrink-0 items-center gap-2 overflow-visible rounded-t-lg border-b border-border/60 bg-card/80 px-3 py-3 text-xs backdrop-blur-sm"
+    >
+      <div className="flex shrink-0 items-center gap-1.5">
+        {showHistory ? (
+          <>
+            <LabelTooltip label="Undo" side="bottom">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={disabled || !canUndo}
+                aria-label="Undo"
+                className="size-8 shrink-0 px-0 [&_svg]:size-3.5"
+                // Keep contenteditable focus so native undo still works.
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onUndo?.()}
+              >
+                <Undo2 aria-hidden />
+              </Button>
+            </LabelTooltip>
+            <LabelTooltip label="Redo" side="bottom">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={disabled || !canRedo}
+                aria-label="Redo"
+                className="size-8 shrink-0 px-0 [&_svg]:size-3.5"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onRedo?.()}
+              >
+                <Redo2 aria-hidden />
+              </Button>
+            </LabelTooltip>
+            <ToolbarDivider />
+          </>
+        ) : null}
         <SegmentedControl
           size="sm"
           label="Resume zoom"
@@ -112,48 +172,46 @@ export function ResumeDraftToolbar({
           onChange={onZoomChange}
           options={ZOOM_OPTIONS}
           disabled={disabled}
-          className={cn(disabled && "pointer-events-none")}
+          className={cn("shrink-0", disabled && "pointer-events-none")}
         />
       </div>
 
       <div
         className={cn(
-          "flex shrink-0 items-center gap-1.5 overflow-visible",
+          "ml-auto flex shrink-0 items-center gap-1.5 overflow-visible",
           disabled && "pointer-events-none"
         )}
       >
         {showSummaryToggle ? (
-          <LabelTooltip
-            label={
-              includeSummary
-                ? "Hide summary section"
-                : "Show summary section"
-            }
-            side="bottom"
-          >
-            <Button
-              type="button"
-              variant={includeSummary ? "secondary" : "outline"}
-              size="sm"
-              disabled={disabled}
-              aria-pressed={includeSummary}
-              aria-label={
+          <>
+            <ToolbarDivider />
+            <LabelTooltip
+              label={
                 includeSummary
                   ? "Hide summary section"
                   : "Show summary section"
               }
-              className="h-8 w-8 px-0 [&_svg]:size-3.5"
-              onClick={() => onIncludeSummaryChange?.(!includeSummary)}
+              side="bottom"
             >
-              <Summary aria-hidden />
-            </Button>
-          </LabelTooltip>
-        ) : null}
-        {showSummaryToggle ? (
-          <span
-            aria-hidden
-            className="mx-0.5 h-4 w-px shrink-0 self-center bg-border/70"
-          />
+              <Button
+                type="button"
+                variant={includeSummary ? "secondary" : "outline"}
+                size="sm"
+                disabled={disabled}
+                aria-pressed={includeSummary}
+                aria-label={
+                  includeSummary
+                    ? "Hide summary section"
+                    : "Show summary section"
+                }
+                className="size-8 shrink-0 px-0 [&_svg]:size-3.5"
+                onClick={() => onIncludeSummaryChange?.(!includeSummary)}
+              >
+                <Summary aria-hidden />
+              </Button>
+            </LabelTooltip>
+            <ToolbarDivider />
+          </>
         ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

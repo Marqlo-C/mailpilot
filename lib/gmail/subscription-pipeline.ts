@@ -1,36 +1,16 @@
 import { prisma } from "@/lib/core/prisma";
 import {
+  parseFromHeader,
+  type SenderInfo,
+} from "@/lib/gmail/email-utils";
+import {
   advanceSubscriptionLastReceived,
   dateFromGmailInternalDate,
 } from "@/lib/subscriptions/last-received";
 import { parseListUnsubscribeHeaders } from "@/lib/gmail/unsubscribe";
 
-export type SenderInfo = {
-  name: string | null;
-  email: string;
-};
-
-/**
- * Parses `Name <email@domain>` / bare email From headers.
- */
-export function parseFromHeader(from: string): SenderInfo | null {
-  const angle = from.match(/^(.*?)\s*<([^>]+)>\s*$/);
-  if (angle) {
-    const rawName = angle[1]?.trim().replace(/^["']|["']$/g, "") ?? "";
-    const email = angle[2]?.trim().toLowerCase();
-    if (!email || !email.includes("@")) {
-      return null;
-    }
-    return { name: rawName.length > 0 ? rawName : null, email };
-  }
-
-  const bare = from.trim().toLowerCase();
-  if (!bare.includes("@")) {
-    return null;
-  }
-
-  return { name: null, email: bare };
-}
+export type { SenderInfo };
+export { parseFromHeader };
 
 export async function maybeUpsertSubscription(input: {
   accountId: string;

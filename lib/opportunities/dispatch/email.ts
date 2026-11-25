@@ -32,6 +32,7 @@ import {
   resolveOpportunityContext,
   type MimeAttachment,
 } from "./composer";
+import { htmlToPlainEmail } from "./email-body-html";
 import { buildOpportunityResumePreview } from "./resume";
 
 /**
@@ -49,7 +50,9 @@ export async function prepareOpportunityDraft(
     throw new Error("Account not found");
   }
 
-  const { context } = await resolveOpportunityContext(opportunityId);
+  const { context, inboundSubject } = await resolveOpportunityContext(
+    opportunityId
+  );
 
   const profile = await loadMasterProfile(accountId);
   const slim = await buildSlimCandidate(profile, prisma);
@@ -77,6 +80,7 @@ export async function prepareOpportunityDraft(
       roleLabel: context.roleTitle,
     },
     inboundSnippet: context.inboundSnippet,
+    inboundSubject,
     llmConfig: {
       provider: normalizeProvider(account?.settings?.llmProvider),
       localOllamaUrl: account?.settings?.localOllamaUrl,
@@ -127,7 +131,9 @@ export async function refineOpportunityDraft(
     include: { settings: true },
   });
 
-  const { context } = await resolveOpportunityContext(opportunityId);
+  const { context, inboundSubject } = await resolveOpportunityContext(
+    opportunityId
+  );
 
   const profile = await loadMasterProfile(accountId);
   const slim = await buildSlimCandidate(profile, prisma);
@@ -144,7 +150,9 @@ export async function refineOpportunityDraft(
   );
 
   const inboundSnippet = [
-    opportunity.draftBody,
+    opportunity.draftBody
+      ? htmlToPlainEmail(opportunity.draftBody)
+      : null,
     opportunity.draftSubject,
     context.inboundSnippet,
   ]
@@ -162,6 +170,7 @@ export async function refineOpportunityDraft(
       roleLabel: context.roleTitle,
     },
     inboundSnippet,
+    inboundSubject,
     customInstruction: trimmed,
     llmConfig: {
       provider: normalizeProvider(account?.settings?.llmProvider),
@@ -171,16 +180,19 @@ export async function refineOpportunityDraft(
     },
   });
 
+  // Keep an existing subject on refine; only fill if missing.
+  const subject = opportunity.draftSubject?.trim() || draft.subject;
+
   await prisma.jobOpportunity.update({
     where: { id: opportunityId },
     data: {
-      draftSubject: draft.subject,
+      draftSubject: subject,
       draftBody: draft.body,
       status: "REVIEW_READY",
     },
   });
 
-  return draft;
+  return { subject, body: draft.body };
 }
 
 export async function updateOpportunityRecipient(
@@ -323,7 +335,8 @@ export async function dispatchOpportunityEmail(
 
   let body = opportunity.draftBody?.trim() ?? "";
   if (!body) {
-    const { context } = await resolveOpportunityContext(opportunityId);
+    const { context, inboundSubject } =
+      await resolveOpportunityContext(opportunityId);
     const slim = await buildSlimCandidate(profile, prisma);
     const draft = await draftContextualEmail({
       candidate: slim,
@@ -340,6 +353,7 @@ export async function dispatchOpportunityEmail(
         roleLabel: context.roleTitle,
       },
       inboundSnippet: context.inboundSnippet,
+      inboundSubject,
       llmConfig: {
         provider: normalizeProvider(account.settings?.llmProvider),
         localOllamaUrl: account.settings?.localOllamaUrl,

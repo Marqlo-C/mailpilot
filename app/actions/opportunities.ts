@@ -34,12 +34,14 @@ import {
   hydrateOpportunitySpecService,
   generateOpportunityResumeService,
   updateResumeDraftNodeService,
+  restoreResumeDraftService,
   reorderResumeDraftNodeService,
   refineSingleResumeNodeService,
   compileResumeDocumentService,
   refineOpportunityResumeService,
   sendOpportunityApplicationService,
 } from "@/lib/services/opportunity-draft.service";
+import { tailoredResumeDraftSchema } from "@/lib/validations/resume-draft.schema";
 import {
   dismissOpportunity as dismissOpportunityService,
   dismissOpportunities as dismissOpportunitiesService,
@@ -301,6 +303,33 @@ export async function updateResumeDraftNodeAction(
   return result.ok
     ? actionSuccess(result.data!)
     : actionError(result.error ?? "Failed to update node");
+}
+
+export async function restoreResumeDraftAction(
+  opportunityId: string,
+  draft: unknown
+): Promise<ServerActionResult<OpportunityResumePreview>> {
+  const authGate = await checkAuthSession();
+  if (!authGate.success) return authGate;
+
+  const idParsed = idParamSchema.safeParse(opportunityId);
+  if (!idParsed.success) {
+    return actionError("Invalid opportunity identifier");
+  }
+  const draftParsed = tailoredResumeDraftSchema.safeParse(draft);
+  if (!draftParsed.success) {
+    return actionError(
+      draftParsed.error.issues.map((i) => i.message).join("; ")
+    );
+  }
+
+  const result = await restoreResumeDraftService(
+    idParsed.data,
+    draftParsed.data
+  );
+  return result.ok
+    ? actionSuccess(result.data!)
+    : actionError(result.error ?? "Failed to restore resume");
 }
 
 export async function reorderResumeDraftNodeAction(

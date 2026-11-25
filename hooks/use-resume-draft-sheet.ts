@@ -33,6 +33,10 @@ type UseResumeDraftSheetArgs = {
   draft: TailoredResumeDraft;
   includeSummary?: boolean;
   onRefine: (nodeId: string, instruction: string) => void;
+  /** True while a resume contenteditable line holds focus. */
+  lineEditing?: boolean;
+  /** Fires when Ace-on-line or inline edit starts/stops. */
+  onEditModeChange?: (active: boolean) => void;
 };
 
 /**
@@ -43,11 +47,15 @@ export function useResumeDraftSheet({
   draft,
   includeSummary,
   onRefine,
+  lineEditing = false,
+  onEditModeChange,
 }: UseResumeDraftSheetArgs) {
   const [refineFor, setRefineFor] = useState<string | null>(null);
   const [instruction, setInstruction] = useState("");
   const [zoomChoice, setZoomChoice] = useState<ResumeDraftZoomChoice>("fit");
   const [fitScale, setFitScale] = useState(0.7);
+  const savedZoomRef = useRef<ResumeDraftZoomChoice | null>(null);
+  const wasEditModeRef = useRef(false);
   const [blockHeights, setBlockHeights] = useState<Record<string, number>>({});
   const [notesOpen, setNotesOpen] = useState(false);
 
@@ -61,10 +69,11 @@ export function useResumeDraftSheet({
     const viewport = viewportRef.current;
     if (!viewport) return;
     const measure = () => {
-      // Equal desk inset (p-3 = 12px each side).
+      // Equal desk inset (p-3 = 12px each side). Fit tracks the pane —
+      // do not clamp at 1 so wide split panes keep scaling the letter up.
       const available = viewport.clientWidth - 24;
       if (available <= 0) return;
-      setFitScale(Math.min(1, available / SHEET_WIDTH));
+      setFitScale(available / SHEET_WIDTH);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -116,6 +125,42 @@ export function useResumeDraftSheet({
 
   const zoom = zoomChoice === "fit" ? fitScale : Number(zoomChoice);
 
+  const editMode = Boolean(refineFor) || lineEditing;
+
+  useEffect(() => {
+    onEditModeChange?.(editMode);
+    return () => onEditModeChange?.(false);
+  }, [editMode, onEditModeChange]);
+
+  // Edit mode → Fit; exit restores the zoom captured on enter.
+  useEffect(() => {
+    const entering = editMode && !wasEditModeRef.current;
+    const exiting = !editMode && wasEditModeRef.current;
+
+    if (entering) {
+      savedZoomRef.current = zoomChoice;
+      if (zoomChoice !== "fit") setZoomChoice("fit");
+    } else if (exiting) {
+      const restore = savedZoomRef.current;
+      savedZoomRef.current = null;
+      if (restore) setZoomChoice(restore);
+    }
+
+    wasEditModeRef.current = editMode;
+    // zoomChoice intentionally omitted — programmatic Fit must not clobber snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- enter/exit only
+  }, [editMode]);
+
+  const handleZoomChange = useCallback(
+    (next: ResumeDraftZoomChoice) => {
+      setZoomChoice(next);
+      // User override while editing becomes the restore target.
+      if (wasEditModeRef.current && savedZoomRef.current !== null) {
+        savedZoomRef.current = next;
+      }
+    },
+    []
+  );
   const blocks = useMemo(() => {
     const all = buildBlocks(draft);
     if (includeSummary === false) {
@@ -250,7 +295,7 @@ export function useResumeDraftSheet({
     instruction,
     setInstruction,
     zoomChoice,
-    setZoomChoice,
+    setZoomChoice: handleZoomChange,
     zoom,
     notesOpen,
     notesPanelRef,

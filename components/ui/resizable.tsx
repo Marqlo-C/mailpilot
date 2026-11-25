@@ -5,11 +5,13 @@ import {
   Group,
   Panel,
   Separator,
+  useGroupRef,
   type GroupProps,
   type PanelProps,
   type SeparatorProps,
 } from "react-resizable-panels";
 
+import { COMPOSER_PANE_SEPARATOR_CLASSNAME } from "@/components/ui/styles/field-chrome";
 import { cn } from "@/lib/utils";
 
 /**
@@ -55,8 +57,9 @@ function ResizableHandle({
     <Separator
       data-slot="resizable-handle"
       className={cn(
-        // Modest gutter between plates; short capsule sits in the middle.
-        "group relative flex w-2.5 shrink-0 items-center justify-center bg-transparent",
+        // Pane seam — width from COMPOSER_PANE_SEPARATOR_*; capsule centered.
+        "group relative flex shrink-0 items-center justify-center bg-transparent",
+        COMPOSER_PANE_SEPARATOR_CLASSNAME,
         "before:absolute before:-inset-x-1 before:inset-y-0 before:content-['']",
         // Short centered capsule — not full-height.
         "after:absolute after:top-1/2 after:left-1/2 after:h-8 after:w-1 after:-translate-x-1/2 after:-translate-y-1/2",
@@ -85,4 +88,4 @@ function ResizableHandle({
   );
 }
 
-export { ResizablePanelGroup, ResizablePanel, ResizableHandle };
+export { ResizablePanelGroup, ResizablePanel, ResizableHandle, useGroupRef };

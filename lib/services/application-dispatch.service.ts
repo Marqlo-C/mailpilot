@@ -1,5 +1,4 @@
 import { Prisma } from "@/lib/generated/prisma/client";
-import { randomBytes } from "crypto";
 
 import {
   getGmailClientForAccount,
@@ -22,7 +21,12 @@ import type { LlmProvider } from "@/lib/ai";
 import type { OpportunityStatus, ApplicationStatus } from "@/lib/validations/profile.schema";
 import { tailoredDataSchema } from "@/lib/validations/profile.schema";
 import { parseAccountRules } from "@/lib/validations/rules.schema";
-import { countSendsToday, getDailySendLimit } from "@/lib/opportunities/dispatch";
+import {
+  buildMimeMessage,
+  countSendsToday,
+  encodeRaw,
+  getDailySendLimit,
+} from "@/lib/opportunities/dispatch";
 
 const NO_RECRUITER_EMAIL_ERROR =
   "No recruiter email address — email drafts are forbidden without a direct contact.";
@@ -31,49 +35,6 @@ export { extractRecruiterEmail, countSendsToday, getDailySendLimit };
 
 function normalizeProvider(value: string | null | undefined): LlmProvider {
   return value === "LOCAL_OLLAMA" ? "LOCAL_OLLAMA" : "OPENROUTER";
-}
-
-function encodeRaw(raw: string): string {
-  return Buffer.from(raw)
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
-
-function buildMimeMessage(input: {
-  from: string;
-  to: string;
-  subject: string;
-  body: string;
-  pdf: Buffer;
-  filename: string;
-}): string {
-  const boundary = `mailpilot_${randomBytes(12).toString("hex")}`;
-  const pdfBase64 = input.pdf.toString("base64").replace(/(.{76})/g, "$1\r\n");
-
-  return [
-    `From: ${input.from}`,
-    `To: ${input.to}`,
-    `Subject: ${input.subject}`,
-    "MIME-Version: 1.0",
-    `Content-Type: multipart/mixed; boundary="${boundary}"`,
-    "",
-    `--${boundary}`,
-    'Content-Type: text/plain; charset="UTF-8"',
-    "Content-Transfer-Encoding: 7bit",
-    "",
-    input.body,
-    "",
-    `--${boundary}`,
-    `Content-Type: application/pdf; name="${input.filename}"`,
-    "Content-Transfer-Encoding: base64",
-    `Content-Disposition: attachment; filename="${input.filename}"`,
-    "",
-    pdfBase64,
-    "",
-    `--${boundary}--`,
-  ].join("\r\n");
 }
 
 async function loadMasterProfile(accountId: string) {
@@ -202,8 +163,13 @@ export async function dispatchApplicationEmail(
     to: recipient,
     subject,
     body: tailored.coverLetter,
-    pdf,
-    filename,
+    attachments: [
+      {
+        filename,
+        contentType: "application/pdf",
+        content: pdf,
+      },
+    ],
   });
 
   const gmail = await getGmailClientForAccount(account);
@@ -338,6 +304,8 @@ export async function prepareApplicationDraft(
       .filter(Boolean)
       .join("\n")
       .slice(0, 1500),
+    // Applications often lack a linked inbound subject — role@company fallback.
+    inboundSubject: null,
     llmConfig: {
       provider: normalizeProvider(account.settings?.llmProvider),
       localOllamaUrl: account.settings?.localOllamaUrl,
@@ -436,6 +404,7 @@ export async function refineApplicationDraft(
       .filter(Boolean)
       .join("\n---\n")
       .slice(0, 1500),
+    inboundSubject: null,
     customInstruction: trimmed,
     llmConfig: {
       provider: normalizeProvider(account.settings?.llmProvider),
@@ -449,10 +418,13 @@ export async function refineApplicationDraft(
     ? tailoredDataSchema.safeParse(application.tailoredData)
     : null;
 
+  // Keep an existing subject on refine; only fill if missing.
+  const subject = application.draftSubject?.trim() || draft.subject;
+
   await prisma.jobApplication.update({
     where: { id: applicationId },
     data: {
-      draftSubject: draft.subject,
+      draftSubject: subject,
       draftBody: draft.body,
       opportunityStatus: "DRAFT_PREPARED",
       tailoredData: {
@@ -467,7 +439,7 @@ export async function refineApplicationDraft(
     },
   });
 
-  return draft;
+  return { subject, body: draft.body };
 }
 
 /**

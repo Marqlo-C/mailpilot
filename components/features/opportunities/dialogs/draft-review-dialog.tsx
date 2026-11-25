@@ -3,11 +3,11 @@
 import { useEffect, useState, useTransition } from "react";
 import type { JobApplication } from "@/lib/generated/prisma/client";
 import {
+  AlignLeft,
   BotMessageSquare,
   RotateCcw,
   Sparkles,
-  Type,
-  Mail,
+  UserRound,
 } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
 import { TextShimmer } from "@/components/ui/text-shimmer";
@@ -214,11 +214,13 @@ export function DraftReviewDialog({
           <div className="flex flex-col gap-2">
             <Input
               id="draft-to"
-              type="email"
-              leadingIcon={Mail}
+              type="text"
+              inputMode="email"
+              autoComplete="email"
+              leadingIcon={UserRound}
               clearable
               onClear={() => setRecipient("")}
-              placeholder="recruiter@company.com"
+              placeholder="Alex <alex@company.com>"
               aria-label="To"
               value={recipient}
               disabled={busy}
@@ -226,7 +228,7 @@ export function DraftReviewDialog({
             />
             <Input
               id="draft-subject"
-              leadingIcon={Type}
+              leadingIcon={AlignLeft}
               clearable
               onClear={() => setSubject("")}
               placeholder="Subject"

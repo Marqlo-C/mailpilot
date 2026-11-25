@@ -28,6 +28,7 @@ import {
   resolveJobOpportunity,
   type NormalizedJobOpportunity,
 } from "@/lib/opportunities/context";
+import { normalizeEmailBodyParts } from "@/lib/opportunities/dispatch/email-body-html";
 
 export type OpportunityResumePreview = {
   filename: string;
@@ -111,6 +112,11 @@ export function safeMimeFilename(name: string): string {
   return name.replace(/[\r\n"/\\]/g, "_").slice(0, 180) || "attachment";
 }
 
+/**
+ * Build RFC 2822 MIME for Gmail drafts/send.
+ * Body is always `multipart/alternative` (plain then HTML) nested in
+ * `multipart/mixed` when attachments are present.
+ */
 export function buildMimeMessage(input: {
   from: string;
   to: string;
@@ -118,19 +124,48 @@ export function buildMimeMessage(input: {
   body: string;
   attachments: MimeAttachment[];
 }): string {
-  const boundary = `mailpilot_${randomBytes(12).toString("hex")}`;
+  const { plain, html } = normalizeEmailBodyParts(input.body);
+  const altBoundary = `mailpilot_alt_${randomBytes(10).toString("hex")}`;
+  const altParts = [
+    `--${altBoundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: 7bit",
+    "",
+    plain,
+    "",
+    `--${altBoundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: 7bit",
+    "",
+    html,
+    "",
+    `--${altBoundary}--`,
+  ];
+
+  if (input.attachments.length === 0) {
+    return [
+      `From: ${input.from}`,
+      `To: ${input.to}`,
+      `Subject: ${input.subject}`,
+      "MIME-Version: 1.0",
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+      "",
+      ...altParts,
+    ].join("\r\n");
+  }
+
+  const mixedBoundary = `mailpilot_${randomBytes(12).toString("hex")}`;
   const lines: string[] = [
     `From: ${input.from}`,
     `To: ${input.to}`,
     `Subject: ${input.subject}`,
     "MIME-Version: 1.0",
-    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
     "",
-    `--${boundary}`,
-    'Content-Type: text/plain; charset="UTF-8"',
-    "Content-Transfer-Encoding: 7bit",
+    `--${mixedBoundary}`,
+    `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
     "",
-    input.body,
+    ...altParts,
     "",
   ];
 
@@ -142,7 +177,7 @@ export function buildMimeMessage(input: {
       .toString("base64")
       .replace(/(.{76})/g, "$1\r\n");
     lines.push(
-      `--${boundary}`,
+      `--${mixedBoundary}`,
       `Content-Type: ${contentType}; name="${filename}"`,
       "Content-Transfer-Encoding: base64",
       `Content-Disposition: attachment; filename="${filename}"`,
@@ -152,7 +187,7 @@ export function buildMimeMessage(input: {
     );
   }
 
-  lines.push(`--${boundary}--`);
+  lines.push(`--${mixedBoundary}--`);
   return lines.join("\r\n");
 }
 
@@ -167,6 +202,8 @@ export async function loadMasterProfile(accountId: string) {
 export async function resolveOpportunityContext(opportunityId: string): Promise<{
   context: NormalizedJobOpportunity;
   sourceEmailId?: string | null;
+  /** Gmail Subject header from the linked inbound message, when present. */
+  inboundSubject?: string | null;
 }> {
   const opp = await prisma.jobOpportunity.findUnique({
     where: { id: opportunityId },
@@ -197,7 +234,11 @@ export async function resolveOpportunityContext(opportunityId: string): Promise<
   }
 
   const context = resolveJobOpportunity(opp, inboundRaw);
-  return { context, sourceEmailId: opp.emailMessageId };
+  return {
+    context,
+    sourceEmailId: opp.emailMessageId,
+    inboundSubject: opp.emailMessage?.subject?.trim() || null,
+  };
 }
 
 /**

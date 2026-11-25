@@ -13,6 +13,7 @@ import {
   reorderResumeDraftNode,
   refineSingleResumeNode,
   compileResumeDocument,
+  restoreResumeDraft,
   updateResumeDraftNode,
   updateOpportunityDraft,
   updateOpportunityRecipient,
@@ -20,6 +21,7 @@ import {
   type OpportunityResumePreview,
   type OpportunityResumeState,
 } from "@/lib/opportunities/dispatch";
+import type { TailoredResumeDraft } from "@/lib/validations/resume-draft.schema";
 import {
   InsufficientScopeError,
   REAUTH_REQUIRED_MESSAGE,
@@ -506,6 +508,33 @@ export async function updateResumeDraftNodeService(
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Failed to update resume line",
+    };
+  }
+}
+
+export async function restoreResumeDraftService(
+  opportunityId: string,
+  draft: TailoredResumeDraft
+): Promise<ActionResult<OpportunityResumePreview>> {
+  const opportunity = await prisma.jobOpportunity.findUnique({
+    where: { id: opportunityId },
+    select: { id: true, accountId: true },
+  });
+  if (!opportunity) {
+    return { ok: false, error: "Opportunity not found" };
+  }
+  try {
+    const data = await restoreResumeDraft(
+      opportunity.accountId,
+      opportunityId,
+      draft
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Failed to restore resume draft",
     };
   }
 }

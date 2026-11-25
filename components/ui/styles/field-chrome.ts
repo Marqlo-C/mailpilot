@@ -21,6 +21,26 @@ export const COMPOSER_SPLIT_PLATE_CLASSNAME =
 export const COMPOSER_SPLIT_PLATE_FOCUS_CLASSNAME = "border-border shadow";
 
 /**
+ * Outer window inset (16px) — gutter around composer plates / dialog body.
+ * Nested plate chrome steps down to `COMPOSER_NESTED_INSET_*`.
+ */
+export const COMPOSER_INSET_CLASSNAME = "p-4";
+export const COMPOSER_INSET_X_CLASSNAME = "px-4";
+export const COMPOSER_INSET_Y_CLASSNAME = "py-4";
+
+/** Nested card inset (12px) — toolbars, fields, canvas inside a plate. */
+export const COMPOSER_NESTED_INSET_CLASSNAME = "p-3";
+export const COMPOSER_NESTED_INSET_X_CLASSNAME = "px-3";
+export const COMPOSER_NESTED_INSET_Y_CLASSNAME = "py-3";
+
+/**
+ * Seam between composer regions (email ↔ resume handle, panes ↔ Ace bar).
+ * Matches the existing resizable handle width (`w-2.5` = 10px).
+ */
+export const COMPOSER_PANE_GAP_CLASSNAME = "gap-2.5";
+export const COMPOSER_PANE_SEPARATOR_CLASSNAME = "w-2.5";
+
+/**
  * Gap between leading icon and text. Slightly under `pl-3` so Lucide’s
  * viewBox inset doesn’t make the post-icon space read wider than the left.
  * Without a leading icon: `gap-1.5`.

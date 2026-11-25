@@ -26,6 +26,47 @@ import { cn } from "@/lib/utils";
 /** Same beat as sidebar telemetry dwell — skim past a neighbor without stealing. */
 const SWITCH_DWELL_MS = 180;
 const CLOSE_DELAY_MS = 180;
+/** Floating chip height (size-6 buttons + padding) — keep in sync with the portal. */
+const CHIP_H = 28;
+/** Approx chip width for centering (± / move / Ace cluster). */
+const CHIP_W = 144;
+/** Clear air between chip and line box (no glyph overlap). */
+const CHIP_GAP = 6;
+const VIEWPORT_PAD = 8;
+/**
+ * Resume body lines are ~12px / 1.35 — taller than this ⇒ wrapped block.
+ * Wrapped: pin to the leading edge; single-line: center above the line.
+ */
+const SINGLE_LINE_MAX_PX = 26;
+
+function placeLineToolbar(anchor: {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}): { top: number; left: number } {
+  const viewportW =
+    typeof window !== "undefined" ? window.innerWidth : anchor.left + CHIP_W;
+  const viewportH =
+    typeof window !== "undefined" ? window.innerHeight : anchor.top + CHIP_H;
+
+  const aboveTop = anchor.top - CHIP_H - CHIP_GAP;
+  const belowTop = anchor.top + anchor.height + CHIP_GAP;
+  const top =
+    aboveTop >= VIEWPORT_PAD
+      ? aboveTop
+      : Math.min(belowTop, viewportH - CHIP_H - VIEWPORT_PAD);
+
+  const wrapped = anchor.height > SINGLE_LINE_MAX_PX;
+  const idealLeft = wrapped
+    ? anchor.left
+    : anchor.left + anchor.width / 2 - CHIP_W / 2;
+  const left = Math.min(
+    Math.max(VIEWPORT_PAD, idealLeft),
+    viewportW - CHIP_W - VIEWPORT_PAD
+  );
+  return { top, left };
+}
 
 type LineMeta = { label: string; included: boolean };
 
@@ -71,9 +112,43 @@ function clearTimer(ref: { current: number | null }) {
   ref.current = null;
 }
 
+function nearestScrollParent(el: HTMLElement): HTMLElement | null {
+  let node: HTMLElement | null = el.parentElement;
+  while (node) {
+    const { overflowY } = getComputedStyle(node);
+    if (
+      (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") &&
+      node.scrollHeight > node.clientHeight + 1
+    ) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Keep `el` on the same viewport row after pane grow / Fit zoom by adjusting
+ * the nearest scroll parent (not window) — matches where the user clicked.
+ */
+function pinElementToViewportRow(el: HTMLElement, desiredTop: number) {
+  const parent = nearestScrollParent(el);
+  const delta = el.getBoundingClientRect().top - desiredTop;
+  if (Math.abs(delta) < 0.5) return;
+  if (parent) {
+    parent.scrollTop += delta;
+    return;
+  }
+  window.scrollBy(0, delta);
+}
+
 /**
  * Shared floating ± / move / refine chrome for every resume draft line.
  * Preview text stays export-identical — controls live in a body portal.
+ *
+ * Hover: float follows the hovered line.
+ * Inline edit: float stays on the focused line only (no neighbor steal);
+ * same ± / move / Ace actions — not a second in-text control strip.
  */
 export function ResumeLineChromeProvider({
   disabled,
@@ -97,6 +172,7 @@ export function ResumeLineChromeProvider({
     top: number;
     left: number;
     width: number;
+    height: number;
   } | null>(null);
   const [activeMeta, setActiveMeta] = useState<LineMeta | null>(null);
 
@@ -110,21 +186,34 @@ export function ResumeLineChromeProvider({
   const switchTimerRef = useRef<number | null>(null);
   const restoreTimerRef = useRef<number | null>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  /** Viewport Y of the line at edit start — restore across pane grow / Fit. */
+  const editPinTopRef = useRef<number | null>(null);
 
   activeIdRef.current = activeId;
   editingIdRef.current = editingId;
 
+  /** Brief post-blur hush only — editing pins the float; it is not “quiet.” */
   const chromeIsQuiet = useCallback(
-    () =>
-      editingIdRef.current !== null || Date.now() < chromeQuietUntilRef.current,
+    () => Date.now() < chromeQuietUntilRef.current,
     []
   );
+
+  /** While editing, ignore hover on every line except the focused one. */
+  const blocksHoverFor = useCallback((nodeId: string) => {
+    const editing = editingIdRef.current;
+    return editing !== null && editing !== nodeId;
+  }, []);
 
   const measure = useCallback((nodeId: string) => {
     const el = targetRefs.current.get(nodeId);
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    setAnchor({ top: rect.top, left: rect.left, width: rect.width });
+    setAnchor({
+      top: rect.top,
+      left: rect.left,
+      width: rect.width,
+      height: rect.height,
+    });
     setActiveMeta(metaRef.current.get(nodeId) ?? null);
   }, []);
 
@@ -138,13 +227,13 @@ export function ResumeLineChromeProvider({
 
   const armNow = useCallback(
     (nodeId: string) => {
-      if (chromeIsQuiet()) return;
+      if (blocksHoverFor(nodeId) || chromeIsQuiet()) return;
       clearTimer(closeTimerRef);
       clearTimer(switchTimerRef);
       setActiveId(nodeId);
       measure(nodeId);
     },
-    [chromeIsQuiet, measure]
+    [blocksHoverFor, chromeIsQuiet, measure]
   );
 
   const restoreToolbarIfHovered = useCallback(
@@ -170,6 +259,8 @@ export function ResumeLineChromeProvider({
   );
 
   const scheduleClose = useCallback(() => {
+    // Editing pins the float to the focused line until blur.
+    if (editingIdRef.current) return;
     clearTimer(closeTimerRef);
     closeTimerRef.current = window.setTimeout(() => {
       closeTimerRef.current = null;
@@ -182,7 +273,7 @@ export function ResumeLineChromeProvider({
 
   const scheduleSwitch = useCallback(
     (nodeId: string) => {
-      if (chromeIsQuiet()) return;
+      if (blocksHoverFor(nodeId) || chromeIsQuiet()) return;
       clearTimer(closeTimerRef);
       clearTimer(switchTimerRef);
       if (activeIdRef.current === nodeId) {
@@ -191,17 +282,17 @@ export function ResumeLineChromeProvider({
       }
       switchTimerRef.current = window.setTimeout(() => {
         switchTimerRef.current = null;
-        if (chromeIsQuiet()) return;
+        if (blocksHoverFor(nodeId) || chromeIsQuiet()) return;
         setActiveId(nodeId);
         measure(nodeId);
       }, SWITCH_DWELL_MS);
     },
-    [chromeIsQuiet, measure]
+    [blocksHoverFor, chromeIsQuiet, measure]
   );
 
   const onTargetEnter = useCallback(
     (nodeId: string) => {
-      if (chromeIsQuiet()) return;
+      if (blocksHoverFor(nodeId) || chromeIsQuiet()) return;
       clearTimer(closeTimerRef);
       if (activeIdRef.current === null || activeIdRef.current === nodeId) {
         armNow(nodeId);
@@ -209,11 +300,12 @@ export function ResumeLineChromeProvider({
       }
       scheduleSwitch(nodeId);
     },
-    [armNow, chromeIsQuiet, scheduleSwitch]
+    [armNow, blocksHoverFor, chromeIsQuiet, scheduleSwitch]
   );
 
   const onTargetLeave = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
+      if (editingIdRef.current) return;
       const next = event.relatedTarget;
       if (next instanceof Node && event.currentTarget.contains(next)) return;
       const dest = pointerDestination(next, event.clientX, event.clientY);
@@ -229,6 +321,7 @@ export function ResumeLineChromeProvider({
 
   const onToolbarLeave = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
+      if (editingIdRef.current) return;
       const next = event.relatedTarget;
       if (next instanceof Node && event.currentTarget.contains(next)) return;
       const dest = pointerDestination(next, event.clientX, event.clientY);
@@ -257,14 +350,21 @@ export function ResumeLineChromeProvider({
   const onEditStart = useCallback(
     (nodeId: string) => {
       clearTimer(restoreTimerRef);
+      clearTimer(closeTimerRef);
+      clearTimer(switchTimerRef);
+      const el = targetRefs.current.get(nodeId);
+      // Capture before pane grow / Fit so we can pin this row afterward.
+      editPinTopRef.current = el?.getBoundingClientRect().top ?? null;
       setEditingId(nodeId);
-      dismissToolbar();
+      setActiveId(nodeId);
+      measure(nodeId);
     },
-    [dismissToolbar]
+    [measure]
   );
 
   const onEditEnd = useCallback(
     (nodeId: string) => {
+      editPinTopRef.current = null;
       setEditingId((current) => (current === nodeId ? null : current));
       dismissToolbar();
       restoreToolbarIfHovered(nodeId);
@@ -283,18 +383,55 @@ export function ResumeLineChromeProvider({
   useLayoutEffect(() => {
     if (!activeId) return;
     measure(activeId);
-  }, [activeId, measure]);
+  }, [activeId, editingId, measure]);
 
   useEffect(() => {
     if (!activeId) return;
-    const sync = () => measure(activeId);
-    window.addEventListener("scroll", sync, true);
-    window.addEventListener("resize", sync);
-    return () => {
-      window.removeEventListener("scroll", sync, true);
-      window.removeEventListener("resize", sync);
+    const syncFloat = () => measure(activeId);
+    // Pin on layout settles only — not on scroll (would feedback-loop).
+    const syncPinAndFloat = () => {
+      const line = targetRefs.current.get(activeId);
+      const pinTop = editPinTopRef.current;
+      if (line && pinTop !== null && editingIdRef.current === activeId) {
+        pinElementToViewportRow(line, pinTop);
+      }
+      measure(activeId);
     };
-  }, [activeId, measure]);
+    const el = targetRefs.current.get(activeId);
+
+    // Pane expand (edit-mode grow) moves the line in viewport without a
+    // window resize — observe the line + ancestors through the draft root.
+    const resizeObserver = new ResizeObserver(syncPinAndFloat);
+    if (el) {
+      resizeObserver.observe(el);
+      let node: HTMLElement | null = el.parentElement;
+      while (node) {
+        resizeObserver.observe(node);
+        if (node.hasAttribute("data-resume-draft-root")) break;
+        node = node.parentElement;
+      }
+    }
+
+    window.addEventListener("scroll", syncFloat, true);
+    window.addEventListener("resize", syncPinAndFloat);
+
+    // Edit-mode pane grow + Fit zoom settle over a few frames — chase briefly.
+    let raf = 0;
+    let frames = 0;
+    const chase = () => {
+      syncPinAndFloat();
+      frames += 1;
+      if (frames < 24) raf = requestAnimationFrame(chase);
+    };
+    raf = requestAnimationFrame(chase);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("scroll", syncFloat, true);
+      window.removeEventListener("resize", syncPinAndFloat);
+      cancelAnimationFrame(raf);
+    };
+  }, [activeId, editingId, measure]);
 
   useEffect(
     () => () => {
@@ -332,20 +469,13 @@ export function ResumeLineChromeProvider({
     ]
   );
 
-  const CHIP_H = 28;
-  const shellTop = anchor ? Math.max(8, anchor.top - CHIP_H + 10) : 0;
-  const shellLeft = anchor
-    ? Math.min(
-        Math.max(8, anchor.left + Math.min(anchor.width, 160) / 2 - 72),
-        typeof window !== "undefined" ? window.innerWidth - 152 : 8
-      )
-    : 0;
+  const placed = anchor ? placeLineToolbar(anchor) : null;
 
   const included = activeMeta?.included ?? true;
   const label = activeMeta?.label ?? "line";
 
   const toolbar =
-    typeof document !== "undefined" && activeId && anchor && !editingId
+    typeof document !== "undefined" && activeId && placed
       ? createPortal(
           <div
             ref={toolbarRef}
@@ -353,7 +483,7 @@ export function ResumeLineChromeProvider({
             onPointerEnter={() => clearTimer(closeTimerRef)}
             onPointerLeave={onToolbarLeave}
             className="pointer-events-auto fixed z-[200]"
-            style={{ top: shellTop, left: shellLeft }}
+            style={{ top: placed.top, left: placed.left }}
           >
             <div
               role="toolbar"
@@ -477,6 +607,8 @@ function ToolbarIcon({
       disabled={disabled}
       aria-label={label}
       title={label}
+      // Keep contenteditable focus until click — otherwise blur kills the float.
+      onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
       className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-[#6b7280] transition-colors hover:bg-[#F3F4F6] hover:text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
     >

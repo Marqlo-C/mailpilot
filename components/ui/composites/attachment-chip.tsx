@@ -2,7 +2,6 @@
 
 import { FileText, X } from "lucide-react";
 
-import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
 import { cn } from "@/lib/utils";
 
 type AttachmentChipProps = {
@@ -16,6 +15,9 @@ type AttachmentChipProps = {
 /**
  * Compact filename chip with optional remove — shared by email extras and
  * tailored-resume attach affordances.
+ *
+ * Dismiss uses the same plain X treatment as dialog/sheet close — not the
+ * circular field-trailing clear control.
  */
 export function AttachmentChip({
   label,
@@ -34,14 +36,16 @@ export function AttachmentChip({
       <FileText className="size-3.5 shrink-0 text-muted-foreground" />
       <span className="truncate">{label}</span>
       {onRemove ? (
-        <FieldTrailingButton
+        <button
+          type="button"
           aria-label={removeLabel}
           disabled={disabled}
           onClick={onRemove}
-          className="size-5 before:-inset-1"
+          className="shrink-0 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
         >
+          {/* size-3 — matches text-xs chip density; dialog close stays size-4. */}
           <X className="size-3" aria-hidden />
-        </FieldTrailingButton>
+        </button>
       ) : null}
     </div>
   );

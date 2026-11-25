@@ -525,6 +525,17 @@ export async function updateResumeDraftNode(
   return saveDraft(accountId, opportunityId, next);
 }
 
+/**
+ * Replace the stored editable draft wholesale (undo/redo restore).
+ */
+export async function restoreResumeDraft(
+  accountId: string,
+  opportunityId: string,
+  draft: Parameters<typeof saveDraft>[2]
+): Promise<OpportunityResumePreview> {
+  return saveDraft(accountId, opportunityId, draft);
+}
+
 export async function reorderResumeDraftNode(
   accountId: string,
   opportunityId: string,

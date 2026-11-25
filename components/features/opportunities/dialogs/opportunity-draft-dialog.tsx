@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import type { JobOpportunity } from "@/lib/generated/prisma/client";
 
 import { Loader } from "@/components/ui/loader";
@@ -18,6 +18,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  useGroupRef,
 } from "@/components/ui/resizable";
 import {
   DRAFT_SPLIT_DEFAULT,
@@ -25,6 +26,8 @@ import {
   DRAFT_SPLIT_PANEL_RESUME,
   useDraftSplitPane,
 } from "@/hooks/use-draft-split-pane";
+import { useResumeEditSplit } from "@/hooks/use-resume-edit-split";
+import { useToolbarMinWidthPx } from "@/hooks/use-toolbar-min-width";
 import {
   useDraftPdf,
   formatSize,
@@ -41,6 +44,11 @@ import {
   TASK_EMAIL_REFINE,
   TASK_EMAIL_DRAFT,
 } from "@/hooks/use-opportunity-draft-flow";
+import {
+  COMPOSER_INSET_X_CLASSNAME,
+  COMPOSER_PANE_GAP_CLASSNAME,
+} from "@/components/ui/styles/field-chrome";
+import { cn } from "@/lib/utils";
 import { OpportunityDraftCompensationFields } from "./opportunity-draft-compensation-fields";
 import { OpportunityDraftFooterActions } from "./opportunity-draft-footer-actions";
 
@@ -74,6 +82,38 @@ export function OpportunityDraftDialog({
   const { isDesktopSplit, defaultLayout, onLayoutChanged, minSplit, maxSplit } =
     useDraftSplitPane();
 
+  const splitGroupRef = useGroupRef();
+  const [resumeEditMode, setResumeEditMode] = useState(false);
+  const onResumeEditModeChange = useCallback((active: boolean) => {
+    setResumeEditMode(active);
+  }, []);
+  const { onLayoutChanged: onSplitLayoutChanged } = useResumeEditSplit({
+    groupRef: splitGroupRef,
+    enabled: open && isDesktopSplit && flow.attachResume,
+    editMode: resumeEditMode,
+    onUserLayoutChanged: onLayoutChanged,
+  });
+
+  const [emailToolbarEl, setEmailToolbarEl] = useState<HTMLDivElement | null>(
+    null
+  );
+  const [resumeToolbarEl, setResumeToolbarEl] =
+    useState<HTMLDivElement | null>(null);
+  const emailToolbarRef = useCallback((node: HTMLDivElement | null) => {
+    setEmailToolbarEl(node);
+  }, []);
+  const resumeToolbarRef = useCallback((node: HTMLDivElement | null) => {
+    setResumeToolbarEl(node);
+  }, []);
+  const emailToolbarMinPx = useToolbarMinWidthPx(
+    emailToolbarEl,
+    open && isDesktopSplit
+  );
+  const resumeToolbarMinPx = useToolbarMinWidthPx(
+    resumeToolbarEl,
+    open && isDesktopSplit && flow.attachResume
+  );
+
   const { resumePdfUrl } = useDraftPdf(flow.resume?.pdfBase64);
 
   // Free horizontal room for the resume pane; restore only if we collapsed it.
@@ -97,6 +137,7 @@ export function OpportunityDraftDialog({
 
   const emailPanel = (
     <EmailEditorPanel
+      toolbarRef={emailToolbarRef}
       attachResume={flow.attachResume}
       onAttachResumeChange={
         flow.showComposerActions ? flow.handleAttachResumeChange : undefined
@@ -107,6 +148,11 @@ export function OpportunityDraftDialog({
       embedded={splitEmbedded}
       recipient={flow.recipient}
       setRecipient={flow.setRecipient}
+      recipientName={
+        opportunity?.recipientName?.trim() ||
+        flow.originalEmail?.fromName?.trim() ||
+        null
+      }
       subject={flow.subject}
       setSubject={flow.setSubject}
       baselineRecipient={flow.baselineRecipient}
@@ -128,6 +174,7 @@ export function OpportunityDraftDialog({
 
   const resumePanel = flow.attachResume ? (
     <ResumePreviewPanel
+      toolbarRef={resumeToolbarRef}
       resumeBusy={flow.resumeBusy}
       resumeBusyLabel={flow.resumeBusyLabel}
       exporting={flow.exporting}
@@ -163,6 +210,11 @@ export function OpportunityDraftDialog({
       }}
       onRefine={flow.handleRefineResumeNode}
       onExport={flow.handleExportResume}
+      canUndo={flow.canResumeUndo}
+      canRedo={flow.canResumeRedo}
+      onUndo={() => void flow.handleResumeUndo()}
+      onRedo={() => void flow.handleResumeRedo()}
+      onEditModeChange={onResumeEditModeChange}
     />
   ) : null;
 
@@ -173,7 +225,11 @@ export function OpportunityDraftDialog({
       pending={flow.pending}
       size={flow.attachResume ? "xl" : "lg"}
       contentClassName="h-[88vh] max-h-[900px] w-full transition-all duration-200 ease-apple-out"
-      bodyClassName="flex min-h-0 flex-col overflow-y-auto p-0 lg:overflow-hidden"
+      bodyClassName={
+        flow.attachResume && isDesktopSplit
+          ? "flex min-h-0 flex-col overflow-hidden p-0"
+          : "flex min-h-0 flex-col overflow-y-auto p-0"
+      }
       identity={{
         title: opportunity?.title ?? "Draft",
         primary: opportunity?.company ?? "",
@@ -215,10 +271,17 @@ export function OpportunityDraftDialog({
           <TextShimmer>Preparing draft…</TextShimmer>
         </div>
       ) : flow.error ? (
-        <p className="flex-1 px-5 py-8 text-sm text-destructive">{flow.error}</p>
+        <p className="flex-1 px-4 py-8 text-sm text-destructive">{flow.error}</p>
       ) : (
-        <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden">
-          <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col px-5 pb-2 pt-4">
+        <div
+          className={cn(
+            // 16px window inset sides/top/bottom (Ace → footer).
+            // Pane ↔ Ace shares COMPOSER_PANE_GAP with the email ↔ resume seam.
+            "flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden pt-4 pb-4",
+            COMPOSER_INSET_X_CLASSNAME,
+            COMPOSER_PANE_GAP_CLASSNAME
+          )}
+        >
             {flow.attachResume && isDesktopSplit ? (
               <ResizablePanelGroup
                 id="mp-draft-email-resume"
@@ -227,13 +290,15 @@ export function OpportunityDraftDialog({
                 // Library defaults overflow:hidden on the group — that clips
                 // plate box-shadows. style wins over the inline default.
                 style={{ overflow: "visible" }}
+                groupRef={splitGroupRef}
                 defaultLayout={defaultLayout}
-                onLayoutChanged={onLayoutChanged}
+                onLayoutChanged={onSplitLayoutChanged}
               >
                 <ResizablePanel
                   id={DRAFT_SPLIT_PANEL_EMAIL}
                   defaultSize={`${DRAFT_SPLIT_DEFAULT}%`}
-                  minSize={`${minSplit}%`}
+                  // Pixel floor from measured toolbar; % fallback pre-measure.
+                  minSize={emailToolbarMinPx ?? `${minSplit}%`}
                   maxSize={`${maxSplit}%`}
                   className="flex min-h-0 min-w-0 flex-col"
                   style={{ overflow: "visible" }}
@@ -246,7 +311,9 @@ export function OpportunityDraftDialog({
                 />
                 <ResizablePanel
                   id={DRAFT_SPLIT_PANEL_RESUME}
-                  minSize={`${100 - maxSplit}%`}
+                  minSize={
+                    resumeToolbarMinPx ?? `${100 - maxSplit}%`
+                  }
                   maxSize={`${100 - minSplit}%`}
                   className="flex min-h-0 min-w-0 flex-col"
                   style={{ overflow: "visible" }}
@@ -255,12 +322,16 @@ export function OpportunityDraftDialog({
                 </ResizablePanel>
               </ResizablePanelGroup>
             ) : (
-              <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col gap-4 overflow-y-auto lg:overflow-hidden">
+              <div
+                className={cn(
+                  "flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-y-auto",
+                  COMPOSER_PANE_GAP_CLASSNAME
+                )}
+              >
                 {emailPanel}
                 {resumePanel}
               </div>
             )}
-          </div>
 
           <RefinePanel
             attachResume={flow.attachResume}

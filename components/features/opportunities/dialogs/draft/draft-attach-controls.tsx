@@ -8,8 +8,43 @@ import type { OpportunityResumePreview } from "@/app/actions/opportunities";
 import { cn } from "@/lib/utils";
 
 /**
- * Email-body attach row — tailored resume icon toggle + optional filename chip.
- * Lives left of the paperclip with other attachment chips.
+ * Bottom-row resume filename chip (toggle lives on EmailDraftToolbar).
+ */
+export function DraftAttachResumeChip({
+  attachResume,
+  onAttachChange,
+  locked,
+  resume,
+  resumeSizeLabel,
+  className,
+}: {
+  attachResume: boolean;
+  onAttachChange: (attach: boolean) => void;
+  locked: boolean;
+  resume: OpportunityResumePreview | null;
+  resumeSizeLabel: string | null;
+  className?: string;
+}) {
+  if (!attachResume || !resume) return null;
+
+  return (
+    <AttachmentChip
+      label={
+        resumeSizeLabel
+          ? `${resume.filename} (${resumeSizeLabel})`
+          : resume.filename
+      }
+      disabled={locked}
+      removeLabel="Remove resume attachment"
+      onRemove={() => onAttachChange(false)}
+      className={cn("max-w-[160px]", className)}
+    />
+  );
+}
+
+/**
+ * @deprecated Prefer EmailDraftToolbar toggle + DraftAttachResumeChip.
+ * Kept for any legacy call sites that still need both.
  */
 export function DraftAttachControls({
   attachResume,
@@ -50,19 +85,13 @@ export function DraftAttachControls({
           />
         </Button>
       </LabelTooltip>
-      {attachResume && resume ? (
-        <AttachmentChip
-          label={
-            resumeSizeLabel
-              ? `${resume.filename} (${resumeSizeLabel})`
-              : resume.filename
-          }
-          disabled={locked}
-          removeLabel="Remove resume attachment"
-          onRemove={() => onAttachChange(false)}
-          className="max-w-[160px]"
-        />
-      ) : null}
+      <DraftAttachResumeChip
+        attachResume={attachResume}
+        onAttachChange={onAttachChange}
+        locked={locked}
+        resume={resume}
+        resumeSizeLabel={resumeSizeLabel}
+      />
     </div>
   );
 }

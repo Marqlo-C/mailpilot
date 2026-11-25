@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type Ref } from "react";
 
 import { ResumeDraftBusySkeleton } from "@/components/features/opportunities/drawer/subcomponents/resume-draft-busy-skeleton";
 import { BusyStatusChip } from "@/components/ui/composites/busy-status-chip";
@@ -40,6 +40,13 @@ export function ResumeDraftSheet({
   strategyRationale,
   includeSummary,
   onIncludeSummaryChange,
+  toolbarRef,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  lineEditing = false,
+  onEditModeChange,
 }: {
   draft: TailoredResumeDraft;
   disabled?: boolean;
@@ -54,11 +61,21 @@ export function ResumeDraftSheet({
   strategyRationale?: StrategyRationale | null;
   includeSummary?: boolean;
   onIncludeSummaryChange?: (include: boolean) => void;
+  toolbarRef?: Ref<HTMLDivElement>;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  /** Contenteditable line currently focused (from plate focus tracking). */
+  lineEditing?: boolean;
+  onEditModeChange?: (active: boolean) => void;
 }) {
   const sheet = useResumeDraftSheet({
     draft,
     includeSummary,
     onRefine,
+    lineEditing,
+    onEditModeChange,
   });
 
   useEffect(() => {
@@ -75,9 +92,13 @@ export function ResumeDraftSheet({
       onMove={onMove}
       onRefineOpen={sheet.openRefine}
     >
-      <div className="relative flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-lg">
+      <div
+        data-resume-draft-root
+        className="relative flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-lg"
+      >
         {/* py-3 matches email pane field inset so To and this rail share one horizon. */}
         <ResumeDraftToolbar
+          toolbarRef={toolbarRef}
           disabled={disabled}
           exporting={exporting}
           zoomChoice={sheet.zoomChoice}
@@ -97,6 +118,10 @@ export function ResumeDraftSheet({
           refinePanelRef={sheet.refinePanelRef}
           onSubmitRefine={sheet.submitRefine}
           onDismissRefine={sheet.dismissRefine}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={onUndo}
+          onRedo={onRedo}
         />
         {busyLabel ? (
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">

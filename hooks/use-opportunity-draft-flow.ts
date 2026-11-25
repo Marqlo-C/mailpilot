@@ -21,6 +21,7 @@ import {
   reorderResumeDraftNodeAction,
   compileResumeDocumentAction,
   updateResumeDraftNodeAction,
+  restoreResumeDraftAction,
   saveOpportunityDraftEdits,
   sendOpportunityApplication,
   type DraftAttachmentInput,
@@ -34,7 +35,20 @@ import {
   useTaskAbortManager,
 } from "@/hooks/use-task-abort-manager";
 import { downloadBase64File } from "@/hooks/use-draft-pdf";
+import {
+  tryResumeDomHistory,
+  useResumeDraftHistory,
+} from "@/hooks/use-resume-draft-history";
+import { plainToEmailHtml } from "@/lib/opportunities/dispatch/email-body-html";
 import { formatToastError } from "@/lib/utils/ui/toast-format";
+
+/** Ace returns plain text; composer state is email-safe HTML. */
+function setEmailBodyFromPlain(
+  setBody: (html: string) => void,
+  plain: string
+) {
+  setBody(plainToEmailHtml(plain));
+}
 
 export const TASK_RESUME = "resume-generation";
 export const TASK_RESUME_EXPORT = "resume-export";
@@ -174,7 +188,7 @@ export function useOpportunityDraftFlow({
           draftResult.data.recipient ?? opportunity.recipientEmail ?? "";
         setSubject(nextSubject);
         setBaselineSubject(nextSubject);
-        setBody(draftResult.data.body);
+        setEmailBodyFromPlain(setBody, draftResult.data.body);
         setRecipient(nextRecipient);
         setBaselineRecipient(nextRecipient);
         setOriginalEmail(draftResult.data.originalEmail);
@@ -206,6 +220,8 @@ export function useOpportunityDraftFlow({
     };
   }, [open, opportunity, cancelAll]);
 
+  const resumeHistory = useResumeDraftHistory();
+
   const applyResumeResult = useCallback((data: OpportunityResumePreview) => {
     setResume(data);
     setResumeError(null);
@@ -221,6 +237,7 @@ export function useOpportunityDraftFlow({
     >
   ) {
     if (!opportunity) return;
+    resumeHistory.recordBefore(resume?.draft);
     const result = await run();
     if (!result.ok || !result.data) {
       toast.error(
@@ -230,6 +247,36 @@ export function useOpportunityDraftFlow({
     }
     applyResumeResult(result.data);
   }
+
+  const handleResumeUndo = useCallback(async () => {
+    if (tryResumeDomHistory("undo")) return;
+    if (!opportunity) return;
+    const prev = resumeHistory.takeUndo(resume?.draft);
+    if (!prev) return;
+    const result = await restoreResumeDraftAction(opportunity.id, prev);
+    if (!result.ok || !result.data) {
+      toast.error(
+        result.ok ? "Empty resume" : formatToastError(result.error)
+      );
+      return;
+    }
+    applyResumeResult(result.data);
+  }, [opportunity, resume?.draft, resumeHistory, applyResumeResult]);
+
+  const handleResumeRedo = useCallback(async () => {
+    if (tryResumeDomHistory("redo")) return;
+    if (!opportunity) return;
+    const next = resumeHistory.takeRedo(resume?.draft);
+    if (!next) return;
+    const result = await restoreResumeDraftAction(opportunity.id, next);
+    if (!result.ok || !result.data) {
+      toast.error(
+        result.ok ? "Empty resume" : formatToastError(result.error)
+      );
+      return;
+    }
+    applyResumeResult(result.data);
+  }, [opportunity, resume?.draft, resumeHistory, applyResumeResult]);
 
   function generateResume(summaryPreference = includeSummary) {
     if (!opportunity) return;
@@ -258,6 +305,7 @@ export function useOpportunityDraftFlow({
           );
           return;
         }
+        resumeHistory.clear();
         applyResumeResult(result.data);
         toast.success(
           wasRegenerate ? "Resume rewritten" : "Resume created"
@@ -302,6 +350,7 @@ export function useOpportunityDraftFlow({
           );
           return;
         }
+        resumeHistory.clear();
         applyResumeResult(result.data);
         setRefinePrompt("");
         toast.success("Resume refined");
@@ -425,7 +474,7 @@ export function useOpportunityDraftFlow({
         }
         setSubject(result.data.subject);
         setBaselineSubject(result.data.subject);
-        setBody(result.data.body);
+        setEmailBodyFromPlain(setBody, result.data.body);
         setRefinePrompt("");
         emailSnapshotRef.current = null;
         toast.success("Draft refined");
@@ -465,7 +514,7 @@ export function useOpportunityDraftFlow({
         }
         setSubject(result.data.subject);
         setBaselineSubject(result.data.subject);
-        setBody(result.data.body);
+        setEmailBodyFromPlain(setBody, result.data.body);
         if (result.data.recipient) {
           setRecipient(result.data.recipient);
           setBaselineRecipient(result.data.recipient);
@@ -616,6 +665,7 @@ export function useOpportunityDraftFlow({
   const handleRefineResumeNode = useCallback(
     (nodeId: string, instruction: string) => {
       if (!opportunity) return;
+      resumeHistory.recordBefore(resume?.draft);
       setResumeAction("node");
       const signal = startTask(TASK_RESUME);
       void (async () => {
@@ -641,7 +691,14 @@ export function useOpportunityDraftFlow({
         }
       })();
     },
-    [opportunity, startTask, finishTask, applyResumeResult]
+    [
+      opportunity,
+      resume?.draft,
+      resumeHistory,
+      startTask,
+      finishTask,
+      applyResumeResult,
+    ]
   );
 
   const handleExportResume = useCallback(
@@ -750,6 +807,11 @@ export function useOpportunityDraftFlow({
     handleAttachResumeChange,
     handleRefineResumeNode,
     handleExportResume,
+    handleResumeUndo,
+    handleResumeRedo,
+    canResumeUndo: resumeHistory.canUndo,
+    canResumeRedo: resumeHistory.canRedo,
+    resumeHistoryVersion: resumeHistory.version,
     persistDraftChange,
     generateResume,
   };

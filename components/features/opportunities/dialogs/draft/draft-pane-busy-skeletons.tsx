@@ -9,7 +9,7 @@ export function EmailDraftBusySkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 flex-1 flex-col px-5 pb-14 pt-2",
+        "flex h-full min-h-0 flex-1 flex-col px-3 pb-14 pt-2",
         className
       )}
       aria-hidden

@@ -1,11 +1,12 @@
-import React, { useState, type ChangeEvent } from "react";
-import { Mail, MailOpen, Paperclip, Type, Undo2 } from "lucide-react";
+"use client";
+
+import React, { useState, type ChangeEvent, type Ref } from "react";
+import { AlignLeft, MailOpen, Paperclip, Undo2, UserRound } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { AttachmentChip } from "@/components/ui/composites/attachment-chip";
 import {
   COMPOSER_SPLIT_PLATE_CLASSNAME,
   COMPOSER_SPLIT_PLATE_FOCUS_CLASSNAME,
-  FIELD_TEXTAREA_CLASSNAME,
 } from "@/components/ui/styles/field-chrome";
 import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
 import { formatSize } from "@/hooks/use-draft-pdf";
@@ -14,10 +15,38 @@ import type {
   OriginalEmailPreview,
   OpportunityResumePreview,
 } from "@/app/actions/opportunities";
+import { parseFromHeader } from "@/lib/gmail/email-utils";
 import { cn } from "@/lib/utils";
-import { DraftAttachControls } from "./draft-attach-controls";
 import { BusyStatusChip } from "@/components/ui/composites/busy-status-chip";
+import { DraftAttachResumeChip } from "./draft-attach-controls";
+import {
+  EmailBodyEditorContent,
+  useEmailBodyEditor,
+} from "./email-body-editor";
+import { EmailDraftToolbar } from "./email-draft-toolbar";
 import { EmailDraftBusySkeleton } from "./draft-pane-busy-skeletons";
+
+/** Modern To display: `Alex <alex@company.com>` when a display name is known. */
+function formatRecipientField(
+  name: string | null | undefined,
+  email: string
+): string {
+  const addr = email.trim();
+  if (!addr) return "";
+  if (/<[^>]+>/.test(addr)) return addr;
+  const n = name?.trim();
+  if (!n) return addr;
+  return `${n} <${addr}>`;
+}
+
+/** Persist the email address only — strip a leading display name if present. */
+function parseRecipientField(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  const parsed = parseFromHeader(trimmed);
+  if (parsed?.email) return parsed.email;
+  return trimmed.toLowerCase();
+}
 
 export function EmailEditorPanel({
   attachResume,
@@ -28,6 +57,7 @@ export function EmailEditorPanel({
   embedded: _embedded = false,
   recipient,
   setRecipient,
+  recipientName = null,
   subject,
   setSubject,
   baselineRecipient,
@@ -44,6 +74,7 @@ export function EmailEditorPanel({
   fileInputId,
   emailBusy,
   emailBusyLabel,
+  toolbarRef,
 }: {
   attachResume: boolean;
   onAttachResumeChange?: (attach: boolean) => void;
@@ -57,6 +88,8 @@ export function EmailEditorPanel({
   embedded?: boolean;
   recipient: string;
   setRecipient: (value: string) => void;
+  /** Display name shown before the address in the To field. */
+  recipientName?: string | null;
   subject: string;
   setSubject: (value: string) => void;
   baselineRecipient: string;
@@ -74,15 +107,36 @@ export function EmailEditorPanel({
   /** True only while this email pane is regenerating or refining. */
   emailBusy: boolean;
   emailBusyLabel: string | null;
+  /** Forwarded to EmailDraftToolbar for split-pane pixel min measurement. */
+  toolbarRef?: Ref<HTMLDivElement>;
 }) {
   const settleKey = useContentSettleKey(emailBusy);
   const recipientDirty = recipient !== baselineRecipient;
   const subjectDirty = subject !== baselineSubject;
   const [bodyFocused, setBodyFocused] = useState(false);
+  const [toFocused, setToFocused] = useState(false);
   const showResumeAttach = typeof onAttachResumeChange === "function";
+  const toDisplay = toFocused
+    ? recipient
+    : formatRecipientField(recipientName, recipient);
 
-  // Align with To/Subject shell column: those fields sit in px-3, so their
-  // right edge is 12px from the plate — match that inset on bottom + right.
+  const {
+    editor,
+    canUndo,
+    canRedo,
+    boldActive,
+    italicActive,
+    underlineActive,
+    textColor,
+    highlightColor,
+    alignValue,
+  } = useEmailBodyEditor({
+    body,
+    setBody,
+    disabled: emailBusy,
+    onFocusChange: setBodyFocused,
+  });
+
   const bodyBlock = (
     <div className="relative mt-2 flex min-h-0 flex-1 flex-col overflow-hidden">
       <label htmlFor="opp-draft-body" className="sr-only">
@@ -90,7 +144,6 @@ export function EmailEditorPanel({
       </label>
       {emailBusy ? (
         <>
-          {/* Ace rewrites body only — To/Subject stay; letter-shaped lines. */}
           <EmailDraftBusySkeleton />
           <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-3">
             <BusyStatusChip
@@ -99,21 +152,8 @@ export function EmailEditorPanel({
           </div>
         </>
       ) : (
-        <textarea
-          id="opp-draft-body"
-          className={cn(
-            FIELD_TEXTAREA_CLASSNAME,
-            // Extra x-inset clears the plate’s rounded corners; text-xs matches field SSOT.
-            "min-h-0 flex-1 resize-none bg-transparent px-5 pb-11 pt-2 text-xs leading-relaxed"
-          )}
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          onFocus={() => setBodyFocused(true)}
-          onBlur={() => setBodyFocused(false)}
-          placeholder="Write your message…"
-        />
+        <EmailBodyEditorContent editor={editor} />
       )}
-      {/* Attach chrome stays like To/Subject — visible but locked while busy. */}
       <div
         className={cn(
           "pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3",
@@ -126,8 +166,8 @@ export function EmailEditorPanel({
             !emailBusy && "pointer-events-auto"
           )}
         >
-          {showResumeAttach ? (
-            <DraftAttachControls
+          {showResumeAttach && onAttachResumeChange ? (
+            <DraftAttachResumeChip
               attachResume={attachResume}
               onAttachChange={onAttachResumeChange}
               locked={attachLocked || emailBusy}
@@ -183,13 +223,16 @@ export function EmailEditorPanel({
       <div className="flex shrink-0 flex-col gap-2 px-3 pt-3">
         <Input
           id="opp-draft-to"
-          type="email"
-          leadingIcon={Mail}
-          placeholder="recruiter@company.com"
+          type="text"
+          inputMode="email"
+          autoComplete="email"
+          leadingIcon={UserRound}
+          placeholder="Alex <alex@company.com>"
           aria-label="To"
-          value={recipient}
-          onChange={(e) => setRecipient(e.target.value)}
-          // Header stays readable during body rewrite; lock edits mid-flight.
+          value={toDisplay}
+          onFocus={() => setToFocused(true)}
+          onBlur={() => setToFocused(false)}
+          onChange={(e) => setRecipient(parseRecipientField(e.target.value))}
           disabled={emailBusy}
           trailing={
             recipientDirty ? (
@@ -207,7 +250,7 @@ export function EmailEditorPanel({
 
         <Input
           id="opp-draft-subject"
-          leadingIcon={Type}
+          leadingIcon={AlignLeft}
           placeholder="Subject"
           aria-label="Subject"
           value={subject}
@@ -254,6 +297,23 @@ export function EmailEditorPanel({
       )}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg">
+        <EmailDraftToolbar
+          toolbarRef={toolbarRef}
+          editor={editor}
+          disabled={emailBusy}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          boldActive={boldActive}
+          italicActive={italicActive}
+          underlineActive={underlineActive}
+          textColor={textColor}
+          highlightColor={highlightColor}
+          alignValue={alignValue}
+          showAttachResume={showResumeAttach}
+          attachResume={attachResume}
+          onAttachResumeChange={onAttachResumeChange}
+          attachLocked={attachLocked}
+        />
         {fields}
       </div>
     </div>

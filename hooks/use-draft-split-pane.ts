@@ -6,13 +6,15 @@ import { useHydrated } from "./use-hydrated";
 
 export const DRAFT_SPLIT_STORAGE_KEY = "mp-draft-email-resume-split";
 export const DRAFT_SPLIT_DEFAULT = 48;
-/** Email floor — keeps To/Subject usable when dragging toward the resume. */
-export const DRAFT_SPLIT_MIN = 28;
 /**
- * Email ceiling (= resume floor). ~34% resume keeps zoom rail + icon cluster
- * and a readable Fit page when dragging the resize bar.
+ * Soft %-fallback only until each toolbar's intrinsic pixel min is measured.
+ * Live floors come from `useToolbarMinWidthPx` (max-content width).
  */
-export const DRAFT_SPLIT_MAX = 66;
+export const DRAFT_SPLIT_MIN = 20;
+/**
+ * Soft email drag ceiling (%). Toolbar pixel mins still bind both panes.
+ */
+export const DRAFT_SPLIT_MAX = 80;
 
 export const DRAFT_SPLIT_PANEL_EMAIL = "draft-email";
 export const DRAFT_SPLIT_PANEL_RESUME = "draft-resume";
@@ -26,11 +28,8 @@ export function readDraftSplitPct(): number {
     const raw = localStorage.getItem(DRAFT_SPLIT_STORAGE_KEY);
     if (!raw) return DRAFT_SPLIT_DEFAULT;
     const next = Number(raw);
-    if (
-      !Number.isFinite(next) ||
-      next < DRAFT_SPLIT_MIN ||
-      next > DRAFT_SPLIT_MAX
-    ) {
+    // Soft clamp only — pixel toolbar floors enforce the real drag stop.
+    if (!Number.isFinite(next) || next < 10 || next > DRAFT_SPLIT_MAX) {
       return DRAFT_SPLIT_DEFAULT;
     }
     return next;
@@ -48,12 +47,13 @@ export function writeDraftSplitPct(pct: number) {
 }
 
 function clampEmailPct(pct: number): number {
-  return Math.min(DRAFT_SPLIT_MAX, Math.max(DRAFT_SPLIT_MIN, pct));
+  return Math.min(DRAFT_SPLIT_MAX, Math.max(10, pct));
 }
 
 /**
  * Desktop dual-pane layout for the opportunity draft dialog.
  * Persists email panel %; double-click reset is built into shadcn `ResizableHandle`.
+ * Pane floors should prefer measured toolbar pixel widths from the dialog.
  */
 export function useDraftSplitPane() {
   const hydrated = useHydrated();
@@ -89,6 +89,7 @@ export function useDraftSplitPane() {
     isDesktopSplit: hydrated && isDesktop,
     defaultLayout,
     onLayoutChanged,
+    /** Percentage fallback until toolbar measurement lands. */
     minSplit: DRAFT_SPLIT_MIN,
     maxSplit: DRAFT_SPLIT_MAX,
   };
