@@ -1,13 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, type Ref } from "react";
+import { useCallback, useEffect, useRef, type MutableRefObject, type Ref } from "react";
 
 import { ResumeDraftBusySkeleton } from "@/components/features/opportunities/drawer/subcomponents/resume-draft-busy-skeleton";
 import { BusyStatusChip } from "@/components/ui/composites/busy-status-chip";
 import { ResumeDraftCanvas } from "@/components/features/opportunities/drawer/subcomponents/resume-draft-canvas";
 import { ResumeDraftToolbar } from "@/components/features/opportunities/drawer/subcomponents/resume-draft-toolbar";
 import { ResumeLineChromeProvider } from "@/components/features/opportunities/drawer/subcomponents/resume-line-chrome";
-import { useResumeDraftSheet } from "@/hooks/use-resume-draft-sheet";
+import {
+  useResumeDraftSheet,
+  type ResumeEditEntryCameraApi,
+} from "@/hooks/use-resume-draft-sheet";
 import type { TailoredResumeDraft } from "@/lib/resume-draft";
 import { classifyResumeEditTarget } from "@/lib/resume-draft/edit-presentation";
 import type { StrategyRationale } from "@/lib/validations/resume-draft.schema";
@@ -49,6 +52,7 @@ export function ResumeDraftSheet({
   lineEditing = false,
   onForceExitEdit,
   onEditModeChange,
+  editEntryCameraApiRef,
 }: {
   draft: TailoredResumeDraft;
   disabled?: boolean;
@@ -73,6 +77,8 @@ export function ResumeDraftSheet({
   /** Escape exit — clears edit presentation even if focus moves to zoom. */
   onForceExitEdit?: () => void;
   onEditModeChange?: (active: boolean) => void;
+  /** Desktop split expand → entry camera handoff. */
+  editEntryCameraApiRef?: MutableRefObject<ResumeEditEntryCameraApi | null>;
 }) {
   const sheet = useResumeDraftSheet({
     draft,
@@ -81,6 +87,7 @@ export function ResumeDraftSheet({
     lineEditing,
     onEditModeChange,
     viewportActive: !busyLabel,
+    editEntryCameraApiRef,
   });
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -137,7 +144,8 @@ export function ResumeDraftSheet({
     sheet.dismissRefine,
   ]);
 
-  // Whitespace / resume-other pointer exit (blur commits; don't preventDefault).
+  // Exterior whitespace exits edit. In-page gaps (between headers, same-row
+  // leftover) keep the current caret — preventDefault so the CE does not blur.
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -158,9 +166,19 @@ export function ResumeDraftSheet({
         }
       }
       if (!sheet.editMode) return;
-      const kind = classifyResumeEditTarget(event.target, root);
+      const kind = classifyResumeEditTarget(event.target, root, {
+        x: event.clientX,
+        y: event.clientY,
+      });
       // Zoom / toolbar = resume-local — change zoom, do not exit.
       if (kind !== "resume-other") return;
+      const pages = root.querySelector("[data-resume-pages]");
+      const insidePages =
+        target instanceof Node && pages != null && pages.contains(target);
+      if (insidePages) {
+        event.preventDefault();
+        return;
+      }
       onForceExitEdit?.();
       blurActiveEditable();
       if (sheet.refineFor) sheet.dismissRefine();

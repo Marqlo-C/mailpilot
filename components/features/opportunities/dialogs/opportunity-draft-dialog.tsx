@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { JobOpportunity } from "@/lib/generated/prisma/client";
 
 import { Loader } from "@/components/ui/loader";
@@ -27,6 +27,7 @@ import {
   useDraftSplitPane,
 } from "@/hooks/use-draft-split-pane";
 import { useResumeEditSplit } from "@/hooks/use-resume-edit-split";
+import type { ResumeEditEntryCameraApi } from "@/hooks/use-resume-draft-sheet";
 import { useToolbarMinWidthPx } from "@/hooks/use-toolbar-min-width";
 import {
   useDraftPdf,
@@ -85,14 +86,19 @@ export function OpportunityDraftDialog({
 
   const splitGroupRef = useGroupRef();
   const [resumeEditMode, setResumeEditMode] = useState(false);
+  const editEntryCameraApiRef = useRef<ResumeEditEntryCameraApi | null>(null);
   const onResumeEditModeChange = useCallback((active: boolean) => {
     setResumeEditMode(active);
+  }, []);
+  const onResumeExpanded = useCallback(() => {
+    editEntryCameraApiRef.current?.onExpanded();
   }, []);
   const { onLayoutChanged: onSplitLayoutChanged } = useResumeEditSplit({
     groupRef: splitGroupRef,
     enabled: open && isDesktopSplit && flow.attachResume,
     editMode: resumeEditMode,
     onUserLayoutChanged: onLayoutChanged,
+    onExpanded: onResumeExpanded,
   });
 
   // Capture-phase EXTERNAL exit: email pane, bottom Ace, footer, dialog chrome.
@@ -101,7 +107,10 @@ export function OpportunityDraftDialog({
     if (!open || !resumeEditMode) return;
     const onPointerDownCapture = (event: PointerEvent) => {
       const resumeRoot = document.querySelector("[data-resume-draft-root]");
-      const kind = classifyResumeEditTarget(event.target, resumeRoot);
+      const kind = classifyResumeEditTarget(event.target, resumeRoot, {
+        x: event.clientX,
+        y: event.clientY,
+      });
       if (kind !== "external" && kind !== "detached") return;
       const active = document.activeElement;
       if (
@@ -239,6 +248,7 @@ export function OpportunityDraftDialog({
       onUndo={() => void flow.handleResumeUndo()}
       onRedo={() => void flow.handleResumeRedo()}
       onEditModeChange={onResumeEditModeChange}
+      editEntryCameraApiRef={editEntryCameraApiRef}
     />
   ) : null;
 

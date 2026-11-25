@@ -85,6 +85,7 @@ export function DraftAttachControls({
           <FileSparklesIcon
             width={16}
             height={16}
+            strokeWidth={1.5}
             className="shrink-0 overflow-visible"
           />
         </Button>

@@ -57,7 +57,7 @@ export function RefinePanel({
     <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap">
       {attachResume ? (
         <SegmentedControl
-          size="sm"
+          size="xs"
           label="Ace AI target"
           value={effectiveRefineTarget}
           onChange={setRefineTarget}

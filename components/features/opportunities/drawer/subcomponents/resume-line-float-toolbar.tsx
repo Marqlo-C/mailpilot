@@ -50,34 +50,73 @@ function resumeSheetToolbarFloor(): number {
 }
 
 /**
+ * Visible canvas scrollport — body-portaled float must stay inside this clip
+ * or it paints over the email pane / dialog chrome when lines scroll away.
+ */
+function resumeCanvasClipRect(): DOMRect | null {
+  if (typeof document === "undefined") return null;
+  const el = document.querySelector("[data-resume-canvas-viewport]");
+  if (!(el instanceof HTMLElement)) return null;
+  const rect = el.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  return rect;
+}
+
+function rectsIntersect(
+  a: { top: number; left: number; width: number; height: number },
+  b: DOMRect
+): boolean {
+  return (
+    a.top + a.height > b.top &&
+    a.top < b.bottom &&
+    a.left + a.width > b.left &&
+    a.left < b.right
+  );
+}
+
+/**
  * Center above the first-line box; flip below when there is no room.
- * Never paint over the fixed resume toolbar — hide if the line is under it.
+ * Hide when the line leaves the canvas pane or sits under the fixed toolbar.
  */
 export function placeLineToolbar(
   anchor: ResumeLineFloatAnchor
 ): { top: number; left: number } | null {
-  const viewportW =
+  const windowW =
     typeof window !== "undefined" ? window.innerWidth : anchor.left + CHIP_W;
-  const viewportH =
+  const windowH =
     typeof window !== "undefined" ? window.innerHeight : anchor.top + CHIP_H;
-  const minTop = resumeSheetToolbarFloor();
+  const clip = resumeCanvasClipRect();
 
-  // Line fully scrolled under the fixed chrome — don't float on top of it.
+  // Line scrolled out of the resume canvas — don't float over sibling panes.
+  if (clip && !rectsIntersect(anchor, clip)) return null;
+
+  const minTop = Math.max(
+    resumeSheetToolbarFloor(),
+    clip ? clip.top + VIEWPORT_PAD : VIEWPORT_PAD
+  );
+  const maxBottom = clip
+    ? clip.bottom - VIEWPORT_PAD
+    : windowH - VIEWPORT_PAD;
+  const minLeft = clip ? clip.left + VIEWPORT_PAD : VIEWPORT_PAD;
+  const maxRight = clip ? clip.right - VIEWPORT_PAD : windowW - VIEWPORT_PAD;
+
+  // Line fully under the fixed chrome / above the clip — hide.
   if (anchor.top + anchor.height <= minTop) return null;
+  if (anchor.top >= maxBottom) return null;
 
   const aboveTop = anchor.top - CHIP_H - CHIP_GAP;
   const belowTop = anchor.top + anchor.height + CHIP_GAP;
   let top =
     aboveTop >= minTop
       ? aboveTop
-      : Math.min(belowTop, viewportH - CHIP_H - VIEWPORT_PAD);
+      : Math.min(belowTop, maxBottom - CHIP_H);
   if (top < minTop) top = minTop;
-  if (top + CHIP_H > viewportH - VIEWPORT_PAD) return null;
+  if (top + CHIP_H > maxBottom) return null;
 
   const idealLeft = anchor.left + anchor.width / 2 - CHIP_W / 2;
   const left = Math.min(
-    Math.max(VIEWPORT_PAD, idealLeft),
-    viewportW - CHIP_W - VIEWPORT_PAD
+    Math.max(minLeft, idealLeft),
+    Math.max(minLeft, maxRight - CHIP_W)
   );
   return { top, left };
 }
@@ -102,7 +141,7 @@ function ToolbarIcon({
       // Keep contenteditable focus until click — otherwise blur kills the float.
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
-      className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-[#6b7280] transition-colors hover:bg-[#F3F4F6] hover:text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
+      className="flex size-6 cursor-pointer items-center justify-center rounded-lg text-[#6b7280] transition-colors hover:bg-[#F3F4F6] hover:text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
     >
       {children}
     </button>
@@ -153,7 +192,7 @@ export function ResumeLineFloatToolbar({
         role="toolbar"
         aria-label={`${label} actions`}
         className={cn(
-          "flex cursor-default items-center gap-0.5 rounded-md border border-[#E5E7EB] bg-white p-0.5 shadow-sm",
+          "flex cursor-default items-center gap-0.5 rounded-lg border border-[#E5E7EB] bg-white p-0.5 shadow-sm",
           "animate-in fade-in-0 zoom-in-95 duration-100"
         )}
       >

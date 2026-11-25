@@ -303,49 +303,82 @@ export type SegmentedControlOption<T extends string> = {
   label: ReactNode;
 };
 
-type SegmentedControlProps<T extends string> = {
-  value: T;
-  onChange: (next: T) => void;
+type SegmentedControlSize = "xs" | "sm" | "md";
+
+type SegmentedControlSharedProps<T extends string> = {
   options: readonly SegmentedControlOption<T>[];
-  /** Accessible name for the radiogroup. */
+  /** Accessible name for the group. */
   label: string;
   disabled?: boolean;
   /**
+   * `xs` — same h-8 shell as `sm`, tighter label padding.
    * `sm` — dense toolbar chips (Ace Email/Resume).
    * `md` — full tab-rail language (settings appearance, etc.).
    */
-  size?: "sm" | "md";
+  size?: SegmentedControlSize;
   className?: string;
 };
 
+type SegmentedControlSingleProps<T extends string> =
+  SegmentedControlSharedProps<T> & {
+    /** Exclusive selection (default). */
+    multiple?: false;
+    value: T;
+    onChange: (next: T) => void;
+  };
+
+type SegmentedControlMultipleProps<T extends string> =
+  SegmentedControlSharedProps<T> & {
+    /** Independent chip presses — any subset may be active (bold+italic, …). */
+    multiple: true;
+    value: readonly T[];
+    onChange: (next: T[]) => void;
+  };
+
+export type SegmentedControlProps<T extends string> =
+  | SegmentedControlSingleProps<T>
+  | SegmentedControlMultipleProps<T>;
+
 /**
- * Compact radiogroup that reuses the light/dark tab-rail chip language so
- * two-option toggles match Jobs/Settings rails instead of ad-hoc border pills.
+ * Compact control that reuses the light/dark tab-rail chip language so
+ * toolbars match Jobs/Settings rails instead of ad-hoc border pills.
+ *
+ * Single mode is a radiogroup; `multiple` is a toggle group (aria-pressed).
  */
-export function SegmentedControl<T extends string>({
-  value,
-  onChange,
-  options,
-  label,
-  disabled = false,
-  size = "md",
-  className,
-}: SegmentedControlProps<T>) {
+export function SegmentedControl<T extends string>(
+  props: SegmentedControlProps<T>
+) {
+  const {
+    options,
+    label,
+    disabled = false,
+    size = "md",
+    className,
+    multiple = false,
+    value,
+    onChange,
+  } = props;
   const tabRail = useTabRailClasses();
   // Compact controls sit on light dialog/toolbar chrome — always match the
   // light zoom/rail language, never the dark Jobs/Settings page rail.
-  const listClassName =
-    size === "sm" ? lightRailListClassName : tabRail.listClassName;
-  const triggerClassName =
-    size === "sm" ? lightRailTriggerClassName : tabRail.triggerClassName;
+  const isCompact = size === "xs" || size === "sm";
+  const listClassName = isCompact
+    ? lightRailListClassName
+    : tabRail.listClassName;
+  const triggerClassName = isCompact
+    ? lightRailTriggerClassName
+    : tabRail.triggerClassName;
 
-  const isCompact = size === "sm";
+  const isActive = (optionValue: T) =>
+    multiple
+      ? (value as readonly T[]).includes(optionValue)
+      : (value as T) === optionValue;
 
   return (
     <div
       className={cn(
         listClassName,
-        // Dense sm rail: gap-2 + -right-1.5 edge (full rail keeps gap-2.5 / -right-2).
+        // Dense rails: same h-8 shell; xs only tightens trigger label padding.
         isCompact &&
           "h-8 max-w-none gap-2 overflow-visible rounded-lg p-0.5 pr-2.5 shadow-sm",
         className
@@ -353,31 +386,47 @@ export function SegmentedControl<T extends string>({
       // Compact dialog controls must stay light — omit data-mp-tab-rail so
       // html[data-mp-tab-rail=dark] CSS does not force the navy page rail.
       {...(!isCompact ? { "data-mp-tab-rail": "" } : {})}
-      role="radiogroup"
+      role={multiple ? "group" : "radiogroup"}
       aria-label={label}
     >
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={value === option.value}
-          data-state={value === option.value ? "active" : "inactive"}
-          className={cn(
-            triggerClassName,
-            "disabled:pointer-events-none disabled:opacity-50",
-            isCompact &&
-              "px-2 py-1 text-xs data-[state=active]:before:-right-1.5"
-          )}
-          disabled={disabled}
-          onClick={() => {
-            if (disabled) return;
-            onChange(option.value);
-          }}
-        >
-          {option.label}
-        </button>
-      ))}
+      {options.map((option) => {
+        const active = isActive(option.value);
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role={multiple ? "button" : "radio"}
+            aria-checked={multiple ? undefined : active}
+            aria-pressed={multiple ? active : undefined}
+            data-state={active ? "active" : "inactive"}
+            className={cn(
+              triggerClassName,
+              "disabled:pointer-events-none disabled:opacity-50",
+              isCompact &&
+                "py-1 text-xs data-[state=active]:before:-right-1.5",
+              size === "xs" && "px-1.5",
+              size === "sm" && "px-2"
+            )}
+            disabled={disabled}
+            // Keep contenteditable / TipTap selection when used in draft toolbars.
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              if (disabled) return;
+              if (multiple) {
+                const selected = value as readonly T[];
+                const next = selected.includes(option.value)
+                  ? selected.filter((entry) => entry !== option.value)
+                  : [...selected, option.value];
+                (onChange as (next: T[]) => void)(next);
+                return;
+              }
+              (onChange as (next: T) => void)(option.value);
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

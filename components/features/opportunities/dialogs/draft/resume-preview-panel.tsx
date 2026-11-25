@@ -1,4 +1,11 @@
-import React, { useCallback, useRef, useState, type Ref } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type Ref,
+} from "react";
 import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/composites/empty-state";
@@ -6,6 +13,7 @@ import { LoadSkeletonStack } from "@/components/ui/composites/load-skeleton-stac
 import { ResumeDraftSheet } from "@/components/features/opportunities/drawer/resume-draft-sheet";
 import { ResumeStrategyPanel } from "@/components/features/opportunities/drawer/subcomponents/resume-strategy-panel";
 import { useContentSettleKey } from "@/hooks/use-content-settle-key";
+import type { ResumeEditEntryCameraApi } from "@/hooks/use-resume-draft-sheet";
 import type { OpportunityResumePreview } from "@/app/actions/opportunities";
 import { classifyResumeEditTarget } from "@/lib/resume-draft/edit-presentation";
 import { cn } from "@/lib/utils";
@@ -50,6 +58,7 @@ export function ResumePreviewPanel({
   onUndo,
   onRedo,
   onEditModeChange,
+  editEntryCameraApiRef,
 }: {
   resumeBusy: boolean;
   resumeBusyLabel: string | null;
@@ -79,17 +88,33 @@ export function ResumePreviewPanel({
   onRedo?: () => void;
   /** Desktop split: Ace-on-line or contenteditable focus → expand resume. */
   onEditModeChange?: (active: boolean) => void;
+  /** Split expand → entry camera handoff. */
+  editEntryCameraApiRef?: MutableRefObject<ResumeEditEntryCameraApi | null>;
 }) {
   const showEmptyGenerateState = resumeBusy && !resume;
   const settleKey = useContentSettleKey(resumeBusy);
   const [editingFocused, setEditingFocused] = useState(false);
   /** Escape exit — ignore the next focus that would re-enter edit mode. */
   const escapeExitRef = useRef(false);
+  /**
+   * Blur→focus hops (A→B, flatten, lerp re-render) briefly clear activeElement.
+   * One rAF was too short and pulsed editMode false → split restore (shrink).
+   */
+  const blurExitTimerRef = useRef<number | null>(null);
+
+  const clearBlurExitTimer = useCallback(() => {
+    if (blurExitTimerRef.current === null) return;
+    window.clearTimeout(blurExitTimerRef.current);
+    blurExitTimerRef.current = null;
+  }, []);
 
   const forceExitEdit = useCallback(() => {
     escapeExitRef.current = true;
+    clearBlurExitTimer();
     setEditingFocused(false);
-  }, []);
+  }, [clearBlurExitTimer]);
+
+  useEffect(() => () => clearBlurExitTimer(), [clearBlurExitTimer]);
 
   return (
     <div
@@ -99,6 +124,7 @@ export function ResumePreviewPanel({
         embedded && editingFocused && COMPOSER_SPLIT_PLATE_FOCUS_CLASSNAME
       )}
       onFocusCapture={(event) => {
+        clearBlurExitTimer();
         if (escapeExitRef.current) {
           escapeExitRef.current = false;
           return;
@@ -110,8 +136,9 @@ export function ResumePreviewPanel({
       }}
       onBlurCapture={(event) => {
         const plate = event.currentTarget;
-        // Hop A→B: defer one frame; stay only if another editable still holds focus.
-        requestAnimationFrame(() => {
+        clearBlurExitTimer();
+        blurExitTimerRef.current = window.setTimeout(() => {
+          blurExitTimerRef.current = null;
           if (escapeExitRef.current) {
             escapeExitRef.current = false;
             setEditingFocused(false);
@@ -124,7 +151,9 @@ export function ResumePreviewPanel({
             return;
           }
           setEditingFocused(false);
-        });
+          // Entry lerp / layout thrash can clear activeElement longer than one
+          // frame; 200ms avoids pulsing the split restore mid-edit.
+        }, 200);
       }}
     >
       <div
@@ -176,6 +205,7 @@ export function ResumePreviewPanel({
             lineEditing={editingFocused}
             onForceExitEdit={forceExitEdit}
             onEditModeChange={onEditModeChange}
+            editEntryCameraApiRef={editEntryCameraApiRef}
           />
         ) : resume && resumePdfUrl ? (
           <>

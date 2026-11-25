@@ -186,7 +186,7 @@ export function ResumeDraftToolbar({
             }}
           >
             <SegmentedControl
-              size="sm"
+              size="xs"
               label="Resume zoom"
               // Freeform (pinch / typed) uses a non-option value → no chip active.
               value={

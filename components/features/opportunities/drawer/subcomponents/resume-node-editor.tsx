@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import type { ResumeDraftNode } from "@/lib/resume-draft";
+import {
+  RESUME_EDIT_TEXT_HIT_PAD_PX,
+  pointNearEditableLineText,
+} from "@/lib/resume-draft/edit-presentation";
 import { skillCategoryLabel } from "@/lib/profile/skill-groups";
 import { formatEducationDates } from "@/lib/utils/format";
 
@@ -69,8 +73,14 @@ export function EditableLine({
   const renderHtmlRef = useRef(renderHtml);
   /** Holds post-blur text until the saved `value` prop catches up — prevents a pre-edit flash. */
   const pendingCommitRef = useRef<string | null>(null);
-  valueRef.current = value;
-  renderHtmlRef.current = renderHtml;
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  useEffect(() => {
+    renderHtmlRef.current = renderHtml;
+  }, [renderHtml]);
 
   function writeDom(el: HTMLElement, text: string) {
     const html = renderHtmlRef.current;
@@ -90,7 +100,11 @@ export function EditableLine({
     const el = ref.current;
     if (!el || document.activeElement === el) return;
     if (pendingCommitRef.current !== null) {
-      if (value !== pendingCommitRef.current) return;
+      if (value !== pendingCommitRef.current) {
+        // Parent still catching up — re-assert HTML so a hop cannot leave us flat.
+        writeDom(el, pendingCommitRef.current);
+        return;
+      }
       pendingCommitRef.current = null;
     }
     writeDom(el, value);
@@ -107,6 +121,16 @@ export function EditableLine({
     el.textContent = pendingCommitRef.current ?? valueRef.current;
   }
 
+  /** Restore bold/muted markup after edit; re-assert post-paint (chrome re-render). */
+  function restoreDomAfterBlur(el: HTMLElement, text: string) {
+    writeDom(el, text);
+    requestAnimationFrame(() => {
+      const node = ref.current;
+      if (!node || document.activeElement === node) return;
+      writeDom(node, pendingCommitRef.current ?? text);
+    });
+  }
+
   const Tag = as;
   return (
     <Tag
@@ -119,6 +143,17 @@ export function EditableLine({
       style={style}
       onPointerDown={(event) => {
         if (disabled || event.button !== 0) return;
+        // Off-glyph clicks (padding / odd hit boxes) are whitespace — don't focus.
+        if (
+          !pointNearEditableLineText(
+            event.currentTarget,
+            { x: event.clientX, y: event.clientY },
+            RESUME_EDIT_TEXT_HIT_PAD_PX
+          )
+        ) {
+          event.preventDefault();
+          return;
+        }
         flattenHtmlForEdit(event.currentTarget);
       }}
       onFocus={() => {
@@ -135,7 +170,7 @@ export function EditableLine({
         } else {
           pendingCommitRef.current = null;
         }
-        writeDom(event.currentTarget, next);
+        restoreDomAfterBlur(event.currentTarget, next);
         onEditEnd?.();
       }}
       onKeyDown={(event) => {

@@ -16,7 +16,21 @@ export const RESUME_ZOOM_MAX = 3;
 /** Percent steppers / typed field step (1%). */
 export const RESUME_ZOOM_PERCENT_STEP = 1;
 
+/**
+ * First edit-entry camera target (125%). Applied as `"custom"` via
+ * `applyManualZoom` so Fit/100/125 chips stay honest.
+ */
+export const RESUME_EDIT_ENTRY_ZOOM = 1.25;
+
+/** rAF entry lerp duration (ms) — scale + scroll together. */
+export const RESUME_EDIT_ENTRY_LERP_MS = 220;
+
 export type ResumeEditScreenPoint = { x: number; y: number };
+
+/** Unscaled page-space point under `transform-origin: 0 0`. */
+export type ResumeEditPageLocal = { x: number; y: number };
+
+export type ResumeEditScroll = { scrollLeft: number; scrollTop: number };
 
 export type ResumeEditRect = {
   x: number;
@@ -82,6 +96,12 @@ export type ResumeEditTargetClass =
   | "external"
   | "detached";
 
+/**
+ * Extra px around glyph client-rects for edit hit-testing (hover / click).
+ * Matches the float highlight geometry with a little aim forgiveness.
+ */
+export const RESUME_EDIT_TEXT_HIT_PAD_PX = 6;
+
 /** DOM-free probe for {@link classifyResumeEditProbe} hermetic tests. */
 export type ResumeEditTargetProbe = {
   isResumeLocal: boolean;
@@ -91,12 +111,43 @@ export type ResumeEditTargetProbe = {
   isContentEditablePath: boolean;
   /** The line host contains a contenteditable (e.g. skills label + text). */
   lineHasContentEditable: boolean;
+  /**
+   * Pointer is within padded editable glyph rects.
+   * `null` when no pointer (focus path) — do not infer from the line box alone.
+   */
+  nearEditableText: boolean | null;
   /** Target is inside the resume draft root (canvas whitespace, padding, …). */
   insideResumeRoot: boolean;
 };
 
 /**
+ * True when `point` lies inside any rect expanded by `padPx`.
+ */
+export function pointHitsPaddedRects(
+  point: ResumeEditScreenPoint,
+  rects: readonly ResumeEditRect[],
+  padPx: number
+): boolean {
+  for (const rect of rects) {
+    if (rect.width <= 0 && rect.height <= 0) continue;
+    if (
+      point.x >= rect.x - padPx &&
+      point.x <= rect.x + rect.width + padPx &&
+      point.y >= rect.y - padPx &&
+      point.y <= rect.y + rect.height + padPx
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Pure classifier — no DOM. Used by {@link classifyResumeEditTarget} and tests.
+ *
+ * Edit hits must be on/near glyph boxes (or a focused contenteditable path
+ * without a pointer). Same-row whitespace on a full-width line host is
+ * `resume-other`, not `editable`.
  */
 export function classifyResumeEditProbe(
   probe: ResumeEditTargetProbe | null,
@@ -106,9 +157,10 @@ export function classifyResumeEditProbe(
   if (!probe) return "external";
   if (probe.isResumeLocal) return "resume-local";
   if (probe.inResumeLine) {
-    if (probe.isContentEditablePath || probe.lineHasContentEditable) {
-      return "editable";
-    }
+    if (probe.nearEditableText === true) return "editable";
+    if (probe.nearEditableText === false) return "resume-other";
+    // Focus / keyboard: only the contenteditable path counts — not the row box.
+    if (probe.isContentEditablePath) return "editable";
     return "resume-other";
   }
   if (probe.insideResumeRoot) return "resume-other";
@@ -118,10 +170,12 @@ export function classifyResumeEditProbe(
 /**
  * Classify a DOM target for edit-mode enter/stay/exit.
  * `resumeRoot` is `[data-resume-draft-root]`; null ⇒ detached context.
+ * Pass `point` on pointer events so same-row whitespace is not treated as text.
  */
 export function classifyResumeEditTarget(
   target: EventTarget | null,
-  resumeRoot: Element | null
+  resumeRoot: Element | null,
+  point?: ResumeEditScreenPoint | null
 ): ResumeEditTargetClass {
   if (!resumeRoot) return "detached";
   if (!(target instanceof Element)) {
@@ -145,16 +199,61 @@ export function classifyResumeEditTarget(
     line?.querySelector("[contenteditable='true']")
   );
 
+  let nearEditableText: boolean | null = null;
+  if (point && inResumeLine && line instanceof HTMLElement) {
+    nearEditableText = pointNearEditableLineText(
+      line,
+      point,
+      RESUME_EDIT_TEXT_HIT_PAD_PX
+    );
+  }
+
   return classifyResumeEditProbe(
     {
       isResumeLocal,
       inResumeLine,
       isContentEditablePath,
       lineHasContentEditable,
+      nearEditableText,
       insideResumeRoot: resumeRoot.contains(target),
     },
     true
   );
+}
+
+/**
+ * Hit-test against the same glyph client-rects the float highlight uses.
+ * `line` is a `[data-resume-line]` host (or the contenteditable itself).
+ */
+export function pointNearEditableLineText(
+  line: HTMLElement,
+  point: ResumeEditScreenPoint,
+  padPx: number = RESUME_EDIT_TEXT_HIT_PAD_PX
+): boolean {
+  const editable = resolveLineEditableElement(line);
+  if (!editable) return false;
+  const rects = Array.from(editable.getClientRects()).map((r) => ({
+    x: r.x,
+    y: r.y,
+    width: r.width,
+    height: r.height,
+  }));
+  if (rects.length === 0) {
+    const b = editable.getBoundingClientRect();
+    rects.push({ x: b.x, y: b.y, width: b.width, height: b.height });
+  }
+  return pointHitsPaddedRects(point, rects, padPx);
+}
+
+function resolveLineEditableElement(line: HTMLElement): HTMLElement | null {
+  if (
+    line.isContentEditable ||
+    line.getAttribute("contenteditable") === "true"
+  ) {
+    return line;
+  }
+  const inner = line.querySelector("[contenteditable='true']");
+  return inner instanceof HTMLElement ? inner : null;
 }
 
 /**
@@ -201,4 +300,136 @@ export function resolveEditableAnchorRect(args: {
 }): ResumeEditRect {
   if (args.clientRects.length === 0) return args.boundingRect;
   return args.clientRects[0];
+}
+
+/**
+ * Linear interpolate scalar `a → b` by `t` in `[0, 1]` (clamped).
+ */
+export function lerp(a: number, b: number, t: number): number {
+  const u = Math.min(1, Math.max(0, t));
+  return a + (b - a) * u;
+}
+
+/**
+ * Apple-snappy ease (`cubic-bezier(0.25, 1, 0.5, 1)`) sampled for rAF lerps.
+ * Approximate closed form — not a full Bezier solver.
+ */
+export function easeAppleSnappy(t: number): number {
+  const u = Math.min(1, Math.max(0, t));
+  // 1 - (1-t)^3 closely matches the snappy ease for UI camera moves.
+  const inv = 1 - u;
+  return 1 - inv * inv * inv;
+}
+
+/**
+ * Screen → page-local under `transform-origin: 0 0`.
+ * `pagesOrigin` is the live `[data-resume-pages]` getBoundingClientRect origin.
+ */
+export function screenToPageLocal(
+  screen: ResumeEditScreenPoint,
+  pagesOrigin: ResumeEditScreenPoint,
+  scale: number
+): ResumeEditPageLocal {
+  const s = scale === 0 || !Number.isFinite(scale) ? 1 : scale;
+  return {
+    x: (screen.x - pagesOrigin.x) / s,
+    y: (screen.y - pagesOrigin.y) / s,
+  };
+}
+
+/**
+ * Page-local → screen under `transform-origin: 0 0` at the live pages origin.
+ */
+export function pageLocalToScreen(
+  local: ResumeEditPageLocal,
+  pagesOrigin: ResumeEditScreenPoint,
+  scale: number
+): ResumeEditScreenPoint {
+  return {
+    x: pagesOrigin.x + local.x * scale,
+    y: pagesOrigin.y + local.y * scale,
+  };
+}
+
+/**
+ * Project a content-local point to screen given viewport geometry + scroll.
+ *
+ * Model (origin `0 0`):
+ * `screen = viewportOrigin + pagesContentOrigin - scroll + contentLocal * scale`
+ */
+export function projectContentPointToScreen(args: {
+  contentLocal: ResumeEditPageLocal;
+  viewportOrigin: ResumeEditScreenPoint;
+  /**
+   * Pages origin inside the scrollable content at this scale
+   * (`pagesRect - viewportRect + scroll`).
+   */
+  pagesContentOrigin: ResumeEditScreenPoint;
+  scrollLeft: number;
+  scrollTop: number;
+  scale: number;
+}): ResumeEditScreenPoint {
+  const {
+    contentLocal,
+    viewportOrigin,
+    pagesContentOrigin,
+    scrollLeft,
+    scrollTop,
+    scale,
+  } = args;
+  return {
+    x:
+      viewportOrigin.x +
+      pagesContentOrigin.x -
+      scrollLeft +
+      contentLocal.x * scale,
+    y:
+      viewportOrigin.y +
+      pagesContentOrigin.y -
+      scrollTop +
+      contentLocal.y * scale,
+  };
+}
+
+/**
+ * Solve scroll so `contentLocal` lands under `mouseScreen` at `scale`.
+ * Clamped to `[0, maxScroll*]`. Scroll only — no sheet margin residual.
+ */
+export function scrollForContentPointAtScreen(args: {
+  contentLocal: ResumeEditPageLocal;
+  mouseScreen: ResumeEditScreenPoint;
+  viewportOrigin: ResumeEditScreenPoint;
+  pagesContentOrigin: ResumeEditScreenPoint;
+  scale: number;
+  maxScrollLeft: number;
+  maxScrollTop: number;
+}): ResumeEditScroll {
+  const {
+    contentLocal,
+    mouseScreen,
+    viewportOrigin,
+    pagesContentOrigin,
+    scale,
+    maxScrollLeft,
+    maxScrollTop,
+  } = args;
+
+  const rawLeft =
+    viewportOrigin.x +
+    pagesContentOrigin.x +
+    contentLocal.x * scale -
+    mouseScreen.x;
+  const rawTop =
+    viewportOrigin.y +
+    pagesContentOrigin.y +
+    contentLocal.y * scale -
+    mouseScreen.y;
+
+  const maxL = Math.max(0, maxScrollLeft);
+  const maxT = Math.max(0, maxScrollTop);
+
+  return {
+    scrollLeft: Math.min(maxL, Math.max(0, rawLeft)),
+    scrollTop: Math.min(maxT, Math.max(0, rawTop)),
+  };
 }

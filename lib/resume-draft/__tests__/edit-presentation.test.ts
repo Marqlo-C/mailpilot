@@ -3,6 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   classifyResumeEditProbe,
   clampResumeZoom,
+  easeAppleSnappy,
+  lerp,
+  pageLocalToScreen,
+  pointHitsPaddedRects,
+  projectContentPointToScreen,
+  RESUME_EDIT_ENTRY_ZOOM,
   resolveEditScreenAnchor,
   resolveEditableAnchorRect,
   resolveEditableMeasureTarget,
@@ -10,6 +16,8 @@ import {
   resumeDisplayZoomChoice,
   resumeEffectiveZoom,
   resumeZoomPercent,
+  screenToPageLocal,
+  scrollForContentPointAtScreen,
   type ResumeEditTargetProbe,
 } from "@/lib/resume-draft/edit-presentation";
 
@@ -67,6 +75,7 @@ describe("classifyResumeEditProbe", () => {
     inResumeLine: false,
     isContentEditablePath: false,
     lineHasContentEditable: false,
+    nearEditableText: null,
     insideResumeRoot: false,
   };
 
@@ -79,7 +88,7 @@ describe("classifyResumeEditProbe", () => {
     expect(classifyResumeEditProbe(null, true)).toBe("external");
   });
 
-  it("classifies contenteditable lines as editable", () => {
+  it("classifies focused contenteditable paths as editable", () => {
     expect(
       classifyResumeEditProbe(
         { ...base, inResumeLine: true, isContentEditablePath: true },
@@ -88,7 +97,7 @@ describe("classifyResumeEditProbe", () => {
     ).toBe("editable");
   });
 
-  it("treats skills label host with inner editable as editable", () => {
+  it("treats same-row whitespace (line host, not near glyphs) as resume-other", () => {
     expect(
       classifyResumeEditProbe(
         {
@@ -96,6 +105,32 @@ describe("classifyResumeEditProbe", () => {
           inResumeLine: true,
           isContentEditablePath: false,
           lineHasContentEditable: true,
+          nearEditableText: false,
+        },
+        true
+      )
+    ).toBe("resume-other");
+    expect(
+      classifyResumeEditProbe(
+        {
+          ...base,
+          inResumeLine: true,
+          lineHasContentEditable: true,
+          nearEditableText: null,
+        },
+        true
+      )
+    ).toBe("resume-other");
+  });
+
+  it("treats pointer near editable glyphs as editable even off the CE path", () => {
+    expect(
+      classifyResumeEditProbe(
+        {
+          ...base,
+          inResumeLine: true,
+          lineHasContentEditable: true,
+          nearEditableText: true,
         },
         true
       )
@@ -113,6 +148,24 @@ describe("classifyResumeEditProbe", () => {
       classifyResumeEditProbe({ ...base, insideResumeRoot: true }, true)
     ).toBe("resume-other");
     expect(classifyResumeEditProbe(base, true)).toBe("external");
+  });
+});
+
+describe("pointHitsPaddedRects", () => {
+  it("hits inside pad and misses beyond it", () => {
+    const rects = [{ x: 100, y: 50, width: 80, height: 16 }];
+    expect(
+      pointHitsPaddedRects({ x: 100, y: 50 }, rects, 6)
+    ).toBe(true);
+    expect(
+      pointHitsPaddedRects({ x: 94, y: 58 }, rects, 6)
+    ).toBe(true);
+    expect(
+      pointHitsPaddedRects({ x: 93, y: 58 }, rects, 6)
+    ).toBe(false);
+    expect(
+      pointHitsPaddedRects({ x: 200, y: 58 }, rects, 6)
+    ).toBe(false);
   });
 });
 
@@ -170,5 +223,97 @@ describe("resolveEditableMeasureTarget / anchor rects", () => {
         firstLine,
       })
     ).toEqual({ x: 100, y: 108 });
+  });
+});
+
+describe("content-local projection / scroll solve", () => {
+  it("exposes the 125% edit-entry zoom constant", () => {
+    expect(RESUME_EDIT_ENTRY_ZOOM).toBeCloseTo(1.25);
+  });
+
+  it("round-trips screen ↔ page-local under origin 0 0", () => {
+    const pagesOrigin = { x: 120, y: 80 };
+    const scale = 0.7;
+    const screen = { x: 260, y: 220 };
+    const local = screenToPageLocal(screen, pagesOrigin, scale);
+    expect(local.x).toBeCloseTo((260 - 120) / 0.7);
+    expect(local.y).toBeCloseTo((220 - 80) / 0.7);
+    const back = pageLocalToScreen(local, pagesOrigin, scale);
+    expect(back.x).toBeCloseTo(screen.x);
+    expect(back.y).toBeCloseTo(screen.y);
+  });
+
+  it("scroll solve puts the projected point on the mouse at entry zoom", () => {
+    // Numbers chosen so the unclamped solve is well inside [0, max].
+    const contentLocal = { x: 400, y: 500 };
+    const mouseScreen = { x: 520, y: 280 };
+    const viewportOrigin = { x: 200, y: 80 };
+    const pagesContentOrigin = { x: 40, y: 16 };
+    const scale = RESUME_EDIT_ENTRY_ZOOM;
+
+    const scroll = scrollForContentPointAtScreen({
+      contentLocal,
+      mouseScreen,
+      viewportOrigin,
+      pagesContentOrigin,
+      scale,
+      maxScrollLeft: 2000,
+      maxScrollTop: 2000,
+    });
+
+    expect(scroll.scrollLeft).toBeGreaterThan(0);
+    expect(scroll.scrollTop).toBeGreaterThan(0);
+
+    const projected = projectContentPointToScreen({
+      contentLocal,
+      viewportOrigin,
+      pagesContentOrigin,
+      scrollLeft: scroll.scrollLeft,
+      scrollTop: scroll.scrollTop,
+      scale,
+    });
+
+    expect(projected.x).toBeCloseTo(mouseScreen.x);
+    expect(projected.y).toBeCloseTo(mouseScreen.y);
+  });
+
+  it("clamps scroll when the solve hits 0 or max", () => {
+    const viewportOrigin = { x: 0, y: 0 };
+    const pagesContentOrigin = { x: 0, y: 0 };
+
+    const atFloor = scrollForContentPointAtScreen({
+      contentLocal: { x: 10, y: 10 },
+      mouseScreen: { x: 900, y: 900 },
+      viewportOrigin,
+      pagesContentOrigin,
+      scale: RESUME_EDIT_ENTRY_ZOOM,
+      maxScrollLeft: 500,
+      maxScrollTop: 500,
+    });
+    expect(atFloor.scrollLeft).toBe(0);
+    expect(atFloor.scrollTop).toBe(0);
+
+    const atCeil = scrollForContentPointAtScreen({
+      contentLocal: { x: 800, y: 800 },
+      mouseScreen: { x: 0, y: 0 },
+      viewportOrigin,
+      pagesContentOrigin,
+      scale: RESUME_EDIT_ENTRY_ZOOM,
+      maxScrollLeft: 200,
+      maxScrollTop: 150,
+    });
+    expect(atCeil.scrollLeft).toBe(200);
+    expect(atCeil.scrollTop).toBe(150);
+  });
+
+  it("lerp and easeAppleSnappy stay in range", () => {
+    expect(lerp(0, 100, 0)).toBe(0);
+    expect(lerp(0, 100, 1)).toBe(100);
+    expect(lerp(0, 100, 0.5)).toBe(50);
+    expect(lerp(10, 20, -1)).toBe(10);
+    expect(lerp(10, 20, 2)).toBe(20);
+    expect(easeAppleSnappy(0)).toBe(0);
+    expect(easeAppleSnappy(1)).toBe(1);
+    expect(easeAppleSnappy(0.5)).toBeGreaterThan(0.5);
   });
 });

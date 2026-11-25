@@ -98,6 +98,7 @@ export function ResumeDraftCanvas({
   return (
     <div
       ref={viewportRef}
+      data-resume-canvas-viewport=""
       // pan only — browser page-pinch disabled so our ctrl/touch handlers own zoom.
       className="flex h-full min-h-0 w-full max-w-full flex-1 touch-pan-x touch-pan-y overflow-auto bg-background/75 p-3"
     >

@@ -3,6 +3,10 @@
 import type { ReactNode } from "react";
 
 import type { ResumeDraftNode } from "@/lib/resume-draft";
+import {
+  RESUME_EDIT_TEXT_HIT_PAD_PX,
+  pointNearEditableLineText,
+} from "@/lib/resume-draft/edit-presentation";
 import { RESUME_TYPOGRAPHY } from "@/lib/resume-draft/layout.schema";
 import { cn } from "@/lib/utils";
 
@@ -87,7 +91,34 @@ function SkillGroupSpan({
           Chrome target is the editable only — not the bold label — so the
           float centers above skill text (first line if the group wraps).
         */}
-        <span ref={lineRef} {...lineTargetProps} className="inline">
+        <span
+          ref={lineRef}
+          {...lineTargetProps}
+          className="inline"
+          style={{
+            padding: RESUME_EDIT_TEXT_HIT_PAD_PX,
+            margin: -RESUME_EDIT_TEXT_HIT_PAD_PX,
+          }}
+          onPointerDown={(event) => {
+            if (disabled || event.button !== 0) return;
+            const host = event.currentTarget;
+            const ce = host.querySelector("[contenteditable='true']");
+            if (!(ce instanceof HTMLElement)) return;
+            if (event.target === ce || ce.contains(event.target as Node)) {
+              return;
+            }
+            if (
+              !pointNearEditableLineText(host, {
+                x: event.clientX,
+                y: event.clientY,
+              })
+            ) {
+              return;
+            }
+            event.preventDefault();
+            ce.focus();
+          }}
+        >
           <EditableLine
             as="span"
             value={node.content}

@@ -4,6 +4,10 @@ import type { ReactNode } from "react";
 
 import type { ResumeDraftNode } from "@/lib/resume-draft";
 import {
+  RESUME_EDIT_TEXT_HIT_PAD_PX,
+  pointNearEditableLineText,
+} from "@/lib/resume-draft/edit-presentation";
+import {
   RESUME_SPACING,
   RESUME_TYPOGRAPHY,
 } from "@/lib/resume-draft/layout.schema";
@@ -85,7 +89,6 @@ export function ResumeDraftNodeBlock({
         </h3>
       ) : null}
       <div
-        {...targetProps}
         className="relative"
         style={{
           marginBottom: bullet
@@ -133,54 +136,89 @@ export function ResumeDraftNodeBlock({
               (bullet || role || isEducation) && "flex-1"
             )}
           >
-            <EditableLine
-              value={content}
-              disabled={disabled}
-              commitOnEnter
-              renderHtml={
-                isEducation
-                  ? renderEducationHtml
-                  : isExperience
-                    ? renderExperienceHtml
-                    : undefined
-              }
-              onEditStart={editProps.onEditStart}
-              onEditEnd={editProps.onEditEnd}
-              onCommit={(next) => onCommit(node.id, next)}
-              className={cn(
-                // Inline + box-decoration-clone: wash follows glyph runs, not the
-                // full flex line box (multiline bullets used to paint trailing empty).
-                "inline max-w-full whitespace-pre-wrap break-normal rounded-sm box-decoration-clone outline-none transition-colors focus:bg-[#f8fafc]",
-                highlighted && "bg-[#111827]/[0.05]",
-                role && !isExperience && "font-bold",
-                node.type === "header" && "font-bold leading-tight text-center",
-                node.type !== "header" &&
-                  node.section === "contact" &&
-                  "tracking-tight text-[#374151] text-center",
-                node.section === "summary" && "text-[#111827]",
-                bullet && "text-[#111827]"
-              )}
+            {/*
+              Inline chrome target = glyph boxes only (skills pattern). A block
+              host here would re-capture same-row flex whitespace as "editable".
+            */}
+            <span
+              {...targetProps}
+              className="inline max-w-full"
               style={{
-                fontSize:
-                  role
-                    ? `${RESUME_TYPOGRAPHY.roleTitle.px}px`
-                    : isEducation
-                      ? `${RESUME_TYPOGRAPHY.educationTitle.px}px`
-                      : node.type === "header"
-                        ? `${RESUME_TYPOGRAPHY.name.px}px`
-                        : node.section === "contact"
-                          ? `${RESUME_TYPOGRAPHY.contact.px}px`
-                          : node.section === "summary"
-                            ? `${RESUME_TYPOGRAPHY.summary.px}px`
-                            : bullet
-                              ? `${RESUME_TYPOGRAPHY.bullet.px}px`
-                              : `${RESUME_TYPOGRAPHY.body.px}px`,
-                lineHeight:
-                  node.section === "summary" || bullet || isEducation
-                    ? RESUME_TYPOGRAPHY.body.lineHeight
-                    : undefined,
+                // Hit slop around glyphs without shifting layout.
+                padding: RESUME_EDIT_TEXT_HIT_PAD_PX,
+                margin: -RESUME_EDIT_TEXT_HIT_PAD_PX,
               }}
-            />
+              onPointerDown={(event) => {
+                if (disabled || event.button !== 0) return;
+                const host = event.currentTarget;
+                const ce = host.querySelector("[contenteditable='true']");
+                if (!(ce instanceof HTMLElement)) return;
+                if (event.target === ce || ce.contains(event.target as Node)) {
+                  return;
+                }
+                // Pad click: focus the CE so we hop A→B instead of blur-exit
+                // leaving the previous header flattened.
+                if (
+                  !pointNearEditableLineText(host, {
+                    x: event.clientX,
+                    y: event.clientY,
+                  })
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                ce.focus();
+              }}
+            >
+              <EditableLine
+                value={content}
+                disabled={disabled}
+                commitOnEnter
+                renderHtml={
+                  isEducation
+                    ? renderEducationHtml
+                    : isExperience
+                      ? renderExperienceHtml
+                      : undefined
+                }
+                onEditStart={editProps.onEditStart}
+                onEditEnd={editProps.onEditEnd}
+                onCommit={(next) => onCommit(node.id, next)}
+                className={cn(
+                  // Inline + box-decoration-clone: wash follows glyph runs, not the
+                  // full flex line box (multiline bullets used to paint trailing empty).
+                  "inline max-w-full whitespace-pre-wrap break-normal rounded-sm box-decoration-clone outline-none transition-colors focus:bg-[#f8fafc]",
+                  highlighted && "bg-[#111827]/[0.05]",
+                  role && !isExperience && "font-bold",
+                  node.type === "header" && "font-bold leading-tight text-center",
+                  node.type !== "header" &&
+                    node.section === "contact" &&
+                    "tracking-tight text-[#374151] text-center",
+                  node.section === "summary" && "text-[#111827]",
+                  bullet && "text-[#111827]"
+                )}
+                style={{
+                  fontSize:
+                    role
+                      ? `${RESUME_TYPOGRAPHY.roleTitle.px}px`
+                      : isEducation
+                        ? `${RESUME_TYPOGRAPHY.educationTitle.px}px`
+                        : node.type === "header"
+                          ? `${RESUME_TYPOGRAPHY.name.px}px`
+                          : node.section === "contact"
+                            ? `${RESUME_TYPOGRAPHY.contact.px}px`
+                            : node.section === "summary"
+                              ? `${RESUME_TYPOGRAPHY.summary.px}px`
+                              : bullet
+                                ? `${RESUME_TYPOGRAPHY.bullet.px}px`
+                                : `${RESUME_TYPOGRAPHY.body.px}px`,
+                  lineHeight:
+                    node.section === "summary" || bullet || isEducation
+                      ? RESUME_TYPOGRAPHY.body.lineHeight
+                      : undefined,
+                }}
+              />
+            </span>
           </div>
           {trailing ? (
             <span

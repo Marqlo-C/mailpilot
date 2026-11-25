@@ -351,7 +351,7 @@ export function EmailDraftToolbar({
         <ToolbarDivider />
 
         <SegmentedControl
-          size="sm"
+          size="xs"
           label="Paragraph alignment"
           value={alignValue}
           onChange={(value) => {
@@ -391,6 +391,7 @@ export function EmailDraftToolbar({
               <FileSparklesIcon
                 width={16}
                 height={16}
+                strokeWidth={1.5}
                 className="shrink-0 overflow-visible"
               />
             </Button>

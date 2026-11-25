@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MutableRefObject,
 } from "react";
 
 import {
@@ -22,6 +23,10 @@ import {
   SHEET_WIDTH,
   type DraftBlock,
 } from "@/components/features/opportunities/drawer/subcomponents/resume-draft-layout";
+import {
+  useResumeEditEntryCamera,
+  type ResumeEditEntryCameraApi,
+} from "@/hooks/use-resume-edit-entry-camera";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/resume-draft";
 import {
   clampResumeZoom,
@@ -32,6 +37,7 @@ import {
 } from "@/lib/resume-draft/edit-presentation";
 
 export type { ResumeDraftZoomChoice, ResumeDraftZoomPreset };
+export type { ResumeEditEntryCameraApi };
 
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
@@ -49,6 +55,8 @@ type UseResumeDraftSheetArgs = {
    * the viewport mounts again.
    */
   viewportActive?: boolean;
+  /** Split expand → entry camera handoff (desktop draft dialog). */
+  editEntryCameraApiRef?: MutableRefObject<ResumeEditEntryCameraApi | null>;
 };
 
 /**
@@ -62,6 +70,7 @@ export function useResumeDraftSheet({
   lineEditing = false,
   onEditModeChange,
   viewportActive = true,
+  editEntryCameraApiRef,
 }: UseResumeDraftSheetArgs) {
   const [refineFor, setRefineFor] = useState<string | null>(null);
   const [instruction, setInstruction] = useState("");
@@ -79,9 +88,45 @@ export function useResumeDraftSheet({
   const zoomChoiceRef = useRef(zoomChoice);
   const manualScaleRef = useRef(manualScale);
   const fitScaleRef = useRef(fitScale);
-  zoomChoiceRef.current = zoomChoice;
-  manualScaleRef.current = manualScale;
-  fitScaleRef.current = fitScale;
+
+  useEffect(() => {
+    zoomChoiceRef.current = zoomChoice;
+    manualScaleRef.current = manualScale;
+    fitScaleRef.current = fitScale;
+  }, [fitScale, manualScale, zoomChoice]);
+
+  const getLiveZoom = useCallback(
+    () =>
+      resumeEffectiveZoom(
+        zoomChoiceRef.current,
+        fitScaleRef.current,
+        false,
+        manualScaleRef.current
+      ),
+    []
+  );
+
+  const applyManualZoom = useCallback((nextScale: number) => {
+    const clamped = clampResumeZoom(nextScale);
+    setManualScale(clamped);
+    setZoomChoice("custom");
+  }, []);
+
+  const getZoomSnapshot = useCallback(
+    () => ({
+      choice: zoomChoiceRef.current,
+      manualScale: manualScaleRef.current,
+    }),
+    []
+  );
+
+  const restoreZoom = useCallback(
+    (snapshot: { choice: ResumeDraftZoomChoice; manualScale: number }) => {
+      setZoomChoice(snapshot.choice);
+      setManualScale(snapshot.manualScale);
+    },
+    []
+  );
 
   // Re-bind after busy skeleton → canvas mount (viewportRef was null before).
   useEffect(() => {
@@ -99,35 +144,36 @@ export function useResumeDraftSheet({
     return () => observer.disconnect();
   }, [viewportActive]);
 
-  const applyManualZoom = useCallback((nextScale: number) => {
-    const clamped = clampResumeZoom(nextScale);
-    setManualScale(clamped);
-    setZoomChoice("custom");
-  }, []);
+  const editMode = Boolean(refineFor) || lineEditing;
+
+  useResumeEditEntryCamera({
+    viewportRef,
+    pagesContainerRef,
+    getLiveZoom,
+    applyManualZoom,
+    getZoomSnapshot,
+    restoreZoom,
+    editMode,
+    viewportActive,
+    animate: true,
+    apiRef: editEntryCameraApiRef,
+  });
 
   /**
    * Trackpad pinch (ctrl+wheel) + touch pinch on the canvas viewport.
-   * Scale only — no cursor pin / lerp yet.
+   * Scale only — entry camera ignores an in-progress pinch.
    */
   useEffect(() => {
     if (!viewportActive) return;
     const viewport = viewportRef.current;
     if (!viewport) return;
 
-    const liveZoom = () =>
-      resumeEffectiveZoom(
-        zoomChoiceRef.current,
-        fitScaleRef.current,
-        false,
-        manualScaleRef.current
-      );
-
     const onWheel = (event: WheelEvent) => {
       // macOS trackpad pinch is dispatched as ctrl+wheel.
       if (!event.ctrlKey) return;
       event.preventDefault();
       const factor = Math.exp(-event.deltaY * 0.01);
-      applyManualZoom(liveZoom() * factor);
+      applyManualZoom(getLiveZoom() * factor);
     };
 
     let pinchStartDist = 0;
@@ -145,7 +191,7 @@ export function useResumeDraftSheet({
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 2) return;
       pinchStartDist = touchDistance(event.touches);
-      pinchStartZoom = liveZoom();
+      pinchStartZoom = getLiveZoom();
     };
 
     const onTouchMove = (event: TouchEvent) => {
@@ -172,7 +218,7 @@ export function useResumeDraftSheet({
       viewport.removeEventListener("touchend", onTouchEnd);
       viewport.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [applyManualZoom, viewportActive]);
+  }, [applyManualZoom, getLiveZoom, viewportActive]);
 
   useEffect(() => {
     if (!notesOpen) return;
@@ -214,8 +260,6 @@ export function useResumeDraftSheet({
       document.removeEventListener("pointerdown", onPointerDown, true);
     };
   }, [refineFor]);
-
-  const editMode = Boolean(refineFor) || lineEditing;
 
   // Emit current value only — never pulse `false` on cleanup (that slammed the split).
   useEffect(() => {
