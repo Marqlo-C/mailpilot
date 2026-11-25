@@ -75,6 +75,7 @@ export function EmailEditorPanel({
   emailBusy,
   emailBusyLabel,
   toolbarRef,
+  onEditFocus,
 }: {
   attachResume: boolean;
   onAttachResumeChange?: (attach: boolean) => void;
@@ -109,6 +110,8 @@ export function EmailEditorPanel({
   emailBusyLabel: string | null;
   /** Forwarded to EmailDraftToolbar for split-pane pixel min measurement. */
   toolbarRef?: Ref<HTMLDivElement>;
+  /** Fires when the user focuses an editable email field (To, Subject, or Body). */
+  onEditFocus?: () => void;
 }) {
   const settleKey = useContentSettleKey(emailBusy);
   const recipientDirty = recipient !== baselineRecipient;
@@ -139,7 +142,10 @@ export function EmailEditorPanel({
     body,
     setBody,
     disabled: emailBusy,
-    onFocusChange: setBodyFocused,
+    onFocusChange: (focused) => {
+      setBodyFocused(focused);
+      if (focused) onEditFocus?.();
+    },
   });
 
   const bodyBlock = (
@@ -235,7 +241,10 @@ export function EmailEditorPanel({
           placeholder="Alex <alex@company.com>"
           aria-label="To"
           value={toDisplay}
-          onFocus={() => setToFocused(true)}
+          onFocus={() => {
+            setToFocused(true);
+            onEditFocus?.();
+          }}
           onBlur={() => setToFocused(false)}
           onChange={(e) => setRecipient(parseRecipientField(e.target.value))}
           disabled={emailBusy}
@@ -259,6 +268,7 @@ export function EmailEditorPanel({
           placeholder="Subject"
           aria-label="Subject"
           value={subject}
+          onFocus={() => onEditFocus?.()}
           onChange={(e) => setSubject(e.target.value)}
           disabled={emailBusy}
           trailing={

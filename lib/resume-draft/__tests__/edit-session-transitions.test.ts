@@ -45,6 +45,23 @@ describe("reduceResumeEditSession", () => {
       toolbarFocusHold: false,
     });
     expect(hopSettle.editMode).toBe(true);
+
+    // Rich-HTML job title / education hop where blur dropped activeElement to body
+    // before the pending editable target re-focused.
+    const hopSettleWithPendingEditable = reduceResumeEditSession(
+      hopClick.state,
+      null,
+      {
+        type: "focusout-settled",
+        activeClass: "external",
+        pendingEditableHop: true,
+      }
+    );
+    expect(hopSettleWithPendingEditable.state).toEqual({
+      lineEditing: true,
+      toolbarFocusHold: false,
+    });
+    expect(hopSettleWithPendingEditable.editMode).toBe(true);
   });
 
   it("transitions EditingText -> ToolbarHold on toolbar focus and exits cleanly without getting stuck", () => {

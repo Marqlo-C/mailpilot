@@ -66,6 +66,24 @@ export function useResumeEditSplit({
   const onExpandedRef = useRef(onExpanded);
   const announcedExpandRef = useRef(false);
   const userDraggingRef = useRef(false);
+  const pointerDownRef = useRef(false);
+
+  useEffect(() => {
+    const onDown = () => {
+      pointerDownRef.current = true;
+    };
+    const onUp = () => {
+      pointerDownRef.current = false;
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("pointerup", onUp, true);
+    window.addEventListener("pointercancel", onUp, true);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("pointerup", onUp, true);
+      window.removeEventListener("pointercancel", onUp, true);
+    };
+  }, []);
 
   useEffect(() => {
     editModeRef.current = editMode;
@@ -185,6 +203,9 @@ export function useResumeEditSplit({
         ensureExpanded(group, announce);
       };
 
+      let immediateRaf: number | null = null;
+      let fallback: number | null = null;
+
       const onPointerUp = () => {
         window.removeEventListener("pointerup", onPointerUp, true);
         window.removeEventListener("mouseup", onPointerUp, true);
@@ -192,14 +213,24 @@ export function useResumeEditSplit({
           requestAnimationFrame(() => expand(true));
         });
       };
-      window.addEventListener("pointerup", onPointerUp, true);
-      window.addEventListener("mouseup", onPointerUp, true);
 
-      const fallback = window.setTimeout(() => {
-        window.removeEventListener("pointerup", onPointerUp, true);
-        window.removeEventListener("mouseup", onPointerUp, true);
-        expand(true);
-      }, EXPAND_FALLBACK_MS);
+      // When editMode activates after pointerup already fired (e.g. clicking
+      // the floating Refine button or keyboard focus), expand immediately
+      // instead of waiting for EXPAND_FALLBACK_MS.
+      if (!pointerDownRef.current) {
+        immediateRaf = requestAnimationFrame(() => {
+          immediateRaf = null;
+          expand(true);
+        });
+      } else {
+        window.addEventListener("pointerup", onPointerUp, true);
+        window.addEventListener("mouseup", onPointerUp, true);
+        fallback = window.setTimeout(() => {
+          window.removeEventListener("pointerup", onPointerUp, true);
+          window.removeEventListener("mouseup", onPointerUp, true);
+          expand(true);
+        }, EXPAND_FALLBACK_MS);
+      }
 
       const healFromWindow = () => {
         if (!editModeRef.current) return;
@@ -210,7 +241,8 @@ export function useResumeEditSplit({
 
       return () => {
         cancelled = true;
-        window.clearTimeout(fallback);
+        if (immediateRaf !== null) cancelAnimationFrame(immediateRaf);
+        if (fallback !== null) window.clearTimeout(fallback);
         window.removeEventListener("pointerup", onPointerUp, true);
         window.removeEventListener("mouseup", onPointerUp, true);
         window.removeEventListener("focus", healFromWindow);

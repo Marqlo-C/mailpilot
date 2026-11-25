@@ -134,9 +134,12 @@ export function EditableLine({
     writeDom(el, value);
   }, [value, renderHtml]);
 
-  /** Restore bold/muted markup after edit; re-assert post-paint (chrome re-render). */
-  function restoreDomAfterBlur(el: HTMLElement, text: string) {
-    writeDom(el, text);
+  /**
+   * Restore bold/muted markup after edit on the next frame (never mutate
+   * `innerHTML` synchronously inside `onBlur` while the browser is mid-click
+   * transferring focus/caret to another `contenteditable` line).
+   */
+  function restoreDomAfterBlur(text: string) {
     requestAnimationFrame(() => {
       const node = ref.current;
       if (!node || document.activeElement === node) return;
@@ -174,7 +177,7 @@ export function EditableLine({
         } else {
           pendingCommitRef.current = null;
         }
-        restoreDomAfterBlur(event.currentTarget, next);
+        restoreDomAfterBlur(next);
         onEditEnd?.();
       }}
       onKeyDown={(event) => {

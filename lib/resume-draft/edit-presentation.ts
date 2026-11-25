@@ -17,10 +17,18 @@ export const RESUME_ZOOM_MAX = 3;
 export const RESUME_ZOOM_PERCENT_STEP = 1;
 
 /**
- * First edit-entry camera target (125%). Applied as `"custom"` via
- * `applyManualZoom` so Fit/100/125 chips stay honest.
+ * Fallback edit-entry camera target (125%) when live viewport geometry is unavailable.
  */
 export const RESUME_EDIT_ENTRY_ZOOM = 1.25;
+
+/**
+ * Percentage zoom boost over the expanded pane's full-width fit zoom
+ * (1.12 = +12%: e.g. 112% max-pane fit → ~125% edit zoom).
+ */
+export const RESUME_EDIT_ENTRY_ZOOM_BOOST = 1.12;
+
+/** Horizontal padding inside `[data-resume-canvas-viewport]` (`p-3` = 12px × 2). */
+export const RESUME_VIEWPORT_HORIZONTAL_PADDING_PX = 24;
 
 /** rAF entry lerp duration (ms) — scale + scroll together. */
 export const RESUME_EDIT_ENTRY_LERP_MS = 220;
@@ -45,6 +53,37 @@ export type ResumeEditRect = {
 export function clampResumeZoom(scale: number): number {
   if (!Number.isFinite(scale)) return RESUME_ZOOM_MIN;
   return Math.min(RESUME_ZOOM_MAX, Math.max(RESUME_ZOOM_MIN, scale));
+}
+
+/**
+ * Compute the real edit-entry zoom as a percentage boost (`boost`, default +12%)
+ * over the expanded pane's full-width fit zoom for the current device and orientation.
+ */
+export function resolveEditEntryZoom(args: {
+  viewportWidth: number;
+  sheetWidth: number;
+  horizontalPaddingPx?: number;
+  boost?: number;
+  fallbackZoom?: number;
+}): number {
+  const {
+    viewportWidth,
+    sheetWidth,
+    horizontalPaddingPx = RESUME_VIEWPORT_HORIZONTAL_PADDING_PX,
+    boost = RESUME_EDIT_ENTRY_ZOOM_BOOST,
+    fallbackZoom = RESUME_EDIT_ENTRY_ZOOM,
+  } = args;
+  const available = viewportWidth - horizontalPaddingPx;
+  if (
+    !Number.isFinite(available) ||
+    available <= 0 ||
+    !Number.isFinite(sheetWidth) ||
+    sheetWidth <= 0
+  ) {
+    return clampResumeZoom(fallbackZoom);
+  }
+  const safeBoost = Number.isFinite(boost) && boost > 0 ? boost : 1;
+  return clampResumeZoom((available / sheetWidth) * safeBoost);
 }
 
 /**

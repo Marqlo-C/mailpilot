@@ -10,12 +10,16 @@ import {
   WandSparkles,
 } from "lucide-react";
 
+import {
+  TOOLBAR_TOOL_CLUSTER_BTN_CLASSNAME,
+} from "@/components/ui/composites/toolbar-tool-cluster";
+import { BRAND_SELECTION_GLOW_CLASSNAME } from "@/components/ui/styles/brand-selection";
 import { cn } from "@/lib/utils";
 
-/** Floating chip height (size-6 buttons + padding) — keep in sync with the portal. */
-const CHIP_H = 28;
-/** Approx chip width for centering (± / move / Ace cluster). */
-const CHIP_W = 144;
+/** Floating cluster height (`h-8` = 32px) — keep in sync with the portal. */
+const CHIP_H = 32;
+/** Approx cluster width for centering (± | ↑↓ | Refine). */
+const CHIP_W = 140;
 /** Clear air between chip and line box (no glyph overlap). */
 const CHIP_GAP = 6;
 const VIEWPORT_PAD = 8;
@@ -141,10 +145,19 @@ function ToolbarIcon({
       // Keep contenteditable focus until click — otherwise blur kills the float.
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
-      className="flex size-6 cursor-pointer items-center justify-center rounded-lg text-[#6b7280] transition-colors hover:bg-[#F3F4F6] hover:text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
+      className={cn(TOOLBAR_TOOL_CLUSTER_BTN_CLASSNAME, "cursor-pointer")}
     >
       {children}
     </button>
+  );
+}
+
+function FloatDivider() {
+  return (
+    <span
+      aria-hidden
+      className="mx-0.5 h-3.5 w-px shrink-0 self-center bg-border/70"
+    />
   );
 }
 
@@ -156,6 +169,7 @@ export function ResumeLineFloatToolbar({
   anchor,
   meta,
   disabled,
+  refining = false,
   onToggle,
   onMove,
   onRefineOpen,
@@ -166,6 +180,8 @@ export function ResumeLineFloatToolbar({
   anchor: ResumeLineFloatAnchor;
   meta: ResumeLineFloatMeta | null;
   disabled?: boolean;
+  /** True while Ace line refine is open for `activeId`. */
+  refining?: boolean;
   onToggle: (nodeId: string, selected: boolean) => void;
   onMove: (nodeId: string, direction: "up" | "down") => void;
   onRefineOpen: (nodeId: string) => void;
@@ -192,47 +208,63 @@ export function ResumeLineFloatToolbar({
         role="toolbar"
         aria-label={`${label} actions`}
         className={cn(
-          "flex cursor-default items-center gap-0.5 rounded-lg border border-[#E5E7EB] bg-white p-0.5 shadow-sm",
+          "inline-flex h-8 shrink-0 cursor-default items-center overflow-hidden rounded-lg border border-border bg-[hsl(var(--tab-rail-light))] shadow-sm",
           "animate-in fade-in-0 zoom-in-95 duration-100"
         )}
       >
-        <ToolbarIcon
+        <div className="inline-flex h-full items-center gap-1 px-1">
+          <ToolbarIcon
+            disabled={disabled}
+            label={
+              included
+                ? `Exclude ${label} from export`
+                : `Include ${label} in export`
+            }
+            onClick={() => onToggle(activeId, !included)}
+          >
+            {included ? (
+              <Minus aria-hidden />
+            ) : (
+              <Plus aria-hidden />
+            )}
+          </ToolbarIcon>
+          <FloatDivider />
+          <ToolbarIcon
+            disabled={disabled}
+            label={`Move ${label} up`}
+            onClick={() => onMove(activeId, "up")}
+          >
+            <ChevronUp aria-hidden />
+          </ToolbarIcon>
+          <ToolbarIcon
+            disabled={disabled}
+            label={`Move ${label} down`}
+            onClick={() => onMove(activeId, "down")}
+          >
+            <ChevronDown aria-hidden />
+          </ToolbarIcon>
+        </div>
+        <button
+          type="button"
           disabled={disabled}
-          label={
-            included
-              ? `Exclude ${label} from export`
-              : `Include ${label} in export`
-          }
-          onClick={() => onToggle(activeId, !included)}
-        >
-          {included ? (
-            <Minus className="size-3" aria-hidden />
-          ) : (
-            <Plus className="size-3" aria-hidden />
-          )}
-        </ToolbarIcon>
-        <span aria-hidden className="mx-0.5 h-3 w-px bg-[#E5E7EB]" />
-        <ToolbarIcon
-          disabled={disabled}
-          label={`Move ${label} up`}
-          onClick={() => onMove(activeId, "up")}
-        >
-          <ChevronUp className="size-3" aria-hidden />
-        </ToolbarIcon>
-        <ToolbarIcon
-          disabled={disabled}
-          label={`Move ${label} down`}
-          onClick={() => onMove(activeId, "down")}
-        >
-          <ChevronDown className="size-3" aria-hidden />
-        </ToolbarIcon>
-        <ToolbarIcon
-          disabled={disabled}
-          label={`Refine ${label}`}
+          aria-pressed={refining}
+          aria-label={refining ? `Cancel refine ${label}` : `Refine ${label}`}
+          title={refining ? `Cancel refine ${label}` : `Refine ${label}`}
+          // Keep contenteditable focus until click — otherwise blur kills the float.
+          onMouseDown={(event) => event.preventDefault()}
           onClick={() => onRefineOpen(activeId)}
+          className={cn(
+            "inline-flex h-full w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border-l border-border bg-card text-foreground",
+            "transition-all duration-150 ease-apple-snappy motion-safe:active:scale-[0.98]",
+            "hover:bg-accent hover:text-accent-foreground",
+            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            "disabled:pointer-events-none disabled:opacity-40",
+            "[&_svg]:size-3.5",
+            refining && cn("bg-accent text-brand hover:bg-accent hover:text-brand", BRAND_SELECTION_GLOW_CLASSNAME)
+          )}
         >
-          <WandSparkles className="size-3" aria-hidden />
-        </ToolbarIcon>
+          <WandSparkles aria-hidden />
+        </button>
       </div>
     </div>,
     document.body

@@ -10,7 +10,9 @@ import {
   pointHitsPaddedRects,
   projectContentPointToScreen,
   RESUME_EDIT_ENTRY_ZOOM,
+  RESUME_EDIT_ENTRY_ZOOM_BOOST,
   RESUME_EDIT_TEXT_HIT_PAD_PX,
+  resolveEditEntryZoom,
   resolveEditScreenAnchor,
   resolveEditableAnchorRect,
   resolveEditableMeasureTarget,
@@ -330,8 +332,31 @@ describe("resolveEditableMeasureTarget / anchor rects", () => {
 });
 
 describe("content-local projection / scroll solve", () => {
-  it("exposes the 125% edit-entry zoom constant", () => {
+  it("applies a proportional boost over the expanded pane's full-width fit zoom", () => {
     expect(RESUME_EDIT_ENTRY_ZOOM).toBeCloseTo(1.25);
+    expect(RESUME_EDIT_ENTRY_ZOOM_BOOST).toBeCloseTo(1.12);
+
+    // 112% max-pane fit (938px - 24px = 914px / 816px ≈ 1.12) → ~125%
+    const at112Fit = resolveEditEntryZoom({ viewportWidth: 938, sheetWidth: 816 });
+    expect(resumeZoomPercent(at112Fit)).toBe(125);
+
+    // 14" laptop expanded pane (900px - 24px = 876px / 816px ≈ 1.0735) → ~120%
+    expect(
+      resolveEditEntryZoom({ viewportWidth: 900, sheetWidth: 816 })
+    ).toBeCloseTo((876 / 816) * RESUME_EDIT_ENTRY_ZOOM_BOOST);
+
+    // Mobile portrait (375px - 24px = 351px / 816px ≈ 0.4301) → ~48%
+    expect(
+      resolveEditEntryZoom({ viewportWidth: 375, sheetWidth: 816 })
+    ).toBeCloseTo((351 / 816) * RESUME_EDIT_ENTRY_ZOOM_BOOST);
+
+    // Clamps to supported bounds and falls back when viewport isn't laid out yet
+    expect(
+      resolveEditEntryZoom({ viewportWidth: 120, sheetWidth: 816 })
+    ).toBe(0.25);
+    expect(
+      resolveEditEntryZoom({ viewportWidth: 0, sheetWidth: 816, fallbackZoom: 0.92 })
+    ).toBeCloseTo(0.92);
   });
 
   it("round-trips screen ↔ page-local under origin 0 0", () => {

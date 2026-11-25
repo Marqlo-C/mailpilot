@@ -101,6 +101,8 @@ export function ResumeLineChromeProvider({
 
   const activeIdRef = useRef<string | null>(null);
   const editingIdRef = useRef<string | null>(null);
+  const pinnedIdRef = useRef<string | null>(pinnedId);
+  const prevPinnedIdRef = useRef<string | null>(pinnedId);
   const chromeQuietUntilRef = useRef(0);
   const targetRefs = useRef(new Map<string, HTMLElement>());
   const metaRef = useRef(new Map<string, ResumeLineMeta>());
@@ -109,17 +111,18 @@ export function ResumeLineChromeProvider({
 
   activeIdRef.current = activeId;
   editingIdRef.current = editingId;
+  pinnedIdRef.current = pinnedId;
 
-  /** Brief post-blur hush only — editing pins the float; it is not “quiet.” */
+  /** Brief post-blur hush only — editing/refining pins the float; it is not “quiet.” */
   const chromeIsQuiet = useCallback(
     () => Date.now() < chromeQuietUntilRef.current,
     []
   );
 
-  /** While editing, ignore hover on every line except the focused one. */
+  /** While editing or refining a line, ignore hover on every other line. */
   const blocksHoverFor = useCallback((nodeId: string) => {
-    const editing = editingIdRef.current;
-    return editing !== null && editing !== nodeId;
+    const locked = editingIdRef.current ?? pinnedIdRef.current;
+    return locked !== null && locked !== nodeId;
   }, []);
 
   const measure = useCallback((nodeId: string) => {
@@ -166,7 +169,7 @@ export function ResumeLineChromeProvider({
   );
 
   const scheduleClose = useCallback(() => {
-    if (editingIdRef.current) return;
+    if (editingIdRef.current || pinnedIdRef.current) return;
     clearTimer(closeTimerRef);
     closeTimerRef.current = window.setTimeout(() => {
       closeTimerRef.current = null;
@@ -211,7 +214,7 @@ export function ResumeLineChromeProvider({
 
   const onTargetLeave = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
-      if (editingIdRef.current) return;
+      if (editingIdRef.current || pinnedIdRef.current) return;
       const next = event.relatedTarget;
       if (next instanceof Node && event.currentTarget.contains(next)) return;
       const dest = pointerDestination(next, event.clientX, event.clientY);
@@ -227,7 +230,7 @@ export function ResumeLineChromeProvider({
 
   const onToolbarLeave = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
-      if (editingIdRef.current) return;
+      if (editingIdRef.current || pinnedIdRef.current) return;
       const next = event.relatedTarget;
       if (next instanceof Node && event.currentTarget.contains(next)) return;
       const dest = pointerDestination(next, event.clientX, event.clientY);
@@ -274,12 +277,20 @@ export function ResumeLineChromeProvider({
     [pinEditEnd]
   );
 
-  // Ace pin: hush hover timers so the float stays on the refined line.
+  // Ace pin: lock the float on the refined line (mimicking manual edit),
+  // and dismiss cleanly when refine closes without an active line edit.
   useEffect(() => {
-    if (!pinnedId) return;
-    clearTimer(closeTimerRef);
-    clearTimer(switchTimerRef);
-  }, [pinnedId]);
+    const prev = prevPinnedIdRef.current;
+    prevPinnedIdRef.current = pinnedId;
+    if (pinnedId) {
+      clearTimer(closeTimerRef);
+      clearTimer(switchTimerRef);
+      return;
+    }
+    if (prev && !editingIdRef.current) {
+      dismissToolbar();
+    }
+  }, [dismissToolbar, pinnedId]);
 
   useLayoutEffect(() => {
     if (!activeId) return;
@@ -354,6 +365,7 @@ export function ResumeLineChromeProvider({
           anchor={anchor}
           meta={activeMeta}
           disabled={disabled}
+          refining={pinnedId === activeId}
           onToggle={onToggle}
           onMove={onMove}
           onRefineOpen={onRefineOpen}

@@ -85,29 +85,14 @@ export function useResumeEditPin({
 
   const onEditEnd = useCallback(
     (nodeId: string) => {
-      const wasEditing = editingIdRef.current === nodeId;
       setEditingId((current) => (current === nodeId ? null : current));
       // Ace refine can keep the line pinned — don't dismiss float then.
       if (pinnedIdRef.current !== nodeId) {
         dismissToolbar();
         restoreToolbarIfHovered(nodeId);
       }
-      // After pane shrink, nearest-clamp if the line left the canvas.
-      if (wasEditing && pinnedIdRef.current !== nodeId) {
-        window.setTimeout(() => {
-          const line = targetRefs.current.get(nodeId);
-          if (!line) return;
-          ensureAnchorInCanvasView(line);
-        }, 0);
-      }
     },
-    [
-      dismissToolbar,
-      editingIdRef,
-      restoreToolbarIfHovered,
-      setEditingId,
-      targetRefs,
-    ]
+    [dismissToolbar, restoreToolbarIfHovered, setEditingId]
   );
 
   // Ace wand: keep the refined line highlighted while the panel is open.

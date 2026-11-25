@@ -31,7 +31,9 @@ import {
 import { useResumeEditSession } from "@/hooks/use-resume-edit-session";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/resume-draft";
 import {
+  RESUME_VIEWPORT_HORIZONTAL_PADDING_PX,
   clampResumeZoom,
+  resolveEditEntryZoom,
   resumeEffectiveZoom,
   resumeZoomPercent,
   type ResumeDraftZoomChoice,
@@ -143,13 +145,23 @@ export function useResumeDraftSheet({
     []
   );
 
+  const getEditEntryZoom = useCallback(() => {
+    const viewport = viewportRef.current;
+    return resolveEditEntryZoom({
+      viewportWidth: viewport?.clientWidth ?? 0,
+      sheetWidth: SHEET_WIDTH,
+      fallbackZoom: fitScaleRef.current,
+    });
+  }, []);
+
   // Re-bind after busy skeleton → canvas mount (viewportRef was null before).
   useEffect(() => {
     if (!viewportActive) return;
     const viewport = viewportRef.current;
     if (!viewport) return;
     const measure = () => {
-      const available = viewport.clientWidth - 24;
+      const available =
+        viewport.clientWidth - RESUME_VIEWPORT_HORIZONTAL_PADDING_PX;
       if (available <= 0) return;
       setFitScale(available / SHEET_WIDTH);
     };
@@ -159,14 +171,24 @@ export function useResumeDraftSheet({
     return () => observer.disconnect();
   }, [viewportActive]);
 
+  const zoom = resumeEffectiveZoom(
+    zoomChoice,
+    fitScale,
+    editMode,
+    manualScale
+  );
+
   useResumeEditEntryCamera({
     viewportRef,
     pagesContainerRef,
+    liveZoom: zoom,
     getLiveZoom,
+    getTargetZoom: getEditEntryZoom,
     applyManualZoom,
     getZoomSnapshot,
     restoreZoom,
     editMode,
+    refineFor,
     viewportActive,
     animate: true,
     apiRef: editEntryCameraApiRef,
@@ -253,12 +275,6 @@ export function useResumeDraftSheet({
     };
   }, [notesOpen]);
 
-  const zoom = resumeEffectiveZoom(
-    zoomChoice,
-    fitScale,
-    editMode,
-    manualScale
-  );
   const zoomPercent = resumeZoomPercent(zoom);
 
   const handleZoomPresetChange = useCallback((next: ResumeDraftZoomPreset) => {
@@ -410,6 +426,10 @@ export function useResumeDraftSheet({
 
   function openRefine(nodeId: string) {
     setNotesOpen(false);
+    if (refineFor === nodeId) {
+      dismissRefine();
+      return;
+    }
     setRefineFor(nodeId);
     setInstruction("");
   }

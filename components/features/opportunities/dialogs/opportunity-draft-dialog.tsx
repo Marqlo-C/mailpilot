@@ -86,9 +86,26 @@ export function OpportunityDraftDialog({
   const splitGroupRef = useGroupRef();
   const [resumeEditMode, setResumeEditMode] = useState(false);
   const editEntryCameraApiRef = useRef<ResumeEditEntryCameraApi | null>(null);
-  const onResumeEditModeChange = useCallback((active: boolean) => {
-    setResumeEditMode(active);
-  }, []);
+  const aceBusyRef = useRef(flow.aceBusy);
+  useEffect(() => {
+    aceBusyRef.current = flow.aceBusy;
+  }, [flow.aceBusy]);
+  const { setRefineTarget } = flow;
+
+  const onResumeEditModeChange = useCallback(
+    (active: boolean) => {
+      setResumeEditMode(active);
+      if (active && !aceBusyRef.current) {
+        setRefineTarget("resume");
+      }
+    },
+    [setRefineTarget]
+  );
+  const onEmailEditFocus = useCallback(() => {
+    if (!aceBusyRef.current) {
+      setRefineTarget("email");
+    }
+  }, [setRefineTarget]);
   const onResumeExpanded = useCallback(() => {
     editEntryCameraApiRef.current?.onExpanded();
   }, []);
@@ -175,6 +192,7 @@ export function OpportunityDraftDialog({
       fileInputId={fileInputId}
       emailBusy={flow.emailBusy}
       emailBusyLabel={flow.emailBusyLabel}
+      onEditFocus={onEmailEditFocus}
     />
   );
 

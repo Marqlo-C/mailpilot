@@ -39,6 +39,7 @@ export type ResumeEditSessionEvent =
       type: "focusout-settled";
       activeClass: ResumeEditTargetClass;
       inAceRefine?: boolean;
+      pendingEditableHop?: boolean;
     }
   | {
       type: "pointerdown";
@@ -146,7 +147,7 @@ export function reduceResumeEditSession(
     }
 
     case "focusout-settled": {
-      if (event.activeClass === "editable") {
+      if (event.activeClass === "editable" || event.pendingEditableHop) {
         const next: ResumeEditSessionState = {
           lineEditing: true,
           toolbarFocusHold: false,
@@ -296,6 +297,7 @@ export function useResumeEditSession({
   const refineForRef = useRef<string | null>(refineFor);
   const dismissRefineRef = useRef(dismissRefine);
   const hopRafRef = useRef<number | null>(null);
+  const pendingEditableTargetRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     stateRef.current = state;
@@ -363,8 +365,29 @@ export function useResumeEditSession({
     hopRafRef.current = window.requestAnimationFrame(() => {
       hopRafRef.current = null;
       const root = rootRef.current;
-      const active = document.activeElement;
-      const activeClass = classifyResumeEditTarget(active, root);
+      let active = document.activeElement;
+      let activeClass = classifyResumeEditTarget(active, root);
+      const pendingEditable = pendingEditableTargetRef.current;
+      pendingEditableTargetRef.current = null;
+
+      // Rich-HTML editable lines (experience_header / education_item) contain
+      // nested <strong>/<span> nodes and rewrite innerHTML on blur, which can
+      // drop the browser's focus transfer to document.body during an A -> B hop.
+      // Re-assert focus on the clicked contenteditable when that happens.
+      let pendingEditableHop = false;
+      if (
+        activeClass !== "editable" &&
+        pendingEditable &&
+        root?.contains(pendingEditable) &&
+        !pendingEditable.hasAttribute("disabled") &&
+        pendingEditable.getAttribute("contenteditable") === "true"
+      ) {
+        pendingEditableHop = true;
+        pendingEditable.focus({ preventScroll: true });
+        active = document.activeElement;
+        activeClass = classifyResumeEditTarget(active, root);
+      }
+
       const inAceRefine =
         active instanceof Element &&
         Boolean(active.closest("[data-resume-ace-refine]"));
@@ -372,11 +395,13 @@ export function useResumeEditSession({
         type: "focusout-settled",
         activeClass,
         inAceRefine,
+        pendingEditableHop,
       });
     });
   }, [applyTransition, cancelHopRaf, rootRef]);
 
   const exitEditSession = useCallback(() => {
+    pendingEditableTargetRef.current = null;
     cancelHopRaf();
     applyTransition({ type: "force-exit" });
   }, [applyTransition, cancelHopRaf]);
@@ -392,6 +417,7 @@ export function useResumeEditSession({
     if (!root) return;
 
     const onFocusIn = (event: FocusEvent) => {
+      pendingEditableTargetRef.current = null;
       cancelHopRaf();
       const targetClass = classifyResumeEditTarget(event.target, root);
       const inAceRefine =
@@ -411,6 +437,7 @@ export function useResumeEditSession({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      pendingEditableTargetRef.current = null;
       cancelHopRaf();
       const transition = applyTransition({
         type: "escape",
@@ -453,6 +480,13 @@ export function useResumeEditSession({
         x: event.clientX,
         y: event.clientY,
       });
+      if (targetClass === "editable" && event.target instanceof Element) {
+        const editable = event.target.closest("[contenteditable='true']");
+        pendingEditableTargetRef.current =
+          editable instanceof HTMLElement ? editable : null;
+      } else {
+        pendingEditableTargetRef.current = null;
+      }
       if (
         targetClass === "resume-other" ||
         targetClass === "external" ||
@@ -469,9 +503,20 @@ export function useResumeEditSession({
         scheduleFocusVerifyRaf();
       }
     };
+    const onPointerUpCapture = () => {
+      if (!pendingEditableTargetRef.current) return;
+      window.requestAnimationFrame(() => {
+        pendingEditableTargetRef.current = null;
+      });
+    };
     document.addEventListener("pointerdown", onPointerDownCapture, true);
-    return () =>
+    document.addEventListener("pointerup", onPointerUpCapture, true);
+    document.addEventListener("pointercancel", onPointerUpCapture, true);
+    return () => {
       document.removeEventListener("pointerdown", onPointerDownCapture, true);
+      document.removeEventListener("pointerup", onPointerUpCapture, true);
+      document.removeEventListener("pointercancel", onPointerUpCapture, true);
+    };
   }, [applyTransition, cancelHopRaf, editMode, rootRef, scheduleFocusVerifyRaf]);
 
   useEffect(() => () => cancelHopRaf(), [cancelHopRaf]);

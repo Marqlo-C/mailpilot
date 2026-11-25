@@ -466,16 +466,6 @@ export function ResumeDraftToolbar({
               </FieldTrailingButton>
             }
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 shrink-0"
-            disabled={disabled}
-            onClick={onDismissRefine}
-          >
-            Cancel
-          </Button>
         </form>
       ) : null}
     </div>
