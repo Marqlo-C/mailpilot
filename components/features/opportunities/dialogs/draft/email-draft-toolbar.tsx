@@ -1,6 +1,6 @@
 "use client";
 
-import type { Ref } from "react";
+import { useState, type Ref } from "react";
 import type { Editor } from "@tiptap/react";
 import {
   AlignCenter,
@@ -87,6 +87,8 @@ export type EmailDraftToolbarProps = {
   onToggleUnderline?: () => void;
   textColor?: string | null;
   highlightColor?: string | null;
+  onApplyTextColor?: (value: string | null) => void;
+  onApplyHighlightColor?: (value: string | null) => void;
   alignValue?: AlignValue;
   showAttachResume?: boolean;
   attachResume?: boolean;
@@ -149,6 +151,8 @@ function SwatchGrid({
                       backgroundColor: "var(--card)",
                     }
             }
+            // Keep editor selection while picking (same as format buttons).
+            onMouseDown={(event) => event.preventDefault()}
             onClick={() => onSelect(swatch.value)}
           >
             {kind === "text" ? (
@@ -177,6 +181,8 @@ export function EmailDraftToolbar({
   onToggleUnderline,
   textColor = null,
   highlightColor = null,
+  onApplyTextColor,
+  onApplyHighlightColor,
   alignValue = "left",
   showAttachResume = false,
   attachResume = false,
@@ -184,6 +190,8 @@ export function EmailDraftToolbar({
   attachLocked = false,
   toolbarRef,
 }: EmailDraftToolbarProps) {
+  const [textColorOpen, setTextColorOpen] = useState(false);
+  const [highlightOpen, setHighlightOpen] = useState(false);
   const formatLocked = disabled || !editor;
   const resumeTip = attachResume
     ? "Remove tailored resume"
@@ -248,7 +256,7 @@ export function EmailDraftToolbar({
         </ToolbarToolCluster>
 
         <ToolbarToolCluster label="Color">
-          <DropdownMenu>
+          <DropdownMenu open={textColorOpen} onOpenChange={setTextColorOpen}>
             <LabelTooltip label="Text color" side="bottom">
               <span className="inline-flex">
                 <DropdownMenuTrigger asChild>
@@ -284,18 +292,14 @@ export function EmailDraftToolbar({
                 swatches={EMAIL_TEXT_COLORS}
                 activeValue={textColor}
                 onSelect={(value) => {
-                  if (!editor) return;
-                  if (value === null) {
-                    editor.chain().focus().unsetColor().run();
-                    return;
-                  }
-                  editor.chain().focus().setColor(value).run();
+                  onApplyTextColor?.(value);
+                  setTextColorOpen(false);
                 }}
               />
             </AppMenuContent>
           </DropdownMenu>
 
-          <DropdownMenu>
+          <DropdownMenu open={highlightOpen} onOpenChange={setHighlightOpen}>
             <LabelTooltip label="Highlight" side="bottom">
               <span className="inline-flex">
                 <DropdownMenuTrigger asChild>
@@ -336,12 +340,8 @@ export function EmailDraftToolbar({
                 swatches={EMAIL_HIGHLIGHT_COLORS}
                 activeValue={highlightColor}
                 onSelect={(value) => {
-                  if (!editor) return;
-                  if (value === null) {
-                    editor.chain().focus().unsetHighlight().run();
-                    return;
-                  }
-                  editor.chain().focus().setHighlight({ color: value }).run();
+                  onApplyHighlightColor?.(value);
+                  setHighlightOpen(false);
                 }}
               />
             </AppMenuContent>

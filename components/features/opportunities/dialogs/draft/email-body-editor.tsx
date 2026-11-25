@@ -112,6 +112,10 @@ export type EmailBodyEditorState = {
   toggleBold: () => void;
   toggleItalic: () => void;
   toggleUnderline: () => void;
+  /** Apply / clear text color and refresh toolbar (empty-caret stored marks skip onUpdate). */
+  applyTextColor: (value: string | null) => void;
+  /** Apply / clear highlight and refresh toolbar. */
+  applyHighlightColor: (value: string | null) => void;
 };
 
 /**
@@ -287,6 +291,33 @@ export function useEmailBodyEditor({
     [toggleMark]
   );
 
+  const applyTextColor = useCallback(
+    (value: string | null) => {
+      if (!editor) return;
+      if (value === null) {
+        editor.chain().focus().unsetColor().run();
+      } else {
+        editor.chain().focus().setColor(value).run();
+      }
+      // Empty-caret color is a stored mark — may not emit onUpdate.
+      flushUi(editor);
+    },
+    [editor, flushUi]
+  );
+
+  const applyHighlightColor = useCallback(
+    (value: string | null) => {
+      if (!editor) return;
+      if (value === null) {
+        editor.chain().focus().unsetHighlight().run();
+      } else {
+        editor.chain().focus().setHighlight({ color: value }).run();
+      }
+      flushUi(editor);
+    },
+    [editor, flushUi]
+  );
+
   return {
     editor,
     canUndo,
@@ -300,6 +331,8 @@ export function useEmailBodyEditor({
     toggleBold,
     toggleItalic,
     toggleUnderline,
+    applyTextColor,
+    applyHighlightColor,
   };
 }
 

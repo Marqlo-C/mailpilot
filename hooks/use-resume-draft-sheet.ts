@@ -24,11 +24,14 @@ import {
 } from "@/components/features/opportunities/drawer/subcomponents/resume-draft-layout";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/resume-draft";
 import {
+  clampResumeZoom,
   resumeEffectiveZoom,
+  resumeZoomPercent,
   type ResumeDraftZoomChoice,
+  type ResumeDraftZoomPreset,
 } from "@/lib/resume-draft/edit-presentation";
 
-export type { ResumeDraftZoomChoice };
+export type { ResumeDraftZoomChoice, ResumeDraftZoomPreset };
 
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
@@ -41,14 +44,16 @@ type UseResumeDraftSheetArgs = {
   lineEditing?: boolean;
   /** Fires when Ace-on-line or inline edit starts/stops. */
   onEditModeChange?: (active: boolean) => void;
+  /**
+   * False while the busy skeleton replaces the canvas so Fit re-binds when
+   * the viewport mounts again.
+   */
+  viewportActive?: boolean;
 };
 
 /**
  * Layout measurement, zoom, refine/notes chrome, and draft insights for
- * {@link ResumeDraftSheet}.
- *
- * Edit mode uses a derived zoom floor (max(base, 1)) — stored zoomChoice is
- * never overwritten by enter/exit.
+ * {@link ResumeDraftSheet}. Zoom chips are always honest (no edit floor).
  */
 export function useResumeDraftSheet({
   draft,
@@ -56,10 +61,12 @@ export function useResumeDraftSheet({
   onRefine,
   lineEditing = false,
   onEditModeChange,
+  viewportActive = true,
 }: UseResumeDraftSheetArgs) {
   const [refineFor, setRefineFor] = useState<string | null>(null);
   const [instruction, setInstruction] = useState("");
   const [zoomChoice, setZoomChoice] = useState<ResumeDraftZoomChoice>("fit");
+  const [manualScale, setManualScale] = useState(1);
   const [fitScale, setFitScale] = useState(0.7);
   const [blockHeights, setBlockHeights] = useState<Record<string, number>>({});
   const [notesOpen, setNotesOpen] = useState(false);
@@ -69,8 +76,16 @@ export function useResumeDraftSheet({
   const refinePanelRef = useRef<HTMLFormElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const pagesContainerRef = useRef<HTMLDivElement>(null);
+  const zoomChoiceRef = useRef(zoomChoice);
+  const manualScaleRef = useRef(manualScale);
+  const fitScaleRef = useRef(fitScale);
+  zoomChoiceRef.current = zoomChoice;
+  manualScaleRef.current = manualScale;
+  fitScaleRef.current = fitScale;
 
+  // Re-bind after busy skeleton → canvas mount (viewportRef was null before).
   useEffect(() => {
+    if (!viewportActive) return;
     const viewport = viewportRef.current;
     if (!viewport) return;
     const measure = () => {
@@ -82,7 +97,82 @@ export function useResumeDraftSheet({
     const observer = new ResizeObserver(measure);
     observer.observe(viewport);
     return () => observer.disconnect();
+  }, [viewportActive]);
+
+  const applyManualZoom = useCallback((nextScale: number) => {
+    const clamped = clampResumeZoom(nextScale);
+    setManualScale(clamped);
+    setZoomChoice("custom");
   }, []);
+
+  /**
+   * Trackpad pinch (ctrl+wheel) + touch pinch on the canvas viewport.
+   * Scale only — no cursor pin / lerp yet.
+   */
+  useEffect(() => {
+    if (!viewportActive) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const liveZoom = () =>
+      resumeEffectiveZoom(
+        zoomChoiceRef.current,
+        fitScaleRef.current,
+        false,
+        manualScaleRef.current
+      );
+
+    const onWheel = (event: WheelEvent) => {
+      // macOS trackpad pinch is dispatched as ctrl+wheel.
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      const factor = Math.exp(-event.deltaY * 0.01);
+      applyManualZoom(liveZoom() * factor);
+    };
+
+    let pinchStartDist = 0;
+    let pinchStartZoom = 1;
+
+    const touchDistance = (touches: TouchList) => {
+      const a = touches.item(0);
+      const b = touches.item(1);
+      if (!a || !b) return 0;
+      const dx = a.clientX - b.clientX;
+      const dy = a.clientY - b.clientY;
+      return Math.hypot(dx, dy);
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return;
+      pinchStartDist = touchDistance(event.touches);
+      pinchStartZoom = liveZoom();
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 2 || pinchStartDist <= 0) return;
+      event.preventDefault();
+      const dist = touchDistance(event.touches);
+      if (dist <= 0) return;
+      applyManualZoom(pinchStartZoom * (dist / pinchStartDist));
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length < 2) pinchStartDist = 0;
+    };
+
+    viewport.addEventListener("wheel", onWheel, { passive: false });
+    viewport.addEventListener("touchstart", onTouchStart, { passive: true });
+    viewport.addEventListener("touchmove", onTouchMove, { passive: false });
+    viewport.addEventListener("touchend", onTouchEnd);
+    viewport.addEventListener("touchcancel", onTouchEnd);
+    return () => {
+      viewport.removeEventListener("wheel", onWheel);
+      viewport.removeEventListener("touchstart", onTouchStart);
+      viewport.removeEventListener("touchmove", onTouchMove);
+      viewport.removeEventListener("touchend", onTouchEnd);
+      viewport.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [applyManualZoom, viewportActive]);
 
   useEffect(() => {
     if (!notesOpen) return;
@@ -127,16 +217,29 @@ export function useResumeDraftSheet({
 
   const editMode = Boolean(refineFor) || lineEditing;
 
+  // Emit current value only — never pulse `false` on cleanup (that slammed the split).
   useEffect(() => {
     onEditModeChange?.(editMode);
-    return () => onEditModeChange?.(false);
   }, [editMode, onEditModeChange]);
 
-  const zoom = resumeEffectiveZoom(zoomChoice, fitScale, editMode);
+  const zoom = resumeEffectiveZoom(
+    zoomChoice,
+    fitScale,
+    editMode,
+    manualScale
+  );
+  const zoomPercent = resumeZoomPercent(zoom);
 
-  const handleZoomChange = useCallback((next: ResumeDraftZoomChoice) => {
+  const handleZoomPresetChange = useCallback((next: ResumeDraftZoomPreset) => {
     setZoomChoice(next);
   }, []);
+
+  const handleZoomPercentChange = useCallback(
+    (percent: number) => {
+      applyManualZoom(percent / 100);
+    },
+    [applyManualZoom]
+  );
 
   const blocks = useMemo(() => {
     const all = buildBlocks(draft);
@@ -271,7 +374,9 @@ export function useResumeDraftSheet({
     instruction,
     setInstruction,
     zoomChoice,
-    setZoomChoice: handleZoomChange,
+    setZoomChoice: handleZoomPresetChange,
+    zoomPercent,
+    setZoomPercent: handleZoomPercentChange,
     zoom,
     editMode,
     notesOpen,

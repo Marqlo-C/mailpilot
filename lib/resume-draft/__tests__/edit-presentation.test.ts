@@ -2,68 +2,60 @@ import { describe, expect, it } from "vitest";
 
 import {
   classifyResumeEditProbe,
+  clampResumeZoom,
   resolveEditScreenAnchor,
   resolveEditableAnchorRect,
   resolveEditableMeasureTarget,
+  resumeBaseZoom,
   resumeDisplayZoomChoice,
   resumeEffectiveZoom,
-  scrollDeltaForZoomAroundPoint,
-  RESUME_EDIT_ZOOM_FLOOR,
+  resumeZoomPercent,
   type ResumeEditTargetProbe,
 } from "@/lib/resume-draft/edit-presentation";
 
-describe("resumeEffectiveZoom", () => {
-  it("leaves idle zoom unchanged", () => {
-    expect(resumeEffectiveZoom("fit", 0.7, false)).toBeCloseTo(0.7);
-    expect(resumeEffectiveZoom("0.85", 0.7, false)).toBe(0.85);
+describe("resumeBaseZoom / resumeEffectiveZoom", () => {
+  it("maps Fit to live fitScale and explicit chips to their ratios", () => {
+    expect(resumeBaseZoom("fit", 0.7)).toBeCloseTo(0.7);
+    expect(resumeBaseZoom("1", 0.7)).toBe(1);
+    expect(resumeBaseZoom("1.25", 0.7)).toBe(1.25);
   });
 
-  it("floors edit zoom at 100% without mutating stored choice semantics", () => {
-    expect(resumeEffectiveZoom("fit", 0.7, true)).toBe(RESUME_EDIT_ZOOM_FLOOR);
-    expect(resumeEffectiveZoom("0.85", 0.7, true)).toBe(RESUME_EDIT_ZOOM_FLOOR);
+  it("uses clamped manualScale for custom zoom", () => {
+    expect(resumeBaseZoom("custom", 0.7, 0.42)).toBeCloseTo(0.42);
+    expect(resumeBaseZoom("custom", 0.7, 0.01)).toBe(0.25);
+    expect(resumeBaseZoom("custom", 0.7, 9)).toBe(3);
+  });
+
+  it("keeps chips honest while editing — no 100% floor", () => {
+    expect(resumeEffectiveZoom("fit", 0.7, true)).toBeCloseTo(0.7);
     expect(resumeEffectiveZoom("1", 0.7, true)).toBe(1);
     expect(resumeEffectiveZoom("1.25", 0.7, true)).toBe(1.25);
+    expect(resumeEffectiveZoom("custom", 0.7, true, 0.85)).toBeCloseTo(0.85);
     expect(resumeEffectiveZoom("fit", 1.15, true)).toBeCloseTo(1.15);
+    expect(resumeEffectiveZoom("fit", 0.7, false)).toBeCloseTo(0.7);
   });
 });
 
-describe("scrollDeltaForZoomAroundPoint", () => {
-  it("scales scroll by cursor offset inside the scroller", () => {
-    expect(
-      scrollDeltaForZoomAroundPoint({
-        oldZoom: 1,
-        newZoom: 2,
-        anchorXInScroller: 100,
-        anchorYInScroller: 200,
-      })
-    ).toEqual({ dx: 100, dy: 200 });
-    expect(
-      scrollDeltaForZoomAroundPoint({
-        oldZoom: 0.5,
-        newZoom: 1,
-        anchorXInScroller: 80,
-        anchorYInScroller: 40,
-      })
-    ).toEqual({ dx: 80, dy: 40 });
+describe("clampResumeZoom / resumeZoomPercent", () => {
+  it("clamps to the supported range", () => {
+    expect(clampResumeZoom(0)).toBe(0.25);
+    expect(clampResumeZoom(4)).toBe(3);
+    expect(clampResumeZoom(1.1)).toBeCloseTo(1.1);
   });
 
-  it("is a no-op when scale is unchanged", () => {
-    expect(
-      scrollDeltaForZoomAroundPoint({
-        oldZoom: 0.85,
-        newZoom: 0.85,
-        anchorXInScroller: 50,
-        anchorYInScroller: 50,
-      })
-    ).toEqual({ dx: 0, dy: 0 });
+  it("rounds live scale to a whole percent", () => {
+    expect(resumeZoomPercent(0.7)).toBe(70);
+    expect(resumeZoomPercent(1)).toBe(100);
+    expect(resumeZoomPercent(1.25)).toBe(125);
+    expect(resumeZoomPercent(0.856)).toBe(86);
   });
 });
 
 describe("resumeDisplayZoomChoice", () => {
-  it("always mirrors stored choice — edit floor does not hop the chip", () => {
+  it("always mirrors stored choice", () => {
     expect(resumeDisplayZoomChoice("fit", 0.7, false)).toBe("fit");
     expect(resumeDisplayZoomChoice("fit", 0.7, true)).toBe("fit");
-    expect(resumeDisplayZoomChoice("0.85", 0.7, true)).toBe("0.85");
+    expect(resumeDisplayZoomChoice("custom", 0.7, true)).toBe("custom");
     expect(resumeDisplayZoomChoice("1", 0.7, true)).toBe("1");
     expect(resumeDisplayZoomChoice("1.25", 0.7, true)).toBe("1.25");
   });

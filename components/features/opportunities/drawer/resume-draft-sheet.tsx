@@ -80,6 +80,7 @@ export function ResumeDraftSheet({
     onRefine,
     lineEditing,
     onEditModeChange,
+    viewportActive: !busyLabel,
   });
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -107,7 +108,7 @@ export function ResumeDraftSheet({
     sheet.dismissRefine();
   }, [busyLabel, disabled, sheet.closeNotes, sheet.dismissRefine]);
 
-  // Escape: dismiss refine → else blur editable (commit) + suppress re-enter.
+  // Escape: dismiss refine → else blur editable once; do not hand focus to zoom.
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -124,9 +125,6 @@ export function ResumeDraftSheet({
       event.stopPropagation();
       onForceExitEdit?.();
       blurActiveEditable();
-      if (sheet.refineFor) sheet.dismissRefine();
-      const zoomEl = root.querySelector<HTMLElement>("[data-resume-zoom-control]");
-      zoomEl?.focus({ preventScroll: true });
     };
     root.addEventListener("keydown", onKeyDown);
     return () => root.removeEventListener("keydown", onKeyDown);
@@ -134,9 +132,9 @@ export function ResumeDraftSheet({
     blurActiveEditable,
     lineEditing,
     onForceExitEdit,
-    sheet.dismissRefine,
     sheet.editMode,
     sheet.refineFor,
+    sheet.dismissRefine,
   ]);
 
   // Whitespace / resume-other pointer exit (blur commits; don't preventDefault).
@@ -225,6 +223,8 @@ export function ResumeDraftSheet({
           exporting={exporting}
           zoomChoice={sheet.zoomChoice}
           onZoomChange={sheet.setZoomChoice}
+          zoomPercent={sheet.zoomPercent}
+          onZoomPercentChange={sheet.setZoomPercent}
           includeSummary={includeSummary}
           onIncludeSummaryChange={onIncludeSummaryChange}
           draftInsights={sheet.draftInsights}

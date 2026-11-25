@@ -133,6 +133,8 @@ export function EmailEditorPanel({
     toggleBold,
     toggleItalic,
     toggleUnderline,
+    applyTextColor,
+    applyHighlightColor,
   } = useEmailBodyEditor({
     body,
     setBody,
@@ -314,6 +316,8 @@ export function EmailEditorPanel({
           onToggleUnderline={toggleUnderline}
           textColor={textColor}
           highlightColor={highlightColor}
+          onApplyTextColor={applyTextColor}
+          onApplyHighlightColor={applyHighlightColor}
           alignValue={alignValue}
           showAttachResume={showResumeAttach}
           attachResume={attachResume}

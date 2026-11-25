@@ -96,6 +96,17 @@ export function EditableLine({
     writeDom(el, value);
   }, [value, renderHtml]);
 
+  /**
+   * Flatten styled HTML to plain text on pointerdown (before focus/caret),
+   * so the browser places the caret on stable text nodes — never rewrite
+   * textContent inside onFocus under an in-flight mousedown.
+   */
+  function flattenHtmlForEdit(el: HTMLElement) {
+    if (!renderHtmlRef.current) return;
+    if (!el.querySelector("strong, span[style]")) return;
+    el.textContent = pendingCommitRef.current ?? valueRef.current;
+  }
+
   const Tag = as;
   return (
     <Tag
@@ -106,11 +117,14 @@ export function EditableLine({
       suppressContentEditableWarning
       className={className}
       style={style}
-      onFocus={(event) => {
-        if (renderHtml) {
-          event.currentTarget.textContent =
-            pendingCommitRef.current ?? valueRef.current;
-        }
+      onPointerDown={(event) => {
+        if (disabled || event.button !== 0) return;
+        flattenHtmlForEdit(event.currentTarget);
+      }}
+      onFocus={() => {
+        const el = ref.current;
+        // Keyboard focus: flatten without a prior pointerdown.
+        if (el) flattenHtmlForEdit(el);
         onEditStart?.();
       }}
       onBlur={(event) => {
@@ -127,6 +141,7 @@ export function EditableLine({
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.preventDefault();
+          event.stopPropagation();
           event.currentTarget.blur();
           return;
         }

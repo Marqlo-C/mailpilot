@@ -1,18 +1,20 @@
 /**
- * Pure helpers for resume edit-mode zoom floor, target classification, and
- * screen-anchor resolution. Hermetic — zoom/classifier/anchor math need no live DOM.
+ * Pure helpers for resume zoom choice, target classification, and
+ * screen-anchor resolution. Hermetic — no live DOM.
  */
 
-export type ResumeDraftZoomChoice = "fit" | "0.85" | "1" | "1.25";
+/** Preset chips + freeform (pinch / percent field). */
+export type ResumeDraftZoomChoice = "fit" | "1" | "1.25" | "custom";
 
-/** Edit-mode scale floor (100%). */
-export const RESUME_EDIT_ZOOM_FLOOR = 1;
+/** Preset rail options only — `"custom"` means no chip selected. */
+export const RESUME_ZOOM_PRESET_CHOICES = ["fit", "1", "1.25"] as const;
 
-/** Pin settle budget while zoom/split + CSS scale transition settle (ms). */
-export const RESUME_EDIT_PIN_SETTLE_MS = 320;
+export type ResumeDraftZoomPreset = (typeof RESUME_ZOOM_PRESET_CHOICES)[number];
 
-/** Stable-frame epsilon (CSS px) before declaring the pin settled. */
-export const RESUME_EDIT_PIN_STABLE_PX = 1;
+export const RESUME_ZOOM_MIN = 0.25;
+export const RESUME_ZOOM_MAX = 3;
+/** Percent steppers / typed field step (1%). */
+export const RESUME_ZOOM_PERCENT_STEP = 1;
 
 export type ResumeEditScreenPoint = { x: number; y: number };
 
@@ -24,54 +26,46 @@ export type ResumeEditRect = {
 };
 
 /**
- * Base scale from the user's stored choice (Fit uses live fitScale).
+ * Clamp presentation scale into the supported zoom range.
  */
-export function resumeBaseZoom(
-  zoomChoice: ResumeDraftZoomChoice,
-  fitScale: number
-): number {
-  return zoomChoice === "fit" ? fitScale : Number(zoomChoice);
+export function clampResumeZoom(scale: number): number {
+  if (!Number.isFinite(scale)) return RESUME_ZOOM_MIN;
+  return Math.min(RESUME_ZOOM_MAX, Math.max(RESUME_ZOOM_MIN, scale));
 }
 
 /**
- * While editing, floor at 100% so we zoom past a small Fit into the click.
- * Stored choice / toolbar chip are never mutated — presentation only.
+ * Scale from choice. Fit → live fitScale; custom → manualScale; else chip ratio.
+ */
+export function resumeBaseZoom(
+  zoomChoice: ResumeDraftZoomChoice,
+  fitScale: number,
+  manualScale = 1
+): number {
+  if (zoomChoice === "fit") return fitScale;
+  if (zoomChoice === "custom") return clampResumeZoom(manualScale);
+  return Number(zoomChoice);
+}
+
+/**
+ * Presentation zoom — mirrors {@link resumeBaseZoom}.
+ * `editActive` is retained for call-site compatibility and ignored.
  */
 export function resumeEffectiveZoom(
   zoomChoice: ResumeDraftZoomChoice,
   fitScale: number,
-  editActive: boolean
+  _editActive: boolean,
+  manualScale = 1
 ): number {
-  const base = resumeBaseZoom(zoomChoice, fitScale);
-  return editActive ? Math.max(base, RESUME_EDIT_ZOOM_FLOOR) : base;
+  return resumeBaseZoom(zoomChoice, fitScale, manualScale);
+}
+
+/** Whole-percent display for the zoom field (tracks live scale). */
+export function resumeZoomPercent(scale: number): number {
+  return Math.round(clampResumeZoom(scale) * 100);
 }
 
 /**
- * PDF.js-style scroll delta so the screen point under the cursor stays put
- * when scale changes about `origin-top-left`.
- */
-export function scrollDeltaForZoomAroundPoint(args: {
-  oldZoom: number;
-  newZoom: number;
-  /** Click X relative to the scroller's client left. */
-  anchorXInScroller: number;
-  /** Click Y relative to the scroller's client top. */
-  anchorYInScroller: number;
-}): { dx: number; dy: number } {
-  const { oldZoom, newZoom, anchorXInScroller, anchorYInScroller } = args;
-  if (oldZoom <= 0 || Math.abs(newZoom - oldZoom) < 1e-9) {
-    return { dx: 0, dy: 0 };
-  }
-  const factor = newZoom / oldZoom - 1;
-  return {
-    dx: anchorXInScroller * factor,
-    dy: anchorYInScroller * factor,
-  };
-}
-
-/**
- * Segmented control always mirrors the user's stored choice.
- * Edit-mode floor is presentation-only — never hops the chip to 100%.
+ * Segmented control: presets highlight themselves; custom leaves none active.
  */
 export function resumeDisplayZoomChoice(
   zoomChoice: ResumeDraftZoomChoice,

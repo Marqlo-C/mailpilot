@@ -38,9 +38,18 @@ import {
 } from "@/components/ui/tactile/dashed-border-ring";
 import { BRAND_SELECTION_TOGGLE_ACTIVE_CLASSNAME } from "@/components/ui/styles/brand-selection";
 import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
+import { NumericField } from "@/components/ui/tactile/numeric-field";
 import { SegmentedControl } from "@/components/ui/tactile/segmented-tabs";
 import { LabelTooltip } from "@/components/ui/tooltip";
-import type { ResumeDraftZoomChoice } from "@/hooks/use-resume-draft-sheet";
+import type {
+  ResumeDraftZoomChoice,
+  ResumeDraftZoomPreset,
+} from "@/hooks/use-resume-draft-sheet";
+import {
+  RESUME_ZOOM_MAX,
+  RESUME_ZOOM_MIN,
+  RESUME_ZOOM_PERCENT_STEP,
+} from "@/lib/resume-draft/edit-presentation";
 import type { StrategyRationale } from "@/lib/validations/resume-draft.schema";
 import { cn } from "@/lib/utils";
 
@@ -57,7 +66,6 @@ const ZOOM_OPTIONS = [
       </>
     ),
   },
-  { value: "0.85" as const, label: "85%" },
   { value: "1" as const, label: "100%" },
   { value: "1.25" as const, label: "125%" },
 ];
@@ -66,7 +74,10 @@ export type ResumeDraftToolbarProps = {
   disabled?: boolean;
   exporting?: boolean;
   zoomChoice: ResumeDraftZoomChoice;
-  onZoomChange: (value: ResumeDraftZoomChoice) => void;
+  onZoomChange: (value: ResumeDraftZoomPreset) => void;
+  /** Live zoom as whole percent — tracks Fit / presets / pinch / typed. */
+  zoomPercent: number;
+  onZoomPercentChange: (percent: number) => void;
   includeSummary?: boolean;
   onIncludeSummaryChange?: (include: boolean) => void;
   draftInsights: ResumeDraftInsights;
@@ -105,6 +116,8 @@ export function ResumeDraftToolbar({
   exporting,
   zoomChoice,
   onZoomChange,
+  zoomPercent,
+  onZoomPercentChange,
   includeSummary,
   onIncludeSummaryChange,
   draftInsights,
@@ -161,15 +174,43 @@ export function ResumeDraftToolbar({
             <ToolbarDivider />
           </>
         ) : null}
-        <div data-resume-zoom-control="" tabIndex={-1} className="outline-none">
-          <SegmentedControl
-            size="sm"
-            label="Resume zoom"
-            value={zoomChoice}
-            onChange={onZoomChange}
-            options={ZOOM_OPTIONS}
+        <div
+          data-resume-zoom-control=""
+          tabIndex={-1}
+          className="flex items-center gap-1.5 outline-none"
+        >
+          <div
+            onMouseDown={(event) => {
+              // Keep contenteditable focus — chips must not steal caret / enter edit.
+              event.preventDefault();
+            }}
+          >
+            <SegmentedControl
+              size="sm"
+              label="Resume zoom"
+              // Freeform (pinch / typed) uses a non-option value → no chip active.
+              value={
+                zoomChoice === "custom"
+                  ? ("__custom__" as ResumeDraftZoomPreset)
+                  : zoomChoice
+              }
+              onChange={onZoomChange}
+              options={ZOOM_OPTIONS}
+              disabled={disabled}
+              className={cn("shrink-0", disabled && "pointer-events-none")}
+            />
+          </div>
+          <NumericField
+            value={zoomPercent}
+            onChange={onZoomPercentChange}
+            min={Math.round(RESUME_ZOOM_MIN * 100)}
+            max={Math.round(RESUME_ZOOM_MAX * 100)}
+            step={RESUME_ZOOM_PERCENT_STEP}
+            percent
+            steppers
             disabled={disabled}
-            className={cn("shrink-0", disabled && "pointer-events-none")}
+            aria-label="Resume zoom percent"
+            className="shrink-0"
           />
         </div>
       </div>

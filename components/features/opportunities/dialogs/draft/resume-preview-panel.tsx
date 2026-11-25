@@ -19,13 +19,12 @@ function resumeRootFrom(container: HTMLElement): Element | null {
   return container.querySelector("[data-resume-draft-root]");
 }
 
-/** Editable or resume chrome (zoom / toolbar / Ace) — stay in edit presentation. */
-function keepsEditPresentation(
+/** Contenteditable only — zoom/toolbar must not enter or hold edit mode. */
+function isEditableEditTarget(
   target: EventTarget | null,
   resumeRoot: Element | null
 ): boolean {
-  const kind = classifyResumeEditTarget(target, resumeRoot);
-  return kind === "editable" || kind === "resume-local";
+  return classifyResumeEditTarget(target, resumeRoot) === "editable";
 }
 
 export function ResumePreviewPanel({
@@ -84,7 +83,7 @@ export function ResumePreviewPanel({
   const showEmptyGenerateState = resumeBusy && !resume;
   const settleKey = useContentSettleKey(resumeBusy);
   const [editingFocused, setEditingFocused] = useState(false);
-  /** Escape handoff focuses zoom — must not re-enter edit via resume-local. */
+  /** Escape exit — ignore the next focus that would re-enter edit mode. */
   const escapeExitRef = useRef(false);
 
   const forceExitEdit = useCallback(() => {
@@ -105,14 +104,13 @@ export function ResumePreviewPanel({
           return;
         }
         const resumeRoot = resumeRootFrom(event.currentTarget);
-        // Zoom / toolbar focus keeps edit presentation (not an empty-space exit).
-        if (keepsEditPresentation(event.target, resumeRoot)) {
+        if (isEditableEditTarget(event.target, resumeRoot)) {
           setEditingFocused(true);
         }
       }}
       onBlurCapture={(event) => {
         const plate = event.currentTarget;
-        // Hop A→B / zoom click: defer one frame; stay if editable or resume-local.
+        // Hop A→B: defer one frame; stay only if another editable still holds focus.
         requestAnimationFrame(() => {
           if (escapeExitRef.current) {
             escapeExitRef.current = false;
@@ -121,7 +119,7 @@ export function ResumePreviewPanel({
           }
           const active = document.activeElement;
           const resumeRoot = resumeRootFrom(plate);
-          if (keepsEditPresentation(active, resumeRoot)) {
+          if (isEditableEditTarget(active, resumeRoot)) {
             setEditingFocused(true);
             return;
           }

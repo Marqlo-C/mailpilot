@@ -164,10 +164,12 @@ export function NumericField({
     }
     const parsed = Number.parseInt(next, 10);
     if (!Number.isFinite(parsed)) return;
-    // Clamp in real time — out-of-range keystrokes snap to min/max immediately.
-    const clamped = clampToRange(parsed, min, max);
-    setDraft(String(clamped));
-    if (clamped !== value) onChange(clamped);
+    // Keep the typed draft as-is so "1"→"10"→"100" works when min is 25.
+    // Clamp only on blur / Enter via commitParsed. Live-apply in-range only.
+    setDraft(next);
+    if (parsed >= min && parsed <= max && parsed !== value) {
+      onChange(parsed);
+    }
   }
 
   function handleBlur() {

@@ -165,6 +165,68 @@ describe("NumericField Component", () => {
     expect(props.value).toBe("42");
   });
 
+  it("keeps below-min typed digits as draft without snapping to min until blur", async () => {
+    const handleChange = vi.fn();
+
+    await act(async () => {
+      root.render(
+        React.createElement(NumericField, {
+          value: 70,
+          onChange: handleChange,
+          min: 25,
+          max: 300,
+        })
+      );
+    });
+
+    const inputNode = findNode(container, (n) => n.tagName === "INPUT");
+    const inputProps = getReactProps(inputNode);
+
+    act(() => {
+      inputProps.onChange({ target: { value: "1" } });
+    });
+
+    // Still drafting "1" toward 100 — do not clamp to 25 or call onChange.
+    expect(handleChange).not.toHaveBeenCalled();
+    expect(getReactProps(inputNode).value).toBe("1");
+
+    act(() => {
+      inputProps.onChange({ target: { value: "100" } });
+    });
+
+    expect(handleChange).toHaveBeenCalledWith(100);
+    expect(getReactProps(inputNode).value).toBe("100");
+  });
+
+  it("clamps out-of-range typed values only on blur", async () => {
+    const handleChange = vi.fn();
+
+    await act(async () => {
+      root.render(
+        React.createElement(NumericField, {
+          value: 70,
+          onChange: handleChange,
+          min: 25,
+          max: 300,
+        })
+      );
+    });
+
+    const inputNode = findNode(container, (n) => n.tagName === "INPUT");
+
+    act(() => {
+      getReactProps(inputNode).onChange({ target: { value: "999" } });
+    });
+    expect(handleChange).not.toHaveBeenCalled();
+    expect(getReactProps(inputNode).value).toBe("999");
+
+    // Re-read props after draft update — stale onBlur would still see draft=null.
+    act(() => {
+      getReactProps(inputNode).onBlur();
+    });
+    expect(handleChange).toHaveBeenCalledWith(300);
+  });
+
   it("calls onChange immediately on arrow nudge, but debounces onCommit until timer completes", async () => {
     const handleChange = vi.fn();
     const handleCommit = vi.fn();

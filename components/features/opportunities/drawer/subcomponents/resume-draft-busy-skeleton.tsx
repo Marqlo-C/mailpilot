@@ -9,6 +9,11 @@ import {
   SHEET_WIDTH,
 } from "./resume-draft-layout";
 
+/** Letter padding as % of width so the busy page scales with the pane. */
+const PAGE_PAD_X_PCT = `${(PAGE_PADDING_X / SHEET_WIDTH) * 100}%`;
+const PAGE_PAD_TOP_PCT = `${(PAGE_PADDING_TOP / SHEET_WIDTH) * 100}%`;
+const PAGE_PAD_BOTTOM_PCT = `${(PAGE_PADDING_BOTTOM / SHEET_WIDTH) * 100}%`;
+
 function ResumePageLines() {
   return (
     <div className="flex flex-col gap-3">
@@ -49,6 +54,7 @@ function ResumePageLines() {
 
 /**
  * Letter page only — real ResumeDraftToolbar stays visible like email To/Subject.
+ * Fills the pane width (Fit-style); letter aspect only — no SHEET_WIDTH cap.
  */
 export function ResumeDraftBusySkeleton({ className }: { className?: string }) {
   return (
@@ -60,14 +66,13 @@ export function ResumeDraftBusySkeleton({ className }: { className?: string }) {
       aria-hidden
     >
       <div
-        className="mx-auto w-full overflow-hidden rounded-sm bg-white shadow-lg ring-1 ring-black/5"
+        className="mx-auto h-auto w-full max-w-full overflow-hidden rounded-sm bg-white shadow-lg ring-1 ring-black/5"
         style={{
-          maxWidth: SHEET_WIDTH,
           aspectRatio: `${SHEET_WIDTH} / ${PAGE_HEIGHT}`,
-          paddingTop: PAGE_PADDING_TOP,
-          paddingBottom: PAGE_PADDING_BOTTOM,
-          paddingLeft: PAGE_PADDING_X,
-          paddingRight: PAGE_PADDING_X,
+          paddingTop: PAGE_PAD_TOP_PCT,
+          paddingBottom: PAGE_PAD_BOTTOM_PCT,
+          paddingLeft: PAGE_PAD_X_PCT,
+          paddingRight: PAGE_PAD_X_PCT,
         }}
       >
         <ResumePageLines />

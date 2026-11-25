@@ -17,6 +17,8 @@ export * from "./node-ops";
 export * from "./composer";
 export * from "./refiner";
 export * from "./edit-presentation";
+export * from "./line-measure";
+export * from "./edit-pin";
 
 export {
   cleanProjectUrl,

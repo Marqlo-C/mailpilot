@@ -37,7 +37,7 @@ export const BRAND_SELECTION_EDGE_BEFORE_CLASSNAME = cn(
  * Same surface as outline hover (`bg-accent`); on-state is brand label + glow.
  */
 export const BRAND_SELECTION_TOGGLE_ACTIVE_CLASSNAME = cn(
-  "border-input bg-accent text-brand/75",
-  "hover:border-input hover:bg-accent hover:text-brand/80",
+  "border-input bg-accent text-brand",
+  "hover:border-input hover:bg-accent hover:text-brand",
   BRAND_SELECTION_GLOW_CLASSNAME
 );
