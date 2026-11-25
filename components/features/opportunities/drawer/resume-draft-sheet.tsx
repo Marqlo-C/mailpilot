@@ -47,6 +47,7 @@ export function ResumeDraftSheet({
   onUndo,
   onRedo,
   lineEditing = false,
+  onForceExitEdit,
   onEditModeChange,
 }: {
   draft: TailoredResumeDraft;
@@ -69,6 +70,8 @@ export function ResumeDraftSheet({
   onRedo?: () => void;
   /** Contenteditable line currently focused (from plate focus tracking). */
   lineEditing?: boolean;
+  /** Escape exit — clears edit presentation even if focus moves to zoom. */
+  onForceExitEdit?: () => void;
   onEditModeChange?: (active: boolean) => void;
 }) {
   const sheet = useResumeDraftSheet({
@@ -116,16 +119,25 @@ export function ResumeDraftSheet({
         sheet.dismissRefine();
         return;
       }
-      if (!lineEditing) return;
+      if (!lineEditing && !sheet.editMode) return;
       event.preventDefault();
       event.stopPropagation();
+      onForceExitEdit?.();
       blurActiveEditable();
+      if (sheet.refineFor) sheet.dismissRefine();
       const zoomEl = root.querySelector<HTMLElement>("[data-resume-zoom-control]");
       zoomEl?.focus({ preventScroll: true });
     };
     root.addEventListener("keydown", onKeyDown);
     return () => root.removeEventListener("keydown", onKeyDown);
-  }, [blurActiveEditable, lineEditing, sheet.dismissRefine, sheet.refineFor]);
+  }, [
+    blurActiveEditable,
+    lineEditing,
+    onForceExitEdit,
+    sheet.dismissRefine,
+    sheet.editMode,
+    sheet.refineFor,
+  ]);
 
   // Whitespace / resume-other pointer exit (blur commits; don't preventDefault).
   useEffect(() => {
@@ -149,13 +161,21 @@ export function ResumeDraftSheet({
       }
       if (!sheet.editMode) return;
       const kind = classifyResumeEditTarget(event.target, root);
+      // Zoom / toolbar = resume-local — change zoom, do not exit.
       if (kind !== "resume-other") return;
+      onForceExitEdit?.();
       blurActiveEditable();
       if (sheet.refineFor) sheet.dismissRefine();
     };
     root.addEventListener("pointerdown", onPointerDown);
     return () => root.removeEventListener("pointerdown", onPointerDown);
-  }, [blurActiveEditable, sheet.dismissRefine, sheet.editMode, sheet.refineFor]);
+  }, [
+    blurActiveEditable,
+    onForceExitEdit,
+    sheet.dismissRefine,
+    sheet.editMode,
+    sheet.refineFor,
+  ]);
 
   // Suppress Escape re-enter until blur+refocus (next intentional pointer).
   useEffect(() => {

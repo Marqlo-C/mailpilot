@@ -1,4 +1,4 @@
-import React, { useState, type Ref } from "react";
+import React, { useCallback, useRef, useState, type Ref } from "react";
 import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/composites/empty-state";
@@ -19,12 +19,13 @@ function resumeRootFrom(container: HTMLElement): Element | null {
   return container.querySelector("[data-resume-draft-root]");
 }
 
-function isLineEditingFocus(
+/** Editable or resume chrome (zoom / toolbar / Ace) — stay in edit presentation. */
+function keepsEditPresentation(
   target: EventTarget | null,
   resumeRoot: Element | null
 ): boolean {
   const kind = classifyResumeEditTarget(target, resumeRoot);
-  return kind === "editable";
+  return kind === "editable" || kind === "resume-local";
 }
 
 export function ResumePreviewPanel({
@@ -83,6 +84,13 @@ export function ResumePreviewPanel({
   const showEmptyGenerateState = resumeBusy && !resume;
   const settleKey = useContentSettleKey(resumeBusy);
   const [editingFocused, setEditingFocused] = useState(false);
+  /** Escape handoff focuses zoom — must not re-enter edit via resume-local. */
+  const escapeExitRef = useRef(false);
+
+  const forceExitEdit = useCallback(() => {
+    escapeExitRef.current = true;
+    setEditingFocused(false);
+  }, []);
 
   return (
     <div
@@ -92,20 +100,29 @@ export function ResumePreviewPanel({
         embedded && editingFocused && COMPOSER_SPLIT_PLATE_FOCUS_CLASSNAME
       )}
       onFocusCapture={(event) => {
+        if (escapeExitRef.current) {
+          escapeExitRef.current = false;
+          return;
+        }
         const resumeRoot = resumeRootFrom(event.currentTarget);
-        if (isLineEditingFocus(event.target, resumeRoot)) {
+        // Zoom / toolbar focus keeps edit presentation (not an empty-space exit).
+        if (keepsEditPresentation(event.target, resumeRoot)) {
           setEditingFocused(true);
         }
       }}
       onBlurCapture={(event) => {
         const plate = event.currentTarget;
-        // Hop A→B: defer one frame; cancel exit if new focus is editable/local.
+        // Hop A→B / zoom click: defer one frame; stay if editable or resume-local.
         requestAnimationFrame(() => {
+          if (escapeExitRef.current) {
+            escapeExitRef.current = false;
+            setEditingFocused(false);
+            return;
+          }
           const active = document.activeElement;
           const resumeRoot = resumeRootFrom(plate);
-          const kind = classifyResumeEditTarget(active, resumeRoot);
-          if (kind === "editable" || kind === "resume-local") {
-            setEditingFocused(kind === "editable");
+          if (keepsEditPresentation(active, resumeRoot)) {
+            setEditingFocused(true);
             return;
           }
           setEditingFocused(false);
@@ -159,6 +176,7 @@ export function ResumePreviewPanel({
             onUndo={onUndo}
             onRedo={onRedo}
             lineEditing={editingFocused}
+            onForceExitEdit={forceExitEdit}
             onEditModeChange={onEditModeChange}
           />
         ) : resume && resumePdfUrl ? (
