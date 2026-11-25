@@ -26,7 +26,12 @@ export type NumberTickerProps = {
 } & Omit<ComponentPropsWithoutRef<"span">, "children">;
 
 function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined") return false;
+  if (
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function"
+  ) {
+    return false;
+  }
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
@@ -45,8 +50,11 @@ export function NumberTicker({
   className,
   ...props
 }: NumberTickerProps) {
-  const [display, setDisplay] = useState(startValue);
-  const displayRef = useRef(startValue);
+  const canAnimate =
+    typeof window !== "undefined" && typeof requestAnimationFrame === "function";
+  const initialDisplay = canAnimate ? startValue : value;
+  const [display, setDisplay] = useState(initialDisplay);
+  const displayRef = useRef(initialDisplay);
   const reducedRef = useRef(false);
 
   useEffect(() => {
@@ -57,7 +65,13 @@ export function NumberTicker({
     const from = displayRef.current;
     const to = value;
 
-    if (reducedRef.current || from === to || (monotonic && to < from)) {
+    if (
+      typeof requestAnimationFrame !== "function" ||
+      typeof cancelAnimationFrame !== "function" ||
+      reducedRef.current ||
+      from === to ||
+      (monotonic && to < from)
+    ) {
       displayRef.current = to;
       setDisplay(to);
       return;
@@ -91,6 +105,7 @@ export function NumberTicker({
 
   return (
     <span
+      suppressHydrationWarning
       className={cn("inline-block tabular-nums tracking-tight", className)}
       {...props}
     >

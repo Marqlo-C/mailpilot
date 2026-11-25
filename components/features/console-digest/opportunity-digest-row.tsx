@@ -42,7 +42,7 @@ export function OpportunityDigestRow({
               scoreTone(score)
             )}
           >
-            <NumberTicker value={score} />%
+            <NumberTicker value={score} suffix="%" />
           </span>
         </div>
       }
