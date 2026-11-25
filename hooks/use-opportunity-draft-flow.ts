@@ -394,7 +394,10 @@ export function useOpportunityDraftFlow({
 
   function persistThen(action: "gmail-draft" | "send") {
     if (!opportunity) return;
-    if (action === "send" && attachResume && !resume?.pdfBase64) {
+    const hasResumeDraft = Boolean(
+      resume?.draft?.nodes.length || resume?.pdfBase64
+    );
+    if (action === "send" && attachResume && !hasResumeDraft) {
       toast.error("Create a resume or detach the PDF");
       return;
     }
@@ -422,7 +425,7 @@ export function useOpportunityDraftFlow({
           return;
         }
 
-        const shouldAttachResume = attachResume && Boolean(resume?.pdfBase64);
+        const shouldAttachResume = attachResume && hasResumeDraft;
         const result = await sendOpportunityApplication(
           opportunity.id,
           action === "gmail-draft",

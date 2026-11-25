@@ -37,6 +37,11 @@ export type DialogIdentityHeaderProps = {
   emphasize?: "primary" | "secondary";
   /** Optional meta row under primary • secondary (salary, location, …). */
   meta?: ReactNode;
+  /**
+   * Sit `primary` on the title line, immediately after the title, separated
+   * by a muted pipe. Primary stays `text-sm` medium.
+   */
+  inlinePrimary?: boolean;
   className?: string;
 };
 
@@ -44,6 +49,9 @@ export type DialogIdentityHeaderProps = {
  * Shared popup chrome for identity-led dialogs:
  * `[logo]  <Title>`
  * `        primary • secondary`
+ *
+ * `inlinePrimary` folds primary onto the title line:
+ * `[logo]  <Title> | primary`
  *
  * Prefer the thing itself as title (role, subject, "Unsubscribe") over
  * progressive chrome ("Responding to:", "Unsubscribing from:").
@@ -58,6 +66,7 @@ export function DialogIdentityHeader({
   logo,
   emphasize = "secondary",
   meta,
+  inlinePrimary = false,
   className,
 }: DialogIdentityHeaderProps) {
   const mark =
@@ -74,6 +83,8 @@ export function DialogIdentityHeader({
     emphasize === "secondary"
       ? "min-w-0 break-words text-foreground"
       : "min-w-0 break-words";
+  const showInlinePrimary = inlinePrimary && Boolean(primary);
+  const showSubtitleIdentity = !showInlinePrimary && Boolean(primary || secondary);
 
   return (
     <DialogHeader
@@ -85,12 +96,27 @@ export function DialogIdentityHeader({
       <div className="flex items-center gap-3">
         {mark ? <div className="flex shrink-0 items-center self-center">{mark}</div> : null}
         <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <DialogTitle className="font-brand text-xl font-semibold leading-tight tracking-tight">
-            {title}
-          </DialogTitle>
-          {primary || secondary || meta ? (
+          <div className="min-w-0">
+            <DialogTitle
+              className={cn(
+                "font-brand text-xl font-semibold leading-tight tracking-tight",
+                showInlinePrimary && "inline"
+              )}
+            >
+              {title}
+            </DialogTitle>
+            {showInlinePrimary ? (
+              <DialogDescription className="ml-1.5 inline text-sm font-medium leading-none text-muted-foreground">
+                <span className="mr-1.5 text-muted-foreground/60" aria-hidden>
+                  |
+                </span>
+                <span className={primaryClass}>{primary}</span>
+              </DialogDescription>
+            ) : null}
+          </div>
+          {showSubtitleIdentity || meta ? (
             <div className="mt-0.5 flex min-h-5 min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-              {primary || secondary ? (
+              {showSubtitleIdentity ? (
                 <DialogDescription className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-medium leading-none text-muted-foreground">
                   <span className={primaryClass}>{primary}</span>
                   {secondary ? (
@@ -103,7 +129,7 @@ export function DialogIdentityHeader({
               ) : null}
               {meta ? (
                 <>
-                  {primary || secondary ? (
+                  {showSubtitleIdentity ? (
                     <span
                       className="shrink-0 text-[11px] font-medium leading-none text-muted-foreground/60"
                       aria-hidden

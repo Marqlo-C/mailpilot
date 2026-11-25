@@ -373,10 +373,27 @@ export async function dispatchOpportunityEmail(
       tailorConfig: opportunity.tailorConfig,
     });
 
-    // Prefer reviewed selection, then persisted cache, then live tailor.
+    // A generated line draft is the resume. Compile it here so Save Draft and
+    // Send attach that PDF even when no export has cached pdfBase64 yet.
     let pdf: Buffer;
     let filename = `${profile.fullName.replace(/\s+/g, "_")}_Resume.pdf`;
-    if (options.reviewedExperiences && options.reviewedExperiences.length > 0) {
+    if (cachedPreview?.draft) {
+      pdf = await renderDraftPdf(profile, {
+        ...cachedPreview.draft,
+        exportConfig: {
+          ...cachedPreview.draft.exportConfig,
+          includeSummary,
+        },
+      });
+      filename = cachedPreview.filename || filename;
+      await prisma.jobOpportunity.update({
+        where: { id: opportunityId },
+        data: { tailoredResumePdf: pdf.toString("base64") },
+      });
+    } else if (
+      options.reviewedExperiences &&
+      options.reviewedExperiences.length > 0
+    ) {
       pdf = await generateTailoredResumePdf(
         profile,
         options.reviewedExperiences,
@@ -385,9 +402,6 @@ export async function dispatchOpportunityEmail(
         options.reviewedSkills,
         includeSummary
       );
-    } else if (cachedPreview?.draft) {
-      pdf = await renderDraftPdf(profile, cachedPreview.draft);
-      filename = cachedPreview.filename || filename;
     } else if (cachedPreview?.pdfBase64) {
       pdf = Buffer.from(cachedPreview.pdfBase64, "base64");
       filename = cachedPreview.filename || filename;

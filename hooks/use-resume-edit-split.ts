@@ -23,12 +23,10 @@ type GroupRef = RefObject<GroupImperativeHandle | null>;
 
 /** Treat email pct above this as "not expanded" (library minSize still applies). */
 const EXPANDED_EMAIL_PCT_CEILING = 8;
-/** First expand waits for caret; watchdog keeps healing after that. */
+/** First expand waits for caret; window focus/visibility heals after that. */
 const EXPAND_FALLBACK_MS = 280;
-/** Ignore blur flickers before restoring the pre-edit split. */
-const EXIT_RESTORE_MS = 220;
-/** Poll while editing so a cancelled enter / external shrink cannot stick. */
-const EXPAND_WATCHDOG_MS = 160;
+/** Single-frame safety guard before restoring the pre-edit split. */
+const EXIT_RESTORE_MS = 32;
 
 function resumeEditableStillFocused(): boolean {
   const root = document.querySelector("[data-resume-draft-root]");
@@ -203,12 +201,6 @@ export function useResumeEditSplit({
         expand(true);
       }, EXPAND_FALLBACK_MS);
 
-      // Keep healing while editing — cancelled enters / restore races / focus.
-      const watchdog = window.setInterval(() => {
-        if (cancelled || !editModeRef.current) return;
-        ensureExpanded(group, !announcedExpandRef.current);
-      }, EXPAND_WATCHDOG_MS);
-
       const healFromWindow = () => {
         if (!editModeRef.current) return;
         ensureExpanded(group, false);
@@ -219,7 +211,6 @@ export function useResumeEditSplit({
       return () => {
         cancelled = true;
         window.clearTimeout(fallback);
-        window.clearInterval(watchdog);
         window.removeEventListener("pointerup", onPointerUp, true);
         window.removeEventListener("mouseup", onPointerUp, true);
         window.removeEventListener("focus", healFromWindow);

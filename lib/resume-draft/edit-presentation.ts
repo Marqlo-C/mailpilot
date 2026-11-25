@@ -86,6 +86,8 @@ export function resumeDisplayZoomChoice(
   _fitScale: number,
   _editActive: boolean
 ): ResumeDraftZoomChoice {
+  void _fitScale;
+  void _editActive;
   return zoomChoice;
 }
 
@@ -97,14 +99,22 @@ export type ResumeEditTargetClass =
   | "detached";
 
 /**
- * Extra px around glyph client-rects for edit hit-testing (hover / click).
- * Matches the float highlight geometry with a little aim forgiveness.
+ * External hit-slop pad around editable glyph client-rects.
+ * Zero so click hit geometry matches the inline hover highlight wash.
  */
-export const RESUME_EDIT_TEXT_HIT_PAD_PX = 6;
+export const RESUME_EDIT_TEXT_HIT_PAD_PX = 0;
+
+/**
+ * Subpixel rounding tolerance (px) applied strictly when the DOM target is
+ * already on a `[contenteditable='true']` path under fractional zoom.
+ */
+export const RESUME_EDIT_GLYPH_SUBPIXEL_EPSILON_PX = 1;
 
 /** DOM-free probe for {@link classifyResumeEditProbe} hermetic tests. */
 export type ResumeEditTargetProbe = {
   isResumeLocal: boolean;
+  /** Pointer landed on the native scrollbar gutter of the canvas viewport. */
+  isViewportScrollbar?: boolean;
   /** Target sits inside a `[data-resume-line]` that belongs to the resume root. */
   inResumeLine: boolean;
   /** Target itself is / is nested under contenteditable. */
@@ -112,13 +122,47 @@ export type ResumeEditTargetProbe = {
   /** The line host contains a contenteditable (e.g. skills label + text). */
   lineHasContentEditable: boolean;
   /**
-   * Pointer is within padded editable glyph rects.
+   * Pointer is within editable glyph rects.
    * `null` when no pointer (focus path) — do not infer from the line box alone.
    */
   nearEditableText: boolean | null;
   /** Target is inside the resume draft root (canvas whitespace, padding, …). */
   insideResumeRoot: boolean;
 };
+
+/**
+ * Pure scrollbar-gutter hit test for scrollable containers.
+ *
+ * Returns `true` when `point` lies inside `rect` (`width > 0 && height > 0`)
+ * and lands in a rendered vertical or horizontal scrollbar track (`> 1px`
+ * gutter beyond the client box so overlay scrollports and fractional subpixel
+ * widths never false-positive).
+ */
+export function isPointOnElementScrollbar(
+  point: ResumeEditScreenPoint,
+  rect: ResumeEditRect,
+  clientLeft: number,
+  clientTop: number,
+  clientWidth: number,
+  clientHeight: number
+): boolean {
+  if (rect.width <= 0 || rect.height <= 0) return false;
+  if (
+    point.x < rect.x ||
+    point.x > rect.x + rect.width ||
+    point.y < rect.y ||
+    point.y > rect.y + rect.height
+  ) {
+    return false;
+  }
+  const verticalGutter = rect.width - clientLeft - clientWidth;
+  const horizontalGutter = rect.height - clientTop - clientHeight;
+  const onVerticalScrollbar =
+    verticalGutter > 1 && point.x >= rect.x + clientLeft + clientWidth;
+  const onHorizontalScrollbar =
+    horizontalGutter > 1 && point.y >= rect.y + clientTop + clientHeight;
+  return onVerticalScrollbar || onHorizontalScrollbar;
+}
 
 /**
  * True when `point` lies inside any rect expanded by `padPx`.
@@ -145,9 +189,10 @@ export function pointHitsPaddedRects(
 /**
  * Pure classifier — no DOM. Used by {@link classifyResumeEditTarget} and tests.
  *
- * Edit hits must be on/near glyph boxes (or a focused contenteditable path
- * without a pointer). Same-row whitespace on a full-width line host is
- * `resume-other`, not `editable`.
+ * Edit hits must be on the `[contenteditable='true']` path AND within glyph
+ * client rects (or `nearEditableText === null` on keyboard focus). Off-CE
+ * elements inside or adjacent to a line host (`Languages: `, `•`, dates,
+ * same-row whitespace) always classify as `resume-other`.
  */
 export function classifyResumeEditProbe(
   probe: ResumeEditTargetProbe | null,
@@ -155,12 +200,12 @@ export function classifyResumeEditProbe(
 ): ResumeEditTargetClass {
   if (!hasResumeRoot) return "detached";
   if (!probe) return "external";
-  if (probe.isResumeLocal) return "resume-local";
+  if (probe.isResumeLocal || probe.isViewportScrollbar) return "resume-local";
   if (probe.inResumeLine) {
-    if (probe.nearEditableText === true) return "editable";
-    if (probe.nearEditableText === false) return "resume-other";
-    // Focus / keyboard: only the contenteditable path counts — not the row box.
-    if (probe.isContentEditablePath) return "editable";
+    if (probe.isContentEditablePath) {
+      if (probe.nearEditableText === false) return "resume-other";
+      return "editable";
+    }
     return "resume-other";
   }
   if (probe.insideResumeRoot) return "resume-other";
@@ -170,7 +215,8 @@ export function classifyResumeEditProbe(
 /**
  * Classify a DOM target for edit-mode enter/stay/exit.
  * `resumeRoot` is `[data-resume-draft-root]`; null ⇒ detached context.
- * Pass `point` on pointer events so same-row whitespace is not treated as text.
+ * Pass `point` on pointer events so same-row whitespace and viewport scrollbars
+ * are classified accurately.
  */
 export function classifyResumeEditTarget(
   target: EventTarget | null,
@@ -182,10 +228,28 @@ export function classifyResumeEditTarget(
     return classifyResumeEditProbe(null, true);
   }
 
+  const insideResumeRoot = resumeRoot.contains(target);
+  const isViewportScrollbar = Boolean(
+    point &&
+      insideResumeRoot &&
+      target instanceof HTMLElement &&
+      target.hasAttribute("data-resume-canvas-viewport") &&
+      isPointOnElementScrollbar(
+        point,
+        target.getBoundingClientRect(),
+        target.clientLeft,
+        target.clientTop,
+        target.clientWidth,
+        target.clientHeight
+      )
+  );
+
   const isResumeLocal = Boolean(
     target.closest("[data-resume-line-toolbar]") ||
       target.closest("[data-resume-ace-refine]") ||
-      target.closest("[data-resume-toolbar]")
+      target.closest("[data-resume-toolbar]") ||
+      target.closest("[data-resume-toolbar-portal]") ||
+      isViewportScrollbar
   );
   const line = target.closest("[data-resume-line]");
   const inResumeLine = Boolean(line && resumeRoot.contains(line));
@@ -204,18 +268,21 @@ export function classifyResumeEditTarget(
     nearEditableText = pointNearEditableLineText(
       line,
       point,
-      RESUME_EDIT_TEXT_HIT_PAD_PX
+      isContentEditablePath
+        ? RESUME_EDIT_GLYPH_SUBPIXEL_EPSILON_PX
+        : RESUME_EDIT_TEXT_HIT_PAD_PX
     );
   }
 
   return classifyResumeEditProbe(
     {
       isResumeLocal,
+      isViewportScrollbar,
       inResumeLine,
       isContentEditablePath,
       lineHasContentEditable,
       nearEditableText,
-      insideResumeRoot: resumeRoot.contains(target),
+      insideResumeRoot,
     },
     true
   );

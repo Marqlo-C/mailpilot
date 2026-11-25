@@ -49,7 +49,6 @@ import {
   COMPOSER_INSET_X_CLASSNAME,
   COMPOSER_PANE_GAP_CLASSNAME,
 } from "@/components/ui/styles/field-chrome";
-import { classifyResumeEditTarget } from "@/lib/resume-draft/edit-presentation";
 import { cn } from "@/lib/utils";
 import { OpportunityDraftCompensationFields } from "./opportunity-draft-compensation-fields";
 import { OpportunityDraftFooterActions } from "./opportunity-draft-footer-actions";
@@ -100,32 +99,6 @@ export function OpportunityDraftDialog({
     onUserLayoutChanged: onLayoutChanged,
     onExpanded: onResumeExpanded,
   });
-
-  // Capture-phase EXTERNAL exit: email pane, bottom Ace, footer, dialog chrome.
-  // Line float is portaled to body but tagged resume-local via data attrs.
-  useEffect(() => {
-    if (!open || !resumeEditMode) return;
-    const onPointerDownCapture = (event: PointerEvent) => {
-      const resumeRoot = document.querySelector("[data-resume-draft-root]");
-      const kind = classifyResumeEditTarget(event.target, resumeRoot, {
-        x: event.clientX,
-        y: event.clientY,
-      });
-      if (kind !== "external" && kind !== "detached") return;
-      const active = document.activeElement;
-      if (
-        active instanceof HTMLElement &&
-        resumeRoot?.contains(active) &&
-        (active.isContentEditable ||
-          active.getAttribute("contenteditable") === "true")
-      ) {
-        active.blur();
-      }
-    };
-    document.addEventListener("pointerdown", onPointerDownCapture, true);
-    return () =>
-      document.removeEventListener("pointerdown", onPointerDownCapture, true);
-  }, [open, resumeEditMode]);
 
   const [emailToolbarEl, setEmailToolbarEl] = useState<HTMLDivElement | null>(
     null
@@ -267,6 +240,7 @@ export function OpportunityDraftDialog({
       identity={{
         title: opportunity?.title ?? "Draft",
         primary: opportunity?.company ?? "",
+        inlinePrimary: true,
         logoSrc: opportunity
           ? opportunity.logoUrl ||
             getCompanyLogoUrl(

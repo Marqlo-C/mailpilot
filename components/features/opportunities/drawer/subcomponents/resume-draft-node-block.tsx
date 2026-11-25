@@ -4,10 +4,6 @@ import type { ReactNode } from "react";
 
 import type { ResumeDraftNode } from "@/lib/resume-draft";
 import {
-  RESUME_EDIT_TEXT_HIT_PAD_PX,
-  pointNearEditableLineText,
-} from "@/lib/resume-draft/edit-presentation";
-import {
   RESUME_SPACING,
   RESUME_TYPOGRAPHY,
 } from "@/lib/resume-draft/layout.schema";
@@ -140,37 +136,9 @@ export function ResumeDraftNodeBlock({
               Inline chrome target = glyph boxes only (skills pattern). A block
               host here would re-capture same-row flex whitespace as "editable".
             */}
-            <span
-              {...targetProps}
-              className="inline max-w-full"
-              style={{
-                // Hit slop around glyphs without shifting layout.
-                padding: RESUME_EDIT_TEXT_HIT_PAD_PX,
-                margin: -RESUME_EDIT_TEXT_HIT_PAD_PX,
-              }}
-              onPointerDown={(event) => {
-                if (disabled || event.button !== 0) return;
-                const host = event.currentTarget;
-                const ce = host.querySelector("[contenteditable='true']");
-                if (!(ce instanceof HTMLElement)) return;
-                if (event.target === ce || ce.contains(event.target as Node)) {
-                  return;
-                }
-                // Pad click: focus the CE so we hop A→B instead of blur-exit
-                // leaving the previous header flattened.
-                if (
-                  !pointNearEditableLineText(host, {
-                    x: event.clientX,
-                    y: event.clientY,
-                  })
-                ) {
-                  return;
-                }
-                event.preventDefault();
-                ce.focus();
-              }}
-            >
+            <span {...targetProps} className="inline max-w-full">
               <EditableLine
+                as="span"
                 value={content}
                 disabled={disabled}
                 commitOnEnter
@@ -187,7 +155,7 @@ export function ResumeDraftNodeBlock({
                 className={cn(
                   // Inline + box-decoration-clone: wash follows glyph runs, not the
                   // full flex line box (multiline bullets used to paint trailing empty).
-                  "inline max-w-full whitespace-pre-wrap break-normal rounded-sm box-decoration-clone outline-none transition-colors focus:bg-[#f8fafc]",
+                  "inline max-w-full whitespace-pre-wrap break-normal rounded-sm box-decoration-clone outline-none transition-colors focus:bg-[#f8fafc] empty:inline-block empty:min-w-[1ch]",
                   highlighted && "bg-[#111827]/[0.05]",
                   role && !isExperience && "font-bold",
                   node.type === "header" && "font-bold leading-tight text-center",

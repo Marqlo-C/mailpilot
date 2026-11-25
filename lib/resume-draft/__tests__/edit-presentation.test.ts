@@ -4,11 +4,13 @@ import {
   classifyResumeEditProbe,
   clampResumeZoom,
   easeAppleSnappy,
+  isPointOnElementScrollbar,
   lerp,
   pageLocalToScreen,
   pointHitsPaddedRects,
   projectContentPointToScreen,
   RESUME_EDIT_ENTRY_ZOOM,
+  RESUME_EDIT_TEXT_HIT_PAD_PX,
   resolveEditScreenAnchor,
   resolveEditableAnchorRect,
   resolveEditableMeasureTarget,
@@ -88,13 +90,50 @@ describe("classifyResumeEditProbe", () => {
     expect(classifyResumeEditProbe(null, true)).toBe("external");
   });
 
-  it("classifies focused contenteditable paths as editable", () => {
+  it("enforces zero external hit-slop padding", () => {
+    expect(RESUME_EDIT_TEXT_HIT_PAD_PX).toBe(0);
+  });
+
+  it("classifies contenteditable glyph hits and keyboard focus as editable", () => {
     expect(
       classifyResumeEditProbe(
-        { ...base, inResumeLine: true, isContentEditablePath: true },
+        {
+          ...base,
+          inResumeLine: true,
+          isContentEditablePath: true,
+          nearEditableText: true,
+          insideResumeRoot: true,
+        },
         true
       )
     ).toBe("editable");
+    expect(
+      classifyResumeEditProbe(
+        {
+          ...base,
+          inResumeLine: true,
+          isContentEditablePath: true,
+          nearEditableText: null,
+          insideResumeRoot: true,
+        },
+        true
+      )
+    ).toBe("editable");
+  });
+
+  it("rejects off-glyph pointer hits even on a contenteditable path", () => {
+    expect(
+      classifyResumeEditProbe(
+        {
+          ...base,
+          inResumeLine: true,
+          isContentEditablePath: true,
+          nearEditableText: false,
+          insideResumeRoot: true,
+        },
+        true
+      )
+    ).toBe("resume-other");
   });
 
   it("treats same-row whitespace (line host, not near glyphs) as resume-other", () => {
@@ -106,6 +145,7 @@ describe("classifyResumeEditProbe", () => {
           isContentEditablePath: false,
           lineHasContentEditable: true,
           nearEditableText: false,
+          insideResumeRoot: true,
         },
         true
       )
@@ -115,39 +155,102 @@ describe("classifyResumeEditProbe", () => {
         {
           ...base,
           inResumeLine: true,
+          isContentEditablePath: false,
           lineHasContentEditable: true,
           nearEditableText: null,
+          insideResumeRoot: true,
         },
         true
       )
     ).toBe("resume-other");
   });
 
-  it("treats pointer near editable glyphs as editable even off the CE path", () => {
+  it("treats off-CE-path targets (skill labels, colons, bullet markers) as resume-other even near text", () => {
     expect(
       classifyResumeEditProbe(
         {
           ...base,
           inResumeLine: true,
+          isContentEditablePath: false,
           lineHasContentEditable: true,
           nearEditableText: true,
+          insideResumeRoot: true,
         },
         true
       )
-    ).toBe("editable");
+    ).toBe("resume-other");
   });
 
-  it("allowlists float / Ace / toolbar as resume-local", () => {
+  it("allowlists float / Ace / toolbar / portal / viewport scrollbar as resume-local", () => {
     expect(
       classifyResumeEditProbe({ ...base, isResumeLocal: true }, true)
     ).toBe("resume-local");
+    expect(
+      classifyResumeEditProbe(
+        { ...base, insideResumeRoot: true, isViewportScrollbar: true },
+        true
+      )
+    ).toBe("resume-local");
   });
 
-  it("classifies canvas whitespace as resume-other and email as external", () => {
+  it("classifies in-page margins, headings, inter-page gaps, and canvas whitespace as resume-other and email as external", () => {
     expect(
-      classifyResumeEditProbe({ ...base, insideResumeRoot: true }, true)
+      classifyResumeEditProbe(
+        { ...base, insideResumeRoot: true, inResumeLine: false },
+        true
+      )
     ).toBe("resume-other");
     expect(classifyResumeEditProbe(base, true)).toBe("external");
+  });
+});
+
+describe("isPointOnElementScrollbar", () => {
+  const rect = { x: 100, y: 50, width: 400, height: 300 };
+
+  it("returns false inside the scrollable client area", () => {
+    expect(
+      isPointOnElementScrollbar({ x: 250, y: 180 }, rect, 0, 0, 385, 285)
+    ).toBe(false);
+    expect(
+      isPointOnElementScrollbar({ x: 484, y: 284 }, rect, 0, 0, 385, 285)
+    ).toBe(false);
+  });
+
+  it("returns true on vertical scrollbar track", () => {
+    expect(
+      isPointOnElementScrollbar({ x: 485, y: 180 }, rect, 0, 0, 385, 300)
+    ).toBe(true);
+    expect(
+      isPointOnElementScrollbar({ x: 500, y: 180 }, rect, 0, 0, 385, 300)
+    ).toBe(true);
+  });
+
+  it("returns true on horizontal scrollbar track", () => {
+    expect(
+      isPointOnElementScrollbar({ x: 250, y: 335 }, rect, 0, 0, 400, 285)
+    ).toBe(true);
+    expect(
+      isPointOnElementScrollbar({ x: 250, y: 350 }, rect, 0, 0, 400, 285)
+    ).toBe(true);
+  });
+
+  it("returns false on zero-scrollbar overlay scrollports and outside element bounds", () => {
+    expect(
+      isPointOnElementScrollbar({ x: 500, y: 350 }, rect, 0, 0, 400, 300)
+    ).toBe(false);
+    expect(
+      isPointOnElementScrollbar(
+        { x: 500.4, y: 200 },
+        { x: 100, y: 50, width: 400.5, height: 300 },
+        0,
+        0,
+        400,
+        300
+      )
+    ).toBe(false);
+    expect(
+      isPointOnElementScrollbar({ x: 505, y: 180 }, rect, 0, 0, 385, 285)
+    ).toBe(false);
   });
 });
 

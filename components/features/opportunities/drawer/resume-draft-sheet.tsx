@@ -1,6 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, type MutableRefObject, type Ref } from "react";
+import {
+  useEffect,
+  useRef,
+  type MutableRefObject,
+  type Ref,
+} from "react";
 
 import { ResumeDraftBusySkeleton } from "@/components/features/opportunities/drawer/subcomponents/resume-draft-busy-skeleton";
 import { BusyStatusChip } from "@/components/ui/composites/busy-status-chip";
@@ -12,7 +17,6 @@ import {
   type ResumeEditEntryCameraApi,
 } from "@/hooks/use-resume-draft-sheet";
 import type { TailoredResumeDraft } from "@/lib/resume-draft";
-import { classifyResumeEditTarget } from "@/lib/resume-draft/edit-presentation";
 import type { StrategyRationale } from "@/lib/validations/resume-draft.schema";
 
 export {
@@ -49,8 +53,6 @@ export function ResumeDraftSheet({
   canRedo,
   onUndo,
   onRedo,
-  lineEditing = false,
-  onForceExitEdit,
   onEditModeChange,
   editEntryCameraApiRef,
 }: {
@@ -72,155 +74,29 @@ export function ResumeDraftSheet({
   canRedo?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
-  /** Contenteditable line currently focused (from plate focus tracking). */
-  lineEditing?: boolean;
-  /** Escape exit — clears edit presentation even if focus moves to zoom. */
-  onForceExitEdit?: () => void;
   onEditModeChange?: (active: boolean) => void;
   /** Desktop split expand → entry camera handoff. */
   editEntryCameraApiRef?: MutableRefObject<ResumeEditEntryCameraApi | null>;
 }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+
   const sheet = useResumeDraftSheet({
+    rootRef,
     draft,
     includeSummary,
     onRefine,
-    lineEditing,
     onEditModeChange,
     viewportActive: !busyLabel,
     editEntryCameraApiRef,
   });
 
-  const rootRef = useRef<HTMLDivElement>(null);
-  const escapeSuppressedIdRef = useRef<string | null>(null);
-
-  const blurActiveEditable = useCallback(() => {
-    const active = document.activeElement;
-    if (
-      active instanceof HTMLElement &&
-      rootRef.current?.contains(active) &&
-      (active.isContentEditable ||
-        active.getAttribute("contenteditable") === "true")
-    ) {
-      const lineId =
-        active.closest("[data-resume-line]")?.getAttribute("data-resume-line") ??
-        null;
-      escapeSuppressedIdRef.current = lineId;
-      active.blur();
-    }
-  }, []);
+  const { closeNotes, exitEditSession } = sheet;
 
   useEffect(() => {
     if (!disabled && !busyLabel) return;
-    sheet.closeNotes();
-    sheet.dismissRefine();
-  }, [busyLabel, disabled, sheet.closeNotes, sheet.dismissRefine]);
-
-  // Escape: dismiss refine → else blur editable once; do not hand focus to zoom.
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      if (sheet.refineFor) {
-        event.preventDefault();
-        event.stopPropagation();
-        sheet.dismissRefine();
-        return;
-      }
-      if (!lineEditing && !sheet.editMode) return;
-      event.preventDefault();
-      event.stopPropagation();
-      onForceExitEdit?.();
-      blurActiveEditable();
-    };
-    root.addEventListener("keydown", onKeyDown);
-    return () => root.removeEventListener("keydown", onKeyDown);
-  }, [
-    blurActiveEditable,
-    lineEditing,
-    onForceExitEdit,
-    sheet.editMode,
-    sheet.refineFor,
-    sheet.dismissRefine,
-  ]);
-
-  // Exterior whitespace exits edit. In-page gaps (between headers, same-row
-  // leftover) keep the current caret — preventDefault so the CE does not blur.
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Element) {
-        const lineId =
-          target
-            .closest("[data-resume-line]")
-            ?.getAttribute("data-resume-line") ?? null;
-        // Intentional re-enter after Escape suppression.
-        if (
-          lineId &&
-          escapeSuppressedIdRef.current &&
-          lineId === escapeSuppressedIdRef.current
-        ) {
-          escapeSuppressedIdRef.current = null;
-        }
-      }
-      if (!sheet.editMode) return;
-      const kind = classifyResumeEditTarget(event.target, root, {
-        x: event.clientX,
-        y: event.clientY,
-      });
-      // Zoom / toolbar = resume-local — change zoom, do not exit.
-      if (kind !== "resume-other") return;
-      const pages = root.querySelector("[data-resume-pages]");
-      const insidePages =
-        target instanceof Node && pages != null && pages.contains(target);
-      if (insidePages) {
-        event.preventDefault();
-        return;
-      }
-      onForceExitEdit?.();
-      blurActiveEditable();
-      if (sheet.refineFor) sheet.dismissRefine();
-    };
-    root.addEventListener("pointerdown", onPointerDown);
-    return () => root.removeEventListener("pointerdown", onPointerDown);
-  }, [
-    blurActiveEditable,
-    onForceExitEdit,
-    sheet.dismissRefine,
-    sheet.editMode,
-    sheet.refineFor,
-  ]);
-
-  // Suppress Escape re-enter until blur+refocus (next intentional pointer).
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const onFocusIn = (event: FocusEvent) => {
-      const suppressed = escapeSuppressedIdRef.current;
-      if (!suppressed) return;
-      const t = event.target;
-      if (!(t instanceof HTMLElement)) return;
-      const lineId =
-        t.closest("[data-resume-line]")?.getAttribute("data-resume-line") ??
-        null;
-      if (lineId !== suppressed) {
-        if (lineId) escapeSuppressedIdRef.current = null;
-        return;
-      }
-      requestAnimationFrame(() => {
-        if (
-          escapeSuppressedIdRef.current === suppressed &&
-          document.activeElement === t
-        ) {
-          t.blur();
-        }
-      });
-    };
-    root.addEventListener("focusin", onFocusIn);
-    return () => root.removeEventListener("focusin", onFocusIn);
-  }, []);
+    closeNotes();
+    exitEditSession();
+  }, [busyLabel, closeNotes, disabled, exitEditSession]);
 
   return (
     <ResumeLineChromeProvider

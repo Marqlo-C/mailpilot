@@ -33,31 +33,8 @@ export function OpportunityDraftCompensationFields({
   // Dense header chips — smaller than Job Radar card badges.
   const chipClassName = "h-5 shrink-0";
   const valueClassName = "text-[10px] font-medium leading-none";
-  const dot = (
-    <span
-      className="shrink-0 text-[11px] font-medium leading-none text-muted-foreground/60"
-      aria-hidden
-    >
-      •
-    </span>
-  );
 
   const chips: ReactNode[] = [];
-  if (salary) {
-    chips.push(
-      <MetaChip
-        key="salary"
-        title={`Salary: ${salary}`}
-        icon={<Banknote className={META_CHIP_ICON_CLASSNAME.sm} aria-hidden />}
-        iconSize="sm"
-        value={salary}
-        divider="pipe"
-        tone={salaryTone}
-        className={chipClassName}
-        valueClassName={cn(valueClassName, "font-semibold")}
-      />
-    );
-  }
   if (location) {
     chips.push(
       <MetaChip
@@ -70,6 +47,21 @@ export function OpportunityDraftCompensationFields({
         truncateValue
         className={cn(chipClassName, "max-w-[200px] shrink")}
         valueClassName={cn(valueClassName, "text-foreground/80")}
+      />
+    );
+  }
+  if (salary) {
+    chips.push(
+      <MetaChip
+        key="salary"
+        title={`Salary: ${salary}`}
+        icon={<Banknote className={META_CHIP_ICON_CLASSNAME.sm} aria-hidden />}
+        iconSize="sm"
+        value={salary}
+        divider="pipe"
+        tone={salaryTone}
+        className={chipClassName}
+        valueClassName={cn(valueClassName, "font-semibold")}
       />
     );
   }
@@ -92,12 +84,7 @@ export function OpportunityDraftCompensationFields({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {chips.map((chip, index) => (
-        <span key={index} className="contents">
-          {index > 0 ? dot : null}
-          {chip}
-        </span>
-      ))}
+      {chips}
     </div>
   );
 }

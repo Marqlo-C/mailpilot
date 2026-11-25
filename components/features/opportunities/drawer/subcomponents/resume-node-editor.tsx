@@ -2,10 +2,6 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import type { ResumeDraftNode } from "@/lib/resume-draft";
-import {
-  RESUME_EDIT_TEXT_HIT_PAD_PX,
-  pointNearEditableLineText,
-} from "@/lib/resume-draft/edit-presentation";
 import { skillCategoryLabel } from "@/lib/profile/skill-groups";
 import { formatEducationDates } from "@/lib/utils/format";
 
@@ -83,9 +79,37 @@ export function EditableLine({
   }, [renderHtml]);
 
   function writeDom(el: HTMLElement, text: string) {
+    if (!text) {
+      if (el.innerHTML !== "") el.innerHTML = "";
+      return;
+    }
     const html = renderHtmlRef.current;
     if (html) el.innerHTML = html(text);
     else if (el.textContent !== text) el.textContent = text;
+  }
+
+  function insertPlainText(el: HTMLElement, text: string) {
+    if (!text) return;
+    if (
+      typeof document.execCommand === "function" &&
+      document.execCommand("insertText", false, text)
+    ) {
+      return;
+    }
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      el.append(document.createTextNode(text));
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    if (!el.contains(range.commonAncestorContainer)) return;
+    range.deleteContents();
+    const textNode = document.createTextNode(text);
+    range.insertNode(textNode);
+    range.setStartAfter(textNode);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
   }
 
   // Stable ref callback so parent re-renders (toolbar chrome) don't remount and
@@ -110,17 +134,6 @@ export function EditableLine({
     writeDom(el, value);
   }, [value, renderHtml]);
 
-  /**
-   * Flatten styled HTML to plain text on pointerdown (before focus/caret),
-   * so the browser places the caret on stable text nodes — never rewrite
-   * textContent inside onFocus under an in-flight mousedown.
-   */
-  function flattenHtmlForEdit(el: HTMLElement) {
-    if (!renderHtmlRef.current) return;
-    if (!el.querySelector("strong, span[style]")) return;
-    el.textContent = pendingCommitRef.current ?? valueRef.current;
-  }
-
   /** Restore bold/muted markup after edit; re-assert post-paint (chrome re-render). */
   function restoreDomAfterBlur(el: HTMLElement, text: string) {
     writeDom(el, text);
@@ -141,26 +154,17 @@ export function EditableLine({
       suppressContentEditableWarning
       className={className}
       style={style}
-      onPointerDown={(event) => {
-        if (disabled || event.button !== 0) return;
-        // Off-glyph clicks (padding / odd hit boxes) are whitespace — don't focus.
-        if (
-          !pointNearEditableLineText(
-            event.currentTarget,
-            { x: event.clientX, y: event.clientY },
-            RESUME_EDIT_TEXT_HIT_PAD_PX
-          )
-        ) {
-          event.preventDefault();
-          return;
-        }
-        flattenHtmlForEdit(event.currentTarget);
-      }}
       onFocus={() => {
-        const el = ref.current;
-        // Keyboard focus: flatten without a prior pointerdown.
-        if (el) flattenHtmlForEdit(el);
         onEditStart?.();
+      }}
+      onPaste={(event) => {
+        if (disabled) return;
+        event.preventDefault();
+        const raw = event.clipboardData?.getData("text/plain") ?? "";
+        const plain = commitOnEnter
+          ? raw.replace(/[\r\n]+/g, " ")
+          : raw.replace(/\r\n?/g, "\n");
+        insertPlainText(event.currentTarget, plain);
       }}
       onBlur={(event) => {
         const next = event.currentTarget.textContent ?? "";

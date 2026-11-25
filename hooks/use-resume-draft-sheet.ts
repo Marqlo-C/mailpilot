@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type MutableRefObject,
+  type RefObject,
 } from "react";
 
 import {
@@ -27,6 +28,7 @@ import {
   useResumeEditEntryCamera,
   type ResumeEditEntryCameraApi,
 } from "@/hooks/use-resume-edit-entry-camera";
+import { useResumeEditSession } from "@/hooks/use-resume-edit-session";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/resume-draft";
 import {
   clampResumeZoom,
@@ -43,12 +45,11 @@ const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 type UseResumeDraftSheetArgs = {
+  rootRef: RefObject<HTMLDivElement | null>;
   draft: TailoredResumeDraft;
   includeSummary?: boolean;
   onRefine: (nodeId: string, instruction: string) => void;
-  /** True while a resume contenteditable line holds focus. */
-  lineEditing?: boolean;
-  /** Fires when Ace-on-line or inline edit starts/stops. */
+  /** Fires when Ace-on-line, toolbar hold, or inline edit starts/stops. */
   onEditModeChange?: (active: boolean) => void;
   /**
    * False while the busy skeleton replaces the canvas so Fit re-binds when
@@ -64,10 +65,10 @@ type UseResumeDraftSheetArgs = {
  * {@link ResumeDraftSheet}. Zoom chips are always honest (no edit floor).
  */
 export function useResumeDraftSheet({
+  rootRef,
   draft,
   includeSummary,
   onRefine,
-  lineEditing = false,
   onEditModeChange,
   viewportActive = true,
   editEntryCameraApiRef,
@@ -88,6 +89,20 @@ export function useResumeDraftSheet({
   const zoomChoiceRef = useRef(zoomChoice);
   const manualScaleRef = useRef(manualScale);
   const fitScaleRef = useRef(fitScale);
+  const lineEditingRef = useRef(false);
+
+  const dismissRefine = useCallback(() => {
+    setInstruction("");
+    setRefineFor(null);
+  }, []);
+
+  const { lineEditing, toolbarFocusHold, editMode, exitEditSession } =
+    useResumeEditSession({
+      rootRef,
+      refineFor,
+      dismissRefine,
+      onEditModeChange,
+    });
 
   useEffect(() => {
     zoomChoiceRef.current = zoomChoice;
@@ -143,8 +158,6 @@ export function useResumeDraftSheet({
     observer.observe(viewport);
     return () => observer.disconnect();
   }, [viewportActive]);
-
-  const editMode = Boolean(refineFor) || lineEditing;
 
   useResumeEditEntryCamera({
     viewportRef,
@@ -240,32 +253,6 @@ export function useResumeDraftSheet({
     };
   }, [notesOpen]);
 
-  useEffect(() => {
-    if (!refineFor) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (refinePanelRef.current?.contains(target)) return;
-      if (
-        target instanceof Element &&
-        target.closest("[data-resume-line-toolbar]")
-      ) {
-        return;
-      }
-      setInstruction("");
-      setRefineFor(null);
-    };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown, true);
-    };
-  }, [refineFor]);
-
-  // Emit current value only — never pulse `false` on cleanup (that slammed the split).
-  useEffect(() => {
-    onEditModeChange?.(editMode);
-  }, [editMode, onEditModeChange]);
-
   const zoom = resumeEffectiveZoom(
     zoomChoice,
     fitScale,
@@ -319,14 +306,20 @@ export function useResumeDraftSheet({
     ? getBlockId(firstHeadingBlock)
     : null;
 
-  const remeasure = useCallback(() => {
+  const blockTopologyKey = useMemo(
+    () => blocks.map(getBlockId).join("|"),
+    [blocks]
+  );
+  const prevTopologyKeyRef = useRef(blockTopologyKey);
+
+  const remeasure = useCallback((force = false) => {
+    if (lineEditingRef.current && !force) return;
     const container = pagesContainerRef.current;
     if (!container) return;
 
     const elements = container.querySelectorAll<HTMLElement>(
       "[data-draft-block-id]"
     );
-    let hasChanged = false;
     const nextHeights: Record<string, number> = {};
 
     elements.forEach((el) => {
@@ -337,23 +330,38 @@ export function useResumeDraftSheet({
       const marginBottom = parseFloat(comp.marginBottom) || 0;
       const measured = Math.ceil(el.offsetHeight + marginTop + marginBottom);
       nextHeights[id] = measured;
-      const previous = blockHeights[id];
-      if (previous === undefined || Math.abs(previous - measured) > 1) {
-        hasChanged = true;
-      }
     });
 
-    if (
-      hasChanged ||
-      Object.keys(blockHeights).length !== Object.keys(nextHeights).length
-    ) {
-      setBlockHeights(nextHeights);
-    }
-  }, [blockHeights]);
+    setBlockHeights((prev) => {
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(nextHeights);
+      let hasChanged = prevKeys.length !== nextKeys.length;
+      if (!hasChanged) {
+        for (const id of nextKeys) {
+          const previous = prev[id];
+          if (
+            previous === undefined ||
+            Math.abs(previous - nextHeights[id]) > 1
+          ) {
+            hasChanged = true;
+            break;
+          }
+        }
+      }
+      return hasChanged ? nextHeights : prev;
+    });
+  }, []);
 
+  // Freeze seam re-measurement while editing a line so page-break crossings
+  // never unmount `document.activeElement` across `<div key={pageIndex}>`.
   useIsomorphicLayoutEffect(() => {
-    remeasure();
-  }, [blocks, remeasure]);
+    lineEditingRef.current = lineEditing;
+    const topologyChanged = prevTopologyKeyRef.current !== blockTopologyKey;
+    prevTopologyKeyRef.current = blockTopologyKey;
+    if (!viewportActive) return;
+    if (lineEditing && !topologyChanged) return;
+    remeasure(topologyChanged);
+  }, [blockTopologyKey, blocks, lineEditing, remeasure, viewportActive]);
 
   useEffect(() => {
     if (typeof document !== "undefined" && document.fonts?.ready) {
@@ -368,7 +376,10 @@ export function useResumeDraftSheet({
     [blocks, blockHeights]
   );
 
-  const displayPages: DraftBlock[][] = pages.length > 0 ? pages : [[]];
+  const displayPages = useMemo<DraftBlock[][]>(
+    () => (pages.length > 0 ? pages : [[]]),
+    [pages]
+  );
   const totalPages = displayPages.length;
   const totalCanvasHeight =
     totalPages * PAGE_HEIGHT + Math.max(0, totalPages - 1) * PAGE_GAP;
@@ -384,11 +395,6 @@ export function useResumeDraftSheet({
       }),
     [blockHeights, displayPages, draft, includeSummary, totalPages]
   );
-
-  const dismissRefine = useCallback(() => {
-    setInstruction("");
-    setRefineFor(null);
-  }, []);
 
   const closeNotes = useCallback(() => {
     setNotesOpen(false);
@@ -422,7 +428,10 @@ export function useResumeDraftSheet({
     zoomPercent,
     setZoomPercent: handleZoomPercentChange,
     zoom,
+    lineEditing,
+    toolbarFocusHold,
     editMode,
+    exitEditSession,
     notesOpen,
     notesPanelRef,
     notesTriggerRef,

@@ -1,7 +1,5 @@
 import React, {
   useCallback,
-  useEffect,
-  useRef,
   useState,
   type MutableRefObject,
   type Ref,
@@ -15,25 +13,12 @@ import { ResumeStrategyPanel } from "@/components/features/opportunities/drawer/
 import { useContentSettleKey } from "@/hooks/use-content-settle-key";
 import type { ResumeEditEntryCameraApi } from "@/hooks/use-resume-draft-sheet";
 import type { OpportunityResumePreview } from "@/app/actions/opportunities";
-import { classifyResumeEditTarget } from "@/lib/resume-draft/edit-presentation";
 import { cn } from "@/lib/utils";
 import {
   COMPOSER_SPLIT_PLATE_CLASSNAME,
   COMPOSER_SPLIT_PLATE_FOCUS_CLASSNAME,
 } from "@/components/ui/styles/field-chrome";
 import { DraftPaneBusyOverlay } from "./draft-pane-busy-overlay";
-
-function resumeRootFrom(container: HTMLElement): Element | null {
-  return container.querySelector("[data-resume-draft-root]");
-}
-
-/** Contenteditable only — zoom/toolbar must not enter or hold edit mode. */
-function isEditableEditTarget(
-  target: EventTarget | null,
-  resumeRoot: Element | null
-): boolean {
-  return classifyResumeEditTarget(target, resumeRoot) === "editable";
-}
 
 export function ResumePreviewPanel({
   resumeBusy,
@@ -93,68 +78,26 @@ export function ResumePreviewPanel({
 }) {
   const showEmptyGenerateState = resumeBusy && !resume;
   const settleKey = useContentSettleKey(resumeBusy);
-  const [editingFocused, setEditingFocused] = useState(false);
-  /** Escape exit — ignore the next focus that would re-enter edit mode. */
-  const escapeExitRef = useRef(false);
-  /**
-   * Blur→focus hops (A→B, flatten, lerp re-render) briefly clear activeElement.
-   * One rAF was too short and pulsed editMode false → split restore (shrink).
-   */
-  const blurExitTimerRef = useRef<number | null>(null);
+  const [sheetEditMode, setSheetEditMode] = useState(false);
 
-  const clearBlurExitTimer = useCallback(() => {
-    if (blurExitTimerRef.current === null) return;
-    window.clearTimeout(blurExitTimerRef.current);
-    blurExitTimerRef.current = null;
-  }, []);
+  const handleEditModeChange = useCallback(
+    (active: boolean) => {
+      setSheetEditMode(active);
+      onEditModeChange?.(active);
+    },
+    [onEditModeChange]
+  );
 
-  const forceExitEdit = useCallback(() => {
-    escapeExitRef.current = true;
-    clearBlurExitTimer();
-    setEditingFocused(false);
-  }, [clearBlurExitTimer]);
-
-  useEffect(() => () => clearBlurExitTimer(), [clearBlurExitTimer]);
+  const plateFocused =
+    embedded && Boolean(resume?.draft) && !resumeBusy && sheetEditMode;
 
   return (
     <div
       className={cn(
         "relative flex h-full min-h-0 min-w-0 w-full max-w-full flex-col lg:min-h-0",
         COMPOSER_SPLIT_PLATE_CLASSNAME,
-        embedded && editingFocused && COMPOSER_SPLIT_PLATE_FOCUS_CLASSNAME
+        plateFocused && COMPOSER_SPLIT_PLATE_FOCUS_CLASSNAME
       )}
-      onFocusCapture={(event) => {
-        clearBlurExitTimer();
-        if (escapeExitRef.current) {
-          escapeExitRef.current = false;
-          return;
-        }
-        const resumeRoot = resumeRootFrom(event.currentTarget);
-        if (isEditableEditTarget(event.target, resumeRoot)) {
-          setEditingFocused(true);
-        }
-      }}
-      onBlurCapture={(event) => {
-        const plate = event.currentTarget;
-        clearBlurExitTimer();
-        blurExitTimerRef.current = window.setTimeout(() => {
-          blurExitTimerRef.current = null;
-          if (escapeExitRef.current) {
-            escapeExitRef.current = false;
-            setEditingFocused(false);
-            return;
-          }
-          const active = document.activeElement;
-          const resumeRoot = resumeRootFrom(plate);
-          if (isEditableEditTarget(active, resumeRoot)) {
-            setEditingFocused(true);
-            return;
-          }
-          setEditingFocused(false);
-          // Entry lerp / layout thrash can clear activeElement longer than one
-          // frame; 200ms avoids pulsing the split restore mid-edit.
-        }, 200);
-      }}
     >
       <div
         key={settleKey}
@@ -202,9 +145,7 @@ export function ResumePreviewPanel({
             canRedo={canRedo}
             onUndo={onUndo}
             onRedo={onRedo}
-            lineEditing={editingFocused}
-            onForceExitEdit={forceExitEdit}
-            onEditModeChange={onEditModeChange}
+            onEditModeChange={handleEditModeChange}
             editEntryCameraApiRef={editEntryCameraApiRef}
           />
         ) : resume && resumePdfUrl ? (

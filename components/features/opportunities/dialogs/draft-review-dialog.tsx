@@ -186,6 +186,7 @@ export function DraftReviewDialog({
       identity={{
         title: roleTitle,
         primary: companyName,
+        inlinePrimary: true,
         logoSrc: getCompanyLogoUrl(companyName),
         logoName: companyName,
         logoSize: "jobCard",

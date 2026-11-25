@@ -247,6 +247,7 @@ export function ResumeDraftToolbar({
                   "size-8 shrink-0 px-0 [&_svg]:size-3.5",
                   includeSummary && BRAND_SELECTION_TOGGLE_ACTIVE_CLASSNAME
                 )}
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={() => onIncludeSummaryChange?.(!includeSummary)}
               >
                 <Summary aria-hidden />
@@ -264,6 +265,7 @@ export function ResumeDraftToolbar({
               disabled={disabled}
               aria-label={`Draft details: ${draftInsights.lengthLabel}`}
               title="Draft details"
+              onMouseDown={(event) => event.preventDefault()}
               className={cn(
                 "h-8 w-8 px-0 [&_svg]:size-3.5",
                 // Skip spill chrome while locked — remasure after regen can flash amber.
@@ -275,7 +277,11 @@ export function ResumeDraftToolbar({
               <Gauge aria-hidden />
             </Button>
           </DropdownMenuTrigger>
-          <AppMenuContent align="end" className="w-[15.5rem]">
+          <AppMenuContent
+            data-resume-toolbar-portal=""
+            align="end"
+            className="w-[15.5rem]"
+          >
             <div className="space-y-2.5 px-2.5 py-1.5">
               <div>
                 <p className="text-xs font-semibold tabular-nums text-foreground">
@@ -316,6 +322,7 @@ export function ResumeDraftToolbar({
               DASHED_BORDER_RING_PARENT_SVG_CLASSNAME,
               notesOpen && "border-transparent"
             )}
+            onMouseDown={(event) => event.preventDefault()}
             onClick={onToggleNotes}
           >
             <Bot strokeWidth={1.5} aria-hidden />
@@ -364,6 +371,7 @@ export function ResumeDraftToolbar({
               variant="outline"
               size="sm"
               disabled={disabled || exporting}
+              onMouseDown={(event) => event.preventDefault()}
               className="h-8 w-8 px-0 [&_svg]:size-4"
               aria-label={
                 exporting ? "Preparing resume file" : "Download resume"
@@ -377,7 +385,11 @@ export function ResumeDraftToolbar({
               )}
             </Button>
           </DropdownMenuTrigger>
-          <AppMenuContent align="end" className="min-w-0 w-max">
+          <AppMenuContent
+            data-resume-toolbar-portal=""
+            align="end"
+            className="min-w-0 w-max"
+          >
             <AppMenuItem
               disabled={disabled || exporting}
               onClick={() => onExport("pdf")}

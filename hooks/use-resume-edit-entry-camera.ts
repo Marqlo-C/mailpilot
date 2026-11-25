@@ -323,7 +323,7 @@ export function useResumeEditEntryCamera({
     };
   }, [cancelRaf, viewportActive, viewportRef]);
 
-  // Debounce exit so a blur flicker mid-lerp does not snap back to Fit.
+  // Tight single-frame guard matching `useResumeEditSplit` so split + zoom restore together.
   useEffect(() => {
     if (editMode) return;
     const restoreTimer = window.setTimeout(() => {
@@ -337,7 +337,7 @@ export function useResumeEditEntryCamera({
       const snapshot = preEditZoomRef.current;
       preEditZoomRef.current = null;
       if (snapshot) restoreZoom(snapshot);
-    }, 220);
+    }, 32);
     return () => window.clearTimeout(restoreTimer);
   }, [cancel, editMode, restoreZoom]);
 
