@@ -3,7 +3,10 @@
  * (WavySlider, WaveToggle, etc.).
  */
 
-/** Hex twin of CSS `--brand` / Tailwind `brand` (#1ab5af) for SVG fills/strokes. */
+/**
+ * Hex twin of CSS `--brand` / Tailwind `brand` (#1ab5af) for SVG fills/strokes.
+ * Selected-edge glow: CSS `--brand-selection-glow` + `components/ui/styles/brand-selection.ts`.
+ */
 export const BRAND_TEAL = "#1ab5af";
 
 /** Wave frequency and period geometry in CSS pixels — constant across all wave controls */

@@ -23,11 +23,15 @@ import {
   type DraftBlock,
 } from "@/components/features/opportunities/drawer/subcomponents/resume-draft-layout";
 import type { ResumeDraftNode, TailoredResumeDraft } from "@/lib/resume-draft";
+import {
+  resumeEffectiveZoom,
+  type ResumeDraftZoomChoice,
+} from "@/lib/resume-draft/edit-presentation";
+
+export type { ResumeDraftZoomChoice };
 
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
-
-export type ResumeDraftZoomChoice = "fit" | "0.85" | "1" | "1.25";
 
 type UseResumeDraftSheetArgs = {
   draft: TailoredResumeDraft;
@@ -42,6 +46,9 @@ type UseResumeDraftSheetArgs = {
 /**
  * Layout measurement, zoom, refine/notes chrome, and draft insights for
  * {@link ResumeDraftSheet}.
+ *
+ * Edit mode uses a derived zoom floor (max(base, 1)) — stored zoomChoice is
+ * never overwritten by enter/exit.
  */
 export function useResumeDraftSheet({
   draft,
@@ -54,8 +61,6 @@ export function useResumeDraftSheet({
   const [instruction, setInstruction] = useState("");
   const [zoomChoice, setZoomChoice] = useState<ResumeDraftZoomChoice>("fit");
   const [fitScale, setFitScale] = useState(0.7);
-  const savedZoomRef = useRef<ResumeDraftZoomChoice | null>(null);
-  const wasEditModeRef = useRef(false);
   const [blockHeights, setBlockHeights] = useState<Record<string, number>>({});
   const [notesOpen, setNotesOpen] = useState(false);
 
@@ -69,8 +74,6 @@ export function useResumeDraftSheet({
     const viewport = viewportRef.current;
     if (!viewport) return;
     const measure = () => {
-      // Equal desk inset (p-3 = 12px each side). Fit tracks the pane —
-      // do not clamp at 1 so wide split panes keep scaling the letter up.
       const available = viewport.clientWidth - 24;
       if (available <= 0) return;
       setFitScale(available / SHEET_WIDTH);
@@ -107,7 +110,6 @@ export function useResumeDraftSheet({
       const target = event.target;
       if (!(target instanceof Node)) return;
       if (refinePanelRef.current?.contains(target)) return;
-      // Line-chrome refine control lives in a portal; ignore clicks that open/retarget.
       if (
         target instanceof Element &&
         target.closest("[data-resume-line-toolbar]")
@@ -123,8 +125,6 @@ export function useResumeDraftSheet({
     };
   }, [refineFor]);
 
-  const zoom = zoomChoice === "fit" ? fitScale : Number(zoomChoice);
-
   const editMode = Boolean(refineFor) || lineEditing;
 
   useEffect(() => {
@@ -132,35 +132,12 @@ export function useResumeDraftSheet({
     return () => onEditModeChange?.(false);
   }, [editMode, onEditModeChange]);
 
-  // Edit mode → Fit; exit restores the zoom captured on enter.
-  useEffect(() => {
-    const entering = editMode && !wasEditModeRef.current;
-    const exiting = !editMode && wasEditModeRef.current;
+  const zoom = resumeEffectiveZoom(zoomChoice, fitScale, editMode);
 
-    if (entering) {
-      savedZoomRef.current = zoomChoice;
-      if (zoomChoice !== "fit") setZoomChoice("fit");
-    } else if (exiting) {
-      const restore = savedZoomRef.current;
-      savedZoomRef.current = null;
-      if (restore) setZoomChoice(restore);
-    }
+  const handleZoomChange = useCallback((next: ResumeDraftZoomChoice) => {
+    setZoomChoice(next);
+  }, []);
 
-    wasEditModeRef.current = editMode;
-    // zoomChoice intentionally omitted — programmatic Fit must not clobber snapshot.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- enter/exit only
-  }, [editMode]);
-
-  const handleZoomChange = useCallback(
-    (next: ResumeDraftZoomChoice) => {
-      setZoomChoice(next);
-      // User override while editing becomes the restore target.
-      if (wasEditModeRef.current && savedZoomRef.current !== null) {
-        savedZoomRef.current = next;
-      }
-    },
-    []
-  );
   const blocks = useMemo(() => {
     const all = buildBlocks(draft);
     if (includeSummary === false) {
@@ -208,7 +185,6 @@ export function useResumeDraftSheet({
     elements.forEach((el) => {
       const id = el.getAttribute("data-draft-block-id");
       if (!id) return;
-      // offsetHeight: unscaled CSS px. Include vertical margins for point geometry.
       const comp = window.getComputedStyle(el);
       const marginTop = parseFloat(comp.marginTop) || 0;
       const marginBottom = parseFloat(comp.marginBottom) || 0;
@@ -297,6 +273,7 @@ export function useResumeDraftSheet({
     zoomChoice,
     setZoomChoice: handleZoomChange,
     zoom,
+    editMode,
     notesOpen,
     notesPanelRef,
     notesTriggerRef,

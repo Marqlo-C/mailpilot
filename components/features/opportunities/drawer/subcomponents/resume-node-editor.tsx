@@ -125,6 +125,11 @@ export function EditableLine({
         onEditEnd?.();
       }}
       onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.currentTarget.blur();
+          return;
+        }
         if (!commitOnEnter || event.key !== "Enter") return;
         event.preventDefault();
         event.currentTarget.blur();

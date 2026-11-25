@@ -16,6 +16,7 @@ export * from "./typography";
 export * from "./node-ops";
 export * from "./composer";
 export * from "./refiner";
+export * from "./edit-presentation";
 
 export {
   cleanProjectUrl,

@@ -21,10 +21,17 @@ import {
 } from "@/components/ui/app-menu";
 import { Button } from "@/components/ui/button";
 import {
+  ToolbarClusterIconButton,
+  ToolbarToolCluster,
+  TOOLBAR_TOOL_CLUSTER_BTN_ACTIVE_CLASSNAME,
+  TOOLBAR_TOOL_CLUSTER_BTN_CLASSNAME,
+} from "@/components/ui/composites/toolbar-tool-cluster";
+import {
   DropdownMenu,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FileSparklesIcon } from "@/components/ui/icons/file-sparkles-icon";
+import { BRAND_SELECTION_TOGGLE_ACTIVE_CLASSNAME } from "@/components/ui/styles/brand-selection";
 import { SegmentedControl } from "@/components/ui/tactile/segmented-tabs";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import {
@@ -75,6 +82,9 @@ export type EmailDraftToolbarProps = {
   boldActive?: boolean;
   italicActive?: boolean;
   underlineActive?: boolean;
+  onToggleBold?: () => void;
+  onToggleItalic?: () => void;
+  onToggleUnderline?: () => void;
   textColor?: string | null;
   highlightColor?: string | null;
   alignValue?: AlignValue;
@@ -162,6 +172,9 @@ export function EmailDraftToolbar({
   boldActive = false,
   italicActive = false,
   underlineActive = false,
+  onToggleBold,
+  onToggleItalic,
+  onToggleUnderline,
   textColor = null,
   highlightColor = null,
   alignValue = "left",
@@ -188,164 +201,152 @@ export function EmailDraftToolbar({
           formatLocked && "pointer-events-none opacity-50"
         )}
       >
-        <LabelTooltip label="Undo" side="bottom">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
+        <ToolbarToolCluster label="History">
+          <ToolbarClusterIconButton
+            label="Undo"
             disabled={formatLocked || !canUndo}
-            aria-label="Undo"
-            className="size-8 shrink-0 px-0 [&_svg]:size-3.5"
             onClick={() => editor?.chain().focus().undo().run()}
           >
             <Undo2 aria-hidden />
-          </Button>
-        </LabelTooltip>
-        <LabelTooltip label="Redo" side="bottom">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
+          </ToolbarClusterIconButton>
+          <ToolbarClusterIconButton
+            label="Redo"
             disabled={formatLocked || !canRedo}
-            aria-label="Redo"
-            className="size-8 shrink-0 px-0 [&_svg]:size-3.5"
             onClick={() => editor?.chain().focus().redo().run()}
           >
             <Redo2 aria-hidden />
-          </Button>
-        </LabelTooltip>
+          </ToolbarClusterIconButton>
+        </ToolbarToolCluster>
 
         <ToolbarDivider />
 
-        <LabelTooltip label="Bold" side="bottom">
-          <Button
-            type="button"
-            variant={boldActive ? "secondary" : "outline"}
-            size="sm"
+        <ToolbarToolCluster label="Text style">
+          <ToolbarClusterIconButton
+            label="Bold"
+            pressed={boldActive}
             disabled={formatLocked}
-            aria-pressed={boldActive}
-            aria-label="Bold"
-            className="size-8 shrink-0 px-0 [&_svg]:size-3.5"
-            onClick={() => editor?.chain().focus().toggleBold().run()}
+            onClick={() => onToggleBold?.()}
           >
             <Bold aria-hidden />
-          </Button>
-        </LabelTooltip>
-        <LabelTooltip label="Italic" side="bottom">
-          <Button
-            type="button"
-            variant={italicActive ? "secondary" : "outline"}
-            size="sm"
+          </ToolbarClusterIconButton>
+          <ToolbarClusterIconButton
+            label="Italic"
+            pressed={italicActive}
             disabled={formatLocked}
-            aria-pressed={italicActive}
-            aria-label="Italic"
-            className="size-8 shrink-0 px-0 [&_svg]:size-3.5"
-            onClick={() => editor?.chain().focus().toggleItalic().run()}
+            onClick={() => onToggleItalic?.()}
           >
             <Italic aria-hidden />
-          </Button>
-        </LabelTooltip>
-        <LabelTooltip label="Underline" side="bottom">
-          <Button
-            type="button"
-            variant={underlineActive ? "secondary" : "outline"}
-            size="sm"
+          </ToolbarClusterIconButton>
+          <ToolbarClusterIconButton
+            label="Underline"
+            pressed={underlineActive}
             disabled={formatLocked}
-            aria-pressed={underlineActive}
-            aria-label="Underline"
-            className="size-8 shrink-0 px-0 [&_svg]:size-3.5"
-            onClick={() => editor?.chain().focus().toggleUnderline().run()}
+            onClick={() => onToggleUnderline?.()}
           >
             <Underline aria-hidden />
-          </Button>
-        </LabelTooltip>
+          </ToolbarClusterIconButton>
+        </ToolbarToolCluster>
 
-        <ToolbarDivider />
+        <ToolbarToolCluster label="Color">
+          <DropdownMenu>
+            <LabelTooltip label="Text color" side="bottom">
+              <span className="inline-flex">
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={formatLocked}
+                    aria-label="Text color"
+                    aria-pressed={Boolean(textColor)}
+                    className={cn(
+                      TOOLBAR_TOOL_CLUSTER_BTN_CLASSNAME,
+                      Boolean(textColor) &&
+                        TOOLBAR_TOOL_CLUSTER_BTN_ACTIVE_CLASSNAME,
+                      "relative"
+                    )}
+                    onMouseDown={(event) => event.preventDefault()}
+                  >
+                    <Baseline aria-hidden />
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-x-1.5 bottom-1 h-0.5 rounded-full"
+                      style={{ backgroundColor: textColor ?? "currentColor" }}
+                    />
+                  </button>
+                </DropdownMenuTrigger>
+              </span>
+            </LabelTooltip>
+            <AppMenuContent align="start" className="w-auto min-w-0 p-0">
+              <p className={cn(appMenuClassNames.light.label, "px-2.5 pt-2")}>
+                Text color
+              </p>
+              <SwatchGrid
+                kind="text"
+                swatches={EMAIL_TEXT_COLORS}
+                activeValue={textColor}
+                onSelect={(value) => {
+                  if (!editor) return;
+                  if (value === null) {
+                    editor.chain().focus().unsetColor().run();
+                    return;
+                  }
+                  editor.chain().focus().setColor(value).run();
+                }}
+              />
+            </AppMenuContent>
+          </DropdownMenu>
 
-        <DropdownMenu>
-          <LabelTooltip label="Text color" side="bottom">
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant={textColor ? "secondary" : "outline"}
-                size="sm"
-                disabled={formatLocked}
-                aria-label="Text color"
-                className="relative size-8 shrink-0 px-0 [&_svg]:size-3.5"
-              >
-                <Baseline aria-hidden />
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-x-1.5 bottom-1 h-0.5 rounded-full"
-                  style={{ backgroundColor: textColor ?? "currentColor" }}
-                />
-              </Button>
-            </DropdownMenuTrigger>
-          </LabelTooltip>
-          <AppMenuContent align="start" className="w-auto min-w-0 p-0">
-            <p className={cn(appMenuClassNames.light.label, "px-2.5 pt-2")}>
-              Text color
-            </p>
-            <SwatchGrid
-              kind="text"
-              swatches={EMAIL_TEXT_COLORS}
-              activeValue={textColor}
-              onSelect={(value) => {
-                if (!editor) return;
-                if (value === null) {
-                  editor.chain().focus().unsetColor().run();
-                  return;
-                }
-                editor.chain().focus().setColor(value).run();
-              }}
-            />
-          </AppMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <LabelTooltip label="Highlight" side="bottom">
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant={highlightColor ? "secondary" : "outline"}
-                size="sm"
-                disabled={formatLocked}
-                aria-label="Highlight color"
-                className="relative size-8 shrink-0 px-0 [&_svg]:size-3.5"
-              >
-                <Highlighter aria-hidden />
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-x-1.5 bottom-1 h-0.5 rounded-full"
-                  style={{
-                    backgroundColor: highlightColor ?? "transparent",
-                    borderBottom: highlightColor
-                      ? undefined
-                      : "1px solid currentColor",
-                  }}
-                />
-              </Button>
-            </DropdownMenuTrigger>
-          </LabelTooltip>
-          <AppMenuContent align="start" className="w-auto min-w-0 p-0">
-            <p className={cn(appMenuClassNames.light.label, "px-2.5 pt-2")}>
-              Highlight
-            </p>
-            <SwatchGrid
-              kind="highlight"
-              swatches={EMAIL_HIGHLIGHT_COLORS}
-              activeValue={highlightColor}
-              onSelect={(value) => {
-                if (!editor) return;
-                if (value === null) {
-                  editor.chain().focus().unsetHighlight().run();
-                  return;
-                }
-                editor.chain().focus().setHighlight({ color: value }).run();
-              }}
-            />
-          </AppMenuContent>
-        </DropdownMenu>
+          <DropdownMenu>
+            <LabelTooltip label="Highlight" side="bottom">
+              <span className="inline-flex">
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={formatLocked}
+                    aria-label="Highlight color"
+                    aria-pressed={Boolean(highlightColor)}
+                    className={cn(
+                      TOOLBAR_TOOL_CLUSTER_BTN_CLASSNAME,
+                      Boolean(highlightColor) &&
+                        TOOLBAR_TOOL_CLUSTER_BTN_ACTIVE_CLASSNAME,
+                      "relative"
+                    )}
+                    onMouseDown={(event) => event.preventDefault()}
+                  >
+                    <Highlighter aria-hidden />
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-x-1.5 bottom-1 h-0.5 rounded-full"
+                      style={{
+                        backgroundColor: highlightColor ?? "transparent",
+                        borderBottom: highlightColor
+                          ? undefined
+                          : "1px solid currentColor",
+                      }}
+                    />
+                  </button>
+                </DropdownMenuTrigger>
+              </span>
+            </LabelTooltip>
+            <AppMenuContent align="start" className="w-auto min-w-0 p-0">
+              <p className={cn(appMenuClassNames.light.label, "px-2.5 pt-2")}>
+                Highlight
+              </p>
+              <SwatchGrid
+                kind="highlight"
+                swatches={EMAIL_HIGHLIGHT_COLORS}
+                activeValue={highlightColor}
+                onSelect={(value) => {
+                  if (!editor) return;
+                  if (value === null) {
+                    editor.chain().focus().unsetHighlight().run();
+                    return;
+                  }
+                  editor.chain().focus().setHighlight({ color: value }).run();
+                }}
+              />
+            </AppMenuContent>
+          </DropdownMenu>
+        </ToolbarToolCluster>
 
         <ToolbarDivider />
 
@@ -376,12 +377,15 @@ export function EmailDraftToolbar({
           <LabelTooltip label={resumeTip} side="bottom">
             <Button
               type="button"
-              variant={attachResume ? "secondary" : "outline"}
+              variant="outline"
               size="sm"
               disabled={disabled || attachLocked}
               aria-pressed={attachResume}
               aria-label={resumeTip}
-              className="size-8 shrink-0 overflow-visible px-0 [&_svg]:size-4 [&_svg]:overflow-visible"
+              className={cn(
+                "size-8 shrink-0 overflow-visible px-0 [&_svg]:size-4 [&_svg]:overflow-visible",
+                attachResume && BRAND_SELECTION_TOGGLE_ACTIVE_CLASSNAME
+              )}
               onClick={() => onAttachResumeChange(!attachResume)}
             >
               <FileSparklesIcon

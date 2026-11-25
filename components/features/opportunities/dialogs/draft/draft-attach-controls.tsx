@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { AttachmentChip } from "@/components/ui/composites/attachment-chip";
 import { FileSparklesIcon } from "@/components/ui/icons/file-sparkles-icon";
+import { BRAND_SELECTION_TOGGLE_ACTIVE_CLASSNAME } from "@/components/ui/styles/brand-selection";
 import { LabelTooltip } from "@/components/ui/tooltip";
 import type { OpportunityResumePreview } from "@/app/actions/opportunities";
 import { cn } from "@/lib/utils";
@@ -70,12 +71,15 @@ export function DraftAttachControls({
       <LabelTooltip label={tip} side="top">
         <Button
           type="button"
-          variant={attachResume ? "secondary" : "outline"}
+          variant="outline"
           size="sm"
           disabled={locked}
           aria-pressed={attachResume}
           aria-label={tip}
-          className="size-7 overflow-visible px-0 [&_svg]:size-[16px] [&_svg]:overflow-visible"
+          className={cn(
+            "size-7 overflow-visible px-0 [&_svg]:size-[16px] [&_svg]:overflow-visible",
+            attachResume && BRAND_SELECTION_TOGGLE_ACTIVE_CLASSNAME
+          )}
           onClick={() => onAttachChange(!attachResume)}
         >
           <FileSparklesIcon

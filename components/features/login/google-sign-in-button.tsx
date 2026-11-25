@@ -1,8 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 
-import { Loader } from "@/components/ui/loader";
+import { BRANDING } from "@/lib/constants/branding";
+import { PRESS_SCALE_BTN } from "@/components/ui/styles/press-feedback";
+import { cn } from "@/lib/utils";
+
+const DEFAULT_HREF = "/api/auth/google?intent=login";
 
 function GoogleGlyph({ className }: { className?: string }) {
   return (
@@ -43,20 +48,75 @@ export function GoogleSignInButton({ href }: { href: string }) {
         if (pending) return;
         setPending(true);
       }}
-      className="group relative flex h-11 w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-[hsl(var(--sidebar-panel))] text-sm font-medium text-[#e4f7f3] shadow-sm aria-disabled:pointer-events-none aria-disabled:opacity-70"
+      className={cn(
+        "inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2.5 rounded-lg bg-[#181e26] text-sm font-medium text-white shadow-sm hover:bg-[#252b34] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring aria-disabled:pointer-events-none aria-disabled:opacity-70",
+        PRESS_SCALE_BTN,
+      )}
     >
-      <span
-        aria-hidden
-        className="absolute inset-y-0 left-0 w-0 bg-brand transition-[width] duration-300 ease-out group-hover:w-full"
-      />
-      <span className="relative z-10 inline-flex items-center gap-2.5">
-        {pending ? (
-          <Loader size="sm" aria-hidden />
-        ) : (
-          <GoogleGlyph className="size-5" />
-        )}
-        Continue with Google
-      </span>
+      {pending ? (
+        <Loader2 className="size-4 animate-spin" aria-hidden />
+      ) : (
+        <GoogleGlyph className="size-5" />
+      )}
+      Continue with Google
     </a>
+  );
+}
+
+/**
+ * Auth CTAs + optional sign-in error. Reads `error` / `next` from the URL after
+ * mount so the login page never awaits Promise `searchParams`.
+ */
+export function LoginAuthControls() {
+  const [error, setError] = useState<string | null>(null);
+  const [href, setHref] = useState(DEFAULT_HREF);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("error");
+    const next = params.get("next");
+    if (err) setError(err);
+    if (next && next.startsWith("/")) {
+      setHref(`${DEFAULT_HREF}&next=${encodeURIComponent(next)}`);
+    }
+  }, []);
+
+  return (
+    <div className="space-y-2.5">
+      {error ? (
+        <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-center text-sm text-destructive">
+          Sign-in failed: {error}
+        </p>
+      ) : null}
+
+      <h2 className="font-wordmark text-center text-sm font-semibold tracking-tight">
+        Sign In or Create an Account
+      </h2>
+      <GoogleSignInButton href={href} />
+      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+        <div className="h-px flex-1 bg-border" />
+        <span>or</span>
+        <div className="h-px flex-1 bg-border" />
+      </div>
+      <a
+        href={BRANDING.repositoryUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(
+          "inline-flex h-11 w-full items-center justify-center gap-2.5 rounded-lg bg-[#24292f] text-sm font-medium text-white shadow-sm hover:bg-[#30363d] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          PRESS_SCALE_BTN,
+        )}
+      >
+        <svg
+          className="size-5 fill-current"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+        </svg>
+        Open Repo in GitHub
+      </a>
+    </div>
   );
 }

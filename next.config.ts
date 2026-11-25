@@ -12,6 +12,10 @@ const pdfjsAssets = [
 ];
 
 const nextConfig: NextConfig = {
+  // Parent ~/package-lock.json was hijacking Turbopack resolution.
+  turbopack: {
+    root: process.cwd(),
+  },
   // Keep document packages external so Node resolves them from node_modules
   // (avoids broken bundled worker / font paths in Vercel lambdas).
   serverExternalPackages: [

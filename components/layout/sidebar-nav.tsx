@@ -17,6 +17,7 @@ import {
   sidebarTabsForHref,
   type SidebarPageTab,
 } from "@/lib/utils/navigation/page-tabs";
+import { BRAND_SELECTION_EDGE_CLASSNAME } from "@/components/ui/styles/brand-selection";
 import {
   darkPlateClassName,
   TabCountBadge,
@@ -287,7 +288,7 @@ export function SidebarNav({
                   className={cn(
                     NAV_EDGE_MARK_CLASS,
                     NAV_EDGE_MARK_EXPANDED,
-                    "bg-brand shadow-[2px_0_6px_hsl(var(--brand)/0.35)]"
+                    BRAND_SELECTION_EDGE_CLASSNAME
                   )}
                   aria-hidden="true"
                 />

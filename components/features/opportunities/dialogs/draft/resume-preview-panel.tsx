@@ -7,6 +7,7 @@ import { ResumeDraftSheet } from "@/components/features/opportunities/drawer/res
 import { ResumeStrategyPanel } from "@/components/features/opportunities/drawer/subcomponents/resume-strategy-panel";
 import { useContentSettleKey } from "@/hooks/use-content-settle-key";
 import type { OpportunityResumePreview } from "@/app/actions/opportunities";
+import { classifyResumeEditTarget } from "@/lib/resume-draft/edit-presentation";
 import { cn } from "@/lib/utils";
 import {
   COMPOSER_SPLIT_PLATE_CLASSNAME,
@@ -14,12 +15,16 @@ import {
 } from "@/components/ui/styles/field-chrome";
 import { DraftPaneBusyOverlay } from "./draft-pane-busy-overlay";
 
-function isResumeEditTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return (
-    target.isContentEditable ||
-    target.getAttribute("contenteditable") === "true"
-  );
+function resumeRootFrom(container: HTMLElement): Element | null {
+  return container.querySelector("[data-resume-draft-root]");
+}
+
+function isLineEditingFocus(
+  target: EventTarget | null,
+  resumeRoot: Element | null
+): boolean {
+  const kind = classifyResumeEditTarget(target, resumeRoot);
+  return kind === "editable";
 }
 
 export function ResumePreviewPanel({
@@ -87,15 +92,23 @@ export function ResumePreviewPanel({
         embedded && editingFocused && COMPOSER_SPLIT_PLATE_FOCUS_CLASSNAME
       )}
       onFocusCapture={(event) => {
-        if (isResumeEditTarget(event.target)) setEditingFocused(true);
+        const resumeRoot = resumeRootFrom(event.currentTarget);
+        if (isLineEditingFocus(event.target, resumeRoot)) {
+          setEditingFocused(true);
+        }
       }}
       onBlurCapture={(event) => {
-        const root = event.currentTarget;
+        const plate = event.currentTarget;
+        // Hop A→B: defer one frame; cancel exit if new focus is editable/local.
         requestAnimationFrame(() => {
           const active = document.activeElement;
-          setEditingFocused(
-            root.contains(active) && isResumeEditTarget(active)
-          );
+          const resumeRoot = resumeRootFrom(plate);
+          const kind = classifyResumeEditTarget(active, resumeRoot);
+          if (kind === "editable" || kind === "resume-local") {
+            setEditingFocused(kind === "editable");
+            return;
+          }
+          setEditingFocused(false);
         });
       }}
     >

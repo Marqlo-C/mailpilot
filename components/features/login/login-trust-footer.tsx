@@ -18,7 +18,8 @@ export function LoginTrustFooter() {
           <p className="text-[10px] font-medium leading-snug text-muted-foreground/90">
             Secured via Google OAuth
           </p>
-          <p className="mt-0.5 text-[9px] leading-snug text-muted-foreground/65">
+          {/* div (not p) so the tooltip button is valid HTML and won’t hydrate-mismatch */}
+          <div className="mt-0.5 text-[9px] leading-snug text-muted-foreground/65">
             Mailbox access is limited to inbox automation and application
             dispatch. Enable Google 2-Step Verification.{" "}
             <TooltipProvider delayDuration={200}>
@@ -44,7 +45,7 @@ export function LoginTrustFooter() {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          </p>
+          </div>
         </div>
       </div>
     </div>

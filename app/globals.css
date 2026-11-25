@@ -59,6 +59,8 @@
     --primary-foreground: 0 0% 100%;
     /* Bright Operate accent (#1ab5af) — rail edges, insert markers, status ok. */
     --brand: 177 74% 41%;
+    /* Tab-rail / nav selected teal edge glow — keep in lockstep with brand. */
+    --brand-selection-glow: 2px 0 6px hsl(var(--brand) / 0.35);
     --secondary: 210 14% 91%;
     --secondary-foreground: 210 24% 16%;
     --muted: 174 18% 95%;

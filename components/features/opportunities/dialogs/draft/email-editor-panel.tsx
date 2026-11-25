@@ -130,6 +130,9 @@ export function EmailEditorPanel({
     textColor,
     highlightColor,
     alignValue,
+    toggleBold,
+    toggleItalic,
+    toggleUnderline,
   } = useEmailBodyEditor({
     body,
     setBody,
@@ -306,6 +309,9 @@ export function EmailEditorPanel({
           boldActive={boldActive}
           italicActive={italicActive}
           underlineActive={underlineActive}
+          onToggleBold={toggleBold}
+          onToggleItalic={toggleItalic}
+          onToggleUnderline={toggleUnderline}
           textColor={textColor}
           highlightColor={highlightColor}
           alignValue={alignValue}

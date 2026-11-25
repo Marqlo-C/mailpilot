@@ -70,11 +70,12 @@ function SkillGroupSpan({
     included,
   });
 
+  const { ref: lineRef, ...lineTargetProps } = targetProps;
+
   return (
     <span>
       {skillIndex > 0 ? <span> • </span> : null}
       <span
-        {...targetProps}
         className={cn(
           !included && "opacity-40 line-through decoration-[#9ca3af]"
         )}
@@ -82,19 +83,25 @@ function SkillGroupSpan({
         {label ? (
           <span className="font-bold text-slate-900">{label}: </span>
         ) : null}
-        <EditableLine
-          as="span"
-          value={node.content}
-          disabled={disabled}
-          commitOnEnter
-          onEditStart={editProps.onEditStart}
-          onEditEnd={editProps.onEditEnd}
-          onCommit={(next) => onCommit(node.id, next)}
-          className={cn(
-            "inline rounded-sm box-decoration-clone font-normal text-slate-700 outline-none transition-colors focus:bg-[#f8fafc]",
-            highlighted && "bg-[#111827]/[0.05]"
-          )}
-        />
+        {/*
+          Chrome target is the editable only — not the bold label — so the
+          float centers above skill text (first line if the group wraps).
+        */}
+        <span ref={lineRef} {...lineTargetProps} className="inline">
+          <EditableLine
+            as="span"
+            value={node.content}
+            disabled={disabled}
+            commitOnEnter
+            onEditStart={editProps.onEditStart}
+            onEditEnd={editProps.onEditEnd}
+            onCommit={(next) => onCommit(node.id, next)}
+            className={cn(
+              "inline rounded-sm box-decoration-clone font-normal text-slate-700 outline-none transition-colors focus:bg-[#f8fafc]",
+              highlighted && "bg-[#111827]/[0.05]"
+            )}
+          />
+        </span>
       </span>
     </span>
   );

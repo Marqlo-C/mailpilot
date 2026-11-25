@@ -100,8 +100,12 @@ export function ResumeDraftCanvas({
       ref={viewportRef}
       className="flex h-full min-h-0 w-full max-w-full flex-1 overflow-auto bg-background/75 p-3"
     >
+      {/*
+        Left-align (not mx-auto): centered pages can't scroll horizontally to
+        keep a click pinned — scrollLeft stays 0 while the sheet drifts.
+      */}
       <div
-        className="mx-auto shrink-0"
+        className="shrink-0"
         style={{
           width: SHEET_WIDTH * zoom,
           height: totalCanvasHeight * zoom,
@@ -109,10 +113,13 @@ export function ResumeDraftCanvas({
       >
         <div
           ref={pagesContainerRef}
-          className="flex flex-col gap-6 origin-top-left transition-transform duration-150 ease-apple-snappy"
+          data-resume-pages=""
+          className="flex flex-col gap-6 transition-transform duration-[180ms] ease-apple-snappy motion-reduce:transition-none"
           style={{
             width: SHEET_WIDTH,
             transform: `scale(${zoom})`,
+            // Default top-left; edit pin overwrites to the click in page space.
+            transformOrigin: "0 0",
           }}
         >
           {displayPages.map((pageBlocks, pageIndex) => (

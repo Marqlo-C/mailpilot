@@ -22,6 +22,10 @@ import {
 } from "@/components/ui/app-menu";
 import { Button } from "@/components/ui/button";
 import {
+  ToolbarClusterIconButton,
+  ToolbarToolCluster,
+} from "@/components/ui/composites/toolbar-tool-cluster";
+import {
   DropdownMenu,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -32,6 +36,7 @@ import {
   DASHED_OUTLINE_STROKE_CLASSNAME,
   DashedBorderRing,
 } from "@/components/ui/tactile/dashed-border-ring";
+import { BRAND_SELECTION_TOGGLE_ACTIVE_CLASSNAME } from "@/components/ui/styles/brand-selection";
 import { FieldTrailingButton } from "@/components/ui/tactile/text-field";
 import { SegmentedControl } from "@/components/ui/tactile/segmented-tabs";
 import { LabelTooltip } from "@/components/ui/tooltip";
@@ -128,52 +133,45 @@ export function ResumeDraftToolbar({
   return (
     <div
       ref={toolbarRef}
+      data-resume-toolbar=""
       className="relative z-20 flex w-full max-w-full shrink-0 items-center gap-2 overflow-visible rounded-t-lg border-b border-border/60 bg-card/80 px-3 py-3 text-xs backdrop-blur-sm"
     >
       <div className="flex shrink-0 items-center gap-1.5">
         {showHistory ? (
           <>
-            <LabelTooltip label="Undo" side="bottom">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
+            <ToolbarToolCluster label="History">
+              <ToolbarClusterIconButton
+                label="Undo"
                 disabled={disabled || !canUndo}
-                aria-label="Undo"
-                className="size-8 shrink-0 px-0 [&_svg]:size-3.5"
                 // Keep contenteditable focus so native undo still works.
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => onUndo?.()}
               >
                 <Undo2 aria-hidden />
-              </Button>
-            </LabelTooltip>
-            <LabelTooltip label="Redo" side="bottom">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
+              </ToolbarClusterIconButton>
+              <ToolbarClusterIconButton
+                label="Redo"
                 disabled={disabled || !canRedo}
-                aria-label="Redo"
-                className="size-8 shrink-0 px-0 [&_svg]:size-3.5"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => onRedo?.()}
               >
                 <Redo2 aria-hidden />
-              </Button>
-            </LabelTooltip>
+              </ToolbarClusterIconButton>
+            </ToolbarToolCluster>
             <ToolbarDivider />
           </>
         ) : null}
-        <SegmentedControl
-          size="sm"
-          label="Resume zoom"
-          value={zoomChoice}
-          onChange={onZoomChange}
-          options={ZOOM_OPTIONS}
-          disabled={disabled}
-          className={cn("shrink-0", disabled && "pointer-events-none")}
-        />
+        <div data-resume-zoom-control="" tabIndex={-1} className="outline-none">
+          <SegmentedControl
+            size="sm"
+            label="Resume zoom"
+            value={zoomChoice}
+            onChange={onZoomChange}
+            options={ZOOM_OPTIONS}
+            disabled={disabled}
+            className={cn("shrink-0", disabled && "pointer-events-none")}
+          />
+        </div>
       </div>
 
       <div
@@ -195,7 +193,7 @@ export function ResumeDraftToolbar({
             >
               <Button
                 type="button"
-                variant={includeSummary ? "secondary" : "outline"}
+                variant="outline"
                 size="sm"
                 disabled={disabled}
                 aria-pressed={includeSummary}
@@ -204,7 +202,10 @@ export function ResumeDraftToolbar({
                     ? "Hide summary section"
                     : "Show summary section"
                 }
-                className="size-8 shrink-0 px-0 [&_svg]:size-3.5"
+                className={cn(
+                  "size-8 shrink-0 px-0 [&_svg]:size-3.5",
+                  includeSummary && BRAND_SELECTION_TOGGLE_ACTIVE_CLASSNAME
+                )}
                 onClick={() => onIncludeSummaryChange?.(!includeSummary)}
               >
                 <Summary aria-hidden />
@@ -372,6 +373,7 @@ export function ResumeDraftToolbar({
       {refineFor ? (
         <form
           ref={refinePanelRef}
+          data-resume-ace-refine=""
           role="dialog"
           aria-label="Ask Ace to refine this line"
           className={cn(
